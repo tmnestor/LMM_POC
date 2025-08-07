@@ -13,7 +13,12 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor, MllamaForConditionalGeneration
 
-from common.config import EXTRACTION_FIELDS, FIELD_COUNT, FIELD_INSTRUCTIONS, LLAMA_MODEL_PATH
+from common.config import (
+    EXTRACTION_FIELDS,
+    FIELD_COUNT,
+    FIELD_INSTRUCTIONS,
+    LLAMA_MODEL_PATH,
+)
 from common.evaluation_utils import parse_extraction_response
 
 warnings.filterwarnings('ignore')
