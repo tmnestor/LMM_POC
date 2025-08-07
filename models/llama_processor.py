@@ -8,16 +8,21 @@ model loading, image preprocessing, and batch processing logic.
 import time
 import warnings
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 import torch
 from PIL import Image
 from transformers import AutoProcessor, MllamaForConditionalGeneration
 
 from common.config import (
+    BATCH_SIZE_FALLBACK_STEPS,
+    CLEAR_GPU_CACHE_AFTER_BATCH,
+    ENABLE_BATCH_SIZE_FALLBACK,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
     FIELD_INSTRUCTIONS,
     LLAMA_MODEL_PATH,
+    get_auto_batch_size,
 )
 from common.evaluation_utils import parse_extraction_response
 
@@ -27,21 +32,53 @@ warnings.filterwarnings('ignore')
 class LlamaProcessor:
     """Processor for Llama-3.2-11B-Vision-Instruct model."""
     
-    def __init__(self, model_path=None, device='cuda'):
+    def __init__(self, model_path=None, device='cuda', batch_size=None):
         """
         Initialize Llama processor with model and processor.
         
         Args:
             model_path (str): Path to model weights (uses default if None)
             device (str): Device to run model on
+            batch_size (int): Batch size for processing (auto-detected if None)
         """
         self.model_path = model_path or LLAMA_MODEL_PATH
         self.device = device
         self.model = None
         self.processor = None
         
+        # Configure batch processing
+        self._configure_batch_processing(batch_size)
+        
         # Initialize model and processor
         self._load_model()
+    
+    def _configure_batch_processing(self, batch_size: Optional[int]):
+        """Configure batch processing parameters."""
+        if batch_size is not None:
+            self.batch_size = max(1, batch_size)  # Ensure minimum batch size of 1
+            print(f"🎯 Using manual batch size: {self.batch_size}")
+        else:
+            # Auto-detect batch size based on available memory
+            available_memory = self._get_available_gpu_memory()
+            self.batch_size = get_auto_batch_size('llama', available_memory)
+            print(f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)")
+    
+    def _get_available_gpu_memory(self) -> float:
+        """Get available GPU memory in GB."""
+        if not torch.cuda.is_available() or self.device == 'cpu':
+            return 0.0
+        
+        try:
+            # Get total and allocated memory
+            device_idx = torch.cuda.current_device() if self.device == 'cuda' else int(self.device.split(':')[-1])
+            total_memory = torch.cuda.get_device_properties(device_idx).total_memory
+            allocated_memory = torch.cuda.memory_allocated(device_idx)
+            available_memory = (total_memory - allocated_memory) / (1024 ** 3)  # Convert to GB
+            
+            return available_memory
+        except Exception as e:
+            print(f"⚠️ Could not detect GPU memory: {e}")
+            return 16.0  # Assume 16GB as default for V100
     
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
@@ -208,51 +245,59 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 'raw_response_length': 0
             }
     
-    def process_image_batch(self, image_files, progress_callback=None):
+    def process_image_batch(self, image_files: List[str], progress_callback=None) -> Tuple[list, dict]:
         """
-        Process batch of images through Llama extraction pipeline.
+        Process batch of images through Llama extraction pipeline with true batch processing.
         
         Args:
-            image_files (list): List of image file paths
+            image_files (List[str]): List of image file paths
             progress_callback (callable): Optional callback for progress updates
             
         Returns:
-            tuple: (results, statistics) - Extraction results and batch statistics
+            Tuple[list, dict]: (results, statistics) - Extraction results and batch statistics
         """
+        if not image_files:
+            return [], {'total_images': 0, 'successful_extractions': 0, 'total_processing_time': 0, 'average_processing_time': 0, 'success_rate': 0}
+        
+        print(f"\n🚀 Processing {len(image_files)} images with Llama Vision (batch_size={self.batch_size})...")
+        
         results = []
         total_processing_time = 0
         successful_extractions = 0
         
-        print(f"\n🚀 Processing {len(image_files)} images with Llama Vision...")
-        
-        for idx, image_path in enumerate(image_files, 1):
-            # Progress update
-            if progress_callback:
-                progress_callback(idx, len(image_files), image_path)
-            else:
-                print(f"\n[{idx}/{len(image_files)}] Processing: {Path(image_path).name}")
+        # Process images in batches
+        for batch_start in range(0, len(image_files), self.batch_size):
+            batch_end = min(batch_start + self.batch_size, len(image_files))
+            batch_files = image_files[batch_start:batch_end]
             
-            # Process image
-            result = self.process_single_image(image_path)
-            results.append(result)
+            # Progress update for batch
+            if progress_callback:
+                progress_callback(batch_end, len(image_files), f"Batch {batch_start//self.batch_size + 1}")
+            else:
+                print(f"\n[Batch {batch_start//self.batch_size + 1}] Processing images {batch_start+1}-{batch_end} of {len(image_files)}")
+            
+            # Process current batch with fallback mechanism
+            batch_results = self._process_batch_with_fallback(batch_files)
+            results.extend(batch_results)
             
             # Update statistics
-            total_processing_time += result['processing_time']
-            if result['response_completeness'] > 0:
-                successful_extractions += 1
+            for result in batch_results:
+                total_processing_time += result['processing_time']
+                if result['response_completeness'] > 0:
+                    successful_extractions += 1
             
-            # Show extraction status
-            print(f"   ⏱️ Processing time: {result['processing_time']:.2f}s")
-            print(f"   📊 Fields extracted: {result['extracted_fields_count']}/{FIELD_COUNT}")
-            print(f"   ✅ Response completeness: {result['response_completeness']:.1%}")
+            # Clear GPU cache after each batch
+            if CLEAR_GPU_CACHE_AFTER_BATCH and torch.cuda.is_available():
+                torch.cuda.empty_cache()
         
-        # Calculate batch statistics
+        # Calculate final statistics
         batch_statistics = {
             'total_images': len(image_files),
             'successful_extractions': successful_extractions,
             'total_processing_time': total_processing_time,
             'average_processing_time': total_processing_time / len(image_files) if image_files else 0,
-            'success_rate': successful_extractions / len(image_files) if image_files else 0
+            'success_rate': successful_extractions / len(image_files) if image_files else 0,
+            'effective_batch_size': self.batch_size
         }
         
         print("\n📊 Batch Processing Complete:")
@@ -260,5 +305,217 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         print(f"   Successful extractions: {batch_statistics['successful_extractions']}")
         print(f"   Success rate: {batch_statistics['success_rate']:.1%}")
         print(f"   Average processing time: {batch_statistics['average_processing_time']:.2f}s")
+        print(f"   Effective batch size: {batch_statistics['effective_batch_size']}")
         
         return results, batch_statistics
+    
+    def _process_batch_with_fallback(self, batch_files: List[str]) -> List[dict]:
+        """
+        Process a batch of images with automatic fallback on OOM errors.
+        
+        Args:
+            batch_files (List[str]): List of image file paths for this batch
+            
+        Returns:
+            List[dict]: Results for this batch
+        """
+        if len(batch_files) == 1:
+            # Single image processing (no batching needed)
+            return [self.process_single_image(batch_files[0])]
+        
+        # Try true batch processing first
+        if ENABLE_BATCH_SIZE_FALLBACK:
+            return self._process_batch_with_retry(batch_files)
+        else:
+            return self._process_true_batch(batch_files)
+    
+    def _process_batch_with_retry(self, batch_files: List[str]) -> List[dict]:
+        """
+        Process batch with automatic retry on memory errors.
+        
+        Args:
+            batch_files (List[str]): List of image file paths
+            
+        Returns:
+            List[dict]: Processing results
+        """
+        current_batch_size = len(batch_files)
+        
+        # Try smaller batch sizes if needed
+        for fallback_size in BATCH_SIZE_FALLBACK_STEPS:
+            if fallback_size >= current_batch_size:
+                continue
+                
+            try:
+                return self._process_true_batch(batch_files)
+            except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+                if "out of memory" in str(e).lower():
+                    print(f"   ⚠️ OOM with batch size {current_batch_size}, trying smaller batches...")
+                    # Split into smaller batches
+                    results = []
+                    for i in range(0, len(batch_files), fallback_size):
+                        sub_batch = batch_files[i:i+fallback_size]
+                        try:
+                            sub_results = self._process_true_batch(sub_batch)
+                            results.extend(sub_results)
+                        except Exception as sub_e:
+                            print(f"   ❌ Sub-batch failed, falling back to individual processing: {sub_e}")
+                            # Ultimate fallback: process individually
+                            for file in sub_batch:
+                                results.append(self.process_single_image(file))
+                        
+                        # Clear cache between sub-batches
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    
+                    return results
+                else:
+                    raise e
+        
+        # Ultimate fallback: process individually
+        print(f"   🔄 Falling back to individual processing for {len(batch_files)} images")
+        return [self.process_single_image(file) for file in batch_files]
+    
+    def _process_true_batch(self, batch_files: List[str]) -> List[dict]:
+        """
+        Process multiple images in a true batch (parallel processing).
+        
+        Args:
+            batch_files (List[str]): List of image file paths
+            
+        Returns:
+            List[dict]: Processing results for each image
+        """
+        if len(batch_files) == 1:
+            return [self.process_single_image(batch_files[0])]
+        
+        start_time = time.time()
+        
+        try:
+            # Load all images in batch
+            images = []
+            valid_files = []
+            
+            for file_path in batch_files:
+                try:
+                    image = self.load_document_image(file_path)
+                    images.append(image)
+                    valid_files.append(file_path)
+                except Exception as e:
+                    print(f"   ❌ Failed to load {Path(file_path).name}: {e}")
+                    # Add error result for failed image
+                    continue
+            
+            if not images:
+                return [self._create_error_result(file, "Image loading failed") for file in batch_files]
+            
+            # Create batch inputs
+            messages_batch = []
+            for _i, _image in enumerate(images):
+                messages = [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": self.get_extraction_prompt()}
+                    ]
+                }]
+                messages_batch.append(messages)
+            
+            # Process batch
+            results = []
+            
+            # For Llama, we need to process images individually due to API limitations
+            # But we can optimize by pre-loading and reusing the prompt
+            prompt_template = self.get_extraction_prompt()
+            
+            for _idx, (image, file_path) in enumerate(zip(images, valid_files, strict=False)):
+                try:
+                    # Create conversation for this image
+                    messages = [{
+                        "role": "user", 
+                        "content": [
+                            {"type": "image"},
+                            {"type": "text", "text": prompt_template}
+                        ]
+                    }]
+                    
+                    # Apply chat template
+                    input_text = self.processor.apply_chat_template(messages, add_generation_prompt=True)
+                    
+                    # Process inputs
+                    inputs = self.processor(image, input_text, return_tensors="pt").to(self.model.device)
+                    
+                    # Generate response
+                    with torch.no_grad():
+                        output = self.model.generate(
+                            **inputs,
+                            max_new_tokens=max(800, FIELD_COUNT * 40),
+                            temperature=0.1,
+                            do_sample=True,
+                            top_p=0.95,
+                            pad_token_id=self.processor.tokenizer.eos_token_id
+                        )
+                    
+                    # Decode response
+                    response = self.processor.decode(output[0], skip_special_tokens=True)
+                    
+                    # Extract assistant response
+                    if "assistant\n\n" in response:
+                        response = response.split("assistant\n\n")[-1].strip()
+                    elif "assistant" in response:
+                        response = response.split("assistant")[-1].strip()
+                    
+                    # Parse response
+                    extracted_data = parse_extraction_response(response, clean_conversation_artifacts=True)
+                    
+                    # Calculate metrics
+                    extracted_fields_count = sum(1 for v in extracted_data.values() if v != "N/A")
+                    response_completeness = len([k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]) / len(EXTRACTION_FIELDS)
+                    content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
+                    
+                    result = {
+                        'image_name': Path(file_path).name,
+                        'extracted_data': extracted_data,
+                        'raw_response': response,
+                        'processing_time': (time.time() - start_time) / len(valid_files),  # Approximate per-image time
+                        'response_completeness': response_completeness,
+                        'content_coverage': content_coverage,
+                        'extracted_fields_count': extracted_fields_count,
+                        'raw_response_length': len(response)
+                    }
+                    
+                    results.append(result)
+                    
+                    print(f"     ✅ {Path(file_path).name}: {extracted_fields_count}/{FIELD_COUNT} fields")
+                    
+                except Exception as e:
+                    print(f"     ❌ {Path(file_path).name}: {e}")
+                    results.append(self._create_error_result(file_path, str(e)))
+            
+            # Add error results for any files that failed to load
+            failed_files = set(batch_files) - set(valid_files)
+            for failed_file in failed_files:
+                results.append(self._create_error_result(failed_file, "Image loading failed"))
+            
+            total_time = time.time() - start_time
+            print(f"   ⏱️ Batch processing time: {total_time:.2f}s ({total_time/len(batch_files):.2f}s per image)")
+            
+            return results
+            
+        except Exception as e:
+            print(f"   ❌ Batch processing failed: {e}")
+            # Fallback to individual processing
+            return [self.process_single_image(file) for file in batch_files]
+    
+    def _create_error_result(self, file_path: str, error_message: str) -> dict:
+        """Create standardized error result for failed processing."""
+        return {
+            'image_name': Path(file_path).name,
+            'extracted_data': {field: "N/A" for field in EXTRACTION_FIELDS},
+            'raw_response': f"Error: {error_message}",
+            'processing_time': 0,
+            'response_completeness': 0,
+            'content_coverage': 0,
+            'extracted_fields_count': 0,
+            'raw_response_length': 0
+        }

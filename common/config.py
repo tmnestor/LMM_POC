@@ -325,3 +325,96 @@ LLAMA_MODEL_PATH = "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
 # Alternative model paths (EFS deployment)
 # INTERNVL3_MODEL_PATH = "/efs/share/PTM/InternVL3-2B"
 # LLAMA_MODEL_PATH = "/efs/share/PTM/Llama-3.2-11B-Vision-Instruct"
+
+# ============================================================================
+# BATCH PROCESSING CONFIGURATION
+# ============================================================================
+
+# Default batch sizes per model (Conservative for 16GB VRAM)
+DEFAULT_BATCH_SIZES = {
+    'llama': 1,        # Llama-3.2-11B with 8-bit quantization on 16GB VRAM
+    'internvl3': 4,    # InternVL3 is more memory efficient
+}
+
+# Maximum batch sizes per model (Aggressive for 24GB+ VRAM)
+MAX_BATCH_SIZES = {
+    'llama': 3,        # Higher end for powerful GPUs
+    'internvl3': 8,    # InternVL3 can handle larger batches
+}
+
+# Minimum batch size (always 1 for single image processing)
+MIN_BATCH_SIZE = 1
+
+# Automatic batch size detection settings
+AUTO_BATCH_SIZE_ENABLED = True
+BATCH_SIZE_MEMORY_SAFETY_MARGIN = 0.8  # Use 80% of available memory for batch sizing
+
+# Memory management settings
+CLEAR_GPU_CACHE_AFTER_BATCH = True
+BATCH_PROCESSING_TIMEOUT_SECONDS = 300  # 5 minutes per batch maximum
+
+# Batch size optimization strategies
+BATCH_SIZE_STRATEGIES = {
+    'conservative': 'Use minimum safe batch sizes for stability',
+    'balanced': 'Use default batch sizes for typical hardware',
+    'aggressive': 'Use maximum batch sizes for high-end hardware'
+}
+
+# Current strategy (can be changed for different deployment scenarios)
+CURRENT_BATCH_STRATEGY = 'balanced'
+
+# GPU memory thresholds for automatic batch size selection
+GPU_MEMORY_THRESHOLDS = {
+    'low': 8,      # GB - Use conservative batching
+    'medium': 16,  # GB - Use default batching  
+    'high': 24,    # GB - Use aggressive batching
+}
+
+# Automatic fallback settings
+ENABLE_BATCH_SIZE_FALLBACK = True
+BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
+
+def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
+    """
+    Get recommended batch size for a model based on strategy.
+    
+    Args:
+        model_name (str): Model name ('llama' or 'internvl3')
+        strategy (str): Batching strategy ('conservative', 'balanced', 'aggressive')
+        
+    Returns:
+        int: Recommended batch size
+    """
+    strategy = strategy or CURRENT_BATCH_STRATEGY
+    model_name = model_name.lower()
+    
+    if strategy == 'conservative':
+        return MIN_BATCH_SIZE
+    elif strategy == 'aggressive':
+        return MAX_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
+    else:  # balanced
+        return DEFAULT_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
+
+def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> int:
+    """
+    Automatically determine batch size based on available GPU memory.
+    
+    Args:
+        model_name (str): Model name ('llama' or 'internvl3')
+        available_memory_gb (float): Available GPU memory in GB
+        
+    Returns:
+        int: Recommended batch size based on available memory
+    """
+    if not AUTO_BATCH_SIZE_ENABLED or available_memory_gb is None:
+        return get_batch_size_for_model(model_name, CURRENT_BATCH_STRATEGY)
+    
+    # Determine memory tier
+    if available_memory_gb >= GPU_MEMORY_THRESHOLDS['high']:
+        strategy = 'aggressive'
+    elif available_memory_gb >= GPU_MEMORY_THRESHOLDS['medium']:
+        strategy = 'balanced'
+    else:
+        strategy = 'conservative'
+    
+    return get_batch_size_for_model(model_name, strategy)
