@@ -8,19 +8,56 @@
 # - Sets up Jupyter kernel for notebook execution
 # - Validates model dependencies and hardware
 
-# Default configuration
-DEFAULT_ENV="vision_notebooks"
-CONDA_ENV=${1:-$DEFAULT_ENV}
+# Set permissions for SSH and Kaggle (if they exist)
+[ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519
+
+# Configure git to use SSH instead of HTTPS for GitHub
+if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
+    echo "🔑 Setting up git SSH authentication..."
+    
+    # Set git remote to use SSH if currently using HTTPS
+    CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$CURRENT_REMOTE" == https://github.com/* ]]; then
+        SSH_REMOTE=$(echo "$CURRENT_REMOTE" | sed 's|https://github.com/|git@github.com:|')
+        git remote set-url origin "$SSH_REMOTE"
+        echo "✅ Updated git remote from HTTPS to SSH: $SSH_REMOTE"
+    elif [[ "$CURRENT_REMOTE" == git@github.com:* ]]; then
+        echo "✅ Git already configured for SSH: $CURRENT_REMOTE"
+    fi
+    
+    # Test SSH connection
+    if ssh -T git@github.com -o StrictHostKeyChecking=no -o ConnectTimeout=10 2>&1 | grep -q "successfully authenticated"; then
+        echo "✅ SSH authentication to GitHub working"
+    else
+        echo "⚠️ SSH authentication test failed - you may need to add the SSH key to GitHub"
+        echo "   Add this key to GitHub: https://github.com/settings/ssh/new"
+        [ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && echo "   Public key:" && cat /home/jovyan/.ssh/id_ed25519.pub
+    fi
+fi
+
+# Default configuration for unified vision processor
+DEFAULT_DIR="$HOME/nfs_share/tod/LMM_POC"
+DEFAULT_ENV="unified_vision_processor"
+
+# Parse arguments
+WORK_DIR=${1:-$DEFAULT_DIR}
+CONDA_ENV=${2:-$DEFAULT_ENV}
 
 # Print header
 echo "========================================================"
-echo "🔬 Vision Model Comparison Notebooks"
+echo "🔬 Unified Vision Document Processing System"
 echo "🚀 Setting up environment: $CONDA_ENV"
 echo "========================================================"
 
-# Get current directory
-NOTEBOOK_DIR="$(pwd)"
-echo "✅ Working directory: $NOTEBOOK_DIR"
+# Change to working directory
+if [ -d "$WORK_DIR" ]; then
+    cd "$WORK_DIR"
+    echo "✅ Changed directory to: $(pwd)"
+else
+    echo "❌ Error: Directory $WORK_DIR does not exist"
+    echo "   Expected: unified_vision_processor project directory"
+    return 1
+fi
 
 # Initialize conda
 if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
@@ -40,14 +77,6 @@ if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
                 echo "✅ Environment created successfully"
                 conda activate "$CONDA_ENV"
                 echo "✅ Activated new environment: $CONDA_ENV"
-                
-                # Register Jupyter kernel
-                echo "🔧 Registering Jupyter kernel..."
-                if python -m ipykernel install --user --name "$CONDA_ENV" --display-name "Python (Vision Notebooks)"; then
-                    echo "✅ Jupyter kernel registered: Python (Vision Notebooks)"
-                else
-                    echo "⚠️ Failed to register Jupyter kernel"
-                fi
             else
                 echo "❌ Failed to create environment from environment.yml"
                 echo "   Available environments:"
@@ -61,9 +90,83 @@ if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
     fi
 else
     echo "❌ Error: Conda initialization file not found"
-    echo "   Expected: /opt/conda/etc/profile.d/conda.sh"
     return 1
 fi
+
+# Set up PYTHONPATH for package access (no pip install needed)
+# Append to existing PYTHONPATH to avoid overwriting other paths, but avoid duplicates
+CURRENT_DIR="$(pwd)"
+if [ -z "$PYTHONPATH" ]; then
+    export PYTHONPATH="$CURRENT_DIR"
+    echo "✅ Set PYTHONPATH to: $CURRENT_DIR"
+elif [[ ":$PYTHONPATH:" != *":$CURRENT_DIR:"* ]]; then
+    export PYTHONPATH="$CURRENT_DIR:$PYTHONPATH"
+    echo "✅ Added project to PYTHONPATH: $CURRENT_DIR"
+    echo "   Full PYTHONPATH: $PYTHONPATH"
+else
+    echo "✅ Project already in PYTHONPATH: $CURRENT_DIR"
+    echo "   Current PYTHONPATH: $PYTHONPATH"
+fi
+
+
+
+
+# # Default configuration
+# DEFAULT_ENV="unified_vision_processor"
+# CONDA_ENV=${1:-$DEFAULT_ENV}
+
+# # Print header
+# echo "========================================================"
+# echo "🔬 Vision Model Comparison Notebooks"
+# echo "🚀 Setting up environment: $CONDA_ENV"
+# echo "========================================================"
+
+# # Get current directory
+# NOTEBOOK_DIR="$(pwd)"
+# echo "✅ Working directory: $NOTEBOOK_DIR"
+
+# # Initialize conda
+# if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+#     source "/opt/conda/etc/profile.d/conda.sh"
+#     echo "✅ Conda initialized"
+    
+#     # Try to activate the conda environment
+#     if conda activate "$CONDA_ENV" 2>/dev/null; then
+#         echo "✅ Activated conda environment: $CONDA_ENV"
+#     else
+#         echo "⚠️ Conda environment '$CONDA_ENV' not found"
+#         echo "   Creating environment from environment.yml..."
+        
+#         if [ -f "environment.yml" ]; then
+#             echo "📦 Installing dependencies (this may take a few minutes)..."
+#             if conda env create -f environment.yml; then
+#                 echo "✅ Environment created successfully"
+#                 conda activate "$CONDA_ENV"
+#                 echo "✅ Activated new environment: $CONDA_ENV"
+                
+#                 # Register Jupyter kernel
+#                 echo "🔧 Registering Jupyter kernel..."
+#                 if python -m ipykernel install --user --name "$CONDA_ENV" --display-name "Python (Vision Notebooks)"; then
+#                     echo "✅ Jupyter kernel registered: Python (Vision Notebooks)"
+#                 else
+#                     echo "⚠️ Failed to register Jupyter kernel"
+#                 fi
+#             else
+#                 echo "❌ Failed to create environment from environment.yml"
+#                 echo "   Available environments:"
+#                 conda env list
+#                 return 1
+#             fi
+#         else
+#             echo "❌ environment.yml not found in current directory"
+#             return 1
+#         fi
+#     fi
+# else
+#     echo "❌ Error: Conda initialization file not found"
+#     echo "   Expected: /opt/conda/etc/profile.d/conda.sh"
+#     return 1
+# fi
 
 # Detect hardware environment
 echo ""
