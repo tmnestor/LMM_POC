@@ -8,8 +8,9 @@
 # - Sets up Jupyter kernel for notebook execution
 # - Validates model dependencies and hardware
 
-# Set permissions for SSH and Kaggle (if they exist)
+# Set permissions for SSH keys
 [ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519
+[ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && chmod 644 /home/jovyan/.ssh/id_ed25519.pub
 
 # Configure git to use SSH instead of HTTPS for GitHub
 if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
