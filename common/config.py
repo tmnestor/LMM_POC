@@ -6,14 +6,21 @@ different vision models (InternVL3, Llama, etc.).
 """
 
 # ============================================================================
-# MODEL CONFIGURATIONS
+# MODEL CONFIGURATIONS - PRIMARY HIERARCHY
 # ============================================================================
 
-# Model paths are now dynamically generated in PATHS CONFIGURATION section
+# Available model variants
+AVAILABLE_MODELS = {
+    "internvl3": ["InternVL3-2B", "InternVL3-8B"],
+    "llama": ["Llama-3.2-11B-Vision-Instruct"],
+}
 
+# Current model selection (CHANGE THESE TO SWITCH MODELS)
+CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-8B"
+CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"
 
 # ============================================================================
-# PATHS CONFIGURATION
+# DEPLOYMENT CONFIGURATIONS
 # ============================================================================
 
 # Base paths for different deployment scenarios
@@ -22,16 +29,21 @@ BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/share"}
 # Current deployment (change this to switch environments)
 CURRENT_DEPLOYMENT = "AISandbox"
 
-# Dynamic path generation using interpolation
+# ============================================================================
+# DYNAMIC PATH GENERATION - MODEL-DRIVEN INTERPOLATION
+# ============================================================================
+
+# Dynamic path generation using model + deployment interpolation
 BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
 
-# Model paths with interpolation
+# Model directory structure varies by deployment
 MODELS_BASE = (
     f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "AISandbox" else f"{BASE_PATH}/PTM"
 )
 
-INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
-LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
+# Model paths driven by current model selection
+INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
 # Data paths with interpolation
 if CURRENT_DEPLOYMENT == "AISandbox":
@@ -44,6 +56,39 @@ else:  # EFS deployment
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
     GROUND_TRUTH_PATH = f"{DATA_BASE}/evaluation_ground_truth.csv"
     OUTPUT_DIR = f"{DATA_BASE}/output"
+
+
+def switch_model(model_type: str, model_name: str):
+    """
+    Switch to a different model variant.
+
+    Args:
+        model_type (str): Model type ('internvl3' or 'llama')
+        model_name (str): Specific model name from AVAILABLE_MODELS
+    """
+    global CURRENT_INTERNVL3_MODEL, CURRENT_LLAMA_MODEL
+    global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
+
+    if model_type not in AVAILABLE_MODELS:
+        raise ValueError(
+            f"Invalid model type: {model_type}. Valid options: {list(AVAILABLE_MODELS.keys())}"
+        )
+
+    if model_name not in AVAILABLE_MODELS[model_type]:
+        raise ValueError(
+            f"Invalid {model_type} model: {model_name}. Valid options: {AVAILABLE_MODELS[model_type]}"
+        )
+
+    if model_type == "internvl3":
+        CURRENT_INTERNVL3_MODEL = model_name
+        INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+        print(f"✅ Switched to {model_name}")
+        print(f"   Path: {INTERNVL3_MODEL_PATH}")
+    elif model_type == "llama":
+        CURRENT_LLAMA_MODEL = model_name
+        LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+        print(f"✅ Switched to {model_name}")
+        print(f"   Path: {LLAMA_MODEL_PATH}")
 
 
 def switch_deployment(deployment: str):
@@ -65,14 +110,14 @@ def switch_deployment(deployment: str):
     CURRENT_DEPLOYMENT = deployment
     BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
 
-    # Update model paths
+    # Update model paths using current model selections
     MODELS_BASE = (
         f"{BASE_PATH}/models"
         if CURRENT_DEPLOYMENT == "AISandbox"
         else f"{BASE_PATH}/PTM"
     )
-    INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
-    LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
+    INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+    LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
     # Update data paths
     if CURRENT_DEPLOYMENT == "AISandbox":
@@ -90,6 +135,19 @@ def switch_deployment(deployment: str):
     print(f"   Models: {MODELS_BASE}")
     print(f"   Data: {DATA_DIR}")
     print(f"   Output: {OUTPUT_DIR}")
+
+
+def show_current_config():
+    """Display current model and deployment configuration."""
+    print("🔧 Current Configuration:")
+    print(f"   Deployment: {CURRENT_DEPLOYMENT}")
+    print(f"   InternVL3 Model: {CURRENT_INTERNVL3_MODEL}")
+    print(f"   Llama Model: {CURRENT_LLAMA_MODEL}")
+    print(f"   Models Base: {MODELS_BASE}")
+    print(f"   Data Dir: {DATA_DIR}")
+    print(f"   Output Dir: {OUTPUT_DIR}")
+    print(f"   InternVL3 Path: {INTERNVL3_MODEL_PATH}")
+    print(f"   Llama Path: {LLAMA_MODEL_PATH}")
 
 
 # ============================================================================
