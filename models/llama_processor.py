@@ -12,7 +12,11 @@ from typing import List, Optional, Tuple
 
 import torch
 from PIL import Image
-from transformers import AutoProcessor, MllamaForConditionalGeneration
+from transformers import (
+    AutoProcessor,
+    BitsAndBytesConfig,
+    MllamaForConditionalGeneration,
+)
 
 from common.config import (
     BATCH_SIZE_FALLBACK_STEPS,
@@ -85,12 +89,18 @@ class LlamaProcessor:
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
         
         try:
+            # Configure 8-bit quantization properly
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=True,
+            )
+            
             # Load model with optimal configuration for 16GB VRAM
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
                 device_map="auto",           # Automatic device mapping
-                load_in_8bit=True,           # Essential for 16GB VRAM (V100)
+                quantization_config=quantization_config,  # Proper 8-bit quantization
             )
             
             # Load processor for multimodal inputs
