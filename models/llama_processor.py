@@ -378,7 +378,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
     
     def _process_true_batch(self, batch_files: List[str]) -> List[dict]:
         """
-        Process multiple images in a true batch (parallel processing).
+        Process multiple images in optimized sequential processing.
+        
+        Note: Llama processor doesn't support true parallel batch processing due to 
+        model architecture limitations. This method provides optimized sequential 
+        processing with shared prompt preparation and memory management.
         
         Args:
             batch_files (List[str]): List of image file paths
@@ -390,122 +394,108 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             return [self.process_single_image(batch_files[0])]
         
         start_time = time.time()
+        results = []
         
-        try:
-            # Load all images in batch
-            images = []
-            valid_files = []
+        # Pre-compile the prompt template once for efficiency
+        prompt_template = self.get_extraction_prompt()
+        
+        print(f"   🔄 Processing {len(batch_files)} images sequentially (optimized)...")
+        
+        for idx, file_path in enumerate(batch_files):
+            individual_start = time.time()
             
-            for file_path in batch_files:
-                try:
-                    image = self.load_document_image(file_path)
-                    images.append(image)
-                    valid_files.append(file_path)
-                except Exception as e:
-                    print(f"   ❌ Failed to load {Path(file_path).name}: {e}")
-                    # Add error result for failed image
-                    continue
+            try:
+                # Use the existing single image processing but with optimizations
+                result = self._process_single_image_optimized(file_path, prompt_template)
+                results.append(result)
+                
+                processing_time = time.time() - individual_start
+                print(f"     ✅ {Path(file_path).name}: {result['extracted_fields_count']}/{FIELD_COUNT} fields ({processing_time:.1f}s)")
+                
+            except Exception as e:
+                print(f"     ❌ {Path(file_path).name}: {e}")
+                results.append(self._create_error_result(file_path, str(e)))
             
-            if not images:
-                return [self._create_error_result(file, "Image loading failed") for file in batch_files]
+            # Clear GPU cache periodically to prevent memory buildup
+            if (idx + 1) % 2 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        
+        total_time = time.time() - start_time
+        print(f"   ⏱️ Batch processing time: {total_time:.2f}s ({total_time/len(batch_files):.2f}s per image)")
+        
+        return results
+    
+    def _process_single_image_optimized(self, image_path: str, prompt_template: str) -> dict:
+        """
+        Optimized single image processing with pre-compiled prompt.
+        
+        Args:
+            image_path (str): Path to image file
+            prompt_template (str): Pre-compiled prompt template
             
-            # Create batch inputs
-            messages_batch = []
-            for _i, _image in enumerate(images):
-                messages = [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {"type": "text", "text": self.get_extraction_prompt()}
-                    ]
-                }]
-                messages_batch.append(messages)
-            
-            # Process batch
-            results = []
-            
-            # For Llama, we need to process images individually due to API limitations
-            # But we can optimize by pre-loading and reusing the prompt
-            prompt_template = self.get_extraction_prompt()
-            
-            for _idx, (image, file_path) in enumerate(zip(images, valid_files, strict=False)):
-                try:
-                    # Create conversation for this image
-                    messages = [{
-                        "role": "user", 
-                        "content": [
-                            {"type": "image"},
-                            {"type": "text", "text": prompt_template}
-                        ]
-                    }]
-                    
-                    # Apply chat template
-                    input_text = self.processor.apply_chat_template(messages, add_generation_prompt=True)
-                    
-                    # Process inputs
-                    inputs = self.processor(image, input_text, return_tensors="pt").to(self.model.device)
-                    
-                    # Generate response
-                    with torch.no_grad():
-                        output = self.model.generate(
-                            **inputs,
-                            max_new_tokens=max(800, FIELD_COUNT * 40),
-                            temperature=0.1,
-                            do_sample=True,
-                            top_p=0.95,
-                            pad_token_id=self.processor.tokenizer.eos_token_id
-                        )
-                    
-                    # Decode response
-                    response = self.processor.decode(output[0], skip_special_tokens=True)
-                    
-                    # Extract assistant response
-                    if "assistant\n\n" in response:
-                        response = response.split("assistant\n\n")[-1].strip()
-                    elif "assistant" in response:
-                        response = response.split("assistant")[-1].strip()
-                    
-                    # Parse response
-                    extracted_data = parse_extraction_response(response, clean_conversation_artifacts=True)
-                    
-                    # Calculate metrics
-                    extracted_fields_count = sum(1 for v in extracted_data.values() if v != "N/A")
-                    response_completeness = len([k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]) / len(EXTRACTION_FIELDS)
-                    content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
-                    
-                    result = {
-                        'image_name': Path(file_path).name,
-                        'extracted_data': extracted_data,
-                        'raw_response': response,
-                        'processing_time': (time.time() - start_time) / len(valid_files),  # Approximate per-image time
-                        'response_completeness': response_completeness,
-                        'content_coverage': content_coverage,
-                        'extracted_fields_count': extracted_fields_count,
-                        'raw_response_length': len(response)
-                    }
-                    
-                    results.append(result)
-                    
-                    print(f"     ✅ {Path(file_path).name}: {extracted_fields_count}/{FIELD_COUNT} fields")
-                    
-                except Exception as e:
-                    print(f"     ❌ {Path(file_path).name}: {e}")
-                    results.append(self._create_error_result(file_path, str(e)))
-            
-            # Add error results for any files that failed to load
-            failed_files = set(batch_files) - set(valid_files)
-            for failed_file in failed_files:
-                results.append(self._create_error_result(failed_file, "Image loading failed"))
-            
-            total_time = time.time() - start_time
-            print(f"   ⏱️ Batch processing time: {total_time:.2f}s ({total_time/len(batch_files):.2f}s per image)")
-            
-            return results
-            
-        except Exception as e:
-            print(f"   ❌ Batch processing failed: {e}")
-            # Fallback to individual processing
-            return [self.process_single_image(file) for file in batch_files]
+        Returns:
+            dict: Processing result
+        """
+        start_time = time.time()
+        
+        # Load image
+        image = self.load_document_image(image_path)
+        
+        # Create multimodal conversation with pre-compiled prompt
+        messages = [{
+            "role": "user",
+            "content": [
+                {"type": "image"},
+                {"type": "text", "text": prompt_template}
+            ]
+        }]
+        
+        # Apply chat template
+        input_text = self.processor.apply_chat_template(messages, add_generation_prompt=True)
+        
+        # Process inputs
+        inputs = self.processor(image, input_text, return_tensors="pt").to(self.model.device)
+        
+        # Generate response
+        with torch.no_grad():
+            output = self.model.generate(
+                **inputs,
+                max_new_tokens=max(800, FIELD_COUNT * 40),
+                temperature=0.1,
+                do_sample=True,
+                top_p=0.95,
+                pad_token_id=self.processor.tokenizer.eos_token_id
+            )
+        
+        # Decode response
+        response = self.processor.decode(output[0], skip_special_tokens=True)
+        
+        # Extract assistant response
+        if "assistant\n\n" in response:
+            response = response.split("assistant\n\n")[-1].strip()
+        elif "assistant" in response:
+            response = response.split("assistant")[-1].strip()
+        
+        processing_time = time.time() - start_time
+        
+        # Parse response
+        extracted_data = parse_extraction_response(response, clean_conversation_artifacts=True)
+        
+        # Calculate metrics
+        extracted_fields_count = sum(1 for v in extracted_data.values() if v != "N/A")
+        response_completeness = len([k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]) / len(EXTRACTION_FIELDS)
+        content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
+        
+        return {
+            'image_name': Path(image_path).name,
+            'extracted_data': extracted_data,
+            'raw_response': response,
+            'processing_time': processing_time,
+            'response_completeness': response_completeness,
+            'content_coverage': content_coverage,
+            'extracted_fields_count': extracted_fields_count,
+            'raw_response_length': len(response)
+        }
     
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
         """Create standardized error result for failed processing."""
