@@ -10,16 +10,28 @@
 # - Configures SSH for corporate GitLab access
 
 # Corporate GitLab Configuration - MODIFY THESE FOR YOUR ORGANIZATION
-GITLAB_DOMAIN="gitlab.yourcompany.com"  # Replace with your corporate GitLab domain
-GITLAB_PORT="22"                        # Change to custom port if needed (e.g., 2222)
+GITLAB_DOMAIN="gitlab.sdpaap.aws.prod.atohnet.gov.au"
+GITLAB_PORT="22"  # Standard SSH port
 
-# Set permissions for SSH keys
-[ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519
-[ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && chmod 644 /home/jovyan/.ssh/id_ed25519.pub
+# Set permissions for SSH keys (check multiple key types)
+for keytype in id_ecdsa id_ed25519 id_rsa; do
+    [ -f "/home/jovyan/.ssh/$keytype" ] && chmod 600 "/home/jovyan/.ssh/$keytype"
+    [ -f "/home/jovyan/.ssh/$keytype.pub" ] && chmod 644 "/home/jovyan/.ssh/$keytype.pub"
+done
 
 # Configure git to use SSH instead of HTTPS for Corporate GitLab
-if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
+# Check for any available SSH key (ECDSA, Ed25519, or RSA)
+SSH_KEY_FOUND=""
+for keytype in id_ecdsa id_ed25519 id_rsa; do
+    if [ -f "/home/jovyan/.ssh/$keytype" ]; then
+        SSH_KEY_FOUND="$keytype"
+        break
+    fi
+done
+
+if [ -n "$SSH_KEY_FOUND" ]; then
     echo "🔑 Setting up git SSH authentication for Corporate GitLab..."
+    echo "   Using SSH key: $SSH_KEY_FOUND"
     
     # Set git remote to use SSH if currently using HTTPS
     CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
@@ -41,7 +53,7 @@ if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
 Host $GITLAB_DOMAIN
     Port $GITLAB_PORT
     User git
-    IdentityFile /home/jovyan/.ssh/id_ed25519
+    IdentityFile /home/jovyan/.ssh/$SSH_KEY_FOUND
 EOF
             chmod 600 "$SSH_CONFIG"
             echo "✅ SSH config updated for $GITLAB_DOMAIN:$GITLAB_PORT"
@@ -59,7 +71,10 @@ EOF
         echo "   2. Ensure VPN connection to corporate network"
         echo "   3. Verify GitLab domain and port settings in this script"
         echo "   4. Check with IT if firewall blocks SSH to GitLab"
-        [ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && echo "   Your public key:" && cat /home/jovyan/.ssh/id_ed25519.pub
+        if [ -n "$SSH_KEY_FOUND" ] && [ -f "/home/jovyan/.ssh/$SSH_KEY_FOUND.pub" ]; then
+            echo "   Your public key ($SSH_KEY_FOUND):"
+            cat "/home/jovyan/.ssh/$SSH_KEY_FOUND.pub"
+        fi
     fi
 fi
 
