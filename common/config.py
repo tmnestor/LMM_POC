@@ -9,30 +9,85 @@ different vision models (InternVL3, Llama, etc.).
 # MODEL CONFIGURATIONS
 # ============================================================================
 
-# Model paths
-INTERNVL3_MODEL_PATH = "/home/jovyan/nfs_share/models/InternVL3-8B"
-LLAMA_MODEL_PATH = "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
-
-# Alternative model paths (EFS deployment)
-# INTERNVL3_MODEL_PATH = "/efs/share/PTM/InternVL3-2B"
-# LLAMA_MODEL_PATH = "/efs/share/PTM/Llama-3.2-11B-Vision-Instruct"
+# Model paths are now dynamically generated in PATHS CONFIGURATION section
 
 
 # ============================================================================
 # PATHS CONFIGURATION
 # ============================================================================
 
-# Primary paths (local development)
-DATA_DIR = "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data"
-GROUND_TRUTH_PATH = (
-    "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/evaluation_ground_truth.csv"
-)
-OUTPUT_DIR = "/home/jovyan/nfs_share/tod/output"
+# Base paths for different deployment scenarios
+BASE_PATHS = {"local": "/home/jovyan/nfs_share", "efs": "/efs/share"}
 
-# Alternative paths (EFS deployment)
-# DATA_DIR = "/efs/share/PoC_data/evaluation_data"
-# GROUND_TRUTH_PATH = "/efs/share/PoC_data/evaluation_ground_truth.csv"
-# OUTPUT_DIR = "/efs/share/PoC_data/output"
+# Current deployment (change this to switch environments)
+CURRENT_DEPLOYMENT = "local"
+
+# Dynamic path generation using interpolation
+BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
+
+# Model paths with interpolation
+MODELS_BASE = (
+    f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "local" else f"{BASE_PATH}/PTM"
+)
+INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
+LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
+
+# Data paths with interpolation
+if CURRENT_DEPLOYMENT == "local":
+    DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
+    DATA_DIR = f"{DATA_BASE}/evaluation_data"
+    GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    OUTPUT_DIR = f"{BASE_PATH}/tod/output"
+else:  # EFS deployment
+    DATA_BASE = f"{BASE_PATH}/PoC_data"
+    DATA_DIR = f"{DATA_BASE}/evaluation_data"
+    GROUND_TRUTH_PATH = f"{DATA_BASE}/evaluation_ground_truth.csv"
+    OUTPUT_DIR = f"{DATA_BASE}/output"
+
+
+def switch_deployment(deployment: str):
+    """
+    Switch to a different deployment environment.
+
+    Args:
+        deployment (str): Deployment type ('local' or 'efs')
+    """
+    global CURRENT_DEPLOYMENT, BASE_PATH, MODELS_BASE
+    global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
+    global DATA_BASE, DATA_DIR, GROUND_TRUTH_PATH, OUTPUT_DIR
+
+    if deployment not in BASE_PATHS:
+        raise ValueError(
+            f"Invalid deployment: {deployment}. Valid options: {list(BASE_PATHS.keys())}"
+        )
+
+    CURRENT_DEPLOYMENT = deployment
+    BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
+
+    # Update model paths
+    MODELS_BASE = (
+        f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "local" else f"{BASE_PATH}/PTM"
+    )
+    INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
+    LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
+
+    # Update data paths
+    if CURRENT_DEPLOYMENT == "local":
+        DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
+        DATA_DIR = f"{DATA_BASE}/evaluation_data"
+        GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        OUTPUT_DIR = f"{BASE_PATH}/tod/output"
+    else:  # EFS deployment
+        DATA_BASE = f"{BASE_PATH}/PoC_data"
+        DATA_DIR = f"{DATA_BASE}/evaluation_data"
+        GROUND_TRUTH_PATH = f"{DATA_BASE}/evaluation_ground_truth.csv"
+        OUTPUT_DIR = f"{DATA_BASE}/output"
+
+    print(f"✅ Switched to {deployment} deployment")
+    print(f"   Models: {MODELS_BASE}")
+    print(f"   Data: {DATA_DIR}")
+    print(f"   Output: {OUTPUT_DIR}")
+
 
 # ============================================================================
 # FIELD DEFINITIONS - SINGLE SOURCE OF TRUTH
