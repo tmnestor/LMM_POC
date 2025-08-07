@@ -89,18 +89,20 @@ class LlamaProcessor:
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
         
         try:
-            # Configure 8-bit quantization properly
+            # Configure 8-bit quantization with vision module exclusions (copied from working vision_comparison)
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=True,
                 llm_int8_enable_fp32_cpu_offload=True,
+                llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],  # Skip vision modules that cause tensor issues
+                llm_int8_threshold=6.0,
             )
             
-            # Load model with optimal configuration for 16GB VRAM
+            # Load model with selective quantization (working configuration)
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
                 device_map="auto",           # Automatic device mapping
-                quantization_config=quantization_config,  # Proper 8-bit quantization
+                quantization_config=quantization_config,  # Selective 8-bit quantization
             )
             
             # Load processor for multimodal inputs
