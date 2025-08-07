@@ -10,8 +10,8 @@
 # - Configures SSH for corporate GitLab access
 
 # Corporate GitLab Configuration - MODIFY THESE FOR YOUR ORGANIZATION
-GITLAB_DOMAIN="gitlab.sdpaap.aws.prod.atohnet.gov.au"
-GITLAB_PORT="22"  # Standard SSH port
+GITLAB_DOMAIN="gitlab.yourcompany.com"  # Replace with your corporate GitLab domain
+GITLAB_PORT="22"  # Change to custom port if needed (e.g., 2222)
 
 # Set permissions for SSH keys (check multiple key types)
 for keytype in id_ecdsa id_ed25519 id_rsa; do
