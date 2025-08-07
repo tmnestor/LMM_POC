@@ -4,18 +4,20 @@ Diagnostic script to test Llama model loading and basic image processing.
 This helps isolate whether tensor issues are from quantization or other factors.
 """
 
-import torch
-from transformers import AutoProcessor, MllamaForConditionalGeneration
-from PIL import Image
 from pathlib import Path
+
+import torch
+from PIL import Image
+from transformers import AutoProcessor, MllamaForConditionalGeneration
+
 
 def test_core_single_image():
     """Test core single image processing without batch logic."""
     print("🧪 Testing core single image processing...")
     
     try:
-        from models.llama_processor import LlamaProcessor
         from common.evaluation_utils import discover_images
+        from models.llama_processor import LlamaProcessor
         
         processor = LlamaProcessor(batch_size=1)
         image_files = discover_images('./evaluation_data')
