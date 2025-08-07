@@ -263,10 +263,21 @@ batch_size = 1  # Conservative for memory-constrained environments
 ```
 
 ### Custom Fields
-To add new extraction fields:
-1. Update `EXTRACTION_FIELDS` in `common/config.py`
-2. Add corresponding entries in ground truth CSV
-3. Update prompts in model processors if needed
+The framework uses a **centralized field configuration system**:
+1. **Add to FIELD_DEFINITIONS** in `common/config.py`:
+```python
+'NEW_FIELD': {
+    'type': 'text',  # or 'monetary', 'date', 'numeric_id', 'list'
+    'instruction': '[field instruction or N/A]',
+    'evaluation_logic': 'fuzzy_text_match',
+    'description': 'Field description',
+    'required': False
+}
+```
+2. **Update ground truth CSV** with new column
+3. **Everything else updates automatically** - prompts, evaluation, reports
+
+See **docs/FIELD_CONFIGURATION_GUIDE.md** for comprehensive field management.
 
 ## 🛠 Development
 
@@ -357,10 +368,16 @@ pip list | grep transformers
 
 ## 📚 Additional Resources
 
-### Documentation
+### Core Documentation
+- **docs/FIELD_CONFIGURATION_GUIDE.md**: Comprehensive guide to the centralized field system
+- **docs/EVALUATION_SYSTEM_GUIDE.md**: Detailed evaluation methodology and accuracy calculation
+- **docs/FIELD_MANAGEMENT_WORKFLOWS.md**: Step-by-step workflows for managing fields
+- **docs/TROUBLESHOOTING_FAQ.md**: Common issues, solutions, and frequently asked questions
+
+### Development Resources  
 - **CLAUDE.md**: Development guidelines and git workflow
 - **REFACTORING_SUMMARY.md**: Architecture decisions and code organization
-- **ground_truth_evaluation_system.md**: Evaluation methodology details
+- **ground_truth_evaluation_system.md**: Legacy evaluation system details
 
 ### Model Resources
 - **Llama-3.2-Vision**: [Hugging Face Model Hub](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct)
@@ -394,10 +411,11 @@ This project is intended for research and evaluation purposes. Model-specific li
 ## 🙋‍♂️ Support
 
 For questions and issues:
-1. Check the troubleshooting section above
-2. Review existing documentation in the `docs/` directory
-3. Examine sample notebooks for usage patterns
-4. Validate environment setup with `unified_setup.sh`
+1. **Check docs/TROUBLESHOOTING_FAQ.md** for common problems and solutions
+2. **Review field configuration** with docs/FIELD_CONFIGURATION_GUIDE.md
+3. **Understand evaluation** with docs/EVALUATION_SYSTEM_GUIDE.md
+4. **Follow workflows** in docs/FIELD_MANAGEMENT_WORKFLOWS.md
+5. **Validate environment** setup with `unified_setup.sh`
 
 ---
 
