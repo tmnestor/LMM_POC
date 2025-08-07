@@ -48,11 +48,12 @@ class LlamaProcessor:
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
         
         try:
-            # Load model with optimal configuration
+            # Load model with optimal configuration for 16GB VRAM
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
                 device_map="auto",           # Automatic device mapping
+                load_in_8bit=True,           # Essential for 16GB VRAM (V100)
             )
             
             # Load processor for multimodal inputs
