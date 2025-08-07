@@ -1,0 +1,75 @@
+name: vision_notebooks
+channels:
+  - conda-forge
+  - defaults
+variables:
+  KMP_DUPLICATE_LIB_OK: "TRUE"
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - pillow
+  - matplotlib
+  - tqdm
+  - pyyaml
+  - pip
+  - ipykernel  # Required for Jupyter notebook support
+  - ipywidgets  # Required for tqdm progress bars in Jupyter
+  - pip:
+    # Core dependencies for vision models
+    - transformers==4.45.2  # Fixed version for Llama-3.2-Vision compatibility
+    - torch>=2.0.0
+    - torchvision
+    - accelerate  # Required for device mapping support
+    - bitsandbytes  # Required for 8-bit quantization on V100 16GB
+    - sentencepiece  # Required for tokenizer
+    - protobuf  # Required for model loading
+    
+    # Image processing
+    - einops>=0.6.0  # Einstein notation for tensor operations (required for InternVL)
+    - timm>=0.9.0  # PyTorch Image Models (required for InternVL vision encoder)
+
+# =====================================================
+# ENVIRONMENT SETUP INSTRUCTIONS
+# =====================================================
+#
+# Step 1: Create the conda environment
+# ------------------------------------
+# conda env create -f environment.yml
+#
+# Step 2: Activate the environment
+# --------------------------------
+# conda activate vision_notebooks
+#
+# Step 3: Install PyTorch with CUDA support (if you have GPU)
+# -----------------------------------------------------------
+# For CUDA 11.x systems:
+# conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
+#
+# For CUDA 12.x systems:
+# conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia
+#
+# For CPU-only systems:
+# conda install pytorch torchvision cpuonly -c pytorch
+#
+# Step 4: Register the environment as a Jupyter kernel
+# ---------------------------------------------------
+# python -m ipykernel install --user --name vision_notebooks --display-name "Python (Vision Notebooks)"
+#
+# Step 5: Update model paths in notebooks
+# ---------------------------------------
+# Edit the model_id paths in each notebook to point to your model locations:
+# - Llama: "/path/to/Llama-3.2-11B-Vision-Instruct"
+# - InternVL3: "/path/to/InternVL3-2B"
+#
+# Step 6: Test the setup
+# ----------------------
+# Launch Jupyter and run the notebooks with your model paths
+#
+# =====================================================
+# NOTES
+# =====================================================
+# - transformers is pinned to 4.45.2 for Llama-3.2-Vision compatibility
+# - bitsandbytes enables 8-bit quantization for GPU memory optimization
+# - KMP_DUPLICATE_LIB_OK=TRUE fixes OpenMP library conflicts on some systems
+# - ipykernel is included for Jupyter notebook support
