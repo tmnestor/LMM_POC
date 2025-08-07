@@ -332,7 +332,7 @@ LLAMA_MODEL_PATH = "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
 
 # Default batch sizes per model (Conservative for 16GB VRAM)
 DEFAULT_BATCH_SIZES = {
-    'llama': 1,        # Llama-3.2-11B with 8-bit quantization on 16GB VRAM
+    'llama': 1,        # Llama-3.2-11B with optimized 8-bit quantization on 16GB VRAM
     'internvl3': 4,    # InternVL3 is more memory efficient
 }
 

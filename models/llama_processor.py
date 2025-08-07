@@ -89,20 +89,23 @@ class LlamaProcessor:
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
         
         try:
-            # Configure 8-bit quantization with vision module exclusions (copied from working vision_comparison)
+            # Configure optimized 8-bit quantization for V100 performance
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=True,
-                llm_int8_enable_fp32_cpu_offload=True,
+                llm_int8_enable_fp32_cpu_offload=False,  # Keep on GPU for speed (was True)
                 llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],  # Skip vision modules that cause tensor issues
                 llm_int8_threshold=6.0,
+                llm_int8_has_fp16_weight=True,  # Optimize mixed precision
             )
             
-            # Load model with selective quantization (working configuration)
+            # Load model with optimized configuration for V100 speed
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
                 device_map="auto",           # Automatic device mapping
-                quantization_config=quantization_config,  # Selective 8-bit quantization
+                quantization_config=quantization_config,  # Optimized 8-bit quantization
+                low_cpu_mem_usage=True,      # Optimize loading speed
+                use_flash_attention_2=False, # Disable for compatibility (can cause slowdowns)
             )
             
             # Load processor for multimodal inputs
@@ -111,6 +114,15 @@ class LlamaProcessor:
             print("✅ Llama Vision model loaded successfully")
             print(f"🔧 Device: {self.model.device}")
             print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+            
+            # Optimize model for inference speed
+            self.model.eval()
+            if torch.cuda.is_available():
+                # Enable optimizations for V100
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True  # Optimize for fixed input sizes
+                print("🚀 V100 optimizations enabled (TF32, cuDNN benchmark)")
             
         except Exception as e:
             print(f"❌ Error loading Llama model: {e}")
@@ -203,14 +215,25 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 return_tensors="pt"
             ).to(self.model.device)
             
-            # Generate response
+            # Generate response with V100-optimized parameters
             with torch.no_grad():
+                # Use torch.compile for faster inference (if available)
+                if hasattr(torch, 'compile') and torch.cuda.is_available():
+                    # Compile model for faster subsequent runs (V100 optimization)
+                    if not hasattr(self.model, '_compiled'):
+                        try:
+                            self.model = torch.compile(self.model, mode="reduce-overhead")
+                            self.model._compiled = True
+                            print("🚀 Model compiled for faster inference")
+                        except Exception:
+                            pass  # Compilation not available or failed
+                
                 output = self.model.generate(
                     **inputs,
-                    max_new_tokens=max(800, FIELD_COUNT * 40),  # Scale tokens with field count
-                    temperature=0.1,       # Near-deterministic
-                    do_sample=True,
-                    top_p=0.95,
+                    max_new_tokens=max(600, FIELD_COUNT * 30),  # Reduced tokens for speed
+                    temperature=0.0,       # Fully deterministic (faster than sampling)
+                    do_sample=False,       # Disable sampling for speed
+                    use_cache=True,        # Enable KV caching
                     pad_token_id=self.processor.tokenizer.eos_token_id
                 )
             
