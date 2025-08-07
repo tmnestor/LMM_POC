@@ -17,23 +17,23 @@ different vision models (InternVL3, Llama, etc.).
 # ============================================================================
 
 # Base paths for different deployment scenarios
-BASE_PATHS = {"local": "/home/jovyan/nfs_share", "efs": "/efs/share"}
+BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/share"}
 
 # Current deployment (change this to switch environments)
-CURRENT_DEPLOYMENT = "local"
+CURRENT_DEPLOYMENT = "AISandbox"
 
 # Dynamic path generation using interpolation
 BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
 
 # Model paths with interpolation
 MODELS_BASE = (
-    f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "local" else f"{BASE_PATH}/PTM"
+    f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "AISandbox" else f"{BASE_PATH}/PTM"
 )
 INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
 LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
 
 # Data paths with interpolation
-if CURRENT_DEPLOYMENT == "local":
+if CURRENT_DEPLOYMENT == "AISandbox":
     DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
     GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
@@ -50,7 +50,7 @@ def switch_deployment(deployment: str):
     Switch to a different deployment environment.
 
     Args:
-        deployment (str): Deployment type ('local' or 'efs')
+        deployment (str): Deployment type ('AISandbox' or 'efs')
     """
     global CURRENT_DEPLOYMENT, BASE_PATH, MODELS_BASE
     global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
@@ -66,13 +66,15 @@ def switch_deployment(deployment: str):
 
     # Update model paths
     MODELS_BASE = (
-        f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "local" else f"{BASE_PATH}/PTM"
+        f"{BASE_PATH}/models"
+        if CURRENT_DEPLOYMENT == "AISandbox"
+        else f"{BASE_PATH}/PTM"
     )
     INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/InternVL3-8B"
     LLAMA_MODEL_PATH = f"{MODELS_BASE}/Llama-3.2-11B-Vision-Instruct"
 
     # Update data paths
-    if CURRENT_DEPLOYMENT == "local":
+    if CURRENT_DEPLOYMENT == "AISandbox":
         DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
         DATA_DIR = f"{DATA_BASE}/evaluation_data"
         GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
