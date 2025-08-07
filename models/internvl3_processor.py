@@ -17,6 +17,7 @@ from common.config import (
     DEFAULT_IMAGE_SIZE,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
+    FIELD_INSTRUCTIONS,
     IMAGENET_MEAN,
     IMAGENET_STD,
     INTERNVL3_MODEL_PATH,
@@ -90,9 +91,10 @@ Use "N/A" if field is not visible or not present.
 
 OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
-        # Add all fields with format guidance
+        # Add all fields with centralized field-specific instructions
         for field in EXTRACTION_FIELDS:
-            prompt += f"{field}: [value or N/A]\n"
+            instruction = FIELD_INSTRUCTIONS.get(field, '[value or N/A]')
+            prompt += f"{field}: {instruction}\n"
         
         prompt += f"""
 INSTRUCTIONS:

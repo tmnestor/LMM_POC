@@ -21,45 +21,256 @@ OUTPUT_DIR = "/home/jovyan/nfs_share/tod/output"
 # OUTPUT_DIR = "/efs/share/PoC_data/output"
 
 # ============================================================================
-# EXTRACTION FIELDS
+# FIELD DEFINITIONS - SINGLE SOURCE OF TRUTH
 # ============================================================================
 
-# Production extraction fields - update this list as needed
-# Keep in alphabetical order for consistent column ordering
-EXTRACTION_FIELDS = [
-    'ABN',
-    'ACCOUNT_HOLDER',
-    'BANK_ACCOUNT_NUMBER',
-    'BANK_NAME',
-    'BSB_NUMBER',
-    'BUSINESS_ADDRESS',
-    'BUSINESS_PHONE',
-    'CLOSING_BALANCE',
-    'DESCRIPTIONS',
-    'DOCUMENT_TYPE',
-    'DUE_DATE',
-    'GST',
-    'INVOICE_DATE',
-    'OPENING_BALANCE',
-    'PAYER_ADDRESS',
-    'PAYER_EMAIL',
-    'PAYER_NAME',
-    'PAYER_PHONE',
-    'PRICES',
-    'QUANTITIES',
-    'STATEMENT_PERIOD',
-    'SUBTOTAL',
-    'SUPPLIER',
-    'SUPPLIER_WEBSITE',
-    'TOTAL'
-    # Add new fields here in alphabetical order:
-    # 'NEW_FIELD_1',
-    # 'NEW_FIELD_2',
-    # etc.
-]
+# Comprehensive field definitions with all specifications in one place
+# This replaces scattered field configurations across the codebase
+FIELD_DEFINITIONS = {
+    'ABN': {
+        'type': 'numeric_id',
+        'instruction': '[11-digit Australian Business Number or N/A]',
+        'evaluation_logic': 'exact_numeric_match',
+        'description': 'Australian Business Number for tax identification',
+        'required': True
+    },
+    'ACCOUNT_HOLDER': {
+        'type': 'text',
+        'instruction': '[account holder name or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Name of bank account holder',
+        'required': False
+    },
+    'BANK_ACCOUNT_NUMBER': {
+        'type': 'numeric_id',
+        'instruction': '[account number from bank statements only or N/A]',
+        'evaluation_logic': 'exact_numeric_match',
+        'description': 'Bank account number from statements',
+        'required': False
+    },
+    'BANK_NAME': {
+        'type': 'text',
+        'instruction': '[bank name from bank statements only or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Name of banking institution',
+        'required': False
+    },
+    'BSB_NUMBER': {
+        'type': 'numeric_id',
+        'instruction': '[6-digit BSB from bank statements only or N/A]',
+        'evaluation_logic': 'exact_numeric_match',
+        'description': 'Bank State Branch routing number',
+        'required': False
+    },
+    'BUSINESS_ADDRESS': {
+        'type': 'text',
+        'instruction': '[business address or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Physical address of business',
+        'required': False
+    },
+    'BUSINESS_PHONE': {
+        'type': 'text',
+        'instruction': '[business phone number or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Business contact phone number',
+        'required': False
+    },
+    'CLOSING_BALANCE': {
+        'type': 'monetary',
+        'instruction': '[closing balance amount in dollars or N/A]',
+        'evaluation_logic': 'monetary_with_tolerance',
+        'description': 'Final balance on statement',
+        'required': False
+    },
+    'DESCRIPTIONS': {
+        'type': 'list',
+        'instruction': '[list of transaction descriptions or N/A]',
+        'evaluation_logic': 'list_overlap_match',
+        'description': 'Transaction or item descriptions',
+        'required': False
+    },
+    'DOCUMENT_TYPE': {
+        'type': 'text',
+        'instruction': '[document type (invoice/receipt/statement) or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Type of business document',
+        'required': False
+    },
+    'DUE_DATE': {
+        'type': 'date',
+        'instruction': '[payment due date or N/A]',
+        'evaluation_logic': 'flexible_date_match',
+        'description': 'Payment deadline',
+        'required': False
+    },
+    'GST': {
+        'type': 'monetary',
+        'instruction': '[GST amount in dollars or N/A]',
+        'evaluation_logic': 'monetary_with_tolerance',
+        'description': 'Goods and Services Tax amount',
+        'required': False
+    },
+    'INVOICE_DATE': {
+        'type': 'date',
+        'instruction': '[invoice date or N/A]',
+        'evaluation_logic': 'flexible_date_match',
+        'description': 'Date invoice was issued',
+        'required': False
+    },
+    'OPENING_BALANCE': {
+        'type': 'monetary',
+        'instruction': '[opening balance amount in dollars or N/A]',
+        'evaluation_logic': 'monetary_with_tolerance',
+        'description': 'Starting balance on statement',
+        'required': False
+    },
+    'PAYER_ADDRESS': {
+        'type': 'text',
+        'instruction': '[payer address or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Address of person/entity making payment',
+        'required': False
+    },
+    'PAYER_EMAIL': {
+        'type': 'text',
+        'instruction': '[payer email address or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Email address of payer',
+        'required': False
+    },
+    'PAYER_NAME': {
+        'type': 'text',
+        'instruction': '[payer name or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Name of person/entity making payment',
+        'required': False
+    },
+    'PAYER_PHONE': {
+        'type': 'text',
+        'instruction': '[payer phone number or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Phone number of payer',
+        'required': False
+    },
+    'PRICES': {
+        'type': 'list',
+        'instruction': '[individual prices in dollars or N/A]',
+        'evaluation_logic': 'list_overlap_match',
+        'description': 'List of individual item prices',
+        'required': False
+    },
+    'QUANTITIES': {
+        'type': 'list',
+        'instruction': '[list of quantities or N/A]',
+        'evaluation_logic': 'list_overlap_match',
+        'description': 'Quantities of items purchased',
+        'required': False
+    },
+    'STATEMENT_PERIOD': {
+        'type': 'date',
+        'instruction': '[statement period or N/A]',
+        'evaluation_logic': 'flexible_date_match',
+        'description': 'Time period covered by statement',
+        'required': False
+    },
+    'SUBTOTAL': {
+        'type': 'monetary',
+        'instruction': '[subtotal amount in dollars or N/A]',
+        'evaluation_logic': 'monetary_with_tolerance',
+        'description': 'Subtotal before taxes and fees',
+        'required': False
+    },
+    'SUPPLIER': {
+        'type': 'text',
+        'instruction': '[supplier name or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Name of goods/services provider',
+        'required': False
+    },
+    'SUPPLIER_WEBSITE': {
+        'type': 'text',
+        'instruction': '[supplier website or N/A]',
+        'evaluation_logic': 'fuzzy_text_match',
+        'description': 'Website URL of supplier',
+        'required': False
+    },
+    'TOTAL': {
+        'type': 'monetary',
+        'instruction': '[total amount in dollars or N/A]',
+        'evaluation_logic': 'monetary_with_tolerance',
+        'description': 'Final total amount including all charges',
+        'required': True
+    }
+}
 
-# Field count - automatically calculated
+# ============================================================================
+# DERIVED CONFIGURATIONS - AUTO-GENERATED FROM FIELD_DEFINITIONS
+# ============================================================================
+
+# Primary configurations derived from FIELD_DEFINITIONS
+EXTRACTION_FIELDS = list(FIELD_DEFINITIONS.keys())
 FIELD_COUNT = len(EXTRACTION_FIELDS)
+FIELD_INSTRUCTIONS = {k: v['instruction'] for k, v in FIELD_DEFINITIONS.items()}
+FIELD_TYPES = {k: v['type'] for k, v in FIELD_DEFINITIONS.items()}
+FIELD_DESCRIPTIONS = {k: v['description'] for k, v in FIELD_DEFINITIONS.items()}
+
+# Field type groupings for evaluation logic
+NUMERIC_ID_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v['type'] == 'numeric_id']
+MONETARY_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v['type'] == 'monetary']
+DATE_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v['type'] == 'date']
+LIST_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v['type'] == 'list']
+TEXT_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v['type'] == 'text']
+
+# Required vs optional field groupings
+REQUIRED_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v.get('required', False)]
+OPTIONAL_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if not v.get('required', False)]
+
+# ============================================================================
+# FIELD DEFINITION VALIDATION
+# ============================================================================
+
+def validate_field_definitions():
+    """
+    Validate that all field definitions are complete and consistent.
+    
+    Raises:
+        ValueError: If any field definition is incomplete or invalid
+    """
+    required_keys = ['type', 'instruction', 'evaluation_logic', 'description', 'required']
+    valid_types = ['numeric_id', 'monetary', 'date', 'list', 'text']
+    valid_evaluation_logic = [
+        'exact_numeric_match', 'monetary_with_tolerance', 'flexible_date_match',
+        'list_overlap_match', 'fuzzy_text_match'
+    ]
+    
+    for field_name, definition in FIELD_DEFINITIONS.items():
+        # Check required keys
+        for key in required_keys:
+            if key not in definition:
+                raise ValueError(f"Field '{field_name}' missing required key: '{key}'")
+        
+        # Validate field type
+        if definition['type'] not in valid_types:
+            raise ValueError(f"Field '{field_name}' has invalid type: '{definition['type']}'. "
+                           f"Valid types: {valid_types}")
+        
+        # Validate evaluation logic
+        if definition['evaluation_logic'] not in valid_evaluation_logic:
+            raise ValueError(f"Field '{field_name}' has invalid evaluation_logic: '{definition['evaluation_logic']}'. "
+                           f"Valid options: {valid_evaluation_logic}")
+        
+        # Check instruction format
+        instruction = definition['instruction']
+        if not (instruction.startswith('[') and instruction.endswith(']')):
+            raise ValueError(f"Field '{field_name}' instruction must be in format '[instruction or N/A]'")
+        
+        # Ensure instruction mentions N/A
+        if 'N/A' not in instruction:
+            raise ValueError(f"Field '{field_name}' instruction must mention 'N/A' option")
+
+# Run validation on import to catch configuration errors early
+validate_field_definitions()
 
 # ============================================================================
 # IMAGE PROCESSING CONSTANTS

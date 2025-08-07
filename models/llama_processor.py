@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor, MllamaForConditionalGeneration
 
-from common.config import EXTRACTION_FIELDS, FIELD_COUNT, LLAMA_MODEL_PATH
+from common.config import EXTRACTION_FIELDS, FIELD_COUNT, FIELD_INSTRUCTIONS, LLAMA_MODEL_PATH
 from common.evaluation_utils import parse_extraction_response
 
 warnings.filterwarnings('ignore')
@@ -63,21 +63,7 @@ class LlamaProcessor:
     
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for Llama Vision."""
-        # Build field-specific instructions dynamically
-        field_instructions = {
-            'ABN': '[11-digit Australian Business Number or N/A]',
-            'BANK_ACCOUNT_NUMBER': '[account number from bank statements only or N/A]',
-            'BANK_NAME': '[bank name from bank statements only or N/A]',
-            'BSB_NUMBER': '[6-digit BSB from bank statements only or N/A]',
-            'CLOSING_BALANCE': '[closing balance amount in dollars or N/A]',
-            'DESCRIPTIONS': '[list of transaction descriptions or N/A]',
-            'GST': '[GST amount in dollars or N/A]',
-            'OPENING_BALANCE': '[opening balance amount in dollars or N/A]',
-            'PRICES': '[individual prices in dollars or N/A]',
-            'QUANTITIES': '[list of quantities or N/A]',
-            'SUBTOTAL': '[subtotal amount in dollars or N/A]',
-            'TOTAL': '[total amount in dollars or N/A]'
-        }
+        # Use centralized field instructions from config.py
         
         prompt = f"""Extract key-value data from this business document image.
 
@@ -92,9 +78,9 @@ CRITICAL INSTRUCTIONS:
 REQUIRED OUTPUT FORMAT - EXACTLY {FIELD_COUNT} LINES:
 """
         
-        # Add each field dynamically
+        # Add each field dynamically using centralized instructions
         for field in EXTRACTION_FIELDS:
-            instruction = field_instructions.get(field, '[value or N/A]')
+            instruction = FIELD_INSTRUCTIONS.get(field, '[value or N/A]')
             prompt += f"{field}: {instruction}\n"
         
         prompt += f"""

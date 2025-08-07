@@ -10,7 +10,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import EXTRACTION_FIELDS
+from .config import (
+    DATE_FIELDS,
+    EXTRACTION_FIELDS,
+    LIST_FIELDS,
+    MONETARY_FIELDS,
+    NUMERIC_ID_FIELDS,
+)
 
 
 def discover_images(directory_path):
@@ -252,14 +258,14 @@ def calculate_field_accuracy(extracted_value, ground_truth_value, field_name):
     if extracted_lower == ground_truth_lower:
         return 1.0
     
-    # Field-specific comparison logic
-    if field_name in ['ABN', 'BSB_NUMBER', 'BANK_ACCOUNT_NUMBER']:
+    # Field-specific comparison logic using centralized field type definitions
+    if field_name in NUMERIC_ID_FIELDS:
         # Numeric identifiers - exact match required
         extracted_digits = re.sub(r'\D', '', extracted)
         ground_truth_digits = re.sub(r'\D', '', ground_truth)
         return 1.0 if extracted_digits == ground_truth_digits else 0.0
     
-    elif field_name in ['TOTAL', 'SUBTOTAL', 'GST', 'OPENING_BALANCE', 'CLOSING_BALANCE']:
+    elif field_name in MONETARY_FIELDS:
         # Monetary values - numeric comparison
         try:
             extracted_num = float(re.sub(r'[^\d.-]', '', extracted))
@@ -270,7 +276,7 @@ def calculate_field_accuracy(extracted_value, ground_truth_value, field_name):
         except (ValueError, AttributeError):
             return 0.0
     
-    elif field_name in ['INVOICE_DATE', 'DUE_DATE', 'STATEMENT_PERIOD']:
+    elif field_name in DATE_FIELDS:
         # Date fields - flexible matching
         # Extract date components
         extracted_numbers = re.findall(r'\d+', extracted)
@@ -287,7 +293,7 @@ def calculate_field_accuracy(extracted_value, ground_truth_value, field_name):
         
         return 0.0
     
-    elif field_name in ['DESCRIPTIONS', 'PRICES', 'QUANTITIES']:
+    elif field_name in LIST_FIELDS:
         # List fields - check overlap
         # These fields may contain multiple items
         extracted_items = [item.strip() for item in re.split(r'[,;|\n]', extracted) if item.strip()]
