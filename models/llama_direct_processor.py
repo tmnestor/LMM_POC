@@ -105,9 +105,7 @@ class LlamaDirectProcessor:
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
         # Use centralized field instructions from config.py with direct formatting
-        prompt = f"""<image>
-
-Extract key-value data from this business document image.
+        prompt = f"""Extract key-value data from this business document image.
 
 CRITICAL INSTRUCTIONS:
 - Output ONLY the structured data below
@@ -168,11 +166,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
             # Load image
             image = self.load_document_image(image_path)
 
-            # Use direct prompting (no chat template)
-            direct_prompt = self.get_extraction_prompt()
+            # Use direct prompting with explicit image token placement
+            direct_prompt = f"<|image|>\n{self.get_extraction_prompt()}"
 
-            # Process inputs directly
-            inputs = self.processor(image, direct_prompt, return_tensors="pt").to(
+            # Process inputs directly - let processor handle tokenization
+            inputs = self.processor(direct_prompt, images=image, return_tensors="pt").to(
                 self.model.device
             )
 
