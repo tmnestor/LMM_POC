@@ -81,12 +81,7 @@ from common.evaluation_utils import (
     discover_images,
     evaluate_extraction_results,
 )
-from common.reporting import (
-    generate_deployment_checklist,
-    generate_executive_summary,
-    print_evaluation_summary,
-    save_evaluation_results,
-)
+from common.reporting import generate_comprehensive_reports, print_evaluation_summary
 from models.llama_direct_processor import LlamaDirectProcessor
 
 
@@ -255,28 +250,16 @@ def main():
         print("\n📊 Phase 6: Report Generation")
         print("-" * 40)
 
-        # Save detailed evaluation results as JSON
-        save_evaluation_results(
+        # Generate comprehensive reports (executive summary, deployment checklist, JSON results)
+        generate_comprehensive_reports(
             evaluation_summary,
             output_dir_path,
             "llama_direct",
             "Llama-3.2-11B-Vision-Direct",
         )
 
-        # Generate executive summary report
+        # Print evaluation summary to console
         print_evaluation_summary(evaluation_summary, "Llama-3.2-11B-Vision-Direct")
-        generate_executive_summary(
-            evaluation_summary, output_dir_path, timestamp, "llama_direct"
-        )
-
-        # Generate deployment readiness checklist
-        generate_deployment_checklist(
-            evaluation_summary,
-            batch_statistics,
-            output_dir_path,
-            timestamp,
-            "llama_direct",
-        )
 
         print("\n✅ Llama Vision Direct evaluation pipeline completed successfully!")
         print("=" * 80)
