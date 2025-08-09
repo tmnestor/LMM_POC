@@ -169,8 +169,8 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
             # Use direct prompting with explicit image token placement
             direct_prompt = f"<|image|>\n{self.get_extraction_prompt()}"
 
-            # Process inputs directly - let processor handle tokenization
-            inputs = self.processor(direct_prompt, images=image, return_tensors="pt").to(
+            # Process inputs directly - image first, then text
+            inputs = self.processor(image, direct_prompt, return_tensors="pt").to(
                 self.model.device
             )
 
