@@ -213,8 +213,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
                 response, clean_conversation_artifacts=False
             )
 
-            # TEMPORARY DEBUG: Print extracted key-value pairs
-            print(f"  📋 Raw response: {response[:200]}{'...' if len(response) > 200 else ''}")
+            # TEMPORARY DEBUG: Print full debugging info
+            print(f"  🔍 DEBUG - Full response length: {len(full_response)}")
+            print(f"  🔍 DEBUG - Input length: {input_length}")
+            print(f"  🔍 DEBUG - Generated response: '{response[:300]}{'...' if len(response) > 300 else ''}'")
+            print(f"  🔍 DEBUG - Response empty?: {len(response) == 0}")
             print(f"  📊 Extracted {len([k for k, v in extracted_data.items() if v != 'N/A'])} fields:")
             for key, value in list(extracted_data.items())[:5]:  # Show first 5 fields
                 print(f"    {key}: {value}")
