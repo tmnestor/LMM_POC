@@ -104,33 +104,16 @@ class LlamaDirectProcessor:
 
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
-        # Use centralized field instructions from config.py with direct formatting
-        prompt = f"""Extract key-value data from this business document image.
+        # Use completion-style prompt for base model
+        prompt = f"""This business document contains the following key-value data:
 
-CRITICAL INSTRUCTIONS:
-- Output ONLY the structured data below
-- Do NOT include any conversation text
-- Do NOT include explanations or comments
-- Start immediately with {EXTRACTION_FIELDS[0]}
-- Stop immediately after {EXTRACTION_FIELDS[-1]}
-
-REQUIRED OUTPUT FORMAT - EXACTLY {FIELD_COUNT} LINES:
 """
 
-        # Add each field dynamically using centralized instructions
-        for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
-            prompt += f"{field}: {instruction}\n"
-
-        prompt += f"""
-FORMAT RULES:
-- Use exactly: KEY: value (colon and space)
-- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting
-- Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {FIELD_COUNT} keys even if value is N/A
-- Output ONLY these {FIELD_COUNT} lines, nothing else
-
-STOP after {EXTRACTION_FIELDS[-1]} line."""
+        # Add field template for completion
+        for field in EXTRACTION_FIELDS[:3]:  # Start with first few fields to prime the completion
+            prompt += f"{field}: "
+            if field == EXTRACTION_FIELDS[0]:
+                prompt += "["  # Start completion with opening bracket to encourage structured output
 
         return prompt
 
@@ -166,8 +149,8 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
             # Load image
             image = self.load_document_image(image_path)
 
-            # Use direct prompting with explicit image token placement
-            direct_prompt = f"<|image|>\n{self.get_extraction_prompt()}"
+            # Use correct base model format with begin_of_text token
+            direct_prompt = f"<|begin_of_text|><|image|>{self.get_extraction_prompt()}"
 
             # Process inputs directly - image first, then text
             inputs = self.processor(image, direct_prompt, return_tensors="pt").to(
