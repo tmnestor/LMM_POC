@@ -1,0 +1,161 @@
+graph TD
+    subgraph "Input Processing"
+        A[PIL Image] --> B[load_image]
+        C[Extraction Prompt] --> D[get_extraction_prompt]
+        B --> E[Dynamic Preprocessing]
+        D --> F[Question Format]
+    end
+
+    subgraph "Dynamic Image Preprocessing (InternVL3 Specific)"
+        E --> G[Calculate Aspect Ratio<br/>orig_width / orig_height]
+        G --> H[Find Closest Aspect Ratio<br/>min_num=1, max_num=12]
+        H --> I[Target Ratios Generation<br/>All combinations i×j ≤ max_num]
+        I --> J[Image Resize<br/>target_width × target_height]
+        J --> K[Tile Generation<br/>Split into image_size patches]
+        K --> L[Optional Thumbnail<br/>Single 448×448 overview]
+    end
+
+    subgraph "Image Transformation Pipeline (TIMM-based)"
+        L --> M[RGB Conversion<br/>Convert to RGB if needed]
+        M --> N[Bicubic Resize<br/>448×448 per tile]
+        N --> O[ToTensor<br/>PIL → PyTorch tensor]
+        O --> P[ImageNet Normalization<br/>mean: 0.485,0.456,0.406<br/>std: 0.229,0.224,0.225]
+        P --> Q[Stack Tensors<br/>Multiple tiles → batch]
+    end
+
+    subgraph "Model Architecture - InternVL3 (AutoModel)"
+        subgraph "Vision Encoder (InternViT-6B)"
+            R[Vision Transformer<br/>Based on ViT architecture]
+            S[Patch Embedding<br/>Image patches → embeddings]
+            T[Vision Attention Layers<br/>Multi-head self-attention]
+            U[Vision Features<br/>Rich visual representations]
+        end
+        
+        subgraph "Language Model (Qwen2-2B)"
+            V[Text Tokenization<br/>SentencePiece/BPE]
+            W[Text Embeddings<br/>Token → vector space]
+            X[Transformer Decoder<br/>Causal language model]
+            Y[Cross-Modal Attention<br/>Text attends to vision]
+        end
+        
+        subgraph "Multi-Modal Integration"
+            Z[Vision-Language Fusion<br/>Learnable alignment]
+            AA[Contextual Understanding<br/>Joint reasoning]
+        end
+    end
+
+    subgraph "Model Loading Configuration"
+        BB[AutoModel.from_pretrained<br/>trust_remote_code=True]
+        CC[torch_dtype=bfloat16<br/>Memory efficient]
+        DD[low_cpu_mem_usage=True<br/>Optimized loading]
+        EE[use_flash_attn=False<br/>Compatibility mode]
+        FF[Device Placement<br/>eval and to device]
+    end
+
+    subgraph "Tokenizer Configuration"
+        GG[AutoTokenizer.from_pretrained<br/>trust_remote_code=True]
+        HH[use_fast=False<br/>More reliable for structured tasks]
+    end
+
+    subgraph "Generation Configuration (Your Settings)"
+        II[max_new_tokens: 1000+<br/>Scale with field count]
+        JJ[do_sample: False<br/>Deterministic output]
+        KK[pad_token_id: tokenizer.eos_token_id<br/>Prevent warnings]
+    end
+
+    subgraph "Processing Pipeline"
+        Q --> LL[Pixel Values<br/>Preprocessed image tensors]
+        F --> MM[Question Text<br/>image + prompt format]
+        LL --> NN[model.chat]
+        MM --> NN
+        II --> NN
+        NN --> OO[Response Generation<br/>Integrated vision-text processing]
+    end
+
+    subgraph "Batch Processing (Your Implementation)"
+        subgraph "True Batch Processing"
+            PP[Load Multiple Images<br/>Parallel preprocessing]
+            QQ[Batch Generation<br/>Process multiple simultaneously]
+            RR[Individual Results<br/>Per-image extraction]
+        end
+        
+        subgraph "Fallback Mechanism"
+            SS[OOM Detection<br/>RuntimeError/CUDA OOM]
+            TT[Batch Size Reduction<br/>BATCH_SIZE_FALLBACK_STEPS]
+            UU[Individual Processing<br/>Ultimate fallback]
+        end
+    end
+
+    subgraph "Output Processing"
+        OO --> VV[Raw Response Text]
+        VV --> WW[parse_extraction_response<br/>No conversation cleaning]
+        WW --> XX[Structured Output<br/>25 business document fields]
+        XX --> YY[Metrics Calculation<br/>completeness, coverage, timing]
+    end
+
+    subgraph "Memory Management"
+        ZZ[Auto Batch Size Detection<br/>get_auto_batch_size internvl3]
+        AAA[GPU Cache Clearing<br/>torch.cuda.empty_cache]
+        BBB[Error Recovery<br/>_create_error_result]
+    end
+
+    subgraph "Hardware Optimization"
+        CCC[Memory Efficient<br/>Lower VRAM requirements]
+        DDD[CPU Fallback<br/>Works without GPU]
+        EEE[Fast Inference<br/>2B parameters vs 11B]
+    end
+
+    %% Main flow connections
+    Q --> R
+    R --> S
+    S --> T
+    T --> U
+    U --> Z
+    V --> W
+    W --> X
+    X --> Y
+    Y --> Z
+    Z --> AA
+    AA --> OO
+    
+    %% Configuration connections
+    BB --> NN
+    CC --> NN
+    DD --> BB
+    EE --> BB
+    FF --> NN
+    GG --> MM
+    HH --> GG
+    
+    %% Batch processing connections
+    PP --> QQ
+    QQ --> RR
+    SS --> TT
+    TT --> UU
+    
+    %% Memory management connections
+    ZZ --> NN
+    OO --> AAA
+    NN --> BBB
+    
+    %% Hardware connections
+    NN --> CCC
+    NN --> DDD
+    NN --> EEE
+    
+    %% Styling
+    classDef inputBox fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef preprocessBox fill:#e3f2fd,stroke:#0277bd,stroke-width:2px
+    classDef modelBox fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef configBox fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef outputBox fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef batchBox fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef hardwareBox fill:#fff8e1,stroke:#f57c00,stroke-width:2px
+    
+    class A,B,C,D,E,F inputBox
+    class G,H,I,J,K,L,M,N,O,P,Q preprocessBox
+    class R,S,T,U,V,W,X,Y,Z,AA,LL,MM,NN,OO modelBox
+    class BB,CC,DD,EE,FF,GG,HH,II,JJ,KK configBox
+    class VV,WW,XX,YY outputBox
+    class PP,QQ,RR,SS,TT,UU,ZZ,AAA,BBB batchBox
+    class CCC,DDD,EEE hardwareBox
