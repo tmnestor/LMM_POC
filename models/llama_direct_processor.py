@@ -200,6 +200,15 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
                 response, clean_conversation_artifacts=False
             )
 
+            # TEMPORARY DEBUG: Print extracted key-value pairs
+            print(f"  📋 Raw response: {response[:200]}{'...' if len(response) > 200 else ''}")
+            print(f"  📊 Extracted {len([k for k, v in extracted_data.items() if v != 'N/A'])} fields:")
+            for key, value in list(extracted_data.items())[:5]:  # Show first 5 fields
+                print(f"    {key}: {value}")
+            if len(extracted_data) > 5:
+                print(f"    ... and {len(extracted_data) - 5} more fields")
+            print()
+
             # Calculate metrics
             extracted_fields_count = sum(
                 1 for v in extracted_data.values() if v != "N/A"
