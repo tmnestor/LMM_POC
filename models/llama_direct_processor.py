@@ -200,7 +200,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
                 lines = response.split('\n')
                 data_start = -1
                 for i, line in enumerate(lines):
-                    if ':' in line and not line.strip().startswith('-') and not 'INSTRUCTIONS' in line:
+                    if ':' in line and not line.strip().startswith('-') and 'INSTRUCTIONS' not in line:
                         data_start = i
                         break
                 if data_start >= 0:
