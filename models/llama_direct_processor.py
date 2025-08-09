@@ -22,7 +22,6 @@ from common.config import (
     CLEAR_GPU_CACHE_AFTER_BATCH,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
-    FIELD_INSTRUCTIONS,
     LLAMA_DIRECT_MODEL_PATH,
     get_auto_batch_size,
 )
@@ -105,7 +104,7 @@ class LlamaDirectProcessor:
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
         # Use completion-style prompt for base model
-        prompt = f"""This business document contains the following key-value data:
+        prompt = """This business document contains the following key-value data:
 
 """
 
