@@ -12,12 +12,13 @@ different vision models (InternVL3, Llama, etc.).
 # Available model variants
 AVAILABLE_MODELS = {
     "internvl3": ["InternVL3-2B", "InternVL3-8B"],
-    "llama": ["Llama-3.2-11B-Vision-Instruct"],
+    "llama": ["Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"],
 }
 
 # Current model selection (CHANGE THESE TO SWITCH MODELS)
 CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-8B"
-CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"
+CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"  # Options: "Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"
+CURRENT_LLAMA_DIRECT_MODEL = "Llama-3.2-11B-Vision"  # Base model for direct prompting
 
 # ============================================================================
 # DEPLOYMENT CONFIGURATIONS
@@ -44,6 +45,7 @@ MODELS_BASE = (
 # Model paths driven by current model selection
 INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
 LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+LLAMA_DIRECT_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_DIRECT_MODEL}"
 
 # Data paths with interpolation
 if CURRENT_DEPLOYMENT == "AISandbox":
