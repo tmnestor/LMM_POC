@@ -186,12 +186,25 @@ STOP after {EXTRACTION_FIELDS[-1]} line."""
                     pad_token_id=self.processor.tokenizer.eos_token_id,
                 )
 
-            # Decode response
+            # Decode response and extract only the generated part
             response = self.processor.decode(output[0], skip_special_tokens=True)
-
-            # Remove the original prompt from response (keep only generated part)
-            if direct_prompt in response:
-                response = response.replace(direct_prompt, "").strip()
+            
+            # Extract only the newly generated text (after the prompt)
+            input_length = len(self.processor.decode(inputs['input_ids'][0], skip_special_tokens=True))
+            full_response = self.processor.decode(output[0], skip_special_tokens=True)
+            response = full_response[input_length:].strip()
+            
+            # Additional cleanup: remove any remaining prompt artifacts
+            if "CRITICAL INSTRUCTIONS:" in response:
+                # Find where actual data starts (after instructions)
+                lines = response.split('\n')
+                data_start = -1
+                for i, line in enumerate(lines):
+                    if ':' in line and not line.strip().startswith('-') and not 'INSTRUCTIONS' in line:
+                        data_start = i
+                        break
+                if data_start >= 0:
+                    response = '\n'.join(lines[data_start:]).strip()
 
             processing_time = time.time() - start_time
 
