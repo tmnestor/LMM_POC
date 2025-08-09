@@ -407,7 +407,7 @@ dependencies:
       # -------------------------------------------------------------------
       - torch==2.7.1                    # PyTorch (overrides conda version)
       - torchvision==0.22.1             # PyTorch computer vision
-      - transformers==4.45.1            # Hugging Face transformers (NEAR required 4.45.2)
+      - transformers==4.45.2            # Hugging Face transformers (NEAR required 4.45.2)
       - accelerate==1.8.1               # Hugging Face acceleration library
       - safetensors==0.5.3              # Safe tensor serialization
       - tokenizers==0.20.3              # Fast tokenizers for transformers
