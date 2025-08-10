@@ -22,7 +22,7 @@ from common.config import (
     CLEAR_GPU_CACHE_AFTER_BATCH,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
-    LLAMA_DIRECT_MODEL_PATH,
+    LLAMA_MODEL_PATH,  # Use instruct model instead of base
     get_auto_batch_size,
 )
 
@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore")
 
 
 class LlamaDirectProcessor:
-    """Processor for Llama-3.2-11B-Vision base model using direct prompting."""
+    """Processor for Llama-3.2-11B-Vision-Instruct model using direct prompting (no chat template)."""
 
     def __init__(self, model_path=None, device="cuda", batch_size=None):
         """
@@ -41,7 +41,7 @@ class LlamaDirectProcessor:
             device (str): Device to run model on
             batch_size (int): Batch size for processing (auto-detected if None)
         """
-        self.model_path = model_path or LLAMA_DIRECT_MODEL_PATH
+        self.model_path = model_path or LLAMA_MODEL_PATH
         self.device = device
         self.model = None
         self.processor = None
@@ -67,8 +67,8 @@ class LlamaDirectProcessor:
         self.original_batch_size = self.batch_size
 
     def _load_model(self):
-        """Load Llama Vision base model and processor with optimal configuration."""
-        print(f"🔄 Loading Llama Vision direct model from: {self.model_path}")
+        """Load Llama Vision instruct model and processor with optimal configuration."""
+        print(f"🔄 Loading Llama Vision direct model (instruct) from: {self.model_path}")
 
         # Configure 8-bit quantization for V100 compatibility
         quantization_config = BitsAndBytesConfig(
@@ -89,12 +89,12 @@ class LlamaDirectProcessor:
             # Load processor
             self.processor = AutoProcessor.from_pretrained(self.model_path)
 
-            print("✅ Llama Vision direct model loaded successfully")
+            print("✅ Llama Vision instruct model loaded successfully")
             if hasattr(self.model, "parameters"):
                 print(
                     f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
                 )
-            print("🔧 Using direct prompting (no chat template)")
+            print("🔧 Using direct prompting on instruct model (bypassing chat template)")
 
         except Exception as e:
             print(f"❌ Error loading Llama Vision direct model: {e}")
@@ -186,8 +186,8 @@ Now extract the actual data:
             # Load image
             image = self.load_document_image(image_path)
 
-            # Use correct base model format with begin_of_text token
-            direct_prompt = f"<|begin_of_text|><|image|>{self.get_extraction_prompt()}"
+            # Use direct prompting with instruct model (no chat template)
+            direct_prompt = f"<|image|>\n{self.get_extraction_prompt()}"
 
             # Process inputs directly - image first, then text
             inputs = self.processor(image, direct_prompt, return_tensors="pt").to(
