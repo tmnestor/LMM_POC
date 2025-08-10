@@ -234,8 +234,13 @@ def main():
             print("-" * 40)
 
             try:
+                # First load ground truth mapping from CSV
+                from common.evaluation_utils import load_ground_truth_csv
+                ground_truth_map = load_ground_truth_csv(GROUND_TRUTH_PATH)
+                
+                # Then evaluate using the original extraction_results list (not DataFrame)
                 evaluation_summary = evaluate_extraction_results(
-                    results_df, GROUND_TRUTH_PATH
+                    extraction_results, ground_truth_map
                 )
                 print("✅ Ground truth evaluation completed")
             except Exception as e:
@@ -250,16 +255,25 @@ def main():
         print("\n📊 Phase 6: Report Generation")
         print("-" * 40)
 
-        # Generate comprehensive reports (executive summary, deployment checklist, JSON results)
-        generate_comprehensive_reports(
-            evaluation_summary,
-            output_dir_path,
-            "llama_direct",
-            "Llama-3.2-11B-Vision-Direct",
-        )
-
-        # Print evaluation summary to console
-        print_evaluation_summary(evaluation_summary, "Llama-3.2-11B-Vision-Direct")
+        # Generate comprehensive reports only if evaluation succeeded
+        if evaluation_summary and 'field_accuracies' in evaluation_summary:
+            generate_comprehensive_reports(
+                evaluation_summary,
+                output_dir_path,
+                "llama_direct",
+                "Llama-3.2-11B-Vision-Direct",
+            )
+            
+            # Print evaluation summary to console
+            print_evaluation_summary(evaluation_summary, "Llama-3.2-11B-Vision-Direct")
+        else:
+            print("⚠️ Skipping detailed reports - ground truth evaluation failed")
+            print("💡 CSV extraction results are still available for manual review")
+            print(f"📊 Processing completed successfully:")
+            print(f"   • Documents processed: {len(extraction_results)}")
+            print(f"   • Success rate: {batch_statistics['success_rate']:.1%}")
+            print(f"   • Average processing time: {batch_statistics['average_processing_time']:.2f}s")
+            print(f"   • Output files: {extraction_csv_path}")
 
         print("\n✅ Llama Vision Direct evaluation pipeline completed successfully!")
         print("=" * 80)
