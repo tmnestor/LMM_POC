@@ -141,6 +141,13 @@ Now extract the actual data:
                     value = re.sub(r'^\[|\]$', '', value)  # Remove brackets
                     value = re.sub(r'^extract value or |^value or ', '', value, flags=re.IGNORECASE)
                     
+                    # Special cleaning for specific fields
+                    if field == 'ABN':
+                        # Extract just the ABN number (11 digits)
+                        abn_match = re.search(r'(\d{2,3}[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{3})', value)
+                        if abn_match:
+                            value = re.sub(r'[\s\-]', '', abn_match.group(1))
+                    
                     if value and value.upper() != 'N/A' and len(value) > 0:
                         extracted_data[field] = value
                     break
@@ -205,7 +212,26 @@ Now extract the actual data:
             # Extract only the newly generated text (after the prompt)
             input_length = len(self.processor.decode(inputs['input_ids'][0], skip_special_tokens=True))
             full_response = self.processor.decode(output[0], skip_special_tokens=True)
-            response = full_response[input_length:].strip()
+            generated_text = full_response[input_length:].strip()
+            
+            # Clean up repetitive output - take only the first occurrence of each field
+            lines = generated_text.split('\n')
+            seen_fields = set()
+            clean_lines = []
+            
+            for line in lines:
+                if ':' in line:
+                    field_name = line.split(':')[0].strip().upper()
+                    if field_name in EXTRACTION_FIELDS and field_name not in seen_fields:
+                        clean_lines.append(line)
+                        seen_fields.add(field_name)
+                    elif field_name not in EXTRACTION_FIELDS:
+                        # Still include lines that might contain field names
+                        clean_lines.append(line)
+                else:
+                    clean_lines.append(line)
+            
+            response = '\n'.join(clean_lines[:50])  # Limit to first 50 lines to avoid excessive repetition
             
             # Additional cleanup: remove any remaining prompt artifacts
             if "CRITICAL INSTRUCTIONS:" in response:
