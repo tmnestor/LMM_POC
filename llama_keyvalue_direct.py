@@ -235,8 +235,8 @@ def main():
 
             try:
                 # First load ground truth mapping from CSV
-                from common.evaluation_utils import load_ground_truth_csv
-                ground_truth_map = load_ground_truth_csv(GROUND_TRUTH_PATH)
+                from common.evaluation_utils import load_ground_truth
+                ground_truth_map = load_ground_truth(GROUND_TRUTH_PATH)
                 
                 # Then evaluate using the original extraction_results list (not DataFrame)
                 evaluation_summary = evaluate_extraction_results(
