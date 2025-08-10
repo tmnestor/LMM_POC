@@ -102,114 +102,48 @@ class LlamaDirectProcessor:
 
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
-        # Use completion-style prompt with exact field names
-        prompt = f"""Extract the following data from this business document:
+        # List all required fields to prime the model
+        prompt = f"""Extract data from this business document using exactly these field names:
+
+"""
+        # Add all fields with their expected format
+        for field in EXTRACTION_FIELDS:
+            prompt += f"{field}: [extract value or N/A]\n"
+        
+        prompt += f"""
+
+Now extract the actual data:
 
 {EXTRACTION_FIELDS[0]}: """
         
         return prompt
 
     def _parse_direct_response(self, response):
-        """Parse the direct model response format into structured fields."""
+        """Parse the direct model response for EXACT field names only."""
         import re
         
         # Initialize with N/A for all fields
         extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
         
-        # Look for exact field names first (if model uses them)
+        # ONLY look for exact field names - no fallback parsing
         for field in EXTRACTION_FIELDS:
-            # Try exact field name match
-            exact_match = re.search(rf'{field}:\s*([^\n]+)', response, re.IGNORECASE)
-            if exact_match:
-                value = exact_match.group(1).strip()
-                if value and value != 'N/A' and len(value) > 0:
-                    extracted_data[field] = value
-
-        # Extract ABN patterns (various formats) if not found above
-        if extracted_data['ABN'] == 'N/A':
-            abn_patterns = [
-                r'(\d{11})',  # 11 digits together
-                r'(\d{2,3}\s+\d{3}\s+\d{3})',  # With spaces
-                r'(\d{2,3}\s+\d{3}\s+\d{3}\s+\d{3})',  # With more spaces
+            # Look for exact field name pattern: FIELD_NAME: value
+            patterns = [
+                rf'{field}:\s*([^\n\r]+?)(?=\n[A-Z_]+:|$)',  # Field: value (stops at next field or end)
+                rf'{field}:\s*([^\n\r]+)',  # Field: value (rest of line)
             ]
-            for pattern in abn_patterns:
-                abn_match = re.search(pattern, response)
-                if abn_match:
-                    extracted_data['ABN'] = abn_match.group(1).replace(' ', '')
+            
+            for pattern in patterns:
+                match = re.search(pattern, response, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    value = match.group(1).strip()
+                    # Clean up common artifacts
+                    value = re.sub(r'^\[|\]$', '', value)  # Remove brackets
+                    value = re.sub(r'^extract value or |^value or ', '', value, flags=re.IGNORECASE)
+                    
+                    if value and value.upper() != 'N/A' and len(value) > 0:
+                        extracted_data[field] = value
                     break
-        
-        # Extract account holder patterns
-        account_patterns = [
-            r'Account Holder:\s*([^[\]\n]+)',
-            r'ACCOUNT_HOLDER:\s*([^[\]\n]+)',
-            r'Name:\s*([A-Za-z\s]+)(?=\s*Address|\s*Phone|\s*$)',
-            r'Account Name:\s*\[ACCOUNT_HOLDER:\s*([^\]]+)\]',
-        ]
-        for pattern in account_patterns:
-            match = re.search(pattern, response, re.IGNORECASE)
-            if match:
-                extracted_data['ACCOUNT_HOLDER'] = match.group(1).strip()
-                break
-        
-        # Extract account numbers
-        account_num_patterns = [
-            r'Account Number:\s*(\d+)',
-            r'ACCOUNT_NUMBER:\s*(\d+)',
-        ]
-        for pattern in account_num_patterns:
-            match = re.search(pattern, response, re.IGNORECASE)
-            if match:
-                extracted_data['BANK_ACCOUNT_NUMBER'] = match.group(1).strip()
-                break
-        
-        # Extract invoice information
-        invoice_patterns = {
-            'INVOICE_NUMBER': [r'Invoice\s*#?\s*([A-Z0-9-]+)', r'Receipt:\s*([A-Z0-9-]+)'],
-            'INVOICE_DATE': [r'Invoice Date\s+(\d{2}/\d{2}/\d{4})', r'Date:\s*(\d{2}/\d{2}/\d{4})'],
-            'DUE_DATE': [r'Due Date\s+(\d{2}/\d{2}/\d{4})'],
-        }
-        
-        for field, patterns in invoice_patterns.items():
-            if field in extracted_data:
-                for pattern in patterns:
-                    match = re.search(pattern, response, re.IGNORECASE)
-                    if match:
-                        extracted_data[field] = match.group(1).strip()
-                        break
-        
-        # Extract addresses from various formats
-        address_patterns = [
-            r'Bill To:\s*\[BILL_TO:\s*([^\]]+)\]',
-            r'BILLING_ADDRESS:\s*([^[\]\n]+)',
-            r'Address:\s*([^[\]\n]+?)(?=\s*Phone|\s*Email|\s*$)',
-        ]
-        for pattern in address_patterns:
-            match = re.search(pattern, response, re.IGNORECASE)
-            if match:
-                address = match.group(1).strip()
-                extracted_data['BILLING_ADDRESS'] = address
-                # Try to extract company/person name from context
-                if 'Account Holder:' in response or 'Name:' in response:
-                    # Address is for a person
-                    pass
-                else:
-                    # Might be company address
-                    first_part = address.split(',')[0].strip()
-                    if not re.match(r'^\d', first_part) and len(first_part) > 3:
-                        extracted_data['COMPANY_NAME'] = first_part
-                break
-        
-        # Extract totals and financial amounts
-        total_patterns = [
-            r'Balance:\s*\$?([\d,]+\.?\d*)',
-            r'TOTAL\s*\$?([\d,]+\.?\d*)',
-            r'Total.*?\$?([\d,]+\.?\d*)',
-        ]
-        for pattern in total_patterns:
-            match = re.search(pattern, response, re.IGNORECASE)
-            if match:
-                extracted_data['TOTAL'] = match.group(1).replace(',', '')
-                break
         
         return extracted_data
 
