@@ -103,7 +103,7 @@ class LlamaDirectProcessor:
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
         # List all required fields to prime the model
-        prompt = f"""Extract data from this business document using exactly these field names:
+        prompt = """Extract data from this business document using exactly these field names:
 
 """
         # Add all fields with their expected format
