@@ -187,7 +187,7 @@ Now extract the actual data:
             image = self.load_document_image(image_path)
 
             # Use direct prompting with instruct model (no chat template)
-            direct_prompt = f"<|image|>\n{self.get_extraction_prompt()}"
+            direct_prompt = f"<|begin_of_text|><|image|>\n{self.get_extraction_prompt()}"
 
             # Process inputs directly - image first, then text
             inputs = self.processor(image, direct_prompt, return_tensors="pt").to(
