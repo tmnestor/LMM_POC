@@ -102,17 +102,11 @@ class LlamaDirectProcessor:
 
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for direct Llama Vision."""
-        # Use completion-style prompt for base model
-        prompt = """This business document contains the following key-value data:
+        # Use completion-style prompt with exact field names
+        prompt = f"""Extract the following data from this business document:
 
-"""
-
-        # Add field template for completion
-        for field in EXTRACTION_FIELDS[:3]:  # Start with first few fields to prime the completion
-            prompt += f"{field}: "
-            if field == EXTRACTION_FIELDS[0]:
-                prompt += "["  # Start completion with opening bracket to encourage structured output
-
+{EXTRACTION_FIELDS[0]}: """
+        
         return prompt
 
     def _parse_direct_response(self, response):
@@ -122,17 +116,27 @@ class LlamaDirectProcessor:
         # Initialize with N/A for all fields
         extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
         
-        # Extract ABN patterns (various formats)
-        abn_patterns = [
-            r'(\d{11})',  # 11 digits together
-            r'(\d{2,3}\s+\d{3}\s+\d{3})',  # With spaces
-            r'(\d{2,3}\s+\d{3}\s+\d{3}\s+\d{3})',  # With more spaces
-        ]
-        for pattern in abn_patterns:
-            abn_match = re.search(pattern, response)
-            if abn_match:
-                extracted_data['ABN'] = abn_match.group(1).replace(' ', '')
-                break
+        # Look for exact field names first (if model uses them)
+        for field in EXTRACTION_FIELDS:
+            # Try exact field name match
+            exact_match = re.search(rf'{field}:\s*([^\n]+)', response, re.IGNORECASE)
+            if exact_match:
+                value = exact_match.group(1).strip()
+                if value and value != 'N/A' and len(value) > 0:
+                    extracted_data[field] = value
+
+        # Extract ABN patterns (various formats) if not found above
+        if extracted_data['ABN'] == 'N/A':
+            abn_patterns = [
+                r'(\d{11})',  # 11 digits together
+                r'(\d{2,3}\s+\d{3}\s+\d{3})',  # With spaces
+                r'(\d{2,3}\s+\d{3}\s+\d{3}\s+\d{3})',  # With more spaces
+            ]
+            for pattern in abn_patterns:
+                abn_match = re.search(pattern, response)
+                if abn_match:
+                    extracted_data['ABN'] = abn_match.group(1).replace(' ', '')
+                    break
         
         # Extract account holder patterns
         account_patterns = [
