@@ -269,7 +269,7 @@ def main():
         else:
             print("⚠️ Skipping detailed reports - ground truth evaluation failed")
             print("💡 CSV extraction results are still available for manual review")
-            print(f"📊 Processing completed successfully:")
+            print("📊 Processing completed successfully:")
             print(f"   • Documents processed: {len(extraction_results)}")
             print(f"   • Success rate: {batch_statistics['success_rate']:.1%}")
             print(f"   • Average processing time: {batch_statistics['average_processing_time']:.2f}s")
