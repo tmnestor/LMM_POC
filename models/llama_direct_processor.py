@@ -25,7 +25,6 @@ from common.config import (
     LLAMA_DIRECT_MODEL_PATH,
     get_auto_batch_size,
 )
-from common.evaluation_utils import parse_extraction_response
 
 warnings.filterwarnings("ignore")
 
