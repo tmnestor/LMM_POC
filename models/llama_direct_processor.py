@@ -116,6 +116,100 @@ class LlamaDirectProcessor:
 
         return prompt
 
+    def _parse_direct_response(self, response):
+        """Parse the direct model response format into structured fields."""
+        import re
+        
+        # Initialize with N/A for all fields
+        extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
+        
+        # Extract ABN patterns (various formats)
+        abn_patterns = [
+            r'(\d{11})',  # 11 digits together
+            r'(\d{2,3}\s+\d{3}\s+\d{3})',  # With spaces
+            r'(\d{2,3}\s+\d{3}\s+\d{3}\s+\d{3})',  # With more spaces
+        ]
+        for pattern in abn_patterns:
+            abn_match = re.search(pattern, response)
+            if abn_match:
+                extracted_data['ABN'] = abn_match.group(1).replace(' ', '')
+                break
+        
+        # Extract account holder patterns
+        account_patterns = [
+            r'Account Holder:\s*([^[\]\n]+)',
+            r'ACCOUNT_HOLDER:\s*([^[\]\n]+)',
+            r'Name:\s*([A-Za-z\s]+)(?=\s*Address|\s*Phone|\s*$)',
+            r'Account Name:\s*\[ACCOUNT_HOLDER:\s*([^\]]+)\]',
+        ]
+        for pattern in account_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                extracted_data['ACCOUNT_HOLDER'] = match.group(1).strip()
+                break
+        
+        # Extract account numbers
+        account_num_patterns = [
+            r'Account Number:\s*(\d+)',
+            r'ACCOUNT_NUMBER:\s*(\d+)',
+        ]
+        for pattern in account_num_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                extracted_data['BANK_ACCOUNT_NUMBER'] = match.group(1).strip()
+                break
+        
+        # Extract invoice information
+        invoice_patterns = {
+            'INVOICE_NUMBER': [r'Invoice\s*#?\s*([A-Z0-9-]+)', r'Receipt:\s*([A-Z0-9-]+)'],
+            'INVOICE_DATE': [r'Invoice Date\s+(\d{2}/\d{2}/\d{4})', r'Date:\s*(\d{2}/\d{2}/\d{4})'],
+            'DUE_DATE': [r'Due Date\s+(\d{2}/\d{2}/\d{4})'],
+        }
+        
+        for field, patterns in invoice_patterns.items():
+            if field in extracted_data:
+                for pattern in patterns:
+                    match = re.search(pattern, response, re.IGNORECASE)
+                    if match:
+                        extracted_data[field] = match.group(1).strip()
+                        break
+        
+        # Extract addresses from various formats
+        address_patterns = [
+            r'Bill To:\s*\[BILL_TO:\s*([^\]]+)\]',
+            r'BILLING_ADDRESS:\s*([^[\]\n]+)',
+            r'Address:\s*([^[\]\n]+?)(?=\s*Phone|\s*Email|\s*$)',
+        ]
+        for pattern in address_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                address = match.group(1).strip()
+                extracted_data['BILLING_ADDRESS'] = address
+                # Try to extract company/person name from context
+                if 'Account Holder:' in response or 'Name:' in response:
+                    # Address is for a person
+                    pass
+                else:
+                    # Might be company address
+                    first_part = address.split(',')[0].strip()
+                    if not re.match(r'^\d', first_part) and len(first_part) > 3:
+                        extracted_data['COMPANY_NAME'] = first_part
+                break
+        
+        # Extract totals and financial amounts
+        total_patterns = [
+            r'Balance:\s*\$?([\d,]+\.?\d*)',
+            r'TOTAL\s*\$?([\d,]+\.?\d*)',
+            r'Total.*?\$?([\d,]+\.?\d*)',
+        ]
+        for pattern in total_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                extracted_data['TOTAL'] = match.group(1).replace(',', '')
+                break
+        
+        return extracted_data
+
     def load_document_image(self, image_path):
         """
         Load document image with error handling.
@@ -190,10 +284,8 @@ class LlamaDirectProcessor:
 
             processing_time = time.time() - start_time
 
-            # Parse response with NO conversation artifact cleaning (direct output)
-            extracted_data = parse_extraction_response(
-                response, clean_conversation_artifacts=False
-            )
+            # Custom parsing for direct model output format
+            extracted_data = self._parse_direct_response(response)
 
             # TEMPORARY DEBUG: Print full debugging info
             print(f"  🔍 DEBUG - Full response length: {len(full_response)}")
