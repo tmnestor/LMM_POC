@@ -255,7 +255,13 @@ Now extract the actual data:
             print(f"  🔍 DEBUG - Input length: {input_length}")
             print(f"  🔍 DEBUG - Generated response: '{response[:300]}{'...' if len(response) > 300 else ''}'")
             print(f"  🔍 DEBUG - Response empty?: {len(response) == 0}")
-            print(f"  📊 Extracted {len([k for k, v in extracted_data.items() if v != 'N/A'])} fields:")
+            # Count all fields (including correct N/A identifications)
+            total_fields = len(extracted_data)
+            fields_with_values = len([k for k, v in extracted_data.items() if v != 'N/A'])
+            fields_na = total_fields - fields_with_values
+            
+            print(f"  📊 Total extractions: {total_fields} fields (ALL fields processed)")
+            print(f"      → {fields_with_values} fields with values, {fields_na} correctly marked N/A")
             for key, value in list(extracted_data.items())[:5]:  # Show first 5 fields
                 print(f"    {key}: {value}")
             if len(extracted_data) > 5:
