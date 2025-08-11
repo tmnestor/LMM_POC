@@ -200,7 +200,7 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
 
 def generate_comprehensive_reports(evaluation_summary, output_dir_path, model_name, model_full_name):
     """
-    Generate comprehensive evaluation reports including executive summary and deployment checklist.
+    Generate comprehensive evaluation reports including executive summary and JSON results.
     
     Args:
         evaluation_summary (dict): Evaluation results and metrics
@@ -223,14 +223,7 @@ def generate_comprehensive_reports(evaluation_summary, output_dir_path, model_na
     with report_path.open('w', encoding='utf-8') as f:
         f.write(executive_summary)
     
-    # Generate deployment checklist
-    deployment_checklist = generate_deployment_checklist(evaluation_summary, model_name, model_full_name)
-    
-    # Save deployment checklist  
-    checklist_filename = f"{model_name}_deployment_checklist_{timestamp}.md"
-    checklist_path = output_dir_path / checklist_filename
-    with checklist_path.open('w', encoding='utf-8') as f:
-        f.write(deployment_checklist)
+    # Deployment checklist generation removed per user request
     
     # Save JSON evaluation results
     json_filename = f"{model_name}_evaluation_results_{timestamp}.json"
@@ -256,12 +249,10 @@ def generate_comprehensive_reports(evaluation_summary, output_dir_path, model_na
     print("\n📋 EVALUATION REPORTS GENERATED")
     print("=" * 50)
     print(f"✅ Executive Summary: {report_path.name}")
-    print(f"✅ Deployment Checklist: {checklist_path.name}")
     print(f"✅ JSON Results: {json_path.name}")
     
     return {
         'executive_summary': report_path,
-        'deployment_checklist': checklist_path,
         'json_results': json_path
     }
 
