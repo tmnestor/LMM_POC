@@ -311,7 +311,12 @@ def main():
             # List all generated files for easy access and verification
             print("\n📁 Report files generated:")
             for report_type, report_path in reports.items():
-                print(f"   - {report_type}: {report_path.name}")
+                if report_type == "visualizations" and isinstance(report_path, list):
+                    print(f"   - {report_type}:")
+                    for viz_path in report_path:
+                        print(f"     • {viz_path.name}")
+                else:
+                    print(f"   - {report_type}: {report_path.name}")
         else:
             print("❌ No ground truth data available - skipping evaluation")
             print(
