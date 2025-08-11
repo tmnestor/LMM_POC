@@ -258,7 +258,11 @@ def main():
     # - Deployment readiness checklist (Markdown)
     print("\n📝 Generating comprehensive evaluation reports...")
     reports = generate_comprehensive_reports(
-        evaluation_summary, output_dir_path, "llama", "Llama-3.2-11B-Vision-Instruct"
+        evaluation_summary,
+        output_dir_path,
+        "llama",
+        "Llama-3.2-11B-Vision-Instruct",
+        batch_stats,
     )
 
     # Display summary statistics to console for immediate feedback

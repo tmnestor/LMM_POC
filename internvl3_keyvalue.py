@@ -7,7 +7,7 @@ model, designed to extract structured key-value data from business documents (in
 statements, etc.) and evaluate performance against ground truth data.
 
 Pipeline Overview:
-    1. Setup & Validation - Verify paths, create output directories  
+    1. Setup & Validation - Verify paths, create output directories
     2. Model Initialization - Load InternVL3 processor with optimal config
     3. Image Discovery - Find and filter document images for processing
     4. Batch Processing - Extract structured data from all images
@@ -140,7 +140,7 @@ def main():
         No exceptions are raised; all errors are caught and handled gracefully
         with informative error messages and clean exit.
     """
-    
+
     # =============================================================================
     # PIPELINE INITIALIZATION AND CONFIGURATION DISPLAY
     # =============================================================================
@@ -174,7 +174,7 @@ def main():
         print(f"❌ ERROR: Ground truth file not found: {ground_truth_path}")
         print("💡 Ensure GROUND_TRUTH_PATH in config.py points to evaluation CSV file")
         return
-    
+
     # =============================================================================
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
@@ -191,11 +191,13 @@ def main():
     ground_truth_data = load_ground_truth(ground_truth_path, show_sample=True)
 
     if ground_truth_data:
-        print(f"✅ Ground truth loaded successfully for {len(ground_truth_data)} images")
+        print(
+            f"✅ Ground truth loaded successfully for {len(ground_truth_data)} images"
+        )
         print("🎯 Evaluation infrastructure ready")
     else:
         print("❌ Failed to load ground truth data - evaluation will be limited")
-    
+
     # =============================================================================
     # DOCUMENT IMAGE DISCOVERY AND FILTERING
     # =============================================================================
@@ -216,7 +218,7 @@ def main():
         print(f"   {i + 1}. {Path(file_path).name}")
     if len(image_files) > 5:
         print(f"   ... and {len(image_files) - 5} more files")
-    
+
     # =============================================================================
     # BATCH PROCESSING PIPELINE
     # =============================================================================
@@ -224,12 +226,14 @@ def main():
     # Each image generates 25 structured fields with confidence and timing metrics
     print("\n🚀 Starting batch processing...")
     start_time = datetime.now()
-    
+
     try:
         # Process all images through InternVL3 Vision extraction pipeline
         # InternVL3 uses dynamic preprocessing with tile-based approach for optimal quality
-        extraction_results, batch_statistics = processor.process_image_batch(image_files)
-        
+        extraction_results, batch_statistics = processor.process_image_batch(
+            image_files
+        )
+
         # =============================================================================
         # DATA FRAME CREATION AND CSV EXPORT
         # =============================================================================
@@ -238,10 +242,14 @@ def main():
         # Metadata DF: processing statistics, timing, quality metrics per image
         print("\n📊 Creating extraction DataFrames...")
         df, metadata_df = create_extraction_dataframe(extraction_results)
-        
-        print(f"✅ Successfully created DataFrame with {len(df)} rows and {len(df.columns)} columns")
-        print(f"📋 Column structure: image_name + {len(EXTRACTION_FIELDS)} alphabetically ordered fields")
-        
+
+        print(
+            f"✅ Successfully created DataFrame with {len(df)} rows and {len(df.columns)} columns"
+        )
+        print(
+            f"📋 Column structure: image_name + {len(EXTRACTION_FIELDS)} alphabetically ordered fields"
+        )
+
         # Generate timestamped filenames for batch tracking and version control
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         extraction_csv = output_dir_path / f"internvl3_batch_extraction_{timestamp}.csv"
@@ -250,10 +258,12 @@ def main():
 
         # Save processing metadata for performance analysis and debugging
         if not metadata_df.empty:
-            metadata_csv = output_dir_path / f"internvl3_extraction_metadata_{timestamp}.csv"
+            metadata_csv = (
+                output_dir_path / f"internvl3_extraction_metadata_{timestamp}.csv"
+            )
             metadata_df.to_csv(metadata_csv, index=False)
             print(f"💾 Extraction metadata saved: {metadata_csv}")
-        
+
         # =============================================================================
         # COMPREHENSIVE EVALUATION AGAINST GROUND TRUTH
         # =============================================================================
@@ -262,8 +272,10 @@ def main():
         # Supports both exact matching and fuzzy matching for string fields
         if ground_truth_data:
             print("\n🎯 Evaluating extraction results against ground truth...")
-            evaluation_summary = evaluate_extraction_results(extraction_results, ground_truth_data)
-            
+            evaluation_summary = evaluate_extraction_results(
+                extraction_results, ground_truth_data
+            )
+
             # Calculate document quality distribution for deployment readiness assessment
             # Categories: Good (80-99%), Fair (60-80%), Poor (<60%)
             evaluation_data = evaluation_summary.get("evaluation_data", [])
@@ -289,9 +301,10 @@ def main():
                 evaluation_summary,
                 output_dir_path,
                 "internvl3",
-                "InternVL3-2B"
+                "InternVL3-2B",
+                batch_statistics,
             )
-            
+
             # Display summary statistics to console for immediate feedback
             print_evaluation_summary(evaluation_summary, "InternVL3-2B")
 
@@ -301,30 +314,36 @@ def main():
                 print(f"   - {report_type}: {report_path.name}")
         else:
             print("❌ No ground truth data available - skipping evaluation")
-            print("💡 Processing completed successfully, but accuracy metrics unavailable")
-        
+            print(
+                "💡 Processing completed successfully, but accuracy metrics unavailable"
+            )
+
         # =============================================================================
         # FINAL STATISTICS AND PIPELINE COMPLETION
         # =============================================================================
         # Calculate total processing time and performance metrics
         end_time = datetime.now()
         total_time = (end_time - start_time).total_seconds()
-        
+
         print("\n✅ InternVL3 Vision evaluation pipeline completed successfully!")
         print(
             f"📊 {len(image_files)} documents processed with "
             f"{evaluation_summary.get('overall_accuracy', 0):.1%} average accuracy"
-            if ground_truth_data else f"📊 {len(image_files)} documents processed successfully"
+            if ground_truth_data
+            else f"📊 {len(image_files)} documents processed successfully"
         )
         print(f"⏱️ Total processing time: {total_time:.2f} seconds")
-        print(f"📈 Average time per document: {total_time/len(image_files):.2f} seconds")
+        print(
+            f"📈 Average time per document: {total_time / len(image_files):.2f} seconds"
+        )
         print(f"✅ Processing success rate: {batch_statistics['success_rate']:.1%}")
         print("🚀 InternVL3 memory efficiency: ~5x better than Llama-3.2-Vision")
-        
+
     except Exception as e:
         print(f"\n❌ Error during batch processing: {e}")
         print("💡 Check model path, dependencies, and available GPU memory")
         import traceback
+
         traceback.print_exc()
 
 

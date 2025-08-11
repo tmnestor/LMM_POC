@@ -564,3 +564,44 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
         strategy = "conservative"
 
     return get_batch_size_for_model(model_name, strategy)
+
+
+# ============================================================================
+# VISUALIZATION CONFIGURATION
+# ============================================================================
+
+# Enable/disable visualization generation
+VISUALIZATION_ENABLED = True
+
+# Chart output settings
+CHART_OUTPUT_FORMAT = "png"  # png, svg, pdf
+CHART_DPI = 300  # High DPI for publication quality
+CHART_STYLE = "professional"  # professional, minimal, academic
+
+# Professional color scheme for business reports
+VIZ_COLORS = {
+    "primary": "#2E86AB",  # Professional blue
+    "secondary": "#A23B72",  # Deep purple
+    "success": "#F18F01",  # Warm orange
+    "warning": "#C73E1D",  # Alert red
+    "info": "#4ECDC4",  # Teal accent
+    "text": "#2C3E50",  # Dark text
+    "background": "#F8F9FA",  # Light background
+}
+
+# Chart quality thresholds for color coding
+VIZ_QUALITY_THRESHOLDS = {
+    "excellent": 0.9,  # 90%+ accuracy = green
+    "good": 0.8,  # 80-90% accuracy = yellow
+    "poor": 0.6,  # <60% accuracy = red
+}
+
+# Visualization output file patterns
+VIZ_OUTPUT_PATTERNS = {
+    "field_accuracy": "{model}_field_accuracy_bar_{timestamp}.png",
+    "performance_dashboard": "{model}_performance_dashboard_{timestamp}.png",
+    "document_quality": "{model}_document_quality_{timestamp}.png",
+    "field_category": "field_category_analysis_{timestamp}.png",
+    "comparison_heatmap": "comparison_field_heatmap_{timestamp}.png",
+    "html_summary": "visualization_summary_{timestamp}.html",
+}

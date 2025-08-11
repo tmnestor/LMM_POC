@@ -10,6 +10,7 @@ dependencies:
   - pandas
   - pillow
   - matplotlib
+  - seaborn  # Required for advanced visualizations
   - tqdm
   - pyyaml
   - pip
