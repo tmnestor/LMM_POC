@@ -99,9 +99,9 @@ class ModelComparator:
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle(
             "Llama vs InternVL3 Performance Comparison",
-            fontsize=18,
+            fontsize=16,
             fontweight="bold",
-            y=0.95
+            y=0.98
         )
 
         # Chart 1: Overall Accuracy Comparison
@@ -113,7 +113,7 @@ class ModelComparator:
         colors = [VIZ_COLORS["primary"], VIZ_COLORS["secondary"]]
 
         bars1 = ax1.bar(models, accuracies, color=colors, alpha=0.8)
-        ax1.set_title("Overall Accuracy Comparison", fontweight="bold")
+        ax1.set_title("Overall Accuracy", fontweight="bold", fontsize=12)
         ax1.set_ylabel("Accuracy (%)")
         ax1.set_ylim(0, 100)
 
@@ -150,7 +150,7 @@ class ModelComparator:
         bars2_2 = ax2.bar(x_pos + width/2, internvl3_stats, width, label="InternVL3",
                          color=VIZ_COLORS["secondary"], alpha=0.8)
 
-        ax2.set_title("Processing Statistics", fontweight="bold")
+        ax2.set_title("Processing Stats", fontweight="bold", fontsize=12)
         ax2.set_ylabel("Count")
         ax2.set_xticks(x_pos)
         ax2.set_xticklabels(stats_categories)
@@ -192,7 +192,7 @@ class ModelComparator:
         bars3_2 = ax3.bar(x_pos + width/2, internvl3_counts, width, label="InternVL3",
                          color=VIZ_COLORS["secondary"], alpha=0.8)
 
-        ax3.set_title("Field Quality Distribution", fontweight="bold")
+        ax3.set_title("Field Quality", fontweight="bold", fontsize=12)
         ax3.set_ylabel("Number of Fields")
         ax3.set_xticks(x_pos)
         ax3.set_xticklabels(quality_categories)
@@ -229,7 +229,7 @@ class ModelComparator:
         bars4_2 = ax4.bar(x_pos + width/2, internvl3_perf, width, label="InternVL3", 
                          color=VIZ_COLORS["secondary"], alpha=0.8)
 
-        ax4.set_title("Performance Range", fontweight="bold")
+        ax4.set_title("Performance Range", fontweight="bold", fontsize=12)
         ax4.set_ylabel("Accuracy (%)")
         ax4.set_xticks(x_pos)
         ax4.set_xticklabels(performance_metrics)
@@ -249,7 +249,7 @@ class ModelComparator:
                     fontweight="bold"
                 )
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         # Save comparison dashboard
         if save_path is None:
@@ -339,7 +339,7 @@ class ModelComparator:
         cbar2 = plt.colorbar(im2, ax=ax2, shrink=0.8)
         cbar2.set_label("Accuracy Difference (%)", rotation=270, labelpad=20)
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         # Save heatmap
         if save_path is None:
