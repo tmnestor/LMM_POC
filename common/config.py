@@ -575,8 +575,19 @@ VISUALIZATION_ENABLED = True
 
 # Chart output settings
 CHART_OUTPUT_FORMAT = "png"  # png, svg, pdf
-CHART_DPI = 300  # High DPI for publication quality
+CHART_DPI = 300  # High DPI for publication quality reports
 CHART_STYLE = "professional"  # professional, minimal, academic
+
+# Figure size settings (width, height in inches)
+# High DPI + smaller physical size = high quality but manageable file size
+# For reports: 300 DPI with 8-10 inch width provides excellent print quality
+CHART_SIZES = {
+    "field_accuracy": (10, 6),      # Field accuracy bar chart - compact but readable
+    "performance_dashboard": (10, 8), # 2x2 performance dashboard - balanced layout
+    "field_category": (10, 5),      # Field category analysis - wide but not tall
+    "document_quality": (8, 5),     # Document quality distribution - compact
+    "comparison_heatmap": (12, 8),  # Multi-model comparison - slightly larger for complexity
+}
 
 # Professional color scheme for business reports
 VIZ_COLORS = {

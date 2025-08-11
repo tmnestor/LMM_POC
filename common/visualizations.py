@@ -23,6 +23,7 @@ import numpy as np
 
 from .config import (
     CHART_DPI,
+    CHART_SIZES,
     DEPLOYMENT_READY_THRESHOLD,
     EXCELLENT_FIELD_THRESHOLD,
     EXTRACTION_FIELDS,
@@ -134,7 +135,7 @@ class LMMVisualizer:
         )
 
         # Create figure with appropriate size for 25 fields
-        fig, ax = plt.subplots(figsize=(16, 10))
+        fig, ax = plt.subplots(figsize=CHART_SIZES["field_accuracy"])
 
         # Prepare data
         fields = [field for field, _ in sorted_fields]
@@ -238,7 +239,7 @@ class LMMVisualizer:
         print(f"🎨 Creating performance dashboard for {model_name}...")
 
         # Create 2x2 subplot dashboard
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=CHART_SIZES["performance_dashboard"])
         fig.suptitle(
             f"{model_name.upper()} Performance Dashboard",
             fontsize=18,
@@ -476,7 +477,7 @@ class LMMVisualizer:
             return ""
 
         # Create figure
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=CHART_SIZES["field_category"])
         fig.suptitle(
             f"Field Category Performance Analysis\n{model_name.upper()}",
             fontsize=16,
