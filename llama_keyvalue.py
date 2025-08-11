@@ -263,6 +263,8 @@ def main():
         "llama",
         "Llama-3.2-11B-Vision-Instruct",
         batch_stats,
+        results,  # extraction_results for classification analysis
+        ground_truth_data,  # ground truth mapping for classification analysis
     )
 
     # Display summary statistics to console for immediate feedback

@@ -7,8 +7,11 @@ ground truth data, calculating accuracies, and managing evaluation data.
 
 import re
 from pathlib import Path
+from typing import Dict, List
 
+import numpy as np
 import pandas as pd
+from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 from .config import (
     DATE_FIELDS,
@@ -418,3 +421,181 @@ def evaluate_extraction_results(extraction_results, ground_truth_map):
     }
     
     return evaluation_summary
+
+
+def prepare_classification_data(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict[str, Dict]:
+    """
+    Prepare data for sklearn classification report by converting field extraction to binary classification.
+    
+    For each field, we classify whether the extraction was:
+    - Correct: Extracted value matches ground truth
+    - Incorrect: Extracted value doesn't match ground truth  
+    - Missing: Field was not extracted (N/A) but should have been
+    - False Positive: Field was extracted but shouldn't have been (ground truth is N/A)
+    
+    Args:
+        extraction_results: List of extraction result dictionaries
+        ground_truth_map: Mapping of image names to ground truth data
+        
+    Returns:
+        Dict containing y_true, y_pred, and labels for each field
+    """
+    classification_data = {}
+    
+    for field in EXTRACTION_FIELDS:
+        y_true = []
+        y_pred = []
+        
+        for result in extraction_results:
+            image_name = result.get('image_name', 'unknown')
+            if image_name not in ground_truth_map:
+                continue
+                
+            ground_truth = ground_truth_map[image_name].get(field, 'N/A')
+            predicted = result.get(field, 'N/A')
+            
+            # Convert to binary classification labels
+            # True label: 1 if field should be extracted (not N/A), 0 if field should be N/A
+            gt_has_value = ground_truth not in ['N/A', '', None, 'n/a', 'NA']
+            pred_has_value = predicted not in ['N/A', '', None, 'n/a', 'NA']
+            
+            y_true.append(1 if gt_has_value else 0)
+            y_pred.append(1 if pred_has_value else 0)
+            
+        classification_data[field] = {
+            'y_true': np.array(y_true),
+            'y_pred': np.array(y_pred),
+            'labels': ['Not Extracted', 'Extracted']
+        }
+    
+    return classification_data
+
+
+def generate_field_classification_report(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict[str, str]:
+    """
+    Generate sklearn classification reports for each field.
+    
+    Args:
+        extraction_results: List of extraction result dictionaries
+        ground_truth_map: Mapping of image names to ground truth data
+        
+    Returns:
+        Dict mapping field names to their classification report strings
+    """
+    classification_data = prepare_classification_data(extraction_results, ground_truth_map)
+    reports = {}
+    
+    for field, data in classification_data.items():
+        if len(data['y_true']) == 0:
+            reports[field] = f"No data available for field: {field}"
+            continue
+            
+        # Skip if all predictions are the same class (no classification possible)
+        if len(set(data['y_pred'])) == 1 or len(set(data['y_true'])) == 1:
+            reports[field] = f"Insufficient class variety for classification report: {field}"
+            continue
+            
+        try:
+            report = classification_report(
+                data['y_true'], 
+                data['y_pred'],
+                target_names=data['labels'],
+                zero_division=0
+            )
+            reports[field] = report
+        except Exception as e:
+            reports[field] = f"Error generating report for {field}: {e}"
+    
+    return reports
+
+
+def generate_overall_classification_summary(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict:
+    """
+    Generate an overall classification summary with macro and micro averages across all fields.
+    
+    Args:
+        extraction_results: List of extraction result dictionaries  
+        ground_truth_map: Mapping of image names to ground truth data
+        
+    Returns:
+        Dict with overall classification metrics
+    """
+    classification_data = prepare_classification_data(extraction_results, ground_truth_map)
+    
+    # Collect all predictions across fields
+    all_y_true = []
+    all_y_pred = []
+    field_metrics = {}
+    
+    for field, data in classification_data.items():
+        if len(data['y_true']) == 0:
+            continue
+            
+        all_y_true.extend(data['y_true'])
+        all_y_pred.extend(data['y_pred'])
+        
+        # Calculate per-field metrics
+        try:
+            precision, recall, f1, support = precision_recall_fscore_support(
+                data['y_true'], data['y_pred'], average='weighted', zero_division=0
+            )
+            field_metrics[field] = {
+                'precision': precision,
+                'recall': recall, 
+                'f1_score': f1,
+                'support': np.sum(support)
+            }
+        except Exception as e:
+            field_metrics[field] = {
+                'precision': 0.0,
+                'recall': 0.0,
+                'f1_score': 0.0,
+                'support': 0,
+                'error': str(e)
+            }
+    
+    # Calculate overall metrics
+    overall_metrics = {}
+    if all_y_true and all_y_pred:
+        try:
+            # Micro averages (global counts)
+            micro_precision, micro_recall, micro_f1, _ = precision_recall_fscore_support(
+                all_y_true, all_y_pred, average='micro', zero_division=0
+            )
+            
+            # Macro averages (mean of per-field metrics)
+            macro_precision, macro_recall, macro_f1, _ = precision_recall_fscore_support(
+                all_y_true, all_y_pred, average='macro', zero_division=0  
+            )
+            
+            # Weighted averages
+            weighted_precision, weighted_recall, weighted_f1, _ = precision_recall_fscore_support(
+                all_y_true, all_y_pred, average='weighted', zero_division=0
+            )
+            
+            overall_metrics = {
+                'micro_avg': {
+                    'precision': micro_precision,
+                    'recall': micro_recall,
+                    'f1_score': micro_f1
+                },
+                'macro_avg': {
+                    'precision': macro_precision, 
+                    'recall': macro_recall,
+                    'f1_score': macro_f1
+                },
+                'weighted_avg': {
+                    'precision': weighted_precision,
+                    'recall': weighted_recall, 
+                    'f1_score': weighted_f1
+                },
+                'total_predictions': len(all_y_true)
+            }
+        except Exception as e:
+            overall_metrics = {'error': str(e)}
+    
+    return {
+        'overall_metrics': overall_metrics,
+        'field_metrics': field_metrics,
+        'classification_reports': generate_field_classification_report(extraction_results, ground_truth_map)
+    }

@@ -587,6 +587,7 @@ CHART_SIZES = {
     "field_category": (10, 5),      # Field category analysis - wide but not tall
     "document_quality": (8, 5),     # Document quality distribution - compact
     "comparison_heatmap": (12, 8),  # Multi-model comparison - slightly larger for complexity
+    "classification_metrics": (12, 8), # Classification metrics dashboard - comprehensive layout
 }
 
 # Professional color scheme for business reports
@@ -614,5 +615,6 @@ VIZ_OUTPUT_PATTERNS = {
     "document_quality": "{model}_document_quality_{timestamp}.png",
     "field_category": "field_category_analysis_{timestamp}.png",
     "comparison_heatmap": "comparison_field_heatmap_{timestamp}.png",
+    "classification_metrics": "{model}_classification_metrics_{timestamp}.png",
     "html_summary": "visualization_summary_{timestamp}.html",
 }

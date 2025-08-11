@@ -11,6 +11,7 @@ dependencies:
   - pillow
   - matplotlib
   - seaborn  # Required for advanced visualizations
+  - scikit-learn  # Required for classification reports and metrics
   - tqdm
   - pyyaml
   - pip

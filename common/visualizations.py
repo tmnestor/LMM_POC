@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 from .config import (
     CHART_DPI,
@@ -36,6 +38,7 @@ from .config import (
     VIZ_OUTPUT_PATTERNS,
     VIZ_QUALITY_THRESHOLDS,
 )
+from .evaluation_utils import generate_overall_classification_summary
 
 
 class LMMVisualizer:
@@ -101,6 +104,122 @@ class LMMVisualizer:
 
         return categories
 
+    def _prepare_dashboard_data(
+        self, evaluation_summary: Dict[str, Any], batch_statistics: Dict[str, Any]
+    ) -> Dict[str, pd.DataFrame]:
+        """Prepare dashboard data in pandas format."""
+
+        # Overall performance metrics
+        overall_acc = evaluation_summary.get("overall_accuracy", 0) * 100
+        performance_data = pd.DataFrame(
+            [
+                {
+                    "Metric": "Model Performance",
+                    "Value": overall_acc,
+                    "Category": "Accuracy",
+                }
+            ]
+        )
+
+        # Processing performance
+        avg_time = batch_statistics.get("average_processing_time", 0)
+        throughput = 60.0 / avg_time if avg_time > 0 else 0
+        processing_data = pd.DataFrame(
+            [
+                {"Metric": "Avg Time/Image", "Value": avg_time, "Unit": "seconds"},
+                {"Metric": "Throughput", "Value": throughput, "Unit": "images/min"},
+            ]
+        )
+
+        # Document quality distribution
+        evaluation_data = evaluation_summary.get("evaluation_data", [])
+        if evaluation_data:
+            perfect_docs = sum(
+                1 for doc in evaluation_data if doc["overall_accuracy"] >= 0.99
+            )
+            good_docs = sum(
+                1 for doc in evaluation_data if 0.8 <= doc["overall_accuracy"] < 0.99
+            )
+            fair_docs = sum(
+                1 for doc in evaluation_data if 0.6 <= doc["overall_accuracy"] < 0.8
+            )
+            poor_docs = sum(
+                1 for doc in evaluation_data if doc["overall_accuracy"] < 0.6
+            )
+
+            quality_data = pd.DataFrame(
+                [
+                    {
+                        "Quality": "Perfect\n(99%+)",
+                        "Count": perfect_docs,
+                        "Color": VIZ_COLORS["success"],
+                    },
+                    {
+                        "Quality": "Good\n(80-99%)",
+                        "Count": good_docs,
+                        "Color": VIZ_COLORS["info"],
+                    },
+                    {
+                        "Quality": "Fair\n(60-80%)",
+                        "Count": fair_docs,
+                        "Color": VIZ_COLORS["secondary"],
+                    },
+                    {
+                        "Quality": "Poor\n(<60%)",
+                        "Count": poor_docs,
+                        "Color": VIZ_COLORS["warning"],
+                    },
+                ]
+            )
+        else:
+            quality_data = pd.DataFrame()
+
+        # Field performance summary
+        field_accuracies = evaluation_summary.get("field_accuracies", {})
+        if field_accuracies:
+            excellent_count = sum(
+                1
+                for acc in field_accuracies.values()
+                if acc >= EXCELLENT_FIELD_THRESHOLD
+            )
+            good_count = sum(
+                1
+                for acc in field_accuracies.values()
+                if GOOD_FIELD_THRESHOLD <= acc < EXCELLENT_FIELD_THRESHOLD
+            )
+            poor_count = sum(
+                1 for acc in field_accuracies.values() if acc < POOR_FIELD_THRESHOLD
+            )
+
+            field_summary_data = pd.DataFrame(
+                [
+                    {
+                        "Category": "Excellent\nFields",
+                        "Count": excellent_count,
+                        "Color": VIZ_COLORS["success"],
+                    },
+                    {
+                        "Category": "Good\nFields",
+                        "Count": good_count,
+                        "Color": VIZ_COLORS["info"],
+                    },
+                    {
+                        "Category": "Poor\nFields",
+                        "Count": poor_count,
+                        "Color": VIZ_COLORS["warning"],
+                    },
+                ]
+            )
+        else:
+            field_summary_data = pd.DataFrame()
+
+        return {
+            "performance": performance_data,
+            "processing": processing_data,
+            "quality": quality_data,
+            "field_summary": field_summary_data,
+        }
+
     def create_field_accuracy_chart(
         self,
         evaluation_summary: Dict[str, Any],
@@ -123,53 +242,70 @@ class LMMVisualizer:
 
         print(f"🎨 Creating field accuracy chart for {model_name}...")
 
-        # Extract field accuracies and sort by performance
+        # Extract field accuracies and convert to DataFrame
         field_accuracies = evaluation_summary.get("field_accuracies", {})
         if not field_accuracies:
             print("❌ No field accuracy data available")
             return ""
 
-        # Sort fields by accuracy for better visualization
-        sorted_fields = sorted(
-            field_accuracies.items(), key=lambda x: x[1], reverse=True
-        )
+        # Create DataFrame with field data
+        field_data = []
+        for field, accuracy in field_accuracies.items():
+            acc_pct = accuracy * 100
 
-        # Create figure with appropriate size for 25 fields
+            # Determine quality category for color coding
+            if acc_pct >= VIZ_QUALITY_THRESHOLDS["excellent"] * 100:
+                quality = "Excellent"
+                color = VIZ_COLORS["success"]
+            elif acc_pct >= VIZ_QUALITY_THRESHOLDS["good"] * 100:
+                quality = "Good"
+                color = VIZ_COLORS["info"]
+            else:
+                quality = "Poor"
+                color = VIZ_COLORS["warning"]
+
+            field_data.append(
+                {
+                    "Field": field,
+                    "Accuracy": acc_pct,
+                    "Quality": quality,
+                    "Color": color,
+                }
+            )
+
+        field_df = pd.DataFrame(field_data)
+        field_df = field_df.sort_values(
+            "Accuracy", ascending=True
+        )  # Ascending for horizontal bars
+
+        # Create figure
         fig, ax = plt.subplots(figsize=CHART_SIZES["field_accuracy"])
 
-        # Prepare data
-        fields = [field for field, _ in sorted_fields]
-        accuracies = [acc * 100 for _, acc in sorted_fields]  # Convert to percentage
-
-        # Color code bars based on performance thresholds
-        colors = []
-        for acc in accuracies:
-            if acc >= VIZ_QUALITY_THRESHOLDS["excellent"] * 100:
-                colors.append(VIZ_COLORS["success"])
-            elif acc >= VIZ_QUALITY_THRESHOLDS["good"] * 100:
-                colors.append(VIZ_COLORS["info"])
-            else:
-                colors.append(VIZ_COLORS["warning"])
-
-        # Create horizontal bar chart for better field name readability
-        bars = ax.barh(range(len(fields)), accuracies, color=colors, alpha=0.8)
+        # Create horizontal bar plot with seaborn
+        sns.barplot(
+            data=field_df,
+            y="Field",
+            x="Accuracy",
+            palette=field_df["Color"].tolist(),
+            alpha=0.8,
+            ax=ax,
+        )
 
         # Customize chart
-        ax.set_yticks(range(len(fields)))
-        ax.set_yticklabels(fields)
         ax.set_xlabel("Accuracy (%)", fontweight="bold")
+        ax.set_ylabel("")
         ax.set_title(
-            f"Field-wise Accuracy Performance\n{model_name.upper()} - {len(fields)} Fields",
+            f"Field-wise Accuracy Performance\n{model_name.upper()} - {len(field_df)} Fields",
             fontweight="bold",
             pad=20,
         )
 
         # Add accuracy value labels on bars
-        for bar, acc in zip(bars, accuracies, strict=False):
+        for i, (_, row) in enumerate(field_df.iterrows()):
             ax.text(
-                bar.get_width() + 1,
-                bar.get_y() + bar.get_height() / 2,
-                f"{acc:.1f}%",
+                row["Accuracy"] + 1,
+                i,
+                f"{row['Accuracy']:.1f}%",
                 ha="left",
                 va="center",
                 fontweight="bold",
@@ -238,182 +374,168 @@ class LMMVisualizer:
 
         print(f"🎨 Creating performance dashboard for {model_name}...")
 
+        # Prepare data using pandas
+        dashboard_data = self._prepare_dashboard_data(
+            evaluation_summary, batch_statistics
+        )
+
         # Create 2x2 subplot dashboard
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=CHART_SIZES["performance_dashboard"])
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
+            2, 2, figsize=CHART_SIZES["performance_dashboard"]
+        )
         fig.suptitle(
             f"{model_name.upper()} Performance Dashboard",
-            fontsize=18,
+            fontsize=16,
             fontweight="bold",
-            y=0.95,
+            y=0.98,
         )
 
         # Chart 1: Overall Accuracy vs Thresholds
-        overall_acc = evaluation_summary.get("overall_accuracy", 0) * 100
+        performance_df = dashboard_data["performance"]
+        if not performance_df.empty:
+            overall_acc = performance_df.iloc[0]["Value"]
 
-        bars1 = ax1.bar(
-            ["Model Performance"], [overall_acc], color=VIZ_COLORS["primary"], alpha=0.8
-        )
+            sns.barplot(
+                data=performance_df,
+                x="Metric",
+                y="Value",
+                color=VIZ_COLORS["primary"],
+                alpha=0.8,
+                ax=ax1,
+            )
 
-        # Add threshold lines
-        ax1.axhline(
-            y=DEPLOYMENT_READY_THRESHOLD * 100,
-            color="green",
-            linestyle="--",
-            alpha=0.7,
-            label=f"Production Ready ({DEPLOYMENT_READY_THRESHOLD:.0%})",
-        )
-        ax1.axhline(
-            y=PILOT_READY_THRESHOLD * 100,
-            color="orange",
-            linestyle="--",
-            alpha=0.7,
-            label=f"Pilot Ready ({PILOT_READY_THRESHOLD:.0%})",
-        )
+            # Add threshold lines
+            ax1.axhline(
+                y=DEPLOYMENT_READY_THRESHOLD * 100,
+                color="green",
+                linestyle="--",
+                alpha=0.7,
+                label=f"Production Ready ({DEPLOYMENT_READY_THRESHOLD:.0%})",
+            )
+            ax1.axhline(
+                y=PILOT_READY_THRESHOLD * 100,
+                color="orange",
+                linestyle="--",
+                alpha=0.7,
+                label=f"Pilot Ready ({PILOT_READY_THRESHOLD:.0%})",
+            )
 
-        ax1.set_title("Overall Accuracy", fontweight="bold")
-        ax1.set_ylabel("Accuracy (%)")
-        ax1.set_ylim(0, 100)
-        ax1.legend()
+            ax1.set_title("Overall Accuracy", fontweight="bold", fontsize=12)
+            ax1.set_xlabel("")
+            ax1.set_ylabel("Accuracy (%)")
+            ax1.set_ylim(0, 100)
+            ax1.legend()
 
-        # Add value label
-        ax1.text(
-            0,
-            overall_acc + 2,
-            f"{overall_acc:.1f}%",
-            ha="center",
-            va="bottom",
-            fontweight="bold",
-            fontsize=14,
-        )
+            # Add value label
+            ax1.text(
+                0,
+                overall_acc + 2,
+                f"{overall_acc:.1f}%",
+                ha="center",
+                va="bottom",
+                fontweight="bold",
+                fontsize=12,
+            )
 
         # Chart 2: Processing Speed
-        avg_time = batch_statistics.get("average_processing_time", 0)
-        throughput = 60.0 / avg_time if avg_time > 0 else 0
+        processing_df = dashboard_data["processing"]
+        if not processing_df.empty:
+            # Create custom palette for different metrics
+            processing_colors = [VIZ_COLORS["info"], VIZ_COLORS["success"]]
 
-        bars2 = ax2.bar(
-            ["Avg Time/Image", "Throughput"],
-            [avg_time, throughput],
-            color=[VIZ_COLORS["info"], VIZ_COLORS["success"]],
-            alpha=0.8,
-        )
+            sns.barplot(
+                data=processing_df,
+                x="Metric",
+                y="Value",
+                palette=processing_colors,
+                alpha=0.8,
+                ax=ax2,
+            )
 
-        ax2.set_title("Processing Performance", fontweight="bold")
-        ax2.set_ylabel("Time (s) | Images/min")
+            ax2.set_title("Processing Performance", fontweight="bold", fontsize=12)
+            ax2.set_xlabel("")
+            ax2.set_ylabel("Time (s) | Images/min")
 
-        # Add value labels
-        ax2.text(
-            0,
-            avg_time + 0.5,
-            f"{avg_time:.1f}s",
-            ha="center",
-            va="bottom",
-            fontweight="bold",
-        )
-        ax2.text(
-            1,
-            throughput + 0.5,
-            f"{throughput:.1f}",
-            ha="center",
-            va="bottom",
-            fontweight="bold",
-        )
+            # Add value labels with units
+            for i, (_, row) in enumerate(processing_df.iterrows()):
+                unit_suffix = "s" if "Time" in row["Metric"] else ""
+                ax2.text(
+                    i,
+                    row["Value"] + 0.5,
+                    f"{row['Value']:.1f}{unit_suffix}",
+                    ha="center",
+                    va="bottom",
+                    fontweight="bold",
+                    fontsize=10,
+                )
 
         # Chart 3: Document Quality Distribution
-        evaluation_data = evaluation_summary.get("evaluation_data", [])
-        if evaluation_data:
-            perfect_docs = sum(
-                1 for doc in evaluation_data if doc["overall_accuracy"] >= 0.99
-            )
-            good_docs = sum(
-                1 for doc in evaluation_data if 0.8 <= doc["overall_accuracy"] < 0.99
-            )
-            fair_docs = sum(
-                1 for doc in evaluation_data if 0.6 <= doc["overall_accuracy"] < 0.8
-            )
-            poor_docs = sum(
-                1 for doc in evaluation_data if doc["overall_accuracy"] < 0.6
+        quality_df = dashboard_data["quality"]
+        if not quality_df.empty:
+            sns.barplot(
+                data=quality_df,
+                x="Quality",
+                y="Count",
+                palette=quality_df["Color"].tolist(),
+                alpha=0.8,
+                ax=ax3,
             )
 
-            categories = [
-                "Perfect\n(99%+)",
-                "Good\n(80-99%)",
-                "Fair\n(60-80%)",
-                "Poor\n(<60%)",
-            ]
-            counts = [perfect_docs, good_docs, fair_docs, poor_docs]
-            colors = [
-                VIZ_COLORS["success"],
-                VIZ_COLORS["info"],
-                VIZ_COLORS["secondary"],
-                VIZ_COLORS["warning"],
-            ]
-
-            bars3 = ax3.bar(categories, counts, color=colors, alpha=0.8)
-            ax3.set_title("Document Quality Distribution", fontweight="bold")
+            ax3.set_title(
+                "Document Quality Distribution", fontweight="bold", fontsize=12
+            )
+            ax3.set_xlabel("")
             ax3.set_ylabel("Number of Documents")
 
             # Add count labels
-            for bar, count in zip(bars3, counts, strict=False):
-                if count > 0:
+            for i, (_, row) in enumerate(quality_df.iterrows()):
+                if row["Count"] > 0:
                     ax3.text(
-                        bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + 0.1,
-                        str(count),
+                        i,
+                        row["Count"] + 0.1,
+                        str(int(row["Count"])),
                         ha="center",
                         va="bottom",
                         fontweight="bold",
+                        fontsize=10,
                     )
 
         # Chart 4: Field Performance Summary
-        field_accuracies = evaluation_summary.get("field_accuracies", {})
-        if field_accuracies:
-            excellent_count = sum(
-                1
-                for acc in field_accuracies.values()
-                if acc >= EXCELLENT_FIELD_THRESHOLD
-            )
-            good_count = sum(
-                1
-                for acc in field_accuracies.values()
-                if GOOD_FIELD_THRESHOLD <= acc < EXCELLENT_FIELD_THRESHOLD
-            )
-            poor_count = sum(
-                1 for acc in field_accuracies.values() if acc < POOR_FIELD_THRESHOLD
-            )
+        field_summary_df = dashboard_data["field_summary"]
+        if not field_summary_df.empty:
+            total_fields = len(evaluation_summary.get("field_accuracies", {}))
 
-            field_categories = ["Excellent\nFields", "Good\nFields", "Poor\nFields"]
-            field_counts = [excellent_count, good_count, poor_count]
-
-            bars4 = ax4.bar(
-                field_categories,
-                field_counts,
-                color=[
-                    VIZ_COLORS["success"],
-                    VIZ_COLORS["info"],
-                    VIZ_COLORS["warning"],
-                ],
+            sns.barplot(
+                data=field_summary_df,
+                x="Category",
+                y="Count",
+                palette=field_summary_df["Color"].tolist(),
                 alpha=0.8,
+                ax=ax4,
             )
 
             ax4.set_title(
-                f"Field Performance Summary\n(of {len(field_accuracies)} total fields)",
+                f"Field Performance Summary\n(of {total_fields} total fields)",
                 fontweight="bold",
+                fontsize=12,
             )
+            ax4.set_xlabel("")
             ax4.set_ylabel("Number of Fields")
 
             # Add count labels
-            for bar, count in zip(bars4, field_counts, strict=False):
-                if count > 0:
+            for i, (_, row) in enumerate(field_summary_df.iterrows()):
+                if row["Count"] > 0:
                     ax4.text(
-                        bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + 0.1,
-                        str(count),
+                        i,
+                        row["Count"] + 0.1,
+                        str(int(row["Count"])),
                         ha="center",
                         va="bottom",
                         fontweight="bold",
+                        fontsize=10,
                     )
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         # Save dashboard
         if save_path is None:
@@ -458,8 +580,10 @@ class LMMVisualizer:
             print("❌ No field accuracy data available for category analysis")
             return ""
 
-        # Calculate average accuracy per category
-        category_performance = {}
+        # Prepare data in pandas format
+        category_data = []
+        field_count_data = []
+
         for category, fields in self.field_categories.items():
             if not fields:
                 continue
@@ -470,11 +594,20 @@ class LMMVisualizer:
                     category_accs.append(field_accuracies[field])
 
             if category_accs:
-                category_performance[category] = np.mean(category_accs) * 100
+                avg_accuracy = np.mean(category_accs) * 100
+                category_data.append(
+                    {
+                        "Category": category,
+                        "Average_Accuracy": avg_accuracy,
+                        "Field_Count": len(fields),
+                    }
+                )
 
-        if not category_performance:
+        if not category_data:
             print("❌ No category performance data available")
             return ""
+
+        category_df = pd.DataFrame(category_data)
 
         # Create figure
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=CHART_SIZES["field_category"])
@@ -486,29 +619,36 @@ class LMMVisualizer:
         )
 
         # Left chart: Category performance bars
-        categories = list(category_performance.keys())
-        performances = list(category_performance.values())
+        category_colors = [
+            VIZ_COLORS["primary"],
+            VIZ_COLORS["secondary"],
+            VIZ_COLORS["info"],
+        ]
 
-        bars = ax1.bar(
-            categories,
-            performances,
-            color=[VIZ_COLORS["primary"], VIZ_COLORS["secondary"], VIZ_COLORS["info"]],
+        sns.barplot(
+            data=category_df,
+            x="Category",
+            y="Average_Accuracy",
+            palette=category_colors,
             alpha=0.8,
+            ax=ax1,
         )
 
         ax1.set_title("Average Accuracy by Category", fontweight="bold")
+        ax1.set_xlabel("")
         ax1.set_ylabel("Average Accuracy (%)")
         ax1.set_ylim(0, 100)
 
         # Add value labels
-        for bar, perf in zip(bars, performances, strict=False):
+        for i, (_, row) in enumerate(category_df.iterrows()):
             ax1.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 1,
-                f"{perf:.1f}%",
+                i,
+                row["Average_Accuracy"] + 1,
+                f"{row['Average_Accuracy']:.1f}%",
                 ha="center",
                 va="bottom",
                 fontweight="bold",
+                fontsize=10,
             )
 
         # Add threshold lines
@@ -529,19 +669,16 @@ class LMMVisualizer:
         ax1.legend()
 
         # Right chart: Field count per category
-        category_counts = [
-            len(fields) for fields in self.field_categories.values() if fields
-        ]
-
         pie_colors = [
             VIZ_COLORS["primary"],
             VIZ_COLORS["secondary"],
             VIZ_COLORS["info"],
         ]
+
         wedges, texts, autotexts = ax2.pie(
-            category_counts,
-            labels=categories,
-            colors=pie_colors,
+            category_df["Field_Count"].values,
+            labels=category_df["Category"].values,
+            colors=pie_colors[: len(category_df)],
             autopct="%1.0f",
             startangle=90,
         )
@@ -554,7 +691,7 @@ class LMMVisualizer:
             autotext.set_fontweight("bold")
             autotext.set_fontsize(12)
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.92])
 
         # Save chart
         if save_path is None:
@@ -570,11 +707,260 @@ class LMMVisualizer:
         print(f"✅ Field category analysis saved: {save_path}")
         return str(save_path)
 
+    def create_classification_metrics_dashboard(
+        self,
+        extraction_results: List[Dict[str, Any]],
+        ground_truth_data: Dict[str, Any],
+        model_name: str,
+        save_path: Optional[str] = None,
+    ) -> str:
+        """
+        Create classification metrics dashboard with precision, recall, and F1 scores.
+
+        Args:
+            extraction_results: Raw extraction results for classification analysis
+            ground_truth_data: Ground truth mapping for classification analysis
+            model_name: Model name for file naming
+            save_path: Optional custom save path
+
+        Returns:
+            Path to saved dashboard file
+        """
+        if not VISUALIZATION_ENABLED:
+            return ""
+
+        print(f"🎨 Creating classification metrics dashboard for {model_name}...")
+
+        # Generate classification summary
+        try:
+            classification_summary = generate_overall_classification_summary(
+                extraction_results, ground_truth_data
+            )
+        except Exception as e:
+            print(f"❌ Error generating classification data: {e}")
+            return ""
+
+        # Extract field-level metrics
+        field_metrics = classification_summary.get("field_metrics", {})
+        if not field_metrics:
+            print("❌ No field classification metrics available")
+            return ""
+
+        # Prepare data in pandas format
+        metrics_data = []
+        for field, metrics in field_metrics.items():
+            if "error" not in metrics:
+                metrics_data.append(
+                    {
+                        "Field": field,
+                        "Precision": metrics.get("precision", 0),
+                        "Recall": metrics.get("recall", 0),
+                        "F1_Score": metrics.get("f1_score", 0),
+                        "Support": metrics.get("support", 0),
+                    }
+                )
+
+        if not metrics_data:
+            print("❌ No valid classification metrics to visualize")
+            return ""
+
+        metrics_df = pd.DataFrame(metrics_data)
+        metrics_df = metrics_df.sort_values("F1_Score", ascending=False)
+
+        # Create 2x2 dashboard
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
+            2, 2, figsize=CHART_SIZES["classification_metrics"]
+        )
+        fig.suptitle(
+            f"{model_name.upper()} Classification Metrics Dashboard",
+            fontsize=16,
+            fontweight="bold",
+            y=0.98,
+        )
+
+        # Chart 1: F1-Score by Field (Top 10)
+        top_f1_df = metrics_df.head(10)
+        sns.barplot(
+            data=top_f1_df,
+            y="Field",
+            x="F1_Score",
+            palette="viridis",
+            alpha=0.8,
+            ax=ax1,
+        )
+        ax1.set_title("Top 10 Fields by F1-Score", fontweight="bold", fontsize=12)
+        ax1.set_xlabel("F1-Score")
+        ax1.set_ylabel("")
+        ax1.set_xlim(0, 1.0)
+
+        # Add F1-score labels
+        for i, (_, row) in enumerate(top_f1_df.iterrows()):
+            ax1.text(
+                row["F1_Score"] + 0.01,
+                i,
+                f"{row['F1_Score']:.3f}",
+                ha="left",
+                va="center",
+                fontweight="bold",
+                fontsize=9,
+            )
+
+        # Chart 2: Precision vs Recall Scatter
+        sns.scatterplot(
+            data=metrics_df,
+            x="Recall",
+            y="Precision",
+            size="Support",
+            sizes=(50, 200),
+            alpha=0.7,
+            color=VIZ_COLORS["primary"],
+            ax=ax2,
+        )
+        ax2.set_title("Precision vs Recall", fontweight="bold", fontsize=12)
+        ax2.set_xlabel("Recall")
+        ax2.set_ylabel("Precision")
+        ax2.set_xlim(0, 1.0)
+        ax2.set_ylim(0, 1.0)
+
+        # Add diagonal reference line (perfect balance)
+        ax2.plot([0, 1], [0, 1], "r--", alpha=0.5, label="Perfect Balance")
+        ax2.legend()
+
+        # Chart 3: Overall Performance Metrics
+        overall_metrics = classification_summary.get("overall_metrics", {})
+        if overall_metrics and "error" not in overall_metrics:
+            overall_data = []
+            for avg_type in ["macro_avg", "micro_avg", "weighted_avg"]:
+                if avg_type in overall_metrics:
+                    metrics = overall_metrics[avg_type]
+                    avg_name = avg_type.replace("_", " ").title()
+                    overall_data.extend(
+                        [
+                            {
+                                "Average": avg_name,
+                                "Metric": "Precision",
+                                "Value": metrics.get("precision", 0),
+                            },
+                            {
+                                "Average": avg_name,
+                                "Metric": "Recall",
+                                "Value": metrics.get("recall", 0),
+                            },
+                            {
+                                "Average": avg_name,
+                                "Metric": "F1-Score",
+                                "Value": metrics.get("f1_score", 0),
+                            },
+                        ]
+                    )
+
+            if overall_data:
+                overall_df = pd.DataFrame(overall_data)
+                sns.barplot(
+                    data=overall_df,
+                    x="Average",
+                    y="Value",
+                    hue="Metric",
+                    palette=[
+                        VIZ_COLORS["primary"],
+                        VIZ_COLORS["secondary"],
+                        VIZ_COLORS["success"],
+                    ],
+                    alpha=0.8,
+                    ax=ax3,
+                )
+                ax3.set_title("Overall Performance Averages", fontweight="bold", fontsize=12)
+                ax3.set_xlabel("")
+                ax3.set_ylabel("Score")
+                ax3.set_ylim(0, 1.0)
+                ax3.legend()
+
+                # Add value labels
+                for container in ax3.containers:
+                    ax3.bar_label(container, fmt="%.3f", fontweight="bold", fontsize=8)
+
+        # Chart 4: Performance Distribution
+        performance_categories = {
+            "Excellent\n(F1 ≥ 0.9)": len(metrics_df[metrics_df["F1_Score"] >= 0.9]),
+            "Good\n(F1 0.7-0.9)": len(
+                metrics_df[
+                    (metrics_df["F1_Score"] >= 0.7) & (metrics_df["F1_Score"] < 0.9)
+                ]
+            ),
+            "Fair\n(F1 0.5-0.7)": len(
+                metrics_df[
+                    (metrics_df["F1_Score"] >= 0.5) & (metrics_df["F1_Score"] < 0.7)
+                ]
+            ),
+            "Poor\n(F1 < 0.5)": len(metrics_df[metrics_df["F1_Score"] < 0.5]),
+        }
+
+        distribution_df = pd.DataFrame(
+            [
+                {"Category": cat, "Count": count, "Color": color}
+                for cat, count, color in zip(
+                    performance_categories.keys(),
+                    performance_categories.values(),
+                    [
+                        VIZ_COLORS["success"],
+                        VIZ_COLORS["info"],
+                        VIZ_COLORS["secondary"],
+                        VIZ_COLORS["warning"],
+                    ], strict=False,
+                )
+            ]
+        )
+
+        sns.barplot(
+            data=distribution_df,
+            x="Category",
+            y="Count",
+            palette=distribution_df["Color"].tolist(),
+            alpha=0.8,
+            ax=ax4,
+        )
+        ax4.set_title("F1-Score Distribution", fontweight="bold", fontsize=12)
+        ax4.set_xlabel("")
+        ax4.set_ylabel("Number of Fields")
+
+        # Add count labels
+        for i, (_, row) in enumerate(distribution_df.iterrows()):
+            if row["Count"] > 0:
+                ax4.text(
+                    i,
+                    row["Count"] + 0.1,
+                    str(int(row["Count"])),
+                    ha="center",
+                    va="bottom",
+                    fontweight="bold",
+                    fontsize=10,
+                )
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        # Save dashboard
+        if save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = VIZ_OUTPUT_PATTERNS["classification_metrics"].format(
+                model=model_name, timestamp=timestamp
+            )
+            save_path = self.output_dir / filename
+        else:
+            save_path = Path(save_path)
+
+        plt.savefig(save_path, dpi=CHART_DPI, bbox_inches="tight", facecolor="white")
+        plt.close()
+
+        print(f"✅ Classification metrics dashboard saved: {save_path}")
+        return str(save_path)
+
     def generate_model_visualizations(
         self,
         evaluation_summary: Dict[str, Any],
         batch_statistics: Dict[str, Any],
         model_name: str,
+        extraction_results: Optional[List[Dict[str, Any]]] = None,
+        ground_truth_data: Optional[Dict[str, Any]] = None,
     ) -> List[str]:
         """
         Generate complete visualization suite for a single model.
@@ -583,6 +969,8 @@ class LMMVisualizer:
             evaluation_summary: Evaluation results from evaluate_extraction_results()
             batch_statistics: Processing statistics from model evaluation
             model_name: Model name for file naming
+            extraction_results: Raw extraction results for classification analysis
+            ground_truth_data: Ground truth mapping for classification analysis
 
         Returns:
             List of paths to generated visualization files
@@ -616,6 +1004,14 @@ class LMMVisualizer:
             )
             if category_chart:
                 generated_files.append(category_chart)
+
+            # 4. Classification metrics dashboard (if data available)
+            if extraction_results is not None and ground_truth_data is not None:
+                classification_chart = self.create_classification_metrics_dashboard(
+                    extraction_results, ground_truth_data, model_name
+                )
+                if classification_chart:
+                    generated_files.append(classification_chart)
 
             print(
                 f"✅ Generated {len(generated_files)} visualizations for {model_name}"

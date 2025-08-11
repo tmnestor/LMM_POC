@@ -303,6 +303,8 @@ def main():
                 "internvl3",
                 "InternVL3-2B",
                 batch_statistics,
+                extraction_results,  # extraction_results for classification analysis
+                ground_truth_data,  # ground truth mapping for classification analysis
             )
 
             # Display summary statistics to console for immediate feedback

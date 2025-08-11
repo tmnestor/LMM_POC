@@ -16,6 +16,7 @@ from .config import (
     PILOT_READY_THRESHOLD,
     VISUALIZATION_ENABLED,
 )
+from .evaluation_utils import generate_overall_classification_summary
 from .visualizations import LMMVisualizer
 
 
@@ -233,15 +234,181 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
     return deployment_checklist
 
 
+def generate_classification_report(
+    extraction_results, ground_truth_data, model_name, model_full_name
+):
+    """
+    Generate comprehensive sklearn classification report for field extraction.
+    
+    Args:
+        extraction_results: List of extraction result dictionaries
+        ground_truth_data: Ground truth mapping
+        model_name: Short model name
+        model_full_name: Full model name for display
+        
+    Returns:
+        str: Formatted classification report in markdown
+    """
+    print("📊 Generating sklearn classification report...")
+    
+    try:
+        classification_summary = generate_overall_classification_summary(
+            extraction_results, ground_truth_data
+        )
+    except Exception as e:
+        return f"❌ Error generating classification report: {e}"
+    
+    # Generate markdown report
+    report = f"""# {model_full_name} - Classification Report
+
+## Overview
+**Model:** {model_full_name}  
+**Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
+**Analysis Type:** Binary Classification (Field Extracted vs Not Extracted)
+
+## Overall Performance Metrics
+
+"""
+    
+    overall_metrics = classification_summary.get('overall_metrics', {})
+    if overall_metrics and 'error' not in overall_metrics:
+        report += """### Macro Averages (Unweighted Mean)
+"""
+        macro = overall_metrics.get('macro_avg', {})
+        if macro:
+            report += f"""- **Precision:** {macro.get('precision', 0):.3f}
+- **Recall:** {macro.get('recall', 0):.3f}  
+- **F1-Score:** {macro.get('f1_score', 0):.3f}
+
+"""
+
+        report += """### Micro Averages (Global)
+"""
+        micro = overall_metrics.get('micro_avg', {})
+        if micro:
+            report += f"""- **Precision:** {micro.get('precision', 0):.3f}
+- **Recall:** {micro.get('recall', 0):.3f}
+- **F1-Score:** {micro.get('f1_score', 0):.3f}
+
+"""
+
+        report += """### Weighted Averages (By Support)
+"""
+        weighted = overall_metrics.get('weighted_avg', {})
+        if weighted:
+            report += f"""- **Precision:** {weighted.get('precision', 0):.3f}
+- **Recall:** {weighted.get('recall', 0):.3f}
+- **F1-Score:** {weighted.get('f1_score', 0):.3f}
+
+"""
+        
+        total_preds = overall_metrics.get('total_predictions', 0)
+        report += f"**Total Predictions:** {total_preds}\n\n"
+    else:
+        report += f"❌ Error in overall metrics: {overall_metrics.get('error', 'Unknown error')}\n\n"
+    
+    # Field-level metrics
+    field_metrics = classification_summary.get('field_metrics', {})
+    if field_metrics:
+        report += """## Field-Level Performance Summary
+
+| Field | Precision | Recall | F1-Score | Support |
+|-------|-----------|--------|----------|---------|
+"""
+        # Sort by F1-score descending
+        sorted_fields = sorted(
+            field_metrics.items(), 
+            key=lambda x: x[1].get('f1_score', 0), 
+            reverse=True
+        )
+        
+        for field, metrics in sorted_fields:
+            if 'error' not in metrics:
+                report += f"| {field} | {metrics.get('precision', 0):.3f} | {metrics.get('recall', 0):.3f} | {metrics.get('f1_score', 0):.3f} | {int(metrics.get('support', 0))} |\n"
+            else:
+                report += f"| {field} | Error | Error | Error | 0 |\n"
+    
+    # Top and bottom performers
+    if field_metrics:
+        top_f1_fields = sorted(
+            [(f, m.get('f1_score', 0)) for f, m in field_metrics.items() if 'error' not in m],
+            key=lambda x: x[1], reverse=True
+        )[:5]
+        
+        bottom_f1_fields = sorted(
+            [(f, m.get('f1_score', 0)) for f, m in field_metrics.items() if 'error' not in m],
+            key=lambda x: x[1]
+        )[:5]
+        
+        if top_f1_fields:
+            report += """
+## Best Performing Fields (by F1-Score)
+
+"""
+            for i, (field, f1) in enumerate(top_f1_fields, 1):
+                report += f"{i}. **{field}**: {f1:.3f}\n"
+        
+        if bottom_f1_fields:
+            report += """
+## Lowest Performing Fields (by F1-Score)  
+
+"""
+            for i, (field, f1) in enumerate(bottom_f1_fields, 1):
+                report += f"{i}. **{field}**: {f1:.3f}\n"
+    
+    # Detailed per-field reports
+    classification_reports = classification_summary.get('classification_reports', {})
+    if classification_reports:
+        report += """
+## Detailed Field Classification Reports
+
+"""
+        for field, field_report in classification_reports.items():
+            if "Error" not in field_report and "Insufficient" not in field_report and "No data" not in field_report:
+                report += f"""### {field}
+
+```
+{field_report}
+```
+
+"""
+    
+    report += """## Interpretation Guide
+
+### Metrics Explained:
+- **Precision**: Of all fields predicted as "Extracted", how many were correctly identified?
+- **Recall**: Of all fields that should be "Extracted", how many were correctly identified?  
+- **F1-Score**: Harmonic mean of Precision and Recall (balanced measure)
+- **Support**: Number of actual instances in each class
+
+### Averaging Methods:
+- **Macro Avg**: Unweighted mean (treats all fields equally)
+- **Micro Avg**: Globally computed metrics (accounts for class imbalance)
+- **Weighted Avg**: Mean weighted by support (accounts for field frequency)
+
+### Classification Task:
+For each field, we classify whether the model should extract a value:
+- **Class 0 (Not Extracted)**: Field should be N/A or empty
+- **Class 1 (Extracted)**: Field should contain a value
+
+---
+*Generated by Vision Model Evaluation Pipeline*
+"""
+    
+    return report
+
+
 def generate_comprehensive_reports(
     evaluation_summary,
     output_dir_path,
     model_name,
     model_full_name,
     batch_statistics=None,
+    extraction_results=None,
+    ground_truth_data=None,
 ):
     """
-    Generate comprehensive evaluation reports including executive summary, JSON results, and visualizations.
+    Generate comprehensive evaluation reports including executive summary, JSON results, visualizations, and classification reports.
 
     Args:
         evaluation_summary (dict): Evaluation results and metrics
@@ -249,6 +416,8 @@ def generate_comprehensive_reports(
         model_name (str): Short model name (e.g., "llama", "internvl3")
         model_full_name (str): Full model name for display
         batch_statistics (dict, optional): Processing statistics for visualizations
+        extraction_results (list, optional): Raw extraction results for classification analysis
+        ground_truth_data (dict, optional): Ground truth mapping for classification analysis
 
     Returns:
         dict: Paths to generated reports
@@ -290,6 +459,31 @@ def generate_comprehensive_reports(
     with json_path.open("w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=2)
 
+    # Generate classification report if data available
+    classification_report_path = None
+    if extraction_results is not None and ground_truth_data is not None:
+        print("📊 Generating sklearn classification report...")
+        try:
+            classification_report_content = generate_classification_report(
+                extraction_results, ground_truth_data, model_name, model_full_name
+            )
+            
+            if classification_report_content and "Error" not in classification_report_content:
+                classification_filename = f"{model_name}_classification_report_{timestamp}.md"
+                classification_report_path = output_dir_path / classification_filename
+                
+                with classification_report_path.open("w", encoding="utf-8") as f:
+                    f.write(classification_report_content)
+                
+                print(f"✅ Classification report saved: {classification_report_path.name}")
+            else:
+                print("⚠️ Classification report generation had issues - check data quality")
+                
+        except Exception as e:
+            print(f"❌ Classification report generation failed: {e}")
+    elif extraction_results is None or ground_truth_data is None:
+        print("📊 Skipping classification report - extraction results or ground truth not provided")
+
     # Generate visualizations if enabled and batch_statistics available
     visualization_paths = []
     html_report_path = None
@@ -303,7 +497,7 @@ def generate_comprehensive_reports(
 
             # Generate complete visualization suite
             visualization_paths = visualizer.generate_model_visualizations(
-                evaluation_summary, batch_statistics, model_name
+                evaluation_summary, batch_statistics, model_name, extraction_results, ground_truth_data
             )
 
             # Generate HTML summary with embedded visualizations
@@ -327,6 +521,9 @@ def generate_comprehensive_reports(
     print(f"✅ Executive Summary: {report_path.name}")
     print(f"✅ JSON Results: {json_path.name}")
 
+    if classification_report_path:
+        print(f"✅ Classification Report: {classification_report_path.name}")
+
     if visualization_paths:
         print("✅ Visualizations:")
         for viz_path in visualization_paths:
@@ -337,6 +534,9 @@ def generate_comprehensive_reports(
 
     # Prepare return dictionary
     result = {"executive_summary": report_path, "json_results": json_path}
+
+    if classification_report_path:
+        result["classification_report"] = classification_report_path
 
     if visualization_paths:
         result["visualizations"] = [Path(p) for p in visualization_paths]
