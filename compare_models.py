@@ -204,9 +204,11 @@ class ModelComparator:
             data=accuracy_df,
             x="Model",
             y="Overall_Accuracy",
+            hue="Model",
             palette=[VIZ_COLORS["primary"], VIZ_COLORS["secondary"]],
             alpha=0.8,
             ax=ax1,
+            legend=False,
         )
         ax1.set_title("Overall Accuracy", fontweight="bold", fontsize=12)
         ax1.set_ylabel("Accuracy (%)")

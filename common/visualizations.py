@@ -286,9 +286,11 @@ class LMMVisualizer:
             data=field_df,
             y="Field",
             x="Accuracy",
+            hue="Field",
             palette=field_df["Color"].tolist(),
             alpha=0.8,
             ax=ax,
+            legend=False,
         )
 
         # Customize chart
@@ -447,9 +449,11 @@ class LMMVisualizer:
                 data=processing_df,
                 x="Metric",
                 y="Value",
+                hue="Metric",
                 palette=processing_colors,
                 alpha=0.8,
                 ax=ax2,
+                legend=False,
             )
 
             ax2.set_title("Processing Performance", fontweight="bold", fontsize=12)
@@ -476,9 +480,11 @@ class LMMVisualizer:
                 data=quality_df,
                 x="Quality",
                 y="Count",
+                hue="Quality",
                 palette=quality_df["Color"].tolist(),
                 alpha=0.8,
                 ax=ax3,
+                legend=False,
             )
 
             ax3.set_title(
@@ -509,9 +515,11 @@ class LMMVisualizer:
                 data=field_summary_df,
                 x="Category",
                 y="Count",
+                hue="Category",
                 palette=field_summary_df["Color"].tolist(),
                 alpha=0.8,
                 ax=ax4,
+                legend=False,
             )
 
             ax4.set_title(
@@ -629,9 +637,11 @@ class LMMVisualizer:
             data=category_df,
             x="Category",
             y="Average_Accuracy",
+            hue="Category",
             palette=category_colors,
             alpha=0.8,
             ax=ax1,
+            legend=False,
         )
 
         ax1.set_title("Average Accuracy by Category", fontweight="bold")
@@ -784,9 +794,11 @@ class LMMVisualizer:
             data=top_f1_df,
             y="Field",
             x="F1_Score",
+            hue="Field",
             palette="viridis",
             alpha=0.8,
             ax=ax1,
+            legend=False,
         )
         ax1.set_title("Top 10 Fields by F1-Score", fontweight="bold", fontsize=12)
         ax1.set_xlabel("F1-Score")
@@ -915,9 +927,11 @@ class LMMVisualizer:
             data=distribution_df,
             x="Category",
             y="Count",
+            hue="Category",
             palette=distribution_df["Color"].tolist(),
             alpha=0.8,
             ax=ax4,
+            legend=False,
         )
         ax4.set_title("F1-Score Distribution", fontweight="bold", fontsize=12)
         ax4.set_xlabel("")
