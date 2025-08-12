@@ -324,7 +324,10 @@ def generate_classification_report(
         
         for field, metrics in sorted_fields:
             if 'error' not in metrics:
-                report += f"| {field} | {metrics.get('precision', 0):.3f} | {metrics.get('recall', 0):.3f} | {metrics.get('f1_score', 0):.3f} | {int(metrics.get('support', 0))} |\n"
+                # Handle support more robustly - convert None to 0
+                support_val = metrics.get('support', 0)
+                support_int = int(support_val) if support_val is not None else 0
+                report += f"| {field} | {metrics.get('precision', 0):.3f} | {metrics.get('recall', 0):.3f} | {metrics.get('f1_score', 0):.3f} | {support_int} |\n"
             else:
                 report += f"| {field} | Error | Error | Error | 0 |\n"
     

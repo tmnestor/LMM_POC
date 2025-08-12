@@ -452,7 +452,9 @@ def prepare_classification_data(extraction_results: List[Dict], ground_truth_map
                 continue
                 
             ground_truth = ground_truth_map[image_name].get(field, 'N/A')
-            predicted = result.get(field, 'N/A')
+            # Extract from the nested extracted_data structure
+            extracted_data = result.get('extracted_data', {})
+            predicted = extracted_data.get(field, 'N/A') if extracted_data else 'N/A'
             
             # Convert to binary classification labels
             # True label: 1 if field should be extracted (not N/A), 0 if field should be N/A
@@ -539,11 +541,17 @@ def generate_overall_classification_summary(extraction_results: List[Dict], grou
             precision, recall, f1, support = precision_recall_fscore_support(
                 data['y_true'], data['y_pred'], average='weighted', zero_division=0
             )
+            # Handle support more robustly - ensure it's never None
+            # When average='weighted', support is a scalar; when None, use total length
+            if support is not None:
+                support_val = int(support) if np.isscalar(support) else int(np.sum(support))
+            else:
+                support_val = len(data['y_true'])
             field_metrics[field] = {
-                'precision': precision,
-                'recall': recall, 
-                'f1_score': f1,
-                'support': np.sum(support)
+                'precision': float(precision) if precision is not None else 0.0,
+                'recall': float(recall) if recall is not None else 0.0,
+                'f1_score': float(f1) if f1 is not None else 0.0,
+                'support': int(support_val)
             }
         except Exception as e:
             field_metrics[field] = {
