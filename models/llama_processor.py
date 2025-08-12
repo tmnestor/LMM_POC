@@ -25,8 +25,10 @@ from common.config import (
     EXTRACTION_FIELDS,
     FIELD_COUNT,
     FIELD_INSTRUCTIONS,
+    LLAMA_GENERATION_CONFIG,
     LLAMA_MODEL_PATH,
     get_auto_batch_size,
+    get_max_new_tokens,
 )
 from common.evaluation_utils import parse_extraction_response
 
@@ -52,6 +54,9 @@ class LlamaProcessor:
 
         # Configure batch processing
         self._configure_batch_processing(batch_size)
+        
+        # Configure generation parameters from config.py
+        self._configure_generation()
 
         # Initialize model and processor
         self._load_model()
@@ -68,6 +73,18 @@ class LlamaProcessor:
             print(
                 f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
             )
+
+    def _configure_generation(self):
+        """Configure generation parameters from config.py."""
+        # Initialize generation config using centralized configuration
+        self.generation_config = LLAMA_GENERATION_CONFIG.copy()
+        
+        # Calculate dynamic max_new_tokens based on field count
+        self.generation_config["max_new_tokens"] = get_max_new_tokens("llama", FIELD_COUNT)
+        
+        print(f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+              f"temperature={self.generation_config['temperature']}, "
+              f"do_sample={self.generation_config['do_sample']}")
 
     def _get_available_gpu_memory(self) -> float:
         """Get available GPU memory in GB."""
@@ -227,11 +244,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             with torch.no_grad():
                 output = self.model.generate(
                     **inputs,
-                    max_new_tokens=max(800, FIELD_COUNT * 40),  # Standard tokens
-                    temperature=0.1,  # Near-deterministic
-                    do_sample=True,  # Standard sampling
-                    top_p=0.95,
-                    use_cache=True,  # Enable KV caching
+                    max_new_tokens=self.generation_config["max_new_tokens"],
+                    temperature=self.generation_config["temperature"],
+                    do_sample=self.generation_config["do_sample"],
+                    top_p=self.generation_config["top_p"],
+                    use_cache=self.generation_config["use_cache"],
                     pad_token_id=self.processor.tokenizer.eos_token_id,
                 )
 

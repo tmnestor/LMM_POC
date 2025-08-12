@@ -24,8 +24,10 @@ from common.config import (
     FIELD_INSTRUCTIONS,
     IMAGENET_MEAN,
     IMAGENET_STD,
+    INTERNVL3_GENERATION_CONFIG,
     INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
+    get_max_new_tokens,
 )
 from common.evaluation_utils import parse_extraction_response
 
@@ -54,12 +56,13 @@ class InternVL3Processor:
         # Initialize model and tokenizer
         self._load_model()
 
-        # Setup generation config
-        self.generation_config = dict(
-            max_new_tokens=max(1000, FIELD_COUNT * 50),  # Scale tokens with field count
-            do_sample=False,  # Deterministic for consistent field extraction
-            pad_token_id=self.tokenizer.eos_token_id,  # Prevent pad_token_id warnings
-        )
+        # Setup generation config from centralized configuration
+        self.generation_config = INTERNVL3_GENERATION_CONFIG.copy()
+        self.generation_config["max_new_tokens"] = get_max_new_tokens("internvl3", FIELD_COUNT)
+        self.generation_config["pad_token_id"] = self.tokenizer.eos_token_id
+        
+        print(f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+              f"do_sample={self.generation_config['do_sample']}")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""

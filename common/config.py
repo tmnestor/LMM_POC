@@ -567,6 +567,55 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 
 
 # ============================================================================
+# GENERATION CONFIGURATION - SINGLE SOURCE OF TRUTH
+# ============================================================================
+
+# Llama-3.2-11B-Vision generation configuration
+LLAMA_GENERATION_CONFIG = {
+    "max_new_tokens_base": 800,  # Base tokens for generation
+    "max_new_tokens_per_field": 40,  # Additional tokens per extraction field
+    "temperature": 0.1,  # Near-deterministic sampling
+    "do_sample": True,  # Enable sampling for controlled randomness
+    "top_p": 0.95,  # Nucleus sampling parameter
+    "use_cache": True,  # Enable KV caching for efficiency
+}
+
+# InternVL3 generation configuration  
+INTERNVL3_GENERATION_CONFIG = {
+    "max_new_tokens_base": 1000,  # Base tokens for generation
+    "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
+    "do_sample": False,  # Deterministic for consistent field extraction
+    "pad_token_id": None,  # Set dynamically from tokenizer
+}
+
+# Helper function to calculate dynamic max_new_tokens
+def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
+    """
+    Calculate max_new_tokens based on model and field count.
+    
+    Args:
+        model_name (str): Model name ('llama' or 'internvl3')
+        field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
+        
+    Returns:
+        int: Calculated max_new_tokens value
+    """
+    field_count = field_count or FIELD_COUNT
+    
+    if model_name.lower() == "llama":
+        config = LLAMA_GENERATION_CONFIG
+    elif model_name.lower() == "internvl3":
+        config = INTERNVL3_GENERATION_CONFIG
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+        
+    return max(
+        config["max_new_tokens_base"],
+        field_count * config["max_new_tokens_per_field"]
+    )
+
+
+# ============================================================================
 # VISUALIZATION CONFIGURATION
 # ============================================================================
 
