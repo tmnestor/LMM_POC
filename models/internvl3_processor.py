@@ -57,9 +57,12 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        self.generation_config = INTERNVL3_GENERATION_CONFIG.copy()
-        self.generation_config["max_new_tokens"] = get_max_new_tokens("internvl3", FIELD_COUNT)
-        self.generation_config["pad_token_id"] = self.tokenizer.eos_token_id
+        # Remove configuration constants that aren't model parameters
+        self.generation_config = {
+            "max_new_tokens": get_max_new_tokens("internvl3", FIELD_COUNT),
+            "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
         
         print(f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
               f"do_sample={self.generation_config['do_sample']}")
