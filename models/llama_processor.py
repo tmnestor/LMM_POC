@@ -285,8 +285,55 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
             
-            # Retry with OffloadedCache fallback
-            generation_kwargs["cache_implementation"] = "offloaded"
+            try:
+                # Retry with OffloadedCache fallback
+                generation_kwargs["cache_implementation"] = "offloaded"
+                return self.model.generate(**inputs, **generation_kwargs)
+                
+            except torch.cuda.OutOfMemoryError as e2:
+                print(f"⚠️ OffloadedCache also failed: {e2}")
+                print("🚨 EMERGENCY: Reloading model to force complete memory reset...")
+                
+                # Emergency Strategy 4: Complete model reload
+                return self._emergency_model_reload_generate(inputs, **generation_kwargs)
+
+    def _emergency_model_reload_generate(self, inputs, **generation_kwargs):
+        """
+        Emergency model reload to force complete memory reset when all other strategies fail.
+        
+        Args:
+            inputs: Model inputs
+            **generation_kwargs: Generation parameters
+            
+        Returns:
+            Generated output tensor
+        """
+        print("🔄 EMERGENCY: Forcing complete model reload...")
+        
+        # Step 1: Complete model cleanup
+        if self.model is not None:
+            del self.model
+        if self.processor is not None:
+            del self.processor
+        
+        # Step 2: Aggressive memory cleanup
+        import gc
+        gc.collect()
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            print(f"🧹 Post-deletion cleanup: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
+        
+        # Step 3: Reload model with minimal configuration
+        print("🔄 Reloading model with emergency configuration...")
+        self._load_model()
+        
+        # Step 4: Process with OffloadedCache from the start
+        generation_kwargs["cache_implementation"] = "offloaded"
+        print("🎯 Processing with emergency OffloadedCache configuration...")
+        
+        with torch.no_grad():
             return self.model.generate(**inputs, **generation_kwargs)
 
     def process_single_image(self, image_path):
