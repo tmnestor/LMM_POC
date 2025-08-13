@@ -191,7 +191,10 @@ class LlamaProcessor:
             # Load processor for multimodal inputs
             self.processor = AutoProcessor.from_pretrained(self.model_path)
 
-            print("✅ Llama Vision model loaded successfully")
+            # Fix weight tying to avoid warnings
+            self.model.tie_weights()
+
+            print("✅ Llama Vision model loaded successfully (weights tied)")
             print(f"🔧 Device: {self.model.device}")
             print(
                 f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
@@ -329,6 +332,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         print("🔄 Reloading model with emergency configuration...")
         self._load_model()
         
+        # Ensure weights are tied after emergency reload
+        if self.model is not None:
+            self.model.tie_weights()
+        
         # Step 4: Process with OffloadedCache from the start
         generation_kwargs["cache_implementation"] = "offloaded"
         print("🎯 Processing with emergency OffloadedCache configuration...")
@@ -382,7 +389,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             # Load processor
             self.processor = AutoProcessor.from_pretrained(self.model_path)
             
-            print("✅ Fresh CPU model loaded successfully")
+            # Fix weight tying warning
+            self.model.tie_weights()
+            
+            print("✅ Fresh CPU model loaded successfully (weights tied)")
             
         except Exception as e:
             print(f"❌ CPU model loading failed: {e}")
