@@ -25,7 +25,7 @@ CURRENT_LLAMA_DIRECT_MODEL = "Llama-3.2-11B-Vision"  # Base model for direct pro
 # ============================================================================
 
 # Base paths for different deployment scenarios
-BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/share"}
+BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/shared"}
 
 # Current deployment (change this to switch environments)
 CURRENT_DEPLOYMENT = "AISandbox"
