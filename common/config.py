@@ -56,7 +56,7 @@ if CURRENT_DEPLOYMENT == "AISandbox":
 else:  # EFS deployment
     DATA_BASE = f"{BASE_PATH}/PoC_data"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
-    GROUND_TRUTH_PATH = f"{DATA_BASE}/evaluation_ground_truth.csv"
+    GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
     OUTPUT_DIR = f"{DATA_BASE}/output"
 
 
