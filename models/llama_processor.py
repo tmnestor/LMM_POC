@@ -346,7 +346,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
     def _ultimate_cpu_fallback_generate(self, inputs, **generation_kwargs):
         """
-        Ultimate CPU fallback when all GPU strategies fail due to V100 memory constraints.
+        Ultimate CPU fallback: Load fresh model on CPU when GPU strategies fail.
         
         Args:
             inputs: Model inputs
@@ -355,12 +355,40 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         Returns:
             Generated output tensor
         """
-        print("☢️ ULTIMATE FALLBACK: Moving entire model to CPU...")
+        print("☢️ ULTIMATE FALLBACK: Loading fresh CPU-only model...")
         
-        # Step 1: Move model to CPU
-        self.model = self.model.to('cpu')
+        # Step 1: Complete cleanup of GPU model
+        if self.model is not None:
+            del self.model
+        if self.processor is not None:
+            del self.processor
         
-        # Step 2: Move inputs to CPU
+        # Step 2: Clear all GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            print(f"🧹 GPU cleared: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
+        
+        # Step 3: Load fresh model directly on CPU (no device_map, no quantization)
+        print("🔄 Loading fresh CPU-only model (no quantization)...")
+        try:
+            self.model = MllamaForConditionalGeneration.from_pretrained(
+                self.model_path,
+                torch_dtype=torch.float16,  # Use FP16 for memory efficiency
+                device_map="cpu",  # Force CPU only
+                # NO quantization_config - causes meta device issues
+            )
+            
+            # Load processor
+            self.processor = AutoProcessor.from_pretrained(self.model_path)
+            
+            print("✅ Fresh CPU model loaded successfully")
+            
+        except Exception as e:
+            print(f"❌ CPU model loading failed: {e}")
+            raise RuntimeError(f"All fallback strategies failed: {e}") from e
+        
+        # Step 4: Move inputs to CPU
         cpu_inputs = {}
         for key, value in inputs.items():
             if torch.is_tensor(value):
@@ -368,13 +396,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             else:
                 cpu_inputs[key] = value
         
-        # Step 3: Clear all GPU memory
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            print(f"🧹 GPU cleared, CPU processing: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
-        
-        # Step 4: Process on CPU (slower but guaranteed to work)
+        # Step 5: Process on CPU (slower but guaranteed)
         print("🐌 Processing on CPU (slower but stable)...")
         
         # Remove cache_implementation since we're on CPU
