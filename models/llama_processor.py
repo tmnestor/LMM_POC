@@ -258,6 +258,37 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             print(f"❌ Error loading image {image_path}: {e}")
             raise
 
+    def _resilient_generate(self, inputs, **generation_kwargs):
+        """
+        Resilient generation with automatic OffloadedCache fallback on CUDA OOM.
+        
+        Args:
+            inputs: Model inputs
+            **generation_kwargs: Generation parameters
+            
+        Returns:
+            Generated output tensor
+        """
+        oom_occurred = False
+        
+        try:
+            # First attempt: Standard generation with use_cache=True
+            return self.model.generate(**inputs, **generation_kwargs)
+            
+        except torch.cuda.OutOfMemoryError as e:
+            print(f"⚠️ CUDA OOM detected: {e}")
+            print("🔄 Retrying with cache_implementation='offloaded'...")
+            oom_occurred = True
+            
+        if oom_occurred:
+            # Emergency cleanup before retry
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            
+            # Retry with OffloadedCache fallback
+            generation_kwargs["cache_implementation"] = "offloaded"
+            return self.model.generate(**inputs, **generation_kwargs)
+
     def process_single_image(self, image_path):
         """
         Process a single image through Llama extraction pipeline.
@@ -271,7 +302,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         try:
             start_time = time.time()
 
-            # STRATEGY 2: Pre-processing cleanup - Clear VRAM before each image
+            # STRATEGY 3: Pre-processing cleanup - Clear VRAM before each image
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
@@ -302,17 +333,19 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 self.model.device
             )
 
-            # Generate response with stable parameters
+            # STRATEGY 3: Resilient generation with OffloadedCache fallback
+            generation_kwargs = {
+                "max_new_tokens": self.generation_config["max_new_tokens"],
+                "temperature": self.generation_config["temperature"],
+                "do_sample": self.generation_config["do_sample"],
+                "top_p": self.generation_config["top_p"],
+                "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
+            }
+
+            # Generate response with resilient fallback
             with torch.no_grad():
-                output = self.model.generate(
-                    **inputs,
-                    max_new_tokens=self.generation_config["max_new_tokens"],
-                    temperature=self.generation_config["temperature"],
-                    do_sample=self.generation_config["do_sample"],
-                    top_p=self.generation_config["top_p"],
-                    use_cache=self.generation_config["use_cache"],
-                    pad_token_id=self.processor.tokenizer.eos_token_id,
-                )
+                output = self._resilient_generate(inputs, **generation_kwargs)
 
             # Decode response
             response = self.processor.decode(output[0], skip_special_tokens=True)
@@ -339,7 +372,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             ) / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
-            # STRATEGY 2 ENHANCED: Comprehensive memory cleanup and cache clearing
+            # STRATEGY 3: Comprehensive memory cleanup and cache clearing + OffloadedCache fallback
             del inputs, output, image
 
             # Phase 1: Enhanced KV cache clearing for Llama models
@@ -372,7 +405,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         except Exception as e:
             print(f"❌ Error processing {image_path}: {e}")
 
-            # STRATEGY 2: Emergency cleanup on error
+            # STRATEGY 3: Emergency cleanup on error
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
