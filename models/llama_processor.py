@@ -54,7 +54,7 @@ class LlamaProcessor:
 
         # Configure batch processing
         self._configure_batch_processing(batch_size)
-        
+
         # Configure generation parameters from config.py
         self._configure_generation()
 
@@ -78,13 +78,17 @@ class LlamaProcessor:
         """Configure generation parameters from config.py."""
         # Initialize generation config using centralized configuration
         self.generation_config = LLAMA_GENERATION_CONFIG.copy()
-        
+
         # Calculate dynamic max_new_tokens based on field count
-        self.generation_config["max_new_tokens"] = get_max_new_tokens("llama", FIELD_COUNT)
-        
-        print(f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-              f"temperature={self.generation_config['temperature']}, "
-              f"do_sample={self.generation_config['do_sample']}")
+        self.generation_config["max_new_tokens"] = get_max_new_tokens(
+            "llama", FIELD_COUNT
+        )
+
+        print(
+            f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+            f"temperature={self.generation_config['temperature']}, "
+            f"do_sample={self.generation_config['do_sample']}"
+        )
 
     def _get_available_gpu_memory(self) -> float:
         """Get available GPU memory in GB."""
@@ -108,6 +112,57 @@ class LlamaProcessor:
         except Exception as e:
             print(f"⚠️ Could not detect GPU memory: {e}")
             return 16.0  # Assume 16GB as default for V100
+
+    def _clear_model_caches(self):
+        """Phase 1: Enhanced cache clearing for Llama models."""
+        try:
+            print("🧹 Clearing Llama model caches...")
+
+            # Clear KV cache if it exists
+            if hasattr(self.model, "past_key_values"):
+                self.model.past_key_values = None
+                print("  - Cleared past_key_values")
+
+            # Clear generation cache
+            if hasattr(self.model, "_past_key_values"):
+                self.model._past_key_values = None
+                print("  - Cleared _past_key_values")
+
+            # Clear language model caches
+            if hasattr(self.model, "language_model"):
+                lang_model = self.model.language_model
+                if hasattr(lang_model, "past_key_values"):
+                    lang_model.past_key_values = None
+                    print("  - Cleared language_model cache")
+
+            # Clear vision model caches
+            if hasattr(self.model, "vision_model"):
+                vision_model = self.model.vision_model
+                # Clear any vision processing caches
+                for layer in vision_model.modules():
+                    if hasattr(layer, "past_key_values"):
+                        layer.past_key_values = None
+
+            # Clear processor caches if they exist
+            if hasattr(self.processor, "past_key_values"):
+                self.processor.past_key_values = None
+                print("  - Cleared processor cache")
+
+            # Clear any cached attention masks or position IDs
+            for module in self.model.modules():
+                if hasattr(module, "past_key_values"):
+                    module.past_key_values = None
+                if hasattr(module, "_past_key_values"):
+                    module._past_key_values = None
+                if hasattr(module, "attention_mask"):
+                    if hasattr(module.attention_mask, "data"):
+                        module.attention_mask = None
+
+            print("✅ Model caches cleared")
+
+        except Exception as e:
+            print(f"⚠️ Error clearing caches: {e}")
+            # Continue anyway - don't fail the entire process
 
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
@@ -215,7 +270,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         """
         try:
             start_time = time.time()
-            
+
             # STRATEGY 2: Pre-processing cleanup - Clear VRAM before each image
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -283,14 +338,25 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             ) / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
-            
-            # STRATEGY 2: Post-processing cleanup - Delete large objects and clear VRAM
+
+            # STRATEGY 2 ENHANCED: Comprehensive memory cleanup and cache clearing
             del inputs, output, image
+
+            # Phase 1: Enhanced KV cache clearing for Llama models
+            self._clear_model_caches()
+
+            # Force garbage collection
+            import gc
+
+            gc.collect()
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
                 final_memory = torch.cuda.memory_allocated() / (1024**3)  # GB
-                print(f"✅ Post-processing cleanup: {final_memory:.2f}GB VRAM")
+                print(
+                    f"✅ Enhanced cleanup + cache clearing: {final_memory:.2f}GB VRAM"
+                )
 
             return {
                 "image_name": Path(image_path).name,
@@ -305,13 +371,13 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
         except Exception as e:
             print(f"❌ Error processing {image_path}: {e}")
-            
+
             # STRATEGY 2: Emergency cleanup on error
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
                 print("🧹 Emergency cleanup after error")
-            
+
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},

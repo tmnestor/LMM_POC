@@ -25,19 +25,19 @@ from .config import (
 def discover_images(directory_path):
     """
     Discover all image files in the specified directory.
-    
+
     Args:
         directory_path (str): Path to directory containing images
-        
+
     Returns:
         list: List of image file paths found in directory
     """
-    image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.PNG', '*.JPG', '*.JPEG']
+    image_extensions = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
     image_files = []
-    
+
     for extension in image_extensions:
         image_files.extend(str(p) for p in Path(directory_path).glob(extension))
-    
+
     # Sort for consistent processing order
     image_files.sort()
     return image_files
@@ -46,20 +46,20 @@ def discover_images(directory_path):
 def parse_extraction_response(response_text, clean_conversation_artifacts=False):
     """
     Parse structured extraction response into dictionary.
-    
+
     This function handles model responses that may contain conversation artifacts
     or formatting issues, extracting only the key-value pairs.
-    
+
     Args:
         response_text (str): Raw model response containing key-value pairs
         clean_conversation_artifacts (bool): Whether to clean Llama-style artifacts
-        
+
     Returns:
         dict: Parsed key-value pairs with all expected fields
     """
     if not response_text:
         return {field: "N/A" for field in EXTRACTION_FIELDS}
-    
+
     # Clean Llama-specific conversation artifacts if requested
     if clean_conversation_artifacts:
         # Remove common Llama conversation patterns
@@ -74,128 +74,147 @@ def parse_extraction_response(response_text, clean_conversation_artifacts=False)
             r"assistant\n\n",
             r"^\s*Extract.*?below\.\s*\n",
         ]
-        
+
         for pattern in clean_patterns:
-            response_text = re.sub(pattern, "", response_text, flags=re.IGNORECASE | re.MULTILINE)
-    
+            response_text = re.sub(
+                pattern, "", response_text, flags=re.IGNORECASE | re.MULTILINE
+            )
+
     # Initialize with N/A for all fields
     extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
-    
+
     # Process each line looking for key-value pairs
-    lines = response_text.strip().split('\n')
-    
+    lines = response_text.strip().split("\n")
+
     for line in lines:
         # Skip empty lines and non-key-value lines
-        if not line.strip() or ':' not in line:
+        if not line.strip() or ":" not in line:
             continue
-        
+
         # Clean the line from markdown formatting
-        clean_line = re.sub(r'\*+([^*]+)\*+', r'\1', line)
-        
+        clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", line)
+
         # Extract key and value
-        parts = clean_line.split(':', 1)
+        parts = clean_line.split(":", 1)
         if len(parts) == 2:
             key = parts[0].strip().upper()
             value = parts[1].strip()
-            
+
             # Store if it's an expected field
             if key in extracted_data:
                 # Don't overwrite if we already have a non-N/A value
                 if extracted_data[key] == "N/A" or not extracted_data[key]:
                     extracted_data[key] = value if value else "N/A"
-    
+
     return extracted_data
 
 
 def create_extraction_dataframe(results):
     """
     Create structured DataFrames from extraction results.
-    
+
     Args:
         results (list): List of extraction result dictionaries
-        
+
     Returns:
         tuple: (main_df, metadata_df) - Main extraction data and metadata
     """
     if not results:
         return pd.DataFrame(), pd.DataFrame()
-    
+
     # Main extraction DataFrame
     rows = []
     metadata_rows = []
-    
+
     for result in results:
         # Main data row
-        row = {'image_name': result['image_name']}
-        row.update(result['extracted_data'])
+        row = {"image_name": result["image_name"]}
+        row.update(result["extracted_data"])
         rows.append(row)
-        
+
         # Metadata row
-        if 'response_completeness' in result or 'content_coverage' in result:
+        if "response_completeness" in result or "content_coverage" in result:
             metadata_row = {
-                'image_name': result['image_name'],
-                'response_completeness': result.get('response_completeness', 0),
-                'content_coverage': result.get('content_coverage', 0),
-                'processing_time': result.get('processing_time', 0),
-                'raw_response_length': result.get('raw_response_length', 0),
-                'extracted_fields_count': result.get('extracted_fields_count', 0)
+                "image_name": result["image_name"],
+                "response_completeness": result.get("response_completeness", 0),
+                "content_coverage": result.get("content_coverage", 0),
+                "processing_time": result.get("processing_time", 0),
+                "raw_response_length": result.get("raw_response_length", 0),
+                "extracted_fields_count": result.get("extracted_fields_count", 0),
             }
             metadata_rows.append(metadata_row)
-    
+
     # Create DataFrames
     main_df = pd.DataFrame(rows)
     metadata_df = pd.DataFrame(metadata_rows) if metadata_rows else pd.DataFrame()
-    
+
     # Ensure column order: image_name first, then alphabetical fields
     if not main_df.empty:
-        columns = ['image_name'] + sorted([col for col in main_df.columns if col != 'image_name'])
+        columns = ["image_name"] + sorted(
+            [col for col in main_df.columns if col != "image_name"]
+        )
         main_df = main_df[columns]
-    
+
     return main_df, metadata_df
 
 
 def load_ground_truth(csv_path, show_sample=False):
     """
     Load ground truth data from CSV file.
-    
+
     Args:
         csv_path (str): Path to ground truth CSV file
         show_sample (bool): Whether to display sample data
-        
+
     Returns:
         dict: Mapping of image names to ground truth data
     """
     try:
         # Load CSV
         ground_truth_df = pd.read_csv(csv_path)
-        
-        print(f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns")
+
+        print(
+            f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns"
+        )
         print(f"📋 Available columns: {list(ground_truth_df.columns)}")
-        
+
         # Check for image name column (try different variations)
         image_name_col = None
-        for col_name in ['image_name', 'Image_Name', 'image_file', 'filename', 'file_name', 'IMAGE_NAME', 'IMAGE_FILE']:
+        for col_name in [
+            "image_name",
+            "Image_Name",
+            "image_file",
+            "filename",
+            "file_name",
+            "IMAGE_NAME",
+            "IMAGE_FILE",
+        ]:
             if col_name in ground_truth_df.columns:
                 image_name_col = col_name
                 break
-        
+
         if image_name_col is None:
             # If no image name column found, use the first column
             image_name_col = ground_truth_df.columns[0]
-            print(f"⚠️ No 'image_name' column found, using '{image_name_col}' as image identifier")
+            print(
+                f"⚠️ No 'image_name' column found, using '{image_name_col}' as image identifier"
+            )
         else:
             print(f"✅ Using '{image_name_col}' as image identifier column")
-        
+
         # Create mapping from image name to ground truth
         ground_truth_map = {}
         for _, row in ground_truth_df.iterrows():
             image_name = str(row[image_name_col]).strip()
-            ground_truth = {col: str(row[col]) if pd.notna(row[col]) else "N/A" 
-                          for col in ground_truth_df.columns if col != image_name_col}
+            ground_truth = {
+                col: str(row[col]) if pd.notna(row[col]) else "N/A"
+                for col in ground_truth_df.columns
+                if col != image_name_col
+            }
             ground_truth_map[image_name] = ground_truth
-        
+
         print(f"✅ Ground truth mapping created for {len(ground_truth_map)} images")
-        
+
         # Show sample if requested
         if show_sample and ground_truth_map:
             print("\n📋 Sample ground truth data:")
@@ -203,12 +222,16 @@ def load_ground_truth(csv_path, show_sample=False):
             sample_data = ground_truth_map[sample_image]
             print(f"Image: {sample_image}")
             for _i, (field, value) in enumerate(list(sample_data.items())[:5]):
-                print(f"  {field}: {value[:50]}..." if len(str(value)) > 50 else f"  {field}: {value}")
+                print(
+                    f"  {field}: {value[:50]}..."
+                    if len(str(value)) > 50
+                    else f"  {field}: {value}"
+                )
             if len(sample_data) > 5:
                 print(f"  ... and {len(sample_data) - 5} more fields")
-        
+
         return ground_truth_map
-        
+
     except FileNotFoundError:
         print(f"❌ Ground truth file not found: {csv_path}")
         return {}
@@ -224,145 +247,164 @@ def load_ground_truth(csv_path, show_sample=False):
 def calculate_field_accuracy(extracted_value, ground_truth_value, field_name):
     """
     Calculate accuracy for a specific field with specialized comparison logic.
-    
+
     This function handles different types of fields with appropriate comparison
     methods (exact match, numeric comparison, date parsing, etc.).
-    
+
     Args:
         extracted_value (str): Value extracted by the model
         ground_truth_value (str): Ground truth value
         field_name (str): Name of the field being compared
-        
+
     Returns:
         float: Accuracy score (0.0 to 1.0)
     """
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "N/A"
     ground_truth = str(ground_truth_value).strip() if ground_truth_value else "N/A"
-    
+
     # Both N/A is correct
     if extracted.upper() == "N/A" and ground_truth.upper() == "N/A":
         return 1.0
-    
+
     # One is N/A but not the other
     if (extracted.upper() == "N/A") != (ground_truth.upper() == "N/A"):
         return 0.0
-    
+
     # Normalize for comparison
     extracted_lower = extracted.lower()
     ground_truth_lower = ground_truth.lower()
-    
+
     # Remove common formatting
-    for char in [',', '$', '%', '(', ')', ' ']:
-        extracted_lower = extracted_lower.replace(char, '')
-        ground_truth_lower = ground_truth_lower.replace(char, '')
-    
+    for char in [",", "$", "%", "(", ")", " "]:
+        extracted_lower = extracted_lower.replace(char, "")
+        ground_truth_lower = ground_truth_lower.replace(char, "")
+
     # Exact match after normalization
     if extracted_lower == ground_truth_lower:
         return 1.0
-    
+
     # Field-specific comparison logic using centralized field type definitions
     if field_name in NUMERIC_ID_FIELDS:
         # Numeric identifiers - exact match required
-        extracted_digits = re.sub(r'\D', '', extracted)
-        ground_truth_digits = re.sub(r'\D', '', ground_truth)
+        extracted_digits = re.sub(r"\D", "", extracted)
+        ground_truth_digits = re.sub(r"\D", "", ground_truth)
         return 1.0 if extracted_digits == ground_truth_digits else 0.0
-    
+
     elif field_name in MONETARY_FIELDS:
         # Monetary values - numeric comparison
         try:
-            extracted_num = float(re.sub(r'[^\d.-]', '', extracted))
-            ground_truth_num = float(re.sub(r'[^\d.-]', '', ground_truth))
+            extracted_num = float(re.sub(r"[^\d.-]", "", extracted))
+            ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth))
             # Allow 1% tolerance for rounding
             tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
             return 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
         except (ValueError, AttributeError):
             return 0.0
-    
+
     elif field_name in DATE_FIELDS:
         # Date fields - flexible matching
         # Extract date components
-        extracted_numbers = re.findall(r'\d+', extracted)
-        ground_truth_numbers = re.findall(r'\d+', ground_truth)
-        
+        extracted_numbers = re.findall(r"\d+", extracted)
+        ground_truth_numbers = re.findall(r"\d+", ground_truth)
+
         # Check if same date components are present
         if set(extracted_numbers) == set(ground_truth_numbers):
             return 1.0
-        
+
         # Partial match for dates
         common = set(extracted_numbers) & set(ground_truth_numbers)
         if common and len(common) >= 2:  # At least month and day match
             return 0.8
-        
+
         return 0.0
-    
+
     elif field_name in LIST_FIELDS:
         # List fields - check overlap
         # These fields may contain multiple items
-        extracted_items = [item.strip() for item in re.split(r'[,;|\n]', extracted) if item.strip()]
-        ground_truth_items = [item.strip() for item in re.split(r'[,;|\n]', ground_truth) if item.strip()]
-        
+        extracted_items = [
+            item.strip() for item in re.split(r"[,;|\n]", extracted) if item.strip()
+        ]
+        ground_truth_items = [
+            item.strip() for item in re.split(r"[,;|\n]", ground_truth) if item.strip()
+        ]
+
         if not ground_truth_items:
             return 1.0 if not extracted_items else 0.0
-        
+
         # Calculate overlap
-        matches = sum(1 for item in extracted_items if any(
-            item.lower() in gt_item.lower() or gt_item.lower() in item.lower() 
-            for gt_item in ground_truth_items
-        ))
-        
-        return matches / max(len(ground_truth_items), len(extracted_items)) if ground_truth_items else 0.0
-    
+        matches = sum(
+            1
+            for item in extracted_items
+            if any(
+                item.lower() in gt_item.lower() or gt_item.lower() in item.lower()
+                for gt_item in ground_truth_items
+            )
+        )
+
+        return (
+            matches / max(len(ground_truth_items), len(extracted_items))
+            if ground_truth_items
+            else 0.0
+        )
+
     else:
         # Text fields - fuzzy matching
         # Check for substring match
-        if extracted_lower in ground_truth_lower or ground_truth_lower in extracted_lower:
+        if (
+            extracted_lower in ground_truth_lower
+            or ground_truth_lower in extracted_lower
+        ):
             return 0.9
-        
+
         # Check word overlap for longer text
         extracted_words = set(extracted_lower.split())
         ground_truth_words = set(ground_truth_lower.split())
-        
+
         if ground_truth_words:
-            overlap = len(extracted_words & ground_truth_words) / len(ground_truth_words)
+            overlap = len(extracted_words & ground_truth_words) / len(
+                ground_truth_words
+            )
             if overlap >= 0.8:
                 return overlap
-        
+
         return 0.0
 
 
 def evaluate_extraction_results(extraction_results, ground_truth_map):
     """
     Evaluate extraction results against ground truth data.
-    
+
     Args:
         extraction_results (list): List of extraction result dictionaries
         ground_truth_map (dict): Mapping of image names to ground truth
-        
+
     Returns:
         dict: Comprehensive evaluation summary with metrics
     """
     if not extraction_results or not ground_truth_map:
         return {
-            'total_images': 0,
-            'overall_accuracy': 0.0,
-            'field_accuracies': {field: 0.0 for field in EXTRACTION_FIELDS},
-            'evaluation_data': []
+            "total_images": 0,
+            "overall_accuracy": 0.0,
+            "field_accuracies": {field: 0.0 for field in EXTRACTION_FIELDS},
+            "evaluation_data": [],
         }
-    
+
     evaluation_data = []
     field_accuracies = {field: [] for field in EXTRACTION_FIELDS}
     overall_accuracies = []
-    
+
     for result in extraction_results:
-        image_name = result['image_name']
-        extracted_data = result['extracted_data']
-        
+        image_name = result["image_name"]
+        extracted_data = result["extracted_data"]
+
         # Get ground truth for this image
         if image_name not in ground_truth_map:
             image_base = Path(image_name).stem
-            matching_keys = [k for k in ground_truth_map.keys() if Path(k).stem == image_base]
-            
+            matching_keys = [
+                k for k in ground_truth_map.keys() if Path(k).stem == image_base
+            ]
+
             if matching_keys:
                 ground_truth = ground_truth_map[matching_keys[0]]
             else:
@@ -370,240 +412,270 @@ def evaluate_extraction_results(extraction_results, ground_truth_map):
                 continue
         else:
             ground_truth = ground_truth_map[image_name]
-        
+
         # Calculate field-by-field accuracy
         image_accuracies = {}
         for field in EXTRACTION_FIELDS:
             extracted_value = extracted_data.get(field, "N/A")
             ground_truth_value = ground_truth.get(field, "N/A")
-            
-            accuracy = calculate_field_accuracy(extracted_value, ground_truth_value, field)
+
+            accuracy = calculate_field_accuracy(
+                extracted_value, ground_truth_value, field
+            )
             image_accuracies[field] = accuracy
             field_accuracies[field].append(accuracy)
-        
+
         # Calculate overall accuracy for this image
         overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies)
         overall_accuracies.append(overall_accuracy)
-        
+
         # Store evaluation data
         eval_record = {
-            'image_name': image_name,
-            'overall_accuracy': overall_accuracy,
-            'field_accuracies': image_accuracies,
-            'extracted_data': extracted_data,
-            'ground_truth': ground_truth
+            "image_name": image_name,
+            "overall_accuracy": overall_accuracy,
+            "field_accuracies": image_accuracies,
+            "extracted_data": extracted_data,
+            "ground_truth": ground_truth,
         }
         evaluation_data.append(eval_record)
-    
+
     # Calculate summary statistics
-    total_accuracy = sum(overall_accuracies) / len(overall_accuracies) if overall_accuracies else 0.0
-    
+    total_accuracy = (
+        sum(overall_accuracies) / len(overall_accuracies) if overall_accuracies else 0.0
+    )
+
     # Find best and worst performing images
     if evaluation_data:
-        best_image = max(evaluation_data, key=lambda x: x['overall_accuracy'])
-        worst_image = min(evaluation_data, key=lambda x: x['overall_accuracy'])
+        best_image = max(evaluation_data, key=lambda x: x["overall_accuracy"])
+        worst_image = min(evaluation_data, key=lambda x: x["overall_accuracy"])
     else:
         best_image = worst_image = None
-    
+
     evaluation_summary = {
-        'total_images': len(evaluation_data),
-        'overall_accuracy': total_accuracy,
-        'best_performing_image': best_image['image_name'] if best_image else "N/A",
-        'best_performance_accuracy': best_image['overall_accuracy'] if best_image else 0.0,
-        'worst_performing_image': worst_image['image_name'] if worst_image else "N/A",
-        'worst_performance_accuracy': worst_image['overall_accuracy'] if worst_image else 0.0,
-        'perfect_documents': sum(1 for acc in overall_accuracies if acc >= 0.99),
-        'field_accuracies': {
+        "total_images": len(evaluation_data),
+        "overall_accuracy": total_accuracy,
+        "best_performing_image": best_image["image_name"] if best_image else "N/A",
+        "best_performance_accuracy": best_image["overall_accuracy"]
+        if best_image
+        else 0.0,
+        "worst_performing_image": worst_image["image_name"] if worst_image else "N/A",
+        "worst_performance_accuracy": worst_image["overall_accuracy"]
+        if worst_image
+        else 0.0,
+        "perfect_documents": sum(1 for acc in overall_accuracies if acc >= 0.99),
+        "field_accuracies": {
             field: sum(accs) / len(accs) if accs else 0.0
             for field, accs in field_accuracies.items()
         },
-        'evaluation_data': evaluation_data
+        "evaluation_data": evaluation_data,
     }
-    
+
     return evaluation_summary
 
 
-def prepare_classification_data(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict[str, Dict]:
+def prepare_classification_data(
+    extraction_results: List[Dict], ground_truth_map: Dict
+) -> Dict[str, Dict]:
     """
     Prepare data for sklearn classification report by converting field extraction to binary classification.
-    
+
     For each field, we classify whether the extraction was:
     - Correct: Extracted value matches ground truth
-    - Incorrect: Extracted value doesn't match ground truth  
+    - Incorrect: Extracted value doesn't match ground truth
     - Missing: Field was not extracted (N/A) but should have been
     - False Positive: Field was extracted but shouldn't have been (ground truth is N/A)
-    
+
     Args:
         extraction_results: List of extraction result dictionaries
         ground_truth_map: Mapping of image names to ground truth data
-        
+
     Returns:
         Dict containing y_true, y_pred, and labels for each field
     """
     classification_data = {}
-    
+
     for field in EXTRACTION_FIELDS:
         y_true = []
         y_pred = []
-        
+
         for result in extraction_results:
-            image_name = result.get('image_name', 'unknown')
+            image_name = result.get("image_name", "unknown")
             if image_name not in ground_truth_map:
                 continue
-                
-            ground_truth = ground_truth_map[image_name].get(field, 'N/A')
+
+            ground_truth = ground_truth_map[image_name].get(field, "N/A")
             # Extract from the nested extracted_data structure
-            extracted_data = result.get('extracted_data', {})
-            predicted = extracted_data.get(field, 'N/A') if extracted_data else 'N/A'
-            
+            extracted_data = result.get("extracted_data", {})
+            predicted = extracted_data.get(field, "N/A") if extracted_data else "N/A"
+
             # Convert to binary classification labels
             # True label: 1 if field should be extracted (not N/A), 0 if field should be N/A
-            gt_has_value = ground_truth not in ['N/A', '', None, 'n/a', 'NA']
-            pred_has_value = predicted not in ['N/A', '', None, 'n/a', 'NA']
-            
+            gt_has_value = ground_truth not in ["N/A", "", None, "n/a", "NA"]
+            pred_has_value = predicted not in ["N/A", "", None, "n/a", "NA"]
+
             y_true.append(1 if gt_has_value else 0)
             y_pred.append(1 if pred_has_value else 0)
-            
+
         classification_data[field] = {
-            'y_true': np.array(y_true),
-            'y_pred': np.array(y_pred),
-            'labels': ['Not Extracted', 'Extracted']
+            "y_true": np.array(y_true),
+            "y_pred": np.array(y_pred),
+            "labels": ["Not Extracted", "Extracted"],
         }
-    
+
     return classification_data
 
 
-def generate_field_classification_report(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict[str, str]:
+def generate_field_classification_report(
+    extraction_results: List[Dict], ground_truth_map: Dict
+) -> Dict[str, str]:
     """
     Generate sklearn classification reports for each field.
-    
+
     Args:
         extraction_results: List of extraction result dictionaries
         ground_truth_map: Mapping of image names to ground truth data
-        
+
     Returns:
         Dict mapping field names to their classification report strings
     """
-    classification_data = prepare_classification_data(extraction_results, ground_truth_map)
+    classification_data = prepare_classification_data(
+        extraction_results, ground_truth_map
+    )
     reports = {}
-    
+
     for field, data in classification_data.items():
-        if len(data['y_true']) == 0:
+        if len(data["y_true"]) == 0:
             reports[field] = f"No data available for field: {field}"
             continue
-            
+
         # Skip if all predictions are the same class (no classification possible)
-        if len(set(data['y_pred'])) == 1 or len(set(data['y_true'])) == 1:
-            reports[field] = f"Insufficient class variety for classification report: {field}"
+        if len(set(data["y_pred"])) == 1 or len(set(data["y_true"])) == 1:
+            reports[field] = (
+                f"Insufficient class variety for classification report: {field}"
+            )
             continue
-            
+
         try:
             report = classification_report(
-                data['y_true'], 
-                data['y_pred'],
-                target_names=data['labels'],
-                zero_division=0
+                data["y_true"],
+                data["y_pred"],
+                target_names=data["labels"],
+                zero_division=0,
             )
             reports[field] = report
         except Exception as e:
             reports[field] = f"Error generating report for {field}: {e}"
-    
+
     return reports
 
 
-def generate_overall_classification_summary(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict:
+def generate_overall_classification_summary(
+    extraction_results: List[Dict], ground_truth_map: Dict
+) -> Dict:
     """
     Generate an overall classification summary with macro and micro averages across all fields.
-    
+
     Args:
-        extraction_results: List of extraction result dictionaries  
+        extraction_results: List of extraction result dictionaries
         ground_truth_map: Mapping of image names to ground truth data
-        
+
     Returns:
         Dict with overall classification metrics
     """
-    classification_data = prepare_classification_data(extraction_results, ground_truth_map)
-    
+    classification_data = prepare_classification_data(
+        extraction_results, ground_truth_map
+    )
+
     # Collect all predictions across fields
     all_y_true = []
     all_y_pred = []
     field_metrics = {}
-    
+
     for field, data in classification_data.items():
-        if len(data['y_true']) == 0:
+        if len(data["y_true"]) == 0:
             continue
-            
-        all_y_true.extend(data['y_true'])
-        all_y_pred.extend(data['y_pred'])
-        
+
+        all_y_true.extend(data["y_true"])
+        all_y_pred.extend(data["y_pred"])
+
         # Calculate per-field metrics
         try:
             precision, recall, f1, support = precision_recall_fscore_support(
-                data['y_true'], data['y_pred'], average='weighted', zero_division=0
+                data["y_true"], data["y_pred"], average="weighted", zero_division=0
             )
             # Handle support more robustly - ensure it's never None
             # When average='weighted', support is a scalar; when None, use total length
             if support is not None:
-                support_val = int(support) if np.isscalar(support) else int(np.sum(support))
+                support_val = (
+                    int(support) if np.isscalar(support) else int(np.sum(support))
+                )
             else:
-                support_val = len(data['y_true'])
+                support_val = len(data["y_true"])
             field_metrics[field] = {
-                'precision': float(precision) if precision is not None else 0.0,
-                'recall': float(recall) if recall is not None else 0.0,
-                'f1_score': float(f1) if f1 is not None else 0.0,
-                'support': int(support_val)
+                "precision": float(precision) if precision is not None else 0.0,
+                "recall": float(recall) if recall is not None else 0.0,
+                "f1_score": float(f1) if f1 is not None else 0.0,
+                "support": int(support_val),
             }
         except Exception as e:
             field_metrics[field] = {
-                'precision': 0.0,
-                'recall': 0.0,
-                'f1_score': 0.0,
-                'support': 0,
-                'error': str(e)
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1_score": 0.0,
+                "support": 0,
+                "error": str(e),
             }
-    
+
     # Calculate overall metrics
     overall_metrics = {}
     if all_y_true and all_y_pred:
         try:
             # Micro averages (global counts)
-            micro_precision, micro_recall, micro_f1, _ = precision_recall_fscore_support(
-                all_y_true, all_y_pred, average='micro', zero_division=0
+            micro_precision, micro_recall, micro_f1, _ = (
+                precision_recall_fscore_support(
+                    all_y_true, all_y_pred, average="micro", zero_division=0
+                )
             )
-            
+
             # Macro averages (mean of per-field metrics)
-            macro_precision, macro_recall, macro_f1, _ = precision_recall_fscore_support(
-                all_y_true, all_y_pred, average='macro', zero_division=0  
+            macro_precision, macro_recall, macro_f1, _ = (
+                precision_recall_fscore_support(
+                    all_y_true, all_y_pred, average="macro", zero_division=0
+                )
             )
-            
+
             # Weighted averages
-            weighted_precision, weighted_recall, weighted_f1, _ = precision_recall_fscore_support(
-                all_y_true, all_y_pred, average='weighted', zero_division=0
+            weighted_precision, weighted_recall, weighted_f1, _ = (
+                precision_recall_fscore_support(
+                    all_y_true, all_y_pred, average="weighted", zero_division=0
+                )
             )
-            
+
             overall_metrics = {
-                'micro_avg': {
-                    'precision': micro_precision,
-                    'recall': micro_recall,
-                    'f1_score': micro_f1
+                "micro_avg": {
+                    "precision": micro_precision,
+                    "recall": micro_recall,
+                    "f1_score": micro_f1,
                 },
-                'macro_avg': {
-                    'precision': macro_precision, 
-                    'recall': macro_recall,
-                    'f1_score': macro_f1
+                "macro_avg": {
+                    "precision": macro_precision,
+                    "recall": macro_recall,
+                    "f1_score": macro_f1,
                 },
-                'weighted_avg': {
-                    'precision': weighted_precision,
-                    'recall': weighted_recall, 
-                    'f1_score': weighted_f1
+                "weighted_avg": {
+                    "precision": weighted_precision,
+                    "recall": weighted_recall,
+                    "f1_score": weighted_f1,
                 },
-                'total_predictions': len(all_y_true)
+                "total_predictions": len(all_y_true),
             }
         except Exception as e:
-            overall_metrics = {'error': str(e)}
-    
+            overall_metrics = {"error": str(e)}
+
     return {
-        'overall_metrics': overall_metrics,
-        'field_metrics': field_metrics,
-        'classification_reports': generate_field_classification_report(extraction_results, ground_truth_map)
+        "overall_metrics": overall_metrics,
+        "field_metrics": field_metrics,
+        "classification_reports": generate_field_classification_report(
+            extraction_results, ground_truth_map
+        ),
     }

@@ -577,10 +577,10 @@ LLAMA_GENERATION_CONFIG = {
     "temperature": 0.1,  # Near-deterministic sampling
     "do_sample": True,  # Enable sampling for controlled randomness
     "top_p": 0.95,  # Nucleus sampling parameter
-    "use_cache": True,  # Enable KV caching for efficiency
+    "use_cache": True,  # CRITICAL: Required for extraction quality (proven by testing)
 }
 
-# InternVL3 generation configuration  
+# InternVL3 generation configuration
 INTERNVL3_GENERATION_CONFIG = {
     "max_new_tokens_base": 1000,  # Base tokens for generation
     "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
@@ -588,30 +588,30 @@ INTERNVL3_GENERATION_CONFIG = {
     "pad_token_id": None,  # Set dynamically from tokenizer
 }
 
+
 # Helper function to calculate dynamic max_new_tokens
 def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     """
     Calculate max_new_tokens based on model and field count.
-    
+
     Args:
         model_name (str): Model name ('llama' or 'internvl3')
         field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
-        
+
     Returns:
         int: Calculated max_new_tokens value
     """
     field_count = field_count or FIELD_COUNT
-    
+
     if model_name.lower() == "llama":
         config = LLAMA_GENERATION_CONFIG
     elif model_name.lower() == "internvl3":
         config = INTERNVL3_GENERATION_CONFIG
     else:
         raise ValueError(f"Unknown model name: {model_name}")
-        
+
     return max(
-        config["max_new_tokens_base"],
-        field_count * config["max_new_tokens_per_field"]
+        config["max_new_tokens_base"], field_count * config["max_new_tokens_per_field"]
     )
 
 
@@ -631,12 +631,18 @@ CHART_STYLE = "professional"  # professional, minimal, academic
 # High DPI + smaller physical size = high quality but manageable file size
 # For reports: 300 DPI with 8-10 inch width provides excellent print quality
 CHART_SIZES = {
-    "field_accuracy": (10, 6),      # Field accuracy bar chart - compact but readable
-    "performance_dashboard": (10, 8), # 2x2 performance dashboard - balanced layout
-    "field_category": (10, 5),      # Field category analysis - wide but not tall
-    "document_quality": (8, 5),     # Document quality distribution - compact
-    "comparison_heatmap": (12, 8),  # Multi-model comparison - slightly larger for complexity
-    "classification_metrics": (12, 8), # Classification metrics dashboard - comprehensive layout
+    "field_accuracy": (10, 6),  # Field accuracy bar chart - compact but readable
+    "performance_dashboard": (10, 8),  # 2x2 performance dashboard - balanced layout
+    "field_category": (10, 5),  # Field category analysis - wide but not tall
+    "document_quality": (8, 5),  # Document quality distribution - compact
+    "comparison_heatmap": (
+        12,
+        8,
+    ),  # Multi-model comparison - slightly larger for complexity
+    "classification_metrics": (
+        12,
+        8,
+    ),  # Classification metrics dashboard - comprehensive layout
 }
 
 # Professional color scheme for business reports

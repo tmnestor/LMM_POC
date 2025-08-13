@@ -63,9 +63,11 @@ class InternVL3Processor:
             "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
             "pad_token_id": self.tokenizer.eos_token_id,
         }
-        
-        print(f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-              f"do_sample={self.generation_config['do_sample']}")
+
+        print(
+            f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+            f"do_sample={self.generation_config['do_sample']}"
+        )
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""

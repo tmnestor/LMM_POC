@@ -881,7 +881,9 @@ class LMMVisualizer:
                     alpha=0.8,
                     ax=ax3,
                 )
-                ax3.set_title("Overall Performance Averages", fontweight="bold", fontsize=12)
+                ax3.set_title(
+                    "Overall Performance Averages", fontweight="bold", fontsize=12
+                )
                 ax3.set_xlabel("")
                 ax3.set_ylabel("Score")
                 ax3.set_ylim(0, 1.0)
@@ -918,7 +920,8 @@ class LMMVisualizer:
                         VIZ_COLORS["info"],
                         VIZ_COLORS["secondary"],
                         VIZ_COLORS["warning"],
-                    ], strict=False,
+                    ],
+                    strict=False,
                 )
             ]
         )

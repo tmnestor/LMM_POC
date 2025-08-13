@@ -239,25 +239,25 @@ def generate_classification_report(
 ):
     """
     Generate comprehensive sklearn classification report for field extraction.
-    
+
     Args:
         extraction_results: List of extraction result dictionaries
         ground_truth_data: Ground truth mapping
         model_name: Short model name
         model_full_name: Full model name for display
-        
+
     Returns:
         str: Formatted classification report in markdown
     """
     print("📊 Generating sklearn classification report...")
-    
+
     try:
         classification_summary = generate_overall_classification_summary(
             extraction_results, ground_truth_data
         )
     except Exception as e:
         return f"❌ Error generating classification report: {e}"
-    
+
     # Generate markdown report
     report = f"""# {model_full_name} - Classification Report
 
@@ -269,46 +269,46 @@ def generate_classification_report(
 ## Overall Performance Metrics
 
 """
-    
-    overall_metrics = classification_summary.get('overall_metrics', {})
-    if overall_metrics and 'error' not in overall_metrics:
+
+    overall_metrics = classification_summary.get("overall_metrics", {})
+    if overall_metrics and "error" not in overall_metrics:
         report += """### Macro Averages (Unweighted Mean)
 """
-        macro = overall_metrics.get('macro_avg', {})
+        macro = overall_metrics.get("macro_avg", {})
         if macro:
-            report += f"""- **Precision:** {macro.get('precision', 0):.3f}
-- **Recall:** {macro.get('recall', 0):.3f}  
-- **F1-Score:** {macro.get('f1_score', 0):.3f}
+            report += f"""- **Precision:** {macro.get("precision", 0):.3f}
+- **Recall:** {macro.get("recall", 0):.3f}  
+- **F1-Score:** {macro.get("f1_score", 0):.3f}
 
 """
 
         report += """### Micro Averages (Global)
 """
-        micro = overall_metrics.get('micro_avg', {})
+        micro = overall_metrics.get("micro_avg", {})
         if micro:
-            report += f"""- **Precision:** {micro.get('precision', 0):.3f}
-- **Recall:** {micro.get('recall', 0):.3f}
-- **F1-Score:** {micro.get('f1_score', 0):.3f}
+            report += f"""- **Precision:** {micro.get("precision", 0):.3f}
+- **Recall:** {micro.get("recall", 0):.3f}
+- **F1-Score:** {micro.get("f1_score", 0):.3f}
 
 """
 
         report += """### Weighted Averages (By Support)
 """
-        weighted = overall_metrics.get('weighted_avg', {})
+        weighted = overall_metrics.get("weighted_avg", {})
         if weighted:
-            report += f"""- **Precision:** {weighted.get('precision', 0):.3f}
-- **Recall:** {weighted.get('recall', 0):.3f}
-- **F1-Score:** {weighted.get('f1_score', 0):.3f}
+            report += f"""- **Precision:** {weighted.get("precision", 0):.3f}
+- **Recall:** {weighted.get("recall", 0):.3f}
+- **F1-Score:** {weighted.get("f1_score", 0):.3f}
 
 """
-        
-        total_preds = overall_metrics.get('total_predictions', 0)
+
+        total_preds = overall_metrics.get("total_predictions", 0)
         report += f"**Total Predictions:** {total_preds}\n\n"
     else:
         report += f"❌ Error in overall metrics: {overall_metrics.get('error', 'Unknown error')}\n\n"
-    
+
     # Field-level metrics
-    field_metrics = classification_summary.get('field_metrics', {})
+    field_metrics = classification_summary.get("field_metrics", {})
     if field_metrics:
         report += """## Field-Level Performance Summary
 
@@ -317,32 +317,39 @@ def generate_classification_report(
 """
         # Sort by F1-score descending
         sorted_fields = sorted(
-            field_metrics.items(), 
-            key=lambda x: x[1].get('f1_score', 0), 
-            reverse=True
+            field_metrics.items(), key=lambda x: x[1].get("f1_score", 0), reverse=True
         )
-        
+
         for field, metrics in sorted_fields:
-            if 'error' not in metrics:
+            if "error" not in metrics:
                 # Handle support more robustly - convert None to 0
-                support_val = metrics.get('support', 0)
+                support_val = metrics.get("support", 0)
                 support_int = int(support_val) if support_val is not None else 0
                 report += f"| {field} | {metrics.get('precision', 0):.3f} | {metrics.get('recall', 0):.3f} | {metrics.get('f1_score', 0):.3f} | {support_int} |\n"
             else:
                 report += f"| {field} | Error | Error | Error | 0 |\n"
-    
+
     # Top and bottom performers
     if field_metrics:
         top_f1_fields = sorted(
-            [(f, m.get('f1_score', 0)) for f, m in field_metrics.items() if 'error' not in m],
-            key=lambda x: x[1], reverse=True
+            [
+                (f, m.get("f1_score", 0))
+                for f, m in field_metrics.items()
+                if "error" not in m
+            ],
+            key=lambda x: x[1],
+            reverse=True,
         )[:5]
-        
+
         bottom_f1_fields = sorted(
-            [(f, m.get('f1_score', 0)) for f, m in field_metrics.items() if 'error' not in m],
-            key=lambda x: x[1]
+            [
+                (f, m.get("f1_score", 0))
+                for f, m in field_metrics.items()
+                if "error" not in m
+            ],
+            key=lambda x: x[1],
         )[:5]
-        
+
         if top_f1_fields:
             report += """
 ## Best Performing Fields (by F1-Score)
@@ -350,7 +357,7 @@ def generate_classification_report(
 """
             for i, (field, f1) in enumerate(top_f1_fields, 1):
                 report += f"{i}. **{field}**: {f1:.3f}\n"
-        
+
         if bottom_f1_fields:
             report += """
 ## Lowest Performing Fields (by F1-Score)  
@@ -358,16 +365,20 @@ def generate_classification_report(
 """
             for i, (field, f1) in enumerate(bottom_f1_fields, 1):
                 report += f"{i}. **{field}**: {f1:.3f}\n"
-    
+
     # Detailed per-field reports
-    classification_reports = classification_summary.get('classification_reports', {})
+    classification_reports = classification_summary.get("classification_reports", {})
     if classification_reports:
         report += """
 ## Detailed Field Classification Reports
 
 """
         for field, field_report in classification_reports.items():
-            if "Error" not in field_report and "Insufficient" not in field_report and "No data" not in field_report:
+            if (
+                "Error" not in field_report
+                and "Insufficient" not in field_report
+                and "No data" not in field_report
+            ):
                 report += f"""### {field}
 
 ```
@@ -375,7 +386,7 @@ def generate_classification_report(
 ```
 
 """
-    
+
     report += """## Interpretation Guide
 
 ### Metrics Explained:
@@ -397,7 +408,7 @@ For each field, we classify whether the model should extract a value:
 ---
 *Generated by Vision Model Evaluation Pipeline*
 """
-    
+
     return report
 
 
@@ -470,22 +481,33 @@ def generate_comprehensive_reports(
             classification_report_content = generate_classification_report(
                 extraction_results, ground_truth_data, model_name, model_full_name
             )
-            
-            if classification_report_content and "Error" not in classification_report_content:
-                classification_filename = f"{model_name}_classification_report_{timestamp}.md"
+
+            if (
+                classification_report_content
+                and "Error" not in classification_report_content
+            ):
+                classification_filename = (
+                    f"{model_name}_classification_report_{timestamp}.md"
+                )
                 classification_report_path = output_dir_path / classification_filename
-                
+
                 with classification_report_path.open("w", encoding="utf-8") as f:
                     f.write(classification_report_content)
-                
-                print(f"✅ Classification report saved: {classification_report_path.name}")
+
+                print(
+                    f"✅ Classification report saved: {classification_report_path.name}"
+                )
             else:
-                print("⚠️ Classification report generation had issues - check data quality")
-                
+                print(
+                    "⚠️ Classification report generation had issues - check data quality"
+                )
+
         except Exception as e:
             print(f"❌ Classification report generation failed: {e}")
     elif extraction_results is None or ground_truth_data is None:
-        print("📊 Skipping classification report - extraction results or ground truth not provided")
+        print(
+            "📊 Skipping classification report - extraction results or ground truth not provided"
+        )
 
     # Generate visualizations if enabled and batch_statistics available
     visualization_paths = []
@@ -500,7 +522,11 @@ def generate_comprehensive_reports(
 
             # Generate complete visualization suite
             visualization_paths = visualizer.generate_model_visualizations(
-                evaluation_summary, batch_statistics, model_name, extraction_results, ground_truth_data
+                evaluation_summary,
+                batch_statistics,
+                model_name,
+                extraction_results,
+                ground_truth_data,
             )
 
             # Generate HTML summary with embedded visualizations
