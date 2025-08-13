@@ -375,7 +375,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         try:
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
-                torch_dtype=torch.float16,  # Use FP16 for memory efficiency
+                torch_dtype=torch.float32,  # Use FP32 for optimal CPU performance
                 device_map="cpu",  # Force CPU only
                 tie_weights=True,  # Fix weight tying before device mapping
                 # NO quantization_config - causes meta device issues
@@ -384,7 +384,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             # Load processor
             self.processor = AutoProcessor.from_pretrained(self.model_path)
             
-            print("✅ Fresh CPU model loaded successfully (weights tied)")
+            print("✅ Fresh CPU model loaded successfully (FP32, weights tied)")
             
         except Exception as e:
             print(f"❌ CPU model loading failed: {e}")
