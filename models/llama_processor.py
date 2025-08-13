@@ -333,8 +333,60 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         generation_kwargs["cache_implementation"] = "offloaded"
         print("🎯 Processing with emergency OffloadedCache configuration...")
         
+        try:
+            with torch.no_grad():
+                return self.model.generate(**inputs, **generation_kwargs)
+                
+        except torch.cuda.OutOfMemoryError as e3:
+            print(f"🚨 CRITICAL: Even model reload failed: {e3}")
+            print("☢️ FINAL FALLBACK: Forcing CPU-only processing...")
+            
+            # Ultimate Strategy 5: Force CPU processing
+            return self._ultimate_cpu_fallback_generate(inputs, **generation_kwargs)
+
+    def _ultimate_cpu_fallback_generate(self, inputs, **generation_kwargs):
+        """
+        Ultimate CPU fallback when all GPU strategies fail due to V100 memory constraints.
+        
+        Args:
+            inputs: Model inputs
+            **generation_kwargs: Generation parameters
+            
+        Returns:
+            Generated output tensor
+        """
+        print("☢️ ULTIMATE FALLBACK: Moving entire model to CPU...")
+        
+        # Step 1: Move model to CPU
+        self.model = self.model.to('cpu')
+        
+        # Step 2: Move inputs to CPU
+        cpu_inputs = {}
+        for key, value in inputs.items():
+            if torch.is_tensor(value):
+                cpu_inputs[key] = value.to('cpu')
+            else:
+                cpu_inputs[key] = value
+        
+        # Step 3: Clear all GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            print(f"🧹 GPU cleared, CPU processing: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
+        
+        # Step 4: Process on CPU (slower but guaranteed to work)
+        print("🐌 Processing on CPU (slower but stable)...")
+        
+        # Remove cache_implementation since we're on CPU
+        cpu_generation_kwargs = generation_kwargs.copy()
+        if "cache_implementation" in cpu_generation_kwargs:
+            del cpu_generation_kwargs["cache_implementation"]
+        
         with torch.no_grad():
-            return self.model.generate(**inputs, **generation_kwargs)
+            output = self.model.generate(**cpu_inputs, **cpu_generation_kwargs)
+        
+        print("✅ CPU processing completed successfully")
+        return output
 
     def process_single_image(self, image_path):
         """
