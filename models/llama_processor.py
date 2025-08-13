@@ -215,6 +215,13 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         """
         try:
             start_time = time.time()
+            
+            # STRATEGY 2: Pre-processing cleanup - Clear VRAM before each image
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                initial_memory = torch.cuda.memory_allocated() / (1024**3)  # GB
+                print(f"🧹 Pre-processing cleanup: {initial_memory:.2f}GB VRAM")
 
             # Load image
             image = self.load_document_image(image_path)
@@ -276,6 +283,14 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             ) / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
+            
+            # STRATEGY 2: Post-processing cleanup - Delete large objects and clear VRAM
+            del inputs, output, image
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                final_memory = torch.cuda.memory_allocated() / (1024**3)  # GB
+                print(f"✅ Post-processing cleanup: {final_memory:.2f}GB VRAM")
 
             return {
                 "image_name": Path(image_path).name,
@@ -290,6 +305,13 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
         except Exception as e:
             print(f"❌ Error processing {image_path}: {e}")
+            
+            # STRATEGY 2: Emergency cleanup on error
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print("🧹 Emergency cleanup after error")
+            
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
