@@ -435,12 +435,31 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         try:
             start_time = time.time()
 
-            # STRATEGY 3: Pre-processing cleanup - Clear VRAM before each image
+            # STRATEGY 3: Pre-processing cleanup with fragmentation detection
             if torch.cuda.is_available():
+                # Advanced memory analysis from worldversant.com article
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
-                initial_memory = torch.cuda.memory_allocated() / (1024**3)  # GB
-                print(f"🧹 Pre-processing cleanup: {initial_memory:.2f}GB VRAM")
+                
+                allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
+                reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
+                fragmentation = reserved - allocated
+                
+                print(f"🧹 Pre-processing: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+                
+                # Fragmentation detection threshold from article insights
+                if fragmentation > 1.0:  # >1GB fragmentation indicates serious issue
+                    print(f"⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap (allocated vs reserved)")
+                    print("🔄 Attempting memory pool reset...")
+                    
+                    # Force memory pool cleanup (aggressive strategy)
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()  # Clean up IPC memory
+                    torch.cuda.synchronize()
+                    
+                    allocated_after = torch.cuda.memory_allocated() / (1024**3)
+                    reserved_after = torch.cuda.memory_reserved() / (1024**3)
+                    print(f"📊 Post-cleanup: Allocated={allocated_after:.2f}GB, Reserved={reserved_after:.2f}GB")
 
             # Load image
             image = self.load_document_image(image_path)
@@ -519,10 +538,27 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
-                final_memory = torch.cuda.memory_allocated() / (1024**3)  # GB
-                print(
-                    f"✅ Enhanced cleanup + cache clearing: {final_memory:.2f}GB VRAM"
-                )
+                
+                # Post-processing fragmentation analysis (worldversant.com insights)
+                allocated_final = torch.cuda.memory_allocated() / (1024**3)  # GB
+                reserved_final = torch.cuda.memory_reserved() / (1024**3)    # GB
+                fragmentation_final = reserved_final - allocated_final
+                
+                print(f"✅ Post-processing: Allocated={allocated_final:.2f}GB, Reserved={reserved_final:.2f}GB")
+                
+                if fragmentation_final > 1.0:
+                    print(f"⚠️ POST-PROCESSING FRAGMENTATION: {fragmentation_final:.2f}GB gap detected")
+                    print("💡 Memory pool fragmentation may cause next image to fail")
+                    
+                    # Additional cleanup attempt for fragmented memory
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                    gc.collect()  # gc already imported above
+                    torch.cuda.synchronize()
+                    
+                    final_check_allocated = torch.cuda.memory_allocated() / (1024**3)
+                    final_check_reserved = torch.cuda.memory_reserved() / (1024**3)
+                    print(f"🔧 Final cleanup: Allocated={final_check_allocated:.2f}GB, Reserved={final_check_reserved:.2f}GB")
 
             return {
                 "image_name": Path(image_path).name,
