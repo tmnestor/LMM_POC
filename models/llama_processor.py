@@ -52,6 +52,9 @@ class LlamaProcessor:
         self.model = None
         self.processor = None
 
+        # Configure CUDA memory allocation strategy (from PyTorch forums)
+        self._configure_cuda_memory_allocation()
+
         # Configure batch processing
         self._configure_batch_processing(batch_size)
 
@@ -60,6 +63,35 @@ class LlamaProcessor:
 
         # Initialize model and processor
         self._load_model()
+
+    def _configure_cuda_memory_allocation(self):
+        """
+        Configure CUDA memory allocation to reduce fragmentation (PyTorch forums insights).
+        
+        Based on: https://discuss.pytorch.org/t/keep-getting-cuda-oom-error-with-pytorch-failing-to-allocate-all-free-memory/133896
+        """
+        if torch.cuda.is_available() and self.device != "cpu":
+            import os
+            
+            # Set PYTORCH_CUDA_ALLOC_CONF to manage memory fragmentation
+            # max_split_size_mb: Maximum size of memory blocks (smaller = less fragmentation)
+            # expandable_segments: Allow memory pool to grow/shrink dynamically
+            cuda_alloc_config = "max_split_size_mb:128,expandable_segments:True"
+            
+            # Check if already set
+            current_config = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+            if current_config != cuda_alloc_config:
+                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
+                print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
+                print("💡 Smaller memory blocks (128MB) to reduce fragmentation")
+            
+            # Also set cudnn benchmarking for better performance
+            torch.backends.cudnn.benchmark = True
+            
+            # Log current CUDA memory state
+            allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
+            reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
+            print(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -455,6 +487,12 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     # Force memory pool cleanup (aggressive strategy)
                     torch.cuda.empty_cache()
                     torch.cuda.ipc_collect()  # Clean up IPC memory
+                    
+                    # PyTorch forum suggestion: Reset memory statistics
+                    torch.cuda.reset_peak_memory_stats()
+                    torch.cuda.reset_accumulated_memory_stats()
+                    
+                    # Additional synchronization
                     torch.cuda.synchronize()
                     
                     allocated_after = torch.cuda.memory_allocated() / (1024**3)
