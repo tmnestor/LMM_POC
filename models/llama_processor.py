@@ -73,25 +73,33 @@ class LlamaProcessor:
         if torch.cuda.is_available() and self.device != "cpu":
             import os
             
-            # Set PYTORCH_CUDA_ALLOC_CONF to manage memory fragmentation
+            # IMPORTANT: Clear any existing PYTORCH_CUDA_ALLOC_CONF that might have problematic settings
+            if "PYTORCH_CUDA_ALLOC_CONF" in os.environ:
+                current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+                if "expandable_segments" in current:
+                    print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
+                    del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
+            
+            # Set safe PYTORCH_CUDA_ALLOC_CONF to manage memory fragmentation
             # max_split_size_mb: Maximum size of memory blocks (smaller = less fragmentation)
-            # Note: expandable_segments removed - causes INTERNAL ASSERT FAILED
+            # NOTE: expandable_segments causes INTERNAL ASSERT FAILED - DO NOT USE
             cuda_alloc_config = "max_split_size_mb:128"
             
-            # Check if already set
-            current_config = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
-            if current_config != cuda_alloc_config:
-                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
-                print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
-                print("💡 Smaller memory blocks (128MB) to reduce fragmentation")
+            # Apply the safe configuration
+            os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
+            print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
+            print("💡 Using 128MB memory blocks to reduce fragmentation")
             
             # Also set cudnn benchmarking for better performance
             torch.backends.cudnn.benchmark = True
             
             # Log current CUDA memory state
-            allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
-            reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
-            print(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+            try:
+                allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
+                reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
+                print(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+            except Exception as e:
+                print(f"⚠️ Could not check initial CUDA state: {e}")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
