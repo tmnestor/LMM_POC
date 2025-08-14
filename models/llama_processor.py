@@ -384,11 +384,53 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 return self.model.generate(**inputs, **generation_kwargs)
                 
         except torch.cuda.OutOfMemoryError as e3:
-            print(f"🚨 CRITICAL: Even model reload failed: {e3}")
-            print("☢️ FINAL FALLBACK: Forcing CPU-only processing...")
+            print(f"🚨 CRITICAL: Model reload with OffloadedCache failed: {e3}")
+            print("🔄 STRATEGY 4.5: Attempting fresh GPU model reload WITHOUT OffloadedCache...")
             
-            # Ultimate Strategy 5: Force CPU processing
-            return self._ultimate_cpu_fallback_generate(inputs, **generation_kwargs)
+            # Strategy 4.5: Try fresh GPU reload WITHOUT offloaded cache
+            # The offloaded cache itself might be causing issues
+            try:
+                # Complete cleanup before fresh GPU reload
+                if self.model is not None:
+                    del self.model
+                if self.processor is not None:
+                    del self.processor
+                
+                import gc
+                for _ in range(3):
+                    gc.collect()
+                
+                if torch.cuda.is_available():
+                    # Maximum cleanup effort
+                    for _ in range(5):
+                        torch.cuda.empty_cache()
+                        torch.cuda.ipc_collect()
+                    torch.cuda.synchronize()
+                    torch.cuda.reset_peak_memory_stats()
+                    torch.cuda.reset_accumulated_memory_stats()
+                    
+                    memory_after_cleanup = torch.cuda.memory_allocated() / (1024**3)
+                    print(f"🧹 Ultra-cleanup complete: {memory_after_cleanup:.2f}GB VRAM")
+                
+                # Reload fresh GPU model
+                print("🔄 Loading fresh GPU model (no OffloadedCache)...")
+                self._load_model()
+                
+                # Try generation with fresh GPU model (no offloaded cache)
+                generation_kwargs_fresh = generation_kwargs.copy()
+                if "cache_implementation" in generation_kwargs_fresh:
+                    del generation_kwargs_fresh["cache_implementation"]
+                
+                print("🎯 Attempting generation with fresh GPU model...")
+                with torch.no_grad():
+                    return self.model.generate(**inputs, **generation_kwargs_fresh)
+                    
+            except torch.cuda.OutOfMemoryError as e4:
+                print(f"❌ Fresh GPU reload also failed: {e4}")
+                print("☢️ FINAL FALLBACK: Forcing CPU-only processing...")
+                
+                # Ultimate Strategy 5: Force CPU processing
+                return self._ultimate_cpu_fallback_generate(inputs, **generation_kwargs)
 
     def _ultimate_cpu_fallback_generate(self, inputs, **generation_kwargs):
         """
