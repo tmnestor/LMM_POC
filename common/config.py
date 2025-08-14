@@ -572,8 +572,8 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 
 # Llama-3.2-11B-Vision generation configuration
 LLAMA_GENERATION_CONFIG = {
-    "max_new_tokens_base": 800,  # Base tokens for generation
-    "max_new_tokens_per_field": 40,  # Additional tokens per extraction field
+    "max_new_tokens_base": 600,  # Reduced from 800 to save memory
+    "max_new_tokens_per_field": 30,  # Reduced from 40 - still adequate for extraction
     "temperature": 0.1,  # Near-deterministic sampling
     "do_sample": True,  # Enable sampling for controlled randomness
     "top_p": 0.95,  # Nucleus sampling parameter

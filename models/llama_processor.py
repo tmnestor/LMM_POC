@@ -80,10 +80,10 @@ class LlamaProcessor:
                     print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
                     del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
             
-            # Set safe PYTORCH_CUDA_ALLOC_CONF to manage memory fragmentation
-            # max_split_size_mb: Maximum size of memory blocks (smaller = less fragmentation)
-            # NOTE: expandable_segments causes INTERNAL ASSERT FAILED - DO NOT USE
-            cuda_alloc_config = "max_split_size_mb:128"
+            # Set PYTORCH_CUDA_ALLOC_CONF with more aggressive fragmentation prevention
+            # Smaller blocks = better fragmentation handling but slight performance cost
+            # 64MB blocks for maximum fragmentation resistance (half of 128MB)
+            cuda_alloc_config = "max_split_size_mb:64"
             
             # Apply the safe configuration
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
@@ -576,14 +576,25 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             # Phase 1: Enhanced KV cache clearing for Llama models
             self._clear_model_caches()
 
-            # Force garbage collection
+            # AGGRESSIVE: Multi-pass garbage collection and memory release
             import gc
-
-            gc.collect()
-
+            
+            # Multiple GC passes to ensure thorough cleanup
+            for _ in range(3):
+                gc.collect()
+            
             if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+                # Force synchronization before cleanup
                 torch.cuda.synchronize()
+                
+                # Multiple empty_cache calls with synchronization
+                for _ in range(2):
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                
+                # Reset memory statistics to prevent allocator confusion
+                torch.cuda.reset_peak_memory_stats()
+                torch.cuda.reset_accumulated_memory_stats()
                 
                 # Post-processing fragmentation analysis (worldversant.com insights)
                 allocated_final = torch.cuda.memory_allocated() / (1024**3)  # GB
@@ -592,19 +603,50 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 
                 print(f"✅ Post-processing: Allocated={allocated_final:.2f}GB, Reserved={reserved_final:.2f}GB")
                 
-                if fragmentation_final > 1.0:
+                if fragmentation_final > 0.5:  # More aggressive threshold (was 1.0)
                     print(f"⚠️ POST-PROCESSING FRAGMENTATION: {fragmentation_final:.2f}GB gap detected")
-                    print("💡 Memory pool fragmentation may cause next image to fail")
                     
-                    # Additional cleanup attempt for fragmented memory
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
-                    gc.collect()  # gc already imported above
-                    torch.cuda.synchronize()
+                    if fragmentation_final > 1.0:
+                        print("🚨 CRITICAL: High fragmentation - aggressive defragmentation needed")
+                        
+                        # NUCLEAR OPTION: Force complete memory pool reset
+                        # This is expensive but may prevent future OOM
+                        print("☢️ Attempting complete memory pool reset...")
+                        
+                        # Step 1: Clear all caches multiple times
+                        for _ in range(5):
+                            torch.cuda.empty_cache()
+                            torch.cuda.ipc_collect()
+                            gc.collect()
+                            torch.cuda.synchronize()
+                        
+                        # Step 2: Force memory pool compaction by allocating/deallocating
+                        try:
+                            # Allocate small tensors to force pool reorganization
+                            dummy_tensors = []
+                            for _ in range(10):
+                                dummy = torch.zeros(1024, 1024, device='cuda')  # 4MB each
+                                dummy_tensors.append(dummy)
+                            
+                            # Clear them to force deallocation
+                            del dummy_tensors
+                            torch.cuda.empty_cache()
+                            print("✅ Memory pool reorganization attempted")
+                        except Exception:
+                            pass  # Ignore if this fails
+                    else:
+                        print("💡 Moderate fragmentation - standard cleanup")
+                        
+                        # Standard cleanup for moderate fragmentation
+                        for _ in range(2):
+                            torch.cuda.empty_cache()
+                            torch.cuda.ipc_collect()
+                        gc.collect()
+                        torch.cuda.synchronize()
                     
                     final_check_allocated = torch.cuda.memory_allocated() / (1024**3)
                     final_check_reserved = torch.cuda.memory_reserved() / (1024**3)
-                    print(f"🔧 Final cleanup: Allocated={final_check_allocated:.2f}GB, Reserved={final_check_reserved:.2f}GB")
+                    print(f"🔧 Final state: Allocated={final_check_allocated:.2f}GB, Reserved={final_check_reserved:.2f}GB")
 
             return {
                 "image_name": Path(image_path).name,
