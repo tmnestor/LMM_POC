@@ -75,8 +75,8 @@ class LlamaProcessor:
             
             # Set PYTORCH_CUDA_ALLOC_CONF to manage memory fragmentation
             # max_split_size_mb: Maximum size of memory blocks (smaller = less fragmentation)
-            # expandable_segments: Allow memory pool to grow/shrink dynamically
-            cuda_alloc_config = "max_split_size_mb:128,expandable_segments:True"
+            # Note: expandable_segments removed - causes INTERNAL ASSERT FAILED
+            cuda_alloc_config = "max_split_size_mb:128"
             
             # Check if already set
             current_config = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
