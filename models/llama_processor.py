@@ -31,6 +31,13 @@ from common.config import (
     get_max_new_tokens,
 )
 from common.evaluation_utils import parse_extraction_response
+from common.gpu_optimization import (
+    comprehensive_memory_cleanup,
+    configure_cuda_memory_allocation,
+    get_available_gpu_memory,
+    handle_memory_fragmentation,
+    optimize_model_for_v100,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -53,7 +60,7 @@ class LlamaProcessor:
         self.processor = None
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
-        self._configure_cuda_memory_allocation()
+        configure_cuda_memory_allocation()
 
         # Configure batch processing
         self._configure_batch_processing(batch_size)
@@ -64,43 +71,6 @@ class LlamaProcessor:
         # Initialize model and processor
         self._load_model()
 
-    def _configure_cuda_memory_allocation(self):
-        """
-        Configure CUDA memory allocation to reduce fragmentation (PyTorch forums insights).
-        
-        Based on: https://discuss.pytorch.org/t/keep-getting-cuda-oom-error-with-pytorch-failing-to-allocate-all-free-memory/133896
-        """
-        if torch.cuda.is_available() and self.device != "cpu":
-            import os
-            
-            # IMPORTANT: Clear any existing PYTORCH_CUDA_ALLOC_CONF that might have problematic settings
-            if "PYTORCH_CUDA_ALLOC_CONF" in os.environ:
-                current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
-                if "expandable_segments" in current:
-                    print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
-                    del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
-            
-            # Set PYTORCH_CUDA_ALLOC_CONF with more aggressive fragmentation prevention
-            # Smaller blocks = better fragmentation handling but slight performance cost
-            # 64MB blocks for maximum fragmentation resistance (half of 128MB)
-            cuda_alloc_config = "max_split_size_mb:64"
-            
-            # Apply the safe configuration
-            os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
-            print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
-            print("💡 Using 128MB memory blocks to reduce fragmentation")
-            
-            # Also set cudnn benchmarking for better performance
-            torch.backends.cudnn.benchmark = True
-            
-            # Log current CUDA memory state
-            try:
-                allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
-                reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
-                print(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
-            except Exception as e:
-                print(f"⚠️ Could not check initial CUDA state: {e}")
-
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
         if batch_size is not None:
@@ -108,7 +78,7 @@ class LlamaProcessor:
             print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
             # Auto-detect batch size based on available memory
-            available_memory = self._get_available_gpu_memory()
+            available_memory = get_available_gpu_memory(self.device)
             self.batch_size = get_auto_batch_size("llama", available_memory)
             print(
                 f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
@@ -129,80 +99,6 @@ class LlamaProcessor:
             f"temperature={self.generation_config['temperature']}, "
             f"do_sample={self.generation_config['do_sample']}"
         )
-
-    def _get_available_gpu_memory(self) -> float:
-        """Get available GPU memory in GB."""
-        if not torch.cuda.is_available() or self.device == "cpu":
-            return 0.0
-
-        try:
-            # Get total and allocated memory
-            device_idx = (
-                torch.cuda.current_device()
-                if self.device == "cuda"
-                else int(self.device.split(":")[-1])
-            )
-            total_memory = torch.cuda.get_device_properties(device_idx).total_memory
-            allocated_memory = torch.cuda.memory_allocated(device_idx)
-            available_memory = (total_memory - allocated_memory) / (
-                1024**3
-            )  # Convert to GB
-
-            return available_memory
-        except Exception as e:
-            print(f"⚠️ Could not detect GPU memory: {e}")
-            return 16.0  # Assume 16GB as default for V100
-
-    def _clear_model_caches(self):
-        """Phase 1: Enhanced cache clearing for Llama models."""
-        try:
-            print("🧹 Clearing Llama model caches...")
-
-            # Clear KV cache if it exists
-            if hasattr(self.model, "past_key_values"):
-                self.model.past_key_values = None
-                print("  - Cleared past_key_values")
-
-            # Clear generation cache
-            if hasattr(self.model, "_past_key_values"):
-                self.model._past_key_values = None
-                print("  - Cleared _past_key_values")
-
-            # Clear language model caches
-            if hasattr(self.model, "language_model"):
-                lang_model = self.model.language_model
-                if hasattr(lang_model, "past_key_values"):
-                    lang_model.past_key_values = None
-                    print("  - Cleared language_model cache")
-
-            # Clear vision model caches
-            if hasattr(self.model, "vision_model"):
-                vision_model = self.model.vision_model
-                # Clear any vision processing caches
-                for layer in vision_model.modules():
-                    if hasattr(layer, "past_key_values"):
-                        layer.past_key_values = None
-
-            # Clear processor caches if they exist
-            if hasattr(self.processor, "past_key_values"):
-                self.processor.past_key_values = None
-                print("  - Cleared processor cache")
-
-            # Clear any cached attention masks or position IDs
-            for module in self.model.modules():
-                if hasattr(module, "past_key_values"):
-                    module.past_key_values = None
-                if hasattr(module, "_past_key_values"):
-                    module._past_key_values = None
-                if hasattr(module, "attention_mask"):
-                    if hasattr(module.attention_mask, "data"):
-                        module.attention_mask = None
-
-            print("✅ Model caches cleared")
-
-        except Exception as e:
-            print(f"⚠️ Error clearing caches: {e}")
-            # Continue anyway - don't fail the entire process
 
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
@@ -243,12 +139,8 @@ class LlamaProcessor:
                 f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
             )
 
-            # Basic model optimizations
-            self.model.eval()
-            if torch.cuda.is_available():
-                # Enable basic V100 optimizations (conservative)
-                torch.backends.cuda.matmul.allow_tf32 = True
-                print("🚀 Basic V100 optimizations enabled")
+            # Apply V100 optimizations
+            optimize_model_for_v100(self.model)
 
         except Exception as e:
             print(f"❌ Error loading Llama model: {e}")
@@ -307,86 +199,93 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
     def _resilient_generate(self, inputs, **generation_kwargs):
         """
         Resilient generation with automatic OffloadedCache fallback on CUDA OOM.
-        
+
         Args:
             inputs: Model inputs
             **generation_kwargs: Generation parameters
-            
+
         Returns:
             Generated output tensor
         """
         oom_occurred = False
-        
+
         try:
             # First attempt: Standard generation with use_cache=True
             return self.model.generate(**inputs, **generation_kwargs)
-            
+
         except torch.cuda.OutOfMemoryError as e:
             print(f"⚠️ CUDA OOM detected: {e}")
             print("🔄 Retrying with cache_implementation='offloaded'...")
             oom_occurred = True
-            
+
         if oom_occurred:
             # Emergency cleanup before retry
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
-            
+
             try:
                 # Retry with OffloadedCache fallback
                 generation_kwargs["cache_implementation"] = "offloaded"
                 return self.model.generate(**inputs, **generation_kwargs)
-                
+
             except torch.cuda.OutOfMemoryError as e2:
                 print(f"⚠️ OffloadedCache also failed: {e2}")
                 print("🚨 EMERGENCY: Reloading model to force complete memory reset...")
-                
+
                 # Emergency Strategy 4: Complete model reload
-                return self._emergency_model_reload_generate(inputs, **generation_kwargs)
+                return self._emergency_model_reload_generate(
+                    inputs, **generation_kwargs
+                )
 
     def _emergency_model_reload_generate(self, inputs, **generation_kwargs):
         """
         Emergency model reload to force complete memory reset when all other strategies fail.
-        
+
         Args:
             inputs: Model inputs
             **generation_kwargs: Generation parameters
-            
+
         Returns:
             Generated output tensor
         """
         print("🔄 EMERGENCY: Forcing complete model reload...")
-        
+
         # Step 1: Complete model cleanup
         if self.model is not None:
             del self.model
         if self.processor is not None:
             del self.processor
-        
+
         # Step 2: Aggressive memory cleanup
         import gc
+
         gc.collect()
-        
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
-            print(f"🧹 Post-deletion cleanup: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
-        
+            print(
+                f"🧹 Post-deletion cleanup: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM"
+            )
+
         # Step 3: Reload model with minimal configuration
         print("🔄 Reloading model with emergency configuration...")
         self._load_model()
-        
+
         # Step 4: Process with OffloadedCache from the start
         generation_kwargs["cache_implementation"] = "offloaded"
         print("🎯 Processing with emergency OffloadedCache configuration...")
-        
+
         try:
             with torch.no_grad():
                 return self.model.generate(**inputs, **generation_kwargs)
-                
+
         except torch.cuda.OutOfMemoryError as e3:
             print(f"🚨 CRITICAL: Model reload with OffloadedCache failed: {e3}")
-            print("🔄 STRATEGY 4.5: Attempting fresh GPU model reload WITHOUT OffloadedCache...")
-            
+            print(
+                "🔄 STRATEGY 4.5: Attempting fresh GPU model reload WITHOUT OffloadedCache..."
+            )
+
             # Strategy 4.5: Try fresh GPU reload WITHOUT offloaded cache
             # The offloaded cache itself might be causing issues
             try:
@@ -395,11 +294,12 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     del self.model
                 if self.processor is not None:
                     del self.processor
-                
+
                 import gc
+
                 for _ in range(3):
                     gc.collect()
-                
+
                 if torch.cuda.is_available():
                     # Maximum cleanup effort
                     for _ in range(5):
@@ -408,55 +308,59 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     torch.cuda.synchronize()
                     torch.cuda.reset_peak_memory_stats()
                     torch.cuda.reset_accumulated_memory_stats()
-                    
+
                     memory_after_cleanup = torch.cuda.memory_allocated() / (1024**3)
-                    print(f"🧹 Ultra-cleanup complete: {memory_after_cleanup:.2f}GB VRAM")
-                
+                    print(
+                        f"🧹 Ultra-cleanup complete: {memory_after_cleanup:.2f}GB VRAM"
+                    )
+
                 # Reload fresh GPU model
                 print("🔄 Loading fresh GPU model (no OffloadedCache)...")
                 self._load_model()
-                
+
                 # Try generation with fresh GPU model (no offloaded cache)
                 generation_kwargs_fresh = generation_kwargs.copy()
                 if "cache_implementation" in generation_kwargs_fresh:
                     del generation_kwargs_fresh["cache_implementation"]
-                
+
                 print("🎯 Attempting generation with fresh GPU model...")
                 with torch.no_grad():
                     return self.model.generate(**inputs, **generation_kwargs_fresh)
-                    
+
             except torch.cuda.OutOfMemoryError as e4:
                 print(f"❌ Fresh GPU reload also failed: {e4}")
                 print("☢️ FINAL FALLBACK: Forcing CPU-only processing...")
-                
+
                 # Ultimate Strategy 5: Force CPU processing
                 return self._ultimate_cpu_fallback_generate(inputs, **generation_kwargs)
 
     def _ultimate_cpu_fallback_generate(self, inputs, **generation_kwargs):
         """
         Ultimate CPU fallback: Load fresh model on CPU when GPU strategies fail.
-        
+
         Args:
             inputs: Model inputs
             **generation_kwargs: Generation parameters
-            
+
         Returns:
             Generated output tensor
         """
         print("☢️ ULTIMATE FALLBACK: Loading fresh CPU-only model...")
-        
+
         # Step 1: Complete cleanup of GPU model
         if self.model is not None:
             del self.model
         if self.processor is not None:
             del self.processor
-        
+
         # Step 2: Clear all GPU memory
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
-            print(f"🧹 GPU cleared: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM")
-        
+            print(
+                f"🧹 GPU cleared: {torch.cuda.memory_allocated() / (1024**3):.2f}GB VRAM"
+            )
+
         # Step 3: Load fresh model directly on CPU (no device_map, no quantization)
         print("🔄 Loading fresh CPU-only model (no quantization)...")
         try:
@@ -466,41 +370,45 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 device_map="cpu",  # Force CPU only
                 # NO quantization_config - causes meta device issues
             )
-            
+
             # Load processor
             self.processor = AutoProcessor.from_pretrained(self.model_path)
-            
+
             # Call tie_weights() method after model loading (CPU version)
             try:
                 self.model.tie_weights()
-                print("✅ Fresh CPU model loaded successfully (FP32, tie_weights called)")
+                print(
+                    "✅ Fresh CPU model loaded successfully (FP32, tie_weights called)"
+                )
             except Exception as e:
-                print(f"⚠️ Fresh CPU model loaded (FP32, tie_weights warning ignored): {e}")
+                print(
+                    f"⚠️ Fresh CPU model loaded (FP32, tie_weights warning ignored): {e}"
+                )
                 print("ℹ️ CPU model will function correctly despite tie_weights warning")
-            
+
         except Exception as e:
             print(f"❌ CPU model loading failed: {e}")
             raise RuntimeError(f"All fallback strategies failed: {e}") from e
-        
+
         # Step 4: Move inputs to CPU
         cpu_inputs = {}
         for key, value in inputs.items():
             if torch.is_tensor(value):
-                cpu_inputs[key] = value.to('cpu')
+                cpu_inputs[key] = value.to("cpu")
             else:
                 cpu_inputs[key] = value
-        
+
         # Step 5: Process on CPU (slower but guaranteed)
         print("🐌 Processing on CPU (slower but stable)...")
-        
+
         # Remove cache_implementation since we're on CPU
         cpu_generation_kwargs = generation_kwargs.copy()
         if "cache_implementation" in cpu_generation_kwargs:
             del cpu_generation_kwargs["cache_implementation"]
-        
+
         with torch.no_grad():
             output = self.model.generate(**cpu_inputs, **cpu_generation_kwargs)
-        
+
         print("✅ CPU processing completed successfully")
         return output
 
@@ -518,36 +426,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             start_time = time.time()
 
             # STRATEGY 3: Pre-processing cleanup with fragmentation detection
-            if torch.cuda.is_available():
-                # Advanced memory analysis from worldversant.com article
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                
-                allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
-                reserved = torch.cuda.memory_reserved() / (1024**3)    # GB
-                fragmentation = reserved - allocated
-                
-                print(f"🧹 Pre-processing: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
-                
-                # Fragmentation detection threshold from article insights
-                if fragmentation > 1.0:  # >1GB fragmentation indicates serious issue
-                    print(f"⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap (allocated vs reserved)")
-                    print("🔄 Attempting memory pool reset...")
-                    
-                    # Force memory pool cleanup (aggressive strategy)
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()  # Clean up IPC memory
-                    
-                    # PyTorch forum suggestion: Reset memory statistics
-                    torch.cuda.reset_peak_memory_stats()
-                    torch.cuda.reset_accumulated_memory_stats()
-                    
-                    # Additional synchronization
-                    torch.cuda.synchronize()
-                    
-                    allocated_after = torch.cuda.memory_allocated() / (1024**3)
-                    reserved_after = torch.cuda.memory_reserved() / (1024**3)
-                    print(f"📊 Post-cleanup: Allocated={allocated_after:.2f}GB, Reserved={reserved_after:.2f}GB")
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
             # Load image
             image = self.load_document_image(image_path)
@@ -615,80 +494,8 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             # STRATEGY 3: Comprehensive memory cleanup and cache clearing + OffloadedCache fallback
             del inputs, output, image
 
-            # Phase 1: Enhanced KV cache clearing for Llama models
-            self._clear_model_caches()
-
-            # AGGRESSIVE: Multi-pass garbage collection and memory release
-            import gc
-            
-            # Multiple GC passes to ensure thorough cleanup
-            for _ in range(3):
-                gc.collect()
-            
-            if torch.cuda.is_available():
-                # Force synchronization before cleanup
-                torch.cuda.synchronize()
-                
-                # Multiple empty_cache calls with synchronization
-                for _ in range(2):
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
-                
-                # Reset memory statistics to prevent allocator confusion
-                torch.cuda.reset_peak_memory_stats()
-                torch.cuda.reset_accumulated_memory_stats()
-                
-                # Post-processing fragmentation analysis (worldversant.com insights)
-                allocated_final = torch.cuda.memory_allocated() / (1024**3)  # GB
-                reserved_final = torch.cuda.memory_reserved() / (1024**3)    # GB
-                fragmentation_final = reserved_final - allocated_final
-                
-                print(f"✅ Post-processing: Allocated={allocated_final:.2f}GB, Reserved={reserved_final:.2f}GB")
-                
-                if fragmentation_final > 0.5:  # More aggressive threshold (was 1.0)
-                    print(f"⚠️ POST-PROCESSING FRAGMENTATION: {fragmentation_final:.2f}GB gap detected")
-                    
-                    if fragmentation_final > 1.0:
-                        print("🚨 CRITICAL: High fragmentation - aggressive defragmentation needed")
-                        
-                        # NUCLEAR OPTION: Force complete memory pool reset
-                        # This is expensive but may prevent future OOM
-                        print("☢️ Attempting complete memory pool reset...")
-                        
-                        # Step 1: Clear all caches multiple times
-                        for _ in range(5):
-                            torch.cuda.empty_cache()
-                            torch.cuda.ipc_collect()
-                            gc.collect()
-                            torch.cuda.synchronize()
-                        
-                        # Step 2: Force memory pool compaction by allocating/deallocating
-                        try:
-                            # Allocate small tensors to force pool reorganization
-                            dummy_tensors = []
-                            for _ in range(10):
-                                dummy = torch.zeros(1024, 1024, device='cuda')  # 4MB each
-                                dummy_tensors.append(dummy)
-                            
-                            # Clear them to force deallocation
-                            del dummy_tensors
-                            torch.cuda.empty_cache()
-                            print("✅ Memory pool reorganization attempted")
-                        except Exception:
-                            pass  # Ignore if this fails
-                    else:
-                        print("💡 Moderate fragmentation - standard cleanup")
-                        
-                        # Standard cleanup for moderate fragmentation
-                        for _ in range(2):
-                            torch.cuda.empty_cache()
-                            torch.cuda.ipc_collect()
-                        gc.collect()
-                        torch.cuda.synchronize()
-                    
-                    final_check_allocated = torch.cuda.memory_allocated() / (1024**3)
-                    final_check_reserved = torch.cuda.memory_reserved() / (1024**3)
-                    print(f"🔧 Final state: Allocated={final_check_allocated:.2f}GB, Reserved={final_check_reserved:.2f}GB")
+            # Use comprehensive cleanup from common module
+            comprehensive_memory_cleanup(self.model, self.processor)
 
             return {
                 "image_name": Path(image_path).name,

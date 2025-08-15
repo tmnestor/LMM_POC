@@ -30,6 +30,14 @@ from common.config import (
     get_max_new_tokens,
 )
 from common.evaluation_utils import parse_extraction_response
+from common.gpu_optimization import (
+    ResilientGenerator,
+    comprehensive_memory_cleanup,
+    configure_cuda_memory_allocation,
+    get_available_gpu_memory,
+    handle_memory_fragmentation,
+    optimize_model_for_v100,
+)
 
 
 class InternVL3Processor:
@@ -49,6 +57,10 @@ class InternVL3Processor:
         self.model = None
         self.tokenizer = None
         self.generation_config = None
+        self.resilient_generator = None
+
+        # Configure CUDA memory allocation for V100 optimization
+        configure_cuda_memory_allocation()
 
         # Configure batch processing
         self._configure_batch_processing(batch_size)
@@ -76,34 +88,11 @@ class InternVL3Processor:
             print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
             # Auto-detect batch size based on available memory
-            available_memory = self._get_available_gpu_memory()
+            available_memory = get_available_gpu_memory(self.device)
             self.batch_size = get_auto_batch_size("internvl3", available_memory)
             print(
                 f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
             )
-
-    def _get_available_gpu_memory(self) -> float:
-        """Get available GPU memory in GB."""
-        if not torch.cuda.is_available() or self.device == "cpu":
-            return 0.0
-
-        try:
-            # Get total and allocated memory
-            device_idx = (
-                torch.cuda.current_device()
-                if self.device == "cuda"
-                else int(self.device.split(":")[-1])
-            )
-            total_memory = torch.cuda.get_device_properties(device_idx).total_memory
-            allocated_memory = torch.cuda.memory_allocated(device_idx)
-            available_memory = (total_memory - allocated_memory) / (
-                1024**3
-            )  # Convert to GB
-
-            return available_memory
-        except Exception as e:
-            print(f"⚠️ Could not detect GPU memory: {e}")
-            return 16.0  # Assume 16GB as default for V100
 
     def _load_model(self):
         """Load InternVL3 model and tokenizer with compatibility settings."""
@@ -132,9 +121,23 @@ class InternVL3Processor:
 
             print("✅ InternVL3 model and tokenizer loaded successfully")
 
+            # Apply V100 optimizations
+            optimize_model_for_v100(self.model)
+
+            # Create resilient generator for OOM handling
+            self.resilient_generator = ResilientGenerator(
+                self.model, self.tokenizer, self.model_path, self._load_model_for_reload
+            )
+
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
             raise
+
+    def _load_model_for_reload(self, model_path):
+        """Reload model for emergency recovery (used by ResilientGenerator)."""
+        self.model_path = model_path or self.model_path
+        self._load_model()
+        return self.model, self.tokenizer
 
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
@@ -310,6 +313,9 @@ INSTRUCTIONS:
         try:
             start_time = time.time()
 
+            # Pre-processing cleanup with fragmentation detection
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
             # Load and preprocess image
             pixel_values = self.load_image(image_path)
             pixel_values = pixel_values.to(torch.bfloat16).cuda()
@@ -317,20 +323,34 @@ INSTRUCTIONS:
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
 
-            # Generate response
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                question,
-                self.generation_config,
-                history=None,
-                return_history=False,
-            )
+            # Use resilient generator for OOM handling
+            if self.resilient_generator:
+                inputs = {
+                    "tokenizer": self.tokenizer,
+                    "pixel_values": pixel_values,
+                    "question": question,
+                }
+                response = self.resilient_generator.generate(
+                    inputs, **self.generation_config
+                )
+            else:
+                # Fallback to direct generation
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    question,
+                    self.generation_config,
+                    history=None,
+                    return_history=False,
+                )
 
             processing_time = time.time() - start_time
 
             # Parse response
             extracted_data = parse_extraction_response(response)
+
+            # Comprehensive memory cleanup
+            comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             # Calculate metrics
             extracted_fields_count = sum(
@@ -354,6 +374,13 @@ INSTRUCTIONS:
 
         except Exception as e:
             print(f"❌ Error processing {image_path}: {e}")
+
+            # Emergency cleanup on error
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print("🧹 Emergency cleanup after error")
+
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
@@ -422,9 +449,9 @@ INSTRUCTIONS:
                 if result["response_completeness"] > 0:
                     successful_extractions += 1
 
-            # Clear GPU cache after each batch
+            # Clear GPU cache after each batch with comprehensive cleanup
             if CLEAR_GPU_CACHE_AFTER_BATCH and torch.cuda.is_available():
-                torch.cuda.empty_cache()
+                comprehensive_memory_cleanup(self.model, self.tokenizer)
 
         # Calculate final statistics
         batch_statistics = {
@@ -571,15 +598,26 @@ INSTRUCTIONS:
                 zip(pixel_values_list, valid_files, strict=False)
             ):
                 try:
-                    # Generate response for this image
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        prompt_template,
-                        self.generation_config,
-                        history=None,
-                        return_history=False,
-                    )
+                    # Generate response for this image with resilient generator
+                    if self.resilient_generator:
+                        inputs = {
+                            "tokenizer": self.tokenizer,
+                            "pixel_values": pixel_values,
+                            "question": prompt_template,
+                        }
+                        response = self.resilient_generator.generate(
+                            inputs, **self.generation_config
+                        )
+                    else:
+                        # Fallback to direct generation
+                        response = self.model.chat(
+                            self.tokenizer,
+                            pixel_values,
+                            prompt_template,
+                            self.generation_config,
+                            history=None,
+                            return_history=False,
+                        )
 
                     # Parse response
                     extracted_data = parse_extraction_response(response)
