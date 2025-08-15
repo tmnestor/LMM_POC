@@ -336,11 +336,12 @@ class ResilientGenerator:
             return self.model.generate(**inputs, **generation_kwargs)
         elif hasattr(self.model, "chat"):
             # For models like InternVL3 that use chat interface
+            # Chat method expects generation_config as dict, not unpacked kwargs
             return self.model.chat(
                 inputs.get("tokenizer", self.processor),
                 inputs.get("pixel_values"),
                 inputs.get("question"),
-                generation_kwargs,
+                generation_kwargs,  # Convert kwargs back to dict for chat method
                 history=None,
                 return_history=False,
             )
@@ -358,14 +359,13 @@ class ResilientGenerator:
         torch.cuda.synchronize()
 
         try:
-            # Add OffloadedCache configuration
-            generation_kwargs["cache_implementation"] = "offloaded"
-
             if hasattr(self.model, "generate"):
+                # Add OffloadedCache configuration for generate models
+                generation_kwargs["cache_implementation"] = "offloaded"
                 return self.model.generate(**inputs, **generation_kwargs)
             else:
                 # For chat-based models, offloaded cache may not be supported
-                # Just retry with standard generation after cleanup
+                # Just retry with standard generation after cleanup (no cache_implementation)
                 return self._standard_generate(inputs, **generation_kwargs)
 
         except torch.cuda.OutOfMemoryError as e:
@@ -394,7 +394,9 @@ class ResilientGenerator:
             raise RuntimeError("No model loader provided for emergency reload")
 
         # Try generation with fresh model
-        generation_kwargs["cache_implementation"] = "offloaded"
+        # Only add cache_implementation for models that support it (generate method)
+        if hasattr(self.model, "generate"):
+            generation_kwargs["cache_implementation"] = "offloaded"
         return self._standard_generate(inputs, **generation_kwargs)
 
     def _cpu_fallback_generate(

@@ -1,7 +1,7 @@
 # V100 Memory Management Strategies - COMPREHENSIVE UPDATE
 
-**Last Updated**: 2025-01-14  
-**Status**: Five-tier cascading fallback system implemented with memory fragmentation detection
+**Last Updated**: 2025-01-15  
+**Status**: Unified GPU optimization module with KV cache management and five-tier cascading fallback system
 
 ## Executive Summary
 
@@ -17,12 +17,39 @@ Through extensive testing and research, we've discovered that V100 CUDA memory i
 5. **OffloadedCache retry also fails** - Even HuggingFace's official OOM solution fails
 6. **Model reload fails** - Complete model deletion and reload still hits same OOM
 7. **CPU fallback works** - Fresh CPU model loading succeeds when all GPU strategies fail
+8. **KV cache grows significantly** during generation - needs aggressive clearing after each document
+9. **Common module unifies optimizations** - Both Llama and InternVL3 now use same strategies
 
 ### ⚠️ **Root Cause**: CUDA Memory Fragmentation
 Based on research from [worldversant.com](https://worldversant.com/the-silent-bottleneck-handling-gpu-memory-fragmentation-in-deep-learning-workloads), the issue is **memory pool fragmentation** where:
 - **Large reserved memory pool** becomes fragmented
 - **Allocated vs Reserved memory gap** indicates fragmentation severity  
 - **V100 memory pools** become corrupted after first image processing
+
+## Architecture: Unified GPU Optimization Module
+
+### New Common Module: `common/gpu_optimization.py`
+A comprehensive GPU memory management module that provides:
+- **CUDA memory allocation configuration** for reduced fragmentation
+- **Memory fragmentation detection and handling**
+- **Model cache clearing utilities** for KV cache management
+- **ResilientGenerator class** with multi-tier OOM fallback strategies
+- **V100-specific optimizations** applied to both models
+
+### Key Components
+```python
+# Memory configuration
+configure_cuda_memory_allocation()  # 64MB blocks, no expandable_segments
+
+# Cache management
+clear_model_caches(model, processor)  # Comprehensive KV cache clearing
+
+# Fragmentation handling
+handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
+# Comprehensive cleanup
+comprehensive_memory_cleanup(model, processor)
+```
 
 ## Current Implementation: Five-Tier Cascading Fallback
 
@@ -102,11 +129,67 @@ if fragmentation_final > 1.0:
     torch.cuda.ipc_collect()
 ```
 
+## KV Cache Management Strategy
+
+### What is KV Cache?
+The Key-Value cache stores computed attention keys and values from previous tokens during autoregressive generation:
+- **Purpose**: Avoid recomputing K,V for all previous tokens (O(n²) → O(n) complexity)
+- **Growth**: Cache size = `num_layers × 2 × batch_size × seq_length × hidden_dim`
+- **Memory impact**: Can grow to 2-4GB+ for long sequences on large models
+
+### Current KV Cache Clearing Strategy
+
+#### **Llama Processor**: After Each Image
+```python
+# In process_single_image() - AFTER response generation
+def process_single_image(self, image_path):
+    # ... processing happens ...
+    
+    # Clear KV cache IMMEDIATELY after each image
+    clear_model_caches(self.model, self.processor)
+    comprehensive_memory_cleanup(self.model, self.processor)
+    
+    return results
+```
+
+#### **InternVL3 Processor**: After Each Image
+```python
+# In process_single_image() - AFTER response generation
+def process_single_image(self, image_path):
+    # ... processing happens ...
+    
+    # Clear cache IMMEDIATELY after each image
+    comprehensive_memory_cleanup(self.model, self.tokenizer)
+    
+    return results
+```
+
+#### **Both Models**: After Each Batch
+```python
+# Additional cleanup after processing batches
+if CLEAR_GPU_CACHE_AFTER_BATCH:
+    comprehensive_memory_cleanup(self.model, self.processor)
+```
+
+### Why Aggressive KV Cache Clearing?
+1. **Document independence**: Each document is processed separately
+2. **V100 memory constraints**: 16GB VRAM limit requires aggressive management
+3. **Prevent accumulation**: Cache can grow to several GB across 25-field extractions
+4. **Reliability over speed**: Better to clear cache than risk OOM
+
+### KV Cache vs Performance Trade-off
+- ✅ **Benefit**: Prevents memory accumulation, avoids OOM errors
+- ❌ **Cost**: No speed benefit from caching across documents
+- **Decision**: For document processing, reliability trumps speed optimization
+
 ## Configuration Optimizations
 
-### GPU Model Loading
+### Unified GPU Model Loading (Both Models)
 ```python
-# Optimized 8-bit quantization for V100
+# From common/gpu_optimization.py
+configure_cuda_memory_allocation()  # Set 64MB blocks
+
+# Llama-specific quantization
 quantization_config = BitsAndBytesConfig(
     load_in_8bit=True,
     llm_int8_enable_fp32_cpu_offload=True,
@@ -114,12 +197,17 @@ quantization_config = BitsAndBytesConfig(
     llm_int8_threshold=6.0,
 )
 
-model = MllamaForConditionalGeneration.from_pretrained(
+# InternVL3-specific loading
+model = AutoModel.from_pretrained(
     model_path,
     torch_dtype=torch.bfloat16,
-    device_map="auto", 
-    quantization_config=quantization_config,
+    low_cpu_mem_usage=True,
+    use_flash_attn=False,  # Compatibility
+    trust_remote_code=True,
 )
+
+# Apply V100 optimizations to both
+optimize_model_for_v100(model)
 ```
 
 ### Generation Configuration
@@ -271,10 +359,39 @@ torch.cuda.empty_cache()
 torch.cuda.ipc_collect()
 ```
 
+## Model-Specific Optimizations
+
+### InternVL3 Enhancements
+InternVL3 now includes all V100 optimizations:
+- **CUDA memory configuration** at initialization
+- **Memory fragmentation detection** before processing
+- **Resilient generation** with OOM fallback strategies
+- **Comprehensive memory cleanup** after each image
+- **Dynamic preprocessing** with tile-based approach (maintained)
+
+### Llama Processor Refactoring
+Llama processor has been refactored to use common module:
+- **Removed duplicate code** (~314 lines moved to common module)
+- **Unified memory management** with InternVL3
+- **Maintained all existing** resilient generation capabilities
+- **Enhanced fragmentation detection** and handling
+
+## AI Agent Creation
+
+### GPU Optimization Specialist
+Created specialized AI agents for this project:
+- **`pytorch-gpu-optimizer`**: Expert in GPU memory optimization
+- **`vision-language-expert`**: Specialist in VLM architectures and document understanding
+- **`document-ai-specialist`**: Expert in business document processing and structured extraction
+
+These agents provide focused expertise without requiring extensive context each time.
+
 ### Key Files Modified
-- `models/llama_processor.py`: Five-tier fallback implementation
-- `common/config.py`: Optimized generation parameters
-- All tie_weights fixes applied
+- **`common/gpu_optimization.py`**: NEW - Unified GPU optimization module (481 lines)
+- **`models/llama_processor.py`**: Refactored to use common module (-314 lines duplicate code)
+- **`models/internvl3_processor.py`**: Enhanced with V100 optimizations (+126 lines)
+- **`common/config.py`**: Optimized generation parameters
+- **`~/.claude/agents/`**: Created specialized AI agents
 
 ### Success Criteria ✅
 - ✅ Process 20 images without total failure
@@ -299,12 +416,14 @@ This represents **successful completion through advanced memory management** inc
 
 ## 🚀 **Production Impact**
 
-This solution demonstrates that **V100 hardware can successfully run modern Llama-3.2-Vision workloads** when equipped with sophisticated memory management. The techniques developed here provide:
+This solution demonstrates that **V100 hardware can successfully run modern vision-language workloads** when equipped with sophisticated memory management. The techniques developed here provide:
 
 - **Deployable solution** for V100 production environments
 - **Automated memory management** with real-time intervention capabilities
 - **Proven scalability** to 20+ document processing workloads
-- **Framework for optimization** of other large vision-language models on legacy hardware
+- **Unified optimization framework** for both Llama-3.2-Vision and InternVL3
+- **Reusable GPU optimization module** for other large vision-language models
+- **Framework for legacy hardware optimization** with modern deep learning models
 
 ## 📈 **Performance Metrics - REALISTIC ASSESSMENT**
 
