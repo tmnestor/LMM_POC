@@ -31,7 +31,6 @@ from common.config import (
 )
 from common.evaluation_utils import parse_extraction_response
 from common.gpu_optimization import (
-    ResilientGenerator,
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
     get_available_gpu_memory,
@@ -57,7 +56,6 @@ class InternVL3Processor:
         self.model = None
         self.tokenizer = None
         self.generation_config = None
-        self.resilient_generator = None
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
@@ -124,20 +122,10 @@ class InternVL3Processor:
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
 
-            # Create resilient generator for OOM handling
-            self.resilient_generator = ResilientGenerator(
-                self.model, self.tokenizer, self.model_path, self._load_model_for_reload
-            )
-
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
             raise
 
-    def _load_model_for_reload(self, model_path):
-        """Reload model for emergency recovery (used by ResilientGenerator)."""
-        self.model_path = model_path or self.model_path
-        self._load_model()
-        return self.model, self.tokenizer
 
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
@@ -323,26 +311,15 @@ INSTRUCTIONS:
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
 
-            # Use resilient generator for OOM handling
-            if self.resilient_generator:
-                inputs = {
-                    "tokenizer": self.tokenizer,
-                    "pixel_values": pixel_values,
-                    "question": question,
-                }
-                response = self.resilient_generator.generate(
-                    inputs, **self.generation_config
-                )
-            else:
-                # Fallback to direct generation
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values,
-                    question,
-                    self.generation_config,
-                    history=None,
-                    return_history=False,
-                )
+            # Generate response directly (ResilientGenerator not needed for InternVL3)
+            response = self.model.chat(
+                self.tokenizer,
+                pixel_values,
+                question,
+                self.generation_config,
+                history=None,
+                return_history=False,
+            )
 
             processing_time = time.time() - start_time
 
@@ -598,26 +575,15 @@ INSTRUCTIONS:
                 zip(pixel_values_list, valid_files, strict=False)
             ):
                 try:
-                    # Generate response for this image with resilient generator
-                    if self.resilient_generator:
-                        inputs = {
-                            "tokenizer": self.tokenizer,
-                            "pixel_values": pixel_values,
-                            "question": prompt_template,
-                        }
-                        response = self.resilient_generator.generate(
-                            inputs, **self.generation_config
-                        )
-                    else:
-                        # Fallback to direct generation
-                        response = self.model.chat(
-                            self.tokenizer,
-                            pixel_values,
-                            prompt_template,
-                            self.generation_config,
-                            history=None,
-                            return_history=False,
-                        )
+                    # Generate response for this image directly
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        prompt_template,
+                        self.generation_config,
+                        history=None,
+                        return_history=False,
+                    )
 
                     # Parse response
                     extracted_data = parse_extraction_response(response)
