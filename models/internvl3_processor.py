@@ -126,7 +126,6 @@ class InternVL3Processor:
             print(f"❌ Error loading InternVL3 model: {e}")
             raise
 
-
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
         prompt = f"""Extract data from this business document. 
