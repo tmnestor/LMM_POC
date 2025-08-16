@@ -313,24 +313,13 @@ class ResilientGenerator:
         Returns:
             Generated output
         """
-        print("🔍 DEBUG: ResilientGenerator.generate() called!")
-        print(f"🔍 DEBUG: inputs type: {type(inputs)}, keys: {list(inputs.keys()) if inputs else 'None'}")
-        print(f"🔍 DEBUG: generation_config: {generation_config}")
-        print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
-        
         # Use generation_config if provided, otherwise fall back to kwargs
         if generation_config is not None:
             generation_kwargs = generation_config
-            print(f"🔍 DEBUG: Using generation_config: {generation_kwargs}")
         
         try:
             # First attempt: Standard generation
-            print("🔍 DEBUG: About to call _standard_generate")
-            print(f"🔍 DEBUG: inputs: {inputs}")
-            print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
-            result = self._standard_generate(inputs, generation_kwargs)
-            print("🔍 DEBUG: _standard_generate completed successfully")
-            return result
+            return self._standard_generate(inputs, generation_kwargs)
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"⚠️ CUDA OOM detected: {e}")
@@ -348,31 +337,15 @@ class ResilientGenerator:
 
     def _standard_generate(self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]) -> Any:
         """Standard generation attempt."""
-        print("🔍 DEBUG: _standard_generate method entered!")
-        print(f"🔍 DEBUG: hasattr(self.model, 'generate'): {hasattr(self.model, 'generate')}")
-        print(f"🔍 DEBUG: hasattr(self.model, 'chat'): {hasattr(self.model, 'chat')}")
-        
         # For InternVL3, always use chat method even though generate exists
         # InternVL3's generate method expects different input format
         if hasattr(self.model, "chat") and "tokenizer" in inputs:
-            print("🔍 DEBUG: Using model.chat path (InternVL3 forced)")
             # For models like InternVL3 that use chat interface
             # InternVL3 chat method signature: chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=False)
             try:
-                print("🔍 DEBUG: Extracting inputs...")
                 tokenizer = inputs.get("tokenizer", self.processor)
-                print(f"🔍 DEBUG: tokenizer extracted: {type(tokenizer)}")
                 pixel_values = inputs.get("pixel_values")
-                print(f"🔍 DEBUG: pixel_values extracted: {type(pixel_values)}")
                 question = inputs.get("question")
-                print(f"🔍 DEBUG: question extracted: {type(question)}")
-
-                # Validate inputs and debug tokenizer state
-                print("🔍 DEBUG: Inside ResilientGenerator _standard_generate")
-                print(f"🔍 DEBUG: tokenizer type: {type(tokenizer)}")
-                print(f"🔍 DEBUG: pixel_values type: {type(pixel_values)}")
-                print(f"🔍 DEBUG: question type: {type(question)}")
-                print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
 
                 if tokenizer is None:
                     raise ValueError("tokenizer is None in ResilientGenerator")
@@ -380,16 +353,6 @@ class ResilientGenerator:
                     raise ValueError("pixel_values is None in ResilientGenerator")
                 if question is None:
                     raise ValueError("question is None in ResilientGenerator")
-                
-                # Test tokenizer inside ResilientGenerator
-                print("🔍 DEBUG: Testing tokenizer inside ResilientGenerator...")
-                try:
-                    tokenizer_test = tokenizer("ResilientGenerator test", return_tensors="pt")
-                    print(f"🔍 DEBUG: ResilientGenerator tokenizer test keys: {tokenizer_test.keys()}")
-                    print(f"🔍 DEBUG: ResilientGenerator input_ids: {tokenizer_test['input_ids'].shape if tokenizer_test.get('input_ids') is not None else 'None'}")
-                except Exception as tok_err:
-                    print(f"🔍 DEBUG: Tokenizer test failed inside ResilientGenerator: {tok_err}")
-                    raise
 
                 # InternVL3 expects generation_config as a dict, not unpacked kwargs
                 return self.model.chat(
@@ -401,18 +364,10 @@ class ResilientGenerator:
                     return_history=False,
                 )
             except Exception as e:
-                print(
-                    f"🔍 DEBUG: InternVL3 chat failed with: {type(e).__name__}: {str(e)}"
-                )
-                print(
-                    f"🔍 DEBUG: generation_kwargs keys: {list(generation_kwargs.keys())}"
-                )
                 import traceback
-
                 traceback.print_exc()
                 raise
         elif hasattr(self.model, "generate"):
-            print("🔍 DEBUG: Using model.generate path (fallback)")
             return self.model.generate(**inputs, **generation_kwargs)
         else:
             raise ValueError("Model does not have generate or chat method")

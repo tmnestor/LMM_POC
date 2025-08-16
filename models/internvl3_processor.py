@@ -435,14 +435,6 @@ INSTRUCTIONS:
                 if self.tokenizer is None:
                     raise ValueError("tokenizer is None")
 
-                # Test tokenizer functionality
-                try:
-                    test_tokens = self.tokenizer("Test", return_tensors="pt")
-                    if test_tokens["input_ids"] is None:
-                        raise ValueError("Tokenizer returning None for input_ids")
-                except Exception as tokenizer_error:
-                    print(f"⚠️ Tokenizer validation failed: {tokenizer_error}")
-                    print("🔄 This may cause ResilientGenerator to fail")
 
                 # Prepare inputs for ResilientGenerator
                 inputs = {
@@ -453,39 +445,14 @@ INSTRUCTIONS:
 
                 # Generate with resilient fallback strategies
                 try:
-                    print("🔍 DEBUG: About to call ResilientGenerator")
-                    print(f"🔍 DEBUG: tokenizer type: {type(self.tokenizer)}")
-                    print(f"🔍 DEBUG: tokenizer eos_token_id: {self.tokenizer.eos_token_id}")
-                    print(f"🔍 DEBUG: generation_config: {self.generation_config}")
-                    
-                    # Test tokenizer directly before ResilientGenerator call
-                    test_result = self.tokenizer("Test tokenizer", return_tensors="pt")
-                    print(f"🔍 DEBUG: Direct tokenizer test result: {test_result.keys()}")
-                    print(f"🔍 DEBUG: input_ids shape: {test_result['input_ids'].shape if test_result['input_ids'] is not None else 'None'}")
-                    
-                    # Pass generation_config as dict, not unpacked kwargs
-                    print("🔍 DEBUG: Calling ResilientGenerator.generate with:")
-                    print(f"🔍 DEBUG: inputs keys: {inputs.keys()}")
-                    print(f"🔍 DEBUG: generation_config: {self.generation_config}")
-                    
                     response = self.resilient_generator.generate(
                         inputs, generation_config=self.generation_config
                     )
-                    print("🔍 DEBUG: ResilientGenerator.generate returned successfully!")
                 except Exception as resilient_error:
                     print(f"⚠️ ResilientGenerator failed: {resilient_error}")
                     print("🔄 Falling back to direct chat method...")
 
                     # Fallback to direct chat method
-                    print("🔍 DEBUG: About to call direct chat")
-                    print(f"🔍 DEBUG: Same tokenizer type: {type(self.tokenizer)}")
-                    print(f"🔍 DEBUG: Same generation_config: {self.generation_config}")
-                    
-                    # Test tokenizer again before direct chat
-                    test_result2 = self.tokenizer("Test tokenizer", return_tensors="pt")
-                    print(f"🔍 DEBUG: Direct tokenizer test result 2: {test_result2.keys()}")
-                    print(f"🔍 DEBUG: input_ids shape 2: {test_result2['input_ids'].shape if test_result2['input_ids'] is not None else 'None'}")
-                    
                     response = self.model.chat(
                         self.tokenizer,
                         pixel_values,
@@ -494,7 +461,6 @@ INSTRUCTIONS:
                         history=None,
                         return_history=False,
                     )
-                    print("🔍 DEBUG: Direct chat succeeded!")
             else:
                 # Standard generation for 2B model
                 try:
