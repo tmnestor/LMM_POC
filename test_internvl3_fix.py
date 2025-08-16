@@ -11,13 +11,14 @@ This script will test the fixes for the embedding indices issue by:
 Run this on the H200 development machine to verify the fixes.
 """
 
-import torch
-import numpy as np
-from PIL import Image
-from pathlib import Path
 
-from models.internvl3_processor import InternVL3Processor
+import numpy as np
+import torch
+from PIL import Image
+
 from common.config import INTERNVL3_MODEL_PATH
+from models.internvl3_processor import InternVL3Processor
+
 
 def create_test_image():
     """Create a simple test image for validation."""
