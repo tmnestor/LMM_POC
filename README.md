@@ -399,10 +399,9 @@ python internvl3_keyvalue.py  # Processes with different model
 
 For questions and issues:
 1. **Check configuration**: Use `show_current_config()` to verify setup
-2. **Review CLAUDE.md**: Project-specific development guidelines
-3. **Monitor GPU usage**: Use `nvidia-smi` to check memory and utilization
-4. **Validate environment**: Ensure conda environment is activated
-5. **Test with samples**: Run evaluation scripts with provided sample data
+2. **Monitor GPU usage**: Use `nvidia-smi` to check memory and utilization
+3. **Validate environment**: Ensure conda environment is activated
+4. **Test with samples**: Run evaluation scripts with provided sample data
 
 ---
 
