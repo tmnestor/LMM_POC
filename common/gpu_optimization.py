@@ -338,10 +338,24 @@ class ResilientGenerator:
             # For models like InternVL3 that use chat interface
             # InternVL3 chat method signature: chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=False)
             try:
+                tokenizer = inputs.get("tokenizer", self.processor)
+                pixel_values = inputs.get("pixel_values")
+                question = inputs.get("question")
+                
+                # Validate inputs
+                print("🔍 DEBUG: Calling InternVL3 model.chat")
+                
+                if tokenizer is None:
+                    raise ValueError("tokenizer is None in ResilientGenerator")
+                if pixel_values is None:
+                    raise ValueError("pixel_values is None in ResilientGenerator")
+                if question is None:
+                    raise ValueError("question is None in ResilientGenerator")
+                
                 return self.model.chat(
-                    inputs.get("tokenizer", self.processor),
-                    inputs.get("pixel_values"),
-                    inputs.get("question"),
+                    tokenizer,
+                    pixel_values,
+                    question,
                     generation_kwargs,  # Pass as dict to generation_config parameter
                     history=None,
                     return_history=False,
@@ -353,6 +367,8 @@ class ResilientGenerator:
                 print(
                     f"🔍 DEBUG: generation_kwargs keys: {list(generation_kwargs.keys())}"
                 )
+                import traceback
+                traceback.print_exc()
                 raise
         else:
             raise ValueError("Model does not have generate or chat method")

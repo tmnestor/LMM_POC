@@ -427,6 +427,23 @@ INSTRUCTIONS:
 
             # Use ResilientGenerator for 8B model, simple generation for 2B
             if self.is_8b_model and self.resilient_generator:
+                # Validate inputs before passing to ResilientGenerator
+                if pixel_values is None:
+                    raise ValueError("pixel_values is None")
+                if question is None or len(question.strip()) == 0:
+                    raise ValueError("question is None or empty")
+                if self.tokenizer is None:
+                    raise ValueError("tokenizer is None")
+                
+                # Test tokenizer functionality
+                try:
+                    test_tokens = self.tokenizer("Test", return_tensors="pt")
+                    if test_tokens["input_ids"] is None:
+                        raise ValueError("Tokenizer returning None for input_ids")
+                except Exception as tokenizer_error:
+                    print(f"⚠️ Tokenizer validation failed: {tokenizer_error}")
+                    print("🔄 This may cause ResilientGenerator to fail")
+                
                 # Prepare inputs for ResilientGenerator
                 inputs = {
                     "tokenizer": self.tokenizer,
@@ -435,9 +452,23 @@ INSTRUCTIONS:
                 }
 
                 # Generate with resilient fallback strategies
-                response = self.resilient_generator.generate(
-                    inputs, **self.generation_config
-                )
+                try:
+                    response = self.resilient_generator.generate(
+                        inputs, **self.generation_config
+                    )
+                except Exception as resilient_error:
+                    print(f"⚠️ ResilientGenerator failed: {resilient_error}")
+                    print("🔄 Falling back to direct chat method...")
+                    
+                    # Fallback to direct chat method
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        question,
+                        self.generation_config,
+                        history=None,
+                        return_history=False,
+                    )
             else:
                 # Standard generation for 2B model
                 try:
@@ -750,9 +781,23 @@ INSTRUCTIONS:
                         }
 
                         # Generate with resilient fallback strategies
-                        response = self.resilient_generator.generate(
-                            inputs, **self.generation_config
-                        )
+                        try:
+                            response = self.resilient_generator.generate(
+                                inputs, **self.generation_config
+                            )
+                        except Exception as resilient_error:
+                            print(f"⚠️ ResilientGenerator failed for {Path(file_path).name}: {resilient_error}")
+                            print("🔄 Falling back to direct chat method...")
+                            
+                            # Fallback to direct chat method
+                            response = self.model.chat(
+                                self.tokenizer,
+                                pixel_values,
+                                prompt_template,
+                                self.generation_config,
+                                history=None,
+                                return_history=False,
+                            )
                     else:
                         # Standard generation for 2B model
                         try:
@@ -908,6 +953,16 @@ INSTRUCTIONS:
                 pass
 
         print("✅ Emergency model reload completed")
+        
+        # Update our instance references to the new model and tokenizer
+        self.model = model
+        self.tokenizer = tokenizer
+        
+        # Update the ResilientGenerator's references as well
+        if self.resilient_generator:
+            self.resilient_generator.model = model
+            self.resilient_generator.processor = tokenizer
+        
         return model, tokenizer
 
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
