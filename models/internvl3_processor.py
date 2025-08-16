@@ -28,6 +28,7 @@ from common.config import (
     INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
+    get_model_name_with_size,
 )
 from common.evaluation_utils import parse_extraction_response
 from common.gpu_optimization import (
@@ -86,11 +87,12 @@ class InternVL3Processor:
             self.batch_size = max(1, batch_size)  # Ensure minimum batch size of 1
             print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
-            # Auto-detect batch size based on available memory
+            # Auto-detect batch size based on available memory and model size
             available_memory = get_available_gpu_memory(self.device)
-            self.batch_size = get_auto_batch_size("internvl3", available_memory)
+            size_aware_model_name = get_model_name_with_size("internvl3", self.model_path, self.is_8b_model)
+            self.batch_size = get_auto_batch_size(size_aware_model_name, available_memory)
             print(
-                f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
+                f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {size_aware_model_name})"
             )
 
     def _load_model(self):

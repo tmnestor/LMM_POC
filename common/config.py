@@ -474,16 +474,28 @@ IMAGE_EXTENSIONS = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
 # BATCH PROCESSING CONFIGURATION
 # ============================================================================
 
-# Default batch sizes per model (Conservative for 16GB VRAM)
+# Default batch sizes per model (Balanced for 16GB VRAM)
 DEFAULT_BATCH_SIZES = {
     "llama": 1,  # Llama-3.2-11B with optimized 8-bit quantization on 16GB VRAM
-    "internvl3": 4,  # InternVL3 is more memory efficient
+    "internvl3": 4,  # InternVL3 generic fallback (backward compatibility)
+    "internvl3-2b": 4,  # InternVL3-2B is memory efficient, can handle larger batches
+    "internvl3-8b": 1,  # InternVL3-8B with quantization needs conservative batching
 }
 
 # Maximum batch sizes per model (Aggressive for 24GB+ VRAM)
 MAX_BATCH_SIZES = {
     "llama": 3,  # Higher end for powerful GPUs
-    "internvl3": 8,  # InternVL3 can handle larger batches
+    "internvl3": 8,  # InternVL3 generic fallback (backward compatibility)
+    "internvl3-2b": 8,  # InternVL3-2B can handle large batches on high-end GPUs
+    "internvl3-8b": 2,  # InternVL3-8B maximum safe batch size even on powerful GPUs
+}
+
+# Conservative batch sizes per model (Safe for limited memory situations)
+CONSERVATIVE_BATCH_SIZES = {
+    "llama": 1,  # Llama always uses 1 for conservative approach
+    "internvl3": 1,  # InternVL3 generic fallback (backward compatibility)
+    "internvl3-2b": 2,  # InternVL3-2B can safely handle 2 even in conservative mode
+    "internvl3-8b": 1,  # InternVL3-8B must stay at 1 for safety
 }
 
 # Minimum batch size (always 1 for single image processing)
@@ -519,12 +531,41 @@ ENABLE_BATCH_SIZE_FALLBACK = True
 BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 
 
+def get_model_name_with_size(base_model_name: str, model_path: str = None, is_8b_model: bool = None) -> str:
+    """
+    Generate size-aware model name for batch size configuration lookup.
+    
+    Args:
+        base_model_name (str): Base model name ('internvl3', 'llama', etc.)
+        model_path (str): Path to model (used for size detection if is_8b_model not provided)
+        is_8b_model (bool): Whether model is 8B variant (overrides path detection)
+    
+    Returns:
+        str: Size-aware model name ('internvl3-2b', 'internvl3-8b', or original name)
+    """
+    base_name = base_model_name.lower()
+    
+    # Only modify internvl3 models - other models use original names
+    if base_name != "internvl3":
+        return base_name
+    
+    # Determine if this is an 8B model
+    if is_8b_model is None and model_path:
+        is_8b_model = "8B" in str(model_path)
+    
+    # Return size-specific model name for InternVL3
+    if is_8b_model:
+        return "internvl3-8b"
+    else:
+        return "internvl3-2b"
+
+
 def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
     """
     Get recommended batch size for a model based on strategy.
 
     Args:
-        model_name (str): Model name ('llama' or 'internvl3')
+        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
         strategy (str): Batching strategy ('conservative', 'balanced', 'aggressive')
 
     Returns:
@@ -534,7 +575,7 @@ def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
     model_name = model_name.lower()
 
     if strategy == "conservative":
-        return MIN_BATCH_SIZE
+        return CONSERVATIVE_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
     elif strategy == "aggressive":
         return MAX_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
     else:  # balanced
@@ -546,7 +587,7 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
     Automatically determine batch size based on available GPU memory.
 
     Args:
-        model_name (str): Model name ('llama' or 'internvl3')
+        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
         available_memory_gb (float): Available GPU memory in GB
 
     Returns:
@@ -595,7 +636,7 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     Calculate max_new_tokens based on model and field count.
 
     Args:
-        model_name (str): Model name ('llama' or 'internvl3')
+        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
         field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
 
     Returns:
@@ -603,9 +644,12 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     """
     field_count = field_count or FIELD_COUNT
 
-    if model_name.lower() == "llama":
+    model_name_lower = model_name.lower()
+    
+    if model_name_lower == "llama":
         config = LLAMA_GENERATION_CONFIG
-    elif model_name.lower() == "internvl3":
+    elif model_name_lower.startswith("internvl3"):
+        # Handle all InternVL3 variants (internvl3, internvl3-2b, internvl3-8b)
         config = INTERNVL3_GENERATION_CONFIG
     else:
         raise ValueError(f"Unknown model name: {model_name}")
