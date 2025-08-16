@@ -22,9 +22,6 @@ This framework implements a rigorous comparison methodology for vision-language 
 ```
 LMM_POC/
 ├── README.md                      # This file
-├── environment.yml                # Conda environment specification
-├── unified_setup.sh              # Automated setup script
-├── CLAUDE.md                      # Project-specific development guidelines
 │
 ├── common/                       # Shared utilities and configuration
 │   ├── config.py                # Centralized configuration with dynamic model detection
