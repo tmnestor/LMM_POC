@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 from common.config import (
     BATCH_SIZE_FALLBACK_STEPS,
@@ -56,6 +56,7 @@ class InternVL3Processor:
         self.model = None
         self.tokenizer = None
         self.generation_config = None
+        self.is_8b_model = "8B" in str(model_path)
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
@@ -96,19 +97,46 @@ class InternVL3Processor:
         """Load InternVL3 model and tokenizer with compatibility settings."""
         print(f"🔧 Loading InternVL3 model from: {self.model_path}")
 
+        if self.is_8b_model:
+            print("🎯 InternVL3-8B detected - applying aggressive V100 optimizations")
+        else:
+            print("🎯 InternVL3-2B detected - using standard optimizations")
+
         try:
-            # Load model with compatibility settings
-            self.model = (
-                AutoModel.from_pretrained(
-                    self.model_path,
-                    torch_dtype=torch.bfloat16,  # Official recommendation
-                    low_cpu_mem_usage=True,
-                    use_flash_attn=False,  # Disabled for compatibility
-                    trust_remote_code=True,
+            # Configure quantization for 8B model on V100
+            model_kwargs = {
+                "torch_dtype": torch.bfloat16,
+                "low_cpu_mem_usage": True,
+                "use_flash_attn": False,  # Disabled for compatibility
+                "trust_remote_code": True,
+            }
+
+            # Add aggressive quantization for 8B model
+            if self.is_8b_model:
+                print("🔧 Applying 8-bit quantization for InternVL3-8B")
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    llm_int8_enable_fp32_cpu_offload=True,
+                    llm_int8_skip_modules=[
+                        "vision_model",
+                        "vision_encoder",
+                    ],  # Skip vision components
+                    llm_int8_threshold=6.0,
                 )
-                .eval()
-                .to(self.device)
-            )
+                model_kwargs["quantization_config"] = quantization_config
+                model_kwargs["device_map"] = "auto"  # Let it handle device placement
+
+                # Load quantized model
+                self.model = AutoModel.from_pretrained(
+                    self.model_path, **model_kwargs
+                ).eval()
+            else:
+                # Standard loading for 2B model
+                self.model = (
+                    AutoModel.from_pretrained(self.model_path, **model_kwargs)
+                    .eval()
+                    .to(self.device)
+                )
 
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -310,15 +338,39 @@ INSTRUCTIONS:
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
 
-            # Generate response directly (ResilientGenerator not needed for InternVL3)
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                question,
-                self.generation_config,
-                history=None,
-                return_history=False,
-            )
+            # Simple OOM handling for 8B model without ResilientGenerator
+            try:
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    question,
+                    self.generation_config,
+                    history=None,
+                    return_history=False,
+                )
+            except torch.cuda.OutOfMemoryError as e:
+                if self.is_8b_model:
+                    print(f"⚠️ InternVL3-8B OOM: {e}")
+                    print("🔄 Attempting emergency cleanup and retry...")
+
+                    # Emergency cleanup
+                    comprehensive_memory_cleanup(self.model, self.tokenizer)
+
+                    # Retry once
+                    try:
+                        response = self.model.chat(
+                            self.tokenizer,
+                            pixel_values,
+                            question,
+                            self.generation_config,
+                            history=None,
+                            return_history=False,
+                        )
+                    except torch.cuda.OutOfMemoryError:
+                        print("❌ InternVL3-8B: Even with cleanup, OOM persists")
+                        raise
+                else:
+                    raise
 
             processing_time = time.time() - start_time
 
@@ -574,15 +626,43 @@ INSTRUCTIONS:
                 zip(pixel_values_list, valid_files, strict=False)
             ):
                 try:
-                    # Generate response for this image directly
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        prompt_template,
-                        self.generation_config,
-                        history=None,
-                        return_history=False,
-                    )
+                    # Simple OOM handling for 8B model without ResilientGenerator
+                    try:
+                        response = self.model.chat(
+                            self.tokenizer,
+                            pixel_values,
+                            prompt_template,
+                            self.generation_config,
+                            history=None,
+                            return_history=False,
+                        )
+                    except torch.cuda.OutOfMemoryError as e:
+                        if self.is_8b_model:
+                            print(
+                                f"⚠️ InternVL3-8B batch OOM on {Path(file_path).name}: {e}"
+                            )
+                            print("🔄 Attempting emergency cleanup and retry...")
+
+                            # Emergency cleanup
+                            comprehensive_memory_cleanup(self.model, self.tokenizer)
+
+                            # Retry once
+                            try:
+                                response = self.model.chat(
+                                    self.tokenizer,
+                                    pixel_values,
+                                    prompt_template,
+                                    self.generation_config,
+                                    history=None,
+                                    return_history=False,
+                                )
+                            except torch.cuda.OutOfMemoryError:
+                                print(
+                                    f"❌ InternVL3-8B: Even with cleanup, OOM persists for {Path(file_path).name}"
+                                )
+                                raise
+                        else:
+                            raise
 
                     # Parse response
                     extracted_data = parse_extraction_response(response)

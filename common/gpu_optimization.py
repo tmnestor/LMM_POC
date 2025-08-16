@@ -336,15 +336,24 @@ class ResilientGenerator:
             return self.model.generate(**inputs, **generation_kwargs)
         elif hasattr(self.model, "chat"):
             # For models like InternVL3 that use chat interface
-            # Chat method expects generation_config as dict, not unpacked kwargs
-            return self.model.chat(
-                inputs.get("tokenizer", self.processor),
-                inputs.get("pixel_values"),
-                inputs.get("question"),
-                generation_kwargs,  # Convert kwargs back to dict for chat method
-                history=None,
-                return_history=False,
-            )
+            # InternVL3 chat method signature: chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=False)
+            try:
+                return self.model.chat(
+                    inputs.get("tokenizer", self.processor),
+                    inputs.get("pixel_values"),
+                    inputs.get("question"),
+                    generation_kwargs,  # Pass as dict to generation_config parameter
+                    history=None,
+                    return_history=False,
+                )
+            except Exception as e:
+                print(
+                    f"🔍 DEBUG: InternVL3 chat failed with: {type(e).__name__}: {str(e)}"
+                )
+                print(
+                    f"🔍 DEBUG: generation_kwargs keys: {list(generation_kwargs.keys())}"
+                )
+                raise
         else:
             raise ValueError("Model does not have generate or chat method")
 
