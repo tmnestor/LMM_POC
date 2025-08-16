@@ -105,17 +105,17 @@ Centralized configuration in `common/config.py`:
 
 ### 1. Environment Setup
 
+The conda environment is preconfigured and ready to use:
+
 ```bash
-# Clone and navigate to project
-cd LMM_POC
+# Add the activation alias to your bash profile (one-time setup)
+echo 'alias activate_internvl="conda activate /efs/shared/.conda/envs/intern_env"' >> ~/.bashrc
 
-# Automated setup (recommended)
-source unified_setup.sh
+# Reload your bash profile
+source ~/.bashrc
 
-# Manual setup alternative
-conda env create -f environment.yml
-conda activate vision_notebooks
-python -m ipykernel install --user --name vision_notebooks --display-name "Python (Vision Notebooks)"
+# Now activate the environment using the alias
+activate_internvl
 ```
 
 ### 2. Model Configuration
