@@ -453,7 +453,7 @@ INSTRUCTIONS:
 
                 # Generate with resilient fallback strategies
                 try:
-                    print(f"🔍 DEBUG: About to call ResilientGenerator")
+                    print("🔍 DEBUG: About to call ResilientGenerator")
                     print(f"🔍 DEBUG: tokenizer type: {type(self.tokenizer)}")
                     print(f"🔍 DEBUG: tokenizer eos_token_id: {self.tokenizer.eos_token_id}")
                     print(f"🔍 DEBUG: generation_config: {self.generation_config}")
@@ -472,7 +472,7 @@ INSTRUCTIONS:
                     print("🔄 Falling back to direct chat method...")
 
                     # Fallback to direct chat method
-                    print(f"🔍 DEBUG: About to call direct chat")
+                    print("🔍 DEBUG: About to call direct chat")
                     print(f"🔍 DEBUG: Same tokenizer type: {type(self.tokenizer)}")
                     print(f"🔍 DEBUG: Same generation_config: {self.generation_config}")
                     
@@ -489,7 +489,7 @@ INSTRUCTIONS:
                         history=None,
                         return_history=False,
                     )
-                    print(f"🔍 DEBUG: Direct chat succeeded!")
+                    print("🔍 DEBUG: Direct chat succeeded!")
             else:
                 # Standard generation for 2B model
                 try:
