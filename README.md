@@ -394,24 +394,6 @@ python llama_keyvalue.py  # Processes sample documents
 python internvl3_keyvalue.py  # Processes with different model
 ```
 
-## 🤝 Contributing
-
-### Development Guidelines
-1. **Follow modular architecture**: Use shared utilities for GPU optimization and evaluation
-2. **Maintain performance focus**: Leverage existing optimization infrastructure
-3. **Document thoroughly**: Add docstrings and inline comments
-4. **Test comprehensively**: Verify with multiple GPU configurations
-
-### Key Dependencies
-- **transformers**: 4.45.2 (pinned for Llama compatibility)
-- **torch**: 2.0.0+ with CUDA support
-- **timm**: 0.9.0+ (required for InternVL3)
-- **einops**: 0.6.0+ (required for InternVL3)
-- **bitsandbytes**: For 8-bit quantization support
-
-## 📄 License
-
-This project is intended for research and evaluation purposes. Model-specific licensing terms apply to downloaded model weights.
 
 ## 🙋‍♂️ Support
 
