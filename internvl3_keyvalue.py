@@ -333,10 +333,11 @@ def main():
             if ground_truth_data
             else f"📊 {len(image_files)} documents processed successfully"
         )
-        print(f"⏱️ Total processing time: {total_time:.2f} seconds")
+        print(f"⏱️ Total pipeline time: {total_time:.2f} seconds (includes model loading, evaluation, reporting)")
         print(
-            f"📈 Average time per document: {total_time / len(image_files):.2f} seconds"
+            f"📈 Average pipeline time per document: {total_time / len(image_files):.2f} seconds"
         )
+        print(f"🔬 Average extraction time per document: {batch_statistics['average_processing_time']:.2f} seconds (core model inference only)")
         print(f"✅ Processing success rate: {batch_statistics['success_rate']:.1%}")
         print("🚀 InternVL3 processing completed")
 

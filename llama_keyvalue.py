@@ -282,8 +282,12 @@ def main():
         f"📊 {len(image_files)} documents processed with {evaluation_summary.get('overall_accuracy', 0):.1%} average accuracy"
     )
     print(
-        f"⏱️ Total processing time: {batch_stats.get('total_processing_time', 0):.2f} seconds"
+        f"🔬 Total extraction time: {batch_stats.get('total_processing_time', 0):.2f} seconds (core model inference only)"
     )
+    print(
+        f"📈 Average extraction time per document: {batch_stats.get('average_processing_time', 0):.2f} seconds"
+    )
+    print(f"✅ Processing success rate: {batch_stats.get('success_rate', 0):.1%}")
 
 
 if __name__ == "__main__":
