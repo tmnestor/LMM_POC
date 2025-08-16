@@ -352,11 +352,10 @@ class ResilientGenerator:
         print(f"🔍 DEBUG: hasattr(self.model, 'generate'): {hasattr(self.model, 'generate')}")
         print(f"🔍 DEBUG: hasattr(self.model, 'chat'): {hasattr(self.model, 'chat')}")
         
-        if hasattr(self.model, "generate"):
-            print("🔍 DEBUG: Using model.generate path")
-            return self.model.generate(**inputs, **generation_kwargs)
-        elif hasattr(self.model, "chat"):
-            print("🔍 DEBUG: Using model.chat path")
+        # For InternVL3, always use chat method even though generate exists
+        # InternVL3's generate method expects different input format
+        if hasattr(self.model, "chat") and "tokenizer" in inputs:
+            print("🔍 DEBUG: Using model.chat path (InternVL3 forced)")
             # For models like InternVL3 that use chat interface
             # InternVL3 chat method signature: chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=False)
             try:
@@ -412,6 +411,9 @@ class ResilientGenerator:
 
                 traceback.print_exc()
                 raise
+        elif hasattr(self.model, "generate"):
+            print("🔍 DEBUG: Using model.generate path (fallback)")
+            return self.model.generate(**inputs, **generation_kwargs)
         else:
             raise ValueError("Model does not have generate or chat method")
 
