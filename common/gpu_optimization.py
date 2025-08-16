@@ -301,20 +301,25 @@ class ResilientGenerator:
         self.oom_count = 0
         self.max_oom_retries = 3
 
-    def generate(self, inputs: Dict[str, Any], **generation_kwargs) -> Any:
+    def generate(self, inputs: Dict[str, Any], generation_config: Dict[str, Any] = None, **generation_kwargs) -> Any:
         """
         Generate with automatic fallback on OOM errors.
 
         Args:
             inputs: Model inputs
-            **generation_kwargs: Generation parameters
+            generation_config: Generation configuration dict
+            **generation_kwargs: Additional generation parameters
 
         Returns:
             Generated output
         """
+        # Use generation_config if provided, otherwise fall back to kwargs
+        if generation_config is not None:
+            generation_kwargs = generation_config
+        
         try:
             # First attempt: Standard generation
-            return self._standard_generate(inputs, **generation_kwargs)
+            return self._standard_generate(inputs, generation_kwargs)
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"⚠️ CUDA OOM detected: {e}")
@@ -322,15 +327,15 @@ class ResilientGenerator:
 
             if self.oom_count <= 1:
                 # Strategy 1: Try with OffloadedCache
-                return self._offloaded_cache_generate(inputs, **generation_kwargs)
+                return self._offloaded_cache_generate(inputs, generation_kwargs)
             elif self.oom_count <= 2 and self.model_loader:
                 # Strategy 2: Emergency model reload
-                return self._emergency_reload_generate(inputs, **generation_kwargs)
+                return self._emergency_reload_generate(inputs, generation_kwargs)
             else:
                 # Strategy 3: CPU fallback
-                return self._cpu_fallback_generate(inputs, **generation_kwargs)
+                return self._cpu_fallback_generate(inputs, generation_kwargs)
 
-    def _standard_generate(self, inputs: Dict[str, Any], **generation_kwargs) -> Any:
+    def _standard_generate(self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]) -> Any:
         """Standard generation attempt."""
         if hasattr(self.model, "generate"):
             return self.model.generate(**inputs, **generation_kwargs)
@@ -341,22 +346,23 @@ class ResilientGenerator:
                 tokenizer = inputs.get("tokenizer", self.processor)
                 pixel_values = inputs.get("pixel_values")
                 question = inputs.get("question")
-                
+
                 # Validate inputs
                 print("🔍 DEBUG: Calling InternVL3 model.chat")
-                
+
                 if tokenizer is None:
                     raise ValueError("tokenizer is None in ResilientGenerator")
                 if pixel_values is None:
                     raise ValueError("pixel_values is None in ResilientGenerator")
                 if question is None:
                     raise ValueError("question is None in ResilientGenerator")
-                
+
+                # InternVL3 expects generation_config as a dict, not unpacked kwargs
                 return self.model.chat(
                     tokenizer,
                     pixel_values,
                     question,
-                    generation_kwargs,  # Pass as dict to generation_config parameter
+                    generation_kwargs,  # Already a dict, pass directly
                     history=None,
                     return_history=False,
                 )
@@ -368,13 +374,14 @@ class ResilientGenerator:
                     f"🔍 DEBUG: generation_kwargs keys: {list(generation_kwargs.keys())}"
                 )
                 import traceback
+
                 traceback.print_exc()
                 raise
         else:
             raise ValueError("Model does not have generate or chat method")
 
     def _offloaded_cache_generate(
-        self, inputs: Dict[str, Any], **generation_kwargs
+        self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]
     ) -> Any:
         """Generation with OffloadedCache fallback."""
         print("🔄 Retrying with cache_implementation='offloaded'...")
@@ -398,7 +405,7 @@ class ResilientGenerator:
             raise
 
     def _emergency_reload_generate(
-        self, inputs: Dict[str, Any], **generation_kwargs
+        self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]
     ) -> Any:
         """Emergency model reload for severe OOM issues."""
         print("🚨 EMERGENCY: Reloading model to force complete memory reset...")
@@ -422,10 +429,10 @@ class ResilientGenerator:
         # Only add cache_implementation for models that support it (generate method)
         if hasattr(self.model, "generate"):
             generation_kwargs["cache_implementation"] = "offloaded"
-        return self._standard_generate(inputs, **generation_kwargs)
+        return self._standard_generate(inputs, generation_kwargs)
 
     def _cpu_fallback_generate(
-        self, inputs: Dict[str, Any], **generation_kwargs
+        self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]
     ) -> Any:
         """Ultimate CPU fallback when all GPU strategies fail."""
         print("☢️ ULTIMATE FALLBACK: Processing on CPU (slower but stable)...")
@@ -448,7 +455,7 @@ class ResilientGenerator:
 
         # Generate on CPU
         with torch.no_grad():
-            return self._standard_generate(cpu_inputs, **generation_kwargs)
+            return self._standard_generate(cpu_inputs, generation_kwargs)
 
 
 def get_available_gpu_memory(device: str = "cuda") -> float:

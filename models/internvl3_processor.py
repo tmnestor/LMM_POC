@@ -79,10 +79,10 @@ class InternVL3Processor:
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
 
+        # Use official InternVL3 generation config format (no pad_token_id)
         self.generation_config = {
             "max_new_tokens": max_tokens,
             "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
-            "pad_token_id": self.tokenizer.eos_token_id,
         }
 
         print(
@@ -434,7 +434,7 @@ INSTRUCTIONS:
                     raise ValueError("question is None or empty")
                 if self.tokenizer is None:
                     raise ValueError("tokenizer is None")
-                
+
                 # Test tokenizer functionality
                 try:
                     test_tokens = self.tokenizer("Test", return_tensors="pt")
@@ -443,7 +443,7 @@ INSTRUCTIONS:
                 except Exception as tokenizer_error:
                     print(f"⚠️ Tokenizer validation failed: {tokenizer_error}")
                     print("🔄 This may cause ResilientGenerator to fail")
-                
+
                 # Prepare inputs for ResilientGenerator
                 inputs = {
                     "tokenizer": self.tokenizer,
@@ -453,13 +453,14 @@ INSTRUCTIONS:
 
                 # Generate with resilient fallback strategies
                 try:
+                    # Pass generation_config as dict, not unpacked kwargs
                     response = self.resilient_generator.generate(
-                        inputs, **self.generation_config
+                        inputs, generation_config=self.generation_config
                     )
                 except Exception as resilient_error:
                     print(f"⚠️ ResilientGenerator failed: {resilient_error}")
                     print("🔄 Falling back to direct chat method...")
-                    
+
                     # Fallback to direct chat method
                     response = self.model.chat(
                         self.tokenizer,
@@ -782,13 +783,16 @@ INSTRUCTIONS:
 
                         # Generate with resilient fallback strategies
                         try:
+                            # Pass generation_config as dict, not unpacked kwargs
                             response = self.resilient_generator.generate(
-                                inputs, **self.generation_config
+                                inputs, generation_config=self.generation_config
                             )
                         except Exception as resilient_error:
-                            print(f"⚠️ ResilientGenerator failed for {Path(file_path).name}: {resilient_error}")
+                            print(
+                                f"⚠️ ResilientGenerator failed for {Path(file_path).name}: {resilient_error}"
+                            )
                             print("🔄 Falling back to direct chat method...")
-                            
+
                             # Fallback to direct chat method
                             response = self.model.chat(
                                 self.tokenizer,
@@ -953,16 +957,16 @@ INSTRUCTIONS:
                 pass
 
         print("✅ Emergency model reload completed")
-        
+
         # Update our instance references to the new model and tokenizer
         self.model = model
         self.tokenizer = tokenizer
-        
+
         # Update the ResilientGenerator's references as well
         if self.resilient_generator:
             self.resilient_generator.model = model
             self.resilient_generator.processor = tokenizer
-        
+
         return model, tokenizer
 
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
