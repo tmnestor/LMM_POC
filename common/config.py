@@ -531,28 +531,30 @@ ENABLE_BATCH_SIZE_FALLBACK = True
 BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 
 
-def get_model_name_with_size(base_model_name: str, model_path: str = None, is_8b_model: bool = None) -> str:
+def get_model_name_with_size(
+    base_model_name: str, model_path: str = None, is_8b_model: bool = None
+) -> str:
     """
     Generate size-aware model name for batch size configuration lookup.
-    
+
     Args:
         base_model_name (str): Base model name ('internvl3', 'llama', etc.)
         model_path (str): Path to model (used for size detection if is_8b_model not provided)
         is_8b_model (bool): Whether model is 8B variant (overrides path detection)
-    
+
     Returns:
         str: Size-aware model name ('internvl3-2b', 'internvl3-8b', or original name)
     """
     base_name = base_model_name.lower()
-    
+
     # Only modify internvl3 models - other models use original names
     if base_name != "internvl3":
         return base_name
-    
+
     # Determine if this is an 8B model
     if is_8b_model is None and model_path:
         is_8b_model = "8B" in str(model_path)
-    
+
     # Return size-specific model name for InternVL3
     if is_8b_model:
         return "internvl3-8b"
@@ -645,7 +647,7 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     field_count = field_count or FIELD_COUNT
 
     model_name_lower = model_name.lower()
-    
+
     if model_name_lower == "llama":
         config = LLAMA_GENERATION_CONFIG
     elif model_name_lower.startswith("internvl3"):

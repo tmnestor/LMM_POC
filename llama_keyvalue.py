@@ -39,7 +39,7 @@ Configuration:
     - EXTRACTION_FIELDS: List of fields to extract (currently 25 business document fields)
 
 Model Specifications:
-    - Parameters: 11B parameter model  
+    - Parameters: 11B parameter model
     - Field extraction: 25 structured fields (ABN, TOTAL, INVOICE_DATE, etc.)
 
 Dependencies:

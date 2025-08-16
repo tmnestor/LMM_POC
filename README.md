@@ -1,18 +1,20 @@
 # Vision Model Comparison Framework (LMM_POC)
 
-A comprehensive evaluation framework for comparing vision-language models on business document key-value extraction tasks. This project provides a complete pipeline for benchmarking Llama-3.2-Vision and InternVL3 models with ground truth evaluation and detailed performance reporting.
+A comprehensive evaluation framework for comparing vision-language models on business document key-value extraction tasks. This project provides a complete pipeline for benchmarking Llama-3.2-Vision and InternVL3 models with ground truth evaluation, GPU memory optimization, and detailed performance reporting.
 
 ## 🔬 Overview
 
-This framework implements a rigorous comparison methodology for vision-language models, specifically focused on extracting structured data from business documents (invoices, statements, receipts). It features modular architecture, comprehensive evaluation metrics, and production-ready reporting capabilities.
+This framework implements a rigorous comparison methodology for vision-language models, specifically focused on extracting structured data from business documents (invoices, statements, receipts). It features modular architecture, advanced GPU memory optimization, comprehensive evaluation metrics, and production-ready reporting capabilities.
 
 ### Key Features
 
-- **Multi-Model Support**: Llama-3.2-11B-Vision-Instruct and InternVL3 (2B/8B) models
+- **Multi-Model Support**: Llama-3.2-11B-Vision-Instruct and InternVL3 (2B/8B) models with automatic variant detection
+- **Advanced GPU Optimization**: V100-specific optimizations, memory fragmentation detection, and resilient processing
+- **Model-Size-Aware Processing**: Intelligent batch sizing based on model variant and available GPU memory
 - **Comprehensive Evaluation**: 25-field business document extraction with ground truth validation
 - **Production Pipeline**: Batch processing, accuracy metrics, deployment readiness assessment
 - **Interactive Notebooks**: Jupyter notebooks for experimentation and single-document processing
-- **Memory Optimization**: 8-bit quantization support for GPU memory constraints
+- **Memory Management**: 8-bit quantization, fallback strategies, and emergency cleanup procedures
 - **Detailed Reporting**: Executive summaries, technical evaluation, and deployment checklists
 
 ## 🏗 Architecture
@@ -22,15 +24,17 @@ LMM_POC/
 ├── README.md                      # This file
 ├── environment.yml                # Conda environment specification
 ├── unified_setup.sh              # Automated setup script
+├── CLAUDE.md                      # Project-specific development guidelines
 │
 ├── common/                       # Shared utilities and configuration
-│   ├── config.py                # Centralized configuration
+│   ├── config.py                # Centralized configuration with dynamic model detection
 │   ├── evaluation_utils.py      # Evaluation and parsing utilities
-│   └── reporting.py             # Report generation
+│   ├── reporting.py             # Report generation and formatting
+│   └── gpu_optimization.py      # V100 optimizations and memory management
 │
 ├── models/                       # Model-specific processors
-│   ├── llama_processor.py       # Llama-3.2-Vision implementation
-│   └── internvl3_processor.py   # InternVL3 (2B/8B) implementation
+│   ├── llama_processor.py       # Llama-3.2-Vision with V100 optimizations
+│   └── internvl3_processor.py   # InternVL3 (2B/8B) with size-aware processing
 │
 ├── notebooks/                    # Interactive Jupyter notebooks
 │   ├── llama_VQA.ipynb         # Llama visual Q&A
@@ -44,11 +48,7 @@ LMM_POC/
 │
 ├── llama_keyvalue.py           # Llama batch evaluation script
 ├── internvl3_keyvalue.py       # InternVL3 batch evaluation script
-│
-└── docs/                       # Additional documentation
-    ├── CLAUDE.md               # Development guidelines
-    ├── REFACTORING_SUMMARY.md  # Code architecture notes
-    └── ground_truth_evaluation_system.md
+└── compare_models.py           # Direct model comparison utility
 ```
 
 ### Modular Design Patterns
@@ -62,14 +62,33 @@ class ModelProcessor:
     def get_extraction_prompt() -> str
 ```
 
-#### 2. **Shared Configuration**
-Centralized configuration in `common/config.py`:
-- **EXTRACTION_FIELDS**: 25 business document fields
-- **Model paths**: Development vs production deployment paths
-- **Evaluation thresholds**: Deployment readiness criteria
-- **Output patterns**: Consistent file naming conventions
+#### 2. **GPU Optimization Architecture**
+Advanced GPU memory management with V100-specific optimizations:
+```python
+# Automatic memory optimization
+configure_cuda_memory_allocation()
+handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+optimize_model_for_v100(model)
+comprehensive_memory_cleanup(model, tokenizer)
+```
 
-#### 3. **Comprehensive Evaluation Pipeline**
+#### 3. **Model-Size-Aware Configuration**
+Intelligent batch sizing based on model variant and available memory:
+```python
+# Automatic model detection and batch sizing
+size_aware_model_name = get_model_name_with_size("internvl3", model_path)
+batch_size = get_auto_batch_size(size_aware_model_name, available_memory)
+```
+
+#### 4. **Shared Configuration System**
+Centralized configuration in `common/config.py`:
+- **EXTRACTION_FIELDS**: 25 business document fields with validation
+- **Model paths**: Dynamic deployment configuration
+- **Batch sizing**: Conservative, balanced, and aggressive strategies
+- **GPU thresholds**: Memory-based optimization triggers
+- **Evaluation metrics**: Deployment readiness criteria
+
+#### 5. **Comprehensive Evaluation Pipeline**
 1. **Image Discovery** → Find and validate document images
 2. **Model Processing** → Extract structured data with timing metrics
 3. **Response Parsing** → Convert model output to structured format
@@ -80,7 +99,7 @@ Centralized configuration in `common/config.py`:
 
 ### Prerequisites
 - **Python 3.11+**
-- **CUDA-compatible GPU recommended** (16GB+ VRAM for Llama, 4GB+ for InternVL3)
+- **CUDA-compatible GPU recommended** (any modern GPU supported)
 - **Conda package manager**
 - **Model weights downloaded locally**
 
@@ -107,9 +126,7 @@ Edit paths in `common/config.py`:
 LLAMA_MODEL_PATH = "/path/to/Llama-3.2-11B-Vision-Instruct"
 INTERNVL3_MODEL_PATH = "/path/to/InternVL3-2B"  # or InternVL3-8B
 
-# Update data paths if needed
-DATA_DIR = "./evaluation_data"
-OUTPUT_DIR = "./output"
+# The system automatically detects model variants and optimizes accordingly
 ```
 
 ### 3. Quick Evaluation
@@ -121,6 +138,9 @@ python llama_keyvalue.py
 # Run InternVL3 evaluation pipeline  
 python internvl3_keyvalue.py
 
+# Compare models directly
+python compare_models.py
+
 # Launch interactive notebooks
 jupyter notebook
 # Select kernel: "Python (Vision Notebooks)"
@@ -128,19 +148,19 @@ jupyter notebook
 
 ## 📊 Usage Examples
 
-### Batch Processing
+### Batch Processing with GPU Optimization
 
 ```python
 from models.llama_processor import LlamaProcessor
 from common.evaluation_utils import discover_images, evaluate_extraction_results
 
-# Initialize processor
+# Initialize processor (automatically applies GPU optimizations)
 processor = LlamaProcessor(model_path="/path/to/model")
 
 # Discover images
 image_files = discover_images("./evaluation_data")
 
-# Process batch
+# Process batch with automatic memory management
 results, statistics = processor.process_image_batch(image_files)
 
 # Evaluate against ground truth
@@ -148,16 +168,29 @@ ground_truth = load_ground_truth("./evaluation_data/evaluation_ground_truth.csv"
 evaluation = evaluate_extraction_results(results, ground_truth)
 ```
 
+### Model-Size-Aware Processing
+
+```python
+from models.internvl3_processor import InternVL3Processor
+
+# Processor automatically detects 2B vs 8B variant and optimizes batch size
+processor = InternVL3Processor(model_path="/path/to/InternVL3-8B")
+# Output: "Auto-detected batch size: 1 (GPU Memory: 15.8GB, Model: internvl3-8b)"
+
+processor_2b = InternVL3Processor(model_path="/path/to/InternVL3-2B") 
+# Output: "Auto-detected batch size: 4 (GPU Memory: 15.8GB, Model: internvl3-2b)"
+```
+
 ### Single Document Processing
 
 ```python
-# Process single image
+# Process single image with automatic optimization
 result = processor.process_single_image("document.png")
 
 # Extract specific fields
-abn = result.get('ABN', 'Not found')
-total = result.get('TOTAL', 'Not found')
-invoice_date = result.get('INVOICE_DATE', 'Not found')
+abn = result['extracted_data'].get('ABN', 'Not found')
+total = result['extracted_data'].get('TOTAL', 'Not found')
+processing_time = result['processing_time']
 ```
 
 ### Interactive Notebooks
@@ -185,7 +218,7 @@ Business document fields extracted and evaluated:
 - **Field-level accuracy**: Exact and fuzzy matching for each of 25 fields
 - **Document-level accuracy**: Overall extraction success per document
 - **Deployment readiness**: Quality distribution (Good/Fair/Poor)
-- **Performance metrics**: Processing time, memory usage, success rates
+- **Performance metrics**: Processing time (extraction vs pipeline), memory usage, success rates
 
 ### Quality Thresholds
 ```python
@@ -194,30 +227,58 @@ PILOT_READY_THRESHOLD = 0.8        # 80% accuracy for pilot testing
 NEEDS_OPTIMIZATION_THRESHOLD = 0.7  # Below 70% needs major improvements
 ```
 
-## 📈 Performance Comparison
+## 📈 Performance Characteristics
 
-| Model | Parameters | Memory Usage | Processing Speed | Typical Accuracy |
-|-------|------------|--------------|------------------|------------------|
-| **Llama-3.2-Vision** | 11B | ~22GB VRAM | 3-5s per doc | 80-95% |
-| **InternVL3-2B** | 2B | ~4GB VRAM | 1-3s per doc | 75-90% |
-| **InternVL3-8B** | 8B | ~16GB VRAM | 2-4s per doc | 80-92% |
+The framework reports **measured performance metrics only**. Performance varies based on:
 
-### Model Characteristics
+### Hardware Dependencies
+- **GPU Memory**: Affects batch size and processing speed
+- **GPU Architecture**: V100 optimizations available, works on modern GPUs
+- **System Memory**: Affects model loading and data processing
 
-#### Llama-3.2-11B-Vision-Instruct
-- **Strengths**: Detailed responses, built-in preprocessing, high accuracy
-- **Requirements**: 16GB+ VRAM (or 8-bit quantization)
-- **Use Case**: High-accuracy production deployments
+### Model Specifications
+| Model | Parameters | Memory Requirements | 
+|-------|------------|---------------------|
+| **Llama-3.2-Vision** | 11B | GPU recommended, 8-bit quantization available |
+| **InternVL3-2B** | 2B | Minimal GPU requirements, CPU fallback |
+| **InternVL3-8B** | 8B | Moderate GPU requirements, 8-bit quantization |
 
-#### InternVL3 (2B/8B)
-- **InternVL3-2B**: Ultra-efficient, 4GB+ VRAM, ideal for rapid prototyping
-- **InternVL3-8B**: Balanced performance, 16GB+ VRAM, higher accuracy than 2B
-- **Strengths**: Memory efficient vs Llama, fast inference, simple API, CPU fallback available
-- **Use Case**: Resource-constrained environments (2B), balanced performance needs (8B)
+### Measured Metrics (Examples)
+All metrics are measured and reported during evaluation:
+- **Extraction accuracy**: Reported per evaluation run
+- **Processing speed**: Measured per document (extraction vs pipeline time)
+- **Success rate**: Percentage of successful extractions
+- **Memory usage**: GPU/CPU utilization during processing
+
+## 🔧 GPU Optimization Features
+
+### V100-Specific Optimizations
+```python
+# Automatic CUDA memory configuration
+PYTORCH_CUDA_ALLOC_CONF = "max_split_size_mb:512,garbage_collection_threshold:0.6"
+
+# Memory fragmentation detection and handling
+handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
+# Model-specific optimizations
+optimize_model_for_v100(model)
+```
+
+### Memory Management Strategies
+- **Conservative**: Safe batch sizes for limited memory
+- **Balanced**: Default configuration for typical hardware  
+- **Aggressive**: Maximum performance for high-end GPUs
+- **Automatic**: Detects available memory and chooses strategy
+
+### Fallback Mechanisms
+- **Batch size reduction**: Automatic fallback on OOM errors
+- **CPU processing**: Emergency fallback when GPU fails
+- **Model reloading**: Complete memory reset for recovery
+- **Graceful degradation**: Continues processing despite individual failures
 
 ## 📁 Output Files
 
-Each evaluation run generates timestamped reports:
+Each evaluation run generates timestamped reports with clear timing distinctions:
 
 ```
 output/
@@ -228,80 +289,98 @@ output/
 └── {model}_deployment_checklist_{timestamp}.md   # Production readiness
 ```
 
-### Report Contents
+### Performance Metrics Reported
+- **Extraction time**: Core model inference only
+- **Pipeline time**: Total time including loading, evaluation, reporting
+- **Success rate**: Percentage of successful extractions
+- **Memory usage**: Peak GPU/CPU utilization
+- **Accuracy**: Field-level and document-level performance
 
-#### Executive Summary
-- **Overall Performance**: Accuracy percentages and document quality distribution
-- **Field Analysis**: Best and worst performing fields
-- **Deployment Readiness**: Go/no-go recommendation with supporting metrics
+## 🛠 Configuration Options
 
-#### Technical Evaluation
-- **Field-level accuracy**: Detailed breakdown for all 25 fields
-- **Processing statistics**: Timing, memory usage, error rates
-- **Quality metrics**: Document-level performance distribution
-
-#### Deployment Checklist
-- **Infrastructure requirements**: GPU memory, processing capacity
-- **Accuracy thresholds**: Field-specific performance criteria
-- **Production considerations**: Batch processing capabilities, error handling
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-export CUDA_VISIBLE_DEVICES=0  # Specify GPU
-export KMP_DUPLICATE_LIB_OK=TRUE  # Fix OpenMP conflicts
-```
-
-### Model Optimization
+### Batch Size Strategies
 ```python
-# 8-bit quantization for memory constraints
-load_in_8bit = True  # Configured in processors
+# Available in common/config.py
+CONSERVATIVE_BATCH_SIZES = {
+    "llama": 1,
+    "internvl3-2b": 2,  # Safe for 2B model
+    "internvl3-8b": 1,  # Conservative for 8B model
+}
 
-# Batch size adjustment
-batch_size = 1  # Conservative for memory-constrained environments
-```
-
-### Custom Fields
-The framework uses a **centralized field configuration system**:
-1. **Add to FIELD_DEFINITIONS** in `common/config.py`:
-```python
-'NEW_FIELD': {
-    'type': 'text',  # or 'monetary', 'date', 'numeric_id', 'list'
-    'instruction': '[field instruction or N/A]',
-    'evaluation_logic': 'fuzzy_text_match',
-    'description': 'Field description',
-    'required': False
+DEFAULT_BATCH_SIZES = {
+    "llama": 1,
+    "internvl3-2b": 4,  # Efficient for 2B model
+    "internvl3-8b": 1,  # Balanced for 8B model
 }
 ```
-2. **Update ground truth CSV** with new column
-3. **Everything else updates automatically** - prompts, evaluation, reports
 
-See **docs/FIELD_CONFIGURATION_GUIDE.md** for comprehensive field management.
-
-## 🛠 Development
-
-### Adding New Models
-1. Create `models/newmodel_processor.py`:
+### Model Path Configuration
 ```python
-class NewModelProcessor:
-    def __init__(self, model_path: str):
-        # Model initialization
-        
-    def process_single_image(self, image_path: str) -> dict:
-        # Single document processing
-        
-    def process_image_batch(self, image_files: list) -> tuple:
-        # Batch processing with statistics
+# Dynamic model switching
+switch_model("internvl3", "InternVL3-8B")  # Switch to 8B variant
+switch_deployment("AISandbox")  # Switch deployment environment
+show_current_config()  # Display current configuration
 ```
 
-2. Create main evaluation script:
+### GPU Memory Thresholds
 ```python
-from models.newmodel_processor import NewModelProcessor
-from common.evaluation_utils import *
-from common.reporting import *
+GPU_MEMORY_THRESHOLDS = {
+    "low": 8,     # GB - Use conservative batching
+    "medium": 16, # GB - Use default batching  
+    "high": 24,   # GB - Use aggressive batching
+}
+```
 
-# Use shared evaluation infrastructure
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### GPU Memory Management
+```bash
+# The framework handles OOM automatically with fallback strategies
+# Monitor with: nvidia-smi
+# Memory optimization is applied automatically
+```
+
+#### Model Loading Issues
+```bash
+# Check model paths in common/config.py
+# Verify model files are downloaded correctly
+# Use show_current_config() to verify configuration
+```
+
+#### Performance Optimization
+- **Slow processing**: Framework automatically detects and optimizes for available hardware
+- **Memory issues**: Automatic fallback strategies handle memory constraints
+- **Batch size**: Automatically optimized based on model variant and GPU memory
+
+### Hardware Requirements
+
+#### Minimum Requirements
+- **RAM**: 16GB system memory
+- **Storage**: 50GB for models and data
+- **GPU**: Optional (CPU fallback available)
+
+#### Recommended Configuration
+- **GPU**: Any modern CUDA-compatible GPU (optimization automatic)
+- **CPU**: 8+ cores for efficient batch processing
+- **SSD**: Fast storage for model loading
+
+## 📚 Development
+
+### Adding New Models
+1. Create `models/newmodel_processor.py` following the interface pattern
+2. Implement GPU optimization support using `common/gpu_optimization.py`
+3. Add model-specific configuration to `common/config.py`
+4. Create evaluation script using shared infrastructure
+
+### Code Quality
+```bash
+# Apply formatting and checks
+ruff check . --fix
+ruff format .
+
+# The project includes pre-commit hooks for quality control
 ```
 
 ### Testing
@@ -311,98 +390,24 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}')"
 python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
 
 # Test with sample data
-python llama_keyvalue.py  # Should process 20 sample invoices
+python llama_keyvalue.py  # Processes sample documents
+python internvl3_keyvalue.py  # Processes with different model
 ```
-
-### Code Quality
-```bash
-# Apply formatting (if ruff available)
-ruff check . --fix
-ruff format .
-```
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-#### GPU Memory Errors
-```bash
-# Error: CUDA out of memory
-# Solution: Enable 8-bit quantization (already configured)
-# Alternative: Use CPU processing (slower but functional)
-```
-
-#### Model Loading Failures
-```bash
-# Error: Model not found
-# Solution: Update paths in common/config.py
-# Check: Model files downloaded correctly
-```
-
-#### Import Errors
-```bash
-# Error: ModuleNotFoundError
-# Solution: Ensure conda environment activated
-conda activate vision_notebooks
-
-# Verify: All dependencies installed
-pip list | grep transformers
-```
-
-#### Performance Issues
-- **Slow processing**: Check GPU availability with `nvidia-smi`
-- **High memory usage**: Reduce batch size or use 8-bit quantization
-- **CPU fallback**: Expected behavior when GPU unavailable
-
-### Hardware Requirements
-
-#### Minimum Requirements
-- **RAM**: 16GB system memory
-- **Storage**: 50GB for models and data
-- **GPU**: Optional but recommended (any CUDA-compatible GPU)
-
-#### Recommended Configuration
-- **GPU**: 22GB+ VRAM for Llama, 4GB+ VRAM for InternVL3-2B, 16GB+ VRAM for InternVL3-8B
-- **CPU**: 8+ cores for efficient batch processing
-- **SSD**: Fast storage for model loading
-
-## 📚 Additional Resources
-
-### Core Documentation
-- **docs/FIELD_CONFIGURATION_GUIDE.md**: Comprehensive guide to the centralized field system
-- **docs/EVALUATION_SYSTEM_GUIDE.md**: Detailed evaluation methodology and accuracy calculation
-- **docs/FIELD_MANAGEMENT_WORKFLOWS.md**: Step-by-step workflows for managing fields
-- **docs/TROUBLESHOOTING_FAQ.md**: Common issues, solutions, and frequently asked questions
-
-### Development Resources  
-- **CLAUDE.md**: Development guidelines and git workflow
-- **REFACTORING_SUMMARY.md**: Architecture decisions and code organization
-- **ground_truth_evaluation_system.md**: Legacy evaluation system details
-
-### Model Resources
-- **Llama-3.2-Vision**: [Hugging Face Model Hub](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct)
-- **InternVL3-2B**: [Hugging Face Model Hub](https://huggingface.co/OpenGVLab/InternVL3-2B)
-- **InternVL3-8B**: [Hugging Face Model Hub](https://huggingface.co/OpenGVLab/InternVL3-8B)
-
-### Dependencies
-- **transformers**: 4.45.2 (pinned for Llama compatibility)
-- **torch**: 2.0.0+ with CUDA support
-- **timm**: 0.9.0+ (required for InternVL3)
-- **einops**: 0.6.0+ (required for InternVL3)
 
 ## 🤝 Contributing
 
 ### Development Guidelines
-1. **Follow modular architecture**: Use shared utilities when possible
-2. **Maintain consistency**: Follow existing patterns for new models
+1. **Follow modular architecture**: Use shared utilities for GPU optimization and evaluation
+2. **Maintain performance focus**: Leverage existing optimization infrastructure
 3. **Document thoroughly**: Add docstrings and inline comments
-4. **Test comprehensively**: Verify with sample data before committing
+4. **Test comprehensively**: Verify with multiple GPU configurations
 
-### Adding Features
-1. **New models**: Follow processor interface pattern
-2. **New evaluation metrics**: Extend `evaluation_utils.py`
-3. **New report formats**: Extend `reporting.py`
-4. **New fields**: Update configuration and ground truth data
+### Key Dependencies
+- **transformers**: 4.45.2 (pinned for Llama compatibility)
+- **torch**: 2.0.0+ with CUDA support
+- **timm**: 0.9.0+ (required for InternVL3)
+- **einops**: 0.6.0+ (required for InternVL3)
+- **bitsandbytes**: For 8-bit quantization support
 
 ## 📄 License
 
@@ -411,12 +416,12 @@ This project is intended for research and evaluation purposes. Model-specific li
 ## 🙋‍♂️ Support
 
 For questions and issues:
-1. **Check docs/TROUBLESHOOTING_FAQ.md** for common problems and solutions
-2. **Review field configuration** with docs/FIELD_CONFIGURATION_GUIDE.md
-3. **Understand evaluation** with docs/EVALUATION_SYSTEM_GUIDE.md
-4. **Follow workflows** in docs/FIELD_MANAGEMENT_WORKFLOWS.md
-5. **Validate environment** setup with `unified_setup.sh`
+1. **Check configuration**: Use `show_current_config()` to verify setup
+2. **Review CLAUDE.md**: Project-specific development guidelines
+3. **Monitor GPU usage**: Use `nvidia-smi` to check memory and utilization
+4. **Validate environment**: Ensure conda environment is activated
+5. **Test with samples**: Run evaluation scripts with provided sample data
 
 ---
 
-**Vision Model Comparison Framework** - Comprehensive evaluation for business document processing with vision-language models.
+**Vision Model Comparison Framework** - Comprehensive evaluation with advanced GPU optimization for business document processing with vision-language models.

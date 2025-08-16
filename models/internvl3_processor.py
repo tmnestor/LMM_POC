@@ -89,8 +89,12 @@ class InternVL3Processor:
         else:
             # Auto-detect batch size based on available memory and model size
             available_memory = get_available_gpu_memory(self.device)
-            size_aware_model_name = get_model_name_with_size("internvl3", self.model_path, self.is_8b_model)
-            self.batch_size = get_auto_batch_size(size_aware_model_name, available_memory)
+            size_aware_model_name = get_model_name_with_size(
+                "internvl3", self.model_path, self.is_8b_model
+            )
+            self.batch_size = get_auto_batch_size(
+                size_aware_model_name, available_memory
+            )
             print(
                 f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {size_aware_model_name})"
             )
