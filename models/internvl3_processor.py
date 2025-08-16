@@ -464,9 +464,14 @@ INSTRUCTIONS:
                     print(f"🔍 DEBUG: input_ids shape: {test_result['input_ids'].shape if test_result['input_ids'] is not None else 'None'}")
                     
                     # Pass generation_config as dict, not unpacked kwargs
+                    print("🔍 DEBUG: Calling ResilientGenerator.generate with:")
+                    print(f"🔍 DEBUG: inputs keys: {inputs.keys()}")
+                    print(f"🔍 DEBUG: generation_config: {self.generation_config}")
+                    
                     response = self.resilient_generator.generate(
                         inputs, generation_config=self.generation_config
                     )
+                    print("🔍 DEBUG: ResilientGenerator.generate returned successfully!")
                 except Exception as resilient_error:
                     print(f"⚠️ ResilientGenerator failed: {resilient_error}")
                     print("🔄 Falling back to direct chat method...")

@@ -313,9 +313,15 @@ class ResilientGenerator:
         Returns:
             Generated output
         """
+        print("🔍 DEBUG: ResilientGenerator.generate() called!")
+        print(f"🔍 DEBUG: inputs type: {type(inputs)}, keys: {list(inputs.keys()) if inputs else 'None'}")
+        print(f"🔍 DEBUG: generation_config: {generation_config}")
+        print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
+        
         # Use generation_config if provided, otherwise fall back to kwargs
         if generation_config is not None:
             generation_kwargs = generation_config
+            print(f"🔍 DEBUG: Using generation_config: {generation_kwargs}")
         
         try:
             # First attempt: Standard generation
