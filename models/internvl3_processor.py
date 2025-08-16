@@ -6,6 +6,7 @@ image preprocessing, and batch processing logic.
 """
 
 import time
+import threading
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -37,6 +38,16 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
+
+
+def _show_loading_progress(stop_event, message="Loading"):
+    """Show loading progress dots while model loads."""
+    count = 0
+    while not stop_event.is_set():
+        dots = "." * (count % 4)
+        print(f"\r{message}{dots}   ", end="", flush=True)
+        time.sleep(1)
+        count += 1
 
 
 class InternVL3Processor:
@@ -114,6 +125,7 @@ class InternVL3Processor:
             # Add aggressive quantization for 8B model
             if self.is_8b_model:
                 print("🔧 Applying 8-bit quantization for InternVL3-8B")
+                print("⏳ Creating quantization config...")
                 quantization_config = BitsAndBytesConfig(
                     load_in_8bit=True,
                     llm_int8_enable_fp32_cpu_offload=True,
@@ -125,11 +137,47 @@ class InternVL3Processor:
                 )
                 model_kwargs["quantization_config"] = quantization_config
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
+                print("📦 Quantization config created, starting model loading...")
 
                 # Load quantized model
-                self.model = AutoModel.from_pretrained(
-                    self.model_path, **model_kwargs
-                ).eval()
+                print("⏳ Loading quantized InternVL3-8B model (this may take 5-10 minutes on V100)...")
+                print(f"🔍 DEBUG: Model path: {self.model_path}")
+                print(f"🔍 DEBUG: Model kwargs: {list(model_kwargs.keys())}")
+                print("💡 The MatMul8bitLt warnings are normal during quantization - please wait...")
+                
+                # Start progress indicator
+                stop_progress = threading.Event()
+                progress_thread = threading.Thread(
+                    target=_show_loading_progress, 
+                    args=(stop_progress, "🔧 Quantizing InternVL3-8B")
+                )
+                progress_thread.start()
+                
+                try:
+                    self.model = AutoModel.from_pretrained(
+                        self.model_path, **model_kwargs
+                    ).eval()
+                    stop_progress.set()
+                    progress_thread.join()
+                    print("\n✅ Quantized model loaded successfully!")
+                except Exception as quantization_error:
+                    stop_progress.set()
+                    progress_thread.join()
+                    print(f"\n❌ Quantization failed: {quantization_error}")
+                    print("🔄 Falling back to standard loading for 8B model...")
+                    
+                    # Fallback: try without quantization for 8B
+                    fallback_kwargs = {
+                        "torch_dtype": torch.bfloat16,
+                        "low_cpu_mem_usage": True,
+                        "use_flash_attn": False,
+                        "trust_remote_code": True,
+                        "device_map": "auto",
+                    }
+                    self.model = AutoModel.from_pretrained(
+                        self.model_path, **fallback_kwargs
+                    ).eval()
+                    print("✅ 8B model loaded without quantization (may use more memory)")
             else:
                 # Standard loading for 2B model
                 self.model = (
@@ -139,16 +187,20 @@ class InternVL3Processor:
                 )
 
             # Load tokenizer
+            print("⏳ Loading tokenizer...")
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,
                 trust_remote_code=True,
                 use_fast=False,  # More reliable for structured tasks
             )
+            print("✅ Tokenizer loaded successfully")
 
             print("✅ InternVL3 model and tokenizer loaded successfully")
 
             # Apply V100 optimizations
+            print("⏳ Applying V100 optimizations...")
             optimize_model_for_v100(self.model)
+            print("✅ V100 optimizations applied")
 
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
