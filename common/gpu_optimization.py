@@ -347,8 +347,12 @@ class ResilientGenerator:
                 pixel_values = inputs.get("pixel_values")
                 question = inputs.get("question")
 
-                # Validate inputs
-                print("🔍 DEBUG: Calling InternVL3 model.chat")
+                # Validate inputs and debug tokenizer state
+                print("🔍 DEBUG: Inside ResilientGenerator _standard_generate")
+                print(f"🔍 DEBUG: tokenizer type: {type(tokenizer)}")
+                print(f"🔍 DEBUG: pixel_values type: {type(pixel_values)}")
+                print(f"🔍 DEBUG: question type: {type(question)}")
+                print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
 
                 if tokenizer is None:
                     raise ValueError("tokenizer is None in ResilientGenerator")
@@ -356,6 +360,16 @@ class ResilientGenerator:
                     raise ValueError("pixel_values is None in ResilientGenerator")
                 if question is None:
                     raise ValueError("question is None in ResilientGenerator")
+                
+                # Test tokenizer inside ResilientGenerator
+                print("🔍 DEBUG: Testing tokenizer inside ResilientGenerator...")
+                try:
+                    tokenizer_test = tokenizer("ResilientGenerator test", return_tensors="pt")
+                    print(f"🔍 DEBUG: ResilientGenerator tokenizer test keys: {tokenizer_test.keys()}")
+                    print(f"🔍 DEBUG: ResilientGenerator input_ids: {tokenizer_test['input_ids'].shape if tokenizer_test.get('input_ids') is not None else 'None'}")
+                except Exception as tok_err:
+                    print(f"🔍 DEBUG: Tokenizer test failed inside ResilientGenerator: {tok_err}")
+                    raise
 
                 # InternVL3 expects generation_config as a dict, not unpacked kwargs
                 return self.model.chat(

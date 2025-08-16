@@ -453,6 +453,16 @@ INSTRUCTIONS:
 
                 # Generate with resilient fallback strategies
                 try:
+                    print(f"🔍 DEBUG: About to call ResilientGenerator")
+                    print(f"🔍 DEBUG: tokenizer type: {type(self.tokenizer)}")
+                    print(f"🔍 DEBUG: tokenizer eos_token_id: {self.tokenizer.eos_token_id}")
+                    print(f"🔍 DEBUG: generation_config: {self.generation_config}")
+                    
+                    # Test tokenizer directly before ResilientGenerator call
+                    test_result = self.tokenizer("Test tokenizer", return_tensors="pt")
+                    print(f"🔍 DEBUG: Direct tokenizer test result: {test_result.keys()}")
+                    print(f"🔍 DEBUG: input_ids shape: {test_result['input_ids'].shape if test_result['input_ids'] is not None else 'None'}")
+                    
                     # Pass generation_config as dict, not unpacked kwargs
                     response = self.resilient_generator.generate(
                         inputs, generation_config=self.generation_config
@@ -462,6 +472,15 @@ INSTRUCTIONS:
                     print("🔄 Falling back to direct chat method...")
 
                     # Fallback to direct chat method
+                    print(f"🔍 DEBUG: About to call direct chat")
+                    print(f"🔍 DEBUG: Same tokenizer type: {type(self.tokenizer)}")
+                    print(f"🔍 DEBUG: Same generation_config: {self.generation_config}")
+                    
+                    # Test tokenizer again before direct chat
+                    test_result2 = self.tokenizer("Test tokenizer", return_tensors="pt")
+                    print(f"🔍 DEBUG: Direct tokenizer test result 2: {test_result2.keys()}")
+                    print(f"🔍 DEBUG: input_ids shape 2: {test_result2['input_ids'].shape if test_result2['input_ids'] is not None else 'None'}")
+                    
                     response = self.model.chat(
                         self.tokenizer,
                         pixel_values,
@@ -470,6 +489,7 @@ INSTRUCTIONS:
                         history=None,
                         return_history=False,
                     )
+                    print(f"🔍 DEBUG: Direct chat succeeded!")
             else:
                 # Standard generation for 2B model
                 try:
