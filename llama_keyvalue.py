@@ -38,10 +38,8 @@ Configuration:
     - OUTPUT_DIR: Path for generated reports
     - EXTRACTION_FIELDS: List of fields to extract (currently 25 business document fields)
 
-Performance Characteristics:
-    - Processing time: ~3-5 seconds per document (GPU)
-    - Memory usage: ~22GB VRAM (11B parameter model)
-    - Accuracy: Typically 80-95% field-level accuracy on business documents
+Model Specifications:
+    - Parameters: 11B parameter model  
     - Field extraction: 25 structured fields (ABN, TOTAL, INVOICE_DATE, etc.)
 
 Dependencies:
@@ -163,7 +161,6 @@ def main():
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
     # Load Llama-3.2-Vision model with optimal configuration for extraction tasks
-    # This step requires significant memory (22GB VRAM) and takes 30-60 seconds
     print("\n🚀 Initializing Llama Vision processor...")
     processor = LlamaProcessor(model_path=model_path)
 

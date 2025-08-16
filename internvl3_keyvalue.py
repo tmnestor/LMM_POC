@@ -38,12 +38,9 @@ Configuration:
     - OUTPUT_DIR: Path for generated reports
     - EXTRACTION_FIELDS: List of fields to extract (currently 25 business document fields)
 
-Performance Characteristics:
-    - Processing time: ~1-3 seconds per document (GPU)
-    - Memory usage: ~4GB VRAM (2B parameter model)
-    - Accuracy: Typically 75-90% field-level accuracy on business documents
+Model Specifications:
+    - Parameters: 2B/8B parameter model variants
     - Field extraction: 25 structured fields (ABN, TOTAL, INVOICE_DATE, etc.)
-    - Memory efficiency: 5x more efficient than Llama-3.2-Vision
 
 Dependencies:
     - models.internvl3_processor: InternVL3-specific processing logic
@@ -129,8 +126,6 @@ def main():
 
     InternVL3-Specific Features:
         - Dynamic preprocessing with tile-based approach
-        - Memory-efficient inference (4GB VRAM vs 22GB for Llama)
-        - Faster processing speed (~1-3s vs 3-5s per document)
         - Optimized for high-resolution document images
 
     Returns:
@@ -178,8 +173,7 @@ def main():
     # =============================================================================
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
-    # Load InternVL3-2B model with optimal configuration for extraction tasks
-    # This step is much faster than Llama (5-15 seconds) due to smaller model size
+    # Load InternVL3 model with optimal configuration for extraction tasks
     print("\n🚀 Initializing InternVL3 processor...")
     processor = InternVL3Processor(model_path=model_path)
 
@@ -344,7 +338,7 @@ def main():
             f"📈 Average time per document: {total_time / len(image_files):.2f} seconds"
         )
         print(f"✅ Processing success rate: {batch_statistics['success_rate']:.1%}")
-        print("🚀 InternVL3 memory efficiency: ~5x better than Llama-3.2-Vision")
+        print("🚀 InternVL3 processing completed")
 
     except Exception as e:
         print(f"\n❌ Error during batch processing: {e}")
