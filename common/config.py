@@ -534,7 +534,11 @@ def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
     model_name = model_name.lower()
 
     if strategy == "conservative":
-        return MIN_BATCH_SIZE
+        # Conservative strategy: Use smaller batch sizes but not always 1
+        if model_name == "internvl3":
+            return 2  # InternVL3 is memory efficient, can handle batch size 2 even conservatively
+        else:
+            return MIN_BATCH_SIZE  # Llama stays at 1 for conservative approach
     elif strategy == "aggressive":
         return MAX_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
     else:  # balanced
