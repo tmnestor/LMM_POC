@@ -325,7 +325,12 @@ class ResilientGenerator:
         
         try:
             # First attempt: Standard generation
-            return self._standard_generate(inputs, generation_kwargs)
+            print("🔍 DEBUG: About to call _standard_generate")
+            print(f"🔍 DEBUG: inputs: {inputs}")
+            print(f"🔍 DEBUG: generation_kwargs: {generation_kwargs}")
+            result = self._standard_generate(inputs, generation_kwargs)
+            print("🔍 DEBUG: _standard_generate completed successfully")
+            return result
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"⚠️ CUDA OOM detected: {e}")
@@ -343,15 +348,25 @@ class ResilientGenerator:
 
     def _standard_generate(self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]) -> Any:
         """Standard generation attempt."""
+        print("🔍 DEBUG: _standard_generate method entered!")
+        print(f"🔍 DEBUG: hasattr(self.model, 'generate'): {hasattr(self.model, 'generate')}")
+        print(f"🔍 DEBUG: hasattr(self.model, 'chat'): {hasattr(self.model, 'chat')}")
+        
         if hasattr(self.model, "generate"):
+            print("🔍 DEBUG: Using model.generate path")
             return self.model.generate(**inputs, **generation_kwargs)
         elif hasattr(self.model, "chat"):
+            print("🔍 DEBUG: Using model.chat path")
             # For models like InternVL3 that use chat interface
             # InternVL3 chat method signature: chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=False)
             try:
+                print("🔍 DEBUG: Extracting inputs...")
                 tokenizer = inputs.get("tokenizer", self.processor)
+                print(f"🔍 DEBUG: tokenizer extracted: {type(tokenizer)}")
                 pixel_values = inputs.get("pixel_values")
+                print(f"🔍 DEBUG: pixel_values extracted: {type(pixel_values)}")
                 question = inputs.get("question")
+                print(f"🔍 DEBUG: question extracted: {type(question)}")
 
                 # Validate inputs and debug tokenizer state
                 print("🔍 DEBUG: Inside ResilientGenerator _standard_generate")
