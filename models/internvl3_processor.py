@@ -32,6 +32,7 @@ from common.config import (
 )
 from common.evaluation_utils import parse_extraction_response
 from common.gpu_optimization import (
+    ResilientGenerator,
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
     get_available_gpu_memory,
@@ -58,6 +59,7 @@ class InternVL3Processor:
         self.tokenizer = None
         self.generation_config = None
         self.is_8b_model = "8B" in str(model_path)
+        self.resilient_generator = None  # Will be initialized after model loading
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
@@ -69,9 +71,16 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        # Remove configuration constants that aren't model parameters
+        # For 8B model on V100, use more conservative token limits
+        if self.is_8b_model:
+            # Use Llama-like conservative settings for 8B model on V100
+            max_tokens = 600  # Reduced from 1000 for memory efficiency
+            print("🎯 InternVL3-8B: Using V100-optimized token limits (600 max)")
+        else:
+            max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
+
         self.generation_config = {
-            "max_new_tokens": get_max_new_tokens("internvl3", FIELD_COUNT),
+            "max_new_tokens": max_tokens,
             "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
             "pad_token_id": self.tokenizer.eos_token_id,
         }
@@ -81,9 +90,27 @@ class InternVL3Processor:
             f"do_sample={self.generation_config['do_sample']}"
         )
 
+        # Initialize ResilientGenerator for 8B model
+        if self.is_8b_model:
+            print(
+                "🚀 Initializing ResilientGenerator for InternVL3-8B V100 optimization"
+            )
+            self.resilient_generator = ResilientGenerator(
+                model=self.model,
+                processor=self.tokenizer,
+                model_path=self.model_path,
+                model_loader=self._reload_model_for_emergency,
+            )
+
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
-        if batch_size is not None:
+        # Force batch_size=1 for 8B model on V100 for stability
+        if self.is_8b_model:
+            self.batch_size = 1
+            print("⚠️ InternVL3-8B: Forcing batch_size=1 for V100 memory stability")
+            if batch_size and batch_size > 1:
+                print(f"   (Overriding requested batch_size={batch_size})")
+        elif batch_size is not None:
             self.batch_size = max(1, batch_size)  # Ensure minimum batch size of 1
             print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
@@ -155,6 +182,60 @@ class InternVL3Processor:
 
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
+
+            # Enable gradient checkpointing for 8B model to save memory
+            if self.is_8b_model:
+                try:
+                    if hasattr(self.model, "gradient_checkpointing_enable"):
+                        self.model.gradient_checkpointing_enable()
+                        print(
+                            "✅ Gradient checkpointing enabled for InternVL3-8B (memory optimization)"
+                        )
+                    elif hasattr(self.model, "enable_gradient_checkpointing"):
+                        self.model.enable_gradient_checkpointing()
+                        print(
+                            "✅ Gradient checkpointing enabled for InternVL3-8B (memory optimization)"
+                        )
+                    else:
+                        print(
+                            "⚠️ Gradient checkpointing not available for this model version"
+                        )
+                except Exception as e:
+                    print(f"⚠️ Could not enable gradient checkpointing: {e}")
+
+                # Warm-up run for 8B model to detect memory issues early
+                try:
+                    print(
+                        "🔥 Running warm-up inference for InternVL3-8B memory validation..."
+                    )
+                    # Create a small dummy image for warm-up
+                    import numpy as np
+                    from PIL import Image as PILImage
+
+                    dummy_img = PILImage.fromarray(
+                        np.zeros((224, 224, 3), dtype=np.uint8)
+                    )
+                    dummy_pixels = self.load_image(dummy_img, input_size=224, max_num=1)
+                    dummy_pixels = dummy_pixels.to(torch.bfloat16).cuda()
+
+                    # Try a minimal generation
+                    _ = self.model.chat(
+                        self.tokenizer,
+                        dummy_pixels,
+                        "Test",
+                        {"max_new_tokens": 10, "do_sample": False},
+                        history=None,
+                        return_history=False,
+                    )
+                    print("✅ Warm-up successful - memory configuration validated")
+
+                    # Clean up warm-up memory
+                    del dummy_pixels, dummy_img
+                    torch.cuda.empty_cache()
+
+                except Exception as e:
+                    print(f"⚠️ Warm-up generation failed: {e}")
+                    print("⚠️ Model may encounter memory issues during processing")
 
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
@@ -344,19 +425,32 @@ INSTRUCTIONS:
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
 
-            # Simple OOM handling for 8B model without ResilientGenerator
-            try:
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values,
-                    question,
-                    self.generation_config,
-                    history=None,
-                    return_history=False,
+            # Use ResilientGenerator for 8B model, simple generation for 2B
+            if self.is_8b_model and self.resilient_generator:
+                # Prepare inputs for ResilientGenerator
+                inputs = {
+                    "tokenizer": self.tokenizer,
+                    "pixel_values": pixel_values,
+                    "question": question,
+                }
+
+                # Generate with resilient fallback strategies
+                response = self.resilient_generator.generate(
+                    inputs, **self.generation_config
                 )
-            except torch.cuda.OutOfMemoryError as e:
-                if self.is_8b_model:
-                    print(f"⚠️ InternVL3-8B OOM: {e}")
+            else:
+                # Standard generation for 2B model
+                try:
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        question,
+                        self.generation_config,
+                        history=None,
+                        return_history=False,
+                    )
+                except torch.cuda.OutOfMemoryError as e:
+                    print(f"⚠️ InternVL3 OOM: {e}")
                     print("🔄 Attempting emergency cleanup and retry...")
 
                     # Emergency cleanup
@@ -373,18 +467,23 @@ INSTRUCTIONS:
                             return_history=False,
                         )
                     except torch.cuda.OutOfMemoryError:
-                        print("❌ InternVL3-8B: Even with cleanup, OOM persists")
+                        print("❌ InternVL3: Even with cleanup, OOM persists")
                         raise
-                else:
-                    raise
 
             processing_time = time.time() - start_time
 
             # Parse response
             extracted_data = parse_extraction_response(response)
 
-            # Comprehensive memory cleanup
-            comprehensive_memory_cleanup(self.model, self.tokenizer)
+            # Enhanced memory cleanup for 8B model
+            if self.is_8b_model:
+                # More aggressive cleanup for 8B model
+                comprehensive_memory_cleanup(self.model, self.tokenizer)
+                # Additional fragmentation handling
+                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+            else:
+                # Standard cleanup for 2B model
+                comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             # Calculate metrics
             extracted_fields_count = sum(
@@ -484,8 +583,17 @@ INSTRUCTIONS:
                     successful_extractions += 1
 
             # Clear GPU cache after each batch with comprehensive cleanup
+            # For 8B model, do more aggressive cleanup
             if CLEAR_GPU_CACHE_AFTER_BATCH and torch.cuda.is_available():
-                comprehensive_memory_cleanup(self.model, self.tokenizer)
+                if self.is_8b_model:
+                    # Extra aggressive cleanup for 8B model
+                    comprehensive_memory_cleanup(self.model, self.tokenizer)
+                    handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+                    print(
+                        f"   🧹 Aggressive memory cleanup after batch {batch_start // self.batch_size + 1}"
+                    )
+                else:
+                    comprehensive_memory_cleanup(self.model, self.tokenizer)
 
         # Calculate final statistics
         batch_statistics = {
@@ -632,20 +740,33 @@ INSTRUCTIONS:
                 zip(pixel_values_list, valid_files, strict=False)
             ):
                 try:
-                    # Simple OOM handling for 8B model without ResilientGenerator
-                    try:
-                        response = self.model.chat(
-                            self.tokenizer,
-                            pixel_values,
-                            prompt_template,
-                            self.generation_config,
-                            history=None,
-                            return_history=False,
+                    # Use ResilientGenerator for 8B model in batch processing
+                    if self.is_8b_model and self.resilient_generator:
+                        # Prepare inputs for ResilientGenerator
+                        inputs = {
+                            "tokenizer": self.tokenizer,
+                            "pixel_values": pixel_values,
+                            "question": prompt_template,
+                        }
+
+                        # Generate with resilient fallback strategies
+                        response = self.resilient_generator.generate(
+                            inputs, **self.generation_config
                         )
-                    except torch.cuda.OutOfMemoryError as e:
-                        if self.is_8b_model:
+                    else:
+                        # Standard generation for 2B model
+                        try:
+                            response = self.model.chat(
+                                self.tokenizer,
+                                pixel_values,
+                                prompt_template,
+                                self.generation_config,
+                                history=None,
+                                return_history=False,
+                            )
+                        except torch.cuda.OutOfMemoryError as e:
                             print(
-                                f"⚠️ InternVL3-8B batch OOM on {Path(file_path).name}: {e}"
+                                f"⚠️ InternVL3 batch OOM on {Path(file_path).name}: {e}"
                             )
                             print("🔄 Attempting emergency cleanup and retry...")
 
@@ -664,11 +785,9 @@ INSTRUCTIONS:
                                 )
                             except torch.cuda.OutOfMemoryError:
                                 print(
-                                    f"❌ InternVL3-8B: Even with cleanup, OOM persists for {Path(file_path).name}"
+                                    f"❌ InternVL3: Even with cleanup, OOM persists for {Path(file_path).name}"
                                 )
                                 raise
-                        else:
-                            raise
 
                     # Parse response
                     extracted_data = parse_extraction_response(response)
@@ -722,6 +841,74 @@ INSTRUCTIONS:
             print(f"   ❌ Batch processing failed: {e}")
             # Fallback to individual processing
             return [self.process_single_image(file) for file in batch_files]
+
+    def _reload_model_for_emergency(self, model_path: str = None):
+        """
+        Emergency model reload for ResilientGenerator.
+
+        This method is called by ResilientGenerator when severe OOM issues occur
+        and a complete model reload is needed to reset memory state.
+
+        Args:
+            model_path (str): Path to model (uses instance model_path if None)
+
+        Returns:
+            tuple: (model, tokenizer) freshly loaded instances
+        """
+        model_path = model_path or self.model_path
+        print(f"🔄 Emergency reload of InternVL3 from: {model_path}")
+
+        # Use the same loading logic as initialization
+        model_kwargs = {
+            "torch_dtype": torch.bfloat16,
+            "low_cpu_mem_usage": True,
+            "use_flash_attn": False,
+            "trust_remote_code": True,
+        }
+
+        # Reapply quantization for 8B model
+        if self.is_8b_model:
+            print("🔧 Reapplying 8-bit quantization for InternVL3-8B")
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_enable_fp32_cpu_offload=True,
+                llm_int8_skip_modules=["vision_model", "vision_encoder"],
+                llm_int8_threshold=6.0,
+            )
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "auto"
+
+            # Load quantized model
+            model = AutoModel.from_pretrained(model_path, **model_kwargs).eval()
+        else:
+            # Standard loading for 2B model
+            model = (
+                AutoModel.from_pretrained(model_path, **model_kwargs)
+                .eval()
+                .to(self.device)
+            )
+
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            trust_remote_code=True,
+            use_fast=False,
+        )
+
+        # Reapply V100 optimizations
+        optimize_model_for_v100(model)
+
+        # Re-enable gradient checkpointing for 8B model
+        if self.is_8b_model:
+            try:
+                if hasattr(model, "gradient_checkpointing_enable"):
+                    model.gradient_checkpointing_enable()
+                    print("✅ Gradient checkpointing re-enabled after reload")
+            except Exception:
+                pass
+
+        print("✅ Emergency model reload completed")
+        return model, tokenizer
 
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
         """Create standardized error result for failed processing."""
