@@ -8,12 +8,15 @@ to diagnose the 44.2% accuracy issue on V100 hardware.
 Usage: python internvl3_precision_test.py
 """
 
-import torch
 from datetime import datetime
 from pathlib import Path
-from common.config import INTERNVL3_MODEL_PATH as model_path, DATA_DIR as data_dir
-from common.evaluation_utils import discover_images, parse_extraction_response
+
+import torch
 from transformers import AutoModel, AutoTokenizer
+
+from common.config import DATA_DIR as data_dir
+from common.config import INTERNVL3_MODEL_PATH as model_path
+from common.evaluation_utils import discover_images, parse_extraction_response
 
 
 def test_model_configuration(config_name: str, model_kwargs: dict, test_image_path: str):
@@ -37,7 +40,7 @@ def test_model_configuration(config_name: str, model_kwargs: dict, test_image_pa
             trust_remote_code=True
         )
         
-        print(f"✅ Model loaded successfully")
+        print("✅ Model loaded successfully")
         print(f"🔧 Model device: {next(model.parameters()).device}")
         print(f"🔧 Model dtype: {next(model.parameters()).dtype}")
         
@@ -235,7 +238,7 @@ def main():
             else:
                 print("🔍 Quantization removal had no significant impact")
     
-    print(f"\n📝 Next steps based on results:")
+    print("\n📝 Next steps based on results:")
     print("1. If Float32 > Float16/bfloat16: V100 precision issue")
     print("2. If No_Quantization > 8bit: Quantization incompatibility") 
     print("3. If CPU > GPU: V100 hardware-specific problem")
