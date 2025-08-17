@@ -134,27 +134,22 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # Load 8B model entirely on GPU - it fits in ~12GB which is well within V100's 16GB
+            # Load 8B model on CPU to test if GPU is causing the gibberish issue
             if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B entirely on GPU (NO quantization)")
-                print("   Model uses ~12GB, easily fits in V100's 16GB VRAM")
+                print("🔧 Loading InternVL3-8B on CPU (testing for GPU-specific issues)")
+                print("   This will be slower but may fix generation quality")
                 
-                # Pre-allocate and clean memory before loading
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                
-                # Load entirely on GPU for best performance
-                model_kwargs["device_map"] = None  # Don't split across devices
+                # Load entirely on CPU for testing
+                model_kwargs["torch_dtype"] = torch.float32  # CPU works better with float32
+                model_kwargs["device_map"] = "cpu"  # Force CPU loading
                 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
-                ).eval().cuda()
+                ).eval()
                 
-                print("✅ Model loaded entirely on GPU - full speed, no quantization")
+                print("✅ Model loaded on CPU - testing if this fixes generation")
                 
-                # Post-load memory consolidation
-                torch.cuda.empty_cache()
-                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+                # No GPU memory management needed for CPU model
             else:
                 # 2B model doesn't need quantization
                 print("🔧 Loading InternVL3-2B model...")
@@ -385,9 +380,13 @@ INSTRUCTIONS:
             # Load and preprocess image
             pixel_values = self.load_image(image_path)
             
-            # Both models need to use bfloat16 to match the model's computation dtype
-            # The 4-bit quantization uses bfloat16 for compute
-            pixel_values = pixel_values.to(torch.bfloat16).cuda()
+            # Move to appropriate device and dtype based on model
+            if self.is_8b_model:
+                # 8B model is on CPU with float32
+                pixel_values = pixel_values.to(torch.float32)  # Keep on CPU for 8B
+            else:
+                # 2B model is on GPU with bfloat16
+                pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
@@ -433,12 +432,10 @@ INSTRUCTIONS:
 
             # Memory cleanup after processing
             if self.is_8b_model:
-                # More aggressive cleanup for 8B model
-                del pixel_values  # Free pixel memory immediately
-                torch.cuda.empty_cache()
-                comprehensive_memory_cleanup(self.model, self.tokenizer)
+                # CPU model - just delete variables, no CUDA cleanup needed
+                del pixel_values
             else:
-                # Standard cleanup for 2B model  
+                # GPU model - full CUDA cleanup
                 comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             # Calculate metrics
