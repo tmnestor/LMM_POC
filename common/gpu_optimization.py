@@ -499,9 +499,4 @@ def optimize_model_for_v100(model: Any):
     # Set model to evaluation mode
     model.eval()
 
-    # Enable gradient checkpointing if available (saves memory)
-    if hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
-        print("🚀 Gradient checkpointing enabled for memory efficiency")
-
     print("🚀 V100 optimizations applied")

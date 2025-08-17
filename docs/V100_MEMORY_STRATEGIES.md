@@ -385,10 +385,10 @@ torch.cuda.ipc_collect()
    - Dynamic token adjustment based on available memory
    - Preserves extraction quality while reducing memory footprint
 
-3. **Gradient Checkpointing**
-   - Enabled for 8B model to trade computation for memory
-   - Significant VRAM savings during forward passes
-   - Automatic detection and re-enabling after model reloads
+3. **Memory-Efficient Model Configuration**
+   - V100-optimized model loading with appropriate device mapping
+   - TF32 optimizations for V100 tensor cores
+   - Evaluation mode for inference optimization
 
 4. **V100-Specific Model Configuration**
    - CUDA memory allocation optimization (64MB blocks)
@@ -442,7 +442,7 @@ if self.is_8b_model:
 | Feature | Llama-3.2-Vision-11B | InternVL3-8B (Before) | InternVL3-8B (Current) |
 |---------|----------------------|----------------------|------------------------|
 | ResilientGenerator | ✅ | ❌ | ✅ |
-| Gradient Checkpointing | ✅ | ❌ | ✅ |
+| Memory Configuration | ✅ | ❌ | ✅ |
 | OffloadedCache Fallback | ✅ | ❌ | ✅ |
 | Emergency Model Reload | ✅ | ❌ | ✅ |
 | CPU Fallback | ✅ | ❌ | ✅ |

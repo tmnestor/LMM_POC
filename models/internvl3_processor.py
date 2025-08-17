@@ -184,27 +184,10 @@ class InternVL3Processor:
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
 
-            # Enable gradient checkpointing for 8B model to save memory
+            # Note: Gradient checkpointing removed - only useful for training, not inference
+            
+            # Warm-up run for 8B model to detect memory issues early
             if self.is_8b_model:
-                try:
-                    if hasattr(self.model, "gradient_checkpointing_enable"):
-                        self.model.gradient_checkpointing_enable()
-                        print(
-                            "✅ Gradient checkpointing enabled for InternVL3-8B (memory optimization)"
-                        )
-                    elif hasattr(self.model, "enable_gradient_checkpointing"):
-                        self.model.enable_gradient_checkpointing()
-                        print(
-                            "✅ Gradient checkpointing enabled for InternVL3-8B (memory optimization)"
-                        )
-                    else:
-                        print(
-                            "⚠️ Gradient checkpointing not available for this model version"
-                        )
-                except Exception as e:
-                    print(f"⚠️ Could not enable gradient checkpointing: {e}")
-
-                # Warm-up run for 8B model to detect memory issues early
                 try:
                     print(
                         "🔥 Running warm-up inference for InternVL3-8B memory validation..."
@@ -941,14 +924,7 @@ INSTRUCTIONS:
         # Reapply V100 optimizations
         optimize_model_for_v100(model)
 
-        # Re-enable gradient checkpointing for 8B model
-        if self.is_8b_model:
-            try:
-                if hasattr(model, "gradient_checkpointing_enable"):
-                    model.gradient_checkpointing_enable()
-                    print("✅ Gradient checkpointing re-enabled after reload")
-            except Exception:
-                pass
+        # Note: Gradient checkpointing removed - not needed for inference
 
         print("✅ Emergency model reload completed")
 
