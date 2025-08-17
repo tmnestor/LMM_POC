@@ -57,10 +57,11 @@ def test_internvl3_8b_fixed():
         print("\n🎯 EXTRACTION RESULTS:")
         print(f"   Fields extracted: {non_na_fields}/{total_fields}")
         print(f"   Extraction rate: {non_na_fields / total_fields * 100:.1f}%")
-        print("\n📊 COMPARISON:")
-        print(f"   InternVL3-8B (NOW):  {non_na_fields}/25 fields")
-        print("   InternVL3-8B (BEFORE): 0/25 fields")
-        print("   InternVL3-2B: 17/25 fields (68%)")
+        print("\n📊 EXTRACTION SUMMARY:")
+        print(f"   Total fields requested: {total_fields}")
+        print(f"   Fields with values: {non_na_fields}")
+        print(f"   Fields marked N/A: {total_fields - non_na_fields}")
+        print(f"   Extraction rate: {non_na_fields / total_fields * 100:.1f}%")
 
         # Show raw response to debug
         raw_response = result.get("raw_response", "")
@@ -68,12 +69,12 @@ def test_internvl3_8b_fixed():
         print(f"   {raw_response[:500]}")
         print(f"\n   Total response length: {len(raw_response)} characters")
 
-        # Show sample extracted fields
-        print("\n📋 Sample extracted fields:")
-        sample_fields = list(extracted_data.items())[:5]
-        for field, value in sample_fields:
+        # Show ALL extracted fields
+        print("\n📋 ALL 25 EXTRACTED FIELDS:")
+        for field, value in extracted_data.items():
             display_value = value[:50] + "..." if len(value) > 50 else value
-            print(f"   {field}: {display_value}")
+            status = "✓" if value != "N/A" else "✗"
+            print(f"   {status} {field}: {display_value}")
 
         # Check extraction success
         if non_na_fields > 0:

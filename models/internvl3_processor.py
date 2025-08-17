@@ -69,10 +69,11 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        # Use same simple config for both models to avoid OOM
+        # Now that we have 8-bit quantization working, use appropriate token counts
         if self.is_8b_model:
-            max_tokens = 300  # Reduce tokens even more to save memory
-            print("🎯 InternVL3-8B: Using minimal token config to avoid OOM")
+            # With 8-bit quantization, we can use more tokens safely
+            max_tokens = 800  # Enough for all 25 fields with some buffer
+            print("🎯 InternVL3-8B: Using 800 tokens with 8-bit quantization")
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
 
@@ -230,31 +231,19 @@ class InternVL3Processor:
 
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
-        if self.is_8b_model:
-            # Simpler prompt for 8B model - it might be struggling with complex instructions
-            prompt = """Please extract the following information from this business document:
-
-ABN: [company ABN number or N/A]
-TOTAL: [total amount or N/A]
-DATE: [document date or N/A]
-COMPANY_NAME: [company name or N/A]
-ACCOUNT_HOLDER: [account holder name or N/A]
-
-Extract only what you can clearly see. Use "N/A" if not visible."""
-        else:
-            # Complex prompt for 2B model (works well)
-            prompt = f"""Extract data from this business document. 
+        # Use the same comprehensive prompt for both models now that 8B has proper quantization
+        prompt = f"""Extract data from this business document. 
 Output ALL fields below with their exact keys. 
 Use "N/A" if field is not visible or not present.
 
 OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
-            # Add all fields with centralized field-specific instructions
-            for field in EXTRACTION_FIELDS:
-                instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
-                prompt += f"{field}: {instruction}\n"
+        # Add all fields with centralized field-specific instructions
+        for field in EXTRACTION_FIELDS:
+            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
+            prompt += f"{field}: {instruction}\n"
 
-            prompt += f"""
+        prompt += f"""
 INSTRUCTIONS:
 - Keep field names EXACTLY as shown above
 - Use "N/A" for any missing/unclear information
