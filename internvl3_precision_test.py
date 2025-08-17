@@ -128,10 +128,10 @@ def main():
     test_image = image_files[0]  # Use first image for consistent testing
     print(f"🖼️ Test image: {Path(test_image).name}")
     
-    # Configuration tests to run
+    # Configuration tests to run - focused on memory efficiency for 8B model
     test_configs = [
         {
-            "name": "1_Current_bfloat16_8bit",
+            "name": "1_Current_8bit_Problematic",
             "kwargs": {
                 "torch_dtype": torch.bfloat16,
                 "low_cpu_mem_usage": True,
@@ -140,38 +140,48 @@ def main():
             }
         },
         {
-            "name": "2_No_Quantization_bfloat16", 
+            "name": "2_Device_Map_Auto",
             "kwargs": {
                 "torch_dtype": torch.bfloat16,
+                "device_map": "auto",  # Let transformers handle device placement
                 "low_cpu_mem_usage": True,
                 "use_flash_attn": False,
-                # NO quantization
             }
         },
         {
-            "name": "3_Float16_No_Quantization",
+            "name": "3_CPU_Offload_Sequential",
+            "kwargs": {
+                "torch_dtype": torch.bfloat16,
+                "device_map": "sequential",  # Sequential layer placement
+                "low_cpu_mem_usage": True,
+                "use_flash_attn": False,
+            }
+        },
+        {
+            "name": "4_Float16_8bit_Memory_Optimized",
             "kwargs": {
                 "torch_dtype": torch.float16,
                 "low_cpu_mem_usage": True,
                 "use_flash_attn": False,
-                # NO quantization
+                "load_in_8bit": True,
+                "device_map": "auto",
             }
         },
         {
-            "name": "4_Float32_CPU_Baseline",
+            "name": "5_CPU_Only_Reference",
             "kwargs": {
                 "torch_dtype": torch.float32,
-                "device_map": "cpu",  # CPU baseline for comparison
+                "device_map": "cpu",  # Full CPU for accuracy reference
                 "low_cpu_mem_usage": True,
             }
         },
         {
-            "name": "5_Float32_GPU_Full_Precision",
+            "name": "6_No_Quantization_V100_Test",
             "kwargs": {
-                "torch_dtype": torch.float32,
+                "torch_dtype": torch.bfloat16,
                 "low_cpu_mem_usage": True,
                 "use_flash_attn": False,
-                # Full precision on GPU
+                # NO quantization - test if 8B can fit without quantization
             }
         }
     ]
