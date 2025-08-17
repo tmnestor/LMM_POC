@@ -5,8 +5,8 @@ Verify InternVL3-8B model path and loading.
 This script directly tests if InternVL3-8B can be loaded properly.
 """
 
-import torch
 from pathlib import Path
+
 from common.config import INTERNVL3_MODEL_PATH
 
 
@@ -20,10 +20,10 @@ def verify_model():
     # Check if path exists
     model_path = Path(INTERNVL3_MODEL_PATH)
     if not model_path.exists():
-        print(f"❌ Model path doesn't exist!")
+        print("❌ Model path doesn't exist!")
         return False
     
-    print(f"✅ Model path exists")
+    print("✅ Model path exists")
     
     # Check for essential files
     essential_files = [
@@ -32,7 +32,7 @@ def verify_model():
         "tokenizer_config.json"
     ]
     
-    print(f"\n📋 Checking essential files:")
+    print("\n📋 Checking essential files:")
     for file_name in essential_files:
         file_path = model_path / file_name
         if file_path.exists():
@@ -41,7 +41,7 @@ def verify_model():
             print(f"   ❌ {file_name} missing")
     
     # List model weight files
-    print(f"\n📦 Model weight files:")
+    print("\n📦 Model weight files:")
     safetensors_files = list(model_path.glob("*.safetensors"))
     bin_files = list(model_path.glob("*.bin"))
     
@@ -60,18 +60,18 @@ def verify_model():
             print(f"      ... and {len(bin_files) - 3} more")
     
     if not safetensors_files and not bin_files:
-        print(f"   ❌ No model weight files found!")
+        print("   ❌ No model weight files found!")
         return False
     
     # Try minimal loading test
-    print(f"\n🧪 MINIMAL LOADING TEST:")
+    print("\n🧪 MINIMAL LOADING TEST:")
     try:
         from transformers import AutoConfig
         
         # Just load config first
         print("   📝 Loading config...")
         config = AutoConfig.from_pretrained(INTERNVL3_MODEL_PATH, trust_remote_code=True)
-        print(f"   ✅ Config loaded successfully")
+        print("   ✅ Config loaded successfully")
         print(f"       Model type: {getattr(config, 'model_type', 'unknown')}")
         print(f"       Architecture: {getattr(config, 'architectures', ['unknown'])[0] if hasattr(config, 'architectures') else 'unknown'}")
         
@@ -79,7 +79,7 @@ def verify_model():
         print("   📝 Loading tokenizer...")
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(INTERNVL3_MODEL_PATH, trust_remote_code=True)
-        print(f"   ✅ Tokenizer loaded successfully")
+        print("   ✅ Tokenizer loaded successfully")
         print(f"       Vocab size: {tokenizer.vocab_size}")
         
         return True
@@ -94,14 +94,14 @@ if __name__ == "__main__":
     success = verify_model()
     
     if success:
-        print(f"\n✅ VERIFICATION PASSED")
-        print(f"   InternVL3-8B model appears to be correctly installed")
-        print(f"   The UTF-8 error is likely a loading configuration issue")
-        print(f"\n💡 NEXT STEPS:")
-        print(f"   1. The 44.2% accuracy is likely due to incorrect model loading parameters")
-        print(f"   2. Try different loading configurations (dtype, trust_remote_code, etc.)")
-        print(f"   3. The model files are intact, so this should be fixable")
+        print("\n✅ VERIFICATION PASSED")
+        print("   InternVL3-8B model appears to be correctly installed")
+        print("   The UTF-8 error is likely a loading configuration issue")
+        print("\n💡 NEXT STEPS:")
+        print("   1. The 44.2% accuracy is likely due to incorrect model loading parameters")
+        print("   2. Try different loading configurations (dtype, trust_remote_code, etc.)")
+        print("   3. The model files are intact, so this should be fixable")
     else:
-        print(f"\n❌ VERIFICATION FAILED")
-        print(f"   InternVL3-8B model has installation issues")
-        print(f"   Need to reinstall or verify model integrity")
+        print("\n❌ VERIFICATION FAILED")
+        print("   InternVL3-8B model has installation issues")
+        print("   Need to reinstall or verify model integrity")
