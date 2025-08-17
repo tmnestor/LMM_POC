@@ -126,7 +126,7 @@ class InternVL3Processor:
             print("🎯 InternVL3-2B detected - using standard optimizations")
 
         try:
-            # Configure quantization for 8B model on V100
+            # Base model configuration
             model_kwargs = {
                 "torch_dtype": torch.bfloat16,
                 "low_cpu_mem_usage": True,
@@ -134,27 +134,27 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # Load 8B model on CPU to test if GPU is causing the gibberish issue
+            # Configure 8-bit quantization for 8B model on V100
             if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B on CPU (testing for GPU-specific issues)")
-                print("   This will be slower but may fix generation quality")
-                
-                # Load entirely on CPU for testing
-                model_kwargs["torch_dtype"] = torch.float32  # CPU works better with float32
-                model_kwargs["device_map"] = "cpu"  # Force CPU loading
-                
+                print("🔧 Loading InternVL3-8B with 8-bit quantization for V100")
+                print("   Essential for fitting model in 16GB VRAM")
+
+                # Use InternVL3's official 8-bit loading approach
+                model_kwargs["load_in_8bit"] = True
+                model_kwargs["device_map"] = "auto"  # Let it handle device placement
+
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
                 ).eval()
-                
-                print("✅ Model loaded on CPU - testing if this fixes generation")
-                
-                # No GPU memory management needed for CPU model
+
+                print("✅ InternVL3-8B loaded with 8-bit quantization")
+                print("   Memory footprint reduced by ~50%")
+
             else:
                 # 2B model doesn't need quantization
                 print("🔧 Loading InternVL3-2B model...")
                 model_kwargs["device_map"] = "auto"
-                
+
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
                 ).eval()
@@ -172,11 +172,13 @@ class InternVL3Processor:
             optimize_model_for_v100(self.model)
 
             # Note: Gradient checkpointing removed - only useful for training, not inference
-            
-            # Skip warm-up for 8B model - causes shape mismatch warnings even without quantization
-            # The model appears to have some internal quantized layers
+
+            # Skip warm-up for 8B model with quantization - causes shape mismatch warnings
+            # This is expected behavior with 8-bit quantization
             if self.is_8b_model:
-                print("⚠️ Skipping warm-up test for 8B model (causes shape mismatch warnings)")
+                print(
+                    "⚠️ Skipping warm-up test for quantized 8B model (expected with 8-bit)"
+                )
                 print("   Model will be tested during actual inference")
 
         except Exception as e:
@@ -344,7 +346,7 @@ INSTRUCTIONS:
         # For 8B model, use fewer tiles to reduce memory
         if max_num is None:
             max_num = 6 if self.is_8b_model else 12  # Reduce tiles for 8B model
-        
+
         # Load image if path provided
         if isinstance(image_file, str):
             image = Image.open(image_file).convert("RGB")
@@ -379,14 +381,10 @@ INSTRUCTIONS:
 
             # Load and preprocess image
             pixel_values = self.load_image(image_path)
-            
-            # Move to appropriate device and dtype based on model
-            if self.is_8b_model:
-                # 8B model is on CPU with float32
-                pixel_values = pixel_values.to(torch.float32)  # Keep on CPU for 8B
-            else:
-                # 2B model is on GPU with bfloat16
-                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+
+            # Move to appropriate device and dtype
+            # Both models now use GPU with bfloat16
+            pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
@@ -704,9 +702,7 @@ INSTRUCTIONS:
                             return_history=False,
                         )
                     except torch.cuda.OutOfMemoryError as e:
-                        print(
-                            f"⚠️ InternVL3 batch OOM on {Path(file_path).name}: {e}"
-                        )
+                        print(f"⚠️ InternVL3 batch OOM on {Path(file_path).name}: {e}")
                         print("🔄 Attempting emergency cleanup and retry...")
 
                         # Emergency cleanup (skip normal post-processing cleanup)
@@ -782,7 +778,6 @@ INSTRUCTIONS:
             print(f"   ❌ Batch processing failed: {e}")
             # Fallback to individual processing
             return [self.process_single_image(file) for file in batch_files]
-
 
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
         """Create standardized error result for failed processing."""
