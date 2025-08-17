@@ -151,7 +151,7 @@ class InternVL3Processor:
 
                 # Determine which API to use based on bitsandbytes version
                 use_old_api = False
-                if bnb_version:
+                if bnb_version and bnb_version != "unknown":
                     # Parse version more carefully
                     try:
                         version_parts = bnb_version.split('.')
@@ -159,8 +159,9 @@ class InternVL3Processor:
                         minor = int(version_parts[1]) if len(version_parts) > 1 else 0
                         # Use old API for versions < 0.44.0
                         use_old_api = (major == 0 and minor < 44)
+                        print(f"   Version check: major={major}, minor={minor}, use_old_api={use_old_api}")
                     except (ValueError, IndexError):
-                        print(f"   ⚠️ Could not parse version {bnb_version}, trying new API")
+                        print(f"   ⚠️ Could not parse version {bnb_version}, will try new API")
                         use_old_api = False
 
                 if use_old_api:
@@ -176,9 +177,11 @@ class InternVL3Processor:
                             bnb_8bit_compute_dtype=torch.bfloat16,
                         )
                         model_kwargs["quantization_config"] = quantization_config
-                    except ImportError:
+                        print("   ✅ BitsAndBytesConfig created successfully")
+                    except ImportError as e:
                         # If BitsAndBytesConfig not available, fall back to old API
-                        print("   BitsAndBytesConfig not available, using load_in_8bit")
+                        print(f"   ⚠️ BitsAndBytesConfig import failed: {e}")
+                        print("   Falling back to load_in_8bit (expect deprecation warning)")
                         model_kwargs["load_in_8bit"] = True
 
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
