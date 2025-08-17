@@ -136,25 +136,24 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # Apply 4-bit quantization for 8B model to reduce memory footprint
+            # Apply 8-bit quantization for 8B model to reduce memory footprint
             if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B with 4-bit quantization to reduce memory")
-                print("   This reduces memory from ~16GB to ~6GB")
+                print("🔧 Loading InternVL3-8B with 8-bit quantization to reduce memory")
+                print("   This reduces memory from ~16GB to ~10-12GB")
                 
                 # Pre-allocate and clean memory before loading to reduce fragmentation
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
                 
-                # 4-bit quantization configuration with optimizations
+                # 8-bit quantization configuration optimized to reduce fragmentation
                 quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=False,  # Disable to reduce fragmentation
-                    bnb_4bit_quant_type="nf4",  # Normal Float 4-bit
+                    load_in_8bit=True,
+                    llm_int8_enable_fp32_cpu_offload=False,  # Keep everything on GPU
+                    llm_int8_threshold=6.0,
                 )
                 model_kwargs["quantization_config"] = quantization_config
-                model_kwargs["device_map"] = "sequential"  # Sequential loading reduces fragmentation
-                model_kwargs["max_memory"] = {0: "14GB"}  # Leave 2GB headroom on V100
+                model_kwargs["device_map"] = "auto"  # Auto device mapping
+                model_kwargs["max_memory"] = {0: "15GB"}  # Use most of V100 memory
                 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
