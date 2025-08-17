@@ -371,12 +371,9 @@ INSTRUCTIONS:
             # Load and preprocess image
             pixel_values = self.load_image(image_path)
             
-            # For 8B model, ensure we're using memory-efficient dtype
-            if self.is_8b_model:
-                # Use float16 for 8B model to save memory (bfloat16 uses more memory)
-                pixel_values = pixel_values.to(torch.float16).cuda()
-            else:
-                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+            # Both models need to use bfloat16 to match the model's computation dtype
+            # The 4-bit quantization uses bfloat16 for compute
+            pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
