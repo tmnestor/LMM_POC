@@ -136,27 +136,23 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # NO quantization - use CPU offloading instead to preserve text generation quality
+            # Load 8B model entirely on GPU - it fits in ~12GB which is well within V100's 16GB
             if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B with CPU offloading (NO quantization)")
-                print("   Quantization breaks text generation - using CPU offloading instead")
+                print("🔧 Loading InternVL3-8B entirely on GPU (NO quantization)")
+                print("   Model uses ~12GB, easily fits in V100's 16GB VRAM")
                 
                 # Pre-allocate and clean memory before loading
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
                 
-                # Use CPU offloading to fit model in memory without breaking generation
-                model_kwargs["device_map"] = "auto"
-                model_kwargs["max_memory"] = {
-                    0: "14GB",      # GPU memory limit for V100
-                    "cpu": "32GB"   # CPU offloading for overflow
-                }
+                # Load entirely on GPU for best performance
+                model_kwargs["device_map"] = None  # Don't split across devices
                 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
-                ).eval()
+                ).eval().cuda()
                 
-                print("✅ Model loaded with CPU offloading - preserves generation quality")
+                print("✅ Model loaded entirely on GPU - full speed, no quantization")
                 
                 # Post-load memory consolidation
                 torch.cuda.empty_cache()
