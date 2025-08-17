@@ -179,40 +179,11 @@ class InternVL3Processor:
 
             # Note: Gradient checkpointing removed - only useful for training, not inference
             
-            # Warm-up run for 8B model to detect memory issues early
+            # Skip warm-up for 8B model - causes shape mismatch warnings even without quantization
+            # The model appears to have some internal quantized layers
             if self.is_8b_model:
-                try:
-                    print(
-                        "🔥 Running warm-up inference for InternVL3-8B memory validation..."
-                    )
-                    # Create a small dummy image for warm-up
-                    import numpy as np
-                    from PIL import Image as PILImage
-
-                    dummy_img = PILImage.fromarray(
-                        np.zeros((224, 224, 3), dtype=np.uint8)
-                    )
-                    dummy_pixels = self.load_image(dummy_img, input_size=224, max_num=1)
-                    dummy_pixels = dummy_pixels.to(torch.bfloat16).cuda()
-
-                    # Try a minimal generation
-                    _ = self.model.chat(
-                        self.tokenizer,
-                        dummy_pixels,
-                        "Test",
-                        {"max_new_tokens": 10, "do_sample": False},
-                        history=None,
-                        return_history=False,
-                    )
-                    print("✅ Warm-up successful - memory configuration validated")
-
-                    # Clean up warm-up memory
-                    del dummy_pixels, dummy_img
-                    torch.cuda.empty_cache()
-
-                except Exception as e:
-                    print(f"⚠️ Warm-up generation failed: {e}")
-                    print("⚠️ Model may encounter memory issues during processing")
+                print("⚠️ Skipping warm-up test for 8B model (causes shape mismatch warnings)")
+                print("   Model will be tested during actual inference")
 
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
