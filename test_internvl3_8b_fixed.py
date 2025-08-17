@@ -67,6 +67,12 @@ def test_internvl3_8b_fixed():
         print("   InternVL3-8B (BEFORE): 0/25 fields")
         print("   InternVL3-2B: 17/25 fields (68%)")
         
+        # Show raw response to debug
+        raw_response = result.get("raw_response", "")
+        print("\n📋 Raw model response (first 500 chars):")
+        print(f"   {raw_response[:500]}")
+        print(f"\n   Total response length: {len(raw_response)} characters")
+        
         # Show sample extracted fields
         print("\n📋 Sample extracted fields:")
         sample_fields = list(extracted_data.items())[:5]
