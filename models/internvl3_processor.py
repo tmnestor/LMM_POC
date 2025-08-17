@@ -24,7 +24,6 @@ from common.config import (
     FIELD_INSTRUCTIONS,
     IMAGENET_MEAN,
     IMAGENET_STD,
-    INTERNVL3_GENERATION_CONFIG,
     INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
@@ -70,27 +69,18 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        # For 8B model, use very different generation parameters
+        # Use same simple config for both models to avoid OOM
         if self.is_8b_model:
-            # 8B model may need sampling enabled to generate coherent text
-            max_tokens = 500  # Further reduce tokens
-            print("🎯 InternVL3-8B: Using conservative generation config")
-            
-            # Try enabling sampling for 8B model (different from 2B)
-            self.generation_config = {
-                "max_new_tokens": max_tokens,
-                "do_sample": True,  # Enable sampling for 8B
-                "temperature": 0.1,  # Very low temperature for deterministic output
-                "top_p": 0.95,
-                "repetition_penalty": 1.1,  # Prevent repetition
-            }
+            max_tokens = 300  # Reduce tokens even more to save memory
+            print("🎯 InternVL3-8B: Using minimal token config to avoid OOM")
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
-            # 2B model uses deterministic generation
-            self.generation_config = {
-                "max_new_tokens": max_tokens,
-                "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
-            }
+
+        # Use simple generation config for both models
+        self.generation_config = {
+            "max_new_tokens": max_tokens,
+            "do_sample": False,  # Keep deterministic for both
+        }
 
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
