@@ -176,6 +176,9 @@ def main():
     # Load InternVL3 model with optimal configuration for extraction tasks
     print("\n🚀 Initializing InternVL3 processor...")
     processor = InternVL3Processor(model_path=model_path)
+    
+    # Determine model name based on actual model path
+    model_display_name = "InternVL3-8B" if "8B" in str(model_path) else "InternVL3-2B"
 
     # =============================================================================
     # GROUND TRUTH DATA LOADING
@@ -295,14 +298,14 @@ def main():
                 evaluation_summary,
                 output_dir_path,
                 "internvl3",
-                "InternVL3-2B",
+                model_display_name,
                 batch_statistics,
                 extraction_results,  # extraction_results for classification analysis
                 ground_truth_data,  # ground truth mapping for classification analysis
             )
 
             # Display summary statistics to console for immediate feedback
-            print_evaluation_summary(evaluation_summary, "InternVL3-2B")
+            print_evaluation_summary(evaluation_summary, model_display_name)
 
             # List all generated files for easy access and verification
             print("\n📁 Report files generated:")
