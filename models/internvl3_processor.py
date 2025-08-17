@@ -70,19 +70,27 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        # For 8B model on V100, use more conservative token limits
+        # For 8B model, use very different generation parameters
         if self.is_8b_model:
-            # Reduce tokens to save memory while still allowing extraction
-            max_tokens = 750  # Reduced from 1000 to save memory
-            print("🎯 InternVL3-8B: Using reduced token limits (750 max) to save memory")
+            # 8B model may need sampling enabled to generate coherent text
+            max_tokens = 500  # Further reduce tokens
+            print("🎯 InternVL3-8B: Using conservative generation config")
+            
+            # Try enabling sampling for 8B model (different from 2B)
+            self.generation_config = {
+                "max_new_tokens": max_tokens,
+                "do_sample": True,  # Enable sampling for 8B
+                "temperature": 0.1,  # Very low temperature for deterministic output
+                "top_p": 0.95,
+                "repetition_penalty": 1.1,  # Prevent repetition
+            }
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
-
-        # Use official InternVL3 generation config format (no pad_token_id)
-        self.generation_config = {
-            "max_new_tokens": max_tokens,
-            "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
-        }
+            # 2B model uses deterministic generation
+            self.generation_config = {
+                "max_new_tokens": max_tokens,
+                "do_sample": INTERNVL3_GENERATION_CONFIG["do_sample"],
+            }
 
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
@@ -192,18 +200,31 @@ class InternVL3Processor:
 
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
-        prompt = f"""Extract data from this business document. 
+        if self.is_8b_model:
+            # Simpler prompt for 8B model - it might be struggling with complex instructions
+            prompt = """Please extract the following information from this business document:
+
+ABN: [company ABN number or N/A]
+TOTAL: [total amount or N/A]
+DATE: [document date or N/A]
+COMPANY_NAME: [company name or N/A]
+ACCOUNT_HOLDER: [account holder name or N/A]
+
+Extract only what you can clearly see. Use "N/A" if not visible."""
+        else:
+            # Complex prompt for 2B model (works well)
+            prompt = f"""Extract data from this business document. 
 Output ALL fields below with their exact keys. 
 Use "N/A" if field is not visible or not present.
 
 OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
-        # Add all fields with centralized field-specific instructions
-        for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
-            prompt += f"{field}: {instruction}\n"
+            # Add all fields with centralized field-specific instructions
+            for field in EXTRACTION_FIELDS:
+                instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
+                prompt += f"{field}: {instruction}\n"
 
-        prompt += f"""
+            prompt += f"""
 INSTRUCTIONS:
 - Keep field names EXACTLY as shown above
 - Use "N/A" for any missing/unclear information
