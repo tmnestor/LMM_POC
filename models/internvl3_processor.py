@@ -5,7 +5,6 @@ This module contains all InternVL3-specific code including model loading,
 image preprocessing, and batch processing logic.
 """
 
-import importlib.util
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -150,31 +149,37 @@ class InternVL3Processor:
                     bnb_version = None
                     print("   ⚠️ bitsandbytes not found, will try without quantization")
 
-                # Check if BitsAndBytesConfig is available
-                has_bnb_config = (
-                    importlib.util.find_spec("transformers.BitsAndBytesConfig")
-                    is not None
-                )
+                # Determine which API to use based on bitsandbytes version
+                use_old_api = False
+                if bnb_version:
+                    # Parse version more carefully
+                    try:
+                        version_parts = bnb_version.split('.')
+                        major = int(version_parts[0])
+                        minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+                        # Use old API for versions < 0.44.0
+                        use_old_api = (major == 0 and minor < 44)
+                    except (ValueError, IndexError):
+                        print(f"   ⚠️ Could not parse version {bnb_version}, trying new API")
+                        use_old_api = False
 
-                # For older bitsandbytes (like 0.43.3 on V100), use load_in_8bit directly
-                # For newer versions, we'd get a deprecation warning but it still works
-                if bnb_version and bnb_version.startswith("0.43"):
-                    print("   Using load_in_8bit for bitsandbytes 0.43.x")
+                if use_old_api:
+                    print(f"   Using load_in_8bit for bitsandbytes {bnb_version} (old API)")
                     model_kwargs["load_in_8bit"] = True
-                elif has_bnb_config and bnb_version:
-                    # Newer versions - use BitsAndBytesConfig
-                    print("   Using BitsAndBytesConfig for newer bitsandbytes")
-                    from transformers import BitsAndBytesConfig
-
-                    quantization_config = BitsAndBytesConfig(
-                        load_in_8bit=True,
-                        bnb_8bit_compute_dtype=torch.bfloat16,
-                    )
-                    model_kwargs["quantization_config"] = quantization_config
                 else:
-                    # Fallback - try load_in_8bit (works with deprecation warning)
-                    print("   Using load_in_8bit (may show deprecation warning)")
-                    model_kwargs["load_in_8bit"] = True
+                    # Try to use BitsAndBytesConfig for newer versions
+                    try:
+                        from transformers import BitsAndBytesConfig
+                        print(f"   Using BitsAndBytesConfig for bitsandbytes {bnb_version} (new API)")
+                        quantization_config = BitsAndBytesConfig(
+                            load_in_8bit=True,
+                            bnb_8bit_compute_dtype=torch.bfloat16,
+                        )
+                        model_kwargs["quantization_config"] = quantization_config
+                    except ImportError:
+                        # If BitsAndBytesConfig not available, fall back to old API
+                        print(f"   BitsAndBytesConfig not available, using load_in_8bit")
+                        model_kwargs["load_in_8bit"] = True
 
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
 
