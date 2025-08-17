@@ -178,7 +178,7 @@ class InternVL3Processor:
                         model_kwargs["quantization_config"] = quantization_config
                     except ImportError:
                         # If BitsAndBytesConfig not available, fall back to old API
-                        print(f"   BitsAndBytesConfig not available, using load_in_8bit")
+                        print("   BitsAndBytesConfig not available, using load_in_8bit")
                         model_kwargs["load_in_8bit"] = True
 
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
