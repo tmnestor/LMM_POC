@@ -33,6 +33,7 @@ from common.config import (
 from common.evaluation_utils import parse_extraction_response
 from common.gpu_optimization import (
     ResilientGenerator,
+    clear_model_caches,
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
     get_available_gpu_memory,
@@ -476,8 +477,10 @@ INSTRUCTIONS:
                     print(f"⚠️ InternVL3 OOM: {e}")
                     print("🔄 Attempting emergency cleanup and retry...")
 
-                    # Emergency cleanup
-                    comprehensive_memory_cleanup(self.model, self.tokenizer)
+                    # Emergency cleanup (skip normal post-processing cleanup)
+                    torch.cuda.empty_cache()
+                    clear_model_caches(self.model, self.tokenizer)
+                    handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
 
                     # Retry once
                     try:
@@ -498,14 +501,12 @@ INSTRUCTIONS:
             # Parse response
             extracted_data = parse_extraction_response(response)
 
-            # Enhanced memory cleanup for 8B model
+            # Memory cleanup after processing
             if self.is_8b_model:
-                # More aggressive cleanup for 8B model
+                # More aggressive cleanup for 8B model with fragmentation handling
                 comprehensive_memory_cleanup(self.model, self.tokenizer)
-                # Additional fragmentation handling
-                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
             else:
-                # Standard cleanup for 2B model
+                # Standard cleanup for 2B model  
                 comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             # Calculate metrics
@@ -810,8 +811,10 @@ INSTRUCTIONS:
                             )
                             print("🔄 Attempting emergency cleanup and retry...")
 
-                            # Emergency cleanup
-                            comprehensive_memory_cleanup(self.model, self.tokenizer)
+                            # Emergency cleanup (skip normal post-processing cleanup)
+                            torch.cuda.empty_cache()
+                            clear_model_caches(self.model, self.tokenizer)
+                            handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
 
                             # Retry once
                             try:
