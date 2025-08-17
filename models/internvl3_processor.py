@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModel, AutoTokenizer
 
 from common.config import (
     BATCH_SIZE_FALLBACK_STEPS,
@@ -32,7 +32,6 @@ from common.config import (
 )
 from common.evaluation_utils import parse_extraction_response
 from common.gpu_optimization import (
-    ResilientGenerator,
     clear_model_caches,
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
@@ -60,7 +59,6 @@ class InternVL3Processor:
         self.tokenizer = None
         self.generation_config = None
         self.is_8b_model = "8B" in str(model_path)
-        self.resilient_generator = None  # Will be initialized after model loading
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
@@ -91,17 +89,10 @@ class InternVL3Processor:
             f"do_sample={self.generation_config['do_sample']}"
         )
 
-        # Initialize ResilientGenerator for 8B model
+        # Don't use ResilientGenerator - it breaks the 8B model
+        # Both 2B and 8B should use model.chat() directly as per documentation
         if self.is_8b_model:
-            print(
-                "🚀 Initializing ResilientGenerator for InternVL3-8B V100 optimization"
-            )
-            self.resilient_generator = ResilientGenerator(
-                model=self.model,
-                processor=self.tokenizer,
-                model_path=self.model_path,
-                model_loader=self._reload_model_for_emergency,
-            )
+            print("✅ InternVL3-8B will use direct model.chat() like 2B model")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -145,25 +136,14 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # Disable quantization for 8B model due to shape mismatch issues
-            if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B without quantization (shape mismatch fix)")
-                print("   Note: Higher memory usage but avoids generation errors")
-                
-                # Load without quantization but with memory optimization
-                model_kwargs["device_map"] = "auto"  # Let it handle device placement
-                
-                # Load model normally without quantization
-                self.model = AutoModel.from_pretrained(
-                    self.model_path, **model_kwargs
-                ).eval()
-            else:
-                # Standard loading for 2B model
-                self.model = (
-                    AutoModel.from_pretrained(self.model_path, **model_kwargs)
-                    .eval()
-                    .to(self.device)
-                )
+            # Use the same loading for both models
+            # device_map="auto" handles memory placement better than manual .to(device)
+            model_kwargs["device_map"] = "auto"
+            
+            print(f"🔧 Loading {'InternVL3-8B' if self.is_8b_model else 'InternVL3-2B'} model...")
+            self.model = AutoModel.from_pretrained(
+                self.model_path, **model_kwargs
+            ).eval()
 
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -373,44 +353,27 @@ INSTRUCTIONS:
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
 
-            # Use ResilientGenerator for 8B model, simple generation for 2B
-            if self.is_8b_model and self.resilient_generator:
-                # Validate inputs before passing to ResilientGenerator
-                if pixel_values is None:
-                    raise ValueError("pixel_values is None")
-                if question is None or len(question.strip()) == 0:
-                    raise ValueError("question is None or empty")
-                if self.tokenizer is None:
-                    raise ValueError("tokenizer is None")
+            # Use the same generation logic for both 2B and 8B models
+            # Documentation shows using model.chat() directly for both
+            try:
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    question,
+                    self.generation_config,
+                    history=None,
+                    return_history=False,
+                )
+            except torch.cuda.OutOfMemoryError as e:
+                print(f"⚠️ InternVL3 OOM: {e}")
+                print("🔄 Attempting emergency cleanup and retry...")
 
+                # Emergency cleanup (skip normal post-processing cleanup)
+                torch.cuda.empty_cache()
+                clear_model_caches(self.model, self.tokenizer)
+                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
 
-                # Prepare inputs for ResilientGenerator
-                inputs = {
-                    "tokenizer": self.tokenizer,
-                    "pixel_values": pixel_values,
-                    "question": question,
-                }
-
-                # Generate with resilient fallback strategies
-                try:
-                    response = self.resilient_generator.generate(
-                        inputs, generation_config=self.generation_config
-                    )
-                except Exception as resilient_error:
-                    print(f"⚠️ ResilientGenerator failed: {resilient_error}")
-                    print("🔄 Falling back to direct chat method...")
-
-                    # Fallback to direct chat method
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        question,
-                        self.generation_config,
-                        history=None,
-                        return_history=False,
-                    )
-            else:
-                # Standard generation for 2B model
+                # Retry once
                 try:
                     response = self.model.chat(
                         self.tokenizer,
@@ -420,28 +383,9 @@ INSTRUCTIONS:
                         history=None,
                         return_history=False,
                     )
-                except torch.cuda.OutOfMemoryError as e:
-                    print(f"⚠️ InternVL3 OOM: {e}")
-                    print("🔄 Attempting emergency cleanup and retry...")
-
-                    # Emergency cleanup (skip normal post-processing cleanup)
-                    torch.cuda.empty_cache()
-                    clear_model_caches(self.model, self.tokenizer)
-                    handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
-
-                    # Retry once
-                    try:
-                        response = self.model.chat(
-                            self.tokenizer,
-                            pixel_values,
-                            question,
-                            self.generation_config,
-                            history=None,
-                            return_history=False,
-                        )
-                    except torch.cuda.OutOfMemoryError:
-                        print("❌ InternVL3: Even with cleanup, OOM persists")
-                        raise
+                except torch.cuda.OutOfMemoryError:
+                    print("❌ InternVL3: Even with cleanup, OOM persists")
+                    raise
 
             processing_time = time.time() - start_time
 
@@ -711,38 +655,28 @@ INSTRUCTIONS:
                 zip(pixel_values_list, valid_files, strict=False)
             ):
                 try:
-                    # Use ResilientGenerator for 8B model in batch processing
-                    if self.is_8b_model and self.resilient_generator:
-                        # Prepare inputs for ResilientGenerator
-                        inputs = {
-                            "tokenizer": self.tokenizer,
-                            "pixel_values": pixel_values,
-                            "question": prompt_template,
-                        }
+                    # Use the same generation logic for both 2B and 8B models
+                    try:
+                        response = self.model.chat(
+                            self.tokenizer,
+                            pixel_values,
+                            prompt_template,
+                            self.generation_config,
+                            history=None,
+                            return_history=False,
+                        )
+                    except torch.cuda.OutOfMemoryError as e:
+                        print(
+                            f"⚠️ InternVL3 batch OOM on {Path(file_path).name}: {e}"
+                        )
+                        print("🔄 Attempting emergency cleanup and retry...")
 
-                        # Generate with resilient fallback strategies
-                        try:
-                            # Pass generation_config as dict, not unpacked kwargs
-                            response = self.resilient_generator.generate(
-                                inputs, generation_config=self.generation_config
-                            )
-                        except Exception as resilient_error:
-                            print(
-                                f"⚠️ ResilientGenerator failed for {Path(file_path).name}: {resilient_error}"
-                            )
-                            print("🔄 Falling back to direct chat method...")
+                        # Emergency cleanup (skip normal post-processing cleanup)
+                        torch.cuda.empty_cache()
+                        clear_model_caches(self.model, self.tokenizer)
+                        handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
 
-                            # Fallback to direct chat method
-                            response = self.model.chat(
-                                self.tokenizer,
-                                pixel_values,
-                                prompt_template,
-                                self.generation_config,
-                                history=None,
-                                return_history=False,
-                            )
-                    else:
-                        # Standard generation for 2B model
+                        # Retry once
                         try:
                             response = self.model.chat(
                                 self.tokenizer,
@@ -752,32 +686,11 @@ INSTRUCTIONS:
                                 history=None,
                                 return_history=False,
                             )
-                        except torch.cuda.OutOfMemoryError as e:
+                        except torch.cuda.OutOfMemoryError:
                             print(
-                                f"⚠️ InternVL3 batch OOM on {Path(file_path).name}: {e}"
+                                f"❌ InternVL3: Even with cleanup, OOM persists for {Path(file_path).name}"
                             )
-                            print("🔄 Attempting emergency cleanup and retry...")
-
-                            # Emergency cleanup (skip normal post-processing cleanup)
-                            torch.cuda.empty_cache()
-                            clear_model_caches(self.model, self.tokenizer)
-                            handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
-
-                            # Retry once
-                            try:
-                                response = self.model.chat(
-                                    self.tokenizer,
-                                    pixel_values,
-                                    prompt_template,
-                                    self.generation_config,
-                                    history=None,
-                                    return_history=False,
-                                )
-                            except torch.cuda.OutOfMemoryError:
-                                print(
-                                    f"❌ InternVL3: Even with cleanup, OOM persists for {Path(file_path).name}"
-                                )
-                                raise
+                            raise
 
                     # Parse response
                     extracted_data = parse_extraction_response(response)
@@ -832,76 +745,6 @@ INSTRUCTIONS:
             # Fallback to individual processing
             return [self.process_single_image(file) for file in batch_files]
 
-    def _reload_model_for_emergency(self, model_path: str = None):
-        """
-        Emergency model reload for ResilientGenerator.
-
-        This method is called by ResilientGenerator when severe OOM issues occur
-        and a complete model reload is needed to reset memory state.
-
-        Args:
-            model_path (str): Path to model (uses instance model_path if None)
-
-        Returns:
-            tuple: (model, tokenizer) freshly loaded instances
-        """
-        model_path = model_path or self.model_path
-        print(f"🔄 Emergency reload of InternVL3 from: {model_path}")
-
-        # Use the same loading logic as initialization
-        model_kwargs = {
-            "torch_dtype": torch.bfloat16,
-            "low_cpu_mem_usage": True,
-            "use_flash_attn": False,
-            "trust_remote_code": True,
-        }
-
-        # Reapply quantization for 8B model
-        if self.is_8b_model:
-            print("🔧 Reapplying 8-bit quantization for InternVL3-8B")
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                llm_int8_enable_fp32_cpu_offload=True,
-                llm_int8_skip_modules=["vision_model", "vision_encoder"],
-                llm_int8_threshold=6.0,
-            )
-            model_kwargs["quantization_config"] = quantization_config
-            model_kwargs["device_map"] = "auto"
-
-            # Load quantized model
-            model = AutoModel.from_pretrained(model_path, **model_kwargs).eval()
-        else:
-            # Standard loading for 2B model
-            model = (
-                AutoModel.from_pretrained(model_path, **model_kwargs)
-                .eval()
-                .to(self.device)
-            )
-
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-            use_fast=False,
-        )
-
-        # Reapply V100 optimizations
-        optimize_model_for_v100(model)
-
-        # Note: Gradient checkpointing removed - not needed for inference
-
-        print("✅ Emergency model reload completed")
-
-        # Update our instance references to the new model and tokenizer
-        self.model = model
-        self.tokenizer = tokenizer
-
-        # Update the ResilientGenerator's references as well
-        if self.resilient_generator:
-            self.resilient_generator.model = model
-            self.resilient_generator.processor = tokenizer
-
-        return model, tokenizer
 
     def _create_error_result(self, file_path: str, error_message: str) -> dict:
         """Create standardized error result for failed processing."""
