@@ -141,19 +141,28 @@ class InternVL3Processor:
                 print("🔧 Loading InternVL3-8B with 4-bit quantization to reduce memory")
                 print("   This reduces memory from ~16GB to ~6GB")
                 
-                # 4-bit quantization configuration
+                # Pre-allocate and clean memory before loading to reduce fragmentation
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+                # 4-bit quantization configuration with optimizations
                 quantization_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=True,  # Further compression
+                    bnb_4bit_use_double_quant=False,  # Disable to reduce fragmentation
                     bnb_4bit_quant_type="nf4",  # Normal Float 4-bit
                 )
                 model_kwargs["quantization_config"] = quantization_config
-                model_kwargs["device_map"] = "auto"
+                model_kwargs["device_map"] = "sequential"  # Sequential loading reduces fragmentation
+                model_kwargs["max_memory"] = {0: "14GB"}  # Leave 2GB headroom on V100
                 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
                 ).eval()
+                
+                # Post-load memory consolidation
+                torch.cuda.empty_cache()
+                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
             else:
                 # 2B model doesn't need quantization
                 print("🔧 Loading InternVL3-2B model...")
