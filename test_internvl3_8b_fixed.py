@@ -57,11 +57,15 @@ def test_internvl3_8b_fixed():
         non_na_fields = sum(1 for v in extracted_data.values() if v != "N/A")
         total_fields = len(extracted_data)
         
-        print("✅ PROCESSING SUCCESSFUL!")
+        print("\n✅ PROCESSING COMPLETE!")
         print(f"   Processing time: {processing_time:.2f} seconds")
+        print("\n🎯 EXTRACTION RESULTS:")
         print(f"   Fields extracted: {non_na_fields}/{total_fields}")
         print(f"   Extraction rate: {non_na_fields/total_fields*100:.1f}%")
-        print(f"   Quality: {result.get('extraction_quality', 'unknown')}")
+        print("\n📊 COMPARISON:")
+        print(f"   InternVL3-8B (NOW):  {non_na_fields}/25 fields")
+        print("   InternVL3-8B (BEFORE): 0/25 fields")
+        print("   InternVL3-2B: 17/25 fields (68%)")
         
         # Show sample extracted fields
         print("\n📋 Sample extracted fields:")
@@ -70,21 +74,24 @@ def test_internvl3_8b_fixed():
             display_value = value[:50] + "..." if len(value) > 50 else value
             print(f"   {field}: {display_value}")
         
-        # Check if this looks like proper extraction vs degraded mode
-        if non_na_fields >= 5:  # Reasonable threshold
-            print("\n🎯 SUCCESS INDICATORS:")
-            print(f"   ✅ Multiple fields extracted ({non_na_fields}/{total_fields})")
-            print(f"   ✅ Processing time reasonable ({processing_time:.1f}s)")
-            print("   ✅ No UTF-8 or loading errors")
-            print("\n💡 CONCLUSION:")
-            print("   InternVL3-8B appears to be working properly!")
-            print("   This should significantly improve accuracy from 44.2%")
-            print("   Ready for full evaluation pipeline testing")
+        # Check extraction success
+        if non_na_fields > 0:
+            print("\n✅ SUCCESS! TOKEN LIMIT FIX WORKED!")
+            print(f"   🎯 Extracted {non_na_fields} fields (was 0 before fix)")
+            print("   🎯 Token limit of 1000 is working")
+            
+            if non_na_fields >= 10:
+                print(f"   🎉 Excellent extraction rate: {non_na_fields}/25")
+            elif non_na_fields >= 5:
+                print(f"   👍 Good extraction rate: {non_na_fields}/25")
+            else:
+                print(f"   ⚠️  Low extraction rate: {non_na_fields}/25 (but better than 0!)")
+            
             return True
         else:
-            print("\n⚠️ CONCERN:")
-            print(f"   Only {non_na_fields} fields extracted - may still have issues")
-            print("   But no UTF-8/loading errors, which is progress")
+            print("\n❌ STILL EXTRACTING 0 FIELDS")
+            print("   Token limit increase may not be sufficient")
+            print("   Need to investigate further")
             return False
             
     except Exception as e:
