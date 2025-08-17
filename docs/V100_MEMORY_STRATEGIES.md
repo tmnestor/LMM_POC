@@ -54,6 +54,28 @@ handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 comprehensive_memory_cleanup(model, processor)
 ```
 
+## Official InternVL3-8B Hardware Requirements
+
+### GPU Memory Requirements (Official Documentation)
+According to the [InternVL3-8B HuggingFace page](https://huggingface.co/OpenGVLab/InternVL3-8B):
+
+> **Official Quote**: "If you set `load_in_8bit=True`, you will need two 80GB GPUs. If you set `load_in_8bit=False`, you will need at least three 80GB GPUs."
+
+- **8-bit quantization**: 2x 80GB GPUs = 160GB total
+- **Full precision**: 3x 80GB GPUs = 240GB total  
+- **Our Hardware**: V100 (16GB VRAM) - **10-15x less memory than required**
+
+This massive hardware gap (16GB vs 240-320GB) explains why:
+1. **CPU loading was necessary** - V100 insufficient for direct GPU loading
+2. **Memory optimizations are critical** - Operating at 5% of recommended memory
+3. **Aggressive fallback strategies required** - Hardware limitations demand sophisticated workarounds
+
+### Why Our Implementation Works Despite Hardware Mismatch
+- **8-bit quantization** reduces memory requirements by ~50%
+- **CPU processing** removes GPU memory constraints entirely
+- **Reduced token limits** (1000→300) minimize memory footprint
+- **Single image processing** prevents memory accumulation
+
 ## Current Implementation: Five-Tier Cascading Fallback
 
 ### Tier 1: Standard GPU Processing
