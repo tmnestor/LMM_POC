@@ -5,6 +5,7 @@ This module contains all InternVL3-specific code including model loading,
 image preprocessing, and batch processing logic.
 """
 
+import importlib.util
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -139,8 +140,42 @@ class InternVL3Processor:
                 print("🔧 Loading InternVL3-8B with 8-bit quantization for V100")
                 print("   Essential for fitting model in 16GB VRAM")
 
-                # Use InternVL3's official 8-bit loading approach
-                model_kwargs["load_in_8bit"] = True
+                # Check bitsandbytes version and use appropriate API
+                try:
+                    import bitsandbytes as bnb
+
+                    bnb_version = getattr(bnb, "__version__", "unknown")
+                    print(f"   bitsandbytes version: {bnb_version}")
+                except ImportError:
+                    bnb_version = None
+                    print("   ⚠️ bitsandbytes not found, will try without quantization")
+
+                # Check if BitsAndBytesConfig is available
+                has_bnb_config = (
+                    importlib.util.find_spec("transformers.BitsAndBytesConfig")
+                    is not None
+                )
+
+                # For older bitsandbytes (like 0.43.3 on V100), use load_in_8bit directly
+                # For newer versions, we'd get a deprecation warning but it still works
+                if bnb_version and bnb_version.startswith("0.43"):
+                    print("   Using load_in_8bit for bitsandbytes 0.43.x")
+                    model_kwargs["load_in_8bit"] = True
+                elif has_bnb_config and bnb_version:
+                    # Newer versions - use BitsAndBytesConfig
+                    print("   Using BitsAndBytesConfig for newer bitsandbytes")
+                    from transformers import BitsAndBytesConfig
+
+                    quantization_config = BitsAndBytesConfig(
+                        load_in_8bit=True,
+                        bnb_8bit_compute_dtype=torch.bfloat16,
+                    )
+                    model_kwargs["quantization_config"] = quantization_config
+                else:
+                    # Fallback - try load_in_8bit (works with deprecation warning)
+                    print("   Using load_in_8bit (may show deprecation warning)")
+                    model_kwargs["load_in_8bit"] = True
+
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
 
                 self.model = AutoModel.from_pretrained(
