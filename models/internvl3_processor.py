@@ -154,8 +154,11 @@ class InternVL3Processor:
                     llm_int8_skip_modules=[
                         "vision_model",
                         "vision_encoder",
-                    ],  # Skip vision components
+                        "img_projection",  # Skip image projection layers
+                        "mlp1",  # Skip MLP layers that may have shape issues
+                    ],  # Skip vision components and problematic layers
                     llm_int8_threshold=6.0,
+                    bnb_4bit_compute_dtype=torch.bfloat16,  # Ensure consistent dtype
                 )
                 model_kwargs["quantization_config"] = quantization_config
                 model_kwargs["device_map"] = "auto"  # Let it handle device placement
