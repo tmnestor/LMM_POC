@@ -1,7 +1,7 @@
 # V100 Memory Management Strategies - COMPREHENSIVE UPDATE
 
-**Last Updated**: 2025-01-15  
-**Status**: Unified GPU optimization module with KV cache management and five-tier cascading fallback system
+**Last Updated**: 2025-01-17  
+**Status**: Production-ready unified optimization system with ResilientGenerator for both Llama-3.2-Vision-11B and InternVL3-8B
 
 ## Executive Summary
 
@@ -19,6 +19,8 @@ Through extensive testing and research, we've discovered that V100 CUDA memory i
 7. **CPU fallback works** - Fresh CPU model loading succeeds when all GPU strategies fail
 8. **KV cache grows significantly** during generation - needs aggressive clearing after each document
 9. **Common module unifies optimizations** - Both Llama and InternVL3 now use same strategies
+10. **InternVL3-8B optimized** - Successfully ported V100 optimizations with method path fix
+11. **Critical path selection issue resolved** - InternVL3 now properly uses chat() instead of generate()
 
 ### ⚠️ **Root Cause**: CUDA Memory Fragmentation
 Based on research from [worldversant.com](https://worldversant.com/the-silent-bottleneck-handling-gpu-memory-fragmentation-in-deep-learning-workloads), the issue is **memory pool fragmentation** where:
@@ -34,7 +36,8 @@ A comprehensive GPU memory management module that provides:
 - **Memory fragmentation detection and handling**
 - **Model cache clearing utilities** for KV cache management
 - **ResilientGenerator class** with multi-tier OOM fallback strategies
-- **V100-specific optimizations** applied to both models
+- **V100-specific optimizations** applied to both Llama-3.2-Vision-11B and InternVL3-8B
+- **Critical path selection fix** for InternVL3's dual generate()/chat() methods
 
 ### Key Components
 ```python
@@ -361,8 +364,94 @@ torch.cuda.ipc_collect()
 
 ## Model-Specific Optimizations
 
-### InternVL3 Enhancements
-InternVL3 now includes all V100 optimizations:
+### InternVL3-8B V100 Optimizations
+
+#### Technical Improvements Implemented
+- **Memory Management**: ResilientGenerator with multi-tier OOM fallback strategies
+- **Generation Configuration**: Reduced max_new_tokens from 1000 → 600 to match proven V100 limits
+- **Memory Stability**: Automatic OOM recovery with fallback strategies
+- **Batch Processing**: Forced batch_size=1 with comprehensive cleanup between images
+
+#### Key Optimizations Implemented
+1. **Advanced Memory Management with ResilientGenerator**
+   - Multiple fallback strategies for OOM scenarios
+   - Emergency model reload capabilities
+   - CPU-only processing as ultimate safety net
+   - Automatic recovery without losing progress
+
+2. **Memory-Efficient Generation Configuration**
+   - Reduced max_new_tokens from 1000 → 600 (40% reduction)
+   - Matches Llama's proven V100 configuration
+   - Dynamic token adjustment based on available memory
+   - Preserves extraction quality while reducing memory footprint
+
+3. **Gradient Checkpointing**
+   - Enabled for 8B model to trade computation for memory
+   - Significant VRAM savings during forward passes
+   - Automatic detection and re-enabling after model reloads
+
+4. **V100-Specific Model Configuration**
+   - CUDA memory allocation optimization (64MB blocks)
+   - Memory fragmentation detection with 0.5GB threshold
+   - Model warm-up validation to detect issues early
+   - TF32 matmul optimizations for V100 tensor cores
+
+5. **Critical Path Selection Fix**
+   - **Root Cause**: InternVL3 has both generate() and chat() methods with different input formats
+   - **Solution**: Modified ResilientGenerator to force chat() path when "tokenizer" is present
+   - **Impact**: Eliminated "embedding(): argument 'indices' must be Tensor, not NoneType" errors
+
+#### Implementation Details
+
+**ResilientGenerator Integration**:
+```python
+# Initialize ResilientGenerator for 8B model
+if self.is_8b_model:
+    self.resilient_generator = ResilientGenerator(
+        model=self.model,
+        processor=self.tokenizer,
+        model_path=self.model_path,
+        model_loader=self._reload_model_for_emergency
+    )
+```
+
+**Memory-Aware Generation**:
+```python
+# Use ResilientGenerator for 8B model
+if self.is_8b_model and self.resilient_generator:
+    inputs = {
+        "tokenizer": self.tokenizer,
+        "pixel_values": pixel_values,
+        "question": question,
+    }
+    response = self.resilient_generator.generate(
+        inputs, **self.generation_config
+    )
+```
+
+**Enhanced Cleanup Strategy**:
+```python
+# Enhanced cleanup for 8B model
+if self.is_8b_model:
+    comprehensive_memory_cleanup(self.model, self.tokenizer)
+    handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+```
+
+#### Implementation Comparison
+
+| Feature | Llama-3.2-Vision-11B | InternVL3-8B (Before) | InternVL3-8B (Current) |
+|---------|----------------------|----------------------|------------------------|
+| ResilientGenerator | ✅ | ❌ | ✅ |
+| Gradient Checkpointing | ✅ | ❌ | ✅ |
+| OffloadedCache Fallback | ✅ | ❌ | ✅ |
+| Emergency Model Reload | ✅ | ❌ | ✅ |
+| CPU Fallback | ✅ | ❌ | ✅ |
+| Memory Fragmentation Handling | ✅ | ❌ | ✅ |
+| V100-Specific Config | ✅ | ❌ | ✅ |
+| Max Tokens | 600 | 1000 | 600 |
+| Method Path Fix | N/A | generate() error | chat() forced |
+
+InternVL3 also maintains its unique advantages:
 - **CUDA memory configuration** at initialization
 - **Memory fragmentation detection** before processing
 - **Resilient generation** with OOM fallback strategies
@@ -394,11 +483,13 @@ These agents provide focused expertise without requiring extensive context each 
 - **`~/.claude/agents/`**: Created specialized AI agents
 
 ### Success Criteria ✅
-- ✅ Process 20 images without total failure
+- ✅ Process 20 images without total failure (both models)
 - ✅ Maintain extraction quality through fallback tiers  
 - ✅ Provide detailed memory diagnostics
 - ✅ Automatic recovery from V100 limitations
 - ✅ Zero-intervention operation (fully automated)
+- ✅ InternVL3-8B optimized to match Llama performance levels
+- ✅ Critical path selection issue resolved for InternVL3
 
 ## Conclusion
 
@@ -433,4 +524,24 @@ This solution demonstrates that **V100 hardware can successfully run modern visi
 - **Quality**: Full extraction quality preserved despite memory challenges
 - **Reliability**: Complete success through adaptive memory management strategies
 
-This solution represents a **practical approach** for maximizing V100 utilization in modern deep learning workloads, demonstrating that with sophisticated memory management, legacy hardware can successfully handle challenging workloads. 🔧
+This solution represents a **practical approach** for maximizing V100 utilization in modern deep learning workloads, demonstrating that with sophisticated memory management, legacy hardware can successfully handle challenging workloads.
+
+### InternVL3-8B Current Implementation Status
+
+The InternVL3-8B model now includes V100 optimizations:
+- **Memory Management**: Comprehensive OOM handling with multiple fallback strategies
+- **Method Selection**: Fixed path selection to use chat() instead of generate()
+- **Resource Configuration**: V100-optimized token limits and batch processing
+- **Error Recovery**: Automatic fallback progression with continued processing
+
+**Current Implementation**:
+- Optimizations automatically applied when using InternVL3-8B model path
+- Key indicators: "Gradient checkpointing enabled", "V100-optimized token limits", "Forcing batch_size=1"
+- Automatic fallback progression: OffloadedCache → Emergency reload → CPU processing
+- Critical fix: ResilientGenerator forces chat() method to prevent embedding errors
+
+**Technical Rationale**:
+- Token reduction (1000→600) matches proven Llama V100 configuration
+- Forced batch_size=1 prevents memory accumulation across images
+- Method path fix resolves InternVL3's dual generate()/chat() interface confusion
+- Gradient checkpointing trades computation for memory on memory-constrained hardware 🔧
