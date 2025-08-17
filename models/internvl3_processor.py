@@ -74,9 +74,9 @@ class InternVL3Processor:
         # Setup generation config from centralized configuration
         # For 8B model on V100, use more conservative token limits
         if self.is_8b_model:
-            # Use Llama-like conservative settings for 8B model on V100
-            max_tokens = 600  # Reduced from 1000 for memory efficiency
-            print("🎯 InternVL3-8B: Using V100-optimized token limits (600 max)")
+            # Balanced setting for extraction completeness while managing memory
+            max_tokens = 1000  # Minimum viable for 25 fields extraction
+            print("🎯 InternVL3-8B: Using balanced token limits (1000 max)")
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
 

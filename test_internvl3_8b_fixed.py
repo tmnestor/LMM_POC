@@ -36,6 +36,12 @@ def test_internvl3_8b_fixed():
         
         print("✅ Processor initialized successfully!")
         print(f"   Is 8B model: {processor.is_8b_model}")
+        print(f"   Max new tokens: {processor.generation_config['max_new_tokens']}")
+        
+        # Verify token limit is correct
+        assert processor.generation_config['max_new_tokens'] == 1000, \
+            f"Expected 1000 tokens for 8B model, got {processor.generation_config['max_new_tokens']}"
+        print("   ✅ Token limit verified: 1000 (sufficient for 25 fields)")
         
         # Test single image processing
         print("\n🧪 Testing single image processing...")
