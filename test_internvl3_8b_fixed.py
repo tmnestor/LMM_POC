@@ -35,7 +35,6 @@ def test_internvl3_8b_fixed():
         processor = InternVL3Processor(model_path=INTERNVL3_MODEL_PATH)
         
         print("✅ Processor initialized successfully!")
-        print(f"   Model type: {processor.model_type}")
         print(f"   Is 8B model: {processor.is_8b_model}")
         
         # Test single image processing
