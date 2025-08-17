@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 from common.config import (
     BATCH_SIZE_FALLBACK_STEPS,
@@ -72,9 +72,9 @@ class InternVL3Processor:
         # Setup generation config from centralized configuration
         # For 8B model on V100, use more conservative token limits
         if self.is_8b_model:
-            # Balanced setting for extraction completeness while managing memory
-            max_tokens = 1000  # Minimum viable for 25 fields extraction
-            print("🎯 InternVL3-8B: Using balanced token limits (1000 max)")
+            # Reduce tokens to save memory while still allowing extraction
+            max_tokens = 750  # Reduced from 1000 to save memory
+            print("🎯 InternVL3-8B: Using reduced token limits (750 max) to save memory")
         else:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
 
@@ -136,14 +136,32 @@ class InternVL3Processor:
                 "trust_remote_code": True,
             }
 
-            # Use the same loading for both models
-            # device_map="auto" handles memory placement better than manual .to(device)
-            model_kwargs["device_map"] = "auto"
-            
-            print(f"🔧 Loading {'InternVL3-8B' if self.is_8b_model else 'InternVL3-2B'} model...")
-            self.model = AutoModel.from_pretrained(
-                self.model_path, **model_kwargs
-            ).eval()
+            # Apply 4-bit quantization for 8B model to reduce memory footprint
+            if self.is_8b_model:
+                print("🔧 Loading InternVL3-8B with 4-bit quantization to reduce memory")
+                print("   This reduces memory from ~16GB to ~6GB")
+                
+                # 4-bit quantization configuration
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,  # Further compression
+                    bnb_4bit_quant_type="nf4",  # Normal Float 4-bit
+                )
+                model_kwargs["quantization_config"] = quantization_config
+                model_kwargs["device_map"] = "auto"
+                
+                self.model = AutoModel.from_pretrained(
+                    self.model_path, **model_kwargs
+                ).eval()
+            else:
+                # 2B model doesn't need quantization
+                print("🔧 Loading InternVL3-2B model...")
+                model_kwargs["device_map"] = "auto"
+                
+                self.model = AutoModel.from_pretrained(
+                    self.model_path, **model_kwargs
+                ).eval()
 
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -302,7 +320,7 @@ INSTRUCTIONS:
 
         return processed_images
 
-    def load_image(self, image_file, input_size=DEFAULT_IMAGE_SIZE, max_num=12):
+    def load_image(self, image_file, input_size=DEFAULT_IMAGE_SIZE, max_num=None):
         """
         Complete InternVL3 image loading and preprocessing pipeline.
 
@@ -314,6 +332,10 @@ INSTRUCTIONS:
         Returns:
             torch.Tensor: Preprocessed image tensor
         """
+        # For 8B model, use fewer tiles to reduce memory
+        if max_num is None:
+            max_num = 6 if self.is_8b_model else 12  # Reduce tiles for 8B model
+        
         # Load image if path provided
         if isinstance(image_file, str):
             image = Image.open(image_file).convert("RGB")
@@ -348,7 +370,13 @@ INSTRUCTIONS:
 
             # Load and preprocess image
             pixel_values = self.load_image(image_path)
-            pixel_values = pixel_values.to(torch.bfloat16).cuda()
+            
+            # For 8B model, ensure we're using memory-efficient dtype
+            if self.is_8b_model:
+                # Use float16 for 8B model to save memory (bfloat16 uses more memory)
+                pixel_values = pixel_values.to(torch.float16).cuda()
+            else:
+                pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
             # Prepare conversation
             question = f"<image>\n{self.get_extraction_prompt()}"
@@ -394,7 +422,9 @@ INSTRUCTIONS:
 
             # Memory cleanup after processing
             if self.is_8b_model:
-                # More aggressive cleanup for 8B model with fragmentation handling
+                # More aggressive cleanup for 8B model
+                del pixel_values  # Free pixel memory immediately
+                torch.cuda.empty_cache()
                 comprehensive_memory_cleanup(self.model, self.tokenizer)
             else:
                 # Standard cleanup for 2B model  
