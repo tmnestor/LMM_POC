@@ -8,7 +8,8 @@ the InternVL3Processor to confirm 44.2% accuracy issue is resolved.
 
 from datetime import datetime
 from pathlib import Path
-from common.config import INTERNVL3_MODEL_PATH, DATA_DIR
+
+from common.config import DATA_DIR, INTERNVL3_MODEL_PATH
 from common.evaluation_utils import discover_images
 from models.internvl3_processor import InternVL3Processor
 
@@ -38,7 +39,7 @@ def test_internvl3_8b_fixed():
         print(f"   Is 8B model: {processor.is_8b_model}")
         
         # Test single image processing
-        print(f"\n🧪 Testing single image processing...")
+        print("\n🧪 Testing single image processing...")
         start_time = datetime.now()
         
         result = processor.process_single_image(test_image)
@@ -51,14 +52,14 @@ def test_internvl3_8b_fixed():
         non_na_fields = sum(1 for v in extracted_data.values() if v != "N/A")
         total_fields = len(extracted_data)
         
-        print(f"✅ PROCESSING SUCCESSFUL!")
+        print("✅ PROCESSING SUCCESSFUL!")
         print(f"   Processing time: {processing_time:.2f} seconds")
         print(f"   Fields extracted: {non_na_fields}/{total_fields}")
         print(f"   Extraction rate: {non_na_fields/total_fields*100:.1f}%")
         print(f"   Quality: {result.get('extraction_quality', 'unknown')}")
         
         # Show sample extracted fields
-        print(f"\n📋 Sample extracted fields:")
+        print("\n📋 Sample extracted fields:")
         sample_fields = list(extracted_data.items())[:5]
         for field, value in sample_fields:
             display_value = value[:50] + "..." if len(value) > 50 else value
@@ -66,19 +67,19 @@ def test_internvl3_8b_fixed():
         
         # Check if this looks like proper extraction vs degraded mode
         if non_na_fields >= 5:  # Reasonable threshold
-            print(f"\n🎯 SUCCESS INDICATORS:")
+            print("\n🎯 SUCCESS INDICATORS:")
             print(f"   ✅ Multiple fields extracted ({non_na_fields}/{total_fields})")
             print(f"   ✅ Processing time reasonable ({processing_time:.1f}s)")
-            print(f"   ✅ No UTF-8 or loading errors")
-            print(f"\n💡 CONCLUSION:")
-            print(f"   InternVL3-8B appears to be working properly!")
-            print(f"   This should significantly improve accuracy from 44.2%")
-            print(f"   Ready for full evaluation pipeline testing")
+            print("   ✅ No UTF-8 or loading errors")
+            print("\n💡 CONCLUSION:")
+            print("   InternVL3-8B appears to be working properly!")
+            print("   This should significantly improve accuracy from 44.2%")
+            print("   Ready for full evaluation pipeline testing")
             return True
         else:
-            print(f"\n⚠️ CONCERN:")
+            print("\n⚠️ CONCERN:")
             print(f"   Only {non_na_fields} fields extracted - may still have issues")
-            print(f"   But no UTF-8/loading errors, which is progress")
+            print("   But no UTF-8/loading errors, which is progress")
             return False
             
     except Exception as e:
@@ -91,7 +92,7 @@ def test_internvl3_8b_fixed():
 
 def test_quick_batch():
     """Test a small batch to verify sustained performance."""
-    print(f"\n🔬 TESTING SMALL BATCH PROCESSING")
+    print("\n🔬 TESTING SMALL BATCH PROCESSING")
     print("=" * 40)
     
     try:
@@ -113,7 +114,7 @@ def test_quick_batch():
         
         total_time = (end_time - start_time).total_seconds()
         
-        print(f"✅ BATCH PROCESSING SUCCESSFUL!")
+        print("✅ BATCH PROCESSING SUCCESSFUL!")
         print(f"   Total time: {total_time:.2f} seconds")
         print(f"   Average per image: {total_time/len(test_batch):.2f} seconds")
         print(f"   Success rate: {batch_stats.get('success_rate', 0)*100:.1f}%")
@@ -131,13 +132,13 @@ def test_quick_batch():
         print(f"   Batch extraction rate: {batch_extraction_rate:.1f}%")
         
         if batch_extraction_rate >= 30:  # Reasonable threshold for working model
-            print(f"\n🎯 BATCH SUCCESS!")
-            print(f"   Consistent extraction across multiple images")
-            print(f"   Ready for full evaluation pipeline")
+            print("\n🎯 BATCH SUCCESS!")
+            print("   Consistent extraction across multiple images")
+            print("   Ready for full evaluation pipeline")
             return True
         else:
-            print(f"\n⚠️ BATCH CONCERNS:")
-            print(f"   Low extraction rate may indicate remaining issues")
+            print("\n⚠️ BATCH CONCERNS:")
+            print("   Low extraction rate may indicate remaining issues")
             return False
             
     except Exception as e:
@@ -157,18 +158,18 @@ if __name__ == "__main__":
         batch_success = test_quick_batch()
         
         if batch_success:
-            print(f"\n🎉 ALL TESTS PASSED!")
-            print(f"   ✅ Single image processing works")
-            print(f"   ✅ Batch processing works")
-            print(f"   ✅ No UTF-8 or tokenizer errors")
-            print(f"\n📝 NEXT STEPS:")
-            print(f"   1. Run full evaluation: python internvl3_keyvalue.py")
-            print(f"   2. Compare accuracy to 44.2% baseline")
-            print(f"   3. Expected significant improvement")
+            print("\n🎉 ALL TESTS PASSED!")
+            print("   ✅ Single image processing works")
+            print("   ✅ Batch processing works")
+            print("   ✅ No UTF-8 or tokenizer errors")
+            print("\n📝 NEXT STEPS:")
+            print("   1. Run full evaluation: python internvl3_keyvalue.py")
+            print("   2. Compare accuracy to 44.2% baseline")
+            print("   3. Expected significant improvement")
         else:
-            print(f"\n⚠️ PARTIAL SUCCESS")
-            print(f"   Single image works but batch has issues")
-            print(f"   May need additional optimization")
+            print("\n⚠️ PARTIAL SUCCESS")
+            print("   Single image works but batch has issues")
+            print("   May need additional optimization")
     else:
-        print(f"\n❌ CONFIGURATION ISSUES REMAIN")
-        print(f"   Need to debug further or try alternative approaches")
+        print("\n❌ CONFIGURATION ISSUES REMAIN")
+        print("   Need to debug further or try alternative approaches")
