@@ -94,6 +94,25 @@ Centralized configuration in `common/config.py`:
 
 ## 🚀 Quick Start
 
+### Quick Usage Examples
+
+```bash
+# Run InternVL3 key-value extraction evaluation
+python internvl3_keyvalue.py
+# Outputs: CSV results, evaluation metrics, executive summary
+
+# Run Llama key-value extraction evaluation  
+python llama_keyvalue.py
+# Outputs: CSV results, evaluation metrics, executive summary
+
+# Both scripts will:
+# 1. Load model with GPU optimizations
+# 2. Process all images in evaluation_data/
+# 3. Extract 25 key-value fields per document
+# 4. Compare against ground truth
+# 5. Generate timestamped reports in output/
+```
+
 ### Prerequisites
 - **Python 3.11+**
 - **CUDA-compatible GPU recommended** (any modern GPU supported)
