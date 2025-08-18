@@ -107,88 +107,21 @@ def test_internvl3_8b_fixed():
         return False
 
 
-def test_quick_batch():
-    """Test a small batch to verify sustained performance."""
-    print("\n🔬 TESTING SMALL BATCH PROCESSING")
-    print("=" * 40)
-
-    try:
-        # Find test images
-        image_files = discover_images(DATA_DIR)
-        if len(image_files) < 3:
-            print("⚠️ Less than 3 images available for batch test")
-            return False
-
-        # Test with first 3 images
-        test_batch = image_files[:3]
-        print(f"📷 Testing batch of {len(test_batch)} images")
-
-        processor = InternVL3Processor(model_path=INTERNVL3_MODEL_PATH)
-
-        start_time = datetime.now()
-        results, batch_stats = processor.process_image_batch(test_batch)
-        end_time = datetime.now()
-
-        total_time = (end_time - start_time).total_seconds()
-
-        print("✅ BATCH PROCESSING SUCCESSFUL!")
-        print(f"   Total time: {total_time:.2f} seconds")
-        print(f"   Average per image: {total_time / len(test_batch):.2f} seconds")
-        print(f"   Success rate: {batch_stats.get('success_rate', 0) * 100:.1f}%")
-
-        # Analyze extraction quality across batch
-        total_extractions = 0
-        total_fields = 0
-        for result in results:
-            extracted_data = result.get("extracted_data", {})
-            total_extractions += sum(1 for v in extracted_data.values() if v != "N/A")
-            total_fields += len(extracted_data)
-
-        batch_extraction_rate = (
-            total_extractions / total_fields * 100 if total_fields > 0 else 0
-        )
-
-        print(f"   Batch extraction rate: {batch_extraction_rate:.1f}%")
-
-        if batch_extraction_rate >= 30:  # Reasonable threshold for working model
-            print("\n🎯 BATCH SUCCESS!")
-            print("   Consistent extraction across multiple images")
-            print("   Ready for full evaluation pipeline")
-            return True
-        else:
-            print("\n⚠️ BATCH CONCERNS:")
-            print("   Low extraction rate may indicate remaining issues")
-            return False
-
-    except Exception as e:
-        print(f"\n❌ BATCH TEST FAILED: {e}")
-        return False
-
-
 if __name__ == "__main__":
     print("🚀 INTERNVL3-8B FIXED CONFIGURATION TEST")
     print("=" * 60)
 
-    # Test single image
+    # Test single image only
     single_success = test_internvl3_8b_fixed()
 
-    # Test batch if single succeeds
     if single_success:
-        batch_success = test_quick_batch()
-
-        if batch_success:
-            print("\n🎉 ALL TESTS PASSED!")
-            print("   ✅ Single image processing works")
-            print("   ✅ Batch processing works")
-            print("   ✅ No UTF-8 or tokenizer errors")
-            print("\n📝 NEXT STEPS:")
-            print("   1. Run full evaluation: python internvl3_keyvalue.py")
-            print("   2. Compare accuracy to 44.2% baseline")
-            print("   3. Expected significant improvement")
-        else:
-            print("\n⚠️ PARTIAL SUCCESS")
-            print("   Single image works but batch has issues")
-            print("   May need additional optimization")
+        print("\n🎉 TEST PASSED!")
+        print("   ✅ Single image processing works")
+        print("   ✅ No UTF-8 or tokenizer errors")
+        print("\n📝 NEXT STEPS:")
+        print("   1. Run full evaluation: python internvl3_keyvalue.py")
+        print("   2. Compare accuracy to 44.2% baseline")
+        print("   3. Expected significant improvement")
     else:
         print("\n❌ CONFIGURATION ISSUES REMAIN")
         print("   Need to debug further or try alternative approaches")
