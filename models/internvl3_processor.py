@@ -22,9 +22,11 @@ from common.config import (
     EXTRACTION_FIELDS,
     FIELD_COUNT,
     FIELD_INSTRUCTIONS,
+    GENERATION_CONFIGS,
     IMAGENET_MEAN,
     IMAGENET_STD,
     INTERNVL3_MODEL_PATH,
+    INTERNVL3_TOKEN_LIMITS,
     get_auto_batch_size,
     get_max_new_tokens,
     get_model_name_with_size,
@@ -69,18 +71,21 @@ class InternVL3Processor:
         self._load_model()
 
         # Setup generation config from centralized configuration
-        # Now that we have 8-bit quantization working, use appropriate token counts
-        if self.is_8b_model:
-            # With 8-bit quantization, we can use more tokens safely
-            max_tokens = 800  # Enough for all 25 fields with some buffer
-            print("🎯 InternVL3-8B: Using 800 tokens with 8-bit quantization")
-        else:
+        model_size = "8b" if self.is_8b_model else "2b"
+        
+        # Get token limit from config
+        max_tokens = INTERNVL3_TOKEN_LIMITS.get(model_size)
+        if max_tokens is None:
             max_tokens = get_max_new_tokens("internvl3", FIELD_COUNT)
+            print(f"🎯 InternVL3-{model_size.upper()}: Using calculated tokens ({max_tokens})")
+        else:
+            print(f"🎯 InternVL3-{model_size.upper()}: Using configured tokens ({max_tokens})")
 
-        # Use simple generation config for both models
+        # Get generation config from centralized config
+        base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
         self.generation_config = {
             "max_new_tokens": max_tokens,
-            "do_sample": False,  # Keep deterministic for both
+            **base_gen_config
         }
 
         print(
@@ -95,16 +100,25 @@ class InternVL3Processor:
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
-        # Force batch_size=1 for 8B model on V100 for stability
-        if self.is_8b_model:
-            self.batch_size = 1
-            print("⚠️ InternVL3-8B: Forcing batch_size=1 for V100 memory stability")
-            if batch_size and batch_size > 1:
-                print(f"   (Overriding requested batch_size={batch_size})")
-        elif batch_size is not None:
+        model_key = "internvl3-8b" if self.is_8b_model else "internvl3-2b"
+        
+        # Use configured batch size if none provided
+        if batch_size is None:
+            from common.config import DEFAULT_BATCH_SIZES
+            self.batch_size = DEFAULT_BATCH_SIZES.get(model_key, 1)
+            print(f"🎯 Using configured batch size: {self.batch_size} for {model_key}")
+        else:
             self.batch_size = max(1, batch_size)  # Ensure minimum batch size of 1
             print(f"🎯 Using manual batch size: {self.batch_size}")
-        else:
+            
+            # Warn if manual batch size exceeds configured safe limits
+            from common.config import DEFAULT_BATCH_SIZES
+            safe_limit = DEFAULT_BATCH_SIZES.get(model_key, 1)
+            if self.batch_size > safe_limit:
+                print(f"⚠️ Warning: batch_size={self.batch_size} exceeds safe limit ({safe_limit}) for {model_key}")
+        
+        # Auto-detection fallback (shouldn't be reached with current logic)
+        if not hasattr(self, 'batch_size'):
             # Auto-detect batch size based on available memory and model size
             available_memory = get_available_gpu_memory(self.device)
             size_aware_model_name = get_model_name_with_size(

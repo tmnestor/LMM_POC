@@ -482,6 +482,30 @@ DEFAULT_BATCH_SIZES = {
     "internvl3-8b": 1,  # InternVL3-8B with quantization needs conservative batching
 }
 
+# ============================================================================
+# MODEL-SPECIFIC GENERATION CONFIGURATION
+# ============================================================================
+
+# Token limits for different model sizes with quantization
+INTERNVL3_TOKEN_LIMITS = {
+    "2b": None,  # Use get_max_new_tokens() calculation
+    "8b": 800,   # Enough for all 25 fields with buffer after 8-bit quantization
+}
+
+# Generation parameters for different models
+GENERATION_CONFIGS = {
+    "internvl3": {
+        "do_sample": False,  # Deterministic for both 2B and 8B
+        "temperature": None,  # Not used when do_sample=False
+        "top_p": None,       # Not used when do_sample=False
+    },
+    "llama": {
+        "do_sample": False,
+        "temperature": None,
+        "top_p": None,
+    }
+}
+
 # Maximum batch sizes per model (Aggressive for 24GB+ VRAM)
 MAX_BATCH_SIZES = {
     "llama": 3,  # Higher end for powerful GPUs
