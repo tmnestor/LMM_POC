@@ -167,22 +167,7 @@ class InternVL3Processor:
 
                 if use_old_api:
                     print(f"   Using load_in_8bit for bitsandbytes {bnb_version} (old API)")
-                    # For 0.43.3, try different settings to work around quantization issues
                     model_kwargs["load_in_8bit"] = True
-                    
-                    # Try different thresholds based on environment variable for testing
-                    import os
-                    threshold = float(os.environ.get("BNB_THRESHOLD", "2.0"))
-                    
-                    # Lower values = more outliers kept in fp16 = better accuracy but more memory
-                    model_kwargs["llm_int8_threshold"] = threshold
-                    model_kwargs["llm_int8_enable_fp32_cpu_offload"] = False
-                    
-                    print("   📊 0.43.3 WORKAROUND ATTEMPT:")
-                    print(f"   - Threshold={threshold} (default=6.0, env: BNB_THRESHOLD)")
-                    print("   - Lower threshold keeps more weights in fp16")
-                    print("   - Try: export BNB_THRESHOLD=1.0 for maximum accuracy")
-                    print("   - Try: export BNB_THRESHOLD=0.0 to keep ALL in fp16 (if fits)")
                 else:
                     # Try to use BitsAndBytesConfig for newer versions
                     try:
