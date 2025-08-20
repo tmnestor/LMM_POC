@@ -106,3 +106,4 @@ docs/report_regeneration_prompt.md
 presentation_materials/vision_transformers.pptx
 gitlab_discovery.sh
 notebooks/create_synthetic_data.ipynb
+notebooks/synthetic_merged_annotations.csv
