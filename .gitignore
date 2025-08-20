@@ -98,12 +98,11 @@ simple_invoice_generator.py
 synthetic_invoice_generator.py
 synthetic_invoice.json
 .gitignore
-.gitignore
 .env
 standard_labels.txt
 
 docs/report_regeneration_prompt.md
 presentation_materials/vision_transformers.pptx
 gitlab_discovery.sh
-notebooks/create_synthetic_data.ipynb
+# notebooks/create_synthetic_data.ipynb
 notebooks/synthetic_merged_annotations.csv
