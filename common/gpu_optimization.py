@@ -301,7 +301,12 @@ class ResilientGenerator:
         self.oom_count = 0
         self.max_oom_retries = 3
 
-    def generate(self, inputs: Dict[str, Any], generation_config: Dict[str, Any] = None, **generation_kwargs) -> Any:
+    def generate(
+        self,
+        inputs: Dict[str, Any],
+        generation_config: Dict[str, Any] = None,
+        **generation_kwargs,
+    ) -> Any:
         """
         Generate with automatic fallback on OOM errors.
 
@@ -316,7 +321,7 @@ class ResilientGenerator:
         # Use generation_config if provided, otherwise fall back to kwargs
         if generation_config is not None:
             generation_kwargs = generation_config
-        
+
         try:
             # First attempt: Standard generation
             return self._standard_generate(inputs, generation_kwargs)
@@ -335,7 +340,9 @@ class ResilientGenerator:
                 # Strategy 3: CPU fallback
                 return self._cpu_fallback_generate(inputs, generation_kwargs)
 
-    def _standard_generate(self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]) -> Any:
+    def _standard_generate(
+        self, inputs: Dict[str, Any], generation_kwargs: Dict[str, Any]
+    ) -> Any:
         """Standard generation attempt."""
         # For InternVL3, always use chat method even though generate exists
         # InternVL3's generate method expects different input format
@@ -365,6 +372,7 @@ class ResilientGenerator:
                 )
             except Exception as e:
                 import traceback
+
                 traceback.print_exc()
                 raise
         elif hasattr(self.model, "generate"):

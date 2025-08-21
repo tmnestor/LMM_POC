@@ -24,16 +24,16 @@ from sklearn.metrics import (
 warnings.filterwarnings("ignore")
 
 # Global plot configuration
-plt.rcParams['figure.facecolor'] = 'white'
-plt.rcParams['axes.facecolor'] = 'white' 
-plt.rcParams['savefig.facecolor'] = 'white'
-plt.rcParams['savefig.bbox'] = 'tight'
-plt.rcParams['font.size'] = 10
-plt.rcParams['axes.titlesize'] = 12
-plt.rcParams['axes.labelsize'] = 11
-plt.rcParams['xtick.labelsize'] = 9
-plt.rcParams['ytick.labelsize'] = 9
-plt.rcParams['legend.fontsize'] = 10
+plt.rcParams["figure.facecolor"] = "white"
+plt.rcParams["axes.facecolor"] = "white"
+plt.rcParams["savefig.facecolor"] = "white"
+plt.rcParams["savefig.bbox"] = "tight"
+plt.rcParams["font.size"] = 10
+plt.rcParams["axes.titlesize"] = 12
+plt.rcParams["axes.labelsize"] = 11
+plt.rcParams["xtick.labelsize"] = 9
+plt.rcParams["ytick.labelsize"] = 9
+plt.rcParams["legend.fontsize"] = 10
 
 # Set seaborn style
 sns.set_style("whitegrid")
@@ -237,7 +237,7 @@ def plot_confusion_matrix(metrics, save_path=None, figsize=(12, 10), top_n=20):
     plt.title(f"Confusion Matrix{title_suffix}", fontweight="bold")
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
-    
+
     if save_path:
         plt.savefig(save_path, dpi=300)
         print(f"\nConfusion matrix saved to: {save_path}")
@@ -286,9 +286,7 @@ def plot_class_performance(metrics, save_path=None, figsize=(14, 8), top_n=30):
     axes[2].set_title("F1-Score by Class", fontweight="bold")
     axes[2].set_ylabel("")
 
-    plt.suptitle(
-        f"Per-Class Performance Metrics{title_suffix}", fontweight="bold"
-    )
+    plt.suptitle(f"Per-Class Performance Metrics{title_suffix}", fontweight="bold")
     plt.tight_layout()
 
     if save_path:
