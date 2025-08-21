@@ -23,6 +23,22 @@ from sklearn.metrics import (
 
 warnings.filterwarnings("ignore")
 
+# Global plot configuration
+plt.rcParams['figure.facecolor'] = 'white'
+plt.rcParams['axes.facecolor'] = 'white' 
+plt.rcParams['savefig.facecolor'] = 'white'
+plt.rcParams['savefig.bbox'] = 'tight'
+plt.rcParams['font.size'] = 10
+plt.rcParams['axes.titlesize'] = 12
+plt.rcParams['axes.labelsize'] = 11
+plt.rcParams['xtick.labelsize'] = 9
+plt.rcParams['ytick.labelsize'] = 9
+plt.rcParams['legend.fontsize'] = 10
+
+# Set seaborn style
+sns.set_style("whitegrid")
+sns.set_palette("husl")
+
 
 def evaluate_multiclass(df, pred_col="pred", truth_col="annotator", verbose=True):
     """
@@ -218,13 +234,12 @@ def plot_confusion_matrix(metrics, save_path=None, figsize=(12, 10), top_n=20):
 
     plt.figure(figsize=figsize)
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar_kws={"label": "Count"})
-    plt.title(f"Confusion Matrix{title_suffix}", fontsize=14, fontweight="bold")
-    plt.xlabel("Predicted", fontsize=12)
-    plt.ylabel("Actual", fontsize=12)
-    plt.tight_layout()
-
+    plt.title(f"Confusion Matrix{title_suffix}", fontweight="bold")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=300)
         print(f"\nConfusion matrix saved to: {save_path}")
 
     plt.show()
@@ -254,42 +269,30 @@ def plot_class_performance(metrics, save_path=None, figsize=(14, 8), top_n=30):
     fig, axes = plt.subplots(1, 3, figsize=figsize)
 
     # Precision
-    axes[0].barh(
-        range(len(class_metrics_df)), class_metrics_df["precision"], color="skyblue"
-    )
-    axes[0].set_yticks(range(len(class_metrics_df)))
-    axes[0].set_yticklabels(class_metrics_df["class"], fontsize=8)
-    axes[0].set_xlabel("Precision", fontsize=11)
-    axes[0].set_title("Precision by Class", fontsize=12, fontweight="bold")
-    axes[0].grid(axis="x", alpha=0.3)
+    sns.barplot(data=class_metrics_df, y="class", x="precision", ax=axes[0], orient="h")
+    axes[0].set_xlabel("Precision")
+    axes[0].set_title("Precision by Class", fontweight="bold")
+    axes[0].set_ylabel("")
 
     # Recall
-    axes[1].barh(
-        range(len(class_metrics_df)), class_metrics_df["recall"], color="lightcoral"
-    )
-    axes[1].set_yticks(range(len(class_metrics_df)))
-    axes[1].set_yticklabels(class_metrics_df["class"], fontsize=8)
-    axes[1].set_xlabel("Recall", fontsize=11)
-    axes[1].set_title("Recall by Class", fontsize=12, fontweight="bold")
-    axes[1].grid(axis="x", alpha=0.3)
+    sns.barplot(data=class_metrics_df, y="class", x="recall", ax=axes[1], orient="h")
+    axes[1].set_xlabel("Recall")
+    axes[1].set_title("Recall by Class", fontweight="bold")
+    axes[1].set_ylabel("")
 
     # F1-Score
-    axes[2].barh(
-        range(len(class_metrics_df)), class_metrics_df["f1"], color="lightgreen"
-    )
-    axes[2].set_yticks(range(len(class_metrics_df)))
-    axes[2].set_yticklabels(class_metrics_df["class"], fontsize=8)
-    axes[2].set_xlabel("F1-Score", fontsize=11)
-    axes[2].set_title("F1-Score by Class", fontsize=12, fontweight="bold")
-    axes[2].grid(axis="x", alpha=0.3)
+    sns.barplot(data=class_metrics_df, y="class", x="f1", ax=axes[2], orient="h")
+    axes[2].set_xlabel("F1-Score")
+    axes[2].set_title("F1-Score by Class", fontweight="bold")
+    axes[2].set_ylabel("")
 
     plt.suptitle(
-        f"Per-Class Performance Metrics{title_suffix}", fontsize=14, fontweight="bold"
+        f"Per-Class Performance Metrics{title_suffix}", fontweight="bold"
     )
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=300)
         print(f"Class performance plot saved to: {save_path}")
 
     plt.show()
