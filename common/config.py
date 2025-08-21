@@ -363,6 +363,192 @@ OPTIONAL_FIELDS = [
 ]
 
 # ============================================================================
+# GROUPED EXTRACTION CONFIGURATION
+# ============================================================================
+
+# Extraction modes for different strategies
+EXTRACTION_MODES = ["single_pass", "grouped", "adaptive"]
+DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
+
+# Field groups for grouped extraction strategy
+# Based on research showing improved accuracy with focused field extraction
+FIELD_GROUPS = {
+    "critical": {
+        "name": "Critical Business Identifiers",
+        "fields": ["ABN", "TOTAL"],
+        "priority": 1,
+        "max_tokens": 150,
+        "temperature": 0.1,  # Lower temperature for critical fields
+        "prompt_style": "precise",
+        "description": "Most important fields for business validation",
+    },
+    "monetary": {
+        "name": "Monetary Values",
+        "fields": ["GST", "SUBTOTAL", "OPENING_BALANCE", "CLOSING_BALANCE"],
+        "priority": 2,
+        "max_tokens": 200,
+        "temperature": 0.2,
+        "prompt_style": "numerical",
+        "description": "Financial amounts and calculations",
+    },
+    "dates": {
+        "name": "Date Information",
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
+        "priority": 3,
+        "max_tokens": 150,
+        "temperature": 0.2,
+        "prompt_style": "temporal",
+        "description": "Temporal information and date fields",
+    },
+    "business_entity": {
+        "name": "Business Entity Details",
+        "fields": [
+            "SUPPLIER",
+            "BUSINESS_ADDRESS",
+            "BUSINESS_PHONE",
+            "SUPPLIER_WEBSITE",
+        ],
+        "priority": 4,
+        "max_tokens": 250,
+        "temperature": 0.3,
+        "prompt_style": "descriptive",
+        "description": "Seller/provider information",
+    },
+    "payer_info": {
+        "name": "Payer Information",
+        "fields": ["PAYER_NAME", "PAYER_ADDRESS", "PAYER_EMAIL", "PAYER_PHONE"],
+        "priority": 5,
+        "max_tokens": 250,
+        "temperature": 0.3,
+        "prompt_style": "descriptive",
+        "description": "Buyer/customer information",
+    },
+    "banking": {
+        "name": "Banking Details",
+        "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
+        "priority": 6,
+        "max_tokens": 200,
+        "temperature": 0.2,
+        "prompt_style": "mixed",
+        "description": "Financial institution information",
+    },
+    "item_details": {
+        "name": "Item and Line Details",
+        "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
+        "priority": 7,
+        "max_tokens": 300,
+        "temperature": 0.3,
+        "prompt_style": "list",
+        "description": "Line item information requiring list processing",
+    },
+    "metadata": {
+        "name": "Document Metadata",
+        "fields": ["DOCUMENT_TYPE"],
+        "priority": 8,
+        "max_tokens": 100,
+        "temperature": 0.2,
+        "prompt_style": "classification",
+        "description": "Document classification and type",
+    },
+}
+
+# Group processing order (by priority)
+GROUP_PROCESSING_ORDER = sorted(
+    FIELD_GROUPS.keys(), key=lambda x: FIELD_GROUPS[x]["priority"]
+)
+
+# Adaptive mode thresholds
+ADAPTIVE_MODE_CONFIG = {
+    "simple_document_threshold": 10,  # Use single-pass for documents with <10 visible fields
+    "complex_document_threshold": 20,  # Use grouped for documents with >20 visible fields
+    "confidence_threshold": 0.85,  # Minimum confidence to skip grouped extraction
+}
+
+# Group-specific prompt templates
+GROUP_PROMPT_TEMPLATES = {
+    "precise": "Extract ONLY these critical business identifiers. Be extremely precise.",
+    "numerical": "Extract ONLY these monetary amounts. Focus on numerical values and currency.",
+    "temporal": "Extract ONLY these date fields. Look for date patterns and time periods.",
+    "descriptive": "Extract ONLY these text fields. Capture complete information.",
+    "mixed": "Extract ONLY these banking details. Include both text and numbers.",
+    "list": "Extract ONLY these item details. Capture all items as lists.",
+    "classification": "Identify ONLY the document type from the image.",
+}
+
+# Validation rules per group
+GROUP_VALIDATION_RULES = {
+    "critical": {
+        "min_confidence": 0.9,
+        "required_fields": ["ABN", "TOTAL"],
+        "allow_empty": False,
+    },
+    "monetary": {
+        "min_confidence": 0.85,
+        "validation_type": "numerical",
+        "allow_empty": True,
+    },
+    "dates": {
+        "min_confidence": 0.8,
+        "validation_type": "temporal",
+        "allow_empty": True,
+    },
+}
+
+# ============================================================================
+# GROUPED EXTRACTION HELPER FUNCTIONS
+# ============================================================================
+
+
+def get_fields_for_group(group_name):
+    """
+    Get list of fields for a specific extraction group.
+
+    Args:
+        group_name (str): Name of the extraction group
+
+    Returns:
+        list: List of field names in the group
+    """
+    if group_name not in FIELD_GROUPS:
+        raise ValueError(f"Unknown extraction group: {group_name}")
+    return FIELD_GROUPS[group_name]["fields"]
+
+
+def get_group_for_field(field_name):
+    """
+    Find which group a field belongs to.
+
+    Args:
+        field_name (str): Name of the field
+
+    Returns:
+        str: Group name containing the field, or None if not found
+    """
+    for group_name, group_config in FIELD_GROUPS.items():
+        if field_name in group_config["fields"]:
+            return group_name
+    return None
+
+
+def get_extraction_groups_summary():
+    """
+    Get a summary of all extraction groups.
+
+    Returns:
+        dict: Summary of groups with field counts and priorities
+    """
+    summary = {}
+    for group_name, config in FIELD_GROUPS.items():
+        summary[group_name] = {
+            "name": config["name"],
+            "field_count": len(config["fields"]),
+            "priority": config["priority"],
+            "fields": config["fields"],
+        }
+    return summary
+
+
+# ============================================================================
 # FIELD DEFINITION VALIDATION
 # ============================================================================
 
@@ -489,7 +675,7 @@ DEFAULT_BATCH_SIZES = {
 # Token limits for different model sizes with quantization
 INTERNVL3_TOKEN_LIMITS = {
     "2b": None,  # Use get_max_new_tokens() calculation
-    "8b": 800,   # Enough for all 25 fields with buffer after 8-bit quantization
+    "8b": 800,  # Enough for all 25 fields with buffer after 8-bit quantization
 }
 
 # Generation parameters for different models
@@ -497,13 +683,13 @@ GENERATION_CONFIGS = {
     "internvl3": {
         "do_sample": False,  # Deterministic for both 2B and 8B
         "temperature": None,  # Not used when do_sample=False
-        "top_p": None,       # Not used when do_sample=False
+        "top_p": None,  # Not used when do_sample=False
     },
     "llama": {
         "do_sample": False,
         "temperature": None,
         "top_p": None,
-    }
+    },
 }
 
 # Maximum batch sizes per model (Aggressive for 24GB+ VRAM)

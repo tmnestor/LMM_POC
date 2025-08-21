@@ -55,11 +55,13 @@ Note:
     For single document processing or interactive use, see the Jupyter notebooks.
 """
 
+import argparse
 from datetime import datetime
 from pathlib import Path
 
 # Import shared modules
 from common.config import DATA_DIR as data_dir
+from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_MODES
 from common.config import GROUND_TRUTH_PATH as ground_truth_path
 from common.config import LLAMA_MODEL_PATH as model_path
 from common.config import OUTPUT_DIR as output_dir
@@ -73,13 +75,53 @@ from common.reporting import generate_comprehensive_reports, print_evaluation_su
 from models.llama_processor import LlamaProcessor
 
 
-def main():
+def parse_arguments():
+    """Parse command line arguments for extraction mode and debugging."""
+    parser = argparse.ArgumentParser(
+        description="Llama Vision Key-Value Extraction with Comprehensive Evaluation Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python llama_keyvalue.py --extraction-mode grouped --debug
+  python llama_keyvalue.py --extraction-mode adaptive
+  python llama_keyvalue.py --extraction-mode single_pass
+        """,
+    )
+
+    parser.add_argument(
+        "--extraction-mode",
+        choices=EXTRACTION_MODES,
+        default=DEFAULT_EXTRACTION_MODE,
+        help=f"Extraction strategy to use (default: {DEFAULT_EXTRACTION_MODE})",
+    )
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging for grouped extraction",
+    )
+
+    parser.add_argument(
+        "--limit-images",
+        type=int,
+        help="Limit processing to first N images (for testing)",
+    )
+
+    return parser.parse_args()
+
+
+def main(extraction_mode=None, debug=False, limit_images=None):
     """
     Execute the complete Llama Vision evaluation pipeline.
 
     This function orchestrates the entire evaluation workflow from initial setup
     through final report generation. It handles all error conditions gracefully
     and provides detailed progress feedback throughout processing.
+
+    Args:
+        extraction_mode (str): Extraction strategy ('single_pass', 'grouped', 'adaptive')
+        debug (bool): Enable debug logging for grouped extraction
+        limit_images (int): Limit processing to first N images (for testing)
 
     Pipeline Stages:
         1. Environment validation and setup
@@ -161,8 +203,13 @@ def main():
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
     # Load Llama-3.2-Vision model with optimal configuration for extraction tasks
-    print("\n🚀 Initializing Llama Vision processor...")
-    processor = LlamaProcessor(model_path=model_path)
+    extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+    print(
+        f"\n🚀 Initializing Llama Vision processor with {extraction_mode} extraction mode..."
+    )
+    processor = LlamaProcessor(
+        model_path=model_path, extraction_mode=extraction_mode, debug=debug
+    )
 
     # =============================================================================
     # DOCUMENT IMAGE DISCOVERY AND FILTERING
@@ -175,7 +222,15 @@ def main():
     # Currently filters for synthetic invoice test images - modify for different datasets
     image_files = [f for f in image_files if "synthetic_invoice" in Path(f).name]
 
-    print(f"📷 Found {len(image_files)} images for processing")
+    # Apply image limit if specified
+    if limit_images and limit_images > 0:
+        original_count = len(image_files)
+        image_files = image_files[:limit_images]
+        print(
+            f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
+        )
+    else:
+        print(f"📷 Found {len(image_files)} images for processing")
     if not image_files:
         print("❌ No images found for processing")
         print(
@@ -291,4 +346,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+    main(
+        extraction_mode=args.extraction_mode,
+        debug=args.debug,
+        limit_images=args.limit_images,
+    )

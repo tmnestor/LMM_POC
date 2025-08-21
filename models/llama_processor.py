@@ -21,6 +21,7 @@ from transformers import (
 from common.config import (
     BATCH_SIZE_FALLBACK_STEPS,
     CLEAR_GPU_CACHE_AFTER_BATCH,
+    DEFAULT_EXTRACTION_MODE,
     ENABLE_BATCH_SIZE_FALLBACK,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
@@ -38,6 +39,7 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
+from common.grouped_extraction import get_extraction_strategy
 
 warnings.filterwarnings("ignore")
 
@@ -45,7 +47,14 @@ warnings.filterwarnings("ignore")
 class LlamaProcessor:
     """Processor for Llama-3.2-11B-Vision-Instruct model."""
 
-    def __init__(self, model_path=None, device="cuda", batch_size=None):
+    def __init__(
+        self,
+        model_path=None,
+        device="cuda",
+        batch_size=None,
+        extraction_mode=None,
+        debug=False,
+    ):
         """
         Initialize Llama processor with model and processor.
 
@@ -53,11 +62,18 @@ class LlamaProcessor:
             model_path (str): Path to model weights (uses default if None)
             device (str): Device to run model on
             batch_size (int): Batch size for processing (auto-detected if None)
+            extraction_mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
+            debug (bool): Enable debug logging for extraction
         """
         self.model_path = model_path or LLAMA_MODEL_PATH
         self.device = device
         self.model = None
         self.processor = None
+
+        # Configure extraction strategy
+        self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+        self.debug = debug
+        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug)
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()
@@ -528,6 +544,170 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 "raw_response_length": 0,
             }
 
+    def _extract_with_custom_prompt(
+        self, image_path: str, prompt: str, **generation_kwargs
+    ) -> str:
+        """
+        Extract fields using a custom prompt with specific generation parameters.
+
+        Args:
+            image_path (str): Path to image file
+            prompt (str): Custom extraction prompt
+            **generation_kwargs: Additional generation parameters
+
+        Returns:
+            str: Raw model response
+        """
+        try:
+            # Load image
+            image = self.load_document_image(image_path)
+
+            # Create multimodal conversation with custom prompt
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+
+            # Apply chat template
+            input_text = self.processor.apply_chat_template(
+                messages, add_generation_prompt=True
+            )
+
+            # Process inputs
+            inputs = self.processor(image, input_text, return_tensors="pt").to(
+                self.model.device
+            )
+
+            # Merge generation kwargs with defaults
+            final_generation_kwargs = {
+                "do_sample": self.generation_config["do_sample"],
+                "top_p": self.generation_config["top_p"],
+                "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
+            }
+            final_generation_kwargs.update(generation_kwargs)
+
+            # Generate response with resilient fallback
+            with torch.no_grad():
+                output = self._resilient_generate(inputs, **final_generation_kwargs)
+
+            # Decode response
+            response = self.processor.decode(output[0], skip_special_tokens=True)
+
+            # Extract only the assistant's response
+            if "assistant\n\n" in response:
+                response = response.split("assistant\n\n")[-1].strip()
+            elif "assistant" in response:
+                response = response.split("assistant")[-1].strip()
+
+            # Cleanup
+            del inputs, output, image
+            comprehensive_memory_cleanup(self.model, self.processor)
+
+            return response
+
+        except Exception as e:
+            print(f"❌ Error in custom prompt extraction: {e}")
+            return f"Error: {str(e)}"
+
+    def process_single_image_grouped(self, image_path: str) -> dict:
+        """
+        Process a single image using grouped extraction strategy.
+
+        Args:
+            image_path (str): Path to image file
+
+        Returns:
+            dict: Extraction results with group metadata
+        """
+        if self.extraction_mode == "single_pass":
+            # Fallback to single-pass extraction
+            return self.process_single_image(image_path)
+
+        start_time = time.time()
+
+        try:
+            if self.debug:
+                print(
+                    f"🔍 Processing {Path(image_path).name} with {self.extraction_mode} mode"
+                )
+
+            # Memory cleanup before processing
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
+            if self.extraction_mode == "grouped":
+                # Use grouped extraction strategy
+                extracted_data, metadata = (
+                    self.extraction_strategy.extract_fields_grouped(
+                        image_path, self._extract_with_custom_prompt
+                    )
+                )
+            elif self.extraction_mode == "adaptive":
+                # Use adaptive extraction strategy
+                extracted_data, metadata = (
+                    self.extraction_strategy.extract_fields_adaptive(
+                        image_path,
+                        lambda path: self.process_single_image(path)["extracted_data"],
+                        self._extract_with_custom_prompt,
+                    )
+                )
+            else:
+                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
+
+            # Calculate standard metrics for compatibility
+            extracted_fields_count = len(
+                [v for v in extracted_data.values() if v not in ["", "N/A"]]
+            )
+            response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
+            content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
+
+            total_processing_time = time.time() - start_time
+
+            result = {
+                "image_name": Path(image_path).name,
+                "extracted_data": extracted_data,
+                "processing_time": total_processing_time,
+                "response_completeness": response_completeness,
+                "content_coverage": content_coverage,
+                "extracted_fields_count": extracted_fields_count,
+                "extraction_mode": self.extraction_mode,
+                "group_metadata": metadata,
+            }
+
+            if self.debug:
+                print(
+                    f"✅ Grouped extraction completed in {total_processing_time:.2f}s"
+                )
+                print(
+                    f"📊 Extracted {extracted_fields_count}/{len(EXTRACTION_FIELDS)} fields"
+                )
+
+            return result
+
+        except Exception as e:
+            print(f"❌ Error in grouped extraction for {image_path}: {e}")
+
+            # Emergency cleanup
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+
+            return {
+                "image_name": Path(image_path).name,
+                "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+                "processing_time": time.time() - start_time,
+                "response_completeness": 0,
+                "content_coverage": 0,
+                "extracted_fields_count": 0,
+                "extraction_mode": self.extraction_mode,
+                "error": str(e),
+            }
+
     def process_image_batch(
         self, image_files: List[str], progress_callback=None
     ) -> Tuple[list, dict]:
@@ -628,7 +808,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         """
         if len(batch_files) == 1:
             # Single image processing (no batching needed)
-            return [self.process_single_image(batch_files[0])]
+            if self.extraction_mode == "single_pass":
+                return [self.process_single_image(batch_files[0])]
+            else:
+                return [self.process_single_image_grouped(batch_files[0])]
 
         # Try true batch processing first
         if ENABLE_BATCH_SIZE_FALLBACK:
@@ -673,7 +856,12 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                             )
                             # Ultimate fallback: process individually
                             for file in sub_batch:
-                                results.append(self.process_single_image(file))
+                                if self.extraction_mode == "single_pass":
+                                    results.append(self.process_single_image(file))
+                                else:
+                                    results.append(
+                                        self.process_single_image_grouped(file)
+                                    )
 
                         # Clear cache between sub-batches
                         if torch.cuda.is_available():
@@ -687,7 +875,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         print(
             f"   🔄 Falling back to individual processing for {len(batch_files)} images"
         )
-        return [self.process_single_image(file) for file in batch_files]
+        if self.extraction_mode == "single_pass":
+            return [self.process_single_image(file) for file in batch_files]
+        else:
+            return [self.process_single_image_grouped(file) for file in batch_files]
 
     def _process_true_batch(self, batch_files: List[str]) -> List[dict]:
         """
@@ -712,8 +903,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
         for idx, file_path in enumerate(batch_files):
             try:
-                # Use the proven single image processing method
-                result = self.process_single_image(file_path)
+                # Use the appropriate image processing method based on extraction mode
+                if self.extraction_mode == "single_pass":
+                    result = self.process_single_image(file_path)
+                else:
+                    result = self.process_single_image_grouped(file_path)
                 results.append(result)
 
                 print(

@@ -13,6 +13,7 @@ from .config import (
     DEPLOYMENT_READY_THRESHOLD,
     EXCELLENT_FIELD_THRESHOLD,
     FIELD_COUNT,
+    FIELD_GROUPS,
     PILOT_READY_THRESHOLD,
     VISUALIZATION_ENABLED,
 )
@@ -612,3 +613,218 @@ def print_evaluation_summary(evaluation_summary, model_full_name):
         print("\n⚠️ MODEL IS READY FOR PILOT TESTING")
     else:
         print("\n❌ MODEL REQUIRES FURTHER OPTIMIZATION")
+
+
+def analyze_group_performance(evaluation_summary, extraction_results=None):
+    """
+    Analyze performance by field groups for grouped extraction.
+
+    Args:
+        evaluation_summary (dict): Evaluation results with field accuracies
+        extraction_results (list): Individual extraction results (optional)
+
+    Returns:
+        dict: Group performance analysis
+    """
+    if not evaluation_summary or "field_accuracies" not in evaluation_summary:
+        return {}
+
+    field_accuracies = evaluation_summary["field_accuracies"]
+
+    # Calculate group-level accuracies
+    group_accuracies = {}
+    group_field_counts = {}
+
+    for group_name, group_config in FIELD_GROUPS.items():
+        group_fields = group_config["fields"]
+        group_scores = []
+
+        for field in group_fields:
+            if field in field_accuracies:
+                group_scores.append(field_accuracies[field])
+
+        if group_scores:
+            group_accuracies[group_name] = {
+                "accuracy": sum(group_scores) / len(group_scores),
+                "field_count": len(group_scores),
+                "total_fields": len(group_fields),
+                "priority": group_config["priority"],
+                "description": group_config["description"],
+                "best_field": max(
+                    group_fields, key=lambda f: field_accuracies.get(f, 0)
+                ),
+                "worst_field": min(
+                    group_fields, key=lambda f: field_accuracies.get(f, 0)
+                ),
+                "coverage": len(group_scores) / len(group_fields)
+                if group_fields
+                else 0,
+            }
+
+    # Sort groups by priority for reporting
+    sorted_groups = sorted(group_accuracies.items(), key=lambda x: x[1]["priority"])
+
+    # Analyze group metadata if available from grouped extraction
+    group_timing = {}
+    if extraction_results:
+        for result in extraction_results:
+            if "group_metadata" in result and result["group_metadata"]:
+                metadata = result["group_metadata"]
+                for group_name, group_data in metadata.items():
+                    if group_name not in group_timing:
+                        group_timing[group_name] = []
+                    group_timing[group_name].append(
+                        group_data.get("processing_time", 0)
+                    )
+
+    # Calculate average timing per group
+    avg_group_timing = {}
+    for group_name, times in group_timing.items():
+        if times:
+            avg_group_timing[group_name] = sum(times) / len(times)
+
+    return {
+        "group_accuracies": dict(sorted_groups),
+        "group_timing": avg_group_timing,
+        "total_groups": len(group_accuracies),
+        "excellent_groups": len(
+            [
+                g
+                for g in group_accuracies.values()
+                if g["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
+            ]
+        ),
+        "good_groups": len(
+            [
+                g
+                for g in group_accuracies.values()
+                if 0.8 <= g["accuracy"] < EXCELLENT_FIELD_THRESHOLD
+            ]
+        ),
+        "poor_groups": len(
+            [g for g in group_accuracies.values() if g["accuracy"] < 0.5]
+        ),
+        "average_group_accuracy": sum(g["accuracy"] for g in group_accuracies.values())
+        / len(group_accuracies)
+        if group_accuracies
+        else 0,
+    }
+
+
+def generate_group_performance_report(group_analysis, model_name):
+    """
+    Generate a detailed report of group performance.
+
+    Args:
+        group_analysis (dict): Group performance analysis
+        model_name (str): Model name for report title
+
+    Returns:
+        str: Formatted group performance report
+    """
+    if not group_analysis or not group_analysis.get("group_accuracies"):
+        return "Group analysis not available (single-pass extraction used)."
+
+    report = f"""# {model_name.upper()} - Group Performance Analysis
+
+## Group Extraction Summary
+- **Total Groups**: {group_analysis["total_groups"]}
+- **Excellent Groups** (≥90%): {group_analysis["excellent_groups"]}
+- **Good Groups** (80-89%): {group_analysis["good_groups"]}
+- **Poor Groups** (<50%): {group_analysis["poor_groups"]}
+- **Average Group Accuracy**: {group_analysis["average_group_accuracy"]:.1%}
+
+## Group-by-Group Performance
+
+"""
+
+    for group_name, stats in group_analysis["group_accuracies"].items():
+        status = (
+            "🟢"
+            if stats["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
+            else "🟡"
+            if stats["accuracy"] >= 0.8
+            else "🔴"
+        )
+
+        report += f"""### {status} {FIELD_GROUPS[group_name]["name"]} ({stats["accuracy"]:.1%})
+- **Priority**: {stats["priority"]} | **Coverage**: {stats["coverage"]:.1%}
+- **Description**: {stats["description"]}
+- **Fields**: {stats["field_count"]}/{stats["total_fields"]} processed
+- **Best Field**: {stats["best_field"]} | **Challenging**: {stats["worst_field"]}
+"""
+
+        # Add timing info if available
+        if group_name in group_analysis.get("group_timing", {}):
+            timing = group_analysis["group_timing"][group_name]
+            report += f"- **Average Processing Time**: {timing:.2f}s\n"
+
+        report += "\n"
+
+    report += """## Optimization Recommendations
+
+"""
+
+    # Add recommendations based on group performance
+    poor_groups = [
+        name
+        for name, stats in group_analysis["group_accuracies"].items()
+        if stats["accuracy"] < 0.5
+    ]
+    if poor_groups:
+        report += (
+            f"1. **Priority Focus**: Improve extraction for {', '.join(poor_groups)}\n"
+        )
+
+    critical_group = group_analysis["group_accuracies"].get("critical", {})
+    if critical_group and critical_group.get("accuracy", 1.0) < 0.9:
+        report += "2. **Critical Fields**: Focus on ABN and TOTAL accuracy for business validation\n"
+
+    report += "3. **Group Optimization**: Consider adjusting prompt templates for underperforming groups\n"
+    report += "4. **Processing Efficiency**: Monitor group timing for bottleneck identification\n"
+
+    return report
+
+
+def print_group_performance_summary(group_analysis, model_name):
+    """
+    Print a concise group performance summary to console.
+
+    Args:
+        group_analysis (dict): Group performance analysis
+        model_name (str): Model name for display
+    """
+    if not group_analysis or not group_analysis.get("group_accuracies"):
+        print("🔄 Single-pass extraction used (no group analysis)")
+        return
+
+    print(f"\n📊 {model_name.upper()} GROUP PERFORMANCE ANALYSIS")
+    print("=" * 60)
+
+    print(f"📈 Groups Processed: {group_analysis['total_groups']}")
+    print(
+        f"⭐ Excellent Groups: {group_analysis['excellent_groups']} | Good: {group_analysis['good_groups']} | Poor: {group_analysis['poor_groups']}"
+    )
+    print(f"🎯 Average Group Accuracy: {group_analysis['average_group_accuracy']:.1%}")
+
+    print("\n🏆 Top 3 Performing Groups:")
+    sorted_groups = sorted(
+        group_analysis["group_accuracies"].items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True,
+    )
+
+    for i, (group_name, stats) in enumerate(sorted_groups[:3]):
+        status = "🟢" if stats["accuracy"] >= EXCELLENT_FIELD_THRESHOLD else "🟡"
+        print(
+            f"   {i + 1}. {status} {FIELD_GROUPS[group_name]['name']}: {stats['accuracy']:.1%}"
+        )
+
+    # Show timing summary if available
+    if group_analysis.get("group_timing"):
+        total_time = sum(group_analysis["group_timing"].values())
+        print(f"\n⏱️ Total Group Processing Time: {total_time:.2f}s")
+        slowest_group = max(group_analysis["group_timing"].items(), key=lambda x: x[1])
+        print(
+            f"🐌 Slowest Group: {FIELD_GROUPS[slowest_group[0]]['name']} ({slowest_group[1]:.2f}s)"
+        )

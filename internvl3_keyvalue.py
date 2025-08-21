@@ -62,12 +62,13 @@ Note:
     For single document processing or interactive use, see the Jupyter notebooks.
 """
 
+import argparse
 from datetime import datetime
 from pathlib import Path
 
 # Import shared modules
 from common.config import DATA_DIR as data_dir
-from common.config import EXTRACTION_FIELDS
+from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_FIELDS, EXTRACTION_MODES
 from common.config import GROUND_TRUTH_PATH as ground_truth_path
 from common.config import INTERNVL3_MODEL_PATH as model_path
 from common.config import OUTPUT_DIR as output_dir
@@ -81,13 +82,53 @@ from common.reporting import generate_comprehensive_reports, print_evaluation_su
 from models.internvl3_processor import InternVL3Processor
 
 
-def main():
+def parse_arguments():
+    """Parse command line arguments for extraction mode and debugging."""
+    parser = argparse.ArgumentParser(
+        description="InternVL3 Vision Key-Value Extraction with Comprehensive Evaluation Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python internvl3_keyvalue.py --extraction-mode grouped --debug
+  python internvl3_keyvalue.py --extraction-mode adaptive
+  python internvl3_keyvalue.py --extraction-mode single_pass
+        """,
+    )
+
+    parser.add_argument(
+        "--extraction-mode",
+        choices=EXTRACTION_MODES,
+        default=DEFAULT_EXTRACTION_MODE,
+        help=f"Extraction strategy to use (default: {DEFAULT_EXTRACTION_MODE})",
+    )
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging for grouped extraction",
+    )
+
+    parser.add_argument(
+        "--limit-images",
+        type=int,
+        help="Limit processing to first N images (for testing)",
+    )
+
+    return parser.parse_args()
+
+
+def main(extraction_mode=None, debug=False, limit_images=None):
     """
     Execute the complete InternVL3 Vision evaluation pipeline.
 
     This function orchestrates the entire evaluation workflow from initial setup
     through final report generation. It handles all error conditions gracefully
     and provides detailed progress feedback throughout processing.
+
+    Args:
+        extraction_mode (str): Extraction strategy ('single_pass', 'grouped', 'adaptive')
+        debug (bool): Enable debug logging for grouped extraction
+        limit_images (int): Limit processing to first N images (for testing)
 
     Pipeline Stages:
         1. Environment validation and setup
@@ -174,9 +215,14 @@ def main():
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
     # Load InternVL3 model with optimal configuration for extraction tasks
-    print("\n🚀 Initializing InternVL3 processor...")
-    processor = InternVL3Processor(model_path=model_path)
-    
+    extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+    print(
+        f"\n🚀 Initializing InternVL3 processor with {extraction_mode} extraction mode..."
+    )
+    processor = InternVL3Processor(
+        model_path=model_path, extraction_mode=extraction_mode, debug=debug
+    )
+
     # Determine model name based on actual model path
     model_display_name = "InternVL3-8B" if "8B" in str(model_path) else "InternVL3-2B"
 
@@ -207,7 +253,15 @@ def main():
         print("💡 Supported formats: PNG, JPG, JPEG (case insensitive)")
         return
 
-    print(f"📷 Found {len(image_files)} images for processing")
+    # Apply image limit if specified
+    if limit_images and limit_images > 0:
+        original_count = len(image_files)
+        image_files = image_files[:limit_images]
+        print(
+            f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
+        )
+    else:
+        print(f"📷 Found {len(image_files)} images for processing")
 
     # Display sample of discovered files for verification
     print("\n📋 Sample of files to be processed:")
@@ -357,4 +411,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+    main(
+        extraction_mode=args.extraction_mode,
+        debug=args.debug,
+        limit_images=args.limit_images,
+    )
