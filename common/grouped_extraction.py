@@ -74,6 +74,10 @@ class GroupedExtractionStrategy:
             print(
                 f"🔍 Generated research-backed prompt for group '{group_name}' ({len(fields)} fields)"
             )
+            print("📝 ACTUAL PROMPT CONTENT:")
+            print("="*60)
+            print(prompt)
+            print("="*60)
 
         return prompt
     
@@ -278,8 +282,9 @@ STOP after {fields[-1]} line. Do not add explanations or comments."""
 
         if self.debug:
             extracted_count = len([v for v in merged_data.values() if v != "N/A"])
+            na_count = len(EXTRACTION_FIELDS) - extracted_count
             print(
-                f"📊 Merged results: {extracted_count}/{len(EXTRACTION_FIELDS)} fields extracted"
+                f"📊 Merged results: {extracted_count}/{len(EXTRACTION_FIELDS)} fields with values, {na_count} correctly identified as N/A"
             )
 
         return merged_data

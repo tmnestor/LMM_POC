@@ -194,6 +194,12 @@ FORMAT RULES:
 
 STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
+        if self.debug:
+            print("📝 SINGLE-PASS PROMPT CONTENT:")
+            print("="*60)
+            print(prompt)
+            print("="*60)
+
         return prompt
 
     def load_document_image(self, image_path):
