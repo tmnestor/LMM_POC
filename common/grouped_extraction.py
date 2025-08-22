@@ -13,10 +13,8 @@ from .config import (
     EXTRACTION_FIELDS,
     FIELD_GROUPS,
     FIELD_INSTRUCTIONS,
-    GROUP_PROCESSING_ORDER,
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
-    DEFAULT_GROUPING_STRATEGY,
 )
 from .evaluation_utils import parse_extraction_response
 
