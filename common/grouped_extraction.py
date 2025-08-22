@@ -28,7 +28,9 @@ class GroupedExtractionStrategy:
     compared to single-pass extraction of all fields.
     """
 
-    def __init__(self, extraction_mode="grouped", debug=False, grouping_strategy="8_groups"):
+    def __init__(
+        self, extraction_mode="grouped", debug=False, grouping_strategy="8_groups"
+    ):
         """
         Initialize the grouped extraction strategy.
 
@@ -40,12 +42,14 @@ class GroupedExtractionStrategy:
         self.extraction_mode = extraction_mode
         self.grouping_strategy = grouping_strategy
         self.debug = debug
-        
+
         # Load appropriate field groups based on strategy
         if grouping_strategy in GROUPING_STRATEGIES:
             self.field_groups = GROUPING_STRATEGIES[grouping_strategy]
             if self.debug:
-                print(f"🎯 Using {grouping_strategy} extraction strategy with {len(self.field_groups)} groups")
+                print(
+                    f"🎯 Using {grouping_strategy} extraction strategy with {len(self.field_groups)} groups"
+                )
         else:
             self.field_groups = FIELD_GROUPS  # Fallback to default
             if self.debug:
@@ -63,8 +67,8 @@ class GroupedExtractionStrategy:
     def generate_group_prompt(self, group_name: str) -> str:
         """
         Generate a research-backed focused prompt for a specific field group.
-        
-        Uses domain expertise framing, cognitive reasoning context, and 
+
+        Uses domain expertise framing, cognitive reasoning context, and
         Llama-specific optimizations for superior performance.
 
         Args:
@@ -92,60 +96,105 @@ class GroupedExtractionStrategy:
             print("-" * 40)
 
         return prompt
-    
-    def _generate_research_backed_prompt(self, group_name: str, group_config: dict, fields: list) -> str:
+
+    def _generate_research_backed_prompt(
+        self, group_name: str, group_config: dict, fields: list
+    ) -> str:
         """
         Generate research-backed prompts using domain expertise framing and cognitive reasoning.
-        
-        Based on cognitive science research showing grouped field extraction outperforms 
+
+        Based on cognitive science research showing grouped field extraction outperforms
         single-pass when properly implemented with domain context and reasoning.
         """
-        
+
         # Simplified task-focused prompts per group
         if group_name == "critical":
-            expertise_frame = """Extract critical document identifiers and financial totals."""
+            expertise_frame = (
+                """Extract critical document identifiers and financial totals."""
+            )
             cognitive_context = """These are the essential document validation fields: regulatory ID (ABN) and total amount."""
-            focus_instruction = "Extract the business number and total amount from this document."
-            
+            focus_instruction = (
+                "Extract the business number and total amount from this document."
+            )
+
         elif group_name == "monetary":
             expertise_frame = """Extract financial amounts and tax information."""
             cognitive_context = """These are monetary values: GST (tax amount), subtotal (pre-tax amount), opening/closing balances (from bank statements only). Do NOT confuse TOTAL with CLOSING_BALANCE."""
             focus_instruction = "Extract tax amounts and subtotals. Account balances are only for bank statements, not invoices."
-            
+
         elif group_name == "dates":
             expertise_frame = """Extract dates and time-related information."""
             cognitive_context = """These are date fields: invoice date, due date, and statement period."""
             focus_instruction = "Extract all dates from this document."
-            
+
         elif group_name == "business_entity":
             expertise_frame = """Extract business and supplier information."""
             cognitive_context = """These identify the business: supplier name, address, phone, and website."""
-            focus_instruction = "Extract business contact information and identification details."
-            
+            focus_instruction = (
+                "Extract business contact information and identification details."
+            )
+
         elif group_name == "payer_info":
             expertise_frame = """Extract customer and payer information."""
             cognitive_context = """These identify the customer: payer name, address, email, and phone."""
-            focus_instruction = "Extract customer contact information and identification details."
-            
+            focus_instruction = (
+                "Extract customer contact information and identification details."
+            )
+
         elif group_name == "banking":
             expertise_frame = """Extract banking and payment information."""
             cognitive_context = """IMPORTANT: These fields are typically N/A for invoices/receipts. Only extract if this is a bank statement. BSB is a 6-digit number (NOT the 11-digit ABN). Bank name is a financial institution (NOT the supplier)."""
             focus_instruction = "Extract bank account information ONLY if this is a bank statement. If this is an invoice/receipt, most banking fields should be N/A."
-            
-        elif group_name == "item_details": 
+
+        elif group_name == "item_details":
             expertise_frame = """Extract transaction line items and pricing."""
             cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. CRITICAL: Use the exact field names DESCRIPTIONS, QUANTITIES, and PRICES."""
             focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate, multiply, or derive prices. Use only the unit prices visible in the document."
-            
+
         elif group_name == "metadata":
             expertise_frame = """Extract document type and classification."""
             cognitive_context = """This identifies the document category: invoice, receipt, or statement."""
             focus_instruction = "Identify the document type from this business document. Output ONLY the document type field, nothing else."
-            
+
+        # 6-groups strategy specific prompts with enhanced precision
+        elif group_name == "regulatory_financial":
+            expertise_frame = """Extract critical business identifiers and ALL financial amounts with precision."""
+            cognitive_context = """The Australian Business Number (ABN) is an 11 digit number structured as a 9 digit identifier with two leading check digits (may be formatted with spaces like XX XXX XXX XXX). TOTAL is the final amount due. GST is the tax amount (usually smaller, around 10% of subtotal). SUBTOTAL is the amount before tax. Be EXACT with decimal places - copy them precisely from the document."""
+            focus_instruction = "Extract the ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the ABN has exactly 11 digits."
+
+        elif group_name == "entity_contacts":
+            expertise_frame = """Extract ALL contact information for both supplier and payer with exact formatting."""
+            cognitive_context = """Supplier fields: business providing goods/services. Payer fields: customer receiving goods/services. Australian phone numbers: landlines have 10 digits total (area code + 8 digits, e.g., (02) 1234 5678 or 02 1234 5678), mobiles have 10 digits starting with 04 (e.g., 0412 345 678 or 04xx xxx xxx). Be careful with leading zeros - they are essential. Australian postal codes consist of four digits and are written on the last line of an address, after the suburb or locality and state/territory abbreviation. The first digit of the postcode indicates the state or territory, with 2 for New South Wales, 3 for Victoria, 4 for Queensland, 5 for South Australia, 6 for Western Australia, 7 for Tasmania, etc."""
+            focus_instruction = "Extract all contact details exactly as shown. For phone numbers, preserve all digits including leading zeros (landlines: 10 digits with area code, mobiles: 10 digits starting with 04). For addresses, ensure Australian postal codes are EXACTLY 4 digits (e.g., 5000 not 55000, 2600 not 26000). The postcode appears after the state abbreviation."
+
+        elif group_name == "transaction_details":
+            expertise_frame = """Extract line item details: descriptions, quantities, and UNIT prices."""
+            cognitive_context = """DESCRIPTIONS: exact product/service names. QUANTITIES: how many of each item. PRICES: the INDIVIDUAL UNIT price per item (NOT line totals, NOT calculated amounts). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40."""
+            focus_instruction = "List all items with their exact descriptions, quantities, and UNIT prices. Do NOT use line totals or calculated amounts - only the individual item prices."
+
+        elif group_name == "temporal_data":
+            expertise_frame = """Extract ALL date information from the document."""
+            cognitive_context = """INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually N/A for invoices). Use the exact date format shown in the document."""
+            focus_instruction = "Extract all dates exactly as formatted in the document. Most invoices won't have a statement period."
+
+        elif group_name == "banking_payment":
+            expertise_frame = (
+                """Extract banking details if present (usually limited on invoices)."""
+            )
+            cognitive_context = """BANK_NAME: financial institution name (NOT the supplier name). BSB_NUMBER: 6-digit bank code (NOT the 11-digit ABN). BANK_ACCOUNT_NUMBER: account number for payments. Most invoices only show account number, not full banking details."""
+            focus_instruction = "Extract banking information if visible. Most fields will be N/A on invoices. Do NOT confuse ABN with BSB, or supplier name with bank name."
+
+        elif group_name == "document_metadata":
+            expertise_frame = (
+                """Identify document type and any account balance information."""
+            )
+            cognitive_context = """DOCUMENT_TYPE: invoice, receipt, or statement. OPENING/CLOSING_BALANCE: ONLY for bank statements showing account balances. These are NOT the same as subtotal/total/GST amounts. CLOSING_BALANCE on a statement is the final account balance, not the invoice total."""
+            focus_instruction = "Identify the document type. For balances: ONLY extract if this is a bank statement showing account balances. Invoice totals are NOT closing balances."
+
         else:
             # Fallback for any unhandled groups
-            expertise_frame = f"""You are a business document expert specializing in {group_config['description'].lower()}."""
-            cognitive_context = f"""Focus on {group_config['description'].lower()} to provide accurate field extraction."""
+            expertise_frame = f"""You are a business document expert specializing in {group_config["description"].lower()}."""
+            cognitive_context = f"""Focus on {group_config["description"].lower()} to provide accurate field extraction."""
             focus_instruction = f"Focus on extracting fields related to {group_config['description'].lower()}."
 
         # Build the streamlined task-focused prompt with context hints
@@ -400,6 +449,7 @@ STOP after the last field. Do not add explanations or comments."""
                         f"❌ Error in group '{group_name}' attempt {attempt + 1}: {e}"
                     )
                     import traceback
+
                     traceback.print_exc()
 
                 if attempt == max_retries:
@@ -417,7 +467,7 @@ STOP after the last field. Do not add explanations or comments."""
                     # Always print the error for debugging
                     if not self.debug:
                         print(f"❌ Group '{group_name}' failed: {e}")
-                    
+
                     return {
                         "group_name": group_name,
                         "extracted_data": empty_data,
@@ -586,7 +636,9 @@ class AdaptiveExtractionStrategy:
         return extracted_data, metadata
 
 
-def get_extraction_strategy(mode: str, debug: bool = False, grouping_strategy: str = "8_groups"):
+def get_extraction_strategy(
+    mode: str, debug: bool = False, grouping_strategy: str = "8_groups"
+):
     """
     Factory function to get appropriate extraction strategy.
 

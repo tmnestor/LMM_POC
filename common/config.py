@@ -18,7 +18,6 @@ AVAILABLE_MODELS = {
 # Current model selection (CHANGE THESE TO SWITCH MODELS)
 CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-8B"
 CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"  # Options: "Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"
-CURRENT_LLAMA_DIRECT_MODEL = "Llama-3.2-11B-Vision"  # Base model for direct prompting
 
 # ============================================================================
 # DEPLOYMENT CONFIGURATIONS
@@ -45,7 +44,6 @@ MODELS_BASE = (
 # Model paths driven by current model selection
 INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
 LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
-LLAMA_DIRECT_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_DIRECT_MODEL}"
 
 # Data paths with interpolation
 if CURRENT_DEPLOYMENT == "AISandbox":
@@ -459,9 +457,17 @@ FIELD_GROUPS_6 = {
         "cognitive_focus": "Essential regulatory compliance and financial totals",
     },
     "entity_contacts": {
-        "name": "Entity Contact Information", 
-        "fields": ["SUPPLIER", "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
-                  "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL"],
+        "name": "Entity Contact Information",
+        "fields": [
+            "SUPPLIER",
+            "BUSINESS_ADDRESS",
+            "BUSINESS_PHONE",
+            "SUPPLIER_WEBSITE",
+            "PAYER_NAME",
+            "PAYER_ADDRESS",
+            "PAYER_PHONE",
+            "PAYER_EMAIL",
+        ],
         "priority": 2,
         "max_tokens": 600,
         "temperature": 0.1,
