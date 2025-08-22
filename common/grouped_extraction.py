@@ -89,69 +89,46 @@ class GroupedExtractionStrategy:
         single-pass when properly implemented with domain context and reasoning.
         """
         
-        # Domain expertise framing and cognitive reasoning context per group
+        # Simplified task-focused prompts per group
         if group_name == "critical":
-            expertise_frame = """You are a business document validation expert specializing in regulatory compliance and financial auditing."""
-            cognitive_context = """These fields establish the fundamental legal and financial validity of this document. 
-The ABN (Australian Business Number) serves as the primary regulatory identifier, while the TOTAL represents 
-the core financial obligation. Together, they form the foundational elements that determine document legitimacy 
-and enable all subsequent financial processing."""
-            focus_instruction = "Focus on identifying the authoritative regulatory identifiers and primary financial values that establish this document's legal standing."
+            expertise_frame = """Extract critical document identifiers and financial totals."""
+            cognitive_context = """These are the essential document validation fields: regulatory ID (ABN) and total amount."""
+            focus_instruction = "Extract the business number and total amount from this document."
             
         elif group_name == "monetary":
-            expertise_frame = """You are a financial analysis expert specializing in accounting reconciliation and tax compliance."""
-            cognitive_context = """These monetary values form an interconnected financial calculation system. 
-The SUBTOTAL serves as the base amount, GST represents the tax component, and balances (OPENING/CLOSING) 
-track account state changes. These amounts must maintain mathematical relationships and follow Australian 
-tax regulations where applicable."""
-            focus_instruction = "Focus on extracting the numerical values that comprise the complete financial calculation chain, ensuring mathematical consistency."
+            expertise_frame = """Extract financial amounts and tax information."""
+            cognitive_context = """These are monetary values: GST, subtotal, and account balances."""
+            focus_instruction = "Extract all dollar amounts and tax values from this document."
             
         elif group_name == "dates":
-            expertise_frame = """You are a temporal analysis expert specializing in business document chronology and payment processing.""" 
-            cognitive_context = """These dates establish the temporal narrative of this business transaction. 
-The INVOICE_DATE marks when obligations were created, DUE_DATE establishes payment deadlines, and 
-STATEMENT_PERIOD defines reporting timeframes. Together they create the complete timeline governing 
-this financial relationship."""
-            focus_instruction = "Focus on identifying the temporal markers that define the chronological framework of this business transaction."
+            expertise_frame = """Extract dates and time-related information."""
+            cognitive_context = """These are date fields: invoice date, due date, and statement period."""
+            focus_instruction = "Extract all dates from this document."
             
         elif group_name == "business_entity":
-            expertise_frame = """You are a business intelligence expert specializing in entity identification and supplier management."""
-            cognitive_context = """These fields collectively identify the supplier or service provider entity. 
-The SUPPLIER name establishes primary identity, while BUSINESS_ADDRESS provides physical location, 
-BUSINESS_PHONE enables direct contact, and SUPPLIER_WEBSITE offers digital presence. Together they 
-form a complete business entity profile for vendor management and communication."""
-            focus_instruction = "Focus on extracting the complete business entity identification profile, capturing all available contact and identification information."
+            expertise_frame = """Extract business and supplier information."""
+            cognitive_context = """These identify the business: supplier name, address, phone, and website."""
+            focus_instruction = "Extract business contact information and identification details."
             
         elif group_name == "payer_info":
-            expertise_frame = """You are a customer relationship expert specializing in client identification and account management."""
-            cognitive_context = """These fields identify the customer or payer entity in this business relationship. 
-PAYER_NAME establishes customer identity, PAYER_ADDRESS provides billing/service location, and contact 
-methods (EMAIL/PHONE) enable communication. This information is crucial for customer service, billing, 
-and ongoing business relationship management."""
-            focus_instruction = "Focus on identifying the complete customer profile, extracting all available identification and contact information for the paying party."
+            expertise_frame = """Extract customer and payer information."""
+            cognitive_context = """These identify the customer: payer name, address, email, and phone."""
+            focus_instruction = "Extract customer contact information and identification details."
             
         elif group_name == "banking":
-            expertise_frame = """You are a payment systems expert specializing in financial institution processing and funds transfer."""
-            cognitive_context = """These fields form a complete payment authorization and routing system for electronic funds transfer. 
-BANK_NAME identifies the financial institution, BSB_NUMBER provides routing information for Australian 
-banking systems, BANK_ACCOUNT_NUMBER specifies the destination account, and ACCOUNT_HOLDER confirms 
-authorized recipient. Together they enable secure payment processing."""
-            focus_instruction = "Focus on extracting the complete payment routing information that enables electronic funds transfer through the Australian banking system."
+            expertise_frame = """Extract banking and payment information."""
+            cognitive_context = """These are banking details: bank name, BSB, account number, and account holder."""
+            focus_instruction = "Extract bank account and payment information from this document."
             
         elif group_name == "item_details": 
-            expertise_frame = """You are a transaction analysis expert specializing in line-item processing and inventory management."""
-            cognitive_context = """These fields capture the granular transaction details that support the overall financial totals. 
-DESCRIPTIONS identify what was purchased/provided, QUANTITIES specify amounts, and PRICES show unit costs. 
-These line items must reconcile with the overall totals and provide detailed audit trails for accounting 
-and inventory management purposes."""
-            focus_instruction = "Focus on extracting the detailed line-item information that breaks down the transaction into individual components for accounting reconciliation."
+            expertise_frame = """Extract transaction line items and pricing."""
+            cognitive_context = """These are item details: descriptions, quantities, and individual prices."""
+            focus_instruction = "Extract line item descriptions, quantities, and prices from this document."
             
         elif group_name == "metadata":
-            expertise_frame = """You are a document classification expert specializing in business document taxonomies and workflow routing."""
-            cognitive_context = """The document type classification determines how this document should be processed, stored, and routed 
-within business systems. Accurate classification enables proper workflow automation, compliance checking, 
-and integration with appropriate financial systems (invoice processing vs. statement reconciliation vs. receipt archiving)."""
-            focus_instruction = "Focus on definitively classifying this document type to ensure proper business process routing and compliance handling."
+            expertise_frame = """Extract document type and classification."""
+            cognitive_context = """This identifies the document category: invoice, receipt, or statement."""
+            focus_instruction = "Identify the document type from this business document."
             
         else:
             # Fallback for any unhandled groups
@@ -159,23 +136,14 @@ and integration with appropriate financial systems (invoice processing vs. state
             cognitive_context = f"""Focus on {group_config['description'].lower()} to provide accurate field extraction."""
             focus_instruction = f"Focus on extracting fields related to {group_config['description'].lower()}."
 
-        # Build the complete research-backed prompt
-        prompt = f"""{expertise_frame}
+        # Build the streamlined task-focused prompt
+        prompt = f"""TASK: {expertise_frame}
 
-COGNITIVE CONTEXT:
 {cognitive_context}
 
-EXTRACTION TASK:
 {focus_instruction}
 
-CRITICAL INSTRUCTIONS:
-- Do NOT include any conversation text
-- Do NOT repeat the user's request  
-- Do NOT include <image> tokens
-- Start immediately with {fields[0]}
-- Stop immediately after {fields[-1]}
-
-REQUIRED OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
+OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
 """
 
         # Add each field with its specific instruction
@@ -183,16 +151,13 @@ REQUIRED OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
             prompt += f"{field}: {instruction}\n"
 
-        # Add Llama-specific format enforcement (proven in single-pass)
+        # Simplified format rules
         prompt += f"""
 FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
-- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting
-- Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {len(fields)} keys even if value is N/A
-- Output ONLY these {len(fields)} lines, nothing else
-
-STOP after {fields[-1]} line. Do not add explanations or comments."""
+- Plain text only - no formatting
+- Include ALL {len(fields)} fields even if N/A
+- Output ONLY these {len(fields)} lines"""
 
         return prompt
 
