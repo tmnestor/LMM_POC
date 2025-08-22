@@ -426,14 +426,7 @@ def evaluate_extraction_results(extraction_results, ground_truth_map):
             field_accuracies[field].append(accuracy)
 
         # Calculate overall accuracy for this image
-        try:
-            overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies)
-        except TypeError as e:
-            print(f"ERROR in accuracy calculation: {e}")
-            print(f"image_accuracies type: {type(image_accuracies)}")
-            print(f"image_accuracies.values() types: {[type(v) for v in image_accuracies.values()][:5]}")
-            print(f"First few values: {list(image_accuracies.values())[:5]}")
-            raise
+        overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies)
         overall_accuracies.append(overall_accuracy)
 
         # Store evaluation data

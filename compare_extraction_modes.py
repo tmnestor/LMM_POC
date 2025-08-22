@@ -91,22 +91,13 @@ def run_model_evaluation(
                     "error": f"Evaluation failed: {str(e)}"
                 }
             
-            # Calculate additional metrics with error handling
+            # Calculate additional metrics
             try:
-                # Debug: Check types
-                if results:
-                    sample = results[0]
-                    print("Debug - Sample result types:")
-                    print(f"  extracted_fields_count: {type(sample.get('extracted_fields_count'))}")
-                    print(f"  response_completeness: {type(sample.get('response_completeness'))}")
-                    print(f"  content_coverage: {type(sample.get('content_coverage'))}")
-                    
                 avg_extracted_fields = sum(r.get("extracted_fields_count", 0) for r in results) / len(results) if results else 0
                 avg_response_completeness = sum(r.get("response_completeness", 0) for r in results) / len(results) if results else 0
                 avg_content_coverage = sum(r.get("content_coverage", 0) for r in results) / len(results) if results else 0
             except (TypeError, KeyError) as e:
                 print(f"⚠️ Error calculating averages: {e}")
-                print(f"   Sample result: {results[0] if results else 'No results'}")
                 avg_extracted_fields = 0
                 avg_response_completeness = 0
                 avg_content_coverage = 0
