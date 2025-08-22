@@ -80,10 +80,17 @@ def run_model_evaluation(
         if ground_truth_map:
             evaluation_summary = evaluate_extraction_results(results, ground_truth_map)
             
-            # Calculate additional metrics
-            avg_extracted_fields = sum(r["extracted_fields_count"] for r in results) / len(results)
-            avg_response_completeness = sum(r["response_completeness"] for r in results) / len(results)
-            avg_content_coverage = sum(r["content_coverage"] for r in results) / len(results)
+            # Calculate additional metrics with error handling
+            try:
+                avg_extracted_fields = sum(r.get("extracted_fields_count", 0) for r in results) / len(results) if results else 0
+                avg_response_completeness = sum(r.get("response_completeness", 0) for r in results) / len(results) if results else 0
+                avg_content_coverage = sum(r.get("content_coverage", 0) for r in results) / len(results) if results else 0
+            except (TypeError, KeyError) as e:
+                print(f"⚠️ Error calculating averages: {e}")
+                print(f"   Sample result keys: {results[0].keys() if results else 'No results'}")
+                avg_extracted_fields = 0
+                avg_response_completeness = 0
+                avg_content_coverage = 0
             
             return {
                 "model": model_name,
