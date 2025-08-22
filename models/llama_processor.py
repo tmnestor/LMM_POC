@@ -502,6 +502,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             )
+            # Debug type checking
+            if not isinstance(EXTRACTION_FIELDS, list):
+                print(f"ERROR: EXTRACTION_FIELDS is {type(EXTRACTION_FIELDS)}, not list!")
+                print(f"Value: {EXTRACTION_FIELDS}")
             response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
