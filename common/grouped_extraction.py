@@ -84,14 +84,21 @@ OUTPUT FORMAT ({len(fields)} fields):
             instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
             prompt += f"{field}: {instruction}\n"
 
-        # Add group-specific instructions
+        # Add group-specific instructions with same formatting rules as single-pass
         prompt += f"""
 CRITICAL INSTRUCTIONS:
 - Extract ONLY the {len(fields)} fields listed above
 - Use "N/A" for any missing or unclear information
 - Output exactly {len(fields)} lines, one for each field
 - Keep field names EXACTLY as shown
-- Focus on {group_config["description"].lower()}"""
+- Focus on {group_config["description"].lower()}
+
+FORMAT RULES:
+- Use exactly: KEY: value (colon and space)
+- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting
+- Plain text only - NO markdown, NO bold, NO italic
+- Include ALL {len(fields)} keys even if value is N/A
+- Output ONLY these {len(fields)} lines, nothing else"""
 
         if self.debug:
             print(
