@@ -5,6 +5,7 @@ Debug why 6-groups shows 0.0s processing time
 
 import time
 
+
 def test_extraction_flow():
     """Test if extraction is actually happening."""
     

@@ -3,6 +3,7 @@
 Test the extraction directly to isolate the issue
 """
 import sys
+
 sys.path.append('.')
 
 def test_direct():
@@ -17,7 +18,7 @@ def test_direct():
         grouping_strategy="6_groups"
     )
     
-    print(f"\nProcessor initialized:")
+    print("\nProcessor initialized:")
     print(f"  extraction_mode: {processor.extraction_mode}")
     print(f"  extraction_strategy exists: {processor.extraction_strategy is not None}")
     
