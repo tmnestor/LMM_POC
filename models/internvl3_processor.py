@@ -574,13 +574,14 @@ INSTRUCTIONS:
             pixel_values = self.load_image(image, max_num=12).to(self.device)
 
             # Merge generation kwargs with defaults
-            final_generation_kwargs = {
-                "do_sample": self.generation_config["do_sample"],
-                "pad_token_id": self.generation_config.get(
-                    "pad_token_id", self.tokenizer.eos_token_id
-                ),
-            }
-            final_generation_kwargs.update(generation_kwargs)
+            # Note: InternVL3 chat() method has different parameter requirements
+            final_generation_kwargs = {}
+            
+            # Only add supported parameters
+            if "max_new_tokens" in generation_kwargs:
+                final_generation_kwargs["max_new_tokens"] = generation_kwargs["max_new_tokens"]
+            if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
+                final_generation_kwargs["temperature"] = generation_kwargs["temperature"]
 
             # Generate response using appropriate method
             if hasattr(self.model, "chat") and self.is_8b_model:
@@ -597,8 +598,18 @@ INSTRUCTIONS:
                     print("🔄 Using generate() method for InternVL3-2B")
 
                 inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+                
+                # For generate method, we can use standard generation parameters
+                generate_kwargs = {
+                    "do_sample": self.generation_config["do_sample"],
+                    "pad_token_id": self.generation_config.get(
+                        "pad_token_id", self.tokenizer.eos_token_id
+                    ),
+                }
+                generate_kwargs.update(generation_kwargs)
+                
                 generation_output = self.model.generate(
-                    **inputs, pixel_values=pixel_values, **final_generation_kwargs
+                    **inputs, pixel_values=pixel_values, **generate_kwargs
                 )
 
                 # Decode response
