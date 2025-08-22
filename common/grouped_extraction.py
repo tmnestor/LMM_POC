@@ -97,8 +97,8 @@ class GroupedExtractionStrategy:
             
         elif group_name == "monetary":
             expertise_frame = """Extract financial amounts and tax information."""
-            cognitive_context = """These are monetary values: GST, subtotal, and account balances."""
-            focus_instruction = "Extract all dollar amounts and tax values from this document."
+            cognitive_context = """These are monetary values: GST (tax amount), subtotal (pre-tax amount), opening/closing balances (from bank statements only). Do NOT confuse TOTAL with CLOSING_BALANCE."""
+            focus_instruction = "Extract tax amounts and subtotals. Account balances are only for bank statements, not invoices."
             
         elif group_name == "dates":
             expertise_frame = """Extract dates and time-related information."""
@@ -117,13 +117,13 @@ class GroupedExtractionStrategy:
             
         elif group_name == "banking":
             expertise_frame = """Extract banking and payment information."""
-            cognitive_context = """These are banking details: bank name, BSB, account number, and account holder."""
-            focus_instruction = "Extract bank account and payment information from this document."
+            cognitive_context = """IMPORTANT: These fields are typically N/A for invoices/receipts. Only extract if this is a bank statement. BSB is a 6-digit number (NOT the 11-digit ABN). Bank name is a financial institution (NOT the supplier)."""
+            focus_instruction = "Extract bank account information ONLY if this is a bank statement. If this is an invoice/receipt, most banking fields should be N/A."
             
         elif group_name == "item_details": 
             expertise_frame = """Extract transaction line items and pricing."""
-            cognitive_context = """These are item details: descriptions, quantities, and individual prices."""
-            focus_instruction = "Extract line item descriptions, quantities, and prices from this document."
+            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document."""
+            focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate or guess values."
             
         elif group_name == "metadata":
             expertise_frame = """Extract document type and classification."""
@@ -136,8 +136,10 @@ class GroupedExtractionStrategy:
             cognitive_context = f"""Focus on {group_config['description'].lower()} to provide accurate field extraction."""
             focus_instruction = f"Focus on extracting fields related to {group_config['description'].lower()}."
 
-        # Build the streamlined task-focused prompt
+        # Build the streamlined task-focused prompt with context hints
         prompt = f"""TASK: {expertise_frame}
+
+DOCUMENT CONTEXT: You are analyzing a business document image. Consider the document type when extracting fields.
 
 {cognitive_context}
 
@@ -151,12 +153,15 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
             prompt += f"{field}: {instruction}\n"
 
-        # Simplified format rules
+        # Enhanced format rules with anti-hallucination
         prompt += f"""
 FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
 - Plain text only - no formatting
 - Include ALL {len(fields)} fields even if N/A
+- Extract ONLY what you can see in the document
+- Do NOT guess, calculate, or make up values
+- Use N/A if field is not visible or not applicable
 - Output ONLY these {len(fields)} lines"""
 
         return prompt

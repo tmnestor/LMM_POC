@@ -182,14 +182,14 @@ FIELD_DEFINITIONS = {
     },
     "BANK_NAME": {
         "type": "text",
-        "instruction": "[bank name or N/A]",
+        "instruction": "[bank name (NOT supplier name) or N/A]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of banking institution",
         "required": False,
     },
     "BSB_NUMBER": {
         "type": "numeric_id",
-        "instruction": "[6-digit BSB number or N/A]",
+        "instruction": "[6-digit BSB (NOT ABN) or N/A]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Bank State Branch routing number",
         "required": False,
@@ -210,7 +210,7 @@ FIELD_DEFINITIONS = {
     },
     "CLOSING_BALANCE": {
         "type": "monetary",
-        "instruction": "[closing balance amount in dollars or N/A]",
+        "instruction": "[closing balance with 2 decimals (NOT total) from bank statements or N/A]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final balance on statement",
         "required": False,
@@ -238,7 +238,7 @@ FIELD_DEFINITIONS = {
     },
     "GST": {
         "type": "monetary",
-        "instruction": "[GST amount in dollars or N/A]",
+        "instruction": "[GST amount in dollars with 2 decimals (e.g. $5.33) or N/A]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Goods and Services Tax amount",
         "required": False,
@@ -252,7 +252,7 @@ FIELD_DEFINITIONS = {
     },
     "OPENING_BALANCE": {
         "type": "monetary",
-        "instruction": "[opening balance amount in dollars or N/A]",
+        "instruction": "[opening balance with 2 decimals from bank statements or N/A]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Starting balance on statement",
         "required": False,
@@ -308,7 +308,7 @@ FIELD_DEFINITIONS = {
     },
     "SUBTOTAL": {
         "type": "monetary",
-        "instruction": "[subtotal amount in dollars or N/A]",
+        "instruction": "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or N/A]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Subtotal before taxes and fees",
         "required": False,
@@ -329,7 +329,7 @@ FIELD_DEFINITIONS = {
     },
     "TOTAL": {
         "type": "monetary",
-        "instruction": "[total amount in dollars or N/A]",
+        "instruction": "[total amount in dollars with 2 decimals (e.g. $58.62) or N/A]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final total amount including all charges",
         "required": True,
