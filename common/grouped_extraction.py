@@ -14,7 +14,6 @@ from .config import (
     FIELD_GROUPS,
     FIELD_INSTRUCTIONS,
     GROUP_PROCESSING_ORDER,
-    GROUP_PROMPT_TEMPLATES,
     GROUP_VALIDATION_RULES,
 )
 from .evaluation_utils import parse_extraction_response
@@ -64,15 +63,9 @@ class GroupedExtractionStrategy:
 
         group_config = FIELD_GROUPS[group_name]
         fields = group_config["fields"]
-        prompt_style = group_config["prompt_style"]
 
-        # Get base template for prompt style
-        base_instruction = GROUP_PROMPT_TEMPLATES.get(
-            prompt_style, "Extract these fields:"
-        )
-
-        # Build the focused prompt
-        prompt = f"""{base_instruction}
+        # Use same base instruction as single-pass mode for consistency
+        prompt = f"""Extract the following {len(fields)} fields from this business document.
 
 {group_config["description"]}
 

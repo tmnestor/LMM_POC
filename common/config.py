@@ -379,7 +379,6 @@ FIELD_GROUPS = {
         "priority": 1,
         "max_tokens": 300,
         "temperature": 0.1,  # Lower temperature for critical fields
-        "prompt_style": "precise",
         "description": "Most important fields for business validation",
     },
     "monetary": {
@@ -388,7 +387,6 @@ FIELD_GROUPS = {
         "priority": 2,
         "max_tokens": 400,
         "temperature": 0.1,
-        "prompt_style": "numerical",
         "description": "Financial amounts and calculations",
     },
     "dates": {
@@ -397,7 +395,6 @@ FIELD_GROUPS = {
         "priority": 3,
         "max_tokens": 350,
         "temperature": 0.1,
-        "prompt_style": "temporal",
         "description": "Temporal information and date fields",
     },
     "business_entity": {
@@ -411,7 +408,6 @@ FIELD_GROUPS = {
         "priority": 4,
         "max_tokens": 450,
         "temperature": 0.1,
-        "prompt_style": "descriptive",
         "description": "Seller/provider information",
     },
     "payer_info": {
@@ -420,7 +416,6 @@ FIELD_GROUPS = {
         "priority": 5,
         "max_tokens": 450,
         "temperature": 0.1,
-        "prompt_style": "descriptive",
         "description": "Buyer/customer information",
     },
     "banking": {
@@ -429,7 +424,6 @@ FIELD_GROUPS = {
         "priority": 6,
         "max_tokens": 400,
         "temperature": 0.1,
-        "prompt_style": "mixed",
         "description": "Financial institution information",
     },
     "item_details": {
@@ -438,7 +432,6 @@ FIELD_GROUPS = {
         "priority": 7,
         "max_tokens": 500,
         "temperature": 0.1,
-        "prompt_style": "list",
         "description": "Line item information requiring list processing",
     },
     "metadata": {
@@ -447,7 +440,6 @@ FIELD_GROUPS = {
         "priority": 8,
         "max_tokens": 250,
         "temperature": 0.1,
-        "prompt_style": "classification",
         "description": "Document classification and type",
     },
 }
