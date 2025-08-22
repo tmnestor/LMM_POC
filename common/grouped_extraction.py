@@ -217,10 +217,9 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         # Enhanced format rules with strict enforcement
         prompt += f"""
 FORMAT RULES:
-- Use exactly: KEY: value (colon and space)  
+- Use exactly: KEY: value (colon and space)
 - NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
 - Plain text only - NO markdown, NO bold, NO italic
-- CRITICAL: Do NOT use markdown. Output "SUPPLIER: value", NOT "**SUPPLIER:**" followed by value on next line
 - Include ALL {len(fields)} fields even if N/A
 - Extract ONLY what you can see in the document
 - Do NOT guess, calculate, or make up values
