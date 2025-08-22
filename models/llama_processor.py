@@ -800,6 +800,12 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             else 0,
             "effective_batch_size": self.batch_size,
         }
+        
+        # Add group processing statistics if in grouped mode
+        if self.extraction_mode == "grouped" and self.extraction_strategy:
+            batch_statistics["total_groups_processed"] = self.extraction_strategy.stats.get("total_groups_processed", 0)
+            batch_statistics["successful_groups"] = self.extraction_strategy.stats.get("successful_groups", 0)
+            batch_statistics["failed_groups"] = self.extraction_strategy.stats.get("failed_groups", 0)
 
         print("\n📊 Batch Processing Complete:")
         print(f"   Total images: {batch_statistics['total_images']}")

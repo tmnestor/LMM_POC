@@ -9,6 +9,7 @@ Usage:
     python compare_extraction_modes.py [--images N]
 """
 
+
 import argparse
 import time
 from pathlib import Path

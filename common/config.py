@@ -541,6 +541,7 @@ GROUP_PROMPT_TEMPLATES = {
 
 # Validation rules per group
 GROUP_VALIDATION_RULES = {
+    # 8-group strategy validation rules
     "critical": {
         "min_confidence": 0.9,
         "required_fields": ["ABN", "TOTAL"],
@@ -554,6 +555,33 @@ GROUP_VALIDATION_RULES = {
     "dates": {
         "min_confidence": 0.8,
         "validation_type": "temporal",
+        "allow_empty": True,
+    },
+    # 6-group strategy validation rules
+    "regulatory_financial": {
+        "min_confidence": 0.9,
+        "required_fields": ["ABN", "TOTAL"],
+        "allow_empty": False,
+    },
+    "entity_contacts": {
+        "min_confidence": 0.8,
+        "allow_empty": True,
+    },
+    "transaction_details": {
+        "min_confidence": 0.85,
+        "allow_empty": True,
+    },
+    "temporal_data": {
+        "min_confidence": 0.8,
+        "validation_type": "temporal",
+        "allow_empty": True,
+    },
+    "banking_payment": {
+        "min_confidence": 0.85,
+        "allow_empty": True,
+    },
+    "document_metadata": {
+        "min_confidence": 0.8,
         "allow_empty": True,
     },
 }
