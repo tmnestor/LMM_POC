@@ -75,7 +75,8 @@ class InternVL3Processor:
         self.debug = debug
         self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug)
         self.generation_config = None
-        self.is_8b_model = "8B" in str(model_path)
+        # Fix 8B detection to use actual model path (after setting default)
+        self.is_8b_model = "8B" in str(self.model_path)
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
