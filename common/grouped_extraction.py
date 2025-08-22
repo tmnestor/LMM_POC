@@ -311,6 +311,12 @@ FORMAT RULES:
                 # Call the extraction function (model-specific)
                 response = extract_function(image_path, prompt, **extraction_kwargs)
 
+                if self.debug:
+                    print(f"🔍 RAW MODEL RESPONSE for group '{group_name}':")
+                    print("-" * 40)
+                    print(response)
+                    print("-" * 40)
+
                 # Parse the response
                 extracted_data = parse_extraction_response(
                     response, clean_conversation_artifacts=True
@@ -321,6 +327,12 @@ FORMAT RULES:
                 filtered_data = {
                     field: extracted_data.get(field, "N/A") for field in group_fields
                 }
+
+                if self.debug:
+                    print(f"🔍 PARSED DATA for group '{group_name}':")
+                    for field, value in filtered_data.items():
+                        print(f"  {field}: {value}")
+                    print()
 
                 # Validate results
                 validation_passed = self.validate_group_results(

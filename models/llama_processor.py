@@ -505,6 +505,17 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 response, clean_conversation_artifacts=True
             )
 
+            if self.debug:
+                print(f"🔍 RAW MODEL RESPONSE (single-pass):")
+                print("-" * 40)
+                print(response)
+                print("-" * 40)
+                print(f"🔍 PARSED DATA (single-pass):")
+                for field, value in list(extracted_data.items())[:5]:  # Show first 5 fields
+                    print(f"  {field}: {value}")
+                print(f"  ... and {len(extracted_data) - 5} more fields")
+                print()
+
             # Calculate metrics - count ALL fields that are present (including correct N/A)
             extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
