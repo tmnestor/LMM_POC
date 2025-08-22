@@ -573,24 +573,29 @@ INSTRUCTIONS:
             image = Image.open(image_path).convert("RGB")
             pixel_values = self.load_image(image, max_num=12).to(self.device)
 
-            # Merge generation kwargs with defaults
-            # Note: InternVL3 chat() method has different parameter requirements
-            final_generation_kwargs = {}
+            # Create generation config for this specific extraction
+            # Use the same interface as the working single-pass mode
+            custom_generation_config = self.generation_config.copy()
             
-            # Only add supported parameters
+            # Override with group-specific parameters if provided
             if "max_new_tokens" in generation_kwargs:
-                final_generation_kwargs["max_new_tokens"] = generation_kwargs["max_new_tokens"]
+                custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
             if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
-                final_generation_kwargs["temperature"] = generation_kwargs["temperature"]
+                custom_generation_config["temperature"] = generation_kwargs["temperature"]
 
-            # Generate response using appropriate method
-            if hasattr(self.model, "chat") and self.is_8b_model:
-                # Use chat method for 8B model
+            # Generate response using the same method as single-pass mode
+            if hasattr(self.model, "chat"):
+                # Use chat method (same for both 2B and 8B)
                 if self.debug:
-                    print("🔄 Using chat() method for InternVL3-8B")
+                    model_size = "8B" if self.is_8b_model else "2B"
+                    print(f"🔄 Using chat() method for InternVL3-{model_size}")
 
                 response = self.model.chat(
-                    self.tokenizer, pixel_values, prompt, **final_generation_kwargs
+                    self.tokenizer,
+                    pixel_values,
+                    prompt,
+                    custom_generation_config,
+                    history=None,
                 )
             else:
                 # Use generate method for 2B model
