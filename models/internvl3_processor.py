@@ -572,6 +572,10 @@ INSTRUCTIONS:
             # Load and preprocess image
             image = Image.open(image_path).convert("RGB")
             pixel_values = self.load_image(image, max_num=12).to(self.device)
+            
+            # Apply the same dtype conversion as single-pass mode
+            # This is crucial for 8-bit quantized models
+            pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
             # Create generation config for this specific extraction
             # Use the same interface as the working single-pass mode
@@ -596,6 +600,7 @@ INSTRUCTIONS:
                     prompt,
                     custom_generation_config,
                     history=None,
+                    return_history=False,
                 )
             else:
                 # Use generate method for 2B model
