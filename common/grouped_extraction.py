@@ -72,12 +72,8 @@ class GroupedExtractionStrategy:
 
         if self.debug:
             print(
-                f"🔍 Generated research-backed prompt for group '{group_name}' ({len(fields)} fields)"
+                f"🔍 Generated research-backed prompt for group '{group_name}' ({len(fields)} fields, {len(prompt)} chars)"
             )
-            print("📝 ACTUAL PROMPT CONTENT:")
-            print("="*60)
-            print(prompt)
-            print("="*60)
 
         return prompt
     

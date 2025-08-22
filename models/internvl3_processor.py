@@ -299,10 +299,7 @@ INSTRUCTIONS:
 - Output exactly {FIELD_COUNT} lines, one for each field"""
 
         if self.debug:
-            print("📝 SINGLE-PASS PROMPT CONTENT:")
-            print("="*60)
-            print(prompt)
-            print("="*60)
+            print(f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
 
         return prompt
 
