@@ -470,18 +470,26 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         )
 
         # STRATEGY 3: Resilient generation with OffloadedCache fallback
-        final_generation_kwargs = {
-            "max_new_tokens": self.generation_config["max_new_tokens"],
-            "temperature": self.generation_config["temperature"],
-            "do_sample": self.generation_config["do_sample"],
-            "top_p": self.generation_config["top_p"],
-            "use_cache": self.generation_config["use_cache"],
-            "pad_token_id": self.processor.tokenizer.eos_token_id,
-        }
-        
-        # Override with custom parameters if provided
         if generation_kwargs:
+            # Custom generation kwargs provided (grouped extraction)
+            # Use minimal defaults that custom extraction needs, let custom params override
+            final_generation_kwargs = {
+                "do_sample": self.generation_config["do_sample"],
+                "top_p": self.generation_config["top_p"],
+                "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
+            }
             final_generation_kwargs.update(generation_kwargs)
+        else:
+            # Single-pass extraction - use full default config
+            final_generation_kwargs = {
+                "max_new_tokens": self.generation_config["max_new_tokens"],
+                "temperature": self.generation_config["temperature"],
+                "do_sample": self.generation_config["do_sample"],
+                "top_p": self.generation_config["top_p"],
+                "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
+            }
 
         # Generate response with resilient fallback
         with torch.no_grad():
