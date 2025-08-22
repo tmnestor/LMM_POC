@@ -95,7 +95,7 @@ def run_model_evaluation(
                 # Debug: Check types
                 if results:
                     sample = results[0]
-                    print(f"Debug - Sample result types:")
+                    print("Debug - Sample result types:")
                     print(f"  extracted_fields_count: {type(sample.get('extracted_fields_count'))}")
                     print(f"  response_completeness: {type(sample.get('response_completeness'))}")
                     print(f"  content_coverage: {type(sample.get('content_coverage'))}")
