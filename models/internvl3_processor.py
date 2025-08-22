@@ -559,85 +559,70 @@ INSTRUCTIONS:
     ) -> str:
         """
         Extract fields using a custom prompt with specific generation parameters.
+        
+        This method uses the EXACT same logic as process_single_image() but with a custom prompt.
 
         Args:
             image_path (str): Path to image file
             prompt (str): Custom extraction prompt
-            **generation_kwargs: Additional generation parameters
+            **generation_kwargs: Additional generation parameters (for group-specific settings)
 
         Returns:
             str: Raw model response
         """
         try:
-            # Load and preprocess image
-            image = Image.open(image_path).convert("RGB")
-            pixel_values = self.load_image(image, max_num=12).to(self.device)
-            
-            # Apply the same dtype conversion as single-pass mode
-            # This is crucial for 8-bit quantized models
+            # EXACT COPY from process_single_image() - Load and preprocess image
+            pixel_values = self.load_image(image_path)
+
+            # EXACT COPY from process_single_image() - Move to appropriate device and dtype
+            # Both models now use GPU with bfloat16
             pixel_values = pixel_values.to(torch.bfloat16).cuda()
 
-            # Create generation config for this specific extraction
-            # Use the same interface as the working single-pass mode
+            # Prepare conversation with custom prompt (only difference from single-pass)
+            question = f"<image>\n{prompt}"
+
+            # Create generation config - allow group-specific overrides
             custom_generation_config = self.generation_config.copy()
-            
-            # Override with group-specific parameters if provided
             if "max_new_tokens" in generation_kwargs:
                 custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
             if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
                 custom_generation_config["temperature"] = generation_kwargs["temperature"]
 
-            # Generate response using the same method as single-pass mode
-            if hasattr(self.model, "chat"):
-                # Use chat method (same for both 2B and 8B)
-                if self.debug:
-                    model_size = "8B" if self.is_8b_model else "2B"
-                    print(f"🔄 Using chat() method for InternVL3-{model_size}")
-
+            # EXACT COPY from process_single_image() - Use the same generation logic for both 2B and 8B models
+            try:
                 response = self.model.chat(
                     self.tokenizer,
                     pixel_values,
-                    prompt,
+                    question,
                     custom_generation_config,
                     history=None,
                     return_history=False,
                 )
-            else:
-                # Use generate method for 2B model
-                if self.debug:
-                    print("🔄 Using generate() method for InternVL3-2B")
+            except torch.cuda.OutOfMemoryError as e:
+                print(f"⚠️ InternVL3 OOM: {e}")
+                print("🔄 Attempting emergency cleanup and retry...")
 
-                inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-                
-                # For generate method, we can use standard generation parameters
-                generate_kwargs = {
-                    "do_sample": self.generation_config["do_sample"],
-                    "pad_token_id": self.generation_config.get(
-                        "pad_token_id", self.tokenizer.eos_token_id
-                    ),
-                }
-                generate_kwargs.update(generation_kwargs)
-                
-                generation_output = self.model.generate(
-                    **inputs, pixel_values=pixel_values, **generate_kwargs
-                )
+                # EXACT COPY from process_single_image() - Emergency cleanup
+                torch.cuda.empty_cache()
+                clear_model_caches(self.model, self.tokenizer)
+                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
 
-                # Decode response
-                response = (
-                    self.tokenizer.decode(
-                        generation_output[0], skip_special_tokens=True
+                # Retry once
+                try:
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        question,
+                        custom_generation_config,
+                        history=None,
+                        return_history=False,
                     )
-                    .replace(prompt, "")
-                    .strip()
-                )
+                except Exception as retry_e:
+                    print(f"❌ InternVL3 retry also failed: {retry_e}")
+                    return f"Error: {retry_e}"
 
-            # Cleanup
-            del pixel_values, image
-            if "inputs" in locals():
-                del inputs
-            if "generation_output" in locals():
-                del generation_output
-
+            # EXACT COPY from process_single_image() - Memory cleanup
+            del pixel_values
             comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             return response
