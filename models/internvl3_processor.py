@@ -75,7 +75,7 @@ class InternVL3Processor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy)
+        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy, model_name="internvl3")
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)
         self.is_8b_model = "8B" in str(self.model_path)

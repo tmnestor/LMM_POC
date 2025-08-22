@@ -1,0 +1,71 @@
+# InternVL3 6_groups prompts that achieved 87.6% accuracy
+# Source: Current grouped_extraction.py (after simplification fixes)
+
+regulatory_financial:
+  expertise_frame: "Extract business identifiers and financial amounts."
+  cognitive_context: "The Australian Business Number (ABN) is an 11 digit number (may have spaces). TOTAL is the final amount due. GST is the tax amount. SUBTOTAL is the amount before tax. Extract amounts with exact decimal places as shown."
+  focus_instruction: "Extract the ABN and all monetary amounts exactly as they appear on the document."
+
+entity_contacts:
+  expertise_frame: "Extract ALL contact information for both supplier and payer."
+  cognitive_context: "Australian postcodes are 4 digits (e.g., Adelaide SA 5000). Phone numbers include area code: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. Extract contact details exactly as shown in the document."
+  focus_instruction: "Extract contact details for supplier and payer. Include names, addresses, phone numbers, and email/website if visible."
+
+transaction_details:
+  expertise_frame: "Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."
+  cognitive_context: "These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. Use comma-separated format for lists."
+  focus_instruction: "Extract all line items as comma-separated lists. One line for descriptions, one for quantities, one for unit prices."
+
+temporal_data:
+  expertise_frame: "Extract ALL date information from the document."
+  cognitive_context: "INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually N/A for invoices). Use the exact date format shown in the document."
+  focus_instruction: "Extract all dates exactly as formatted in the document. Most invoices won't have a statement period."
+
+banking_payment:
+  expertise_frame: "Extract banking details if present (usually limited on invoices)."
+  cognitive_context: "BANK_NAME: financial institution name (NOT the supplier name). BSB_NUMBER: 6-digit bank code (NOT the 11-digit ABN). BANK_ACCOUNT_NUMBER: account number for payments. Most invoices only show account number, not full banking details."
+  focus_instruction: "Extract banking information if visible. Most fields will be N/A on invoices. Do NOT confuse ABN with BSB, or supplier name with bank name."
+
+document_metadata:
+  expertise_frame: "Identify document type and any account balance information."
+  cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING/CLOSING_BALANCE: ONLY for bank statements showing account balances. These are NOT the same as subtotal/total/GST amounts. CLOSING_BALANCE on a statement is the final account balance, not the invoice total."
+  focus_instruction: "Identify the document type. For balances: ONLY extract if this is a bank statement showing account balances. Invoice totals are NOT closing balances."
+
+# Format rules (same for all groups):
+format_rules:
+  - "Use exactly: KEY: value (colon and space)"
+  - "NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting"
+  - "Plain text only - NO markdown, NO bold, NO italic"
+  - "Include ALL fields even if N/A"
+  - "Extract ONLY what you can see in the document"
+  - "Do NOT guess, calculate, or make up values"
+  - "Use N/A if field is not visible or not applicable"
+  - "Output ONLY these lines, nothing else"
+  - "For lists: use COMMA-SEPARATED values on ONE LINE per field"
+  - "DO NOT output the same field name multiple times"
+
+# Key differences from Llama prompts:
+differences_from_llama:
+  removed_keywords:
+    - "CRITICAL - InternVL3 gets confused by too many critical warnings"
+    - "EXACTLY - simplified to basic requirements"
+    - "ALL in caps - reduced emphasis"
+    - "DO NOT output multiple blocks - too prescriptive"
+  
+  simplified_language:
+    - Shorter cognitive_context sections
+    - Less detailed examples
+    - Fewer OCR-specific warnings
+    - More concise instructions
+  
+  optimization_strategy:
+    - InternVL3 performs better with clean, simple instructions
+    - Avoids overwhelming the model with too many rules
+    - Focuses on core extraction rather than format enforcement
+    - Relies on parser to handle any formatting issues
+
+# Results:
+# - InternVL3: 87.6% accuracy with these simplified prompts
+# - Clean output with proper field names (no duplication)
+# - Better digit precision (proper postcodes, ABN formatting)
+# - Successful comma-separated list formatting

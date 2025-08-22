@@ -76,7 +76,7 @@ class LlamaProcessor:
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
         self.extraction_strategy = get_extraction_strategy(
-            self.extraction_mode, debug, grouping_strategy
+            self.extraction_mode, debug, grouping_strategy, model_name="llama"
         )
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
