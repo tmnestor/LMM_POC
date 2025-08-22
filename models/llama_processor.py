@@ -196,6 +196,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
         if self.debug:
             print(f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print("📝 PROMPT CONTENT:")
+            print("-" * 40)
+            print(prompt)
+            print("-" * 40)
 
         return prompt
 

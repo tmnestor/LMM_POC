@@ -74,6 +74,10 @@ class GroupedExtractionStrategy:
             print(
                 f"🔍 Generated research-backed prompt for group '{group_name}' ({len(fields)} fields, {len(prompt)} chars)"
             )
+            print("📝 GROUP PROMPT CONTENT:")
+            print("-" * 40)
+            print(prompt)
+            print("-" * 40)
 
         return prompt
     
