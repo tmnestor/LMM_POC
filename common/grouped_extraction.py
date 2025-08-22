@@ -158,19 +158,19 @@ class GroupedExtractionStrategy:
 
         # 6-groups strategy specific prompts with enhanced precision
         elif group_name == "regulatory_financial":
-            expertise_frame = """Extract critical business identifiers and ALL financial amounts with precision."""
-            cognitive_context = """The Australian Business Number (ABN) is an 11 digit number structured as a 9 digit identifier with two leading check digits (may be formatted with spaces like XX XXX XXX XXX). TOTAL is the final amount due. GST is the tax amount (usually smaller, around 10% of subtotal). SUBTOTAL is the amount before tax. Be EXACT with decimal places - copy them precisely from the document."""
-            focus_instruction = "Extract the ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the ABN has exactly 11 digits."
+            expertise_frame = """Extract business identifiers and financial amounts."""
+            cognitive_context = """The Australian Business Number (ABN) is an 11 digit number (may have spaces). TOTAL is the final amount due. GST is the tax amount. SUBTOTAL is the amount before tax. Extract amounts with exact decimal places as shown."""
+            focus_instruction = "Extract the ABN and all monetary amounts exactly as they appear on the document."
 
         elif group_name == "entity_contacts":
-            expertise_frame = """Extract ALL contact information for both supplier and payer with EXACT digit counts."""
-            cognitive_context = """CRITICAL DIGIT RULES: Australian postcodes are EXACTLY 4 digits (5000 NOT 55000 or 50000). Phone numbers are EXACTLY 10 digits including area code. Area codes: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. DO NOT add extra digits. If you see 'Adelaide SA 5000', the postcode is 5000 (4 digits only). If you see '(06) 4744 4248', preserve the 06 area code - do NOT change to 66."""
-            focus_instruction = "Extract contact details with EXACT digit counts. Postcodes: EXACTLY 4 digits. Phone numbers: EXACTLY 10 digits total. Count the digits carefully. Do NOT add or change digits."
+            expertise_frame = """Extract ALL contact information for both supplier and payer."""
+            cognitive_context = """Australian postcodes are 4 digits (e.g., Adelaide SA 5000). Phone numbers include area code: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. Extract contact details exactly as shown in the document."""
+            focus_instruction = "Extract contact details for supplier and payer. Include names, addresses, phone numbers, and email/website if visible."
 
         elif group_name == "transaction_details":
             expertise_frame = """Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."""
-            cognitive_context = """CRITICAL: Output each field as a SINGLE LINE with COMMA-SEPARATED values. DESCRIPTIONS: ALL product names in one line (e.g., Rice 1kg, Cheese Block 500g, Frozen Peas 1kg). QUANTITIES: ALL quantities in one line (e.g., 3, 3, 3, 1). PRICES: ALL UNIT prices in one line (e.g., $3.80, $8.50, $4.20). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40. DO NOT output multiple blocks or multiple DESCRIPTIONS lines."""
-            focus_instruction = "Extract ALL items in COMMA-SEPARATED format. One line for ALL descriptions, one line for ALL quantities, one line for ALL prices. THREE LINES TOTAL OUTPUT."
+            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. Use comma-separated format for lists."""
+            focus_instruction = "Extract all line items as comma-separated lists. One line for descriptions, one for quantities, one for unit prices."
 
         elif group_name == "temporal_data":
             expertise_frame = """Extract ALL date information from the document."""
