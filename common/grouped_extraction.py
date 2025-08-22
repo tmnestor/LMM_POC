@@ -15,7 +15,6 @@ from .config import (
     FIELD_INSTRUCTIONS,
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
-    DEFAULT_GROUPING_STRATEGY,
 )
 from .evaluation_utils import parse_extraction_response
 
