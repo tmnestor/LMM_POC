@@ -85,8 +85,29 @@ def parse_extraction_response(response_text, clean_conversation_artifacts=False)
 
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")
+    
+    # Handle multi-line markdown format where key is on one line, value on next
+    processed_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+            
+        # Check if this is a markdown key line (e.g., "**SUPPLIER:**")
+        markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*$", line)
+        if markdown_key_match and i + 1 < len(lines):
+            # Combine with next line that contains the value
+            key = markdown_key_match.group(1)
+            value = lines[i + 1].strip()
+            processed_lines.append(f"{key}: {value}")
+            i += 2  # Skip both lines
+        else:
+            processed_lines.append(line)
+            i += 1
 
-    for line in lines:
+    for line in processed_lines:
         # Skip empty lines and non-key-value lines
         if not line.strip() or ":" not in line:
             continue
