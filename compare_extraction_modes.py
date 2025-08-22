@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import time
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
@@ -74,7 +75,7 @@ def run_model_evaluation(
         processing_time = time.time() - start_time
         
         # Load ground truth
-        ground_truth_map = load_ground_truth(DATA_DIR / "evaluation_ground_truth.csv")
+        ground_truth_map = load_ground_truth(Path(DATA_DIR) / "evaluation_ground_truth.csv")
         
         # Evaluate results
         if ground_truth_map:
