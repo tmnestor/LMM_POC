@@ -75,7 +75,9 @@ class LlamaProcessor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy)
+        self.extraction_strategy = get_extraction_strategy(
+            self.extraction_mode, debug, grouping_strategy
+        )
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()
@@ -197,7 +199,9 @@ FORMAT RULES:
 STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
         if self.debug:
-            print(f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print(
+                f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields"
+            )
             print("📝 PROMPT CONTENT:")
             print("-" * 40)
             print(prompt)
@@ -513,7 +517,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 print(response)
                 print("-" * 40)
                 print("🔍 PARSED DATA (single-pass):")
-                for field, value in list(extracted_data.items())[:5]:  # Show first 5 fields
+                for field, value in list(extracted_data.items())[
+                    :5
+                ]:  # Show first 5 fields
                     print(f"  {field}: {value}")
                 print(f"  ... and {len(extracted_data) - 5} more fields")
                 print()
@@ -609,7 +615,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 "pad_token_id": self.processor.tokenizer.eos_token_id,
             }
             final_generation_kwargs.update(generation_kwargs)
-            
+
             # Clean up temperature if do_sample is False to avoid warnings
             if not final_generation_kwargs.get("do_sample", False):
                 final_generation_kwargs.pop("temperature", None)
@@ -805,12 +811,18 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             else 0,
             "effective_batch_size": self.batch_size,
         }
-        
+
         # Add group processing statistics if in grouped mode
         if self.extraction_mode == "grouped" and self.extraction_strategy:
-            batch_statistics["total_groups_processed"] = self.extraction_strategy.stats.get("total_groups_processed", 0)
-            batch_statistics["successful_groups"] = self.extraction_strategy.stats.get("successful_groups", 0)
-            batch_statistics["failed_groups"] = self.extraction_strategy.stats.get("failed_groups", 0)
+            batch_statistics["total_groups_processed"] = (
+                self.extraction_strategy.stats.get("total_groups_processed", 0)
+            )
+            batch_statistics["successful_groups"] = self.extraction_strategy.stats.get(
+                "successful_groups", 0
+            )
+            batch_statistics["failed_groups"] = self.extraction_strategy.stats.get(
+                "failed_groups", 0
+            )
 
         print("\n📊 Batch Processing Complete:")
         print(f"   Total images: {batch_statistics['total_images']}")
@@ -923,9 +935,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         Returns:
             List[dict]: Processing results for each image
         """
-        print(
-            f"   🔄 Processing {len(batch_files)} images with proven single-image method..."
-        )
+        print(f"   🔄 Processing {len(batch_files)} images with single-image method...")
 
         results = []
         start_time = time.time()
