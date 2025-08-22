@@ -610,8 +610,13 @@ INSTRUCTIONS:
             custom_generation_config = self.generation_config.copy()
             if "max_new_tokens" in generation_kwargs:
                 custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
-            if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
-                custom_generation_config["temperature"] = generation_kwargs["temperature"]
+            # Only set temperature if do_sample is True to avoid warnings
+            if custom_generation_config.get("do_sample", False):
+                if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
+                    custom_generation_config["temperature"] = generation_kwargs["temperature"]
+            else:
+                # Remove temperature if do_sample is False
+                custom_generation_config.pop("temperature", None)
 
             # Use shared extraction method
             return self._extract_with_prompt(image_path, prompt, custom_generation_config)

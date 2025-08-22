@@ -609,6 +609,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 "pad_token_id": self.processor.tokenizer.eos_token_id,
             }
             final_generation_kwargs.update(generation_kwargs)
+            
+            # Clean up temperature if do_sample is False to avoid warnings
+            if not final_generation_kwargs.get("do_sample", False):
+                final_generation_kwargs.pop("temperature", None)
+                final_generation_kwargs.pop("top_p", None)
 
             # Generate response with resilient fallback
             with torch.no_grad():
