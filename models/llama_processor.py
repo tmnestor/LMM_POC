@@ -498,13 +498,11 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 response, clean_conversation_artifacts=True
             )
 
-            # Calculate metrics
-            extracted_fields_count = sum(
-                1 for v in extracted_data.values() if v != "N/A"
-            )
-            response_completeness = len(
+            # Calculate metrics - count ALL fields that are present (including correct N/A)
+            extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
-            ) / len(EXTRACTION_FIELDS)
+            )
+            response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
             # STRATEGY 3: Comprehensive memory cleanup and cache clearing + OffloadedCache fallback
@@ -659,9 +657,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             else:
                 raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
 
-            # Calculate standard metrics for compatibility
+            # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
-                [v for v in extracted_data.values() if v not in ["", "N/A"]]
+                [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             )
             response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)

@@ -532,13 +532,11 @@ INSTRUCTIONS:
             # Parse response
             extracted_data = parse_extraction_response(response)
 
-            # Calculate metrics
-            extracted_fields_count = sum(
-                1 for v in extracted_data.values() if v != "N/A"
-            )
-            response_completeness = len(
+            # Calculate metrics - count ALL fields that are present (including correct N/A)
+            extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
-            ) / len(EXTRACTION_FIELDS)
+            )
+            response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
             return {
@@ -645,9 +643,9 @@ INSTRUCTIONS:
             else:
                 raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
 
-            # Calculate standard metrics for compatibility
+            # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
-                [v for v in extracted_data.values() if v not in ["", "N/A"]]
+                [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             )
             response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
@@ -961,13 +959,11 @@ INSTRUCTIONS:
                     # Parse response
                     extracted_data = parse_extraction_response(response)
 
-                    # Calculate metrics
-                    extracted_fields_count = sum(
-                        1 for v in extracted_data.values() if v != "N/A"
-                    )
-                    response_completeness = len(
+                    # Calculate metrics - count ALL fields that are present (including correct N/A)
+                    extracted_fields_count = len(
                         [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
-                    ) / len(EXTRACTION_FIELDS)
+                    )
+                    response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
                     content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
                     result = {
