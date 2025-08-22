@@ -399,6 +399,8 @@ STOP after the last field. Do not add explanations or comments."""
                     print(
                         f"❌ Error in group '{group_name}' attempt {attempt + 1}: {e}"
                     )
+                    import traceback
+                    traceback.print_exc()
 
                 if attempt == max_retries:
                     # Final attempt failed, return failure result
@@ -412,6 +414,10 @@ STOP after the last field. Do not add explanations or comments."""
                     self.stats["failed_groups"] += 1
                     self.stats["group_processing_times"][group_name] = processing_time
 
+                    # Always print the error for debugging
+                    if not self.debug:
+                        print(f"❌ Group '{group_name}' failed: {e}")
+                    
                     return {
                         "group_name": group_name,
                         "extracted_data": empty_data,
