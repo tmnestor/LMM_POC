@@ -441,6 +441,76 @@ INSTRUCTIONS:
 
         return pixel_values
 
+    def _extract_with_prompt(self, image_path: str, prompt: str, generation_config: dict = None) -> str:
+        """
+        Core extraction method that handles image processing and model inference.
+        
+        This is the shared implementation used by both single-pass and grouped extraction.
+        
+        Args:
+            image_path (str): Path to image file
+            prompt (str): Extraction prompt
+            generation_config (dict): Optional custom generation config
+            
+        Returns:
+            str: Raw model response
+        """
+        # Pre-processing cleanup with fragmentation detection
+        handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
+        # Load and preprocess image
+        pixel_values = self.load_image(image_path)
+
+        # Move to appropriate device and dtype
+        # Both models now use GPU with bfloat16
+        pixel_values = pixel_values.to(torch.bfloat16).cuda()
+
+        # Prepare conversation
+        question = f"<image>\n{prompt}"
+        
+        # Use provided generation config or default
+        config = generation_config or self.generation_config
+
+        # Use the same generation logic for both 2B and 8B models
+        # Documentation shows using model.chat() directly for both
+        try:
+            response = self.model.chat(
+                self.tokenizer,
+                pixel_values,
+                question,
+                config,
+                history=None,
+                return_history=False,
+            )
+        except torch.cuda.OutOfMemoryError as e:
+            print(f"⚠️ InternVL3 OOM: {e}")
+            print("🔄 Attempting emergency cleanup and retry...")
+
+            # Emergency cleanup (skip normal post-processing cleanup)
+            torch.cuda.empty_cache()
+            clear_model_caches(self.model, self.tokenizer)
+            handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+
+            # Retry once
+            try:
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    question,
+                    config,
+                    history=None,
+                    return_history=False,
+                )
+            except torch.cuda.OutOfMemoryError:
+                print("❌ InternVL3: Even with cleanup, OOM persists")
+                raise
+
+        # Memory cleanup after processing
+        del pixel_values
+        comprehensive_memory_cleanup(self.model, self.tokenizer)
+        
+        return response
+
     def process_single_image(self, image_path):
         """
         Process a single image through InternVL3 extraction pipeline.
@@ -453,66 +523,14 @@ INSTRUCTIONS:
         """
         try:
             start_time = time.time()
-
-            # Pre-processing cleanup with fragmentation detection
-            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
-
-            # Load and preprocess image
-            pixel_values = self.load_image(image_path)
-
-            # Move to appropriate device and dtype
-            # Both models now use GPU with bfloat16
-            pixel_values = pixel_values.to(torch.bfloat16).cuda()
-
-            # Prepare conversation
-            question = f"<image>\n{self.get_extraction_prompt()}"
-
-            # Use the same generation logic for both 2B and 8B models
-            # Documentation shows using model.chat() directly for both
-            try:
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values,
-                    question,
-                    self.generation_config,
-                    history=None,
-                    return_history=False,
-                )
-            except torch.cuda.OutOfMemoryError as e:
-                print(f"⚠️ InternVL3 OOM: {e}")
-                print("🔄 Attempting emergency cleanup and retry...")
-
-                # Emergency cleanup (skip normal post-processing cleanup)
-                torch.cuda.empty_cache()
-                clear_model_caches(self.model, self.tokenizer)
-                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
-
-                # Retry once
-                try:
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        question,
-                        self.generation_config,
-                        history=None,
-                        return_history=False,
-                    )
-                except torch.cuda.OutOfMemoryError:
-                    print("❌ InternVL3: Even with cleanup, OOM persists")
-                    raise
-
+            
+            # Use shared extraction method
+            response = self._extract_with_prompt(image_path, self.get_extraction_prompt())
+            
             processing_time = time.time() - start_time
 
             # Parse response
             extracted_data = parse_extraction_response(response)
-
-            # Memory cleanup after processing
-            if self.is_8b_model:
-                # CPU model - just delete variables, no CUDA cleanup needed
-                del pixel_values
-            else:
-                # GPU model - full CUDA cleanup
-                comprehensive_memory_cleanup(self.model, self.tokenizer)
 
             # Calculate metrics
             extracted_fields_count = sum(
@@ -559,8 +577,6 @@ INSTRUCTIONS:
     ) -> str:
         """
         Extract fields using a custom prompt with specific generation parameters.
-        
-        This method uses the EXACT same logic as process_single_image() but with a custom prompt.
 
         Args:
             image_path (str): Path to image file
@@ -571,16 +587,6 @@ INSTRUCTIONS:
             str: Raw model response
         """
         try:
-            # EXACT COPY from process_single_image() - Load and preprocess image
-            pixel_values = self.load_image(image_path)
-
-            # EXACT COPY from process_single_image() - Move to appropriate device and dtype
-            # Both models now use GPU with bfloat16
-            pixel_values = pixel_values.to(torch.bfloat16).cuda()
-
-            # Prepare conversation with custom prompt (only difference from single-pass)
-            question = f"<image>\n{prompt}"
-
             # Create generation config - allow group-specific overrides
             custom_generation_config = self.generation_config.copy()
             if "max_new_tokens" in generation_kwargs:
@@ -588,44 +594,8 @@ INSTRUCTIONS:
             if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
                 custom_generation_config["temperature"] = generation_kwargs["temperature"]
 
-            # EXACT COPY from process_single_image() - Use the same generation logic for both 2B and 8B models
-            try:
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values,
-                    question,
-                    custom_generation_config,
-                    history=None,
-                    return_history=False,
-                )
-            except torch.cuda.OutOfMemoryError as e:
-                print(f"⚠️ InternVL3 OOM: {e}")
-                print("🔄 Attempting emergency cleanup and retry...")
-
-                # EXACT COPY from process_single_image() - Emergency cleanup
-                torch.cuda.empty_cache()
-                clear_model_caches(self.model, self.tokenizer)
-                handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
-
-                # Retry once
-                try:
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        question,
-                        custom_generation_config,
-                        history=None,
-                        return_history=False,
-                    )
-                except Exception as retry_e:
-                    print(f"❌ InternVL3 retry also failed: {retry_e}")
-                    return f"Error: {retry_e}"
-
-            # EXACT COPY from process_single_image() - Memory cleanup
-            del pixel_values
-            comprehensive_memory_cleanup(self.model, self.tokenizer)
-
-            return response
+            # Use shared extraction method
+            return self._extract_with_prompt(image_path, prompt, custom_generation_config)
 
         except Exception as e:
             print(f"❌ Error in InternVL3 custom prompt extraction: {e}")

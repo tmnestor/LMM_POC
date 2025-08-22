@@ -428,6 +428,82 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         print("✅ CPU processing completed successfully")
         return output
 
+    def _extract_with_prompt(self, image_path: str, prompt: str, generation_kwargs: dict = None) -> str:
+        """
+        Core extraction method that handles image processing and model inference.
+        
+        This is the shared implementation used by both single-pass and grouped extraction.
+        
+        Args:
+            image_path (str): Path to image file
+            prompt (str): Extraction prompt
+            generation_kwargs (dict): Optional custom generation parameters
+            
+        Returns:
+            str: Raw model response
+        """
+        # STRATEGY 3: Pre-processing cleanup with fragmentation detection
+        handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+
+        # Load image
+        image = self.load_document_image(image_path)
+
+        # Create multimodal conversation
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+
+        # Apply chat template
+        input_text = self.processor.apply_chat_template(
+            messages, add_generation_prompt=True
+        )
+
+        # Process inputs
+        inputs = self.processor(image, input_text, return_tensors="pt").to(
+            self.model.device
+        )
+
+        # STRATEGY 3: Resilient generation with OffloadedCache fallback
+        final_generation_kwargs = {
+            "max_new_tokens": self.generation_config["max_new_tokens"],
+            "temperature": self.generation_config["temperature"],
+            "do_sample": self.generation_config["do_sample"],
+            "top_p": self.generation_config["top_p"],
+            "use_cache": self.generation_config["use_cache"],
+            "pad_token_id": self.processor.tokenizer.eos_token_id,
+        }
+        
+        # Override with custom parameters if provided
+        if generation_kwargs:
+            final_generation_kwargs.update(generation_kwargs)
+
+        # Generate response with resilient fallback
+        with torch.no_grad():
+            output = self._resilient_generate(inputs, **final_generation_kwargs)
+
+        # Decode response
+        response = self.processor.decode(output[0], skip_special_tokens=True)
+
+        # Extract only the assistant's response
+        if "assistant\n\n" in response:
+            response = response.split("assistant\n\n")[-1].strip()
+        elif "assistant" in response:
+            response = response.split("assistant")[-1].strip()
+
+        # STRATEGY 3: Comprehensive memory cleanup and cache clearing + OffloadedCache fallback
+        del inputs, output, image
+
+        # Use comprehensive cleanup from common module
+        comprehensive_memory_cleanup(self.model, self.processor)
+        
+        return response
+
     def process_single_image(self, image_path):
         """
         Process a single image through Llama extraction pipeline.
@@ -440,57 +516,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         """
         try:
             start_time = time.time()
-
-            # STRATEGY 3: Pre-processing cleanup with fragmentation detection
-            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
-
-            # Load image
-            image = self.load_document_image(image_path)
-
-            # Create multimodal conversation
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {"type": "text", "text": self.get_extraction_prompt()},
-                    ],
-                }
-            ]
-
-            # Apply chat template
-            input_text = self.processor.apply_chat_template(
-                messages, add_generation_prompt=True
-            )
-
-            # Process inputs
-            inputs = self.processor(image, input_text, return_tensors="pt").to(
-                self.model.device
-            )
-
-            # STRATEGY 3: Resilient generation with OffloadedCache fallback
-            generation_kwargs = {
-                "max_new_tokens": self.generation_config["max_new_tokens"],
-                "temperature": self.generation_config["temperature"],
-                "do_sample": self.generation_config["do_sample"],
-                "top_p": self.generation_config["top_p"],
-                "use_cache": self.generation_config["use_cache"],
-                "pad_token_id": self.processor.tokenizer.eos_token_id,
-            }
-
-            # Generate response with resilient fallback
-            with torch.no_grad():
-                output = self._resilient_generate(inputs, **generation_kwargs)
-
-            # Decode response
-            response = self.processor.decode(output[0], skip_special_tokens=True)
-
-            # Extract only the assistant's response
-            if "assistant\n\n" in response:
-                response = response.split("assistant\n\n")[-1].strip()
-            elif "assistant" in response:
-                response = response.split("assistant")[-1].strip()
-
+            
+            # Use shared extraction method
+            response = self._extract_with_prompt(image_path, self.get_extraction_prompt())
+            
             processing_time = time.time() - start_time
 
             # Parse response with Llama-specific cleaning
@@ -506,12 +535,6 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             ) / len(EXTRACTION_FIELDS)
             content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
-
-            # STRATEGY 3: Comprehensive memory cleanup and cache clearing + OffloadedCache fallback
-            del inputs, output, image
-
-            # Use comprehensive cleanup from common module
-            comprehensive_memory_cleanup(self.model, self.processor)
 
             return {
                 "image_name": Path(image_path).name,
@@ -559,58 +582,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             str: Raw model response
         """
         try:
-            # Load image
-            image = self.load_document_image(image_path)
-
-            # Create multimodal conversation with custom prompt
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {"type": "text", "text": prompt},
-                    ],
-                }
-            ]
-
-            # Apply chat template
-            input_text = self.processor.apply_chat_template(
-                messages, add_generation_prompt=True
-            )
-
-            # Process inputs
-            inputs = self.processor(image, input_text, return_tensors="pt").to(
-                self.model.device
-            )
-
-            # Merge generation kwargs with defaults
-            final_generation_kwargs = {
-                "do_sample": self.generation_config["do_sample"],
-                "top_p": self.generation_config["top_p"],
-                "use_cache": self.generation_config["use_cache"],
-                "pad_token_id": self.processor.tokenizer.eos_token_id,
-            }
-            final_generation_kwargs.update(generation_kwargs)
-
-            # Generate response with resilient fallback
-            with torch.no_grad():
-                output = self._resilient_generate(inputs, **final_generation_kwargs)
-
-            # Decode response
-            response = self.processor.decode(output[0], skip_special_tokens=True)
-
-            # Extract only the assistant's response
-            if "assistant\n\n" in response:
-                response = response.split("assistant\n\n")[-1].strip()
-            elif "assistant" in response:
-                response = response.split("assistant")[-1].strip()
-
-            # Cleanup
-            del inputs, output, image
-            comprehensive_memory_cleanup(self.model, self.processor)
-
-            return response
-
+            # Use shared extraction method
+            return self._extract_with_prompt(image_path, prompt, generation_kwargs)
+            
         except Exception as e:
             print(f"❌ Error in custom prompt extraction: {e}")
             return f"Error: {str(e)}"
