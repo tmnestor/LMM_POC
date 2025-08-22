@@ -122,13 +122,13 @@ class GroupedExtractionStrategy:
             
         elif group_name == "item_details": 
             expertise_frame = """Extract transaction line items and pricing."""
-            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document."""
-            focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate or guess values."
+            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. CRITICAL: Use the exact field names DESCRIPTIONS, QUANTITIES, and PRICES."""
+            focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate, multiply, or derive prices. Use only the unit prices visible in the document."
             
         elif group_name == "metadata":
             expertise_frame = """Extract document type and classification."""
             cognitive_context = """This identifies the document category: invoice, receipt, or statement."""
-            focus_instruction = "Identify the document type from this business document."
+            focus_instruction = "Identify the document type from this business document. Output ONLY the document type field, nothing else."
             
         else:
             # Fallback for any unhandled groups
@@ -153,16 +153,19 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
             prompt += f"{field}: {instruction}\n"
 
-        # Enhanced format rules with anti-hallucination
+        # Enhanced format rules with strict enforcement
         prompt += f"""
 FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
-- Plain text only - no formatting
+- NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
+- Plain text only - NO markdown, NO bold, NO italic
 - Include ALL {len(fields)} fields even if N/A
 - Extract ONLY what you can see in the document
 - Do NOT guess, calculate, or make up values
 - Use N/A if field is not visible or not applicable
-- Output ONLY these {len(fields)} lines"""
+- Output ONLY these {len(fields)} lines, nothing else
+
+STOP after the last field. Do not add explanations or comments."""
 
         return prompt
 

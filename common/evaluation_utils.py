@@ -91,8 +91,16 @@ def parse_extraction_response(response_text, clean_conversation_artifacts=False)
         if not line.strip() or ":" not in line:
             continue
 
-        # Clean the line from markdown formatting
-        clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", line)
+        # Clean the line from various formatting issues
+        clean_line = line
+        # Remove markdown formatting
+        clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
+        # Fix InternVL3 "KEY:" prefix issues  
+        clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
+        clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
+        # Fix field name variations
+        clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
+        clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
 
         # Extract key and value
         parts = clean_line.split(":", 1)
@@ -100,11 +108,12 @@ def parse_extraction_response(response_text, clean_conversation_artifacts=False)
             key = parts[0].strip().upper()
             value = parts[1].strip()
 
-            # Store if it's an expected field
+            # Store if it's an expected field - this filters out hallucinated content
             if key in extracted_data:
                 # Don't overwrite if we already have a non-N/A value
                 if extracted_data[key] == "N/A" or not extracted_data[key]:
                     extracted_data[key] = value if value else "N/A"
+            # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data
 
