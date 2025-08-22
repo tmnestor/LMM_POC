@@ -73,7 +73,7 @@ class GroupedExtractionStrategy:
         Returns:
             str: Formatted prompt for the group
         """
-        if group_name not in FIELD_GROUPS:
+        if group_name not in self.field_groups:
             raise ValueError(f"Unknown field group: {group_name}")
 
         group_config = self.field_groups[group_name]
