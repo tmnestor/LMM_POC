@@ -263,6 +263,12 @@ def main():
         action="store_true",
         help="Enable debug output"
     )
+    parser.add_argument(
+        "--strategy",
+        choices=["6_groups", "8_groups", "both"],
+        default="both",
+        help="Strategy to test (default: both)"
+    )
     
     args = parser.parse_args()
     
@@ -280,7 +286,7 @@ def main():
     
     # Determine models to test
     models = ["llama", "internvl3"] if args.model == "both" else [args.model]
-    strategies = ["8_groups", "6_groups"]
+    strategies = ["8_groups", "6_groups"] if args.strategy == "both" else [args.strategy]
     
     for model in models:
         for strategy in strategies:

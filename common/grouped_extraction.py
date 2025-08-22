@@ -163,14 +163,14 @@ class GroupedExtractionStrategy:
             focus_instruction = "Extract the ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the ABN has exactly 11 digits."
 
         elif group_name == "entity_contacts":
-            expertise_frame = """Extract ALL contact information for both supplier and payer with exact formatting."""
-            cognitive_context = """Supplier fields: business providing goods/services. Payer fields: customer receiving goods/services. Australian phone numbers: landlines have 10 digits total (area code + 8 digits, e.g., (02) 1234 5678 or 02 1234 5678), mobiles have 10 digits starting with 04 (e.g., 0412 345 678 or 04xx xxx xxx). Be careful with leading zeros - they are essential. Australian postal codes consist of four digits and are written on the last line of an address, after the suburb or locality and state/territory abbreviation. The first digit of the postcode indicates the state or territory, with 2 for New South Wales, 3 for Victoria, 4 for Queensland, 5 for South Australia, 6 for Western Australia, 7 for Tasmania, etc."""
-            focus_instruction = "Extract all contact details exactly as shown. For phone numbers, preserve all digits including leading zeros (landlines: 10 digits with area code, mobiles: 10 digits starting with 04). For addresses, ensure Australian postal codes are EXACTLY 4 digits (e.g., 5000 not 55000, 2600 not 26000). The postcode appears after the state abbreviation."
+            expertise_frame = """Extract ALL contact information for both supplier and payer with EXACT digit counts."""
+            cognitive_context = """CRITICAL DIGIT RULES: Australian postcodes are EXACTLY 4 digits (5000 NOT 55000 or 50000). Phone numbers are EXACTLY 10 digits including area code. Area codes: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. DO NOT add extra digits. If you see 'Adelaide SA 5000', the postcode is 5000 (4 digits only). If you see '(06) 4744 4248', preserve the 06 area code - do NOT change to 66."""
+            focus_instruction = "Extract contact details with EXACT digit counts. Postcodes: EXACTLY 4 digits. Phone numbers: EXACTLY 10 digits total. Count the digits carefully. Do NOT add or change digits."
 
         elif group_name == "transaction_details":
-            expertise_frame = """Extract line item details: descriptions, quantities, and UNIT prices."""
-            cognitive_context = """DESCRIPTIONS: exact product/service names. QUANTITIES: how many of each item. PRICES: the INDIVIDUAL UNIT price per item (NOT line totals, NOT calculated amounts). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40."""
-            focus_instruction = "List all items with their exact descriptions, quantities, and UNIT prices. Do NOT use line totals or calculated amounts - only the individual item prices."
+            expertise_frame = """Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."""
+            cognitive_context = """CRITICAL: Output each field as a SINGLE LINE with COMMA-SEPARATED values. DESCRIPTIONS: ALL product names in one line (e.g., Rice 1kg, Cheese Block 500g, Frozen Peas 1kg). QUANTITIES: ALL quantities in one line (e.g., 3, 3, 3, 1). PRICES: ALL UNIT prices in one line (e.g., $3.80, $8.50, $4.20). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40. DO NOT output multiple blocks or multiple DESCRIPTIONS lines."""
+            focus_instruction = "Extract ALL items in COMMA-SEPARATED format. One line for ALL descriptions, one line for ALL quantities, one line for ALL prices. THREE LINES TOTAL OUTPUT."
 
         elif group_name == "temporal_data":
             expertise_frame = """Extract ALL date information from the document."""
@@ -225,6 +225,8 @@ FORMAT RULES:
 - Do NOT guess, calculate, or make up values
 - Use N/A if field is not visible or not applicable
 - Output ONLY these {len(fields)} lines, nothing else
+- For lists: use COMMA-SEPARATED values on ONE LINE per field
+- DO NOT output the same field name multiple times
 
 STOP after the last field. Do not add explanations or comments."""
 
