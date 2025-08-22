@@ -372,7 +372,9 @@ DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
 
 # Field groups for grouped extraction strategy
 # Based on research showing improved accuracy with focused field extraction
-FIELD_GROUPS = {
+
+# Current 8-group strategy (proven stable)
+FIELD_GROUPS_8 = {
     "critical": {
         "name": "Critical Business Identifiers",
         "fields": ["ABN", "TOTAL"],
@@ -443,6 +445,76 @@ FIELD_GROUPS = {
         "description": "Document classification and type",
     },
 }
+
+# Research-backed 6-group strategy (2024 cognitive optimization)
+# Based on Azure Document Intelligence v4.0 and cognitive load research
+FIELD_GROUPS_6 = {
+    "regulatory_financial": {
+        "name": "Regulatory and Financial Core",
+        "fields": ["ABN", "TOTAL", "GST", "SUBTOTAL"],
+        "priority": 1,
+        "max_tokens": 400,
+        "temperature": 0.1,
+        "description": "Core business validation and primary financial amounts",
+        "cognitive_focus": "Essential regulatory compliance and financial totals",
+    },
+    "entity_contacts": {
+        "name": "Entity Contact Information", 
+        "fields": ["SUPPLIER", "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
+                  "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL"],
+        "priority": 2,
+        "max_tokens": 600,
+        "temperature": 0.1,
+        "description": "All contact information for involved parties",
+        "cognitive_focus": "Who is involved - all participant identification",
+    },
+    "transaction_details": {
+        "name": "Transaction Line Items",
+        "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
+        "priority": 3,
+        "max_tokens": 500,
+        "temperature": 0.1,
+        "description": "Detailed line item transaction data",
+        "cognitive_focus": "What was bought - item-level transaction details",
+    },
+    "temporal_data": {
+        "name": "Temporal Information",
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
+        "priority": 4,
+        "max_tokens": 350,
+        "temperature": 0.1,
+        "description": "All date and time-related information",
+        "cognitive_focus": "When - temporal context and deadlines",
+    },
+    "banking_payment": {
+        "name": "Banking and Payment Details",
+        "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
+        "priority": 5,
+        "max_tokens": 400,
+        "temperature": 0.1,
+        "description": "Financial institution and payment processing information",
+        "cognitive_focus": "How payment is processed - banking infrastructure",
+    },
+    "document_metadata": {
+        "name": "Document Context and Balances",
+        "fields": ["DOCUMENT_TYPE", "OPENING_BALANCE", "CLOSING_BALANCE"],
+        "priority": 6,
+        "max_tokens": 350,
+        "temperature": 0.1,
+        "description": "Document classification and account balance information",
+        "cognitive_focus": "Document type and account state context",
+    },
+}
+
+# Grouping strategy selection
+GROUPING_STRATEGIES = {
+    "8_groups": FIELD_GROUPS_8,
+    "6_groups": FIELD_GROUPS_6,
+}
+
+# Default grouping strategy (can be changed)
+DEFAULT_GROUPING_STRATEGY = "8_groups"  # Keep current as default
+FIELD_GROUPS = FIELD_GROUPS_8  # Backward compatibility
 
 # Group processing order (by priority)
 GROUP_PROCESSING_ORDER = sorted(

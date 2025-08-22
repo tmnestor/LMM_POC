@@ -54,6 +54,7 @@ class LlamaProcessor:
         batch_size=None,
         extraction_mode=None,
         debug=False,
+        grouping_strategy="8_groups",
     ):
         """
         Initialize Llama processor with model and processor.
@@ -64,6 +65,7 @@ class LlamaProcessor:
             batch_size (int): Batch size for processing (auto-detected if None)
             extraction_mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
             debug (bool): Enable debug logging for extraction
+            grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
         """
         self.model_path = model_path or LLAMA_MODEL_PATH
         self.device = device
@@ -73,7 +75,7 @@ class LlamaProcessor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug)
+        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy)
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()

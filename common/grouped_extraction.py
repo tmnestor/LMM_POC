@@ -15,6 +15,8 @@ from .config import (
     FIELD_INSTRUCTIONS,
     GROUP_PROCESSING_ORDER,
     GROUP_VALIDATION_RULES,
+    GROUPING_STRATEGIES,
+    DEFAULT_GROUPING_STRATEGY,
 )
 from .evaluation_utils import parse_extraction_response
 
@@ -28,16 +30,28 @@ class GroupedExtractionStrategy:
     compared to single-pass extraction of all fields.
     """
 
-    def __init__(self, extraction_mode="grouped", debug=False):
+    def __init__(self, extraction_mode="grouped", debug=False, grouping_strategy="8_groups"):
         """
         Initialize the grouped extraction strategy.
 
         Args:
             extraction_mode (str): Extraction mode ('grouped', 'adaptive', 'single_pass')
             debug (bool): Enable debug logging
+            grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
         """
         self.extraction_mode = extraction_mode
+        self.grouping_strategy = grouping_strategy
         self.debug = debug
+        
+        # Load appropriate field groups based on strategy
+        if grouping_strategy in GROUPING_STRATEGIES:
+            self.field_groups = GROUPING_STRATEGIES[grouping_strategy]
+            if self.debug:
+                print(f"🎯 Using {grouping_strategy} extraction strategy with {len(self.field_groups)} groups")
+        else:
+            self.field_groups = FIELD_GROUPS  # Fallback to default
+            if self.debug:
+                print(f"⚠️ Unknown strategy '{grouping_strategy}', using default groups")
         self.stats = {
             "total_groups_processed": 0,
             "successful_groups": 0,
@@ -64,7 +78,7 @@ class GroupedExtractionStrategy:
         if group_name not in FIELD_GROUPS:
             raise ValueError(f"Unknown field group: {group_name}")
 
-        group_config = FIELD_GROUPS[group_name]
+        group_config = self.field_groups[group_name]
         fields = group_config["fields"]
 
         # Generate research-backed prompts based on cognitive grouping principles
@@ -186,7 +200,7 @@ STOP after the last field. Do not add explanations or comments."""
             return True  # No specific validation rules
 
         rules = GROUP_VALIDATION_RULES[group_name]
-        expected_fields = FIELD_GROUPS[group_name]["fields"]
+        expected_fields = self.field_groups[group_name]["fields"]
 
         # Check required fields
         if "required_fields" in rules:
@@ -298,7 +312,7 @@ STOP after the last field. Do not add explanations or comments."""
         Returns:
             dict: Group extraction results with metadata
         """
-        group_config = FIELD_GROUPS[group_name]
+        group_config = self.field_groups[group_name]
         start_time = time.time()
 
         for attempt in range(max_retries + 1):
@@ -434,7 +448,10 @@ STOP after the last field. Do not add explanations or comments."""
 
         # Determine which groups to process
         if groups_to_process is None:
-            groups_to_process = GROUP_PROCESSING_ORDER
+            # Create processing order based on current field groups
+            groups_to_process = sorted(
+                self.field_groups.keys(), key=lambda x: self.field_groups[x]["priority"]
+            )
 
         if self.debug:
             print(
@@ -445,7 +462,7 @@ STOP after the last field. Do not add explanations or comments."""
 
         # Process each group in priority order
         for group_name in groups_to_process:
-            if group_name not in FIELD_GROUPS:
+            if group_name not in self.field_groups:
                 if self.debug:
                     print(f"⚠️ Skipping unknown group: {group_name}")
                 continue
@@ -565,19 +582,20 @@ class AdaptiveExtractionStrategy:
         return extracted_data, metadata
 
 
-def get_extraction_strategy(mode: str, debug: bool = False):
+def get_extraction_strategy(mode: str, debug: bool = False, grouping_strategy: str = "8_groups"):
     """
     Factory function to get appropriate extraction strategy.
 
     Args:
         mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
         debug (bool): Enable debug logging
+        grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
 
     Returns:
         Strategy object for the specified mode
     """
     if mode == "grouped":
-        return GroupedExtractionStrategy("grouped", debug)
+        return GroupedExtractionStrategy("grouped", debug, grouping_strategy)
     elif mode == "adaptive":
         return AdaptiveExtractionStrategy(debug)
     elif mode == "single_pass":

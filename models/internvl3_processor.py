@@ -54,6 +54,7 @@ class InternVL3Processor:
         batch_size=None,
         extraction_mode=None,
         debug=False,
+        grouping_strategy="8_groups",
     ):
         """
         Initialize InternVL3 processor with model and tokenizer.
@@ -64,6 +65,7 @@ class InternVL3Processor:
             batch_size (int): Batch size for processing (auto-detected if None)
             extraction_mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
             debug (bool): Enable debug logging for extraction
+            grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
         """
         self.model_path = model_path or INTERNVL3_MODEL_PATH
         self.device = device
@@ -73,7 +75,7 @@ class InternVL3Processor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug)
+        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy)
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)
         self.is_8b_model = "8B" in str(self.model_path)
