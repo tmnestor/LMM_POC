@@ -56,7 +56,70 @@ This document outlines key refactoring opportunities identified during the evalu
 
 ---
 
-## Priority 3: Configuration Management
+## Priority 3: YAML-First Prompt Configuration
+
+### Issue
+- Prompts are scattered between YAML files and hardcoded Python
+- Single-pass mode uses YAML, but grouped and InternVL3 use hardcoded prompts
+- Inconsistent configuration approach makes prompt optimization difficult
+
+### Solution
+**YAML as single source of truth for ALL prompt configuration**
+
+### Current State
+- ✅ **Llama Single-pass**: YAML (`llama_single_pass_prompts.yaml`) - ✅ **87.2% accuracy**
+- ❌ **Llama Grouped**: Hardcoded in `common/config.py`
+- ❌ **InternVL3**: Hardcoded in `common/config.py`
+- ❌ **Fallback**: Hardcoded in `common/config.py`
+
+### Migration Plan
+
+#### **Phase 1: Create YAML Files**
+```
+llama_single_pass_prompts.yaml     ✅ Done (87.2% accuracy verified)
+llama_grouped_prompts.yaml         📝 TODO
+internvl3_prompts.yaml             📝 TODO 
+```
+
+#### **Phase 2: Update Processors**
+```python
+# All processors will use YAML loading:
+llama_processor.py                 🔄 Partially done (single-pass only)
+internvl3_processor.py            📝 TODO
+grouped_extraction.py             📝 TODO
+```
+
+#### **Phase 3: Remove Hardcoded Prompts**
+```python
+# Remove from common/config.py:
+FIELD_INSTRUCTIONS                📝 TODO (after all migrated)
+FIELD_DEFINITIONS["instruction"]  📝 TODO (keep other metadata)
+```
+
+#### **Phase 4: Clean Architecture**
+```python
+# Final state - config.py only contains:
+FIELD_DEFINITIONS = {
+    "ABN": {
+        "type": "numeric_id",
+        # "instruction": REMOVED - now in YAML
+        "evaluation_logic": "exact_numeric_match", 
+        "description": "Australian Business Number",
+        "required": True,
+    }
+}
+```
+
+### Benefits of Complete YAML Migration
+- 🎯 **Single Source of Truth**: All prompts in version-controlled YAML
+- ⚡ **Easy A/B Testing**: Swap YAML files to test different prompts
+- 🔧 **Non-programmer Editing**: Domain experts can modify prompts
+- 📊 **Prompt Analytics**: Track which prompts perform best
+- 🚀 **Deployment Flexibility**: Update prompts without code changes
+
+---
+
+## Priority 4: Environment & Deployment Configuration
 
 ### Issue
 - Model paths are hardcoded in multiple places
@@ -82,7 +145,7 @@ This document outlines key refactoring opportunities identified during the evalu
 
 ---
 
-## Priority 4: Field Naming Consistency
+## Priority 5: Field Naming Consistency
 
 ### Issue
 - Mixed naming conventions in extraction fields
@@ -105,7 +168,7 @@ This document outlines key refactoring opportunities identified during the evalu
 
 ---
 
-## Priority 5: Error Handling & Validation
+## Priority 6: Error Handling & Validation
 
 ### Issue
 - Limited validation of ground truth CSV format
@@ -133,7 +196,7 @@ This document outlines key refactoring opportunities identified during the evalu
 
 ---
 
-## Priority 6: Testing & Quality Assurance
+## Priority 7: Testing & Quality Assurance
 
 ### Issue
 - No automated tests for evaluation logic
@@ -163,16 +226,22 @@ This document outlines key refactoring opportunities identified during the evalu
 ## Implementation Strategy
 
 ### Phase 1: Core Data Issues (High Impact, Low Risk)
-- [ ] Missing value convention change (N/A → NOT_FOUND)
-- [ ] Ground truth CSV update
-- [ ] Basic evaluation logic cleanup
+- [x] Missing value convention change (N/A → NOT_FOUND) - ✅ **COMPLETED**
+- [x] Ground truth CSV update - ✅ **COMPLETED**
+- [x] Basic evaluation logic cleanup - ✅ **COMPLETED**
 
-### Phase 2: Configuration & Prompts (Medium Impact, Medium Risk)
+### Phase 2: YAML-First Configuration (High Impact, Medium Risk)
+- [x] Llama single-pass YAML prompts - ✅ **COMPLETED (87.2% accuracy)**
+- [ ] Llama grouped extraction YAML prompts
+- [ ] InternVL3 YAML prompts
+- [ ] Remove hardcoded prompts from config.py
+
+### Phase 3: Configuration & Environment Management (Medium Impact, Medium Risk)
 - [ ] Prompt simplification and standardization
 - [ ] Configuration centralization
 - [ ] Environment variable support
 
-### Phase 3: Structural Improvements (High Impact, Higher Risk)
+### Phase 4: Structural Improvements (High Impact, Higher Risk)
 - [ ] Field naming standardization
 - [ ] Error handling improvements
 - [ ] Testing suite implementation
@@ -185,8 +254,29 @@ This document outlines key refactoring opportunities identified during the evalu
 
 ---
 
+## Recent Achievements
+
+### ✅ **YAML Single-Pass Implementation (Completed)**
+- **Date**: August 2025
+- **Achievement**: Successfully migrated Llama single-pass prompts from hardcoded Python to YAML configuration
+- **File**: `llama_single_pass_prompts.yaml`
+- **Performance**: ✅ **87.2% accuracy maintained** (identical to hardcoded version)
+- **Benefits**: 
+  - Clean separation of configuration from code
+  - Easy prompt modification without Python changes
+  - Version control for prompt evolution
+  - Deterministic results with temperature=0.0
+
+### 🎯 **Next Milestone**: Complete YAML Migration
+- Target: All prompts (Llama grouped, InternVL3) in YAML format
+- Goal: Zero hardcoded prompts in Python codebase
+- Expected Outcome: Full configurability and easier prompt optimization
+
+---
+
 ## Notes
 - Each refactoring should be tested individually
 - Keep git commits focused on single improvements
 - Verify accuracy benchmarks after each change
 - Document any breaking changes clearly
+- **Temperature=0.0** provides deterministic results for consistent testing
