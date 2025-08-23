@@ -35,7 +35,7 @@ def run_grouping_strategy_evaluation(
     
     Args:
         model_name: 'llama' or 'internvl3'
-        grouping_strategy: '8_groups' or '6_groups'
+        grouping_strategy: 'detailed_grouped' or 'field_grouped'
         limit_images: Number of images to process
         debug: Enable debug output
         
@@ -201,32 +201,33 @@ def compare_strategies(results: List[Dict]) -> None:
     for model in results_df["model"].unique():
         model_df = results_df[results_df["model"] == model]
         
-        eight_groups = model_df[model_df["strategy"] == "8_groups"].iloc[0] if not model_df[model_df["strategy"] == "8_groups"].empty else None
-        six_groups = model_df[model_df["strategy"] == "6_groups"].iloc[0] if not model_df[model_df["strategy"] == "6_groups"].empty else None
+        # Get results for each strategy
+        detailed_groups = model_df[model_df["strategy"] == "detailed_grouped"].iloc[0] if not model_df[model_df["strategy"] == "detailed_grouped"].empty else None
+        field_groups = model_df[model_df["strategy"] == "field_grouped"].iloc[0] if not model_df[model_df["strategy"] == "field_grouped"].empty else None
         
-        if eight_groups is not None and six_groups is not None:
+        if detailed_groups is not None and field_groups is not None:
             print(f"\n{model.upper()}:")
             
-            acc_diff = six_groups["overall_accuracy"] - eight_groups["overall_accuracy"]
+            acc_diff = field_groups["overall_accuracy"] - detailed_groups["overall_accuracy"]
             sign = "+" if acc_diff >= 0 else ""
-            print(f"  Accuracy difference: {sign}{acc_diff:.1%} (6-groups vs 8-groups)")
+            print(f"  Accuracy difference: {sign}{acc_diff:.1%} (field_grouped vs detailed_grouped)")
             
-            cov_diff = six_groups["avg_content_coverage"] - eight_groups["avg_content_coverage"]
+            cov_diff = field_groups["avg_content_coverage"] - detailed_groups["avg_content_coverage"]
             sign = "+" if cov_diff >= 0 else ""
             print(f"  Coverage difference: {sign}{cov_diff:.1%}")
             
-            time_diff = six_groups["processing_time"] - eight_groups["processing_time"]
+            time_diff = field_groups["processing_time"] - detailed_groups["processing_time"]
             sign = "+" if time_diff > 0 else ""
             print(f"  Time difference: {sign}{time_diff:.1f}s")
             
-            group_reduction = eight_groups["groups_processed"] - six_groups["groups_processed"]
-            print(f"  Group reduction: -{group_reduction} groups ({eight_groups['groups_processed']} → {six_groups['groups_processed']})")
+            group_reduction = detailed_groups["groups_processed"] - field_groups["groups_processed"]
+            print(f"  Group reduction: -{group_reduction} groups ({detailed_groups['groups_processed']} → {field_groups['groups_processed']})")
             
             # Performance insights
             if acc_diff > 0.02:
-                print(f"  ✅ 6-group strategy performs BETTER for {model}")
+                print(f"  ✅ field_grouped strategy performs BETTER for {model}")
             elif acc_diff < -0.02:
-                print(f"  ⚠️ 6-group strategy performs worse for {model}")
+                print(f"  ⚠️ field_grouped strategy performs worse for {model}")
             else:
                 print(f"  ≈ Similar performance between strategies for {model}")
     
@@ -234,7 +235,7 @@ def compare_strategies(results: List[Dict]) -> None:
     print("KEY INSIGHTS - COGNITIVE LOAD OPTIMIZATION:")
     print("="*80)
     print("""
-1. 6-group strategy reduces cognitive load through better field relationships
+1. field_grouped strategy reduces cognitive load through better field relationships
 2. Fewer groups = fewer model calls = faster processing
 3. Research-backed entity grouping should improve field correlation
 4. Azure v4.0 inspired taxonomy balances logical and mental models
@@ -265,7 +266,7 @@ def main():
     )
     parser.add_argument(
         "--strategy",
-        choices=["6_groups", "8_groups", "both"],
+        choices=["field_grouped", "detailed_grouped", "both"],
         default="both",
         help="Strategy to test (default: both)"
     )
@@ -286,7 +287,12 @@ def main():
     
     # Determine models to test
     models = ["llama", "internvl3"] if args.model == "both" else [args.model]
-    strategies = ["8_groups", "6_groups"] if args.strategy == "both" else [args.strategy]
+    
+    # Determine strategies to test (supporting both new and legacy names)
+    if args.strategy == "both":
+        strategies = ["detailed_grouped", "field_grouped"]  # Use new semantic names by default
+    else:
+        strategies = [args.strategy]
     
     for model in models:
         for strategy in strategies:

@@ -5,8 +5,10 @@ This module contains all configuration values and constants shared between
 different vision models (InternVL3, Llama, etc.).
 
 NOTE: Uses YAML-first field discovery for single source of truth.
+NOTE: Supports environment variables for flexible deployment configuration.
 """
 
+import os
 from pathlib import Path
 from typing import List
 
@@ -27,10 +29,220 @@ CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-
 CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"  # Options: "Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"
 
 # ============================================================================
-# DEPLOYMENT CONFIGURATIONS
+# ENVIRONMENT VARIABLE SUPPORT
 # ============================================================================
 
-# Base paths for different deployment scenarios
+def get_env_or_default(env_var: str, default_value: str) -> str:
+    """
+    Get environment variable value or use default.
+    
+    Args:
+        env_var (str): Environment variable name
+        default_value (str): Default value if environment variable not set
+        
+    Returns:
+        str: Environment variable value or default
+    """
+    value = os.getenv(env_var)
+    if value:
+        print(f"🌍 Using environment variable {env_var}: {value}")
+        return value
+    return default_value
+
+# Environment variables for flexible deployment
+ENV_LLAMA_MODEL_PATH = os.getenv("LLAMA_MODEL_PATH")
+ENV_INTERNVL3_MODEL_PATH = os.getenv("INTERNVL3_MODEL_PATH") 
+ENV_GROUND_TRUTH_PATH = os.getenv("GROUND_TRUTH_PATH")
+ENV_OUTPUT_DIR = os.getenv("OUTPUT_DIR")
+
+# ============================================================================
+# ENVIRONMENT PROFILES
+# ============================================================================
+
+# Define complete environment profiles for different deployment scenarios
+ENVIRONMENT_PROFILES = {
+    "development": {
+        "description": "Local development environment",
+        "base_path": "/Users/tod/Desktop/LMM_POC",
+        "models_dir": "models",  
+        "data_dir": "evaluation_data",
+        "output_dir": "output",
+        "batch_strategy": "conservative",
+        "enable_debug": True,
+    },
+    "testing": {
+        "description": "H200 GPU testing environment", 
+        "base_path": "/home/jovyan/nfs_share",
+        "models_dir": "models",
+        "data_dir": "tod/LMM_POC/evaluation_data", 
+        "output_dir": "tod/output",
+        "batch_strategy": "aggressive",
+        "enable_debug": True,
+    },
+    "production": {
+        "description": "V100 production deployment",
+        "base_path": "/efs/shared",
+        "models_dir": "PTM",
+        "data_dir": "PoC_data/evaluation_data",
+        "output_dir": "PoC_data/output", 
+        "batch_strategy": "balanced",
+        "enable_debug": False,
+    },
+    "aisandbox": {
+        "description": "AISandbox deployment (legacy)",
+        "base_path": "/home/jovyan/nfs_share",
+        "models_dir": "models",
+        "data_dir": "tod/LMM_POC/evaluation_data",
+        "output_dir": "tod/output",
+        "batch_strategy": "balanced",
+        "enable_debug": False,
+    },
+    "efs": {
+        "description": "EFS deployment (legacy)", 
+        "base_path": "/efs/shared",
+        "models_dir": "PTM",
+        "data_dir": "PoC_data/evaluation_data",
+        "output_dir": "PoC_data/output",
+        "batch_strategy": "balanced", 
+        "enable_debug": False,
+    },
+}
+
+def get_current_environment():
+    """
+    Determine current environment from environment variable or deployment setting.
+    
+    Priority:
+    1. LMM_ENVIRONMENT environment variable
+    2. Map CURRENT_DEPLOYMENT to environment profile
+    3. Default to "development"
+    
+    Returns:
+        str: Current environment profile name
+    """
+    # Check environment variable first
+    env_profile = os.getenv("LMM_ENVIRONMENT")
+    if env_profile and env_profile in ENVIRONMENT_PROFILES:
+        print(f"🌍 Using environment profile from LMM_ENVIRONMENT: {env_profile}")
+        return env_profile
+    
+    # Map legacy deployment names to profiles
+    deployment_mapping = {
+        "AISandbox": "aisandbox",
+        "efs": "efs"
+    }
+    
+    if hasattr(globals().get('CURRENT_DEPLOYMENT'), 'value'):
+        mapped_env = deployment_mapping.get(CURRENT_DEPLOYMENT)
+        if mapped_env:
+            print(f"🔄 Mapped deployment '{CURRENT_DEPLOYMENT}' to environment '{mapped_env}'")
+            return mapped_env
+    
+    # Default fallback
+    print("🏠 Using default development environment")
+    return "development"
+
+def get_environment_config(environment: str = None) -> dict:
+    """
+    Get configuration for specified environment.
+    
+    Args:
+        environment (str): Environment name, or None to auto-detect
+        
+    Returns:
+        dict: Environment configuration
+    """
+    if environment is None:
+        environment = get_current_environment()
+    
+    if environment not in ENVIRONMENT_PROFILES:
+        raise ValueError(
+            f"Unknown environment: {environment}. "
+            f"Available: {list(ENVIRONMENT_PROFILES.keys())}"
+        )
+    
+    return ENVIRONMENT_PROFILES[environment]
+
+def get_environment_path(path_type: str, environment: str = None) -> str:
+    """
+    Get path for specific type in current or specified environment.
+    
+    Args:
+        path_type (str): Type of path ('models', 'data', 'output', 'base')
+        environment (str): Environment name, or None to auto-detect
+        
+    Returns:
+        str: Resolved path for the environment
+    """
+    config = get_environment_config(environment)
+    base = config["base_path"]
+    
+    if path_type == "base":
+        return base
+    elif path_type == "models":
+        return f"{base}/{config['models_dir']}"
+    elif path_type == "data": 
+        return f"{base}/{config['data_dir']}"
+    elif path_type == "output":
+        return f"{base}/{config['output_dir']}"
+    else:
+        raise ValueError(f"Unknown path type: {path_type}")
+
+def switch_environment(environment: str):
+    """
+    Switch to a different environment profile.
+    
+    Args:
+        environment (str): Environment name from ENVIRONMENT_PROFILES
+    """
+    if environment not in ENVIRONMENT_PROFILES:
+        raise ValueError(
+            f"Unknown environment: {environment}. "
+            f"Available: {list(ENVIRONMENT_PROFILES.keys())}"
+        )
+    
+    global CURRENT_DEPLOYMENT, BASE_PATH, MODELS_BASE
+    global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
+    global DATA_BASE, DATA_DIR, GROUND_TRUTH_PATH, OUTPUT_DIR
+    
+    config = ENVIRONMENT_PROFILES[environment]
+    
+    # Update paths based on environment config
+    BASE_PATH = config["base_path"]
+    MODELS_BASE = f"{BASE_PATH}/{config['models_dir']}"
+    DATA_DIR = f"{BASE_PATH}/{config['data_dir']}"
+    OUTPUT_DIR = f"{BASE_PATH}/{config['output_dir']}"
+    
+    # Update model paths if not overridden by environment variables
+    if not ENV_INTERNVL3_MODEL_PATH:
+        INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+    if not ENV_LLAMA_MODEL_PATH:
+        LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+    if not ENV_GROUND_TRUTH_PATH:
+        GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    if not ENV_OUTPUT_DIR:
+        OUTPUT_DIR = f"{BASE_PATH}/{config['output_dir']}"
+    
+    print(f"✅ Switched to environment: {environment}")
+    print(f"   Description: {config['description']}")
+    print(f"   Base Path: {BASE_PATH}")
+    print(f"   Models: {MODELS_BASE}")
+    print(f"   Data: {DATA_DIR}")
+    print(f"   Output: {OUTPUT_DIR}")
+    print(f"   Batch Strategy: {config['batch_strategy']}")
+    
+    # Update current deployment for legacy compatibility
+    legacy_mapping = {
+        "aisandbox": "AISandbox",
+        "efs": "efs"
+    }
+    CURRENT_DEPLOYMENT = legacy_mapping.get(environment, environment)
+
+# ============================================================================
+# DEPLOYMENT CONFIGURATIONS (Legacy Support)
+# ============================================================================
+
+# Base paths for different deployment scenarios (DEPRECATED - use ENVIRONMENT_PROFILES)
 BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/shared"}
 
 # Current deployment (change this to switch environments)
@@ -48,21 +260,31 @@ MODELS_BASE = (
     f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "AISandbox" else f"{BASE_PATH}/PTM"
 )
 
-# Model paths driven by current model selection
-INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
-LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+# Model paths driven by environment variables or current model selection
+INTERNVL3_MODEL_PATH = get_env_or_default(
+    "INTERNVL3_MODEL_PATH", 
+    f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+)
+LLAMA_MODEL_PATH = get_env_or_default(
+    "LLAMA_MODEL_PATH",
+    f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+)
 
-# Data paths with interpolation
+# Data paths with environment variable support or deployment-based fallback
 if CURRENT_DEPLOYMENT == "AISandbox":
     DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
-    GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
-    OUTPUT_DIR = f"{BASE_PATH}/tod/output"
+    _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    _default_output_dir = f"{BASE_PATH}/tod/output"
 else:  # EFS deployment
     DATA_BASE = f"{BASE_PATH}/PoC_data"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
-    GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
-    OUTPUT_DIR = f"{DATA_BASE}/output"
+    _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    _default_output_dir = f"{DATA_BASE}/output"
+
+# Apply environment variable overrides
+GROUND_TRUTH_PATH = get_env_or_default("GROUND_TRUTH_PATH", _default_ground_truth)
+OUTPUT_DIR = get_env_or_default("OUTPUT_DIR", _default_output_dir)
 
 
 def switch_model(model_type: str, model_name: str):
@@ -88,14 +310,20 @@ def switch_model(model_type: str, model_name: str):
 
     if model_type == "internvl3":
         CURRENT_INTERNVL3_MODEL = model_name
-        INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+        if not ENV_INTERNVL3_MODEL_PATH:  # Only update if no env var override
+            INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
         print(f"✅ Switched to {model_name}")
         print(f"   Path: {INTERNVL3_MODEL_PATH}")
+        if ENV_INTERNVL3_MODEL_PATH:
+            print(f"   (Environment override active: INTERNVL3_MODEL_PATH)")
     elif model_type == "llama":
         CURRENT_LLAMA_MODEL = model_name
-        LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+        if not ENV_LLAMA_MODEL_PATH:  # Only update if no env var override
+            LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
         print(f"✅ Switched to {model_name}")
         print(f"   Path: {LLAMA_MODEL_PATH}")
+        if ENV_LLAMA_MODEL_PATH:
+            print(f"   (Environment override active: LLAMA_MODEL_PATH)")
 
 
 def switch_deployment(deployment: str):
@@ -117,26 +345,36 @@ def switch_deployment(deployment: str):
     CURRENT_DEPLOYMENT = deployment
     BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
 
-    # Update model paths using current model selections
+    # Update model paths using current model selections (respecting env vars)
     MODELS_BASE = (
         f"{BASE_PATH}/models"
         if CURRENT_DEPLOYMENT == "AISandbox"
         else f"{BASE_PATH}/PTM"
     )
-    INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
-    LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
+    
+    # Only update paths if not overridden by environment variables
+    if not ENV_INTERNVL3_MODEL_PATH:
+        INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+    if not ENV_LLAMA_MODEL_PATH:
+        LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
-    # Update data paths
+    # Update data paths (respecting env vars)
     if CURRENT_DEPLOYMENT == "AISandbox":
         DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
         DATA_DIR = f"{DATA_BASE}/evaluation_data"
-        GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
-        OUTPUT_DIR = f"{BASE_PATH}/tod/output"
+        _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        _default_output_dir = f"{BASE_PATH}/tod/output"
     else:  # EFS deployment
         DATA_BASE = f"{BASE_PATH}/PoC_data"
         DATA_DIR = f"{DATA_BASE}/evaluation_data"
-        GROUND_TRUTH_PATH = f"{DATA_BASE}/evaluation_ground_truth.csv"
-        OUTPUT_DIR = f"{DATA_BASE}/output"
+        _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        _default_output_dir = f"{DATA_BASE}/output"
+    
+    # Only update paths if not overridden by environment variables  
+    if not ENV_GROUND_TRUTH_PATH:
+        GROUND_TRUTH_PATH = _default_ground_truth
+    if not ENV_OUTPUT_DIR:
+        OUTPUT_DIR = _default_output_dir
 
     print(f"✅ Switched to {deployment} deployment")
     print(f"   Models: {MODELS_BASE}")
@@ -146,15 +384,58 @@ def switch_deployment(deployment: str):
 
 def show_current_config():
     """Display current model and deployment configuration."""
-    print("🔧 Current Configuration:")
-    print(f"   Deployment: {CURRENT_DEPLOYMENT}")
-    print(f"   InternVL3 Model: {CURRENT_INTERNVL3_MODEL}")
-    print(f"   Llama Model: {CURRENT_LLAMA_MODEL}")
-    print(f"   Models Base: {MODELS_BASE}")
-    print(f"   Data Dir: {DATA_DIR}")
-    print(f"   Output Dir: {OUTPUT_DIR}")
-    print(f"   InternVL3 Path: {INTERNVL3_MODEL_PATH}")
-    print(f"   Llama Path: {LLAMA_MODEL_PATH}")
+    try:
+        current_env = get_current_environment()
+        env_config = get_environment_config(current_env)
+        
+        print("🔧 Current Configuration:")
+        print(f"   Environment Profile: {current_env}")
+        print(f"   Description: {env_config['description']}")
+        print(f"   Batch Strategy: {env_config['batch_strategy']}")
+        print(f"   Debug Mode: {env_config['enable_debug']}")
+        print(f"   Legacy Deployment: {CURRENT_DEPLOYMENT}")
+        print()
+        print("📁 Paths:")
+        print(f"   Base Path: {BASE_PATH}")
+        print(f"   Models: {MODELS_BASE}")
+        print(f"   Data Dir: {DATA_DIR}")
+        print(f"   Output Dir: {OUTPUT_DIR}")
+        print(f"   Ground Truth: {GROUND_TRUTH_PATH}")
+        print()
+        print("🤖 Models:")
+        print(f"   InternVL3: {CURRENT_INTERNVL3_MODEL}")
+        print(f"   Llama: {CURRENT_LLAMA_MODEL}")
+        print(f"   InternVL3 Path: {INTERNVL3_MODEL_PATH}")
+        print(f"   Llama Path: {LLAMA_MODEL_PATH}")
+        
+        # Show active environment variable overrides
+        env_overrides = []
+        if ENV_INTERNVL3_MODEL_PATH:
+            env_overrides.append("INTERNVL3_MODEL_PATH")
+        if ENV_LLAMA_MODEL_PATH:
+            env_overrides.append("LLAMA_MODEL_PATH")
+        if ENV_GROUND_TRUTH_PATH:
+            env_overrides.append("GROUND_TRUTH_PATH")
+        if ENV_OUTPUT_DIR:
+            env_overrides.append("OUTPUT_DIR")
+        if os.getenv("LMM_ENVIRONMENT"):
+            env_overrides.append("LMM_ENVIRONMENT")
+        
+        if env_overrides:
+            print()
+            print("🌍 Environment Variable Overrides:")
+            for var in env_overrides:
+                print(f"   {var}: {os.getenv(var)}")
+        else:
+            print()
+            print("🌍 No environment variable overrides active")
+            
+    except Exception as e:
+        print(f"⚠️ Error showing configuration: {e}")
+        print("🔧 Basic Configuration:")
+        print(f"   Legacy Deployment: {CURRENT_DEPLOYMENT}")
+        print(f"   InternVL3 Model: {CURRENT_INTERNVL3_MODEL}")
+        print(f"   Llama Model: {CURRENT_LLAMA_MODEL}")
 
 
 # ============================================================================
@@ -480,8 +761,8 @@ DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
 # Field groups for grouped extraction strategy
 # Based on research showing improved accuracy with focused field extraction
 
-# Current 8-group strategy (proven stable)
-FIELD_GROUPS_8 = {
+# Detailed grouped strategy - 8 groups (proven stable)
+FIELD_GROUPS_DETAILED = {
     "critical": {
         "name": "Critical Business Identifiers",
         "fields": ["ABN", "TOTAL"],
@@ -553,9 +834,9 @@ FIELD_GROUPS_8 = {
     },
 }
 
-# Research-backed 6-group strategy (2024 cognitive optimization)
+# Field-grouped strategy - 6 groups (2024 cognitive optimization)
 # Based on Azure Document Intelligence v4.0 and cognitive load research
-FIELD_GROUPS_6 = {
+FIELD_GROUPS_COGNITIVE = {
     "regulatory_financial": {
         "name": "Regulatory and Financial Core",
         "fields": ["ABN", "TOTAL", "GST", "SUBTOTAL"],
@@ -621,15 +902,15 @@ FIELD_GROUPS_6 = {
     },
 }
 
-# Grouping strategy selection
+# Grouping strategy selection with semantic names
 GROUPING_STRATEGIES = {
-    "8_groups": FIELD_GROUPS_8,
-    "6_groups": FIELD_GROUPS_6,
+    "detailed_grouped": FIELD_GROUPS_DETAILED,   # 8-group detailed extraction
+    "field_grouped": FIELD_GROUPS_COGNITIVE,     # 6-group cognitive optimization
 }
 
-# Default grouping strategy (can be changed)
-DEFAULT_GROUPING_STRATEGY = "8_groups"  # Keep current as default
-FIELD_GROUPS = FIELD_GROUPS_8  # Backward compatibility
+# Default grouping strategy (using semantic name)
+DEFAULT_GROUPING_STRATEGY = "detailed_grouped"  # 8-group detailed extraction
+FIELD_GROUPS = FIELD_GROUPS_DETAILED  # Backward compatibility
 
 # Group processing order (by priority)
 GROUP_PROCESSING_ORDER = sorted(

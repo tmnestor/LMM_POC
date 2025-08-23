@@ -30,7 +30,7 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
     
     Args:
         model_name (str): Model identifier ("llama" or "internvl3")
-        strategy (str): Grouping strategy ("6_groups" or "8_groups")
+        strategy (str): Grouping strategy ("field_grouped" or "detailed_grouped")
         
     Returns:
         Dict: Loaded prompt configuration with group prompts
@@ -49,11 +49,11 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
             f"💡 Supported models: {supported_models}"
         )
     
-    # Only 6_groups strategy uses model-specific prompts currently
-    if strategy != "6_groups":
+    # Only field_grouped strategy uses model-specific prompts currently
+    if strategy != "field_grouped":
         raise ValueError(
-            f"❌ FATAL: Model-specific prompts only available for '6_groups' strategy, not '{strategy}'. "
-            f"💡 Use strategy='6_groups' for model-specific optimization."
+            f"❌ FATAL: Model-specific prompts only available for 'field_grouped' strategy, not '{strategy}'. "
+            f"💡 Use strategy='field_grouped' for model-specific optimization."
         )
     
     # Construct file path
@@ -85,7 +85,7 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
             f"💡 Ensure YAML contains group configurations at root level"
         )
     
-    # Validate required groups for 6_groups strategy
+    # Validate required groups for field_grouped strategy
     required_groups = ["regulatory_financial", "entity_contacts", "transaction_details", 
                       "temporal_data", "banking_payment", "document_metadata"]
     
@@ -108,7 +108,7 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
     if missing_groups:
         raise KeyError(
             f"❌ FATAL: Missing required groups in {config_file}: {missing_groups}\n"
-            f"💡 Required groups for 6_groups strategy: {required_groups}"
+            f"💡 Required groups for field_grouped strategy: {required_groups}"
         )
     
     return config
@@ -124,7 +124,7 @@ class GroupedExtractionStrategy:
     """
 
     def __init__(
-        self, extraction_mode="grouped", debug=False, grouping_strategy="8_groups", model_name=None
+        self, extraction_mode="grouped", debug=False, grouping_strategy="detailed_grouped", model_name=None
     ):
         """
         Initialize the grouped extraction strategy.
@@ -132,25 +132,26 @@ class GroupedExtractionStrategy:
         Args:
             extraction_mode (str): Extraction mode ('grouped', 'adaptive', 'single_pass')
             debug (bool): Enable debug logging
-            grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
+            grouping_strategy (str): Grouping strategy ('detailed_grouped' or 'field_grouped'). 
+                                    Defaults to 'detailed_grouped'.
             model_name (str): Model identifier for model-specific prompts ("llama" or "internvl3")
-                             Required for 6_groups strategy, optional for others
+                             Required for 'field_grouped' strategy, optional for others
         """
         self.extraction_mode = extraction_mode
         self.grouping_strategy = grouping_strategy
         self.debug = debug
         self.model_name = model_name
         
-        # For 6_groups strategy, model_name is required for model-specific optimization
-        if grouping_strategy == "6_groups" and model_name is None:
+        # For field_grouped strategy, model_name is required for model-specific optimization
+        if grouping_strategy == "field_grouped" and model_name is None:
             raise ValueError(
-                "❌ FATAL: model_name is required for 6_groups strategy\n"
+                "❌ FATAL: model_name is required for field_grouped strategy\n"
                 "💡 Provide model_name='llama' or model_name='internvl3' for model-specific optimization"
             )
         
-        # Load model-specific prompts for 6_groups strategy
+        # Load model-specific prompts for field_grouped strategy
         self.model_prompts = None
-        if grouping_strategy == "6_groups" and model_name:
+        if grouping_strategy == "field_grouped" and model_name:
             try:
                 self.model_prompts = load_model_prompts(model_name, grouping_strategy)
                 if self.debug:
@@ -225,18 +226,18 @@ class GroupedExtractionStrategy:
         Based on cognitive science research showing grouped field extraction outperforms
         single-pass when properly implemented with domain context and reasoning.
         
-        For 6_groups strategy, uses model-specific prompts loaded from YAML configurations
+        For field_grouped strategy, uses model-specific prompts loaded from YAML configurations
         optimized for each model's strengths (Llama: detailed, InternVL3: simplified).
         """
         
-        # Use model-specific prompts for 6_groups strategy
-        if self.grouping_strategy == "6_groups" and self.model_prompts and group_name in self.model_prompts:
+        # Use model-specific prompts for field_grouped strategy
+        if self.grouping_strategy == "field_grouped" and self.model_prompts and group_name in self.model_prompts:
             model_config = self.model_prompts[group_name]
             expertise_frame = model_config["expertise_frame"]
             cognitive_context = model_config["cognitive_context"]  
             focus_instruction = model_config["focus_instruction"]
         
-        # Fallback to hardcoded prompts for 8_groups and other strategies
+        # Fallback to hardcoded prompts for detailed_grouped and other strategies
         elif group_name == "critical":
             expertise_frame = (
                 """Extract critical document identifiers and financial totals."""
@@ -286,10 +287,10 @@ class GroupedExtractionStrategy:
             focus_instruction = "Identify the document type from this business document. Output ONLY the document type field, nothing else."
 
         else:
-            # For 6_groups strategy, all prompts should come from YAML
-            if self.grouping_strategy == "6_groups":
+            # For field_grouped strategy, all prompts should come from YAML
+            if self.grouping_strategy == "field_grouped":
                 raise ValueError(
-                    f"❌ FATAL: No prompt configuration found for group '{group_name}' in 6_groups strategy\n"
+                    f"❌ FATAL: No prompt configuration found for group '{group_name}' in field_grouped strategy\n"
                     f"💡 Check {self.model_name}_prompts.yaml contains configuration for '{group_name}'\n"
                     f"💡 Required groups: regulatory_financial, entity_contacts, transaction_details, temporal_data, banking_payment, document_metadata"
                 )
@@ -741,7 +742,7 @@ class AdaptiveExtractionStrategy:
 
 
 def get_extraction_strategy(
-    mode: str, debug: bool = False, grouping_strategy: str = "8_groups", model_name: str = None
+    mode: str, debug: bool = False, grouping_strategy: str = "detailed_grouped", model_name: str = None
 ):
     """
     Factory function to get appropriate extraction strategy.
@@ -749,7 +750,7 @@ def get_extraction_strategy(
     Args:
         mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
         debug (bool): Enable debug logging
-        grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
+        grouping_strategy (str): Grouping strategy ('detailed_grouped' or 'field_grouped')
         model_name (str): Model identifier for model-specific prompts ("llama" or "internvl3")
 
     Returns:
