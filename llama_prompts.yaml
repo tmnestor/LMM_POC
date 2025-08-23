@@ -33,9 +33,10 @@ document_metadata:
 
 # Format rules (same for all groups):
 format_rules:
+  - "CRITICAL: NO MARKDOWN! Use plain text only: KEY: value"
   - "Use exactly: KEY: value (colon and space)"
-  - "NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting"
-  - "Plain text only - NO markdown, NO bold, NO italic"
+  - "NEVER use asterisks: NO **KEY:** NO **KEY** NO *KEY* NO KEY:"
+  - "Plain text only - NO markdown, NO bold, NO italic, NO asterisks"
   - "Include ALL fields even if NOT_FOUND"
   - "Extract ONLY what you can see in the document"
   - "Do NOT guess, calculate, or make up values"

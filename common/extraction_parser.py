@@ -105,14 +105,26 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
                 i += 1
                 continue
                 
-            # Check if this is a markdown key line (e.g., "**SUPPLIER:**")
-            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*$", line)
-            if markdown_key_match and i + 1 < len(lines):
-                # Combine with next line that contains the value
+            # Check if this is a markdown key line (e.g., "**SUPPLIER:**" or "**SUPPLIER:** value")
+            # Handle both cases: value on same line or next line
+            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*(.*)?$", line)
+            if markdown_key_match:
                 key = markdown_key_match.group(1)
-                value = lines[i + 1].strip()
-                processed_lines.append(f"{key}: {value}")
-                i += 2  # Skip both lines
+                value = markdown_key_match.group(2).strip() if markdown_key_match.group(2) else ""
+                
+                # If value is empty and there's a next line, check if it's the value
+                if not value and i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    # Only treat next line as value if it doesn't look like another key
+                    if next_line and not re.match(r"^\*\*[A-Z_]+:\*\*", next_line) and ":" not in next_line:
+                        value = next_line
+                        i += 2  # Skip both lines
+                    else:
+                        i += 1  # Just skip the key line
+                else:
+                    i += 1  # Just skip the current line
+                    
+                processed_lines.append(f"{key}: {value}" if value else f"{key}: NOT_FOUND")
             else:
                 processed_lines.append(line)
                 i += 1
