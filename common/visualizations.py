@@ -180,15 +180,15 @@ class LMMVisualizer:
             excellent_count = sum(
                 1
                 for acc in field_accuracies.values()
-                if acc >= EXCELLENT_FIELD_THRESHOLD
+                if acc["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
             )
             good_count = sum(
                 1
                 for acc in field_accuracies.values()
-                if GOOD_FIELD_THRESHOLD <= acc < EXCELLENT_FIELD_THRESHOLD
+                if GOOD_FIELD_THRESHOLD <= acc["accuracy"] < EXCELLENT_FIELD_THRESHOLD
             )
             poor_count = sum(
-                1 for acc in field_accuracies.values() if acc < POOR_FIELD_THRESHOLD
+                1 for acc in field_accuracies.values() if acc["accuracy"] < POOR_FIELD_THRESHOLD
             )
 
             field_summary_data = pd.DataFrame(
@@ -599,7 +599,7 @@ class LMMVisualizer:
             category_accs = []
             for field in fields:
                 if field in field_accuracies:
-                    category_accs.append(field_accuracies[field])
+                    category_accs.append(field_accuracies[field]["accuracy"])
 
             if category_accs:
                 avg_accuracy = np.mean(category_accs) * 100
