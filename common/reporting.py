@@ -600,11 +600,11 @@ def print_evaluation_summary(evaluation_summary, model_full_name):
 
     # Show top fields
     sorted_fields = sorted(
-        evaluation_summary["field_accuracies"].items(), key=lambda x: x[1], reverse=True
+        evaluation_summary["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
     )
     print("\n📈 Top 5 Performing Fields:")
     for i, (field, accuracy) in enumerate(sorted_fields[:5], 1):
-        print(f"   {i}. {field:<25} {accuracy:.1%}")
+        print(f"   {i}. {field:<25} {accuracy['accuracy']:.1%}")
 
     # Production readiness
     if evaluation_summary["overall_accuracy"] >= DEPLOYMENT_READY_THRESHOLD:
