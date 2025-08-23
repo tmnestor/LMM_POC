@@ -22,3 +22,46 @@ After this, you can work on the migration plan and commit changes normally:
 git add .
 git commit -m "feat: create field schema migration plan"
 git push  # No need to specify remote/branch thanks to -u flag
+
+
+# On Test Machine (H200 GPU)
+
+# Navigate to project directory
+cd /path/to/LMM_POC
+
+# Fetch latest branches from remote
+git fetch origin
+
+# Switch to the new branch
+git checkout refactor/yaml-single-source-of-truth
+
+# Verify you're on the correct branch
+git branch --show-current
+
+# On Development Machine (V100 Production)
+
+# Navigate to project directory  
+cd /path/to/LMM_POC
+
+# Fetch latest branches from remote
+git fetch origin
+
+# Switch to the new branch
+git checkout refactor/yaml-single-source-of-truth
+
+# Verify you're on the correct branch
+git branch --show-current
+
+Alternative (if branch doesn't exist locally yet)
+
+# Fetch and checkout in one command
+git fetch origin refactor/yaml-single-source-of-truth:refactor/yaml-single-source-of-truth
+git checkout refactor/yaml-single-source-of-truth
+
+Key Points:
+- git fetch origin downloads all new branches without switching
+- git checkout refactor/yaml-single-source-of-truth switches to the branch
+- git branch --show-current confirms you're on the right branch
+- Both machines will need the same commands since they're pulling from the same remote repository
+
+This ensures all three machines (Mac M1, H200, V100) are synchronized on the new branch for the migration work.
