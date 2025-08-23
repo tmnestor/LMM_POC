@@ -105,13 +105,13 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
     # Both N/A is correct
     if extracted.upper() == "N/A" and ground_truth.upper() == "N/A":
         if debug:
-            print(f"    ✅ Both N/A - score: 1.0")
+            print("    ✅ Both N/A - score: 1.0")
         return 1.0
 
     # One is N/A but not the other
     if (extracted.upper() == "N/A") != (ground_truth.upper() == "N/A"):
         if debug:
-            print(f"    ❌ One N/A, other not - score: 0.0")
+            print("    ❌ One N/A, other not - score: 0.0")
         return 0.0
 
     # Normalize for comparison
@@ -129,7 +129,7 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
     # Exact match after normalization
     if extracted_lower == ground_truth_lower:
         if debug:
-            print(f"    ✅ Exact match - score: 1.0")
+            print("    ✅ Exact match - score: 1.0")
         return 1.0
 
     # Field-specific comparison logic using centralized field type definitions
@@ -155,7 +155,7 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
             return score
         except (ValueError, AttributeError):
             if debug:
-                print(f"    💰 MONETARY: Parsing failed - score: 0.0")
+                print("    💰 MONETARY: Parsing failed - score: 0.0")
             return 0.0
 
     elif field_name in DATE_FIELDS:
@@ -224,7 +224,7 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
             or ground_truth_lower in extracted_lower
         ):
             if debug:
-                print(f"    📝 TEXT: Substring match - score: 0.9")
+                print("    📝 TEXT: Substring match - score: 0.9")
             return 0.9
 
         # Check word overlap for longer text
@@ -241,7 +241,7 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
                 return overlap
 
         if debug:
-            print(f"    📝 TEXT: No match - score: 0.0")
+            print("    📝 TEXT: No match - score: 0.0")
         return 0.0
 
 
@@ -477,7 +477,7 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
         print(f"🔍 DEBUG: Final overall accuracy calculation: {sum(individual_accuracies):.3f} / {len(individual_accuracies)} = {overall_accuracy:.3f}")
     else:
         overall_accuracy = 0.0
-        print(f"🔍 DEBUG: No detailed results - setting overall_accuracy to 0.0")
+        print("🔍 DEBUG: No detailed results - setting overall_accuracy to 0.0")
     
     field_summary = {}
     for field, data in field_accuracies.items():
@@ -490,7 +490,7 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
         }
     
     # Show a few field accuracies for debugging
-    print(f"🔍 DEBUG: Sample field accuracies:")
+    print("🔍 DEBUG: Sample field accuracies:")
     for i, (field, summary) in enumerate(field_summary.items()):
         if i < 5:  # Show first 5 fields
             print(f"  {field}: {summary['correct']:.3f}/{summary['total']} = {summary['accuracy']:.3f}")
