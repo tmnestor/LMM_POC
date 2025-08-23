@@ -136,6 +136,7 @@ class InternVL3Processor:
         The 2% variation between runs is eliminated by proper seed setting.
         """
         import random
+
         import numpy as np
         
         random.seed(seed)
