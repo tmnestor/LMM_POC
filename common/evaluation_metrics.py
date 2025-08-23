@@ -338,8 +338,6 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     
     # Track field-level accuracies
     field_accuracies = {field: {"correct": 0, "total": 0, "details": []} for field in EXTRACTION_FIELDS}
-    overall_correct = 0
-    overall_total = 0
     
     # Detailed results for analysis
     detailed_results = []
@@ -378,9 +376,6 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
             field_accuracies[field]["total"] += 1
             field_accuracies[field]["correct"] += accuracy_score  # Use float score for partial credit
             
-            overall_total += 1
-            overall_correct += accuracy_score  # Use float score for partial credit
-            
             # Store detailed result
             field_accuracies[field]["details"].append({
                 "image": image_name,
@@ -397,13 +392,21 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
                 "accuracy_score": accuracy_score
             }
         
+        # Calculate overall accuracy for this image (like the old system)
+        image_overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies) if image_accuracies else 0.0
+        result_details["overall_accuracy"] = image_overall_accuracy
+        
         detailed_results.append(result_details)
     
-    # Calculate summary statistics
-    overall_accuracy = overall_correct / overall_total if overall_total > 0 else 0
+    # Calculate summary statistics (average of per-image accuracies, like the old system)
+    if detailed_results:
+        overall_accuracy = sum(result["overall_accuracy"] for result in detailed_results) / len(detailed_results)
+    else:
+        overall_accuracy = 0.0
     
     field_summary = {}
     for field, data in field_accuracies.items():
+        # data["correct"] is now sum of float scores, data["total"] is count of fields
         accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0
         field_summary[field] = {
             "accuracy": accuracy,
@@ -411,11 +414,15 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
             "total": data["total"]
         }
     
+    # Calculate equivalent overall statistics
+    total_fields_evaluated = len(detailed_results) * len(EXTRACTION_FIELDS) if detailed_results else 0
+    total_accuracy_score = overall_accuracy * total_fields_evaluated if total_fields_evaluated else 0
+    
     # Generate summary report
     evaluation_summary = {
         "overall_accuracy": overall_accuracy,
-        "overall_correct": overall_correct,
-        "overall_total": overall_total,
+        "overall_correct": total_accuracy_score,
+        "overall_total": total_fields_evaluated,
         "field_accuracies": field_summary,
         "detailed_results": detailed_results,
         "images_evaluated": len(detailed_results),
