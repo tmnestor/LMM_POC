@@ -7,9 +7,10 @@ different vision models (InternVL3, Llama, etc.).
 NOTE: Uses YAML-first field discovery for single source of truth.
 """
 
-import yaml
 from pathlib import Path
 from typing import List
+
+import yaml
 
 # ============================================================================
 # MODEL CONFIGURATIONS - PRIMARY HIERARCHY
