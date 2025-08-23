@@ -61,7 +61,12 @@ from pathlib import Path
 
 # Import shared modules
 from common.config import DATA_DIR as data_dir
-from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_MODES
+from common.config import (
+    DEFAULT_EXTRACTION_MODE,
+    EXTRACTION_FIELDS,
+    EXTRACTION_MODES,
+    FIELD_COUNT,
+)
 from common.config import GROUND_TRUTH_PATH as ground_truth_path
 from common.config import LLAMA_MODEL_PATH as model_path
 from common.config import OUTPUT_DIR as output_dir
@@ -236,7 +241,6 @@ def main(extraction_mode=None, debug=False, limit_images=None):
             print(f"🎯 Image limit: {limit_images}")
         
         # Field configuration
-        from common.config import EXTRACTION_FIELDS, FIELD_COUNT
         print(f"\n📋 Total fields: {FIELD_COUNT}")
         print(f"📋 First field: {EXTRACTION_FIELDS[0]}")
         print(f"📋 Last field: {EXTRACTION_FIELDS[-1]}")
