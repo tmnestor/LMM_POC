@@ -722,6 +722,7 @@ class LMMVisualizer:
         extraction_results: List[Dict[str, Any]],
         ground_truth_data: Dict[str, Any],
         model_name: str,
+        evaluation_summary: Dict[str, Any],
         save_path: Optional[str] = None,
     ) -> str:
         """
@@ -744,7 +745,7 @@ class LMMVisualizer:
         # Generate classification summary
         try:
             classification_summary = generate_overall_classification_summary(
-                extraction_results, ground_truth_data
+                evaluation_summary
             )
         except Exception as e:
             print(f"❌ Error generating classification data: {e}")
@@ -1025,7 +1026,7 @@ class LMMVisualizer:
             # 4. Classification metrics dashboard (if data available)
             if extraction_results is not None and ground_truth_data is not None:
                 classification_chart = self.create_classification_metrics_dashboard(
-                    extraction_results, ground_truth_data, model_name
+                    extraction_results, ground_truth_data, model_name, evaluation_summary
                 )
                 if classification_chart:
                     generated_files.append(classification_chart)

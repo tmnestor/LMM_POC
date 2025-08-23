@@ -236,7 +236,7 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
 
 
 def generate_classification_report(
-    extraction_results, ground_truth_data, model_name, model_full_name
+    extraction_results, ground_truth_data, model_name, model_full_name, evaluation_summary
 ):
     """
     Generate comprehensive sklearn classification report for field extraction.
@@ -254,7 +254,7 @@ def generate_classification_report(
 
     try:
         classification_summary = generate_overall_classification_summary(
-            extraction_results, ground_truth_data
+            evaluation_summary
         )
     except Exception as e:
         return f"❌ Error generating classification report: {e}"
@@ -480,7 +480,7 @@ def generate_comprehensive_reports(
         print("📊 Generating sklearn classification report...")
         try:
             classification_report_content = generate_classification_report(
-                extraction_results, ground_truth_data, model_name, model_full_name
+                extraction_results, ground_truth_data, model_name, model_full_name, evaluation_summary
             )
 
             if (
