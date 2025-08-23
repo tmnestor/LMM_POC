@@ -78,7 +78,7 @@ def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dic
     return ground_truth_map
 
 
-def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, field_name: str) -> float:
+def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, field_name: str, debug=False) -> float:
     """
     Calculate accuracy for a single field comparison with partial credit scoring.
     
@@ -90,6 +90,7 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         extracted_value (str): Value extracted by the model
         ground_truth_value (str): Expected correct value
         field_name (str): Name of the field being compared
+        debug (bool): Whether to print debug information
         
     Returns:
         float: Accuracy score (0.0 to 1.0)
@@ -98,12 +99,19 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
     extracted = str(extracted_value).strip() if extracted_value else "N/A"
     ground_truth = str(ground_truth_value).strip() if ground_truth_value else "N/A"
 
+    if debug:
+        print(f"    🔍 DEBUG FIELD {field_name}: '{extracted}' vs '{ground_truth}'")
+
     # Both N/A is correct
     if extracted.upper() == "N/A" and ground_truth.upper() == "N/A":
+        if debug:
+            print(f"    ✅ Both N/A - score: 1.0")
         return 1.0
 
     # One is N/A but not the other
     if (extracted.upper() == "N/A") != (ground_truth.upper() == "N/A"):
+        if debug:
+            print(f"    ❌ One N/A, other not - score: 0.0")
         return 0.0
 
     # Normalize for comparison
@@ -115,8 +123,13 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         extracted_lower = extracted_lower.replace(char, "")
         ground_truth_lower = ground_truth_lower.replace(char, "")
 
+    if debug:
+        print(f"    🔍 Normalized: '{extracted_lower}' vs '{ground_truth_lower}'")
+
     # Exact match after normalization
     if extracted_lower == ground_truth_lower:
+        if debug:
+            print(f"    ✅ Exact match - score: 1.0")
         return 1.0
 
     # Field-specific comparison logic using centralized field type definitions
@@ -124,7 +137,10 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         # Numeric identifiers - exact match required
         extracted_digits = re.sub(r"\D", "", extracted)
         ground_truth_digits = re.sub(r"\D", "", ground_truth)
-        return 1.0 if extracted_digits == ground_truth_digits else 0.0
+        score = 1.0 if extracted_digits == ground_truth_digits else 0.0
+        if debug:
+            print(f"    🔢 NUMERIC_ID: '{extracted_digits}' vs '{ground_truth_digits}' = {score}")
+        return score
 
     elif field_name in MONETARY_FIELDS:
         # Monetary values - numeric comparison
@@ -133,8 +149,13 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
             ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth))
             # Allow 1% tolerance for rounding
             tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
-            return 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
+            score = 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
+            if debug:
+                print(f"    💰 MONETARY: {extracted_num} vs {ground_truth_num} (tolerance: {tolerance}) = {score}")
+            return score
         except (ValueError, AttributeError):
+            if debug:
+                print(f"    💰 MONETARY: Parsing failed - score: 0.0")
             return 0.0
 
     elif field_name in DATE_FIELDS:
@@ -145,13 +166,19 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
 
         # Check if same date components are present
         if set(extracted_numbers) == set(ground_truth_numbers):
+            if debug:
+                print(f"    📅 DATE: Components match {extracted_numbers} = {ground_truth_numbers} - score: 1.0")
             return 1.0
 
         # Partial match for dates
         common = set(extracted_numbers) & set(ground_truth_numbers)
         if common and len(common) >= 2:  # At least month and day match
+            if debug:
+                print(f"    📅 DATE: Partial match {common} - score: 0.8")
             return 0.8
 
+        if debug:
+            print(f"    📅 DATE: No match {extracted_numbers} vs {ground_truth_numbers} - score: 0.0")
         return 0.0
 
     elif field_name in LIST_FIELDS:
@@ -165,7 +192,10 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         ]
 
         if not ground_truth_items:
-            return 1.0 if not extracted_items else 0.0
+            score = 1.0 if not extracted_items else 0.0
+            if debug:
+                print(f"    📋 LIST: Empty GT, extracted empty: {not extracted_items} - score: {score}")
+            return score
 
         # Calculate overlap
         matches = sum(
@@ -177,11 +207,14 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
             )
         )
 
-        return (
+        score = (
             matches / max(len(ground_truth_items), len(extracted_items))
             if ground_truth_items
             else 0.0
         )
+        if debug:
+            print(f"    📋 LIST: {matches}/{max(len(ground_truth_items), len(extracted_items))} matches - score: {score}")
+        return score
 
     else:
         # Text fields - fuzzy matching
@@ -190,6 +223,8 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
             extracted_lower in ground_truth_lower
             or ground_truth_lower in extracted_lower
         ):
+            if debug:
+                print(f"    📝 TEXT: Substring match - score: 0.9")
             return 0.9
 
         # Check word overlap for longer text
@@ -201,8 +236,12 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
                 ground_truth_words
             )
             if overlap >= 0.8:
+                if debug:
+                    print(f"    📝 TEXT: Word overlap {overlap:.2f} - score: {overlap}")
                 return overlap
 
+        if debug:
+            print(f"    📝 TEXT: No match - score: 0.0")
         return 0.0
 
 
@@ -334,7 +373,9 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     if not extraction_results or not ground_truth_map:
         return {"error": "No data to evaluate"}
     
-    print(f"🔍 Evaluating {len(extraction_results)} extraction results...")
+    print(f"🔍 DEBUG: Evaluating {len(extraction_results)} extraction results...")
+    print(f"🔍 DEBUG: Ground truth map has {len(ground_truth_map)} entries")
+    print(f"🔍 DEBUG: Ground truth keys: {list(ground_truth_map.keys())[:3]}...")
     
     # Track field-level accuracies
     field_accuracies = {field: {"correct": 0, "total": 0, "details": []} for field in EXTRACTION_FIELDS}
@@ -342,33 +383,55 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     # Detailed results for analysis
     detailed_results = []
     
-    for result in extraction_results:
+    for idx, result in enumerate(extraction_results):
         image_name = result.get("image_name", "")
         extracted_data = result.get("extracted_data", {})
+        
+        print(f"\n🔍 DEBUG: Processing image {idx+1}/{len(extraction_results)}: {image_name}")
+        print(f"🔍 DEBUG: Extracted data keys: {list(extracted_data.keys())}")
         
         # Find corresponding ground truth
         gt_data = None
         for gt_key, gt_value in ground_truth_map.items():
             if image_name in gt_key or gt_key in image_name:
                 gt_data = gt_value
+                print(f"🔍 DEBUG: Found ground truth match: {gt_key}")
                 break
         
         if gt_data is None:
-            print(f"⚠️  No ground truth found for image: {image_name}")
+            print(f"⚠️  DEBUG: No ground truth found for image: {image_name}")
             continue
         
         # Compare each field
         result_details = {"image_name": image_name, "fields": {}}
         image_accuracies = {}
         
+        print(f"🔍 DEBUG: Comparing {len(EXTRACTION_FIELDS)} fields...")
+        perfect_matches = 0
+        partial_matches = 0
+        no_matches = 0
+        
         for field in EXTRACTION_FIELDS:
             extracted_value = extracted_data.get(field, "N/A")
             ground_truth_value = gt_data.get(field, "N/A")
             
             # Get float accuracy score (0.0 to 1.0)
+            show_debug = idx == 0  # Show debug for first image only
             accuracy_score = calculate_field_accuracy(
-                extracted_value, ground_truth_value, field
+                extracted_value, ground_truth_value, field, debug=show_debug
             )
+            
+            # DEBUG: Show score breakdown
+            if accuracy_score == 1.0:
+                perfect_matches += 1
+            elif accuracy_score > 0.0:
+                partial_matches += 1
+            else:
+                no_matches += 1
+                
+            # Show first few field comparisons for debugging
+            if idx == 0 and len([f for f in EXTRACTION_FIELDS if EXTRACTION_FIELDS.index(f) <= EXTRACTION_FIELDS.index(field)]) <= 5:
+                print(f"🔍 DEBUG: {field}: '{extracted_value}' vs '{ground_truth_value}' = {accuracy_score}")
             
             image_accuracies[field] = accuracy_score
             is_correct = accuracy_score > 0.5  # Convert to boolean for detailed results
@@ -392,17 +455,29 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
                 "accuracy_score": accuracy_score
             }
         
+        print(f"🔍 DEBUG: Field matches - Perfect: {perfect_matches}, Partial: {partial_matches}, None: {no_matches}")
+        
         # Calculate overall accuracy for this image (like the old system)
         image_overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies) if image_accuracies else 0.0
         result_details["overall_accuracy"] = image_overall_accuracy
         
+        print(f"🔍 DEBUG: Image accuracy: {image_overall_accuracy:.3f} ({image_overall_accuracy:.1%})")
+        
         detailed_results.append(result_details)
+    
+    print(f"\n🔍 DEBUG: Processed {len(detailed_results)} images successfully")
     
     # Calculate summary statistics (average of per-image accuracies, like the old system)
     if detailed_results:
-        overall_accuracy = sum(result["overall_accuracy"] for result in detailed_results) / len(detailed_results)
+        individual_accuracies = [result["overall_accuracy"] for result in detailed_results]
+        overall_accuracy = sum(individual_accuracies) / len(individual_accuracies)
+        print(f"🔍 DEBUG: Individual image accuracies: {[f'{acc:.3f}' for acc in individual_accuracies]}")
+        print(f"🔍 DEBUG: Sum of accuracies: {sum(individual_accuracies):.3f}")
+        print(f"🔍 DEBUG: Number of images: {len(individual_accuracies)}")
+        print(f"🔍 DEBUG: Final overall accuracy calculation: {sum(individual_accuracies):.3f} / {len(individual_accuracies)} = {overall_accuracy:.3f}")
     else:
         overall_accuracy = 0.0
+        print(f"🔍 DEBUG: No detailed results - setting overall_accuracy to 0.0")
     
     field_summary = {}
     for field, data in field_accuracies.items():
@@ -414,9 +489,18 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
             "total": data["total"]
         }
     
+    # Show a few field accuracies for debugging
+    print(f"🔍 DEBUG: Sample field accuracies:")
+    for i, (field, summary) in enumerate(field_summary.items()):
+        if i < 5:  # Show first 5 fields
+            print(f"  {field}: {summary['correct']:.3f}/{summary['total']} = {summary['accuracy']:.3f}")
+    
     # Calculate equivalent overall statistics
     total_fields_evaluated = len(detailed_results) * len(EXTRACTION_FIELDS) if detailed_results else 0
     total_accuracy_score = overall_accuracy * total_fields_evaluated if total_fields_evaluated else 0
+    
+    print(f"🔍 DEBUG: Total fields evaluated: {total_fields_evaluated}")
+    print(f"🔍 DEBUG: Total accuracy score: {total_accuracy_score}")
     
     # Generate summary report
     evaluation_summary = {
