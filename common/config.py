@@ -876,19 +876,16 @@ INTERNVL3_TOKEN_LIMITS = {
 # Generation parameters for different models
 GENERATION_CONFIGS = {
     "internvl3": {
-        "do_sample": False,  # CRITICAL: Must be False for deterministic output
-        "temperature": 0.0,  # Set to 0 even though not used when do_sample=False
-        "top_p": 1.0,  # Set to 1.0 for completeness
-        "top_k": 1,  # Force greedy decoding - select only top token
+        "do_sample": False,  # CRITICAL: Must be False for deterministic output (greedy decoding)
+        # When do_sample=False, temperature/top_k/top_p are ignored and cause warnings
+        # So we don't set them - greedy decoding automatically selects highest probability token
         "num_beams": 1,  # No beam search - single path only
         "repetition_penalty": 1.0,  # No repetition penalty
         # Note: seed is set at system level in _set_random_seeds(), not in generation config
     },
     "llama": {
-        "do_sample": False,
-        "temperature": 0.0,
-        "top_p": 1.0,
-        "top_k": 1,
+        "do_sample": False,  # Greedy decoding for determinism
+        # No temperature/top_k/top_p to avoid warnings with do_sample=False
         "num_beams": 1,
         "repetition_penalty": 1.0,
         # Note: seed is set at system level, not in generation config

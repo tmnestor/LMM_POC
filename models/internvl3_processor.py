@@ -118,8 +118,7 @@ class InternVL3Processor:
         
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-            f"do_sample={self.generation_config['do_sample']}, "
-            f"top_k={self.generation_config.get('top_k', 'not set')}"
+            f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
         )
 
         # Don't use ResilientGenerator - it breaks the 8B model
@@ -705,13 +704,15 @@ INSTRUCTIONS:
             custom_generation_config = self.generation_config.copy()
             if "max_new_tokens" in generation_kwargs:
                 custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
-            # Only set temperature if do_sample is True to avoid warnings
+            # Only set sampling parameters if do_sample is True to avoid warnings
             if custom_generation_config.get("do_sample", False):
                 if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
                     custom_generation_config["temperature"] = generation_kwargs["temperature"]
             else:
-                # Remove temperature if do_sample is False
+                # Remove all sampling-related parameters when do_sample is False to avoid warnings
                 custom_generation_config.pop("temperature", None)
+                custom_generation_config.pop("top_k", None)
+                custom_generation_config.pop("top_p", None)
 
             # Use shared extraction method
             return self._extract_with_prompt(image_path, prompt, custom_generation_config)
