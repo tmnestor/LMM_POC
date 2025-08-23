@@ -78,14 +78,13 @@ def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dic
     return ground_truth_map
 
 
-def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, field_name: str) -> Tuple[bool, str]:
+def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, field_name: str) -> float:
     """
-    Calculate accuracy for a single field comparison.
+    Calculate accuracy for a single field comparison with partial credit scoring.
     
-    Handles different field types with appropriate comparison logic:
-    - Exact matching for IDs and structured data
-    - Fuzzy matching for text fields
-    - Special handling for monetary, date, and list fields
+    This function handles different types of fields with appropriate comparison
+    methods (exact match, numeric comparison, date parsing, etc.) and returns
+    float scores from 0.0 to 1.0 to allow partial credit for fuzzy matches.
     
     Args:
         extracted_value (str): Value extracted by the model
@@ -93,37 +92,118 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         field_name (str): Name of the field being compared
         
     Returns:
-        tuple: (is_correct: bool, reason: str)
+        float: Accuracy score (0.0 to 1.0)
     """
-    # Handle N/A cases
-    if pd.isna(ground_truth_value) or ground_truth_value == "" or ground_truth_value == "N/A":
-        if extracted_value == "N/A" or extracted_value == "":
-            return True, "Both N/A"
-        else:
-            return False, f"Expected N/A, got '{extracted_value}'"
-    
-    if extracted_value == "N/A" or extracted_value == "":
-        return False, f"Got N/A, expected '{ground_truth_value}'"
-    
-    # Convert to strings for comparison
-    extracted_str = str(extracted_value).strip()
-    ground_truth_str = str(ground_truth_value).strip()
-    
-    # Exact match (fastest check first)
-    if extracted_str.lower() == ground_truth_str.lower():
-        return True, "Exact match"
-    
-    # Field-specific comparison logic
-    if field_name in MONETARY_FIELDS:
-        return _compare_monetary_values(extracted_str, ground_truth_str)
+    # Convert to strings and clean
+    extracted = str(extracted_value).strip() if extracted_value else "N/A"
+    ground_truth = str(ground_truth_value).strip() if ground_truth_value else "N/A"
+
+    # Both N/A is correct
+    if extracted.upper() == "N/A" and ground_truth.upper() == "N/A":
+        return 1.0
+
+    # One is N/A but not the other
+    if (extracted.upper() == "N/A") != (ground_truth.upper() == "N/A"):
+        return 0.0
+
+    # Normalize for comparison
+    extracted_lower = extracted.lower()
+    ground_truth_lower = ground_truth.lower()
+
+    # Remove common formatting
+    for char in [",", "$", "%", "(", ")", " "]:
+        extracted_lower = extracted_lower.replace(char, "")
+        ground_truth_lower = ground_truth_lower.replace(char, "")
+
+    # Exact match after normalization
+    if extracted_lower == ground_truth_lower:
+        return 1.0
+
+    # Field-specific comparison logic using centralized field type definitions
+    if field_name in NUMERIC_ID_FIELDS:
+        # Numeric identifiers - exact match required
+        extracted_digits = re.sub(r"\D", "", extracted)
+        ground_truth_digits = re.sub(r"\D", "", ground_truth)
+        return 1.0 if extracted_digits == ground_truth_digits else 0.0
+
+    elif field_name in MONETARY_FIELDS:
+        # Monetary values - numeric comparison
+        try:
+            extracted_num = float(re.sub(r"[^\d.-]", "", extracted))
+            ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth))
+            # Allow 1% tolerance for rounding
+            tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+            return 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
+        except (ValueError, AttributeError):
+            return 0.0
+
     elif field_name in DATE_FIELDS:
-        return _compare_date_values(extracted_str, ground_truth_str)
-    elif field_name in NUMERIC_ID_FIELDS:
-        return _compare_numeric_ids(extracted_str, ground_truth_str)
+        # Date fields - flexible matching
+        # Extract date components
+        extracted_numbers = re.findall(r"\d+", extracted)
+        ground_truth_numbers = re.findall(r"\d+", ground_truth)
+
+        # Check if same date components are present
+        if set(extracted_numbers) == set(ground_truth_numbers):
+            return 1.0
+
+        # Partial match for dates
+        common = set(extracted_numbers) & set(ground_truth_numbers)
+        if common and len(common) >= 2:  # At least month and day match
+            return 0.8
+
+        return 0.0
+
     elif field_name in LIST_FIELDS:
-        return _compare_list_values(extracted_str, ground_truth_str)
+        # List fields - check overlap
+        # These fields may contain multiple items
+        extracted_items = [
+            item.strip() for item in re.split(r"[,;|\n]", extracted) if item.strip()
+        ]
+        ground_truth_items = [
+            item.strip() for item in re.split(r"[,;|\n]", ground_truth) if item.strip()
+        ]
+
+        if not ground_truth_items:
+            return 1.0 if not extracted_items else 0.0
+
+        # Calculate overlap
+        matches = sum(
+            1
+            for item in extracted_items
+            if any(
+                item.lower() in gt_item.lower() or gt_item.lower() in item.lower()
+                for gt_item in ground_truth_items
+            )
+        )
+
+        return (
+            matches / max(len(ground_truth_items), len(extracted_items))
+            if ground_truth_items
+            else 0.0
+        )
+
     else:
-        return _compare_text_values(extracted_str, ground_truth_str)
+        # Text fields - fuzzy matching
+        # Check for substring match
+        if (
+            extracted_lower in ground_truth_lower
+            or ground_truth_lower in extracted_lower
+        ):
+            return 0.9
+
+        # Check word overlap for longer text
+        extracted_words = set(extracted_lower.split())
+        ground_truth_words = set(ground_truth_lower.split())
+
+        if ground_truth_words:
+            overlap = len(extracted_words & ground_truth_words) / len(
+                ground_truth_words
+            )
+            if overlap >= 0.8:
+                return overlap
+
+        return 0.0
 
 
 def _compare_monetary_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
@@ -281,22 +361,25 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
         
         # Compare each field
         result_details = {"image_name": image_name, "fields": {}}
+        image_accuracies = {}
         
         for field in EXTRACTION_FIELDS:
             extracted_value = extracted_data.get(field, "N/A")
             ground_truth_value = gt_data.get(field, "N/A")
             
-            is_correct, reason = calculate_field_accuracy(
+            # Get float accuracy score (0.0 to 1.0)
+            accuracy_score = calculate_field_accuracy(
                 extracted_value, ground_truth_value, field
             )
             
+            image_accuracies[field] = accuracy_score
+            is_correct = accuracy_score > 0.5  # Convert to boolean for detailed results
+            
             field_accuracies[field]["total"] += 1
-            if is_correct:
-                field_accuracies[field]["correct"] += 1
+            field_accuracies[field]["correct"] += accuracy_score  # Use float score for partial credit
             
             overall_total += 1
-            if is_correct:
-                overall_correct += 1
+            overall_correct += accuracy_score  # Use float score for partial credit
             
             # Store detailed result
             field_accuracies[field]["details"].append({
@@ -304,14 +387,14 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
                 "extracted": extracted_value,
                 "ground_truth": ground_truth_value,
                 "correct": is_correct,
-                "reason": reason
+                "accuracy_score": accuracy_score
             })
             
             result_details["fields"][field] = {
                 "extracted": extracted_value,
                 "ground_truth": ground_truth_value,
                 "correct": is_correct,
-                "reason": reason
+                "accuracy_score": accuracy_score
             }
         
         detailed_results.append(result_details)
