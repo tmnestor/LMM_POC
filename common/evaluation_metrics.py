@@ -102,16 +102,23 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
     if debug:
         print(f"    🔍 DEBUG FIELD {field_name}: '{extracted}' vs '{ground_truth}'")
 
-    # Both N/A is correct
-    if extracted.upper() == "N/A" and ground_truth.upper() == "N/A":
+    # Normalize missing value indicators - treat 'nan', 'N/A', empty strings as equivalent
+    def is_missing_value(value):
+        return value.upper() in ["N/A", "NAN", ""] or str(value).lower() == "nan"
+    
+    extracted_is_missing = is_missing_value(extracted)
+    ground_truth_is_missing = is_missing_value(ground_truth)
+
+    # Both are missing values - correct
+    if extracted_is_missing and ground_truth_is_missing:
         if debug:
-            print("    ✅ Both N/A - score: 1.0")
+            print(f"    ✅ Both missing values ('{extracted}' and '{ground_truth}') - score: 1.0")
         return 1.0
 
-    # One is N/A but not the other
-    if (extracted.upper() == "N/A") != (ground_truth.upper() == "N/A"):
+    # One is missing but not the other - incorrect
+    if extracted_is_missing != ground_truth_is_missing:
         if debug:
-            print("    ❌ One N/A, other not - score: 0.0")
+            print(f"    ❌ One missing, other not ('{extracted}' vs '{ground_truth}') - score: 0.0")
         return 0.0
 
     # Normalize for comparison
