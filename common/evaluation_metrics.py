@@ -599,39 +599,56 @@ def generate_field_classification_report(evaluation_summary: Dict) -> str:
     return "\n".join(report_lines)
 
 
-def generate_overall_classification_summary(evaluation_summary: Dict) -> str:
+def generate_overall_classification_summary(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict:
     """
-    Generate an overall summary of the evaluation results.
+    Generate classification summary for sklearn metrics visualization.
     
     Args:
-        evaluation_summary: Results from evaluate_extraction_results
+        extraction_results: List of extraction result dictionaries
+        ground_truth_map: Ground truth data mapping
         
     Returns:
-        str: Formatted summary report
+        dict: Classification summary with metrics and field data
     """
-    overall_accuracy = evaluation_summary.get("overall_accuracy", 0)
-    overall_correct = evaluation_summary.get("overall_correct", 0)
-    overall_total = evaluation_summary.get("overall_total", 0)
-    images_evaluated = evaluation_summary.get("images_evaluated", 0)
-    
-    summary_lines = []
-    summary_lines.append("🎯 EXTRACTION EVALUATION SUMMARY")
-    summary_lines.append("=" * 40)
-    summary_lines.append(f"Overall Accuracy: {overall_accuracy:.1%}")
-    summary_lines.append(f"Correct Fields: {overall_correct:,}")
-    summary_lines.append(f"Total Fields: {overall_total:,}")
-    summary_lines.append(f"Images Evaluated: {images_evaluated:,}")
-    
-    # Best and worst performing fields
-    summary_stats = evaluation_summary.get("summary_stats", {})
-    if "best_fields" in summary_stats:
-        summary_lines.append("\n🏆 Top Performing Fields:")
-        for field, data in summary_stats["best_fields"]:
-            summary_lines.append(f"  {field}: {data['accuracy']:.1%}")
-    
-    if "worst_fields" in summary_stats:
-        summary_lines.append("\n⚠️  Fields Needing Improvement:")
-        for field, data in summary_stats["worst_fields"]:
-            summary_lines.append(f"  {field}: {data['accuracy']:.1%}")
-    
-    return "\n".join(summary_lines)
+    try:
+        # Prepare classification data
+        y_true, y_pred, field_names = prepare_classification_data(extraction_results)
+        
+        if not y_true:
+            return {
+                "overall_metrics": {"error": "No classification data available"},
+                "field_metrics": {},
+            }
+        
+        # Calculate basic metrics
+        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+        
+        # Overall metrics
+        accuracy = accuracy_score(y_true, y_pred)
+        precision, recall, f1, support = precision_recall_fscore_support(
+            y_true, y_pred, average="macro", zero_division=0
+        )
+        
+        overall_metrics = {
+            "macro_avg": {
+                "precision": precision,
+                "recall": recall, 
+                "f1_score": f1,
+            },
+            "accuracy": accuracy,
+            "total_predictions": len(y_true),
+        }
+        
+        # Simple field metrics - just return empty for now
+        field_metrics = {}
+        
+        return {
+            "overall_metrics": overall_metrics,
+            "field_metrics": field_metrics,
+        }
+        
+    except Exception as e:
+        return {
+            "overall_metrics": {"error": str(e)},
+            "field_metrics": {},
+        }
