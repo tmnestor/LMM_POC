@@ -251,7 +251,7 @@ class LMMVisualizer:
         # Create DataFrame with field data
         field_data = []
         for field, accuracy in field_accuracies.items():
-            acc_pct = accuracy * 100
+            acc_pct = accuracy["accuracy"] * 100
 
             # Determine quality category for color coding
             if acc_pct >= VIZ_QUALITY_THRESHOLDS["excellent"] * 100:
