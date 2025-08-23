@@ -222,11 +222,14 @@ def discover_fields_from_yaml(yaml_file: str = "llama_single_pass_prompts.yaml")
 
 
 # ============================================================================
-# FIELD METADATA - EVALUATION LOGIC ONLY
+# FIELD METADATA - OPTIONAL OVERRIDES ONLY
 # ============================================================================
 
-# Field metadata for evaluation logic only - instructions now in YAML
+# OPTIONAL: Only define fields that need special handling or non-default evaluation logic
+# Most fields will be auto-inferred from their names!
+# This is now truly optional - not required for all 25 fields!
 FIELD_DEFINITIONS = {
+    # Example: Only define fields that can't be auto-inferred correctly
     "ABN": {
         "type": "numeric_id",
         "evaluation_logic": "exact_numeric_match",
@@ -389,23 +392,82 @@ FIELD_COUNT = len(EXTRACTION_FIELDS)
 print(f"🎯 Using YAML-discovered fields: {FIELD_COUNT} fields")
 
 # FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
-FIELD_TYPES = {k: v["type"] for k, v in FIELD_DEFINITIONS.items()}
-FIELD_DESCRIPTIONS = {k: v["description"] for k, v in FIELD_DEFINITIONS.items()}
 
-# Field type groupings for evaluation logic
-NUMERIC_ID_FIELDS = [
-    k for k, v in FIELD_DEFINITIONS.items() if v["type"] == "numeric_id"
-]
-MONETARY_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v["type"] == "monetary"]
-DATE_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v["type"] == "date"]
-LIST_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v["type"] == "list"]
-TEXT_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v["type"] == "text"]
+# Auto-generate field metadata with smart defaults for any fields not in FIELD_DEFINITIONS
+def get_field_metadata(field_name: str) -> dict:
+    """
+    Get field metadata with smart defaults.
+    
+    Returns metadata from FIELD_DEFINITIONS if available,
+    otherwise infers sensible defaults based on field name patterns.
+    
+    This allows FIELD_DEFINITIONS to be optional - only define fields
+    that need special handling, not all 25!
+    """
+    # If explicitly defined, use that
+    if field_name in FIELD_DEFINITIONS:
+        return FIELD_DEFINITIONS[field_name]
+    
+    # Otherwise, infer from field name patterns
+    field_lower = field_name.lower()
+    
+    # Infer type and evaluation logic from field name
+    if "balance" in field_lower or "total" in field_lower or "subtotal" in field_lower or "gst" in field_lower:
+        return {
+            "type": "monetary",
+            "evaluation_logic": "monetary_with_tolerance",
+            "description": f"Auto-inferred monetary field: {field_name}",
+            "required": False
+        }
+    elif "date" in field_lower or "period" in field_lower:
+        return {
+            "type": "date", 
+            "evaluation_logic": "flexible_date_match",
+            "description": f"Auto-inferred date field: {field_name}",
+            "required": False
+        }
+    elif "abn" in field_lower or "bsb" in field_lower or "account_number" in field_lower:
+        return {
+            "type": "numeric_id",
+            "evaluation_logic": "exact_numeric_match",
+            "description": f"Auto-inferred numeric ID field: {field_name}",
+            "required": False
+        }
+    elif "descriptions" in field_lower or "quantities" in field_lower or "prices" in field_lower:
+        return {
+            "type": "list",
+            "evaluation_logic": "list_overlap_match",
+            "description": f"Auto-inferred list field: {field_name}",
+            "required": False
+        }
+    else:
+        # Default to text field with fuzzy matching
+        return {
+            "type": "text",
+            "evaluation_logic": "fuzzy_text_match",
+            "description": f"Auto-inferred text field: {field_name}",
+            "required": False
+        }
+
+# Build field metadata for all discovered fields (with defaults for undefined ones)
+FIELD_TYPES = {}
+FIELD_DESCRIPTIONS = {}
+
+for field in EXTRACTION_FIELDS:
+    metadata = get_field_metadata(field)
+    FIELD_TYPES[field] = metadata["type"]
+    FIELD_DESCRIPTIONS[field] = metadata["description"]
+
+# Field type groupings for evaluation logic (using dynamic metadata)
+NUMERIC_ID_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "numeric_id"]
+MONETARY_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "monetary"]
+DATE_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "date"]
+LIST_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "list"]
+TEXT_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "text"]
 
 # Required vs optional field groupings
-REQUIRED_FIELDS = [k for k, v in FIELD_DEFINITIONS.items() if v.get("required", False)]
-OPTIONAL_FIELDS = [
-    k for k, v in FIELD_DEFINITIONS.items() if not v.get("required", False)
-]
+REQUIRED_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field).get("required", False)]
+OPTIONAL_FIELDS = [field for field in EXTRACTION_FIELDS if not get_field_metadata(field).get("required", False)]
 
 # ============================================================================
 # GROUPED EXTRACTION CONFIGURATION
