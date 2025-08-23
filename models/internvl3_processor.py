@@ -283,19 +283,19 @@ class InternVL3Processor:
         # Use the same comprehensive prompt for both models now that 8B has proper quantization
         prompt = f"""Extract data from this business document. 
 Output ALL fields below with their exact keys. 
-Use "N/A" if field is not visible or not present.
+Use "NOT_FOUND" if field is not visible or not present.
 
 OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
         # Add all fields with centralized field-specific instructions
         for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
+            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""
 INSTRUCTIONS:
 - Keep field names EXACTLY as shown above
-- Use "N/A" for any missing/unclear information
+- Use "NOT_FOUND" for any missing/unclear information
 - Do not add explanations or comments
 - Extract actual values from the document image
 - Output exactly {FIELD_COUNT} lines, one for each field"""
@@ -553,7 +553,7 @@ INSTRUCTIONS:
                 print(f"  ... and {len(extracted_data) - 5} more fields")
                 print()
 
-            # Calculate metrics - count ALL fields that are present (including correct N/A)
+            # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
             extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             )
@@ -582,7 +582,7 @@ INSTRUCTIONS:
 
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+                "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
                 "raw_response": f"Error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
@@ -709,7 +709,7 @@ INSTRUCTIONS:
 
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+                "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
                 "processing_time": time.time() - start_time,
                 "response_completeness": 0,
                 "content_coverage": 0,
@@ -991,7 +991,7 @@ INSTRUCTIONS:
                     # Parse response
                     extracted_data = parse_extraction_response(response)
 
-                    # Calculate metrics - count ALL fields that are present (including correct N/A)
+                    # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
                     extracted_fields_count = len(
                         [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
                     )
@@ -1046,7 +1046,7 @@ INSTRUCTIONS:
         """Create standardized error result for failed processing."""
         return {
             "image_name": Path(file_path).name,
-            "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+            "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
             "raw_response": f"Error: {error_message}",
             "processing_time": 0,
             "response_completeness": 0,

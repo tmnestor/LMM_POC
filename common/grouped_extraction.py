@@ -273,8 +273,8 @@ class GroupedExtractionStrategy:
 
         elif group_name == "banking":
             expertise_frame = """Extract banking and payment information."""
-            cognitive_context = """IMPORTANT: These fields are typically N/A for invoices/receipts. Only extract if this is a bank statement. BSB is a 6-digit number (NOT the 11-digit ABN). Bank name is a financial institution (NOT the supplier)."""
-            focus_instruction = "Extract bank account information ONLY if this is a bank statement. If this is an invoice/receipt, most banking fields should be N/A."
+            cognitive_context = """IMPORTANT: These fields are typically NOT_FOUND for invoices/receipts. Only extract if this is a bank statement. BSB is a 6-digit number (NOT the 11-digit ABN). Bank name is a financial institution (NOT the supplier)."""
+            focus_instruction = "Extract bank account information ONLY if this is a bank statement. If this is an invoice/receipt, most banking fields should be NOT_FOUND."
 
         elif group_name == "item_details":
             expertise_frame = """Extract transaction line items and pricing."""
@@ -314,7 +314,7 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
 
         # Add each field with its specific instruction
         for field in fields:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
+            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
             prompt += f"{field}: {instruction}\n"
 
         # Enhanced format rules with strict enforcement
@@ -323,10 +323,10 @@ FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
 - NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
 - Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {len(fields)} fields even if N/A
+- Include ALL {len(fields)} fields even if NOT_FOUND
 - Extract ONLY what you can see in the document
 - Do NOT guess, calculate, or make up values
-- Use N/A if field is not visible or not applicable
+- Use NOT_FOUND if field is not visible or not applicable
 - Output ONLY these {len(fields)} lines, nothing else
 - For lists: use COMMA-SEPARATED values on ONE LINE per field
 - DO NOT output the same field name multiple times
@@ -357,7 +357,7 @@ STOP after the last field. Do not add explanations or comments."""
         # Check required fields
         if "required_fields" in rules:
             for field in rules["required_fields"]:
-                if field not in extracted_data or extracted_data[field] in ["", "N/A"]:
+                if field not in extracted_data or extracted_data[field] in ["", "NOT_FOUND"]:
                     if not rules.get("allow_empty", True):
                         if self.debug:
                             print(
@@ -412,18 +412,18 @@ STOP after the last field. Do not add explanations or comments."""
         # Ensure all extraction fields are present
         for field in EXTRACTION_FIELDS:
             if field not in merged_data:
-                merged_data[field] = "N/A"
+                merged_data[field] = "NOT_FOUND"
                 if self.debug:
-                    print(f"⚠️ Field {field} not extracted in any group, setting to N/A")
+                    print(f"⚠️ Field {field} not extracted in any group, setting to NOT_FOUND")
 
         # Add group metadata to stats
         self.stats["group_metadata"] = group_metadata
 
         if self.debug:
-            extracted_count = len([v for v in merged_data.values() if v != "N/A"])
+            extracted_count = len([v for v in merged_data.values() if v != "NOT_FOUND"])
             na_count = len(EXTRACTION_FIELDS) - extracted_count
             print(
-                f"📊 Merged results: {extracted_count}/{len(EXTRACTION_FIELDS)} fields with values, {na_count} correctly identified as N/A"
+                f"📊 Merged results: {extracted_count}/{len(EXTRACTION_FIELDS)} fields with values, {na_count} correctly identified as NOT_FOUND"
             )
 
         return merged_data
@@ -499,7 +499,7 @@ STOP after the last field. Do not add explanations or comments."""
                 # Filter to only include fields from this group
                 group_fields = group_config["fields"]
                 filtered_data = {
-                    field: extracted_data.get(field, "N/A") for field in group_fields
+                    field: extracted_data.get(field, "NOT_FOUND") for field in group_fields
                 }
 
                 if self.debug:
@@ -540,7 +540,7 @@ STOP after the last field. Do not add explanations or comments."""
 
                 if self.debug:
                     extracted_count = len(
-                        [v for v in filtered_data.values() if v != "N/A"]
+                        [v for v in filtered_data.values() if v != "NOT_FOUND"]
                     )
                     print(
                         f"✅ Group '{group_name}' completed: {extracted_count}/{len(group_fields)} fields"
@@ -563,7 +563,7 @@ STOP after the last field. Do not add explanations or comments."""
 
                     # Create empty results for this group
                     group_fields = group_config["fields"]
-                    empty_data = {field: "N/A" for field in group_fields}
+                    empty_data = {field: "NOT_FOUND" for field in group_fields}
 
                     self.stats["total_groups_processed"] += 1
                     self.stats["failed_groups"] += 1
@@ -645,10 +645,10 @@ STOP after the last field. Do not add explanations or comments."""
             "failed_groups": self.stats["failed_groups"],
             "retries_performed": self.stats["retries_performed"],
             "group_stats": self.stats.get("group_metadata", {}),
-            "fields_extracted": len([v for v in merged_data.values() if v != "N/A"]),
+            "fields_extracted": len([v for v in merged_data.values() if v != "NOT_FOUND"]),
             "total_fields": len(EXTRACTION_FIELDS),
             "extraction_completeness": len(
-                [v for v in merged_data.values() if v != "N/A"]
+                [v for v in merged_data.values() if v != "NOT_FOUND"]
             )
             / len(EXTRACTION_FIELDS),
         }
@@ -733,7 +733,7 @@ class AdaptiveExtractionStrategy:
                 "adaptive_reason": "Simple document detected",
                 "total_processing_time": total_time,
                 "fields_extracted": len(
-                    [v for v in extracted_data.values() if v != "N/A"]
+                    [v for v in extracted_data.values() if v != "NOT_FOUND"]
                 ),
                 "total_fields": len(EXTRACTION_FIELDS),
             }

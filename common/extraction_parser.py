@@ -36,7 +36,7 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
         dict: Parsed key-value pairs with all expected fields
     """
     if not response_text:
-        return {field: "N/A" for field in EXTRACTION_FIELDS}
+        return {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
 
     # Clean Llama-specific conversation artifacts if requested
     if clean_conversation_artifacts:
@@ -58,8 +58,8 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
                 pattern, "", response_text, flags=re.IGNORECASE | re.MULTILINE
             )
 
-    # Initialize with N/A for all fields
-    extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
+    # Initialize with NOT_FOUND for all fields
+    extracted_data = {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
 
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")
@@ -90,7 +90,7 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
 
             # Store if it's an expected field
             if key in EXTRACTION_FIELDS:
-                extracted_data_first[key] = value if value else "N/A"
+                extracted_data_first[key] = value if value else "NOT_FOUND"
     
     # If first pass got most fields, use it (this preserves Llama's performance)
     if len(extracted_data_first) >= len(EXTRACTION_FIELDS) * 0.5:  # Got at least 50% of fields
@@ -141,9 +141,9 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
 
                 # Store if it's an expected field - this filters out hallucinated content
                 if key in extracted_data:
-                    # Don't overwrite if we already have a non-N/A value
-                    if extracted_data[key] == "N/A" or not extracted_data[key]:
-                        extracted_data[key] = value if value else "N/A"
+                    # Don't overwrite if we already have a non-NOT_FOUND value
+                    if extracted_data[key] == "NOT_FOUND" or not extracted_data[key]:
+                        extracted_data[key] = value if value else "NOT_FOUND"
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data

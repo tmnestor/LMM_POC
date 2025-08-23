@@ -159,175 +159,175 @@ def show_current_config():
 FIELD_DEFINITIONS = {
     "ABN": {
         "type": "numeric_id",
-        "instruction": "[11-digit Australian Business Number or N/A]",
+        "instruction": "[11-digit Australian Business Number or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Australian Business Number for tax identification",
         "required": True,
     },
     "ACCOUNT_HOLDER": {
         "type": "text",
-        "instruction": "[account holder name or N/A]",
+        "instruction": "[account holder name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of bank account holder",
         "required": False,
     },
     "BANK_ACCOUNT_NUMBER": {
         "type": "numeric_id",
-        "instruction": "[account number or N/A]",
+        "instruction": "[account number or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Bank account number from statements",
         "required": False,
     },
     "BANK_NAME": {
         "type": "text",
-        "instruction": "[bank name (NOT supplier name) or N/A]",
+        "instruction": "[bank name (NOT supplier name) or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of banking institution",
         "required": False,
     },
     "BSB_NUMBER": {
         "type": "numeric_id",
-        "instruction": "[6-digit BSB (NOT ABN) or N/A]",
+        "instruction": "[6-digit BSB (NOT ABN) or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Bank State Branch routing number",
         "required": False,
     },
     "BUSINESS_ADDRESS": {
         "type": "text",
-        "instruction": "[business address or N/A]",
+        "instruction": "[business address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Physical address of business",
         "required": False,
     },
     "BUSINESS_PHONE": {
         "type": "text",
-        "instruction": "[business phone number or N/A]",
+        "instruction": "[business phone number or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Business contact phone number",
         "required": False,
     },
     "CLOSING_BALANCE": {
         "type": "monetary",
-        "instruction": "[closing balance with 2 decimals (NOT total) from bank statements or N/A]",
+        "instruction": "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final balance on statement",
         "required": False,
     },
     "DESCRIPTIONS": {
         "type": "list",
-        "instruction": "[list of transaction descriptions or N/A]",
+        "instruction": "[list of transaction descriptions or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "Transaction or item descriptions",
         "required": False,
     },
     "DOCUMENT_TYPE": {
         "type": "text",
-        "instruction": "[document type (invoice/receipt/statement) or N/A]",
+        "instruction": "[document type (invoice/receipt/statement) or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Type of business document",
         "required": False,
     },
     "DUE_DATE": {
         "type": "date",
-        "instruction": "[payment due date or N/A]",
+        "instruction": "[payment due date or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Payment deadline",
         "required": False,
     },
     "GST": {
         "type": "monetary",
-        "instruction": "[GST amount in dollars with 2 decimals (e.g. $5.33) or N/A]",
+        "instruction": "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Goods and Services Tax amount",
         "required": False,
     },
     "INVOICE_DATE": {
         "type": "date",
-        "instruction": "[invoice date or N/A]",
+        "instruction": "[invoice date or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Date invoice was issued",
         "required": False,
     },
     "OPENING_BALANCE": {
         "type": "monetary",
-        "instruction": "[opening balance with 2 decimals from bank statements or N/A]",
+        "instruction": "[opening balance with 2 decimals from bank statements or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Starting balance on statement",
         "required": False,
     },
     "PAYER_ADDRESS": {
         "type": "text",
-        "instruction": "[payer address or N/A]",
+        "instruction": "[payer address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Address of person/entity making payment",
         "required": False,
     },
     "PAYER_EMAIL": {
         "type": "text",
-        "instruction": "[payer email address or N/A]",
+        "instruction": "[payer email address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Email address of payer",
         "required": False,
     },
     "PAYER_NAME": {
         "type": "text",
-        "instruction": "[payer name or N/A]",
+        "instruction": "[payer name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of person/entity making payment",
         "required": False,
     },
     "PAYER_PHONE": {
         "type": "text",
-        "instruction": "[payer phone number or N/A]",
+        "instruction": "[payer phone number or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Phone number of payer",
         "required": False,
     },
     "PRICES": {
         "type": "list",
-        "instruction": "[individual prices in dollars or N/A]",
+        "instruction": "[individual prices in dollars or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "List of individual item prices",
         "required": False,
     },
     "QUANTITIES": {
         "type": "list",
-        "instruction": "[list of quantities or N/A]",
+        "instruction": "[list of quantities or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "Quantities of items purchased",
         "required": False,
     },
     "STATEMENT_PERIOD": {
         "type": "date",
-        "instruction": "[statement period or N/A]",
+        "instruction": "[statement period or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Time period covered by statement",
         "required": False,
     },
     "SUBTOTAL": {
         "type": "monetary",
-        "instruction": "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or N/A]",
+        "instruction": "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Subtotal before taxes and fees",
         "required": False,
     },
     "SUPPLIER": {
         "type": "text",
-        "instruction": "[supplier name or N/A]",
+        "instruction": "[supplier name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of goods/services provider",
         "required": False,
     },
     "SUPPLIER_WEBSITE": {
         "type": "text",
-        "instruction": "[supplier website or N/A]",
+        "instruction": "[supplier website or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Website URL of supplier",
         "required": False,
     },
     "TOTAL": {
         "type": "monetary",
-        "instruction": "[total amount in dollars with 2 decimals (e.g. $58.62) or N/A]",
+        "instruction": "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final total amount including all charges",
         "required": True,
@@ -698,13 +698,13 @@ def validate_field_definitions():
         instruction = definition["instruction"]
         if not (instruction.startswith("[") and instruction.endswith("]")):
             raise ValueError(
-                f"Field '{field_name}' instruction must be in format '[instruction or N/A]'"
+                f"Field '{field_name}' instruction must be in format '[instruction or NOT_FOUND]'"
             )
 
-        # Ensure instruction mentions N/A
-        if "N/A" not in instruction:
+        # Ensure instruction mentions NOT_FOUND
+        if "NOT_FOUND" not in instruction:
             raise ValueError(
-                f"Field '{field_name}' instruction must mention 'N/A' option"
+                f"Field '{field_name}' instruction must mention 'NOT_FOUND' option"
             )
 
 

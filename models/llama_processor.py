@@ -185,7 +185,7 @@ REQUIRED OUTPUT FORMAT - EXACTLY {FIELD_COUNT} LINES:
 
         # Add each field dynamically using centralized instructions
         for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or N/A]")
+            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""
@@ -193,7 +193,7 @@ FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
 - NEVER use: **KEY:** or **KEY** or *KEY* or any formatting
 - Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {FIELD_COUNT} keys even if value is N/A
+- Include ALL {FIELD_COUNT} keys even if value is NOT_FOUND
 - Output ONLY these {FIELD_COUNT} lines, nothing else
 
 STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
@@ -524,7 +524,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 print(f"  ... and {len(extracted_data) - 5} more fields")
                 print()
 
-            # Calculate metrics - count ALL fields that are present (including correct N/A)
+            # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
             extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
             )
@@ -559,7 +559,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+                "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
                 "raw_response": f"Error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
@@ -728,7 +728,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+                "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
                 "processing_time": time.time() - start_time,
                 "response_completeness": 0,
                 "content_coverage": 0,
@@ -979,7 +979,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         """Create standardized error result for failed processing."""
         return {
             "image_name": Path(file_path).name,
-            "extracted_data": {field: "N/A" for field in EXTRACTION_FIELDS},
+            "extracted_data": {field: "NOT_FOUND" for field in EXTRACTION_FIELDS},
             "raw_response": f"Error: {error_message}",
             "processing_time": 0,
             "response_completeness": 0,
