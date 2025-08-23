@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 
 import torch
 import torchvision.transforms as T
+import yaml
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
@@ -278,8 +279,71 @@ class InternVL3Processor:
             print(f"❌ Error loading InternVL3 model: {e}")
             raise
 
+    def _load_single_pass_prompts(self):
+        """Load single-pass prompts from YAML file."""
+        try:
+            yaml_path = Path(__file__).parent.parent / "internvl3_prompts.yaml"
+            if not yaml_path.exists():
+                print(f"⚠️ InternVL3 single-pass YAML not found: {yaml_path}")
+                return None
+            
+            with yaml_path.open('r', encoding='utf-8') as f:
+                prompts = yaml.safe_load(f)
+            
+            return prompts.get("single_pass", {})
+        except Exception as e:
+            print(f"⚠️ Error loading InternVL3 single-pass YAML: {e}")
+            return None
+    
     def get_extraction_prompt(self):
         """Get the extraction prompt for InternVL3."""
+        # Try to load from YAML first, fallback to hardcoded if needed
+        return self._get_single_pass_prompt_from_yaml()
+    
+    def _get_single_pass_prompt_from_yaml(self):
+        """Build single-pass prompt from YAML configuration."""
+        yaml_config = self._load_single_pass_prompts()
+        
+        if not yaml_config:
+            print("⚠️ InternVL3 YAML config not found, falling back to hardcoded prompt")
+            return self._get_hardcoded_prompt()
+        
+        # Build prompt from YAML structure
+        prompt = yaml_config.get("opening_text", "Extract data from this business document.") + " \n"
+        prompt += yaml_config.get("output_instruction", "Output ALL fields below with their exact keys.") + " \n"
+        prompt += yaml_config.get("missing_value_instruction", 'Use "NOT_FOUND" if field is not visible or not present.') + "\n\n"
+        
+        # Add output format header with dynamic field count
+        output_format_header = yaml_config.get("output_format_header", "OUTPUT FORMAT ({field_count} required fields):")
+        prompt += output_format_header.format(field_count=FIELD_COUNT) + "\n"
+        
+        # Add field instructions
+        field_instructions = yaml_config.get("field_instructions", {})
+        for field in EXTRACTION_FIELDS:
+            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            prompt += f"{field}: {instruction}\n"
+        
+        # Add final instructions
+        instructions_header = yaml_config.get("instructions_header", "INSTRUCTIONS:")
+        prompt += f"\n{instructions_header}\n"
+        
+        instructions = yaml_config.get("instructions", [])
+        for instruction in instructions:
+            # Replace dynamic field count in instructions
+            formatted_instruction = instruction.format(field_count=FIELD_COUNT)
+            prompt += f"- {formatted_instruction}\n"
+        
+        if self.debug:
+            print(f"📝 INTERNVL3 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print("📝 PROMPT CONTENT:")
+            print("-" * 40)
+            print(prompt)
+            print("-" * 40)
+
+        return prompt
+    
+    def _get_hardcoded_prompt(self):
+        """Get hardcoded extraction prompt (fallback method)."""
         # Use the same comprehensive prompt for both models now that 8B has proper quantization
         prompt = f"""Extract data from this business document. 
 Output ALL fields below with their exact keys. 
@@ -301,7 +365,7 @@ INSTRUCTIONS:
 - Output exactly {FIELD_COUNT} lines, one for each field"""
 
         if self.debug:
-            print(f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print(f"📝 INTERNVL3 HARDCODED PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
             print("📝 PROMPT CONTENT:")
             print("-" * 40)
             print(prompt)

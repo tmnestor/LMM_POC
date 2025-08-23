@@ -182,14 +182,16 @@ class LlamaProcessor:
         except Exception as e:
             print(f"⚠️ Error loading single-pass YAML: {e}")
             return None
+    
 
     def get_extraction_prompt(self):
         """Get the extraction prompt optimized for Llama Vision."""
-        # Use single-pass YAML prompts for single_pass mode, fallback to config.py for others
+        # Single-pass mode uses YAML prompts, grouped mode uses extraction strategy
         if self.extraction_mode == "single_pass":
             return self._get_single_pass_prompt_from_yaml()
         else:
-            # Fallback to original config.py based prompts for grouped mode
+            # Grouped/adaptive modes use extraction strategy (common/grouped_extraction.py)
+            # This method should not be called for grouped mode - use process_single_image_grouped instead
             return self._get_config_prompt()
 
     def _get_single_pass_prompt_from_yaml(self):
@@ -244,6 +246,7 @@ class LlamaProcessor:
             print("-" * 40)
 
         return prompt
+    
 
     def _get_config_prompt(self):
         """Get extraction prompt from config.py (fallback/grouped mode)."""
