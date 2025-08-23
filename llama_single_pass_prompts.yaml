@@ -10,7 +10,7 @@ single_pass:
     - "Do NOT repeat the user's request"
     - "Do NOT include <image> tokens"
     - "Start immediately with ABN"
-    - "Stop immediately after DESCRIPTIONS"
+    - "Stop immediately after TOTAL"
   
   output_format: "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES"
   
@@ -49,7 +49,7 @@ single_pass:
     - "Include ALL 25 keys even if value is NOT_FOUND"
     - "Output ONLY these 25 lines, nothing else"
 
-  stop_instruction: "STOP after DESCRIPTIONS line. Do not add explanations or comments."
+  stop_instruction: "STOP after TOTAL line. Do not add explanations or comments."
 
 # Notes:
 # - This single-pass approach was preferred by Llama over grouped strategies
