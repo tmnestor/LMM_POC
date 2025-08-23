@@ -378,7 +378,7 @@ FIELD_GROUPS_8 = {
         "fields": ["ABN", "TOTAL"],
         "priority": 1,
         "max_tokens": 300,
-        "temperature": 0.1,  # Lower temperature for critical fields
+        "temperature": 0.0,  # Deterministic for critical fields
         "description": "Most important fields for business validation",
     },
     "monetary": {
@@ -386,7 +386,7 @@ FIELD_GROUPS_8 = {
         "fields": ["GST", "SUBTOTAL", "OPENING_BALANCE", "CLOSING_BALANCE"],
         "priority": 2,
         "max_tokens": 400,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Financial amounts and calculations",
     },
     "dates": {
@@ -394,7 +394,7 @@ FIELD_GROUPS_8 = {
         "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
         "priority": 3,
         "max_tokens": 350,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Temporal information and date fields",
     },
     "business_entity": {
@@ -407,7 +407,7 @@ FIELD_GROUPS_8 = {
         ],
         "priority": 4,
         "max_tokens": 450,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Seller/provider information",
     },
     "payer_info": {
@@ -415,7 +415,7 @@ FIELD_GROUPS_8 = {
         "fields": ["PAYER_NAME", "PAYER_ADDRESS", "PAYER_EMAIL", "PAYER_PHONE"],
         "priority": 5,
         "max_tokens": 450,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Buyer/customer information",
     },
     "banking": {
@@ -423,7 +423,7 @@ FIELD_GROUPS_8 = {
         "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
         "priority": 6,
         "max_tokens": 400,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Financial institution information",
     },
     "item_details": {
@@ -431,7 +431,7 @@ FIELD_GROUPS_8 = {
         "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
         "priority": 7,
         "max_tokens": 500,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Line item information requiring list processing",
     },
     "metadata": {
@@ -439,7 +439,7 @@ FIELD_GROUPS_8 = {
         "fields": ["DOCUMENT_TYPE"],
         "priority": 8,
         "max_tokens": 250,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Document classification and type",
     },
 }
@@ -452,7 +452,7 @@ FIELD_GROUPS_6 = {
         "fields": ["ABN", "TOTAL", "GST", "SUBTOTAL"],
         "priority": 1,
         "max_tokens": 400,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Core business validation and primary financial amounts",
         "cognitive_focus": "Essential regulatory compliance and financial totals",
     },
@@ -470,7 +470,7 @@ FIELD_GROUPS_6 = {
         ],
         "priority": 2,
         "max_tokens": 600,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "All contact information for involved parties",
         "cognitive_focus": "Who is involved - all participant identification",
     },
@@ -479,7 +479,7 @@ FIELD_GROUPS_6 = {
         "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
         "priority": 3,
         "max_tokens": 500,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Detailed line item transaction data",
         "cognitive_focus": "What was bought - item-level transaction details",
     },
@@ -488,7 +488,7 @@ FIELD_GROUPS_6 = {
         "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
         "priority": 4,
         "max_tokens": 350,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "All date and time-related information",
         "cognitive_focus": "When - temporal context and deadlines",
     },
@@ -497,7 +497,7 @@ FIELD_GROUPS_6 = {
         "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
         "priority": 5,
         "max_tokens": 400,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Financial institution and payment processing information",
         "cognitive_focus": "How payment is processed - banking infrastructure",
     },
@@ -506,7 +506,7 @@ FIELD_GROUPS_6 = {
         "fields": ["DOCUMENT_TYPE", "OPENING_BALANCE", "CLOSING_BALANCE"],
         "priority": 6,
         "max_tokens": 350,
-        "temperature": 0.1,
+        "temperature": 0.0,
         "description": "Document classification and account balance information",
         "cognitive_focus": "Document type and account state context",
     },
@@ -925,9 +925,9 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 LLAMA_GENERATION_CONFIG = {
     "max_new_tokens_base": 600,  # Reduced from 800 to save memory
     "max_new_tokens_per_field": 30,  # Reduced from 40 - still adequate for extraction
-    "temperature": 0.1,  # Near-deterministic sampling
-    "do_sample": True,  # Enable sampling for controlled randomness
-    "top_p": 0.95,  # Nucleus sampling parameter
+    "temperature": 0.0,  # Deterministic sampling for consistent results
+    "do_sample": False,  # Disable sampling for full determinism
+    "top_p": 0.95,  # Nucleus sampling parameter (inactive with do_sample=False)
     "use_cache": True,  # CRITICAL: Required for extraction quality (proven by testing)
 }
 

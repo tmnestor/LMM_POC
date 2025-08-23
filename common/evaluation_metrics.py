@@ -498,6 +498,7 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
         "field_accuracies": field_summary,
         "detailed_results": detailed_results,
         "images_evaluated": len(detailed_results),
+        "total_images": len(detailed_results),  # Add this for reporting compatibility
         "summary_stats": {
             "best_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"], reverse=True)[:5],
             "worst_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"])[:5],
