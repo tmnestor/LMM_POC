@@ -68,7 +68,7 @@ from pathlib import Path
 
 # Import shared modules
 from common.config import DATA_DIR as data_dir
-from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_FIELDS, EXTRACTION_MODES
+from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_MODES
 from common.config import GROUND_TRUTH_PATH as ground_truth_path
 from common.config import INTERNVL3_MODEL_PATH as model_path
 from common.config import OUTPUT_DIR as output_dir
@@ -224,6 +224,63 @@ def main(extraction_mode=None, debug=False, limit_images=None):
     processor = InternVL3Processor(
         model_path=model_path, extraction_mode=extraction_mode, debug=debug
     )
+
+    # =============================================================================
+    # DEBUG CONFIGURATION OUTPUT
+    # =============================================================================
+    if debug:
+        print("\n" + "=" * 80)
+        print("🔧 COMPLETE INTERNVL3 CONFIGURATION DEBUG")
+        print("=" * 80)
+        
+        # Environment and paths
+        import os
+        print(f"📁 Environment: {os.getenv('LMM_ENVIRONMENT', 'not set')}")
+        print(f"📁 Model path: {model_path}")
+        print(f"📁 Data directory: {data_dir}")
+        print(f"📁 Ground truth: {ground_truth_path}")
+        print(f"📁 Output directory: {output_dir}")
+        
+        # Extraction configuration
+        print(f"\n🎯 Extraction mode: {extraction_mode}")
+        print(f"🎯 Debug enabled: {debug}")
+        if limit_images:
+            print(f"🎯 Image limit: {limit_images}")
+        
+        # Field configuration
+        from common.config import EXTRACTION_FIELDS, FIELD_COUNT
+        print(f"\n📋 Total fields: {FIELD_COUNT}")
+        print(f"📋 First field: {EXTRACTION_FIELDS[0]}")
+        print(f"📋 Last field: {EXTRACTION_FIELDS[-1]}")
+        print(f"📋 Field sequence: {' → '.join(EXTRACTION_FIELDS[:3])} ... {' → '.join(EXTRACTION_FIELDS[-3:])}")
+        
+        # Prompt file information
+        prompt_file = "internvl3_prompts.yaml"
+        print(f"\n📝 Prompt file: {prompt_file}")
+        if extraction_mode == "single_pass":
+            print(f"📝 Prompt method: Single-pass section from YAML")
+            print(f"📝 YAML section: single_pass")
+        else:
+            print(f"📝 Prompt method: Grouped extraction sections from YAML")
+            print(f"📝 YAML sections: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances")
+        
+        # Show actual prompt preview
+        try:
+            sample_prompt = processor.get_extraction_prompt()
+            print(f"📝 Prompt length: {len(sample_prompt)} characters")
+            print(f"📝 Prompt preview (first 200 chars):")
+            print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
+        except Exception as e:
+            print(f"📝 ⚠️ Could not preview prompt: {e}")
+        
+        # Model configuration
+        print(f"\n🤖 Model processor: InternVL3Processor")
+        print(f"🤖 Generation config: temperature=0.0, do_sample=False") 
+        print(f"🤖 Max tokens: {getattr(processor, 'max_new_tokens', 'default')}")
+        
+        print("=" * 80)
+        print("END DEBUG CONFIGURATION")
+        print("=" * 80 + "\n")
 
     # Determine model name based on actual model path
     model_display_name = "InternVL3-8B" if "8B" in str(model_path) else "InternVL3-2B"

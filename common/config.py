@@ -664,79 +664,34 @@ FIELD_DEFINITIONS = {
 }
 
 # ============================================================================
-# SEMANTIC FIELD ORDERING
+# SEMANTIC FIELD ORDERING - DOCUMENTATION ONLY
 # ============================================================================
 
-# Define semantic field order for optimal model performance
-# This order was designed based on the original ~84% accuracy prompt structure:
-# 1. Document identifiers (type, business info)
-# 2. Business entity details (address, phone, website)  
-# 3. Payer information
-# 4. Temporal data (dates, periods)
-# 5. Line item details
-# 6. Banking information (when applicable)
-# 7. Financial amounts (subtotal, GST, total)
-
-SEMANTIC_FIELD_ORDER = [
-    # Document identifiers - start with most universal fields
-    "DOCUMENT_TYPE",
-    "BUSINESS_ABN", 
-    "SUPPLIER_NAME",
-    
-    # Business entity details
-    "BUSINESS_ADDRESS",
-    "BUSINESS_PHONE", 
-    "SUPPLIER_WEBSITE",
-    
-    # Payer information
-    "PAYER_NAME",
-    "PAYER_ADDRESS", 
-    "PAYER_PHONE",
-    "PAYER_EMAIL",
-    
-    # Temporal data
-    "INVOICE_DATE",
-    "DUE_DATE",
-    "STATEMENT_DATE_RANGE",
-    
-    # Line item details
-    "LINE_ITEM_DESCRIPTIONS",
-    "LINE_ITEM_QUANTITIES", 
-    "LINE_ITEM_PRICES",
-    
-    # Banking information
-    "BANK_NAME",
-    "BANK_BSB_NUMBER",
-    "BANK_ACCOUNT_NUMBER",
-    "BANK_ACCOUNT_HOLDER",
-    "ACCOUNT_OPENING_BALANCE",
-    "ACCOUNT_CLOSING_BALANCE",
-    
-    # Financial totals - end with most important field
-    "SUBTOTAL_AMOUNT",
-    "GST_AMOUNT", 
-    "TOTAL_AMOUNT"
-]
+# YAML-first approach: The semantic field order is defined directly in the YAML files
+# This eliminates duplication and makes the YAML file the single source of truth
+# 
+# The semantic order design (implemented in YAML) is based on the original ~84% accuracy prompt:
+# 1. Document identifiers (DOCUMENT_TYPE, BUSINESS_ABN, SUPPLIER_NAME)
+# 2. Business entity details (BUSINESS_ADDRESS, BUSINESS_PHONE, SUPPLIER_WEBSITE)  
+# 3. Payer information (PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL)
+# 4. Temporal data (INVOICE_DATE, DUE_DATE, STATEMENT_DATE_RANGE)
+# 5. Line item details (LINE_ITEM_DESCRIPTIONS, LINE_ITEM_QUANTITIES, LINE_ITEM_PRICES)
+# 6. Banking information (BANK_NAME, BANK_BSB_NUMBER, BANK_ACCOUNT_NUMBER, BANK_ACCOUNT_HOLDER, ACCOUNT_OPENING_BALANCE, ACCOUNT_CLOSING_BALANCE)
+# 7. Financial totals (SUBTOTAL_AMOUNT, GST_AMOUNT, TOTAL_AMOUNT)
+#
+# This logical grouping helps models understand document structure and improves extraction accuracy.
 
 # ============================================================================
 # DERIVED CONFIGURATIONS - AUTO-GENERATED FROM FIELD_DEFINITIONS
 # ============================================================================
 
 # YAML-first field discovery - single source of truth (FAIL-FAST)
-_yaml_fields = discover_fields_from_yaml("llama_single_pass_prompts.yaml")
-
-# Apply semantic ordering for optimal model performance
-yaml_fields_set = set(_yaml_fields)
-EXTRACTION_FIELDS = [field for field in SEMANTIC_FIELD_ORDER if field in yaml_fields_set]
-
-# Add any fields from YAML that aren't in semantic order (shouldn't happen)
-missing_fields = yaml_fields_set - set(EXTRACTION_FIELDS)
-if missing_fields:
-    print(f"⚠️ Fields in YAML but not in semantic order: {missing_fields}")
-    EXTRACTION_FIELDS.extend(sorted(missing_fields))
-
+# The YAML file defines both the fields AND their semantic order
+EXTRACTION_FIELDS = discover_fields_from_yaml("llama_single_pass_prompts.yaml")
 FIELD_COUNT = len(EXTRACTION_FIELDS)
-print(f"🎯 Using {FIELD_COUNT} fields in semantic order: {EXTRACTION_FIELDS[0]} → ... → {EXTRACTION_FIELDS[-1]}")
+print(f"🎯 Using {FIELD_COUNT} fields from YAML in semantic order: {EXTRACTION_FIELDS[0]} → ... → {EXTRACTION_FIELDS[-1]}")
+
+# Field discovery complete - YAML is the single source of truth for both fields and their order
 
 # FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
 

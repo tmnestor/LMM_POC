@@ -13,44 +13,40 @@ After implementing Phases 2-4 of the refactoring (Priority 4 & 5), both Llama an
 
 ### What We Implemented:
 
-1. **Defined Semantic Field Order** in `common/config.py`:
-   ```python
-   SEMANTIC_FIELD_ORDER = [
-       # Document identifiers - start with most universal fields
-       "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME",
-       
-       # Business entity details  
-       "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
-       
-       # Payer information
-       "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL",
-       
-       # Temporal data
-       "INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE",
-       
-       # Line item details
-       "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
-       
-       # Banking information
-       "BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER",
-       "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE",
-       
-       # Financial totals - end with most important field
-       "SUBTOTAL_AMOUNT", "GST_AMOUNT", "TOTAL_AMOUNT"
-   ]
-   ```
+1. **YAML-First Semantic Ordering**: 
+   - **Single source of truth**: The YAML files define both fields AND their semantic order
+   - **No duplication**: Eliminated the need for separate ordering logic in config.py
+   - **Simple and clean**: Field discovery directly uses YAML order
 
 2. **Updated YAML Prompt Files**:
    - `llama_single_pass_prompts.yaml` - reordered field_instructions to semantic sequence
-   - `internvl3_prompts.yaml` - reordered field_instructions to semantic sequence
+   - `internvl3_prompts.yaml` - reordered field_instructions to semantic sequence  
    - Updated critical instructions to "Start immediately with DOCUMENT_TYPE"
 
-3. **Modified Field Discovery**:
-   - `discover_fields_from_yaml()` now returns fields in semantic order
-   - `EXTRACTION_FIELDS` follows semantic sequence instead of alphabetical
+   **Semantic sequence in YAML**:
+   ```yaml
+   field_instructions:
+     # Document identifiers - start with most universal fields
+     DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
+     BUSINESS_ABN: "[11-digit Australian Business Number or NOT_FOUND]"
+     SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
+     
+     # Business entity details
+     BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
+     # ... etc in semantic order ...
+     
+     # Financial totals - end with most important field
+     SUBTOTAL_AMOUNT: "[subtotal amount or NOT_FOUND]"
+     GST_AMOUNT: "[GST amount or NOT_FOUND]"
+     TOTAL_AMOUNT: "[total amount or NOT_FOUND]"
+   ```
 
-4. **Created Debug Tools**:
-   - `debug_semantic_ordering.py` - comprehensive prompt and field analysis
+3. **Simplified Configuration**:
+   - `EXTRACTION_FIELDS` directly uses YAML field order  
+   - No complex reordering logic needed
+   - Clean, maintainable single source of truth
+
+4. **Created Validation Tools**:
    - `test_semantic_fix.py` - validation tests for local verification
 
 ### Semantic Flow Logic:
