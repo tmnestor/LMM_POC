@@ -876,14 +876,22 @@ INTERNVL3_TOKEN_LIMITS = {
 # Generation parameters for different models
 GENERATION_CONFIGS = {
     "internvl3": {
-        "do_sample": False,  # Deterministic for both 2B and 8B
-        "temperature": None,  # Not used when do_sample=False
-        "top_p": None,  # Not used when do_sample=False
+        "do_sample": False,  # CRITICAL: Must be False for deterministic output
+        "temperature": 0.0,  # Set to 0 even though not used when do_sample=False
+        "top_p": 1.0,  # Set to 1.0 for completeness
+        "top_k": 1,  # Force greedy decoding - select only top token
+        "num_beams": 1,  # No beam search - single path only
+        "repetition_penalty": 1.0,  # No repetition penalty
+        "seed": 42,  # Fixed seed for any randomness in model internals
     },
     "llama": {
         "do_sample": False,
-        "temperature": None,
-        "top_p": None,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": 1,
+        "num_beams": 1,
+        "repetition_penalty": 1.0,
+        "seed": 42,
     },
 }
 

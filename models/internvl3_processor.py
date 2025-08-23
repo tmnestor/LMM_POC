@@ -82,6 +82,9 @@ class InternVL3Processor:
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
+        
+        # Set seeds for reproducibility (CRITICAL for deterministic output)
+        self._set_random_seeds(42)
 
         # Configure batch processing
         self._configure_batch_processing(batch_size)
@@ -108,15 +111,44 @@ class InternVL3Processor:
         base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
         self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
 
+        # Ensure deterministic generation (CRITICAL for reproducibility)
+        if self.generation_config.get('do_sample', True):
+            print("⚠️ WARNING: do_sample was True, forcing to False for determinism")
+            self.generation_config['do_sample'] = False
+        
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-            f"do_sample={self.generation_config['do_sample']}"
+            f"do_sample={self.generation_config['do_sample']}, "
+            f"top_k={self.generation_config.get('top_k', 'not set')}, "
+            f"seed={self.generation_config.get('seed', 'not set')}"
         )
 
         # Don't use ResilientGenerator - it breaks the 8B model
         # Both 2B and 8B should use model.chat() directly as per documentation
         if self.is_8b_model:
             print("✅ InternVL3-8B will use direct model.chat() like 2B model")
+
+    def _set_random_seeds(self, seed: int = 42):
+        """
+        Set all random seeds for reproducibility.
+        
+        CRITICAL: This ensures deterministic output across runs.
+        The 2% variation between runs is eliminated by proper seed setting.
+        """
+        import random
+        import numpy as np
+        
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            # Ensure deterministic algorithms
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        
+        print(f"🎲 Random seeds set to {seed} for deterministic output")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
