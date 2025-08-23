@@ -258,24 +258,24 @@ def main(extraction_mode=None, debug=False, limit_images=None):
         prompt_file = "internvl3_prompts.yaml"
         print(f"\n📝 Prompt file: {prompt_file}")
         if extraction_mode == "single_pass":
-            print(f"📝 Prompt method: Single-pass section from YAML")
-            print(f"📝 YAML section: single_pass")
+            print("📝 Prompt method: Single-pass section from YAML")
+            print("📝 YAML section: single_pass")
         else:
-            print(f"📝 Prompt method: Grouped extraction sections from YAML")
-            print(f"📝 YAML sections: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances")
+            print("📝 Prompt method: Grouped extraction sections from YAML")
+            print("📝 YAML sections: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances")
         
         # Show actual prompt preview
         try:
             sample_prompt = processor.get_extraction_prompt()
             print(f"📝 Prompt length: {len(sample_prompt)} characters")
-            print(f"📝 Prompt preview (first 200 chars):")
+            print("📝 Prompt preview (first 200 chars):")
             print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
         except Exception as e:
             print(f"📝 ⚠️ Could not preview prompt: {e}")
         
         # Model configuration
-        print(f"\n🤖 Model processor: InternVL3Processor")
-        print(f"🤖 Generation config: temperature=0.0, do_sample=False") 
+        print("\n🤖 Model processor: InternVL3Processor")
+        print("🤖 Generation config: temperature=0.0, do_sample=False") 
         print(f"🤖 Max tokens: {getattr(processor, 'max_new_tokens', 'default')}")
         
         print("=" * 80)

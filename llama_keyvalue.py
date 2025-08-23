@@ -246,13 +246,13 @@ def main(extraction_mode=None, debug=False, limit_images=None):
         if extraction_mode == "single_pass":
             prompt_file = "llama_single_pass_prompts.yaml"
             print(f"\n📝 Prompt file: {prompt_file}")
-            print(f"📝 Prompt method: Single-pass YAML-based generation")
+            print("📝 Prompt method: Single-pass YAML-based generation")
             
             # Show actual prompt preview
             try:
                 sample_prompt = processor.get_extraction_prompt()
                 print(f"📝 Prompt length: {len(sample_prompt)} characters")
-                print(f"📝 Prompt preview (first 200 chars):")
+                print("📝 Prompt preview (first 200 chars):")
                 print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
                 print(f"📝 Critical instruction: {sample_prompt.split('CRITICAL INSTRUCTIONS:')[1].split('REQUIRED OUTPUT FORMAT')[0].strip()[:100] if 'CRITICAL INSTRUCTIONS:' in sample_prompt else 'Not found'}")
             except Exception as e:
@@ -260,11 +260,11 @@ def main(extraction_mode=None, debug=False, limit_images=None):
         else:
             prompt_file = "llama_prompts.yaml (grouped sections)"
             print(f"\n📝 Prompt file: {prompt_file}")
-            print(f"📝 Prompt method: Grouped extraction strategy")
+            print("📝 Prompt method: Grouped extraction strategy")
         
         # Model configuration
-        print(f"\n🤖 Model processor: LlamaProcessor")
-        print(f"🤖 Generation config: temperature=0.0, do_sample=False")
+        print("\n🤖 Model processor: LlamaProcessor")
+        print("🤖 Generation config: temperature=0.0, do_sample=False")
         print(f"🤖 Max tokens: {getattr(processor, 'max_new_tokens', 'default')}")
         
         print("=" * 80)
