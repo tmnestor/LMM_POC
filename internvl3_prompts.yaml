@@ -16,32 +16,45 @@ single_pass:
   # Output format header (dynamic field count will be inserted)
   output_format_header: "OUTPUT FORMAT ({field_count} required fields):"
   
-  # Field instructions for all 25 extraction fields - STANDARDIZED NAMES
+  # Field instructions for all 25 extraction fields - SEMANTIC ORDER
   field_instructions:
-    ACCOUNT_CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
-    ACCOUNT_OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
-    BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
-    BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
-    BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
-    BANK_NAME: "[bank name (NOT supplier name) or NOT_FOUND]"
+    # Document identifiers - start with most universal fields
+    DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
     BUSINESS_ABN: "[11-digit Australian Business Number or NOT_FOUND]"
+    SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
+    
+    # Business entity details
     BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
     BUSINESS_PHONE: "[business phone number or NOT_FOUND]"
-    DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
-    DUE_DATE: "[payment due date or NOT_FOUND]"
-    GST_AMOUNT: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
-    INVOICE_DATE: "[invoice date or NOT_FOUND]"
-    LINE_ITEM_DESCRIPTIONS: "[list of transaction descriptions or NOT_FOUND]"
-    LINE_ITEM_PRICES: "[individual prices in dollars or NOT_FOUND]"
-    LINE_ITEM_QUANTITIES: "[list of quantities or NOT_FOUND]"
-    PAYER_ADDRESS: "[payer address or NOT_FOUND]"
-    PAYER_EMAIL: "[payer email address or NOT_FOUND]"
-    PAYER_NAME: "[payer name or NOT_FOUND]"
-    PAYER_PHONE: "[payer phone number or NOT_FOUND]"
-    STATEMENT_DATE_RANGE: "[statement period or date range or NOT_FOUND]"
-    SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
-    SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
     SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
+    
+    # Payer information
+    PAYER_NAME: "[payer name or NOT_FOUND]"
+    PAYER_ADDRESS: "[payer address or NOT_FOUND]"
+    PAYER_PHONE: "[payer phone number or NOT_FOUND]"
+    PAYER_EMAIL: "[payer email address or NOT_FOUND]"
+    
+    # Temporal data
+    INVOICE_DATE: "[invoice date or NOT_FOUND]"
+    DUE_DATE: "[payment due date or NOT_FOUND]"
+    STATEMENT_DATE_RANGE: "[statement period or date range or NOT_FOUND]"
+    
+    # Line item details
+    LINE_ITEM_DESCRIPTIONS: "[list of transaction descriptions or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[list of quantities or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[individual prices in dollars or NOT_FOUND]"
+    
+    # Banking information
+    BANK_NAME: "[bank name (NOT supplier name) or NOT_FOUND]"
+    BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
+    BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
+    BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
+    ACCOUNT_CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
+    
+    # Financial totals - end with most important field
+    SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
+    GST_AMOUNT: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
     TOTAL_AMOUNT: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
   
   # Closing instruction
