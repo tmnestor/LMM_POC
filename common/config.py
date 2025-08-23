@@ -882,7 +882,7 @@ GENERATION_CONFIGS = {
         "top_k": 1,  # Force greedy decoding - select only top token
         "num_beams": 1,  # No beam search - single path only
         "repetition_penalty": 1.0,  # No repetition penalty
-        "seed": 42,  # Fixed seed for any randomness in model internals
+        # Note: seed is set at system level in _set_random_seeds(), not in generation config
     },
     "llama": {
         "do_sample": False,
@@ -891,7 +891,7 @@ GENERATION_CONFIGS = {
         "top_k": 1,
         "num_beams": 1,
         "repetition_penalty": 1.0,
-        "seed": 42,
+        # Note: seed is set at system level, not in generation config
     },
 }
 

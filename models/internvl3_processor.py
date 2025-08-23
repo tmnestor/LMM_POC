@@ -119,8 +119,7 @@ class InternVL3Processor:
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
             f"do_sample={self.generation_config['do_sample']}, "
-            f"top_k={self.generation_config.get('top_k', 'not set')}, "
-            f"seed={self.generation_config.get('seed', 'not set')}"
+            f"top_k={self.generation_config.get('top_k', 'not set')}"
         )
 
         # Don't use ResilientGenerator - it breaks the 8B model
