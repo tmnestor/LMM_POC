@@ -60,7 +60,7 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
 ## Key Findings
 
 1. **Document Analysis:** Processed {summary_stats["total_images"]} business documents with comprehensive field extraction
-2. **Field Extraction:** Successfully extracts {len([f for f, acc in summary_stats["field_accuracies"].items() if acc >= EXCELLENT_FIELD_THRESHOLD])} out of {FIELD_COUNT} fields with ≥90% accuracy
+2. **Field Extraction:** Successfully extracts {len([f for f, acc in summary_stats["field_accuracies"].items() if acc["accuracy"] >= EXCELLENT_FIELD_THRESHOLD])} out of {FIELD_COUNT} fields with ≥90% accuracy
 3. **Best Performance:** {summary_stats["best_performing_image"]} ({summary_stats["best_performance_accuracy"]:.1%} accuracy)
 4. **Challenging Cases:** {summary_stats["worst_performing_image"]} ({summary_stats["worst_performance_accuracy"]:.1%} accuracy)
 
@@ -72,16 +72,16 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     excellent_fields = [
         field
         for field, accuracy in sorted_fields
-        if accuracy >= EXCELLENT_FIELD_THRESHOLD
+        if accuracy["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
     ]
     if excellent_fields:
         for i, (field, accuracy) in enumerate(
-            [item for item in sorted_fields if item[1] >= EXCELLENT_FIELD_THRESHOLD][
+            [item for item in sorted_fields if item[1]["accuracy"] >= EXCELLENT_FIELD_THRESHOLD][
                 :10
             ],
             1,
         ):
-            executive_summary += f"{i:2d}. {field:<25} {accuracy:.1%}\n"
+            executive_summary += f"{i:2d}. {field:<25} {accuracy['accuracy']:.1%}\n"
     else:
         executive_summary += "No fields achieved ≥90% accuracy\n"
 
@@ -92,10 +92,10 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     challenging_fields = [
         (field, accuracy)
         for field, accuracy in sorted_fields[-5:]
-        if accuracy < EXCELLENT_FIELD_THRESHOLD
+        if accuracy["accuracy"] < EXCELLENT_FIELD_THRESHOLD
     ]
     for i, (field, accuracy) in enumerate(challenging_fields, 1):
-        executive_summary += f"{i}. {field:<25} {accuracy:.1%}\n"
+        executive_summary += f"{i}. {field:<25} {accuracy['accuracy']:.1%}\n"
 
     # Production readiness assessment
     if summary_stats["overall_accuracy"] >= DEPLOYMENT_READY_THRESHOLD:
@@ -166,12 +166,12 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
     excellent_fields = [
         field
         for field, accuracy in sorted_fields
-        if accuracy >= EXCELLENT_FIELD_THRESHOLD
+        if accuracy["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
     ]
     challenging_fields = [
         (field, accuracy)
         for field, accuracy in sorted_fields[-5:]
-        if accuracy < EXCELLENT_FIELD_THRESHOLD
+        if accuracy["accuracy"] < EXCELLENT_FIELD_THRESHOLD
     ]
 
     deployment_checklist = f"""# {model_full_name} Deployment Readiness Checklist
