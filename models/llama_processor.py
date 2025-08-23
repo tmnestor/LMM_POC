@@ -200,19 +200,21 @@ class LlamaProcessor:
             print("⚠️ YAML config not found, falling back to hardcoded prompt")
             return self._get_config_prompt()
         
-        # Build prompt from YAML structure
-        prompt = yaml_config.get("expertise_frame", "Extract key-value data from this business document image")
+        # Build prompt from YAML structure to match exact hardcoded format
+        prompt = yaml_config.get("expertise_frame", "Extract key-value data from this business document image.")
         prompt += "\n\n"
         
-        # Add critical instructions
+        # Add critical instructions with header
+        critical_instructions_header = yaml_config.get("critical_instructions_header", "CRITICAL INSTRUCTIONS:")
+        prompt += f"{critical_instructions_header}\n"
         critical_instructions = yaml_config.get("critical_instructions", [])
         for instruction in critical_instructions:
             prompt += f"- {instruction}\n"
         prompt += "\n"
         
-        # Add output format
-        output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES")
-        prompt += f"{output_format}:\n"
+        # Add output format  
+        output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES:")
+        prompt += f"{output_format}\n"
         
         # Add field instructions
         field_instructions = yaml_config.get("field_instructions", {})
@@ -223,7 +225,8 @@ class LlamaProcessor:
         # Add format rules
         format_rules = yaml_config.get("format_rules", [])
         if format_rules:
-            prompt += "\nFORMAT RULES:\n"
+            format_rules_header = yaml_config.get("format_rules_header", "FORMAT RULES:")
+            prompt += f"\n{format_rules_header}\n"
             for rule in format_rules:
                 prompt += f"- {rule}\n"
         

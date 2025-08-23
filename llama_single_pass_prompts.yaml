@@ -2,8 +2,9 @@
 # This prompt asks for all 25 fields at once in a single request
 
 single_pass:
-  expertise_frame: "Extract key-value data from this business document image"
+  expertise_frame: "Extract key-value data from this business document image."
   
+  critical_instructions_header: "CRITICAL INSTRUCTIONS:"
   critical_instructions:
     - "Output ONLY the structured data below"
     - "Do NOT include any conversation text" 
@@ -12,7 +13,7 @@ single_pass:
     - "Start immediately with ABN"
     - "Stop immediately after TOTAL"
   
-  output_format: "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES"
+  output_format: "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES:"
   
   # All 25 fields in order with their instructions
   field_instructions:
@@ -42,6 +43,7 @@ single_pass:
     SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
     TOTAL: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
 
+  format_rules_header: "FORMAT RULES:"
   format_rules:
     - "Use exactly: KEY: value (colon and space)"
     - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
