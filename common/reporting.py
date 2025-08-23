@@ -35,7 +35,7 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     """
     summary_stats = evaluation_summary
     sorted_fields = sorted(
-        summary_stats["field_accuracies"].items(), key=lambda x: x[1], reverse=True
+        summary_stats["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
     )
 
     # Calculate document quality distribution
@@ -161,7 +161,7 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
     """
     summary_stats = evaluation_summary
     sorted_fields = sorted(
-        summary_stats["field_accuracies"].items(), key=lambda x: x[1], reverse=True
+        summary_stats["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
     )
     excellent_fields = [
         field
