@@ -38,7 +38,7 @@ from .config import (
     VIZ_OUTPUT_PATTERNS,
     VIZ_QUALITY_THRESHOLDS,
 )
-from .evaluation_utils import generate_overall_classification_summary
+from .evaluation_metrics import generate_overall_classification_summary
 
 
 class LMMVisualizer:

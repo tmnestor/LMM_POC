@@ -19,7 +19,7 @@ from .config import (
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
 )
-from .evaluation_utils import parse_extraction_response
+from .extraction_parser import parse_extraction_response
 
 
 def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, str]]:

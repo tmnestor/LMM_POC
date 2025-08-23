@@ -32,7 +32,7 @@ from common.config import (
     get_max_new_tokens,
     get_model_name_with_size,
 )
-from common.evaluation_utils import parse_extraction_response
+from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     clear_model_caches,
     comprehensive_memory_cleanup,

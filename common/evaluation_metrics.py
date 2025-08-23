@@ -1,0 +1,452 @@
+"""
+Evaluation and accuracy assessment utilities for model outputs.
+
+This module handles ground truth comparison, accuracy calculations, and evaluation
+reporting. It provides comprehensive metrics for assessing model performance
+against known correct answers.
+"""
+
+import re
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import numpy as np
+import pandas as pd
+
+from .config import (
+    DATE_FIELDS,
+    EXTRACTION_FIELDS,
+    LIST_FIELDS,
+    MONETARY_FIELDS,
+    NUMERIC_ID_FIELDS,
+)
+
+
+def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dict]:
+    """
+    Load ground truth data from CSV file.
+    
+    Args:
+        csv_path (str): Path to the ground truth CSV file
+        show_sample (bool): Whether to display a sample of the data
+        
+    Returns:
+        dict: Dictionary mapping image filenames to ground truth data
+        
+    Raises:
+        FileNotFoundError: If CSV file doesn't exist
+        ValueError: If CSV has invalid structure
+    """
+    csv_file = Path(csv_path)
+    if not csv_file.exists():
+        raise FileNotFoundError(f"Ground truth file not found: {csv_path}")
+    
+    try:
+        ground_truth_df = pd.read_csv(csv_path)
+        print(f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns")
+        print(f"📋 Available columns: {list(ground_truth_df.columns)}")
+        
+    except Exception as e:
+        raise ValueError(f"Error reading CSV file: {e}") from e
+    
+    # Find image identifier column
+    image_col = None
+    possible_names = ['image_file', 'filename', 'image_name', 'file']
+    for col in possible_names:
+        if col in ground_truth_df.columns:
+            image_col = col
+            break
+    
+    if image_col is None:
+        raise ValueError(f"No image identifier column found. Expected one of: {possible_names}")
+    
+    print(f"✅ Using '{image_col}' as image identifier column")
+    
+    if show_sample and len(ground_truth_df) > 0:
+        print("📄 Sample ground truth data:")
+        print(ground_truth_df.head(2).to_string(index=False))
+    
+    # Convert to dictionary mapping
+    ground_truth_map = {}
+    for _, row in ground_truth_df.iterrows():
+        image_name = row[image_col]
+        if pd.isna(image_name):
+            continue
+        ground_truth_map[str(image_name)] = row.to_dict()
+    
+    print(f"✅ Ground truth mapping created for {len(ground_truth_map)} images")
+    return ground_truth_map
+
+
+def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, field_name: str) -> Tuple[bool, str]:
+    """
+    Calculate accuracy for a single field comparison.
+    
+    Handles different field types with appropriate comparison logic:
+    - Exact matching for IDs and structured data
+    - Fuzzy matching for text fields
+    - Special handling for monetary, date, and list fields
+    
+    Args:
+        extracted_value (str): Value extracted by the model
+        ground_truth_value (str): Expected correct value
+        field_name (str): Name of the field being compared
+        
+    Returns:
+        tuple: (is_correct: bool, reason: str)
+    """
+    # Handle N/A cases
+    if pd.isna(ground_truth_value) or ground_truth_value == "" or ground_truth_value == "N/A":
+        if extracted_value == "N/A" or extracted_value == "":
+            return True, "Both N/A"
+        else:
+            return False, f"Expected N/A, got '{extracted_value}'"
+    
+    if extracted_value == "N/A" or extracted_value == "":
+        return False, f"Got N/A, expected '{ground_truth_value}'"
+    
+    # Convert to strings for comparison
+    extracted_str = str(extracted_value).strip()
+    ground_truth_str = str(ground_truth_value).strip()
+    
+    # Exact match (fastest check first)
+    if extracted_str.lower() == ground_truth_str.lower():
+        return True, "Exact match"
+    
+    # Field-specific comparison logic
+    if field_name in MONETARY_FIELDS:
+        return _compare_monetary_values(extracted_str, ground_truth_str)
+    elif field_name in DATE_FIELDS:
+        return _compare_date_values(extracted_str, ground_truth_str)
+    elif field_name in NUMERIC_ID_FIELDS:
+        return _compare_numeric_ids(extracted_str, ground_truth_str)
+    elif field_name in LIST_FIELDS:
+        return _compare_list_values(extracted_str, ground_truth_str)
+    else:
+        return _compare_text_values(extracted_str, ground_truth_str)
+
+
+def _compare_monetary_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+    """Compare monetary values with normalization."""
+    def normalize_money(value):
+        # Remove currency symbols and spaces, normalize decimal places
+        clean = re.sub(r'[$,\s]', '', value)
+        try:
+            return float(clean)
+        except ValueError:
+            return value.lower()
+    
+    try:
+        ext_val = normalize_money(extracted)
+        gt_val = normalize_money(ground_truth)
+        
+        if isinstance(ext_val, float) and isinstance(gt_val, float):
+            if abs(ext_val - gt_val) < 0.01:  # Penny precision
+                return True, "Monetary match"
+            else:
+                return False, f"Amount mismatch: {ext_val} vs {gt_val}"
+        else:
+            # Fallback to text comparison
+            return _compare_text_values(extracted, ground_truth)
+    except Exception:
+        return _compare_text_values(extracted, ground_truth)
+
+
+def _compare_date_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+    """Compare date values with format normalization."""
+    def normalize_date(date_str):
+        # Try to extract date components regardless of format
+        # Handle formats like DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+        date_patterns = [
+            r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})',
+            r'(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})',
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, date_str)
+            if match:
+                return tuple(int(x) for x in match.groups())
+        return date_str.lower()
+    
+    ext_date = normalize_date(extracted)
+    gt_date = normalize_date(ground_truth)
+    
+    if ext_date == gt_date:
+        return True, "Date match"
+    else:
+        return False, f"Date mismatch: {extracted} vs {ground_truth}"
+
+
+def _compare_numeric_ids(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+    """Compare numeric IDs with space/formatting normalization."""
+    def normalize_id(id_str):
+        # Remove spaces and common formatting
+        return re.sub(r'[\s\-]', '', id_str)
+    
+    ext_norm = normalize_id(extracted)
+    gt_norm = normalize_id(ground_truth)
+    
+    if ext_norm.lower() == gt_norm.lower():
+        return True, "ID match (normalized)"
+    else:
+        return False, f"ID mismatch: {extracted} vs {ground_truth}"
+
+
+def _compare_list_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+    """Compare comma-separated list values."""
+    def normalize_list(list_str):
+        # Split by comma, strip whitespace, sort for comparison
+        items = [item.strip().lower() for item in list_str.split(',')]
+        return sorted([item for item in items if item])
+    
+    ext_list = normalize_list(extracted)
+    gt_list = normalize_list(ground_truth)
+    
+    if ext_list == gt_list:
+        return True, "List match"
+    else:
+        # Calculate partial match score
+        intersection = set(ext_list) & set(gt_list)
+        union = set(ext_list) | set(gt_list)
+        if union:
+            similarity = len(intersection) / len(union)
+            if similarity >= 0.8:  # 80% similarity threshold
+                return True, f"List partial match ({similarity:.2f})"
+        
+        return False, f"List mismatch: {extracted} vs {ground_truth}"
+
+
+def _compare_text_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+    """Compare text values with fuzzy matching."""
+    # Simple fuzzy matching based on common words
+    def get_words(text):
+        return set(re.findall(r'\w+', text.lower()))
+    
+    ext_words = get_words(extracted)
+    gt_words = get_words(ground_truth)
+    
+    if not gt_words:
+        return extracted.lower() == ground_truth.lower(), "Text comparison"
+    
+    # Calculate word overlap
+    intersection = ext_words & gt_words
+    similarity = len(intersection) / len(gt_words) if gt_words else 0
+    
+    if similarity >= 0.8:  # 80% word overlap threshold
+        return True, f"Text fuzzy match ({similarity:.2f})"
+    elif similarity >= 0.6:
+        return True, f"Text partial match ({similarity:.2f})"
+    else:
+        return False, f"Text mismatch: {extracted} vs {ground_truth}"
+
+
+def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map: Dict) -> Dict:
+    """
+    Evaluate extraction results against ground truth data.
+    
+    Args:
+        extraction_results (list): List of extraction result dictionaries
+        ground_truth_map (dict): Ground truth data mapping
+        
+    Returns:
+        dict: Comprehensive evaluation summary with accuracy metrics
+    """
+    if not extraction_results or not ground_truth_map:
+        return {"error": "No data to evaluate"}
+    
+    print(f"🔍 Evaluating {len(extraction_results)} extraction results...")
+    
+    # Track field-level accuracies
+    field_accuracies = {field: {"correct": 0, "total": 0, "details": []} for field in EXTRACTION_FIELDS}
+    overall_correct = 0
+    overall_total = 0
+    
+    # Detailed results for analysis
+    detailed_results = []
+    
+    for result in extraction_results:
+        image_name = result.get("image_name", "")
+        extracted_data = result.get("extracted_data", {})
+        
+        # Find corresponding ground truth
+        gt_data = None
+        for gt_key, gt_value in ground_truth_map.items():
+            if image_name in gt_key or gt_key in image_name:
+                gt_data = gt_value
+                break
+        
+        if gt_data is None:
+            print(f"⚠️  No ground truth found for image: {image_name}")
+            continue
+        
+        # Compare each field
+        result_details = {"image_name": image_name, "fields": {}}
+        
+        for field in EXTRACTION_FIELDS:
+            extracted_value = extracted_data.get(field, "N/A")
+            ground_truth_value = gt_data.get(field, "N/A")
+            
+            is_correct, reason = calculate_field_accuracy(
+                extracted_value, ground_truth_value, field
+            )
+            
+            field_accuracies[field]["total"] += 1
+            if is_correct:
+                field_accuracies[field]["correct"] += 1
+            
+            overall_total += 1
+            if is_correct:
+                overall_correct += 1
+            
+            # Store detailed result
+            field_accuracies[field]["details"].append({
+                "image": image_name,
+                "extracted": extracted_value,
+                "ground_truth": ground_truth_value,
+                "correct": is_correct,
+                "reason": reason
+            })
+            
+            result_details["fields"][field] = {
+                "extracted": extracted_value,
+                "ground_truth": ground_truth_value,
+                "correct": is_correct,
+                "reason": reason
+            }
+        
+        detailed_results.append(result_details)
+    
+    # Calculate summary statistics
+    overall_accuracy = overall_correct / overall_total if overall_total > 0 else 0
+    
+    field_summary = {}
+    for field, data in field_accuracies.items():
+        accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0
+        field_summary[field] = {
+            "accuracy": accuracy,
+            "correct": data["correct"],
+            "total": data["total"]
+        }
+    
+    # Generate summary report
+    evaluation_summary = {
+        "overall_accuracy": overall_accuracy,
+        "overall_correct": overall_correct,
+        "overall_total": overall_total,
+        "field_accuracies": field_summary,
+        "detailed_results": detailed_results,
+        "images_evaluated": len(detailed_results),
+        "summary_stats": {
+            "best_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"], reverse=True)[:5],
+            "worst_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"])[:5],
+            "avg_field_accuracy": np.mean([data["accuracy"] for data in field_summary.values()]),
+        }
+    }
+    
+    print("✅ Evaluation complete:")
+    print(f"   Overall accuracy: {overall_accuracy:.1%}")
+    print(f"   Fields evaluated: {len(field_summary)}")
+    print(f"   Images processed: {len(detailed_results)}")
+    
+    return evaluation_summary
+
+
+def prepare_classification_data(detailed_results: List[Dict]) -> Tuple[List, List, List]:
+    """
+    Prepare data for sklearn classification reporting.
+    
+    Args:
+        detailed_results: Detailed evaluation results
+        
+    Returns:
+        tuple: (y_true, y_pred, field_names)
+    """
+    y_true = []
+    y_pred = []
+    field_names = []
+    
+    for result in detailed_results:
+        for field, data in result["fields"].items():
+            y_true.append(1 if data["correct"] else 0)
+            y_pred.append(1 if data["correct"] else 0)  # This is for consistency
+            field_names.append(field)
+    
+    return y_true, y_pred, field_names
+
+
+def generate_field_classification_report(evaluation_summary: Dict) -> str:
+    """
+    Generate a detailed classification report for field-level accuracy.
+    
+    Args:
+        evaluation_summary: Results from evaluate_extraction_results
+        
+    Returns:
+        str: Formatted classification report
+    """
+    field_accuracies = evaluation_summary.get("field_accuracies", {})
+    
+    if not field_accuracies:
+        return "No field accuracy data available."
+    
+    # Create report
+    report_lines = []
+    report_lines.append("📊 FIELD-LEVEL ACCURACY REPORT")
+    report_lines.append("=" * 50)
+    
+    # Sort fields by accuracy
+    sorted_fields = sorted(field_accuracies.items(), key=lambda x: x[1]["accuracy"], reverse=True)
+    
+    report_lines.append(f"{'Field':<20} {'Accuracy':<10} {'Correct':<8} {'Total':<8}")
+    report_lines.append("-" * 50)
+    
+    for field, data in sorted_fields:
+        accuracy = data["accuracy"]
+        correct = data["correct"]
+        total = data["total"]
+        report_lines.append(f"{field:<20} {accuracy:>7.1%} {correct:>7} {total:>7}")
+    
+    # Summary statistics
+    report_lines.append("-" * 50)
+    avg_accuracy = evaluation_summary["summary_stats"]["avg_field_accuracy"]
+    report_lines.append(f"{'Average':<20} {avg_accuracy:>7.1%}")
+    
+    return "\n".join(report_lines)
+
+
+def generate_overall_classification_summary(evaluation_summary: Dict) -> str:
+    """
+    Generate an overall summary of the evaluation results.
+    
+    Args:
+        evaluation_summary: Results from evaluate_extraction_results
+        
+    Returns:
+        str: Formatted summary report
+    """
+    overall_accuracy = evaluation_summary.get("overall_accuracy", 0)
+    overall_correct = evaluation_summary.get("overall_correct", 0)
+    overall_total = evaluation_summary.get("overall_total", 0)
+    images_evaluated = evaluation_summary.get("images_evaluated", 0)
+    
+    summary_lines = []
+    summary_lines.append("🎯 EXTRACTION EVALUATION SUMMARY")
+    summary_lines.append("=" * 40)
+    summary_lines.append(f"Overall Accuracy: {overall_accuracy:.1%}")
+    summary_lines.append(f"Correct Fields: {overall_correct:,}")
+    summary_lines.append(f"Total Fields: {overall_total:,}")
+    summary_lines.append(f"Images Evaluated: {images_evaluated:,}")
+    
+    # Best and worst performing fields
+    summary_stats = evaluation_summary.get("summary_stats", {})
+    if "best_fields" in summary_stats:
+        summary_lines.append("\n🏆 Top Performing Fields:")
+        for field, data in summary_stats["best_fields"]:
+            summary_lines.append(f"  {field}: {data['accuracy']:.1%}")
+    
+    if "worst_fields" in summary_stats:
+        summary_lines.append("\n⚠️  Fields Needing Improvement:")
+        for field, data in summary_stats["worst_fields"]:
+            summary_lines.append(f"  {field}: {data['accuracy']:.1%}")
+    
+    return "\n".join(summary_lines)

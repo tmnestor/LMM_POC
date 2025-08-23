@@ -17,11 +17,11 @@ from typing import Dict, List
 import pandas as pd
 
 from common.config import DATA_DIR
-from common.evaluation_utils import (
-    discover_images,
+from common.evaluation_metrics import (
     evaluate_extraction_results,
     load_ground_truth,
 )
+from common.extraction_parser import discover_images
 
 
 def run_grouping_strategy_evaluation(

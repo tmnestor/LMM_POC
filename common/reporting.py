@@ -17,7 +17,7 @@ from .config import (
     PILOT_READY_THRESHOLD,
     VISUALIZATION_ENABLED,
 )
-from .evaluation_utils import generate_overall_classification_summary
+from .evaluation_metrics import generate_overall_classification_summary
 from .visualizations import LMMVisualizer
 
 

@@ -31,7 +31,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
-from common.evaluation_utils import parse_extraction_response
+from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,

@@ -72,11 +72,13 @@ from common.config import DEFAULT_EXTRACTION_MODE, EXTRACTION_FIELDS, EXTRACTION
 from common.config import GROUND_TRUTH_PATH as ground_truth_path
 from common.config import INTERNVL3_MODEL_PATH as model_path
 from common.config import OUTPUT_DIR as output_dir
-from common.evaluation_utils import (
-    create_extraction_dataframe,
-    discover_images,
+from common.evaluation_metrics import (
     evaluate_extraction_results,
     load_ground_truth,
+)
+from common.extraction_parser import (
+    create_extraction_dataframe,
+    discover_images,
 )
 from common.reporting import generate_comprehensive_reports, print_evaluation_summary
 from models.internvl3_processor import InternVL3Processor

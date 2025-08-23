@@ -1,0 +1,211 @@
+"""
+Model output parsing and data cleaning utilities.
+
+This module handles the critical task of converting raw model outputs (text responses)
+into structured data dictionaries. It includes robust parsing logic to handle various
+model output formats including markdown, plain text, and edge cases.
+"""
+
+import re
+from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
+
+from .config import (
+    EXTRACTION_FIELDS,
+)
+
+
+def parse_extraction_response(response_text: str, clean_conversation_artifacts: bool = False) -> Dict[str, str]:
+    """
+    Parse structured extraction response into dictionary.
+
+    This function handles model responses that may contain conversation artifacts
+    or formatting issues, extracting only the key-value pairs.
+
+    Implements a two-pass parsing strategy:
+    1. First pass: Standard line-by-line parsing (works for clean outputs like Llama)
+    2. Second pass: Markdown handling fallback (handles problematic outputs like InternVL3)
+
+    Args:
+        response_text (str): Raw model response containing key-value pairs
+        clean_conversation_artifacts (bool): Whether to clean Llama-style artifacts
+
+    Returns:
+        dict: Parsed key-value pairs with all expected fields
+    """
+    if not response_text:
+        return {field: "N/A" for field in EXTRACTION_FIELDS}
+
+    # Clean Llama-specific conversation artifacts if requested
+    if clean_conversation_artifacts:
+        # Remove common Llama conversation patterns
+        clean_patterns = [
+            r"I'll extract.*?\n",
+            r"I can extract.*?\n",
+            r"Here (?:is|are) the.*?\n",
+            r"Based on.*?\n",
+            r"Looking at.*?\n",
+            r"<\|start_header_id\|>.*?<\|end_header_id\|>",
+            r"<image>",
+            r"assistant\n\n",
+            r"^\s*Extract.*?below\.\s*\n",
+        ]
+
+        for pattern in clean_patterns:
+            response_text = re.sub(
+                pattern, "", response_text, flags=re.IGNORECASE | re.MULTILINE
+            )
+
+    # Initialize with N/A for all fields
+    extracted_data = {field: "N/A" for field in EXTRACTION_FIELDS}
+
+    # Process each line looking for key-value pairs
+    lines = response_text.strip().split("\n")
+    
+    # First pass: Try standard parsing (works for Llama and clean InternVL3 output)
+    extracted_data_first = {}
+    for line in lines:
+        # Skip empty lines and non-key-value lines
+        if not line.strip() or ":" not in line:
+            continue
+
+        # Clean the line from various formatting issues
+        clean_line = line
+        # Remove markdown formatting
+        clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
+        # Fix InternVL3 "KEY:" prefix issues  
+        clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
+        clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
+        # Fix field name variations
+        clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
+        clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
+
+        # Extract key and value
+        parts = clean_line.split(":", 1)
+        if len(parts) == 2:
+            key = parts[0].strip().upper()
+            value = parts[1].strip()
+
+            # Store if it's an expected field
+            if key in EXTRACTION_FIELDS:
+                extracted_data_first[key] = value if value else "N/A"
+    
+    # If first pass got most fields, use it (this preserves Llama's performance)
+    if len(extracted_data_first) >= len(EXTRACTION_FIELDS) * 0.5:  # Got at least 50% of fields
+        extracted_data.update(extracted_data_first)
+    else:
+        # Second pass: Handle multi-line markdown format (fallback for problematic InternVL3 output)
+        processed_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+                
+            # Check if this is a markdown key line (e.g., "**SUPPLIER:**")
+            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*$", line)
+            if markdown_key_match and i + 1 < len(lines):
+                # Combine with next line that contains the value
+                key = markdown_key_match.group(1)
+                value = lines[i + 1].strip()
+                processed_lines.append(f"{key}: {value}")
+                i += 2  # Skip both lines
+            else:
+                processed_lines.append(line)
+                i += 1
+
+        for line in processed_lines:
+            # Skip empty lines and non-key-value lines
+            if not line.strip() or ":" not in line:
+                continue
+
+            # Clean the line from various formatting issues
+            clean_line = line
+            # Remove markdown formatting
+            clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
+            # Fix InternVL3 "KEY:" prefix issues  
+            clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
+            clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
+            # Fix field name variations
+            clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
+            clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
+
+            # Extract key and value
+            parts = clean_line.split(":", 1)
+            if len(parts) == 2:
+                key = parts[0].strip().upper()
+                value = parts[1].strip()
+
+                # Store if it's an expected field - this filters out hallucinated content
+                if key in extracted_data:
+                    # Don't overwrite if we already have a non-N/A value
+                    if extracted_data[key] == "N/A" or not extracted_data[key]:
+                        extracted_data[key] = value if value else "N/A"
+                # Silently ignore unexpected keys to prevent hallucination contamination
+
+    return extracted_data
+
+
+def create_extraction_dataframe(results: List[Dict]) -> tuple:
+    """
+    Create structured DataFrames from extraction results.
+
+    Args:
+        results (list): List of extraction result dictionaries
+
+    Returns:
+        tuple: (main_df, metadata_df) - Main extraction data and metadata
+    """
+    if not results:
+        return pd.DataFrame(), pd.DataFrame()
+
+    # Main extraction DataFrame
+    rows = []
+    metadata_rows = []
+
+    for result in results:
+        # Main data row
+        row = {"image_name": result["image_name"]}
+        row.update(result["extracted_data"])
+        rows.append(row)
+
+        # Metadata row
+        if "response_completeness" in result or "content_coverage" in result:
+            metadata_row = {
+                "image_name": result["image_name"],
+                "response_completeness": result.get("response_completeness", 0),
+                "content_coverage": result.get("content_coverage", 0),
+                "extracted_fields_count": result.get("extracted_fields_count", 0),
+                "processing_time": result.get("processing_time", 0),
+            }
+            metadata_rows.append(metadata_row)
+
+    main_df = pd.DataFrame(rows)
+    metadata_df = pd.DataFrame(metadata_rows)
+
+    return main_df, metadata_df
+
+
+def discover_images(directory_path: str) -> List[str]:
+    """
+    Discover all image files in the specified directory.
+
+    Args:
+        directory_path (str): Path to directory containing images
+
+    Returns:
+        list: List of image file paths
+    """
+    directory = Path(directory_path)
+    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+    
+    image_files = []
+    for ext in image_extensions:
+        image_files.extend(directory.glob(f"*{ext}"))
+        image_files.extend(directory.glob(f"*{ext.upper()}"))
+    
+    # Sort by filename for consistent ordering
+    return sorted([str(img) for img in image_files])
