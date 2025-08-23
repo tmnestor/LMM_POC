@@ -18,13 +18,13 @@ transaction_details:
 
 temporal_data:
   expertise_frame: "Extract ALL date information from the document."
-  cognitive_context: "INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually N/A for invoices). Use the exact date format shown in the document."
+  cognitive_context: "INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually NOT_FOUND for invoices). Use the exact date format shown in the document."
   focus_instruction: "Extract all dates exactly as formatted in the document. Most invoices won't have a statement period."
 
 banking_payment:
   expertise_frame: "Extract banking details if present (usually limited on invoices)."
   cognitive_context: "BANK_NAME: financial institution name (NOT the supplier name). BSB_NUMBER: 6-digit bank code (NOT the 11-digit ABN). BANK_ACCOUNT_NUMBER: account number for payments. Most invoices only show account number, not full banking details."
-  focus_instruction: "Extract banking information if visible. Most fields will be N/A on invoices. Do NOT confuse ABN with BSB, or supplier name with bank name."
+  focus_instruction: "Extract banking information if visible. Most fields will be NOT_FOUND on invoices. Do NOT confuse ABN with BSB, or supplier name with bank name."
 
 document_metadata:
   expertise_frame: "Identify document type and any account balance information."
@@ -36,10 +36,10 @@ format_rules:
   - "Use exactly: KEY: value (colon and space)"
   - "NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting"
   - "Plain text only - NO markdown, NO bold, NO italic"
-  - "Include ALL fields even if N/A"
+  - "Include ALL fields even if NOT_FOUND"
   - "Extract ONLY what you can see in the document"
   - "Do NOT guess, calculate, or make up values"
-  - "Use N/A if field is not visible or not applicable"
+  - "Use NOT_FOUND if field is not visible or not applicable"
   - "Output ONLY these lines, nothing else"
   - "For lists: use COMMA-SEPARATED values on ONE LINE per field"
   - "DO NOT output the same field name multiple times"

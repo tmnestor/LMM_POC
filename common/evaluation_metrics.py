@@ -96,29 +96,26 @@ def calculate_field_accuracy(extracted_value: str, ground_truth_value: str, fiel
         float: Accuracy score (0.0 to 1.0)
     """
     # Convert to strings and clean
-    extracted = str(extracted_value).strip() if extracted_value else "N/A"
-    ground_truth = str(ground_truth_value).strip() if ground_truth_value else "N/A"
+    extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
+    ground_truth = str(ground_truth_value).strip() if ground_truth_value else "NOT_FOUND"
 
     if debug:
         print(f"    🔍 DEBUG FIELD {field_name}: '{extracted}' vs '{ground_truth}'")
 
-    # Normalize missing value indicators - treat 'nan', 'N/A', empty strings as equivalent
-    def is_missing_value(value):
-        return value.upper() in ["N/A", "NAN", ""] or str(value).lower() == "nan"
-    
-    extracted_is_missing = is_missing_value(extracted)
-    ground_truth_is_missing = is_missing_value(ground_truth)
+    # Handle missing value indicator - both should use 'NOT_FOUND' now
+    extracted_is_missing = extracted.upper() == "NOT_FOUND"
+    ground_truth_is_missing = ground_truth.upper() == "NOT_FOUND"
 
-    # Both are missing values - correct
+    # Both are NOT_FOUND - correct
     if extracted_is_missing and ground_truth_is_missing:
         if debug:
-            print(f"    ✅ Both missing values ('{extracted}' and '{ground_truth}') - score: 1.0")
+            print("    ✅ Both NOT_FOUND - score: 1.0")
         return 1.0
 
-    # One is missing but not the other - incorrect
+    # One is NOT_FOUND but not the other - incorrect
     if extracted_is_missing != ground_truth_is_missing:
         if debug:
-            print(f"    ❌ One missing, other not ('{extracted}' vs '{ground_truth}') - score: 0.0")
+            print(f"    ❌ One NOT_FOUND, other not ('{extracted}' vs '{ground_truth}') - score: 0.0")
         return 0.0
 
     # Normalize for comparison
@@ -380,9 +377,7 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     if not extraction_results or not ground_truth_map:
         return {"error": "No data to evaluate"}
     
-    print(f"🔍 DEBUG: Evaluating {len(extraction_results)} extraction results...")
-    print(f"🔍 DEBUG: Ground truth map has {len(ground_truth_map)} entries")
-    print(f"🔍 DEBUG: Ground truth keys: {list(ground_truth_map.keys())[:3]}...")
+    print(f"🔍 Evaluating {len(extraction_results)} extraction results...")
     
     # Track field-level accuracies
     field_accuracies = {field: {"correct": 0, "total": 0, "details": []} for field in EXTRACTION_FIELDS}
@@ -390,55 +385,49 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     # Detailed results for analysis
     detailed_results = []
     
-    for idx, result in enumerate(extraction_results):
+    for _idx, result in enumerate(extraction_results):
         image_name = result.get("image_name", "")
         extracted_data = result.get("extracted_data", {})
         
-        print(f"\n🔍 DEBUG: Processing image {idx+1}/{len(extraction_results)}: {image_name}")
-        print(f"🔍 DEBUG: Extracted data keys: {list(extracted_data.keys())}")
+        # Processing image silently
         
         # Find corresponding ground truth
         gt_data = None
         for gt_key, gt_value in ground_truth_map.items():
             if image_name in gt_key or gt_key in image_name:
                 gt_data = gt_value
-                print(f"🔍 DEBUG: Found ground truth match: {gt_key}")
+                # Found ground truth match
                 break
         
         if gt_data is None:
-            print(f"⚠️  DEBUG: No ground truth found for image: {image_name}")
+            print(f"⚠️  No ground truth found for image: {image_name}")
             continue
         
         # Compare each field
         result_details = {"image_name": image_name, "fields": {}}
         image_accuracies = {}
         
-        print(f"🔍 DEBUG: Comparing {len(EXTRACTION_FIELDS)} fields...")
+        # Compare each field
         perfect_matches = 0
         partial_matches = 0
         no_matches = 0
         
         for field in EXTRACTION_FIELDS:
-            extracted_value = extracted_data.get(field, "N/A")
-            ground_truth_value = gt_data.get(field, "N/A")
+            extracted_value = extracted_data.get(field, "NOT_FOUND")
+            ground_truth_value = gt_data.get(field, "NOT_FOUND")
             
             # Get float accuracy score (0.0 to 1.0)
-            show_debug = idx == 0  # Show debug for first image only
             accuracy_score = calculate_field_accuracy(
-                extracted_value, ground_truth_value, field, debug=show_debug
+                extracted_value, ground_truth_value, field, debug=False
             )
             
-            # DEBUG: Show score breakdown
+            # Track score breakdown
             if accuracy_score == 1.0:
                 perfect_matches += 1
             elif accuracy_score > 0.0:
                 partial_matches += 1
             else:
                 no_matches += 1
-                
-            # Show first few field comparisons for debugging
-            if idx == 0 and len([f for f in EXTRACTION_FIELDS if EXTRACTION_FIELDS.index(f) <= EXTRACTION_FIELDS.index(field)]) <= 5:
-                print(f"🔍 DEBUG: {field}: '{extracted_value}' vs '{ground_truth_value}' = {accuracy_score}")
             
             image_accuracies[field] = accuracy_score
             is_correct = accuracy_score > 0.5  # Convert to boolean for detailed results
@@ -462,29 +451,26 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
                 "accuracy_score": accuracy_score
             }
         
-        print(f"🔍 DEBUG: Field matches - Perfect: {perfect_matches}, Partial: {partial_matches}, None: {no_matches}")
+        # Field match summary tracked internally
         
         # Calculate overall accuracy for this image (like the old system)
         image_overall_accuracy = sum(image_accuracies.values()) / len(image_accuracies) if image_accuracies else 0.0
         result_details["overall_accuracy"] = image_overall_accuracy
         
-        print(f"🔍 DEBUG: Image accuracy: {image_overall_accuracy:.3f} ({image_overall_accuracy:.1%})")
+        # Image accuracy calculated and stored
         
         detailed_results.append(result_details)
     
-    print(f"\n🔍 DEBUG: Processed {len(detailed_results)} images successfully")
+    # Processing complete
     
     # Calculate summary statistics (average of per-image accuracies, like the old system)
     if detailed_results:
         individual_accuracies = [result["overall_accuracy"] for result in detailed_results]
         overall_accuracy = sum(individual_accuracies) / len(individual_accuracies)
-        print(f"🔍 DEBUG: Individual image accuracies: {[f'{acc:.3f}' for acc in individual_accuracies]}")
-        print(f"🔍 DEBUG: Sum of accuracies: {sum(individual_accuracies):.3f}")
-        print(f"🔍 DEBUG: Number of images: {len(individual_accuracies)}")
-        print(f"🔍 DEBUG: Final overall accuracy calculation: {sum(individual_accuracies):.3f} / {len(individual_accuracies)} = {overall_accuracy:.3f}")
+        # Summary statistics calculated
     else:
         overall_accuracy = 0.0
-        print("🔍 DEBUG: No detailed results - setting overall_accuracy to 0.0")
+        # No results to process
     
     field_summary = {}
     for field, data in field_accuracies.items():
@@ -496,18 +482,13 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
             "total": data["total"]
         }
     
-    # Show a few field accuracies for debugging
-    print("🔍 DEBUG: Sample field accuracies:")
-    for i, (field, summary) in enumerate(field_summary.items()):
-        if i < 5:  # Show first 5 fields
-            print(f"  {field}: {summary['correct']:.3f}/{summary['total']} = {summary['accuracy']:.3f}")
+    # Field accuracy summary calculated
     
     # Calculate equivalent overall statistics
     total_fields_evaluated = len(detailed_results) * len(EXTRACTION_FIELDS) if detailed_results else 0
     total_accuracy_score = overall_accuracy * total_fields_evaluated if total_fields_evaluated else 0
     
-    print(f"🔍 DEBUG: Total fields evaluated: {total_fields_evaluated}")
-    print(f"🔍 DEBUG: Total accuracy score: {total_accuracy_score}")
+    # Total statistics calculated
     
     # Generate summary report
     evaluation_summary = {
