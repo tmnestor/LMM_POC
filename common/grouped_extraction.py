@@ -15,7 +15,6 @@ import yaml
 from .config import (
     EXTRACTION_FIELDS,
     FIELD_GROUPS,
-    FIELD_INSTRUCTIONS,
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
 )
@@ -312,9 +311,9 @@ DOCUMENT CONTEXT: You are analyzing a business document image. Consider the docu
 OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
 """
 
-        # Add each field with its specific instruction
+        # Add each field with simple fallback instruction (YAML/model-specific prompts are primary)
         for field in fields:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
+            instruction = "[value or NOT_FOUND]"  # Simple fallback - model-specific YAML prompts are primary
             prompt += f"{field}: {instruction}\n"
 
         # Enhanced format rules with strict enforcement

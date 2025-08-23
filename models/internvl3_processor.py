@@ -23,7 +23,6 @@ from common.config import (
     ENABLE_BATCH_SIZE_FALLBACK,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
-    FIELD_INSTRUCTIONS,
     GENERATION_CONFIGS,
     IMAGENET_MEAN,
     IMAGENET_STD,
@@ -351,9 +350,9 @@ Use "NOT_FOUND" if field is not visible or not present.
 
 OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
-        # Add all fields with centralized field-specific instructions
+        # Add all fields with simple fallback instruction (YAML is primary source)
         for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
+            instruction = "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""

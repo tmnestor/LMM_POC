@@ -26,7 +26,6 @@ from common.config import (
     ENABLE_BATCH_SIZE_FALLBACK,
     EXTRACTION_FIELDS,
     FIELD_COUNT,
-    FIELD_INSTRUCTIONS,
     LLAMA_GENERATION_CONFIG,
     LLAMA_MODEL_PATH,
     get_auto_batch_size,
@@ -263,9 +262,9 @@ CRITICAL INSTRUCTIONS:
 REQUIRED OUTPUT FORMAT - EXACTLY {FIELD_COUNT} LINES:
 """
 
-        # Add each field dynamically using centralized instructions
+        # Add each field with simple fallback instruction (YAML is primary source)
         for field in EXTRACTION_FIELDS:
-            instruction = FIELD_INSTRUCTIONS.get(field, "[value or NOT_FOUND]")
+            instruction = "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""

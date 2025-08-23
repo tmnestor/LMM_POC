@@ -3,7 +3,13 @@ Shared configuration for vision model evaluation.
 
 This module contains all configuration values and constants shared between
 different vision models (InternVL3, Llama, etc.).
+
+NOTE: Uses YAML-first field discovery for single source of truth.
 """
+
+import yaml
+from pathlib import Path
+from typing import List
 
 # ============================================================================
 # MODEL CONFIGURATIONS - PRIMARY HIERARCHY
@@ -151,183 +157,221 @@ def show_current_config():
 
 
 # ============================================================================
-# FIELD DEFINITIONS - SINGLE SOURCE OF TRUTH
+# YAML-FIRST FIELD DISCOVERY
 # ============================================================================
 
-# Comprehensive field definitions with all specifications in one place
-# This replaces scattered field configurations across the codebase
+def discover_fields_from_yaml(yaml_file: str = "llama_single_pass_prompts.yaml") -> List[str]:
+    """
+    Discover extraction fields from YAML configuration files.
+    
+    This implements YAML-first field discovery to achieve single source of truth.
+    The YAML files define which fields exist, eliminating duplication.
+    
+    Args:
+        yaml_file (str): Primary YAML file to discover fields from
+        
+    Returns:
+        List[str]: Ordered list of extraction field names
+        
+    Raises:
+        FileNotFoundError: If YAML file is missing
+        ValueError: If YAML structure is invalid
+    """
+    try:
+        project_root = Path(__file__).parent.parent
+        yaml_path = project_root / yaml_file
+        
+        if not yaml_path.exists():
+            raise FileNotFoundError(
+                f"❌ FATAL: Primary YAML file not found: {yaml_path}\n"
+                f"💡 Cannot discover fields without YAML configuration\n"
+                f"💡 Ensure {yaml_file} exists with field_instructions section"
+            )
+        
+        with yaml_path.open('r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        
+        # Extract fields from single_pass configuration
+        single_pass_config = config.get("single_pass", {})
+        field_instructions = single_pass_config.get("field_instructions", {})
+        
+        if not field_instructions:
+            raise ValueError(
+                f"❌ FATAL: No field_instructions found in {yaml_file}\n"
+                f"💡 Expected structure: single_pass -> field_instructions -> {{field: instruction}}\n"
+                f"💡 Check YAML file structure and content"
+            )
+        
+        # Return ordered list of field names
+        field_list = list(field_instructions.keys())
+        
+        print(f"✅ Discovered {len(field_list)} fields from {yaml_file}")
+        return field_list
+        
+    except yaml.YAMLError as e:
+        raise ValueError(
+            f"❌ FATAL: Invalid YAML in {yaml_file}: {e}\n"
+            f"💡 Check YAML syntax and structure"
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"❌ FATAL: Field discovery failed: {e}\n"
+            f"💡 Cannot proceed without field definitions from YAML"
+        ) from e
+
+
+# ============================================================================
+# FIELD METADATA - EVALUATION LOGIC ONLY
+# ============================================================================
+
+# Field metadata for evaluation logic only - instructions now in YAML
 FIELD_DEFINITIONS = {
     "ABN": {
         "type": "numeric_id",
-        "instruction": "[11-digit Australian Business Number or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Australian Business Number for tax identification",
         "required": True,
     },
     "ACCOUNT_HOLDER": {
         "type": "text",
-        "instruction": "[account holder name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of bank account holder",
         "required": False,
     },
     "BANK_ACCOUNT_NUMBER": {
         "type": "numeric_id",
-        "instruction": "[account number or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Bank account number from statements",
         "required": False,
     },
     "BANK_NAME": {
         "type": "text",
-        "instruction": "[bank name (NOT supplier name) or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of banking institution",
         "required": False,
     },
     "BSB_NUMBER": {
         "type": "numeric_id",
-        "instruction": "[6-digit BSB (NOT ABN) or NOT_FOUND]",
         "evaluation_logic": "exact_numeric_match",
         "description": "Bank State Branch routing number",
         "required": False,
     },
     "BUSINESS_ADDRESS": {
         "type": "text",
-        "instruction": "[business address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Physical address of business",
         "required": False,
     },
     "BUSINESS_PHONE": {
         "type": "text",
-        "instruction": "[business phone number or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Business contact phone number",
         "required": False,
     },
     "CLOSING_BALANCE": {
         "type": "monetary",
-        "instruction": "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final balance on statement",
         "required": False,
     },
     "DESCRIPTIONS": {
         "type": "list",
-        "instruction": "[list of transaction descriptions or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "Transaction or item descriptions",
         "required": False,
     },
     "DOCUMENT_TYPE": {
         "type": "text",
-        "instruction": "[document type (invoice/receipt/statement) or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Type of business document",
         "required": False,
     },
     "DUE_DATE": {
         "type": "date",
-        "instruction": "[payment due date or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Payment deadline",
         "required": False,
     },
     "GST": {
         "type": "monetary",
-        "instruction": "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Goods and Services Tax amount",
         "required": False,
     },
     "INVOICE_DATE": {
         "type": "date",
-        "instruction": "[invoice date or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Date invoice was issued",
         "required": False,
     },
     "OPENING_BALANCE": {
         "type": "monetary",
-        "instruction": "[opening balance with 2 decimals from bank statements or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Starting balance on statement",
         "required": False,
     },
     "PAYER_ADDRESS": {
         "type": "text",
-        "instruction": "[payer address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Address of person/entity making payment",
         "required": False,
     },
     "PAYER_EMAIL": {
         "type": "text",
-        "instruction": "[payer email address or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Email address of payer",
         "required": False,
     },
     "PAYER_NAME": {
         "type": "text",
-        "instruction": "[payer name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of person/entity making payment",
         "required": False,
     },
     "PAYER_PHONE": {
         "type": "text",
-        "instruction": "[payer phone number or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Phone number of payer",
         "required": False,
     },
     "PRICES": {
         "type": "list",
-        "instruction": "[individual prices in dollars or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "List of individual item prices",
         "required": False,
     },
     "QUANTITIES": {
         "type": "list",
-        "instruction": "[list of quantities or NOT_FOUND]",
         "evaluation_logic": "list_overlap_match",
         "description": "Quantities of items purchased",
         "required": False,
     },
     "STATEMENT_PERIOD": {
         "type": "date",
-        "instruction": "[statement period or NOT_FOUND]",
         "evaluation_logic": "flexible_date_match",
         "description": "Time period covered by statement",
         "required": False,
     },
     "SUBTOTAL": {
         "type": "monetary",
-        "instruction": "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Subtotal before taxes and fees",
         "required": False,
     },
     "SUPPLIER": {
         "type": "text",
-        "instruction": "[supplier name or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Name of goods/services provider",
         "required": False,
     },
     "SUPPLIER_WEBSITE": {
         "type": "text",
-        "instruction": "[supplier website or NOT_FOUND]",
         "evaluation_logic": "fuzzy_text_match",
         "description": "Website URL of supplier",
         "required": False,
     },
     "TOTAL": {
         "type": "monetary",
-        "instruction": "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]",
         "evaluation_logic": "monetary_with_tolerance",
         "description": "Final total amount including all charges",
         "required": True,
@@ -338,10 +382,12 @@ FIELD_DEFINITIONS = {
 # DERIVED CONFIGURATIONS - AUTO-GENERATED FROM FIELD_DEFINITIONS
 # ============================================================================
 
-# Primary configurations derived from FIELD_DEFINITIONS
-EXTRACTION_FIELDS = list(FIELD_DEFINITIONS.keys())
+# YAML-first field discovery - single source of truth (FAIL-FAST)
+EXTRACTION_FIELDS = discover_fields_from_yaml("llama_single_pass_prompts.yaml")
 FIELD_COUNT = len(EXTRACTION_FIELDS)
-FIELD_INSTRUCTIONS = {k: v["instruction"] for k, v in FIELD_DEFINITIONS.items()}
+print(f"🎯 Using YAML-discovered fields: {FIELD_COUNT} fields")
+
+# FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
 FIELD_TYPES = {k: v["type"] for k, v in FIELD_DEFINITIONS.items()}
 FIELD_DESCRIPTIONS = {k: v["description"] for k, v in FIELD_DEFINITIONS.items()}
 
@@ -660,7 +706,6 @@ def validate_field_definitions():
     """
     required_keys = [
         "type",
-        "instruction",
         "evaluation_logic",
         "description",
         "required",
@@ -694,18 +739,7 @@ def validate_field_definitions():
                 f"Valid options: {valid_evaluation_logic}"
             )
 
-        # Check instruction format
-        instruction = definition["instruction"]
-        if not (instruction.startswith("[") and instruction.endswith("]")):
-            raise ValueError(
-                f"Field '{field_name}' instruction must be in format '[instruction or NOT_FOUND]'"
-            )
-
-        # Ensure instruction mentions NOT_FOUND
-        if "NOT_FOUND" not in instruction:
-            raise ValueError(
-                f"Field '{field_name}' instruction must mention 'NOT_FOUND' option"
-            )
+        # Instruction validation removed - prompts now managed via YAML files
 
 
 # Run validation on import to catch configuration errors early
