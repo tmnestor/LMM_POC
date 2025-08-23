@@ -771,7 +771,7 @@ DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
 FIELD_GROUPS_DETAILED = {
     "critical": {
         "name": "Critical Business Identifiers",
-        "fields": ["ABN", "TOTAL"],
+        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
         "priority": 1,
         "max_tokens": 300,
         "temperature": 0.0,  # Deterministic for critical fields
@@ -779,7 +779,7 @@ FIELD_GROUPS_DETAILED = {
     },
     "monetary": {
         "name": "Monetary Values",
-        "fields": ["GST", "SUBTOTAL", "OPENING_BALANCE", "CLOSING_BALANCE"],
+        "fields": ["GST_AMOUNT", "SUBTOTAL_AMOUNT", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
         "priority": 2,
         "max_tokens": 400,
         "temperature": 0.0,
@@ -787,7 +787,7 @@ FIELD_GROUPS_DETAILED = {
     },
     "dates": {
         "name": "Date Information",
-        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
         "priority": 3,
         "max_tokens": 350,
         "temperature": 0.0,
@@ -796,7 +796,7 @@ FIELD_GROUPS_DETAILED = {
     "business_entity": {
         "name": "Business Entity Details",
         "fields": [
-            "SUPPLIER",
+            "SUPPLIER_NAME",
             "BUSINESS_ADDRESS",
             "BUSINESS_PHONE",
             "SUPPLIER_WEBSITE",
@@ -816,7 +816,7 @@ FIELD_GROUPS_DETAILED = {
     },
     "banking": {
         "name": "Banking Details",
-        "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
+        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
         "priority": 6,
         "max_tokens": 400,
         "temperature": 0.0,
@@ -824,7 +824,7 @@ FIELD_GROUPS_DETAILED = {
     },
     "item_details": {
         "name": "Item and Line Details",
-        "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
+        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
         "priority": 7,
         "max_tokens": 500,
         "temperature": 0.0,
@@ -845,7 +845,7 @@ FIELD_GROUPS_DETAILED = {
 FIELD_GROUPS_COGNITIVE = {
     "regulatory_financial": {
         "name": "Regulatory and Financial Core",
-        "fields": ["ABN", "TOTAL", "GST", "SUBTOTAL"],
+        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT", "SUBTOTAL_AMOUNT"],
         "priority": 1,
         "max_tokens": 400,
         "temperature": 0.0,
@@ -855,7 +855,7 @@ FIELD_GROUPS_COGNITIVE = {
     "entity_contacts": {
         "name": "Entity Contact Information",
         "fields": [
-            "SUPPLIER",
+            "SUPPLIER_NAME",
             "BUSINESS_ADDRESS",
             "BUSINESS_PHONE",
             "SUPPLIER_WEBSITE",
@@ -872,7 +872,7 @@ FIELD_GROUPS_COGNITIVE = {
     },
     "transaction_details": {
         "name": "Transaction Line Items",
-        "fields": ["DESCRIPTIONS", "QUANTITIES", "PRICES"],
+        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
         "priority": 3,
         "max_tokens": 500,
         "temperature": 0.0,
@@ -881,7 +881,7 @@ FIELD_GROUPS_COGNITIVE = {
     },
     "temporal_data": {
         "name": "Temporal Information",
-        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_PERIOD"],
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
         "priority": 4,
         "max_tokens": 350,
         "temperature": 0.0,
@@ -890,7 +890,7 @@ FIELD_GROUPS_COGNITIVE = {
     },
     "banking_payment": {
         "name": "Banking and Payment Details",
-        "fields": ["BANK_NAME", "BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "ACCOUNT_HOLDER"],
+        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
         "priority": 5,
         "max_tokens": 400,
         "temperature": 0.0,
@@ -899,7 +899,7 @@ FIELD_GROUPS_COGNITIVE = {
     },
     "document_metadata": {
         "name": "Document Context and Balances",
-        "fields": ["DOCUMENT_TYPE", "OPENING_BALANCE", "CLOSING_BALANCE"],
+        "fields": ["DOCUMENT_TYPE", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
         "priority": 6,
         "max_tokens": 350,
         "temperature": 0.0,
@@ -946,7 +946,7 @@ GROUP_VALIDATION_RULES = {
     # 8-group strategy validation rules
     "critical": {
         "min_confidence": 0.9,
-        "required_fields": ["ABN", "TOTAL"],
+        "required_fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
         "allow_empty": False,
     },
     "monetary": {
@@ -962,7 +962,7 @@ GROUP_VALIDATION_RULES = {
     # 6-group strategy validation rules
     "regulatory_financial": {
         "min_confidence": 0.9,
-        "required_fields": ["ABN", "TOTAL"],
+        "required_fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
         "allow_empty": False,
     },
     "entity_contacts": {

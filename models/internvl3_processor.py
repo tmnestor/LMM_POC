@@ -54,7 +54,7 @@ class InternVL3Processor:
         batch_size=None,
         extraction_mode=None,
         debug=False,
-        grouping_strategy="8_groups",
+        grouping_strategy="detailed_grouped",
     ):
         """
         Initialize InternVL3 processor with model and tokenizer.

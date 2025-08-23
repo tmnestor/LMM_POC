@@ -54,7 +54,7 @@ class LlamaProcessor:
         batch_size=None,
         extraction_mode=None,
         debug=False,
-        grouping_strategy="8_groups",
+        grouping_strategy="detailed_grouped",
     ):
         """
         Initialize Llama processor with model and processor.

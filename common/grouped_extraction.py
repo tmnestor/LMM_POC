@@ -278,7 +278,7 @@ class GroupedExtractionStrategy:
 
         elif group_name == "item_details":
             expertise_frame = """Extract transaction line items and pricing."""
-            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. CRITICAL: Use the exact field names DESCRIPTIONS, QUANTITIES, and PRICES."""
+            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document."""
             focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate, multiply, or derive prices. Use only the unit prices visible in the document."
 
         elif group_name == "metadata":
