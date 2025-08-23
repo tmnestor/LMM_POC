@@ -1,24 +1,24 @@
-  # 1. Ensure you're on main and have latest changes
-  git checkout main
-  git pull origin main
+# 1. Ensure you're on main and have latest changes
+git checkout main
+git pull origin main
 
-  # 2. Create and switch to the new branch
-  git checkout -b refactor/yaml-single-source-of-truth
+# 2. Create and switch to the new branch
+git checkout -b refactor/yaml-single-source-of-truth
 
-  # 3. Push the new branch to remote and set upstream tracking
-  git push -u origin refactor/yaml-single-source-of-truth
+# 3. Push the new branch to remote and set upstream tracking
+git push -u origin refactor/yaml-single-source-of-truth
 
-  Explanation:
-  - git checkout main - Switch to main branch
-  - git pull origin main - Get latest changes from remote
-  - git checkout -b refactor/yaml-single-source-of-truth - Create new branch and switch to it
-  - git push -u origin refactor/yaml-single-source-of-truth - Push branch to remote and set upstream tracking
+Explanation:
+- git checkout main - Switch to main branch
+- git pull origin main - Get latest changes from remote
+- git checkout -b refactor/yaml-single-source-of-truth - Create new branch and switch to it
+- git push -u origin refactor/yaml-single-source-of-truth - Push branch to remote and set upstream tracking
 
-  The -u flag sets up upstream tracking so future git push and git pull commands will work without specifying the remote
-  branch name.
+The -u flag sets up upstream tracking so future git push and git pull commands will work without specifying the remote
+branch name.
 
-  After this, you can work on the migration plan and commit changes normally:
-  # Make changes, then:
-  git add .
-  git commit -m "feat: create field schema migration plan"
-  git push  # No need to specify remote/branch thanks to -u flag
+After this, you can work on the migration plan and commit changes normally:
+# Make changes, then:
+git add .
+git commit -m "feat: create field schema migration plan"
+git push  # No need to specify remote/branch thanks to -u flag
