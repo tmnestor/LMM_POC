@@ -1,5 +1,5 @@
-# InternVL3 Prompts Configuration
-# This file contains prompt templates for InternVL3-2B and InternVL3-8B models
+# InternVL3 Prompts Configuration - STANDARDIZED FIELD NAMES
+# Updated for Priority 5: Field Naming Consistency
 # Used by models/internvl3_processor.py for all extraction modes
 
 # Single-pass prompt configuration (for default get_extraction_prompt method)
@@ -16,114 +16,70 @@ single_pass:
   # Output format header (dynamic field count will be inserted)
   output_format_header: "OUTPUT FORMAT ({field_count} required fields):"
   
-  # Field instructions for all 25 extraction fields
+  # Field instructions for all 25 extraction fields - STANDARDIZED NAMES
   field_instructions:
-    ABN: "[11-digit Australian Business Number or NOT_FOUND]"
-    ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
+    ACCOUNT_CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
+    BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
     BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
+    BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
     BANK_NAME: "[bank name (NOT supplier name) or NOT_FOUND]"
-    BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
+    BUSINESS_ABN: "[11-digit Australian Business Number or NOT_FOUND]"
     BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
     BUSINESS_PHONE: "[business phone number or NOT_FOUND]"
-    CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
-    DESCRIPTIONS: "[list of transaction descriptions or NOT_FOUND]"
     DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
     DUE_DATE: "[payment due date or NOT_FOUND]"
-    GST: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
+    GST_AMOUNT: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
     INVOICE_DATE: "[invoice date or NOT_FOUND]"
-    OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
+    LINE_ITEM_DESCRIPTIONS: "[list of transaction descriptions or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[individual prices in dollars or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[list of quantities or NOT_FOUND]"
     PAYER_ADDRESS: "[payer address or NOT_FOUND]"
     PAYER_EMAIL: "[payer email address or NOT_FOUND]"
     PAYER_NAME: "[payer name or NOT_FOUND]"
     PAYER_PHONE: "[payer phone number or NOT_FOUND]"
-    PRICES: "[individual prices in dollars or NOT_FOUND]"
-    QUANTITIES: "[list of quantities or NOT_FOUND]"
-    STATEMENT_PERIOD: "[statement period or NOT_FOUND]"
-    SUBTOTAL: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
-    SUPPLIER: "[supplier name or NOT_FOUND]"
+    STATEMENT_DATE_RANGE: "[statement period or date range or NOT_FOUND]"
+    SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
+    SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
     SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
-    TOTAL: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
+    TOTAL_AMOUNT: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
   
-  # Final instructions header
-  instructions_header: "INSTRUCTIONS:"
-  
-  # Final instructions list
-  instructions:
-    - "Keep field names EXACTLY as shown above"
-    - "Use \"NOT_FOUND\" for any missing/unclear information"
-    - "Do not add explanations or comments"
-    - "Extract actual values from the document image"
-    - "Output exactly {field_count} lines, one for each field"
+  # Closing instruction
+  closing_instruction: "Provide ONLY the key-value pairs above. Be precise with numerical values."
 
-# Grouped extraction prompts (InternVL3 6_groups configuration that achieved 87.6% accuracy)
-# Source: Current grouped_extraction.py (after simplification fixes)
-grouped:
-
+# Grouped extraction configuration for field_grouped strategy  
 regulatory_financial:
-  expertise_frame: "Extract business identifiers and financial amounts."
-  cognitive_context: "The Australian Business Number (ABN) is an 11 digit number (may have spaces). TOTAL is the final amount due. GST is the tax amount. SUBTOTAL is the amount before tax. Extract amounts with exact decimal places as shown."
-  focus_instruction: "Extract the ABN and all monetary amounts exactly as they appear on the document."
+  expertise_frame: "Extract business numbers and financial amounts."
+  cognitive_context: "Focus on BUSINESS_ABN (11 digits), TOTAL_AMOUNT (final amount), GST_AMOUNT (tax), and SUBTOTAL_AMOUNT (pre-tax amount)."
+  focus_instruction: "Extract business ABN and all monetary amounts with exact decimal places."
 
 entity_contacts:
-  expertise_frame: "Extract ALL contact information for both supplier and payer."
-  cognitive_context: "Australian postcodes are 4 digits (e.g., Adelaide SA 5000). Phone numbers include area code: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. Extract contact details exactly as shown in the document."
-  focus_instruction: "Extract contact details for supplier and payer. Include names, addresses, phone numbers, and email/website if visible."
+  expertise_frame: "Extract all contact information."
+  cognitive_context: "Get SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE, SUPPLIER_WEBSITE, PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL."
+  focus_instruction: "Extract all contact details for both supplier and payer."
 
-transaction_details:
-  expertise_frame: "Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."
-  cognitive_context: "These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document. Use comma-separated format for lists."
-  focus_instruction: "Extract all line items as comma-separated lists. One line for descriptions, one for quantities, one for unit prices."
+line_item_transactions:
+  expertise_frame: "Extract line item details."
+  cognitive_context: "Get LINE_ITEM_DESCRIPTIONS (product names), LINE_ITEM_QUANTITIES (amounts), and LINE_ITEM_PRICES (unit prices)."
+  focus_instruction: "Extract all line item information as comma-separated lists."
 
 temporal_data:
-  expertise_frame: "Extract ALL date information from the document."
-  cognitive_context: "INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually NOT_FOUND for invoices). Use the exact date format shown in the document."
-  focus_instruction: "Extract all dates exactly as formatted in the document. Most invoices won't have a statement period."
+  expertise_frame: "Extract date information."
+  cognitive_context: "Find INVOICE_DATE (when issued), DUE_DATE (payment deadline), and STATEMENT_DATE_RANGE (statement period)."
+  focus_instruction: "Extract all dates and time periods from the document."
 
 banking_payment:
-  expertise_frame: "Extract banking details if present (usually limited on invoices)."
-  cognitive_context: "BANK_NAME: financial institution name (NOT the supplier name). BSB_NUMBER: 6-digit bank code (NOT the 11-digit ABN). BANK_ACCOUNT_NUMBER: account number for payments. Most invoices only show account number, not full banking details."
-  focus_instruction: "Extract banking information if visible. Most fields will be NOT_FOUND on invoices. Do NOT confuse ABN with BSB, or supplier name with bank name."
+  expertise_frame: "Extract banking information."
+  cognitive_context: "Look for BANK_NAME, BANK_BSB_NUMBER (6 digits), BANK_ACCOUNT_NUMBER, and BANK_ACCOUNT_HOLDER."
+  focus_instruction: "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
 
-document_metadata:
-  expertise_frame: "Identify document type and any account balance information."
-  cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING/CLOSING_BALANCE: ONLY for bank statements showing account balances. These are NOT the same as subtotal/total/GST amounts. CLOSING_BALANCE on a statement is the final account balance, not the invoice total."
-  focus_instruction: "Identify the document type. For balances: ONLY extract if this is a bank statement showing account balances. Invoice totals are NOT closing balances."
+document_balances:
+  expertise_frame: "Extract document type and account balances."
+  cognitive_context: "Identify DOCUMENT_TYPE (invoice/receipt/statement). Get ACCOUNT_OPENING_BALANCE and ACCOUNT_CLOSING_BALANCE only for bank statements."
+  focus_instruction: "Classify document type. Extract account balances only from bank statements, not invoices."
 
-# Format rules (same for all groups):
-format_rules:
-  - "Use exactly: KEY: value (colon and space)"
-  - "NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting"
-  - "Plain text only - NO markdown, NO bold, NO italic"
-  - "Include ALL fields even if NOT_FOUND"
-  - "Extract ONLY what you can see in the document"
-  - "Do NOT guess, calculate, or make up values"
-  - "Use NOT_FOUND if field is not visible or not applicable"
-  - "Output ONLY these lines, nothing else"
-  - "For lists: use COMMA-SEPARATED values on ONE LINE per field"
-  - "DO NOT output the same field name multiple times"
-
-# Key differences from Llama prompts:
-differences_from_llama:
-  removed_keywords:
-    - "CRITICAL - InternVL3 gets confused by too many critical warnings"
-    - "EXACTLY - simplified to basic requirements"
-    - "ALL in caps - reduced emphasis"
-    - "DO NOT output multiple blocks - too prescriptive"
-  
-  simplified_language:
-    - Shorter cognitive_context sections
-    - Less detailed examples
-    - Fewer OCR-specific warnings
-    - More concise instructions
-  
-  optimization_strategy:
-    - InternVL3 performs better with clean, simple instructions
-    - Avoids overwhelming the model with too many rules
-    - Focuses on core extraction rather than format enforcement
-    - Relies on parser to handle any formatting issues
-
-# Results:
-# - InternVL3: 87.6% accuracy with these simplified prompts
-# - Clean output with proper field names (no duplication)
-# - Better digit precision (proper postcodes, ABN formatting)
-# - Successful comma-separated list formatting
+# Notes:
+# - STANDARDIZED FIELD NAMES with consistent prefixing and clear semantics
+# - Simplified prompts optimized for InternVL3's concise response style
+# - Maintains compatibility with existing processor architecture
+# - Clear field distinctions (TOTAL_AMOUNT vs ACCOUNT_CLOSING_BALANCE)

@@ -85,9 +85,9 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
             f"💡 Ensure YAML contains group configurations at root level"
         )
     
-    # Validate required groups for field_grouped strategy
-    required_groups = ["regulatory_financial", "entity_contacts", "transaction_details", 
-                      "temporal_data", "banking_payment", "document_metadata"]
+    # Validate required groups for field_grouped strategy (using standardized group names)
+    required_groups = ["regulatory_financial", "entity_contacts", "line_item_transactions", 
+                      "temporal_data", "banking_payment", "document_balances"]
     
     missing_groups = []
     for group in required_groups:
@@ -292,7 +292,7 @@ class GroupedExtractionStrategy:
                 raise ValueError(
                     f"❌ FATAL: No prompt configuration found for group '{group_name}' in field_grouped strategy\n"
                     f"💡 Check {self.model_name}_prompts.yaml contains configuration for '{group_name}'\n"
-                    f"💡 Required groups: regulatory_financial, entity_contacts, transaction_details, temporal_data, banking_payment, document_metadata"
+                    f"💡 Required groups: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances"
                 )
             
             # Fallback for unhandled groups in other strategies

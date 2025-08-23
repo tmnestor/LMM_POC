@@ -1,52 +1,43 @@
-# Llama 6_groups prompts that achieved 87.6% accuracy
-# Source: git commit cbe9c67 (morning results)
+# Llama field_grouped prompts - STANDARDIZED FIELD NAMES
+# Updated for Priority 5: Field Naming Consistency
+# Based on version that achieved 87.6% accuracy
 
 regulatory_financial:
   expertise_frame: "Extract critical business identifiers and ALL financial amounts with precision."
-  cognitive_context: "The Australian Business Number (ABN) is an 11 digit number structured as a 9 digit identifier with two leading check digits (may be formatted with spaces like XX XXX XXX XXX). TOTAL is the final amount due. GST is the tax amount (usually smaller, around 10% of subtotal). SUBTOTAL is the amount before tax. Be EXACT with decimal places - copy them precisely from the document."
-  focus_instruction: "Extract the ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the ABN has exactly 11 digits."
+  cognitive_context: "The Australian Business Number (BUSINESS_ABN) is an 11 digit number structured as a 9 digit identifier with two leading check digits (may be formatted with spaces like XX XXX XXX XXX). TOTAL_AMOUNT is the final amount due. GST_AMOUNT is the tax amount (usually smaller, around 10% of subtotal). SUBTOTAL_AMOUNT is the amount before tax. Be EXACT with decimal places - copy them precisely from the document."
+  focus_instruction: "Extract the BUSINESS_ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the BUSINESS_ABN has exactly 11 digits."
 
 entity_contacts:
   expertise_frame: "Extract ALL contact information for both supplier and payer with EXACT digit counts."
   cognitive_context: "CRITICAL DIGIT RULES: Australian postcodes are EXACTLY 4 digits (5000 NOT 55000 or 50000). Phone numbers are EXACTLY 10 digits including area code. Area codes: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. DO NOT add extra digits. If you see 'Adelaide SA 5000', the postcode is 5000 (4 digits only). If you see '(06) 4744 4248', preserve the 06 area code - do NOT change to 66."
   focus_instruction: "Extract contact details with EXACT digit counts. Postcodes: EXACTLY 4 digits. Phone numbers: EXACTLY 10 digits total. Count the digits carefully. Do NOT add or change digits."
 
-transaction_details:
+line_item_transactions:
   expertise_frame: "Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."
-  cognitive_context: "CRITICAL: Output each field as a SINGLE LINE with COMMA-SEPARATED values. DESCRIPTIONS: ALL product names in one line (e.g., Rice 1kg, Cheese Block 500g, Frozen Peas 1kg). QUANTITIES: ALL quantities in one line (e.g., 3, 3, 3, 1). PRICES: ALL UNIT prices in one line (e.g., $3.80, $8.50, $4.20). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40. DO NOT output multiple blocks or multiple DESCRIPTIONS lines."
+  cognitive_context: "CRITICAL: Output each field as a SINGLE LINE with COMMA-SEPARATED values. LINE_ITEM_DESCRIPTIONS: ALL product names in one line (e.g., Rice 1kg, Cheese Block 500g, Frozen Peas 1kg). LINE_ITEM_QUANTITIES: ALL quantities in one line (e.g., 3, 3, 3, 1). LINE_ITEM_PRICES: ALL UNIT prices in one line (e.g., $3.80, $8.50, $4.20). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40. DO NOT output multiple blocks or multiple LINE_ITEM_DESCRIPTIONS lines."
   focus_instruction: "Extract ALL items in COMMA-SEPARATED format. One line for ALL descriptions, one line for ALL quantities, one line for ALL prices. THREE LINES TOTAL OUTPUT."
 
 temporal_data:
   expertise_frame: "Extract ALL date information from the document."
-  cognitive_context: "INVOICE_DATE: when document was created. DUE_DATE: payment deadline. STATEMENT_PERIOD: date range for statements (usually NOT_FOUND for invoices). Use the exact date format shown in the document."
-  focus_instruction: "Extract all dates exactly as formatted in the document. Most invoices won't have a statement period."
+  cognitive_context: "CRITICAL: Look for INVOICE_DATE (document issue date), DUE_DATE (payment due date), and STATEMENT_DATE_RANGE (statement period for bank statements). Dates may be in formats like DD/MM/YYYY, DD-MM-YYYY, or written out. Statement periods may be like 'May 2025' or '01/05/2025 to 31/05/2025'."
+  focus_instruction: "Extract all date fields. Look carefully for invoice dates, due dates, and statement periods. Convert to consistent format."
 
 banking_payment:
-  expertise_frame: "Extract banking details if present (usually limited on invoices)."
-  cognitive_context: "CRITICAL EXAMPLES: BANK_NAME = 'Commonwealth Bank' (YES) vs 'MASTERCARD' (NO - payment card). BANK_ACCOUNT_NUMBER = '123-456-789' (YES) vs 'A122286' (NO - reference code). BSB_NUMBER must be 6 digits like '063140' (NOT the 11-digit ABN). INVOICES RARELY HAVE BANK DETAILS - if you see payment card logos or short reference codes, use NOT_FOUND."
-  focus_instruction: "EXAMPLES TO REJECT: MASTERCARD, VISA, AMEX are payment cards NOT banks. Short codes like A122286 are reference numbers NOT bank accounts. When in doubt, use NOT_FOUND."
+  expertise_frame: "Extract banking and payment processing information."
+  cognitive_context: "CRITICAL: Look for BANK_NAME (financial institution), BANK_BSB_NUMBER (6-digit Bank State Branch code), BANK_ACCOUNT_NUMBER (account number), and BANK_ACCOUNT_HOLDER (account holder name). BSB is NOT the same as ABN. BSB is 6 digits, ABN is 11 digits. Banking details are typically found on bank statements, not invoices."
+  focus_instruction: "Extract banking details if present. BSB: EXACTLY 6 digits. Account numbers vary in length. Bank name is the financial institution, NOT the business name."
 
-document_metadata:
-  expertise_frame: "Identify document type and any account balance information."
-  cognitive_context: "DOCUMENT_TYPE: Look for exact text like 'TAX INVOICE' at the top of document (extract the full phrase). CRITICAL: OPENING_BALANCE and CLOSING_BALANCE are ONLY for bank statements showing account balances. NEVER extract invoice amounts like $5.33, $58.62 as balances - these are GST/totals, NOT account balances. If document type is INVOICE or RECEIPT, balances are always NOT_FOUND."
-  focus_instruction: "CRITICAL: If document is INVOICE/RECEIPT (not BANK STATEMENT), then OPENING_BALANCE and CLOSING_BALANCE must be NOT_FOUND. Do NOT confuse GST amounts or totals with account balances."
-
-# Format rules (same for all groups):
-format_rules:
-  - "CRITICAL: NO MARKDOWN! Use plain text only: KEY: value"
-  - "Use exactly: KEY: value (colon and space)"
-  - "NEVER use asterisks: NO **KEY:** NO **KEY** NO *KEY* NO KEY:"
-  - "Plain text only - NO markdown, NO bold, NO italic, NO asterisks"
-  - "Include ALL fields even if NOT_FOUND"
-  - "Extract ONLY what you can see in the document"
-  - "Do NOT guess, calculate, or make up values"
-  - "Use NOT_FOUND if field is not visible or not applicable"
-  - "Output ONLY these lines, nothing else"
-  - "For lists: use COMMA-SEPARATED values on ONE LINE per field"
-  - "DO NOT output the same field name multiple times"
+document_balances:
+  expertise_frame: "Extract document classification and account balance information."
+  cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. ACCOUNT_OPENING_BALANCE and ACCOUNT_CLOSING_BALANCE are ONLY for bank statements - NOT invoices or receipts. Opening balance is the starting amount, closing balance is the ending amount. These are different from TOTAL_AMOUNT on invoices."
+  focus_instruction: "Identify document type. Extract account balances ONLY if this is a bank statement. Do NOT confuse invoice totals with account balances."
 
 # Notes:
-# - These prompts include "CRITICAL" instructions that work well for Llama
-# - InternVL3 performs better with simplified versions (see current grouped_extraction.py)
-# - The key difference is Llama can handle detailed, prescriptive instructions
-# - InternVL3 gets confused by too many "CRITICAL" warnings and long contexts
+# - STANDARDIZED FIELD NAMES with consistent prefixing
+# - BUSINESS_ prefix for business entity fields
+# - PAYER_ prefix for customer information
+# - BANK_ prefix for banking information  
+# - LINE_ITEM_ prefix for transaction details
+# - ACCOUNT_ prefix for balance information
+# - _AMOUNT suffix for all monetary values
+# - Maintains cognitive load optimization and performance characteristics
