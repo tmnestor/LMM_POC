@@ -23,13 +23,13 @@ temporal_data:
 
 banking_payment:
   expertise_frame: "Extract banking details if present (usually limited on invoices)."
-  cognitive_context: "CRITICAL: BANK_NAME must be a real bank like Commonwealth Bank, ANZ, NAB, Westpac, etc. NOT payment card brands (Visa/Mastercard/Amex) or supplier names. BSB_NUMBER: 6-digit bank code (NOT the 11-digit ABN). BANK_ACCOUNT_NUMBER: bank account for deposits (NOT reference numbers or card numbers). Most invoices have NO banking details - use NOT_FOUND unless you see actual bank account information for payments."
-  focus_instruction: "Extract banking information ONLY if real bank details are visible. Most fields will be NOT_FOUND on invoices. Payment card references are NOT bank details. If unsure, use NOT_FOUND."
+  cognitive_context: "CRITICAL EXAMPLES: BANK_NAME = 'Commonwealth Bank' (YES) vs 'MASTERCARD' (NO - payment card). BANK_ACCOUNT_NUMBER = '123-456-789' (YES) vs 'A122286' (NO - reference code). BSB_NUMBER must be 6 digits like '063140' (NOT the 11-digit ABN). INVOICES RARELY HAVE BANK DETAILS - if you see payment card logos or short reference codes, use NOT_FOUND."
+  focus_instruction: "EXAMPLES TO REJECT: MASTERCARD, VISA, AMEX are payment cards NOT banks. Short codes like A122286 are reference numbers NOT bank accounts. When in doubt, use NOT_FOUND."
 
 document_metadata:
   expertise_frame: "Identify document type and any account balance information."
-  cognitive_context: "DOCUMENT_TYPE: Look for exact text on document - 'TAX INVOICE', 'INVOICE', 'RECEIPT', 'BANK STATEMENT', or 'STATEMENT'. Extract the EXACT phrase if shown (e.g., if it says 'TAX INVOICE' at the top, use 'TAX INVOICE' not just 'invoice'). OPENING/CLOSING_BALANCE: ONLY for bank statements showing account balances. These are NOT the same as subtotal/total/GST amounts."
-  focus_instruction: "Extract the EXACT document type text shown on the document (e.g., 'TAX INVOICE' not 'invoice'). For balances: ONLY extract if this is a bank statement. Invoice totals are NOT closing balances."
+  cognitive_context: "DOCUMENT_TYPE: Look for exact text like 'TAX INVOICE' at the top of document (extract the full phrase). CRITICAL: OPENING_BALANCE and CLOSING_BALANCE are ONLY for bank statements showing account balances. NEVER extract invoice amounts like $5.33, $58.62 as balances - these are GST/totals, NOT account balances. If document type is INVOICE or RECEIPT, balances are always NOT_FOUND."
+  focus_instruction: "CRITICAL: If document is INVOICE/RECEIPT (not BANK STATEMENT), then OPENING_BALANCE and CLOSING_BALANCE must be NOT_FOUND. Do NOT confuse GST amounts or totals with account balances."
 
 # Format rules (same for all groups):
 format_rules:
