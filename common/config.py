@@ -315,7 +315,7 @@ def switch_model(model_type: str, model_name: str):
         print(f"✅ Switched to {model_name}")
         print(f"   Path: {INTERNVL3_MODEL_PATH}")
         if ENV_INTERNVL3_MODEL_PATH:
-            print(f"   (Environment override active: INTERNVL3_MODEL_PATH)")
+            print("   (Environment override active: INTERNVL3_MODEL_PATH)")
     elif model_type == "llama":
         CURRENT_LLAMA_MODEL = model_name
         if not ENV_LLAMA_MODEL_PATH:  # Only update if no env var override
@@ -323,7 +323,7 @@ def switch_model(model_type: str, model_name: str):
         print(f"✅ Switched to {model_name}")
         print(f"   Path: {LLAMA_MODEL_PATH}")
         if ENV_LLAMA_MODEL_PATH:
-            print(f"   (Environment override active: LLAMA_MODEL_PATH)")
+            print("   (Environment override active: LLAMA_MODEL_PATH)")
 
 
 def switch_deployment(deployment: str):
