@@ -490,6 +490,23 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
     
     # Total statistics calculated
     
+    # Calculate best and worst performing images
+    if detailed_results:
+        best_result = max(detailed_results, key=lambda x: x["overall_accuracy"])
+        worst_result = min(detailed_results, key=lambda x: x["overall_accuracy"])
+        perfect_documents = sum(1 for r in detailed_results if r["overall_accuracy"] >= 0.99)
+        
+        best_performing_image = best_result["image_name"]
+        best_performance_accuracy = best_result["overall_accuracy"]
+        worst_performing_image = worst_result["image_name"]
+        worst_performance_accuracy = worst_result["overall_accuracy"]
+    else:
+        best_performing_image = "None"
+        best_performance_accuracy = 0.0
+        worst_performing_image = "None" 
+        worst_performance_accuracy = 0.0
+        perfect_documents = 0
+    
     # Generate summary report
     evaluation_summary = {
         "overall_accuracy": overall_accuracy,
@@ -499,6 +516,11 @@ def evaluate_extraction_results(extraction_results: List[Dict], ground_truth_map
         "detailed_results": detailed_results,
         "images_evaluated": len(detailed_results),
         "total_images": len(detailed_results),  # Add this for reporting compatibility
+        "best_performing_image": best_performing_image,
+        "best_performance_accuracy": best_performance_accuracy,
+        "worst_performing_image": worst_performing_image,
+        "worst_performance_accuracy": worst_performance_accuracy,
+        "perfect_documents": perfect_documents,
         "summary_stats": {
             "best_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"], reverse=True)[:5],
             "worst_fields": sorted(field_summary.items(), key=lambda x: x[1]["accuracy"])[:5],
