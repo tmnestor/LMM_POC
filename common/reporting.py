@@ -648,7 +648,6 @@ def analyze_group_performance(evaluation_summary, extraction_results=None):
                 "accuracy": sum(group_scores) / len(group_scores),
                 "field_count": len(group_scores),
                 "total_fields": len(group_fields),
-                "priority": group_config["priority"],
                 "description": group_config["description"],
                 "best_field": max(
                     group_fields, key=lambda f: field_accuracies.get(f, 0)
@@ -661,8 +660,8 @@ def analyze_group_performance(evaluation_summary, extraction_results=None):
                 else 0,
             }
 
-    # Sort groups by priority for reporting
-    sorted_groups = sorted(group_accuracies.items(), key=lambda x: x[1]["priority"])
+    # Sort groups by name for consistent reporting order
+    sorted_groups = sorted(group_accuracies.items())
 
     # Analyze group metadata if available from grouped extraction
     group_timing = {}
@@ -748,7 +747,7 @@ def generate_group_performance_report(group_analysis, model_name):
         )
 
         report += f"""### {status} {FIELD_GROUPS[group_name]["name"]} ({stats["accuracy"]:.1%})
-- **Priority**: {stats["priority"]} | **Coverage**: {stats["coverage"]:.1%}
+- **Coverage**: {stats["coverage"]:.1%}
 - **Description**: {stats["description"]}
 - **Fields**: {stats["field_count"]}/{stats["total_fields"]} processed
 - **Best Field**: {stats["best_field"]} | **Challenging**: {stats["worst_field"]}

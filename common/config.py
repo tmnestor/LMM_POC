@@ -509,10 +509,8 @@ GROUPING_STRATEGIES = {
 DEFAULT_GROUPING_STRATEGY = "detailed_grouped"  # 8-group detailed extraction
 FIELD_GROUPS = FIELD_GROUPS_DETAILED  # Backward compatibility
 
-# Group processing order (by priority)
-GROUP_PROCESSING_ORDER = sorted(
-    FIELD_GROUPS.keys(), key=lambda x: FIELD_GROUPS[x]["priority"]
-)
+# Group processing order (semantic order from schema)
+GROUP_PROCESSING_ORDER = list(FIELD_GROUPS.keys())
 
 # Adaptive mode thresholds
 ADAPTIVE_MODE_CONFIG = {
@@ -586,7 +584,6 @@ def get_extraction_groups_summary():
         summary[group_name] = {
             "name": config["name"],
             "field_count": len(config["fields"]),
-            "priority": config["priority"],
             "fields": config["fields"],
         }
     return summary

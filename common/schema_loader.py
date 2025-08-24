@@ -236,7 +236,6 @@ class FieldSchema:
         cognitive_groups["regulatory_financial"] = {
             "name": "Regulatory and Financial Core",
             "fields": regulatory_fields,
-            "priority": 1,
             "max_tokens": 400,
             "temperature": 0.0,
             "description": "Core business validation and primary financial amounts",
@@ -248,7 +247,6 @@ class FieldSchema:
         cognitive_groups["entity_contacts"] = {
             "name": "Entity Contact Information",
             "fields": entity_fields,
-            "priority": 2,
             "max_tokens": 600,
             "temperature": 0.0,
             "description": "All contact information for involved parties",
@@ -259,7 +257,6 @@ class FieldSchema:
         cognitive_groups["transaction_details"] = {
             "name": "Transaction Line Items",
             "fields": self.get_fields_by_group("item_details"),
-            "priority": 3,
             "max_tokens": 500,
             "temperature": 0.0,
             "description": "Detailed line item transaction data",
@@ -270,7 +267,6 @@ class FieldSchema:
         cognitive_groups["temporal_data"] = {
             "name": "Temporal Information", 
             "fields": self.get_fields_by_group("dates"),
-            "priority": 4,
             "max_tokens": 350,
             "temperature": 0.0,
             "description": "All date and time-related information",
@@ -281,7 +277,6 @@ class FieldSchema:
         cognitive_groups["banking_payment"] = {
             "name": "Banking and Payment Details",
             "fields": self.get_fields_by_group("banking"),
-            "priority": 5,
             "max_tokens": 400,
             "temperature": 0.0,
             "description": "Financial institution and payment processing information",
@@ -296,7 +291,6 @@ class FieldSchema:
         cognitive_groups["document_metadata"] = {
             "name": "Document Context and Balances",
             "fields": metadata_fields + balance_fields,
-            "priority": 6,
             "max_tokens": 350,
             "temperature": 0.0,
             "description": "Document classification and account balance information",

@@ -607,10 +607,8 @@ STOP after the last field. Do not add explanations or comments."""
 
         # Determine which groups to process
         if groups_to_process is None:
-            # Create processing order based on current field groups
-            groups_to_process = sorted(
-                self.field_groups.keys(), key=lambda x: self.field_groups[x]["priority"]
-            )
+            # Use semantic order from schema (groups already in optimal order)
+            groups_to_process = list(self.field_groups.keys())
 
         if self.debug:
             print(
@@ -619,7 +617,7 @@ STOP after the last field. Do not add explanations or comments."""
 
         group_results = []
 
-        # Process each group in priority order
+        # Process each group in semantic order
         for group_name in groups_to_process:
             if group_name not in self.field_groups:
                 if self.debug:
