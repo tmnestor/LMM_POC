@@ -29,7 +29,7 @@ from .config import (
     DEPLOYMENT_READY_THRESHOLD,
     EXCELLENT_FIELD_THRESHOLD,
     EXTRACTION_FIELDS,
-    FIELD_DEFINITIONS,
+    FIELD_TYPES,
     GOOD_FIELD_THRESHOLD,
     PILOT_READY_THRESHOLD,
     POOR_FIELD_THRESHOLD,
@@ -87,18 +87,20 @@ class LMMVisualizer:
         )
 
     def _categorize_fields_by_importance(self) -> Dict[str, List[str]]:
-        """Categorize fields based on business importance from FIELD_DEFINITIONS."""
+        """Categorize fields based on data type for visualization grouping."""
         categories = {
-            "High Priority": [],  # Required fields
-            "Standard": [],  # Important but optional
-            "Supporting": [],  # Nice to have
+            "Financial": [],  # Monetary fields
+            "Identification": [],  # IDs and business info
+            "Supporting": [],  # Everything else
         }
 
-        for field_name, definition in FIELD_DEFINITIONS.items():
-            if definition.get("required", False):
-                categories["High Priority"].append(field_name)
-            elif definition["type"] in ["monetary", "date"]:
-                categories["Standard"].append(field_name)
+        for field_name in EXTRACTION_FIELDS:
+            field_type = FIELD_TYPES.get(field_name, "text")
+            if field_type == "monetary":
+                categories["Financial"].append(field_name)
+            elif field_type in ["numeric_id", "text"] and any(term in field_name.lower() 
+                    for term in ["abn", "business", "supplier", "name"]):
+                categories["Identification"].append(field_name)
             else:
                 categories["Supporting"].append(field_name)
 
