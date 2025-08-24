@@ -96,7 +96,7 @@ class FieldSchema:
             )
         
         # Validate each field has required properties
-        required_field_props = ["name", "type", "evaluation_logic", "group", "priority"]
+        required_field_props = ["name", "type", "evaluation_logic", "group"]
         for i, field in enumerate(self.schema["fields"]):
             missing_props = [prop for prop in required_field_props if prop not in field]
             if missing_props:
