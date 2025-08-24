@@ -126,32 +126,55 @@ model_prompt_templates:
 
 ## CLI Usage Examples
 
+### Available CLI Arguments
+
+#### InternVL3 Key-Value Extraction
+```bash
+python internvl3_keyvalue.py [-h] [--extraction-mode {single_pass,field_grouped,detailed_grouped,adaptive}] [--debug] [--limit-images LIMIT_IMAGES]
+
+Arguments:
+  --extraction-mode    Extraction strategy (default: detailed_grouped)
+                      • single_pass: All 25 fields in one model call
+                      • field_grouped: 6 logical groups (regulatory_financial, entity_contacts, etc.)
+                      • detailed_grouped: 8 focused groups (critical, monetary, dates, etc.)  
+                      • adaptive: Dynamic strategy selection based on document
+  --debug             Enable debug output and detailed logging
+  --limit-images N    Process only first N images (useful for testing)
+```
+
+#### Llama Key-Value Extraction
+```bash
+python llama_keyvalue.py [-h] [--extraction-mode {single_pass,field_grouped,detailed_grouped,adaptive}] [--debug] [--limit-images LIMIT_IMAGES]
+
+Arguments: (Same as InternVL3)
+```
+
 ### 1. Single Document Processing
 
-#### Llama-3.2-Vision Single-Pass
+#### InternVL3 Field-Grouped (6 logical groups)
 ```bash
-# Generate and use single-pass prompt for Llama
-python llama_keyvalue.py \
-  --strategy single_pass \
-  --limit 1 \
-  --debug
-```
-
-#### InternVL3 Grouped Extraction
-```bash
-# Use field_grouped strategy (6 groups)
+# Use field_grouped extraction (regulatory_financial, entity_contacts, etc.)
 python internvl3_keyvalue.py \
-  --strategy field_grouped \
-  --limit 1 \
+  --extraction-mode field_grouped \
+  --limit-images 1 \
   --debug
 ```
 
-#### InternVL3 Detailed Grouped
+#### InternVL3 Detailed-Grouped (8 focused groups - Production)
+```bash
+# Use detailed_grouped extraction (critical, monetary, dates, etc.)
+python internvl3_keyvalue.py \
+  --extraction-mode detailed_grouped \
+  --limit-images 1 \
+  --debug
+```
+
+#### InternVL3 Single-Pass Extraction
 ```bash  
-# Use detailed_grouped strategy (8 groups) - Current default
+# Use single-pass extraction (all fields at once)
 python internvl3_keyvalue.py \
-  --strategy detailed_grouped \
-  --limit 1 \
+  --extraction-mode single_pass \
+  --limit-images 1 \
   --debug
 ```
 
@@ -159,20 +182,17 @@ python internvl3_keyvalue.py \
 
 #### Full Dataset Evaluation
 ```bash
-# Process all 20 evaluation images
-python internvl3_keyvalue.py \
-  --strategy field_grouped \
-  --data_dir /path/to/evaluation_data \
-  --output_dir /path/to/output \
-  --ground_truth /path/to/ground_truth.csv
+# Process all 20 evaluation images with production strategy (detailed_grouped default)
+python internvl3_keyvalue.py --debug
 ```
 
-#### Performance Comparison
+#### Strategy Performance Comparison
 ```bash
-# Compare strategies on same dataset
-python internvl3_keyvalue.py --strategy single_pass --limit 5 --debug
-python internvl3_keyvalue.py --strategy field_grouped --limit 5 --debug  
-python internvl3_keyvalue.py --strategy detailed_grouped --limit 5 --debug
+# Compare all extraction strategies on same dataset
+python internvl3_keyvalue.py --extraction-mode single_pass --limit-images 5 --debug
+python internvl3_keyvalue.py --extraction-mode field_grouped --limit-images 5 --debug  
+python internvl3_keyvalue.py --extraction-mode detailed_grouped --limit-images 5 --debug
+python internvl3_keyvalue.py --extraction-mode adaptive --limit-images 5 --debug
 ```
 
 ### 3. Development and Testing
@@ -363,14 +383,13 @@ print(f'Prompt length: {len(prompt)} characters')
 
 #### Batch Processing Optimization
 ```bash
-# Optimize for batch processing
+# Optimize for batch processing with field_grouped strategy
 export PYTHONPATH=/path/to/LMM_POC:$PYTHONPATH
 export CUDA_VISIBLE_DEVICES=0
 python internvl3_keyvalue.py \
-  --strategy detailed_grouped \
-  --batch_size 1 \
-  --limit 10 \
-  --output_dir /tmp/batch_test
+  --extraction-mode field_grouped \
+  --limit-images 10 \
+  --debug
 ```
 
 ## Migration Notes

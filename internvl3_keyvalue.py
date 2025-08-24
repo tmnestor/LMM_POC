@@ -96,9 +96,11 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python internvl3_keyvalue.py --extraction-mode grouped --debug
-  python internvl3_keyvalue.py --extraction-mode adaptive
-  python internvl3_keyvalue.py --extraction-mode single_pass
+  python internvl3_keyvalue.py                                                # Use detailed_grouped (default)
+  python internvl3_keyvalue.py --extraction-mode single_pass --debug         # All 25 fields at once
+  python internvl3_keyvalue.py --extraction-mode field_grouped --debug       # 6 logical groups
+  python internvl3_keyvalue.py --extraction-mode detailed_grouped --debug    # 8 focused groups (production)
+  python internvl3_keyvalue.py --extraction-mode adaptive --debug            # Dynamic strategy selection
         """,
     )
 
@@ -106,7 +108,11 @@ Examples:
         "--extraction-mode",
         choices=EXTRACTION_MODES,
         default=DEFAULT_EXTRACTION_MODE,
-        help=f"Extraction strategy to use (default: {DEFAULT_EXTRACTION_MODE})",
+        help=f"""Extraction strategy to use (default: {DEFAULT_EXTRACTION_MODE})
+        • single_pass: All 25 fields in one model call
+        • field_grouped: 6 logical groups (regulatory_financial, entity_contacts, etc.)
+        • detailed_grouped: 8 focused groups (critical, monetary, dates, etc.) 
+        • adaptive: Dynamic strategy selection based on document""",
     )
 
     parser.add_argument(

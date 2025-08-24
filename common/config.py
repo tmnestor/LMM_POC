@@ -489,8 +489,8 @@ TEXT_FIELDS = _schema.get_fields_by_type("text")
 # ============================================================================
 
 # Extraction modes for different strategies
-EXTRACTION_MODES = ["single_pass", "grouped", "adaptive"]
-DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
+EXTRACTION_MODES = ["single_pass", "field_grouped", "detailed_grouped", "adaptive"]
+DEFAULT_EXTRACTION_MODE = "detailed_grouped"  # Production default
 
 # Field groups for grouped extraction strategy
 # Based on research showing improved accuracy with focused field extraction
