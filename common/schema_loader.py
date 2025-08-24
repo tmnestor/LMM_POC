@@ -525,11 +525,25 @@ class FieldSchema:
         if "opening_text" in template:
             prompt_parts.append(template["opening_text"])
 
+        # Output instruction (InternVL3)
+        if "output_instruction" in template:
+            prompt_parts.append(template["output_instruction"])
+
+        # Missing value instruction (InternVL3)
+        if "missing_value_instruction" in template:
+            prompt_parts.append(template["missing_value_instruction"])
+
         # Critical instructions for Llama
         if "critical_instructions" in template:
             prompt_parts.append("\nCRITICAL INSTRUCTIONS:")
             for instruction in template["critical_instructions"]:
                 prompt_parts.append(f"- {instruction}")
+
+        # Anti-assumption rules (InternVL3)
+        if "anti_assumption_rules" in template:
+            prompt_parts.append("\nKEY RULES:")
+            for rule in template["anti_assumption_rules"]:
+                prompt_parts.append(f"- {rule}")
 
         # Output format
         if "output_format" in template:
