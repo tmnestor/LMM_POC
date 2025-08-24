@@ -770,7 +770,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             # Memory cleanup before processing
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
-            if self.extraction_mode == "grouped":
+            if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"]:
                 # Use grouped extraction strategy
                 extracted_data, metadata = (
                     self.extraction_strategy.extract_fields_grouped(
@@ -787,7 +787,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     )
                 )
             else:
-                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
+                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
 
             # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
@@ -914,7 +914,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         }
 
         # Add group processing statistics if in grouped mode
-        if self.extraction_mode == "grouped" and self.extraction_strategy:
+        if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"] and self.extraction_strategy:
             batch_statistics["total_groups_processed"] = (
                 self.extraction_strategy.stats.get("total_groups_processed", 0)
             )

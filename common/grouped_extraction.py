@@ -396,7 +396,7 @@ class GroupedExtractionStrategy:
         Returns:
             bool: True if grouped extraction should be used
         """
-        if self.extraction_mode == "grouped":
+        if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"]:
             return True
         elif self.extraction_mode == "single_pass":
             return False
@@ -405,7 +405,7 @@ class GroupedExtractionStrategy:
             # In future, could analyze image complexity
             return True
         else:
-            raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
+            raise ValueError(f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
 
     def process_group(
         self, group_name: str, extract_function, image_path: str, max_retries: int = 2
