@@ -15,6 +15,7 @@ import pandas as pd
 from .config import (
     EXTRACTION_FIELDS,
 )
+from .schema_loader import get_global_schema
 
 
 def parse_extraction_response(response_text: str, clean_conversation_artifacts: bool = False) -> Dict[str, str]:
@@ -35,8 +36,16 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
     Returns:
         dict: Parsed key-value pairs with all expected fields
     """
+    # Get expected fields dynamically from schema instead of hardcoded list
+    try:
+        schema = get_global_schema()
+        expected_fields = schema.field_names
+    except Exception:
+        # Fallback to config-based fields if schema fails
+        expected_fields = EXTRACTION_FIELDS
+    
     if not response_text:
-        return {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
+        return {field: "NOT_FOUND" for field in expected_fields}
 
     # Clean Llama-specific conversation artifacts if requested
     if clean_conversation_artifacts:
@@ -59,7 +68,7 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             )
 
     # Initialize with NOT_FOUND for all fields
-    extracted_data = {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
+    extracted_data = {field: "NOT_FOUND" for field in expected_fields}
 
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")
@@ -89,11 +98,11 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             value = parts[1].strip()
 
             # Store if it's an expected field
-            if key in EXTRACTION_FIELDS:
+            if key in expected_fields:
                 extracted_data_first[key] = value if value else "NOT_FOUND"
     
     # If first pass got most fields, use it (this preserves Llama's performance)
-    if len(extracted_data_first) >= len(EXTRACTION_FIELDS) * 0.5:  # Got at least 50% of fields
+    if len(extracted_data_first) >= len(expected_fields) * 0.5:  # Got at least 50% of fields
         extracted_data.update(extracted_data_first)
     else:
         # Second pass: Handle multi-line markdown format (fallback for problematic InternVL3 output)

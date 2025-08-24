@@ -18,6 +18,7 @@ from .config import (
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
 )
+from .schema_loader import get_global_schema
 from .extraction_parser import parse_extraction_response
 
 
@@ -142,38 +143,32 @@ class GroupedExtractionStrategy:
         self.debug = debug
         self.model_name = model_name
         
-        # For field_grouped strategy, model_name is required for model-specific optimization
-        if grouping_strategy == "field_grouped" and model_name is None:
-            raise ValueError(
-                "❌ FATAL: model_name is required for field_grouped strategy\n"
-                "💡 Provide model_name='llama' or model_name='internvl3' for model-specific optimization"
-            )
+        # Initialize schema for dynamic field discovery and prompt generation
+        self.schema = get_global_schema()
         
-        # Load model-specific prompts for field_grouped strategy
-        self.model_prompts = None
-        if grouping_strategy == "field_grouped" and model_name:
-            try:
-                self.model_prompts = load_model_prompts(model_name, grouping_strategy)
+        if self.debug:
+            print(f"✅ Initialized schema-driven grouped extraction with {self.schema.total_fields} fields")
+        
+        # Load field groups dynamically from schema instead of hardcoded config
+        try:
+            strategy_config = self.schema.get_grouping_strategy(grouping_strategy)
+            self.field_groups = strategy_config["group_configs"]
+            
+            if self.debug:
+                print(f"🎯 Using schema-driven {grouping_strategy} strategy with {len(self.field_groups)} groups")
+                
+        except Exception as e:
+            # Fallback to config-based groups if schema loading fails
+            if self.debug:
+                print(f"⚠️ Schema group loading failed, falling back to config: {e}")
+            if grouping_strategy in GROUPING_STRATEGIES:
+                self.field_groups = GROUPING_STRATEGIES[grouping_strategy]
                 if self.debug:
-                    print(f"✅ Loaded {model_name} model-specific prompts for {grouping_strategy}")
-            except Exception as e:
-                # Re-raise with context about initialization failure
-                raise type(e)(
-                    f"❌ FATAL: Failed to initialize GroupedExtractionStrategy with {model_name} prompts\n"
-                    f"Original error: {str(e)}"
-                ) from e
-
-        # Load appropriate field groups based on strategy
-        if grouping_strategy in GROUPING_STRATEGIES:
-            self.field_groups = GROUPING_STRATEGIES[grouping_strategy]
-            if self.debug:
-                print(
-                    f"🎯 Using {grouping_strategy} extraction strategy with {len(self.field_groups)} groups"
-                )
-        else:
-            self.field_groups = FIELD_GROUPS  # Fallback to default
-            if self.debug:
-                print(f"⚠️ Unknown strategy '{grouping_strategy}', using default groups")
+                    print(f"🔄 Using fallback {grouping_strategy} strategy with {len(self.field_groups)} groups")
+            else:
+                self.field_groups = FIELD_GROUPS  # Fallback to default
+                if self.debug:
+                    print(f"⚠️ Unknown strategy '{grouping_strategy}', using default groups")
         self.stats = {
             "total_groups_processed": 0,
             "successful_groups": 0,
@@ -226,79 +221,25 @@ class GroupedExtractionStrategy:
         Based on cognitive science research showing grouped field extraction outperforms
         single-pass when properly implemented with domain context and reasoning.
         
-        For field_grouped strategy, uses model-specific prompts loaded from YAML configurations
-        optimized for each model's strengths (Llama: detailed, InternVL3: simplified).
+        Now uses schema-driven dynamic prompt generation instead of hardcoded YAML files.
         """
         
-        # Use model-specific prompts for field_grouped strategy
-        if self.grouping_strategy == "field_grouped" and self.model_prompts and group_name in self.model_prompts:
-            model_config = self.model_prompts[group_name]
-            expertise_frame = model_config["expertise_frame"]
-            cognitive_context = model_config["cognitive_context"]  
-            focus_instruction = model_config["focus_instruction"]
-        
-        # Fallback to hardcoded prompts for detailed_grouped and other strategies
-        elif group_name == "critical":
-            expertise_frame = (
-                """Extract critical document identifiers and financial totals."""
-            )
-            cognitive_context = """These are the essential document validation fields: regulatory ID (ABN) and total amount."""
-            focus_instruction = (
-                "Extract the business number and total amount from this document."
-            )
-
-        elif group_name == "monetary":
-            expertise_frame = """Extract financial amounts and tax information."""
-            cognitive_context = """These are monetary values: GST (tax amount), subtotal (pre-tax amount), opening/closing balances (from bank statements only). Do NOT confuse TOTAL with CLOSING_BALANCE."""
-            focus_instruction = "Extract tax amounts and subtotals. Account balances are only for bank statements, not invoices."
-
-        elif group_name == "dates":
-            expertise_frame = """Extract dates and time-related information."""
-            cognitive_context = """These are date fields: invoice date, due date, and statement period."""
-            focus_instruction = "Extract all dates from this document."
-
-        elif group_name == "business_entity":
-            expertise_frame = """Extract business and supplier information."""
-            cognitive_context = """These identify the business: supplier name, address, phone, and website."""
-            focus_instruction = (
-                "Extract business contact information and identification details."
-            )
-
-        elif group_name == "payer_info":
-            expertise_frame = """Extract customer and payer information."""
-            cognitive_context = """These identify the customer: payer name, address, email, and phone."""
-            focus_instruction = (
-                "Extract customer contact information and identification details."
-            )
-
-        elif group_name == "banking":
-            expertise_frame = """Extract banking and payment information."""
-            cognitive_context = """IMPORTANT: These fields are typically NOT_FOUND for invoices/receipts. Only extract if this is a bank statement. BSB is a 6-digit number (NOT the 11-digit ABN). Bank name is a financial institution (NOT the supplier)."""
-            focus_instruction = "Extract bank account information ONLY if this is a bank statement. If this is an invoice/receipt, most banking fields should be NOT_FOUND."
-
-        elif group_name == "item_details":
-            expertise_frame = """Extract transaction line items and pricing."""
-            cognitive_context = """These are item details: descriptions (what was bought), quantities (how many), and individual unit prices (NOT calculated totals). Extract exactly what appears on the document."""
-            focus_instruction = "Extract the exact item descriptions, quantities, and unit prices as shown on the document. Do NOT calculate, multiply, or derive prices. Use only the unit prices visible in the document."
-
-        elif group_name == "metadata":
-            expertise_frame = """Extract document type and classification."""
-            cognitive_context = """This identifies the document category: invoice, receipt, or statement."""
-            focus_instruction = "Identify the document type from this business document. Output ONLY the document type field, nothing else."
-
-        else:
-            # For field_grouped strategy, all prompts should come from YAML
-            if self.grouping_strategy == "field_grouped":
-                raise ValueError(
-                    f"❌ FATAL: No prompt configuration found for group '{group_name}' in field_grouped strategy\n"
-                    f"💡 Check {self.model_name}_prompts.yaml contains configuration for '{group_name}'\n"
-                    f"💡 Required groups: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances"
-                )
+        # Try to get group metadata from schema first
+        try:
+            group_metadata = self.schema.get_group_config(group_name)
+            expertise_frame = group_metadata.get("description", f"Extract {group_name} information.")
+            cognitive_context = group_metadata.get("cognitive_focus", f"Process {group_name} fields systematically.")
+            focus_instruction = f"Extract the following {len(fields)} fields: {', '.join(fields)}"
             
-            # Fallback for unhandled groups in other strategies
-            expertise_frame = f"""You are a business document expert specializing in {group_config["description"].lower()}."""
-            cognitive_context = f"""Focus on {group_config["description"].lower()} to provide accurate field extraction."""
-            focus_instruction = f"Focus on extracting fields related to {group_config['description'].lower()}."
+            if self.debug:
+                print(f"✅ Using schema-driven prompt for group '{group_name}'")
+                
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Schema prompt generation failed for '{group_name}', using fallback: {e}")
+            
+            # Generate dynamic fallback prompts based on group name patterns
+            expertise_frame, cognitive_context, focus_instruction = self._generate_fallback_prompts(group_name, fields)
 
         # Build the streamlined task-focused prompt with context hints
         prompt = f"""TASK: {expertise_frame}
@@ -334,6 +275,51 @@ FORMAT RULES:
 STOP after the last field. Do not add explanations or comments."""
 
         return prompt
+    
+    def _generate_fallback_prompts(self, group_name: str, fields: list) -> tuple:
+        """
+        Generate dynamic fallback prompts based on group name patterns when schema fails.
+        
+        Args:
+            group_name (str): Name of the field group
+            fields (list): List of fields in the group
+            
+        Returns:
+            tuple: (expertise_frame, cognitive_context, focus_instruction)
+        """
+        # Pattern-based dynamic prompt generation
+        if "monetary" in group_name.lower() or "financial" in group_name.lower():
+            expertise_frame = "Extract financial amounts and monetary information."
+            cognitive_context = f"Focus on financial values from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = "Extract monetary amounts, being careful to distinguish between different types of financial values."
+            
+        elif "date" in group_name.lower() or "temporal" in group_name.lower():
+            expertise_frame = "Extract dates and time-related information."
+            cognitive_context = f"Focus on temporal data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = "Extract all date-related information from this document."
+            
+        elif "entity" in group_name.lower() or "business" in group_name.lower() or "supplier" in group_name.lower():
+            expertise_frame = "Extract business and entity information."
+            cognitive_context = f"Focus on business identification from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = "Extract business contact and identification details."
+            
+        elif "bank" in group_name.lower() or "payment" in group_name.lower():
+            expertise_frame = "Extract banking and payment information."
+            cognitive_context = f"Focus on financial account data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = "Extract banking information only if this is a bank statement."
+            
+        elif "item" in group_name.lower() or "transaction" in group_name.lower():
+            expertise_frame = "Extract transaction items and line details."
+            cognitive_context = f"Focus on item-level data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = "Extract item descriptions, quantities, and individual prices as shown."
+            
+        else:
+            # Generic fallback
+            expertise_frame = f"Extract {group_name.replace('_', ' ')} information."
+            cognitive_context = f"Process {len(fields)} fields systematically: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
+            focus_instruction = f"Extract all relevant information for {group_name.replace('_', ' ')} fields."
+            
+        return expertise_frame, cognitive_context, focus_instruction
 
     def validate_group_results(
         self, group_name: str, extracted_data: Dict[str, str]
