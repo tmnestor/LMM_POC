@@ -416,15 +416,15 @@ class FieldSchema:
         if strategy == "single_pass":
             return strategy_templates
 
-        # For field_grouped, need group_name
-        elif strategy == "field_grouped":
+        # For grouped strategies, need group_name
+        elif strategy in ["field_grouped", "detailed_grouped"]:
             if group_name is None:
-                raise ValueError("group_name is required for field_grouped strategy")
+                raise ValueError(f"group_name is required for {strategy} strategy")
 
             if group_name not in strategy_templates:
                 available_groups = list(strategy_templates.keys())
                 raise ValueError(
-                    f"Group '{group_name}' not found in field_grouped templates for '{model_name}'. "
+                    f"Group '{group_name}' not found in {strategy} templates for '{model_name}'. "
                     f"Available groups: {available_groups}"
                 )
 
@@ -452,11 +452,12 @@ class FieldSchema:
                 "groups": {},
             }
 
-            # Add group information for field_grouped strategy
-            if "field_grouped" in model_templates:
-                result[model_name]["groups"]["field_grouped"] = list(
-                    model_templates["field_grouped"].keys()
-                )
+            # Add group information for grouped strategies
+            for grouped_strategy in ["field_grouped", "detailed_grouped"]:
+                if grouped_strategy in model_templates:
+                    result[model_name]["groups"][grouped_strategy] = list(
+                        model_templates[grouped_strategy].keys()
+                    )
 
         return result
 
@@ -510,7 +511,7 @@ class FieldSchema:
         # Generate prompt based on strategy
         if strategy == "single_pass":
             return self._generate_single_pass_prompt(template, fields, field_count)
-        elif strategy == "field_grouped":
+        elif strategy in ["field_grouped", "detailed_grouped"]:
             return self._generate_grouped_prompt(template, fields, field_count)
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
