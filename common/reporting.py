@@ -90,7 +90,7 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
         executive_summary += "No fields achieved ≥90% accuracy\n"
 
     executive_summary += """
-### Challenging Fields (Requires Attention)
+### Fields Below 90% Accuracy
 """
 
     challenging_fields = [
@@ -101,51 +101,34 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     for i, (field, accuracy) in enumerate(challenging_fields, 1):
         executive_summary += f"{i}. {field:<25} {accuracy['accuracy']:.1%}\n"
 
-    # Production readiness assessment
+    # Simple accuracy threshold classification
     if summary_stats["overall_accuracy"] >= DEPLOYMENT_READY_THRESHOLD:
-        grade = "A+ (Excellent)"
-        status = "✅ **READY FOR PRODUCTION:** Model demonstrates excellent accuracy and consistency"
+        threshold_category = f"Above {DEPLOYMENT_READY_THRESHOLD:.0%} threshold"
     elif summary_stats["overall_accuracy"] >= PILOT_READY_THRESHOLD:
-        grade = "A (Good)"
-        status = "✅ **READY FOR PILOT:** Model shows good performance with minor limitations"
-    elif summary_stats["overall_accuracy"] >= 0.7:
-        grade = "B (Fair)"
-        status = (
-            "⚠️ **REQUIRES OPTIMIZATION:** Consider fine-tuning or prompt engineering"
-        )
+        threshold_category = f"Above {PILOT_READY_THRESHOLD:.0%} threshold"
     else:
-        grade = "C (Needs Improvement)"
-        status = (
-            "❌ **NOT READY FOR PRODUCTION:** Significant accuracy improvements needed"
-        )
+        threshold_category = f"Below {PILOT_READY_THRESHOLD:.0%} threshold"
 
     executive_summary += f"""
-**Overall Grade:** {grade}
 
-## Production Readiness Assessment
+## Accuracy Threshold
 
-{status}
+**Category:** {threshold_category}
 
 ## Document Quality Distribution
 - Perfect Documents (≥99%): {perfect_docs} ({perfect_docs / summary_stats["total_images"] * 100:.1f}%)
-- Good Documents (80-98%): {good_docs} ({good_docs / summary_stats["total_images"] * 100:.1f}%)  
-- Fair Documents (60-79%): {fair_docs} ({fair_docs / summary_stats["total_images"] * 100:.1f}%)
-- Poor Documents (<60%): {poor_docs} ({poor_docs / summary_stats["total_images"] * 100:.1f}%)
+- Documents 80-98%: {good_docs} ({good_docs / summary_stats["total_images"] * 100:.1f}%)  
+- Documents 60-79%: {fair_docs} ({fair_docs / summary_stats["total_images"] * 100:.1f}%)
+- Documents <60%: {poor_docs} ({poor_docs / summary_stats["total_images"] * 100:.1f}%)
 
-## Recommendations
+## Next Steps
 
-### Immediate Actions
-{"1. ✅ DEPLOY TO PRODUCTION - Model ready for automated processing" if summary_stats["overall_accuracy"] >= DEPLOYMENT_READY_THRESHOLD else "1. ⚠️ PILOT DEPLOYMENT - Test with subset of documents" if summary_stats["overall_accuracy"] >= PILOT_READY_THRESHOLD else "1. 🔧 OPTIMIZATION REQUIRED - Improve model before deployment"}
-2. 📋 Establish monitoring dashboards for accuracy tracking
-3. 🎯 Focus improvement efforts on challenging fields: {", ".join([f[0] for f in challenging_fields[:3]])}
-
-### Strategic Initiatives  
-- 🔄 Implement continuous evaluation pipeline
-- 📊 Expand ground truth dataset for challenging document types
-- ⚡ Optimize inference pipeline for production scale
+1. Review field-level accuracy metrics
+2. Analyze error patterns in challenging fields
+3. Consider threshold requirements for use case
 
 ---
-📊 {model_full_name} achieved {summary_stats["overall_accuracy"]:.1%} average accuracy
+{model_full_name} achieved {summary_stats["overall_accuracy"]:.1%} average accuracy
 """
 
     return executive_summary
@@ -202,15 +185,17 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
 - Track accuracy for critical fields: {", ".join(excellent_fields[:5])}
 - Monitor challenging fields: {", ".join([f[0] for f in challenging_fields[:3]])}
 
-## Deployment Strategy
+## Performance Metrics
 
-{"✅ **APPROVED FOR PRODUCTION DEPLOYMENT**" if summary_stats["overall_accuracy"] >= PILOT_READY_THRESHOLD else "⚠️ **PILOT DEPLOYMENT RECOMMENDED**" if summary_stats["overall_accuracy"] >= 0.7 else "🔧 **OPTIMIZATION REQUIRED BEFORE DEPLOYMENT**"}
+### Accuracy Distribution
+- Overall: {summary_stats["overall_accuracy"]:.1%}
+- Best Document: {summary_stats["best_performance_accuracy"]:.1%}
+- Worst Document: {summary_stats["worst_performance_accuracy"]:.1%}
 
-### Next Steps
-1. {"✅ Deploy to production environment" if summary_stats["overall_accuracy"] >= PILOT_READY_THRESHOLD else "🧪 Run pilot with subset of documents" if summary_stats["overall_accuracy"] >= 0.7 else "🔧 Optimize model performance"}
-2. 📊 Implement real-time accuracy monitoring
-3. 🔄 Establish continuous evaluation pipeline
-4. 📋 Create operational runbooks and troubleshooting guides
+### Implementation Considerations
+1. Review accuracy against business requirements
+2. Consider error handling for low-confidence extractions
+3. Plan monitoring and evaluation processes
 
 ## Operational Requirements
 
@@ -622,13 +607,7 @@ def print_evaluation_summary(evaluation_summary, model_full_name):
     for i, (field, accuracy) in enumerate(sorted_fields[:5], 1):
         print(f"   {i}. {field:<25} {accuracy['accuracy']:.1%}")
 
-    # Production readiness
-    if evaluation_summary["overall_accuracy"] >= DEPLOYMENT_READY_THRESHOLD:
-        print("\n✅ MODEL IS READY FOR PRODUCTION DEPLOYMENT")
-    elif evaluation_summary["overall_accuracy"] >= PILOT_READY_THRESHOLD:
-        print("\n⚠️ MODEL IS READY FOR PILOT TESTING")
-    else:
-        print("\n❌ MODEL REQUIRES FURTHER OPTIMIZATION")
+    # No editorial commentary - let metrics speak for themselves
 
 
 def analyze_group_performance(evaluation_summary, extraction_results=None):
@@ -702,21 +681,21 @@ def analyze_group_performance(evaluation_summary, extraction_results=None):
         "group_accuracies": dict(sorted_groups),
         "group_timing": avg_group_timing,
         "total_groups": len(group_accuracies),
-        "excellent_groups": len(
+        "groups_above_90": len(
             [
                 g
                 for g in group_accuracies.values()
                 if g["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
             ]
         ),
-        "good_groups": len(
+        "groups_80_to_89": len(
             [
                 g
                 for g in group_accuracies.values()
                 if 0.8 <= g["accuracy"] < EXCELLENT_FIELD_THRESHOLD
             ]
         ),
-        "poor_groups": len(
+        "groups_below_50": len(
             [g for g in group_accuracies.values() if g["accuracy"] < 0.5]
         ),
         "average_group_accuracy": sum(g["accuracy"] for g in group_accuracies.values())
@@ -744,9 +723,9 @@ def generate_group_performance_report(group_analysis, model_name):
 
 ## Group Extraction Summary
 - **Total Groups**: {group_analysis["total_groups"]}
-- **Excellent Groups** (≥90%): {group_analysis["excellent_groups"]}
-- **Good Groups** (80-89%): {group_analysis["good_groups"]}
-- **Poor Groups** (<50%): {group_analysis["poor_groups"]}
+- **Groups ≥90%**: {group_analysis["groups_above_90"]}
+- **Groups 80-89%**: {group_analysis["groups_80_to_89"]}
+- **Groups <50%**: {group_analysis["groups_below_50"]}
 - **Average Group Accuracy**: {group_analysis["average_group_accuracy"]:.1%}
 
 ## Group-by-Group Performance
@@ -776,27 +755,22 @@ def generate_group_performance_report(group_analysis, model_name):
 
         report += "\n"
 
-    report += """## Optimization Recommendations
+    report += """## Performance Analysis
 
 """
 
-    # Add recommendations based on group performance
-    poor_groups = [
+    # Group performance notes
+    low_accuracy_groups = [
         name
         for name, stats in group_analysis["group_accuracies"].items()
         if stats["accuracy"] < 0.5
     ]
-    if poor_groups:
-        report += (
-            f"1. **Priority Focus**: Improve extraction for {', '.join(poor_groups)}\n"
-        )
+    if low_accuracy_groups:
+        report += f"- Groups below 50% accuracy: {', '.join(low_accuracy_groups)}\n"
 
     critical_group = group_analysis["group_accuracies"].get("critical", {})
     if critical_group and critical_group.get("accuracy", 1.0) < 0.9:
-        report += "2. **Critical Fields**: Focus on ABN and TOTAL accuracy for business validation\n"
-
-    report += "3. **Group Optimization**: Consider adjusting prompt templates for underperforming groups\n"
-    report += "4. **Processing Efficiency**: Monitor group timing for bottleneck identification\n"
+        report += f"- Critical group accuracy: {critical_group.get('accuracy', 0):.1%}\n"
 
     return report
 
@@ -818,7 +792,7 @@ def print_group_performance_summary(group_analysis, model_name):
 
     print(f"📈 Groups Processed: {group_analysis['total_groups']}")
     print(
-        f"⭐ Excellent Groups: {group_analysis['excellent_groups']} | Good: {group_analysis['good_groups']} | Poor: {group_analysis['poor_groups']}"
+        f"Groups ≥90%: {group_analysis['groups_above_90']} | 80-89%: {group_analysis['groups_80_to_89']} | <50%: {group_analysis['groups_below_50']}"
     )
     print(f"🎯 Average Group Accuracy: {group_analysis['average_group_accuracy']:.1%}")
 
