@@ -1,0 +1,333 @@
+"""
+Field Schema Loader - Single Source of Truth for Field Definitions
+
+This module provides dynamic field configuration loading from field_schema.yaml,
+eliminating hardcoded field names throughout the codebase and ensuring consistency.
+"""
+
+from pathlib import Path
+from typing import Any, Dict, List
+
+import yaml
+
+
+class FieldSchema:
+    """
+    Single source of truth for all field definitions.
+    
+    Dynamically loads field configurations from field_schema.yaml and provides
+    methods to generate all required configurations for the extraction pipeline.
+    """
+    
+    def __init__(self, schema_file: str = "field_schema.yaml"):
+        """
+        Initialize the field schema loader.
+        
+        Args:
+            schema_file (str): Path to schema YAML file relative to common/ directory
+        """
+        self.schema_file = schema_file
+        self.schema = self._load_schema()
+        self._validate_schema()
+        
+        # Cache computed properties for performance
+        self._field_names_cache = None
+        self._field_metadata_cache = {}
+        self._group_configs_cache = {}
+    
+    def _load_schema(self) -> dict:
+        """Load schema from YAML file with comprehensive error handling."""
+        try:
+            # Find schema file relative to this module
+            schema_path = Path(__file__).parent / self.schema_file
+            
+            if not schema_path.exists():
+                raise FileNotFoundError(
+                    f"❌ FATAL: Schema file not found: {schema_path}\n"
+                    f"💡 Cannot proceed without field schema\n"
+                    f"💡 Ensure {self.schema_file} exists in common/ directory"
+                )
+            
+            with schema_path.open('r', encoding='utf-8') as f:
+                schema = yaml.safe_load(f)
+                
+            if not isinstance(schema, dict):
+                raise ValueError(
+                    f"❌ FATAL: Invalid schema structure in {self.schema_file}\n"
+                    f"💡 Expected dictionary at root level"
+                )
+                
+            return schema
+            
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"❌ FATAL: Invalid YAML in {self.schema_file}: {e}\n"
+                f"💡 Check YAML syntax and structure"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"❌ FATAL: Schema loading failed: {e}\n"
+                f"💡 Cannot proceed without field definitions"
+            ) from e
+    
+    def _validate_schema(self):
+        """Validate schema structure and required sections."""
+        required_sections = ["fields", "groups", "grouping_strategies"]
+        missing_sections = []
+        
+        for section in required_sections:
+            if section not in self.schema:
+                missing_sections.append(section)
+        
+        if missing_sections:
+            raise ValueError(
+                f"❌ FATAL: Missing required sections in schema: {missing_sections}\n"
+                f"💡 Schema must contain: {required_sections}"
+            )
+        
+        # Validate fields structure
+        if not isinstance(self.schema["fields"], list):
+            raise ValueError("❌ FATAL: 'fields' must be a list")
+        
+        if len(self.schema["fields"]) != self.schema.get("total_fields", 25):
+            raise ValueError(
+                f"❌ FATAL: Field count mismatch. Expected {self.schema.get('total_fields', 25)}, "
+                f"got {len(self.schema['fields'])}"
+            )
+        
+        # Validate each field has required properties
+        required_field_props = ["name", "type", "evaluation_logic", "group", "priority"]
+        for i, field in enumerate(self.schema["fields"]):
+            missing_props = [prop for prop in required_field_props if prop not in field]
+            if missing_props:
+                raise ValueError(
+                    f"❌ FATAL: Field {i} missing required properties: {missing_props}\n"
+                    f"💡 Required properties: {required_field_props}"
+                )
+    
+    @property
+    def field_names(self) -> List[str]:
+        """Get ordered list of all field names from schema."""
+        if self._field_names_cache is None:
+            self._field_names_cache = [field["name"] for field in self.schema["fields"]]
+        return self._field_names_cache
+    
+    @property
+    def total_fields(self) -> int:
+        """Get total number of fields."""
+        return len(self.field_names)
+    
+    def get_field_metadata(self, field_name: str) -> dict:
+        """
+        Get complete metadata for a field.
+        
+        Args:
+            field_name (str): Name of the field
+            
+        Returns:
+            dict: Field metadata including type, evaluation_logic, etc.
+            
+        Raises:
+            ValueError: If field name not found
+        """
+        if field_name not in self._field_metadata_cache:
+            for field in self.schema["fields"]:
+                if field["name"] == field_name:
+                    self._field_metadata_cache[field_name] = field
+                    break
+            else:
+                raise ValueError(f"Unknown field name: {field_name}")
+        
+        return self._field_metadata_cache[field_name]
+    
+    def get_fields_by_type(self, field_type: str) -> List[str]:
+        """
+        Get all fields of specific type.
+        
+        Args:
+            field_type (str): Type of fields (monetary, text, date, etc.)
+            
+        Returns:
+            List[str]: List of field names of the specified type
+        """
+        return [
+            field["name"] for field in self.schema["fields"]
+            if field["type"] == field_type
+        ]
+    
+    def get_fields_by_group(self, group_name: str) -> List[str]:
+        """
+        Get all fields assigned to a specific group.
+        
+        Args:
+            group_name (str): Name of the group
+            
+        Returns:
+            List[str]: List of field names in the group
+        """
+        return [
+            field["name"] for field in self.schema["fields"]
+            if field["group"] == group_name
+        ]
+    
+    def get_required_fields(self) -> List[str]:
+        """Get list of required field names."""
+        return [
+            field["name"] for field in self.schema["fields"]
+            if field.get("required", False)
+        ]
+    
+    def get_group_config(self, group_name: str) -> dict:
+        """
+        Get group configuration with dynamically assigned fields.
+        
+        Args:
+            group_name (str): Name of the group
+            
+        Returns:
+            dict: Group configuration with fields list
+        """
+        if group_name not in self._group_configs_cache:
+            if group_name not in self.schema["groups"]:
+                raise ValueError(f"Unknown group name: {group_name}")
+            
+            # Get base group config
+            group_config = self.schema["groups"][group_name].copy()
+            
+            # Add dynamically generated fields list
+            group_config["fields"] = self.get_fields_by_group(group_name)
+            
+            self._group_configs_cache[group_name] = group_config
+        
+        return self._group_configs_cache[group_name]
+    
+    def get_grouping_strategy(self, strategy_name: str) -> dict:
+        """
+        Get complete grouping strategy configuration.
+        
+        Args:
+            strategy_name (str): Name of the strategy ('detailed_grouped', etc.)
+            
+        Returns:
+            dict: Strategy configuration with group configs
+        """
+        if strategy_name not in self.schema["grouping_strategies"]:
+            raise ValueError(f"Unknown grouping strategy: {strategy_name}")
+        
+        strategy = self.schema["grouping_strategies"][strategy_name].copy()
+        
+        # Generate complete group configurations
+        strategy_groups = {}
+        for group_name in strategy["groups"]:
+            strategy_groups[group_name] = self.get_group_config(group_name)
+        
+        strategy["group_configs"] = strategy_groups
+        return strategy
+    
+    def get_validation_rules(self, group_name: str) -> dict:
+        """
+        Get validation rules for a group.
+        
+        Args:
+            group_name (str): Name of the group
+            
+        Returns:
+            dict: Validation rules for the group
+        """
+        return self.schema.get("validation_rules", {}).get(group_name, {})
+    
+    def generate_field_types_mapping(self) -> Dict[str, str]:
+        """Generate field name to type mapping."""
+        return {
+            field["name"]: field["type"] 
+            for field in self.schema["fields"]
+        }
+    
+    def generate_field_descriptions_mapping(self) -> Dict[str, str]:
+        """Generate field name to description mapping."""
+        return {
+            field["name"]: field["description"] 
+            for field in self.schema["fields"]
+        }
+    
+    def generate_prompt_instructions(self) -> Dict[str, str]:
+        """Generate field name to instruction mapping for prompts."""
+        return {
+            field["name"]: field["instruction"] 
+            for field in self.schema["fields"]
+        }
+    
+    def get_semantic_field_order(self) -> List[str]:
+        """
+        Get field names in semantic order (as defined in schema).
+        This preserves the carefully designed field ordering for optimal model performance.
+        """
+        return self.field_names  # Already in semantic order from YAML
+    
+    def validate_field_completeness(self, extracted_fields: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Validate extracted fields against schema requirements.
+        
+        Args:
+            extracted_fields (dict): Extracted field data
+            
+        Returns:
+            dict: Validation results with metrics
+        """
+        expected_fields = set(self.field_names)
+        actual_fields = set(extracted_fields.keys())
+        
+        missing_fields = expected_fields - actual_fields
+        extra_fields = actual_fields - expected_fields
+        
+        # Check required fields
+        required_fields = set(self.get_required_fields())
+        missing_required = required_fields - actual_fields
+        
+        return {
+            "total_expected": len(expected_fields),
+            "total_extracted": len(actual_fields),
+            "missing_fields": list(missing_fields),
+            "extra_fields": list(extra_fields),
+            "missing_required": list(missing_required),
+            "completeness_ratio": len(actual_fields & expected_fields) / len(expected_fields),
+            "validation_passed": len(missing_required) == 0 and len(extra_fields) == 0
+        }
+    
+    def __repr__(self) -> str:
+        """String representation of schema."""
+        return (
+            f"FieldSchema(fields={self.total_fields}, "
+            f"groups={len(self.schema['groups'])}, "
+            f"version={self.schema.get('schema_version', 'unknown')})"
+        )
+
+
+# Global schema instance for backwards compatibility
+# This allows existing code to gradually migrate to explicit FieldSchema usage
+_global_schema = None
+
+def get_global_schema() -> FieldSchema:
+    """Get or create global schema instance."""
+    global _global_schema
+    if _global_schema is None:
+        _global_schema = FieldSchema()
+    return _global_schema
+
+
+# Convenience functions for common operations
+def get_extraction_fields() -> List[str]:
+    """Get ordered list of extraction field names."""
+    return get_global_schema().field_names
+
+def get_field_count() -> int:
+    """Get total field count."""
+    return get_global_schema().total_fields
+
+def get_field_types() -> Dict[str, str]:
+    """Get field name to type mapping."""
+    return get_global_schema().generate_field_types_mapping()
+
+def get_field_descriptions() -> Dict[str, str]:
+    """Get field name to description mapping."""
+    return get_global_schema().generate_field_descriptions_mapping()

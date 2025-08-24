@@ -9,10 +9,8 @@ NOTE: Supports environment variables for flexible deployment configuration.
 """
 
 import os
-from pathlib import Path
-from typing import List
 
-import yaml
+from .schema_loader import get_global_schema
 
 # ============================================================================
 # MODEL CONFIGURATIONS - PRIMARY HIERARCHY
@@ -439,68 +437,8 @@ def show_current_config():
 
 
 # ============================================================================
-# YAML-FIRST FIELD DISCOVERY
+# DYNAMIC SCHEMA-BASED FIELD DISCOVERY
 # ============================================================================
-
-def discover_fields_from_yaml(yaml_file: str = "llama_single_pass_prompts.yaml") -> List[str]:
-    """
-    Discover extraction fields from YAML configuration files.
-    
-    This implements YAML-first field discovery to achieve single source of truth.
-    The YAML files define which fields exist, eliminating duplication.
-    
-    Args:
-        yaml_file (str): Primary YAML file to discover fields from
-        
-    Returns:
-        List[str]: Ordered list of extraction field names
-        
-    Raises:
-        FileNotFoundError: If YAML file is missing
-        ValueError: If YAML structure is invalid
-    """
-    try:
-        project_root = Path(__file__).parent.parent
-        yaml_path = project_root / yaml_file
-        
-        if not yaml_path.exists():
-            raise FileNotFoundError(
-                f"❌ FATAL: Primary YAML file not found: {yaml_path}\n"
-                f"💡 Cannot discover fields without YAML configuration\n"
-                f"💡 Ensure {yaml_file} exists with field_instructions section"
-            )
-        
-        with yaml_path.open('r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        # Extract fields from single_pass configuration
-        single_pass_config = config.get("single_pass", {})
-        field_instructions = single_pass_config.get("field_instructions", {})
-        
-        if not field_instructions:
-            raise ValueError(
-                f"❌ FATAL: No field_instructions found in {yaml_file}\n"
-                f"💡 Expected structure: single_pass -> field_instructions -> {{field: instruction}}\n"
-                f"💡 Check YAML file structure and content"
-            )
-        
-        # Return field names - will be reordered after SEMANTIC_FIELD_ORDER is defined
-        field_list = list(field_instructions.keys())
-        
-        print(f"✅ Discovered {len(field_list)} fields from {yaml_file}")
-        return field_list
-        
-    except yaml.YAMLError as e:
-        raise ValueError(
-            f"❌ FATAL: Invalid YAML in {yaml_file}: {e}\n"
-            f"💡 Check YAML syntax and structure"
-        ) from e
-    except Exception as e:
-        raise RuntimeError(
-            f"❌ FATAL: Field discovery failed: {e}\n"
-            f"💡 Cannot proceed without field definitions from YAML"
-        ) from e
-
 
 # ============================================================================
 # FIELD METADATA - OPTIONAL OVERRIDES ONLY
@@ -673,10 +611,11 @@ FIELD_DEFINITIONS = {
 # DERIVED CONFIGURATIONS - AUTO-GENERATED FROM FIELD_DEFINITIONS
 # ============================================================================
 
-# YAML defines the fields and their order. We use it directly.
-EXTRACTION_FIELDS = discover_fields_from_yaml("llama_single_pass_prompts.yaml")
-FIELD_COUNT = len(EXTRACTION_FIELDS)
-print(f"🎯 Using {FIELD_COUNT} fields in YAML order: {EXTRACTION_FIELDS[0]} → {EXTRACTION_FIELDS[-1]}")
+# Schema defines the fields and their order. We use it directly.
+_schema = get_global_schema()
+EXTRACTION_FIELDS = _schema.field_names
+FIELD_COUNT = _schema.total_fields
+print(f"🎯 Using {FIELD_COUNT} fields from schema: {EXTRACTION_FIELDS[0]} → {EXTRACTION_FIELDS[-1]}")
 
 # FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
 
@@ -767,78 +706,9 @@ DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
 # Field groups for grouped extraction strategy
 # Based on research showing improved accuracy with focused field extraction
 
-# Detailed grouped strategy - 8 groups (proven stable)
-FIELD_GROUPS_DETAILED = {
-    "critical": {
-        "name": "Critical Business Identifiers",
-        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
-        "priority": 1,
-        "max_tokens": 300,
-        "temperature": 0.0,  # Deterministic for critical fields
-        "description": "Most important fields for business validation",
-    },
-    "monetary": {
-        "name": "Monetary Values",
-        "fields": ["GST_AMOUNT", "SUBTOTAL_AMOUNT", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
-        "priority": 2,
-        "max_tokens": 400,
-        "temperature": 0.0,
-        "description": "Financial amounts and calculations",
-    },
-    "dates": {
-        "name": "Date Information",
-        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
-        "priority": 3,
-        "max_tokens": 350,
-        "temperature": 0.0,
-        "description": "Temporal information and date fields",
-    },
-    "business_entity": {
-        "name": "Business Entity Details",
-        "fields": [
-            "SUPPLIER_NAME",
-            "BUSINESS_ADDRESS",
-            "BUSINESS_PHONE",
-            "SUPPLIER_WEBSITE",
-        ],
-        "priority": 4,
-        "max_tokens": 450,
-        "temperature": 0.0,
-        "description": "Seller/provider information",
-    },
-    "payer_info": {
-        "name": "Payer Information",
-        "fields": ["PAYER_NAME", "PAYER_ADDRESS", "PAYER_EMAIL", "PAYER_PHONE"],
-        "priority": 5,
-        "max_tokens": 450,
-        "temperature": 0.0,
-        "description": "Buyer/customer information",
-    },
-    "banking": {
-        "name": "Banking Details",
-        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
-        "priority": 6,
-        "max_tokens": 400,
-        "temperature": 0.0,
-        "description": "Financial institution information",
-    },
-    "item_details": {
-        "name": "Item and Line Details",
-        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
-        "priority": 7,
-        "max_tokens": 500,
-        "temperature": 0.0,
-        "description": "Line item information requiring list processing",
-    },
-    "metadata": {
-        "name": "Document Metadata",
-        "fields": ["DOCUMENT_TYPE"],
-        "priority": 8,
-        "max_tokens": 250,
-        "temperature": 0.0,
-        "description": "Document classification and type",
-    },
-}
+# Generate detailed grouped strategy dynamically from schema
+_detailed_strategy = _schema.get_grouping_strategy("detailed_grouped")
+FIELD_GROUPS_DETAILED = _detailed_strategy["group_configs"]
 
 # Field-grouped strategy - 6 groups (2024 cognitive optimization)
 # Based on Azure Document Intelligence v4.0 and cognitive load research
