@@ -9,7 +9,7 @@ def test_dynamic_field_groups():
     print("🧪 Testing Dynamic Field Groups...")
     
     try:
-        from common.config import FIELD_GROUPS_DETAILED, FIELD_GROUPS_COGNITIVE
+        from common.config import FIELD_GROUPS_COGNITIVE, FIELD_GROUPS_DETAILED
         
         print(f"✅ FIELD_GROUPS_DETAILED loaded: {len(FIELD_GROUPS_DETAILED)} groups")
         print(f"✅ FIELD_GROUPS_COGNITIVE loaded: {len(FIELD_GROUPS_COGNITIVE)} groups")
@@ -42,7 +42,13 @@ def test_dynamic_field_types():
     print("\n🧪 Testing Dynamic Field Types...")
     
     try:
-        from common.config import MONETARY_FIELDS, DATE_FIELDS, NUMERIC_ID_FIELDS, LIST_FIELDS, TEXT_FIELDS
+        from common.config import (
+            DATE_FIELDS,
+            LIST_FIELDS,
+            MONETARY_FIELDS,
+            NUMERIC_ID_FIELDS,
+            TEXT_FIELDS,
+        )
         
         print(f"✅ MONETARY_FIELDS: {len(MONETARY_FIELDS)} fields")
         print(f"✅ DATE_FIELDS: {len(DATE_FIELDS)} fields") 
@@ -74,7 +80,7 @@ def test_schema_field_consistency():
     print("\n🧪 Testing Schema-Config Consistency...")
     
     try:
-        from common.config import EXTRACTION_FIELDS, FIELD_TYPES, FIELD_DESCRIPTIONS
+        from common.config import EXTRACTION_FIELDS, FIELD_DESCRIPTIONS, FIELD_TYPES
         from common.schema_loader import get_global_schema
         
         schema = get_global_schema()
