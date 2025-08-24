@@ -447,6 +447,48 @@ model_prompt_templates:
         cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE and CLOSING_BALANCE are ONLY for bank statements - NOT invoices or receipts. Opening balance is the starting amount, closing balance is the ending amount. These are different from TOTAL_AMOUNT on invoices."
         focus_instruction: "Identify document type. Extract account balances ONLY if this is a bank statement. Do NOT confuse invoice totals with account balances."
     
+    # Grouped extraction prompts for detailed_grouped strategy (8 groups)
+    detailed_grouped:
+      critical:
+        expertise_frame: "Extract the most critical business identifiers: ABN and total amount."
+        cognitive_context: "BUSINESS_ABN is an 11-digit Australian Business Number. TOTAL_AMOUNT is the final amount due. These are the most important fields for document validation."
+        focus_instruction: "Extract BUSINESS_ABN (exactly 11 digits) and TOTAL_AMOUNT with exact decimal places. CRITICAL: Only extract values clearly visible - do NOT guess or calculate."
+      
+      monetary:
+        expertise_frame: "Extract all monetary values and financial amounts."
+        cognitive_context: "GST_AMOUNT is tax (usually ~10% of subtotal). SUBTOTAL_AMOUNT is pre-tax. OPENING_BALANCE and CLOSING_BALANCE are for bank statements only."
+        focus_instruction: "Extract all dollar amounts with exact decimal places. Watch for OCR errors in digits. Do NOT calculate missing values."
+      
+      dates:
+        expertise_frame: "Extract all temporal information and dates."
+        cognitive_context: "INVOICE_DATE is document issue date. DUE_DATE is payment deadline. STATEMENT_PERIOD is for bank statements (e.g., 'May 2025')."
+        focus_instruction: "Extract all dates in consistent format. Look for various date formats (DD/MM/YYYY, DD-MM-YYYY, written out)."
+      
+      business_entity:
+        expertise_frame: "Extract supplier/business entity information."
+        cognitive_context: "SUPPLIER_NAME is the business name. BUSINESS_ADDRESS is their location. BUSINESS_PHONE is contact number. SUPPLIER_WEBSITE is their web address."
+        focus_instruction: "Extract all supplier details. Australian postcodes are 4 digits. Phone numbers are 10 digits with area code."
+      
+      payer_info:
+        expertise_frame: "Extract customer/payer information."
+        cognitive_context: "PAYER_NAME is the customer. PAYER_ADDRESS is their location. PAYER_PHONE and PAYER_EMAIL are their contact details."
+        focus_instruction: "Extract all payer/customer details. Be precise with addresses and contact information."
+      
+      banking:
+        expertise_frame: "Extract banking and payment information."
+        cognitive_context: "BANK_NAME is financial institution. BSB_NUMBER is 6-digit Bank State Branch. BANK_ACCOUNT_NUMBER varies in length. ACCOUNT_HOLDER is account name."
+        focus_instruction: "Extract banking details if present. BSB is exactly 6 digits (not ABN which is 11). Usually on bank statements."
+      
+      item_details:
+        expertise_frame: "Extract transaction line items and pricing."
+        cognitive_context: "DESCRIPTIONS are product names. QUANTITIES are amounts ordered. PRICES are UNIT prices (not line totals)."
+        focus_instruction: "Extract items as COMMA-SEPARATED lists. One line per field type (descriptions, quantities, prices)."
+      
+      metadata:
+        expertise_frame: "Extract document type and classification."
+        cognitive_context: "DOCUMENT_TYPE identifies if this is an invoice, receipt, or statement. Critical for determining which fields to expect."
+        focus_instruction: "Identify the document type accurately. This determines validation rules for other fields."
+    
     # Single-pass extraction prompt for comprehensive extraction
     single_pass:
       opening_text: "Extract key-value data from this business document image."
@@ -516,3 +558,45 @@ model_prompt_templates:
         expertise_frame: "Extract document type and balances."
         cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE/CLOSING_BALANCE only for bank statements, not invoices."
         focus_instruction: "Identify document type. Extract balances only if bank statement."
+    
+    # Grouped extraction prompts for detailed_grouped strategy (8 groups)
+    detailed_grouped:
+      critical:
+        expertise_frame: "Extract ABN and total amount."
+        cognitive_context: "BUSINESS_ABN (11 digits). TOTAL_AMOUNT (final due)."
+        focus_instruction: "Find ABN and total. Be exact with digits and decimals."
+      
+      monetary:
+        expertise_frame: "Extract monetary values."
+        cognitive_context: "GST_AMOUNT (tax). SUBTOTAL_AMOUNT (pre-tax). OPENING/CLOSING_BALANCE (statements only)."
+        focus_instruction: "Extract all amounts with exact decimals."
+      
+      dates:
+        expertise_frame: "Extract date information."
+        cognitive_context: "INVOICE_DATE, DUE_DATE, STATEMENT_PERIOD."
+        focus_instruction: "Find all dates. Use consistent format."
+      
+      business_entity:
+        expertise_frame: "Extract supplier information."
+        cognitive_context: "SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE, SUPPLIER_WEBSITE."
+        focus_instruction: "Extract supplier details. 4-digit postcodes, 10-digit phones."
+      
+      payer_info:
+        expertise_frame: "Extract customer information."
+        cognitive_context: "PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL."
+        focus_instruction: "Extract payer details accurately."
+      
+      banking:
+        expertise_frame: "Extract banking details."
+        cognitive_context: "BANK_NAME, BSB_NUMBER (6 digits), BANK_ACCOUNT_NUMBER, ACCOUNT_HOLDER."
+        focus_instruction: "Find banking info. BSB is 6 digits."
+      
+      item_details:
+        expertise_frame: "Extract line items."
+        cognitive_context: "DESCRIPTIONS, QUANTITIES, PRICES (unit prices)."
+        focus_instruction: "List items comma-separated, one line per field."
+      
+      metadata:
+        expertise_frame: "Extract document type."
+        cognitive_context: "DOCUMENT_TYPE (invoice/receipt/statement)."
+        focus_instruction: "Identify document type correctly."
