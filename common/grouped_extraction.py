@@ -251,7 +251,7 @@ class GroupedExtractionStrategy:
             try:
                 prompt = self.schema.generate_dynamic_prompt(
                     model_name=self.model_name,
-                    strategy="field_grouped",
+                    strategy=self.grouping_strategy,
                     group_name=group_name,
                     fields=fields,
                 )
@@ -274,8 +274,8 @@ class GroupedExtractionStrategy:
                     f"❌ FATAL: Schema-based prompt generation failed for group '{group_name}'\n"
                     f"💡 Root cause: {e}\n"
                     f"💡 Model: {self.model_name}\n"
-                    f"💡 Strategy: field_grouped\n"
-                    f"💡 Expected: model_prompt_templates.{self.model_name}.field_grouped.{group_name}\n"
+                    f"💡 Strategy: {self.grouping_strategy}\n"
+                    f"💡 Expected: model_prompt_templates.{self.model_name}.{self.grouping_strategy}.{group_name}\n"
                     f"💡 Fix: Ensure schema contains required model template\n"
                     f"💡 Available groups: Check schema model_prompt_templates section"
                 ) from e
