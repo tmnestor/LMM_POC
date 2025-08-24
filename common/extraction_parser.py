@@ -8,7 +8,7 @@ model output formats including markdown, plain text, and edge cases.
 
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import pandas as pd
 
@@ -184,6 +184,45 @@ def parse_extraction_response(
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data
+
+
+def validate_and_enhance_extraction(extracted_data: Dict[str, str], image_name: str = None) -> Dict[str, Any]:
+    """
+    Validate extracted data and add validation metadata.
+    
+    Args:
+        extracted_data: Raw extracted field data
+        image_name: Name of processed image (for error reporting)
+        
+    Returns:
+        Enhanced dictionary with validation results
+    """
+    from .field_validation import validate_extracted_fields
+    
+    # Run validation
+    validation_result = validate_extracted_fields(extracted_data)
+    
+    # Create enhanced result
+    enhanced_result = {
+        "extracted_data": extracted_data,
+        "validation": {
+            "is_valid": validation_result.is_valid,
+            "error_count": len(validation_result.errors),
+            "warning_count": len(validation_result.warnings),
+            "errors": validation_result.errors,
+            "warnings": validation_result.warnings,
+        }
+    }
+    
+    # Add corrected values if available
+    if validation_result.corrected_values:
+        enhanced_result["corrected_values"] = validation_result.corrected_values
+        
+    # Add image context for debugging
+    if image_name:
+        enhanced_result["image_name"] = image_name
+        
+    return enhanced_result
 
 
 def create_extraction_dataframe(results: List[Dict]) -> tuple:

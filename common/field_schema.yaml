@@ -375,6 +375,43 @@ validation_rules:
     min_confidence: 0.8
     allow_empty: true
 
+# Field interdependency rules for business logic validation
+interdependency_rules:
+  financial_consistency:
+    description: "SUBTOTAL + GST should equal TOTAL"
+    fields: ["SUBTOTAL_AMOUNT", "GST_AMOUNT", "TOTAL_AMOUNT"]
+    rule_type: "mathematical"
+    formula: "SUBTOTAL_AMOUNT + GST_AMOUNT = TOTAL_AMOUNT"
+    tolerance: 0.02  # 2 cent tolerance
+    severity: "error"
+    
+  line_item_consistency:
+    description: "Line item fields should have same count"
+    fields: ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]
+    rule_type: "count_match"
+    severity: "error"
+    
+  date_sequence:
+    description: "Due date should be after invoice date"
+    fields: ["INVOICE_DATE", "DUE_DATE"]
+    rule_type: "temporal_sequence"
+    severity: "warning"
+    
+  gst_percentage:
+    description: "GST should be ~10% of subtotal (Australian standard)"
+    fields: ["SUBTOTAL_AMOUNT", "GST_AMOUNT"]
+    rule_type: "percentage_range"
+    expected_percentage: 10.0
+    tolerance_range: [9.5, 10.5]
+    severity: "warning"
+    
+  invoice_required_fields:
+    description: "Invoice documents must have core fields"
+    condition: "DOCUMENT_TYPE contains 'INVOICE'"
+    required_fields: ["SUPPLIER_NAME", "TOTAL_AMOUNT", "INVOICE_DATE"]
+    rule_type: "conditional_required"
+    severity: "error"
+
 # Model-specific prompt templates for dynamic generation
 model_prompt_templates:
   llama:
