@@ -18,8 +18,8 @@ from .config import (
     GROUP_VALIDATION_RULES,
     GROUPING_STRATEGIES,
 )
-from .schema_loader import get_global_schema
 from .extraction_parser import parse_extraction_response
+from .schema_loader import get_global_schema
 
 
 def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, str]]:
