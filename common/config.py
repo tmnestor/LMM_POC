@@ -470,6 +470,7 @@ print(f"🎯 Using {FIELD_COUNT} fields from schema: {EXTRACTION_FIELDS[0]} → 
 # Generate field metadata and type groupings dynamically from schema
 FIELD_TYPES = _schema.generate_field_types_mapping()
 FIELD_DESCRIPTIONS = _schema.generate_field_descriptions_mapping()
+FIELD_INSTRUCTIONS = _schema.generate_prompt_instructions()
 
 # Field type groupings for evaluation logic (using schema)
 NUMERIC_ID_FIELDS = _schema.get_fields_by_type("numeric_id")
