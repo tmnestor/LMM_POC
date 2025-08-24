@@ -11,18 +11,14 @@ fields:
   - name: "DOCUMENT_TYPE"
     type: "text"
     evaluation_logic: "fuzzy_text_match"
-    required: false
     group: "metadata"
-    priority: 8
     description: "Type of business document"
     instruction: "[document type (invoice/receipt/statement) or NOT_FOUND]"
 
   - name: "BUSINESS_ABN"
     type: "numeric_id"
     evaluation_logic: "exact_numeric_match"
-    required: true
     group: "critical"
-    priority: 1
     description: "11-digit Australian Business Number"
     instruction: "[11-digit Australian Business Number or NOT_FOUND]"
 
@@ -31,7 +27,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "business_entity"
-    priority: 4
     description: "Supplier name"
     instruction: "[supplier name or NOT_FOUND]"
 
@@ -41,7 +36,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "business_entity"
-    priority: 4
     description: "Business address"
     instruction: "[business address or NOT_FOUND]"
 
@@ -50,7 +44,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "business_entity"
-    priority: 4
     description: "Business phone number"
     instruction: "[business phone number or NOT_FOUND]"
 
@@ -59,7 +52,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "business_entity"
-    priority: 4
     description: "Supplier website"
     instruction: "[supplier website or NOT_FOUND]"
 
@@ -69,7 +61,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "payer_info"
-    priority: 5
     description: "Payer name"
     instruction: "[payer name or NOT_FOUND]"
 
@@ -78,7 +69,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "payer_info"
-    priority: 5
     description: "Payer address"
     instruction: "[payer address or NOT_FOUND]"
 
@@ -87,7 +77,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "payer_info"
-    priority: 5
     description: "Payer phone number"
     instruction: "[payer phone number or NOT_FOUND]"
 
@@ -96,7 +85,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "payer_info"
-    priority: 5
     description: "Payer email address"
     instruction: "[payer email address or NOT_FOUND]"
 
@@ -106,7 +94,6 @@ fields:
     evaluation_logic: "flexible_date_match"
     required: false
     group: "dates"
-    priority: 3
     description: "Invoice date"
     instruction: "[invoice date or NOT_FOUND]"
 
@@ -115,7 +102,6 @@ fields:
     evaluation_logic: "flexible_date_match"
     required: false
     group: "dates"
-    priority: 3
     description: "Payment due date"
     instruction: "[payment due date or NOT_FOUND]"
 
@@ -124,7 +110,6 @@ fields:
     evaluation_logic: "flexible_date_match"
     required: false
     group: "dates"
-    priority: 3
     description: "Statement period or date range"
     instruction: "[statement period or date range or NOT_FOUND]"
 
@@ -134,7 +119,6 @@ fields:
     evaluation_logic: "list_overlap_match"
     required: false
     group: "item_details"
-    priority: 7
     description: "List of transaction descriptions"
     instruction: "[list of transaction descriptions or NOT_FOUND]"
 
@@ -143,7 +127,6 @@ fields:
     evaluation_logic: "list_overlap_match"
     required: false
     group: "item_details"
-    priority: 7
     description: "List of quantities"
     instruction: "[list of quantities or NOT_FOUND]"
 
@@ -152,7 +135,6 @@ fields:
     evaluation_logic: "list_overlap_match"
     required: false
     group: "item_details"
-    priority: 7
     description: "Individual prices in dollars"
     instruction: "[individual prices in dollars or NOT_FOUND]"
 
@@ -162,7 +144,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "banking"
-    priority: 6
     description: "Bank name (NOT supplier name)"
     instruction: "[bank name (NOT supplier name) or NOT_FOUND]"
 
@@ -171,7 +152,6 @@ fields:
     evaluation_logic: "exact_numeric_match"
     required: false
     group: "banking"
-    priority: 6
     description: "6-digit BSB (NOT ABN)"
     instruction: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
 
@@ -180,7 +160,6 @@ fields:
     evaluation_logic: "exact_numeric_match"
     required: false
     group: "banking"
-    priority: 6
     description: "Account number"
     instruction: "[account number or NOT_FOUND]"
 
@@ -189,7 +168,6 @@ fields:
     evaluation_logic: "fuzzy_text_match"
     required: false
     group: "banking"
-    priority: 6
     description: "Account holder name"
     instruction: "[account holder name or NOT_FOUND]"
 
@@ -198,7 +176,6 @@ fields:
     evaluation_logic: "monetary_with_tolerance"
     required: false
     group: "monetary"
-    priority: 2
     description: "Opening balance with 2 decimals from bank statements"
     instruction: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
 
@@ -207,7 +184,6 @@ fields:
     evaluation_logic: "monetary_with_tolerance"
     required: false
     group: "monetary"
-    priority: 2
     description: "Closing balance with 2 decimals (NOT total) from bank statements"
     instruction: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
 
@@ -217,7 +193,6 @@ fields:
     evaluation_logic: "monetary_with_tolerance"
     required: false
     group: "monetary"
-    priority: 2
     description: "Subtotal amount in dollars with 2 decimals"
     instruction: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
 
@@ -226,16 +201,13 @@ fields:
     evaluation_logic: "monetary_with_tolerance"
     required: false
     group: "monetary"
-    priority: 2
     description: "GST amount in dollars with 2 decimals"
     instruction: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
 
   - name: "TOTAL_AMOUNT"
     type: "monetary"
     evaluation_logic: "monetary_with_tolerance"
-    required: true
     group: "critical"
-    priority: 1
     description: "Total amount in dollars with 2 decimals"
     instruction: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
 
@@ -243,7 +215,6 @@ fields:
 groups:
   critical:
     name: "Critical Business Identifiers"
-    priority: 1
     max_tokens: 300
     temperature: 0.0
     description: "Most important fields for business validation"
@@ -251,7 +222,6 @@ groups:
 
   monetary:
     name: "Monetary Values"
-    priority: 2
     max_tokens: 400
     temperature: 0.0
     description: "Financial amounts and calculations"
@@ -259,7 +229,6 @@ groups:
 
   dates:
     name: "Date Information"
-    priority: 3
     max_tokens: 350
     temperature: 0.0
     description: "Temporal information and date fields"
@@ -267,7 +236,6 @@ groups:
 
   business_entity:
     name: "Business Entity Details"
-    priority: 4
     max_tokens: 450
     temperature: 0.0
     description: "Seller/provider information"
@@ -275,7 +243,6 @@ groups:
 
   payer_info:
     name: "Payer Information"
-    priority: 5
     max_tokens: 450
     temperature: 0.0
     description: "Buyer/customer information"
@@ -283,7 +250,6 @@ groups:
 
   banking:
     name: "Banking Details"
-    priority: 6
     max_tokens: 400
     temperature: 0.0
     description: "Financial institution information"
@@ -291,7 +257,6 @@ groups:
 
   item_details:
     name: "Item and Line Details"
-    priority: 7
     max_tokens: 500
     temperature: 0.0
     description: "Line item information requiring list processing"
@@ -299,7 +264,6 @@ groups:
 
   metadata:
     name: "Document Metadata"
-    priority: 8
     max_tokens: 250
     temperature: 0.0
     description: "Document classification and typing"
@@ -331,68 +295,53 @@ grouping_strategies:
       - banking_payment
       - document_metadata
 
-# Additional groups for field_grouped strategy
-additional_groups:
+# Cognitive grouping strategy groups - 6 groups combining related fields
   regulatory_financial:
     name: "Regulatory and Financial Core"
-    priority: 1
     max_tokens: 400
     temperature: 0.0
     description: "Core business validation and primary financial amounts"
     cognitive_focus: "Essential regulatory compliance and financial totals"
-    field_types: ["critical", "monetary"]  # Will include fields from these types
     
   entity_contacts:
     name: "Entity Contact Information"
-    priority: 2
     max_tokens: 600
     temperature: 0.0
     description: "All contact information for involved parties"
     cognitive_focus: "Who is involved - all participant identification"
-    field_groups: ["business_entity", "payer_info"]  # Will include fields from these groups
     
   transaction_details:
     name: "Transaction Line Items"
-    priority: 3
     max_tokens: 500
     temperature: 0.0
     description: "Detailed line item transaction data"
     cognitive_focus: "What was bought - item-level transaction details"
-    field_groups: ["item_details"]
     
   temporal_data:
     name: "Temporal Information"
-    priority: 4
     max_tokens: 350
     temperature: 0.0
     description: "All date and time-related information"
     cognitive_focus: "When - temporal context and deadlines"
-    field_groups: ["dates"]
     
   banking_payment:
     name: "Banking and Payment Details"
-    priority: 5
     max_tokens: 400
     temperature: 0.0
     description: "Financial institution and payment processing information"
     cognitive_focus: "How payment is processed - banking infrastructure"
-    field_groups: ["banking"]
     
   document_metadata:
     name: "Document Context and Balances"
-    priority: 6
     max_tokens: 350
     temperature: 0.0
     description: "Document classification and account balance information"
     cognitive_focus: "Document type and account state context"
-    field_groups: ["metadata"]
-    additional_field_types: ["monetary"]  # Include monetary fields not in critical
 
 # Validation rules per group
 validation_rules:
   critical:
     min_confidence: 0.9
-    required_fields: ["BUSINESS_ABN", "TOTAL_AMOUNT"]
     allow_empty: false
     validation_type: "critical"
 

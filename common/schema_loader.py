@@ -170,12 +170,9 @@ class FieldSchema:
             if field["group"] == group_name
         ]
     
-    def get_required_fields(self) -> List[str]:
-        """Get list of required field names."""
-        return [
-            field["name"] for field in self.schema["fields"]
-            if field.get("required", False)
-        ]
+    def get_all_fields(self) -> List[str]:
+        """Get list of all field names (all fields are required for extraction)."""
+        return self.field_names
     
     def get_group_config(self, group_name: str) -> dict:
         """
@@ -206,7 +203,7 @@ class FieldSchema:
         Get complete grouping strategy configuration.
         
         Args:
-            strategy_name (str): Name of the strategy ('detailed_grouped', etc.)
+            strategy_name (str): Name of the strategy ('detailed_grouped', 'field_grouped')
             
         Returns:
             dict: Strategy configuration with group configs
@@ -218,11 +215,95 @@ class FieldSchema:
         
         # Generate complete group configurations
         strategy_groups = {}
-        for group_name in strategy["groups"]:
-            strategy_groups[group_name] = self.get_group_config(group_name)
+        
+        if strategy_name == "field_grouped":
+            # For cognitive strategy, generate combined groups
+            strategy_groups = self._generate_cognitive_groups()
+        else:
+            # For other strategies, use direct group mapping
+            for group_name in strategy["groups"]:
+                strategy_groups[group_name] = self.get_group_config(group_name)
         
         strategy["group_configs"] = strategy_groups
         return strategy
+    
+    def _generate_cognitive_groups(self) -> dict:
+        """Generate cognitive grouping strategy groups dynamically."""
+        cognitive_groups = {}
+        
+        # Regulatory and Financial Core: critical + monetary fields
+        regulatory_fields = self.get_fields_by_group("critical") + self.get_fields_by_type("monetary")
+        cognitive_groups["regulatory_financial"] = {
+            "name": "Regulatory and Financial Core",
+            "fields": regulatory_fields,
+            "priority": 1,
+            "max_tokens": 400,
+            "temperature": 0.0,
+            "description": "Core business validation and primary financial amounts",
+            "cognitive_focus": "Essential regulatory compliance and financial totals"
+        }
+        
+        # Entity Contacts: business + payer info
+        entity_fields = self.get_fields_by_group("business_entity") + self.get_fields_by_group("payer_info")
+        cognitive_groups["entity_contacts"] = {
+            "name": "Entity Contact Information",
+            "fields": entity_fields,
+            "priority": 2,
+            "max_tokens": 600,
+            "temperature": 0.0,
+            "description": "All contact information for involved parties",
+            "cognitive_focus": "Who is involved - all participant identification"
+        }
+        
+        # Transaction Details: item details
+        cognitive_groups["transaction_details"] = {
+            "name": "Transaction Line Items",
+            "fields": self.get_fields_by_group("item_details"),
+            "priority": 3,
+            "max_tokens": 500,
+            "temperature": 0.0,
+            "description": "Detailed line item transaction data",
+            "cognitive_focus": "What was bought - item-level transaction details"
+        }
+        
+        # Temporal Data: dates
+        cognitive_groups["temporal_data"] = {
+            "name": "Temporal Information", 
+            "fields": self.get_fields_by_group("dates"),
+            "priority": 4,
+            "max_tokens": 350,
+            "temperature": 0.0,
+            "description": "All date and time-related information",
+            "cognitive_focus": "When - temporal context and deadlines"
+        }
+        
+        # Banking Payment: banking
+        cognitive_groups["banking_payment"] = {
+            "name": "Banking and Payment Details",
+            "fields": self.get_fields_by_group("banking"),
+            "priority": 5,
+            "max_tokens": 400,
+            "temperature": 0.0,
+            "description": "Financial institution and payment processing information",
+            "cognitive_focus": "How payment is processed - banking infrastructure"
+        }
+        
+        # Document Metadata: metadata + any remaining monetary fields
+        metadata_fields = self.get_fields_by_group("metadata")
+        # Add balance fields that aren't in critical group
+        balance_fields = [f for f in self.get_fields_by_type("monetary") 
+                         if "BALANCE" in f and f not in self.get_fields_by_group("critical")]
+        cognitive_groups["document_metadata"] = {
+            "name": "Document Context and Balances",
+            "fields": metadata_fields + balance_fields,
+            "priority": 6,
+            "max_tokens": 350,
+            "temperature": 0.0,
+            "description": "Document classification and account balance information",
+            "cognitive_focus": "Document type and account state context"
+        }
+        
+        return cognitive_groups
     
     def get_validation_rules(self, group_name: str) -> dict:
         """

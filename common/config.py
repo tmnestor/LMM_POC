@@ -444,162 +444,8 @@ def show_current_config():
 # FIELD METADATA - OPTIONAL OVERRIDES ONLY
 # ============================================================================
 
-# OPTIONAL: Only define fields that need special handling or non-default evaluation logic
-# Most fields will be auto-inferred from their names!
-# This is now truly optional - not required for all 25 fields!
-FIELD_DEFINITIONS = {
-    # Example: Only define fields that can't be auto-inferred correctly
-    "ABN": {
-        "type": "numeric_id",
-        "evaluation_logic": "exact_numeric_match",
-        "description": "Australian Business Number for tax identification",
-        "required": True,
-    },
-    "ACCOUNT_HOLDER": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Name of bank account holder",
-        "required": False,
-    },
-    "BANK_ACCOUNT_NUMBER": {
-        "type": "numeric_id",
-        "evaluation_logic": "exact_numeric_match",
-        "description": "Bank account number from statements",
-        "required": False,
-    },
-    "BANK_NAME": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Name of banking institution",
-        "required": False,
-    },
-    "BSB_NUMBER": {
-        "type": "numeric_id",
-        "evaluation_logic": "exact_numeric_match",
-        "description": "Bank State Branch routing number",
-        "required": False,
-    },
-    "BUSINESS_ADDRESS": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Physical address of business",
-        "required": False,
-    },
-    "BUSINESS_PHONE": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Business contact phone number",
-        "required": False,
-    },
-    "CLOSING_BALANCE": {
-        "type": "monetary",
-        "evaluation_logic": "monetary_with_tolerance",
-        "description": "Final balance on statement",
-        "required": False,
-    },
-    "DESCRIPTIONS": {
-        "type": "list",
-        "evaluation_logic": "list_overlap_match",
-        "description": "Transaction or item descriptions",
-        "required": False,
-    },
-    "DOCUMENT_TYPE": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Type of business document",
-        "required": False,
-    },
-    "DUE_DATE": {
-        "type": "date",
-        "evaluation_logic": "flexible_date_match",
-        "description": "Payment deadline",
-        "required": False,
-    },
-    "GST": {
-        "type": "monetary",
-        "evaluation_logic": "monetary_with_tolerance",
-        "description": "Goods and Services Tax amount",
-        "required": False,
-    },
-    "INVOICE_DATE": {
-        "type": "date",
-        "evaluation_logic": "flexible_date_match",
-        "description": "Date invoice was issued",
-        "required": False,
-    },
-    "OPENING_BALANCE": {
-        "type": "monetary",
-        "evaluation_logic": "monetary_with_tolerance",
-        "description": "Starting balance on statement",
-        "required": False,
-    },
-    "PAYER_ADDRESS": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Address of person/entity making payment",
-        "required": False,
-    },
-    "PAYER_EMAIL": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Email address of payer",
-        "required": False,
-    },
-    "PAYER_NAME": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Name of person/entity making payment",
-        "required": False,
-    },
-    "PAYER_PHONE": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Phone number of payer",
-        "required": False,
-    },
-    "PRICES": {
-        "type": "list",
-        "evaluation_logic": "list_overlap_match",
-        "description": "List of individual item prices",
-        "required": False,
-    },
-    "QUANTITIES": {
-        "type": "list",
-        "evaluation_logic": "list_overlap_match",
-        "description": "Quantities of items purchased",
-        "required": False,
-    },
-    "STATEMENT_PERIOD": {
-        "type": "date",
-        "evaluation_logic": "flexible_date_match",
-        "description": "Time period covered by statement",
-        "required": False,
-    },
-    "SUBTOTAL": {
-        "type": "monetary",
-        "evaluation_logic": "monetary_with_tolerance",
-        "description": "Subtotal before taxes and fees",
-        "required": False,
-    },
-    "SUPPLIER": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Name of goods/services provider",
-        "required": False,
-    },
-    "SUPPLIER_WEBSITE": {
-        "type": "text",
-        "evaluation_logic": "fuzzy_text_match",
-        "description": "Website URL of supplier",
-        "required": False,
-    },
-    "TOTAL": {
-        "type": "monetary",
-        "evaluation_logic": "monetary_with_tolerance",
-        "description": "Final total amount including all charges",
-        "required": True,
-    },
-}
+# Field definitions now managed by schema - no hardcoded definitions needed!
+# All field metadata is generated dynamically from field_schema.yaml
 
 # ============================================================================
 # FIELD DISCOVERY - YAML ORDER IS THE TRUTH
@@ -619,81 +465,20 @@ print(f"🎯 Using {FIELD_COUNT} fields from schema: {EXTRACTION_FIELDS[0]} → 
 
 # FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
 
-# Auto-generate field metadata with smart defaults for any fields not in FIELD_DEFINITIONS
-def get_field_metadata(field_name: str) -> dict:
-    """
-    Get field metadata with smart defaults.
-    
-    Returns metadata from FIELD_DEFINITIONS if available,
-    otherwise infers sensible defaults based on field name patterns.
-    
-    This allows FIELD_DEFINITIONS to be optional - only define fields
-    that need special handling, not all 25!
-    """
-    # If explicitly defined, use that
-    if field_name in FIELD_DEFINITIONS:
-        return FIELD_DEFINITIONS[field_name]
-    
-    # Otherwise, infer from field name patterns
-    field_lower = field_name.lower()
-    
-    # Infer type and evaluation logic from field name
-    if "balance" in field_lower or "total" in field_lower or "subtotal" in field_lower or "gst" in field_lower:
-        return {
-            "type": "monetary",
-            "evaluation_logic": "monetary_with_tolerance",
-            "description": f"Auto-inferred monetary field: {field_name}",
-            "required": False
-        }
-    elif "date" in field_lower or "period" in field_lower:
-        return {
-            "type": "date", 
-            "evaluation_logic": "flexible_date_match",
-            "description": f"Auto-inferred date field: {field_name}",
-            "required": False
-        }
-    elif "abn" in field_lower or "bsb" in field_lower or "account_number" in field_lower:
-        return {
-            "type": "numeric_id",
-            "evaluation_logic": "exact_numeric_match",
-            "description": f"Auto-inferred numeric ID field: {field_name}",
-            "required": False
-        }
-    elif "descriptions" in field_lower or "quantities" in field_lower or "prices" in field_lower:
-        return {
-            "type": "list",
-            "evaluation_logic": "list_overlap_match",
-            "description": f"Auto-inferred list field: {field_name}",
-            "required": False
-        }
-    else:
-        # Default to text field with fuzzy matching
-        return {
-            "type": "text",
-            "evaluation_logic": "fuzzy_text_match",
-            "description": f"Auto-inferred text field: {field_name}",
-            "required": False
-        }
+# Field metadata now provided by schema loader - no need for inference functions
 
-# Build field metadata for all discovered fields (with defaults for undefined ones)
-FIELD_TYPES = {}
-FIELD_DESCRIPTIONS = {}
+# Generate field metadata and type groupings dynamically from schema
+FIELD_TYPES = _schema.generate_field_types_mapping()
+FIELD_DESCRIPTIONS = _schema.generate_field_descriptions_mapping()
 
-for field in EXTRACTION_FIELDS:
-    metadata = get_field_metadata(field)
-    FIELD_TYPES[field] = metadata["type"]
-    FIELD_DESCRIPTIONS[field] = metadata["description"]
+# Field type groupings for evaluation logic (using schema)
+NUMERIC_ID_FIELDS = _schema.get_fields_by_type("numeric_id")
+MONETARY_FIELDS = _schema.get_fields_by_type("monetary")
+DATE_FIELDS = _schema.get_fields_by_type("date")
+LIST_FIELDS = _schema.get_fields_by_type("list")
+TEXT_FIELDS = _schema.get_fields_by_type("text")
 
-# Field type groupings for evaluation logic (using dynamic metadata)
-NUMERIC_ID_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "numeric_id"]
-MONETARY_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "monetary"]
-DATE_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "date"]
-LIST_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "list"]
-TEXT_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field)["type"] == "text"]
-
-# Required vs optional field groupings
-REQUIRED_FIELDS = [field for field in EXTRACTION_FIELDS if get_field_metadata(field).get("required", False)]
-OPTIONAL_FIELDS = [field for field in EXTRACTION_FIELDS if not get_field_metadata(field).get("required", False)]
+# All fields are required for extraction (must attempt to extract and return value or NOT_FOUND)
 
 # ============================================================================
 # GROUPED EXTRACTION CONFIGURATION
@@ -710,73 +495,9 @@ DEFAULT_EXTRACTION_MODE = "single_pass"  # Maintain backward compatibility
 _detailed_strategy = _schema.get_grouping_strategy("detailed_grouped")
 FIELD_GROUPS_DETAILED = _detailed_strategy["group_configs"]
 
-# Field-grouped strategy - 6 groups (2024 cognitive optimization)
-# Based on Azure Document Intelligence v4.0 and cognitive load research
-FIELD_GROUPS_COGNITIVE = {
-    "regulatory_financial": {
-        "name": "Regulatory and Financial Core",
-        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT", "SUBTOTAL_AMOUNT"],
-        "priority": 1,
-        "max_tokens": 400,
-        "temperature": 0.0,
-        "description": "Core business validation and primary financial amounts",
-        "cognitive_focus": "Essential regulatory compliance and financial totals",
-    },
-    "entity_contacts": {
-        "name": "Entity Contact Information",
-        "fields": [
-            "SUPPLIER_NAME",
-            "BUSINESS_ADDRESS",
-            "BUSINESS_PHONE",
-            "SUPPLIER_WEBSITE",
-            "PAYER_NAME",
-            "PAYER_ADDRESS",
-            "PAYER_PHONE",
-            "PAYER_EMAIL",
-        ],
-        "priority": 2,
-        "max_tokens": 600,
-        "temperature": 0.0,
-        "description": "All contact information for involved parties",
-        "cognitive_focus": "Who is involved - all participant identification",
-    },
-    "transaction_details": {
-        "name": "Transaction Line Items",
-        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
-        "priority": 3,
-        "max_tokens": 500,
-        "temperature": 0.0,
-        "description": "Detailed line item transaction data",
-        "cognitive_focus": "What was bought - item-level transaction details",
-    },
-    "temporal_data": {
-        "name": "Temporal Information",
-        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
-        "priority": 4,
-        "max_tokens": 350,
-        "temperature": 0.0,
-        "description": "All date and time-related information",
-        "cognitive_focus": "When - temporal context and deadlines",
-    },
-    "banking_payment": {
-        "name": "Banking and Payment Details",
-        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
-        "priority": 5,
-        "max_tokens": 400,
-        "temperature": 0.0,
-        "description": "Financial institution and payment processing information",
-        "cognitive_focus": "How payment is processed - banking infrastructure",
-    },
-    "document_metadata": {
-        "name": "Document Context and Balances",
-        "fields": ["DOCUMENT_TYPE", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
-        "priority": 6,
-        "max_tokens": 350,
-        "temperature": 0.0,
-        "description": "Document classification and account balance information",
-        "cognitive_focus": "Document type and account state context",
-    },
-}
+# Generate cognitive grouped strategy dynamically from schema  
+_cognitive_strategy = _schema.get_grouping_strategy("field_grouped")
+FIELD_GROUPS_COGNITIVE = _cognitive_strategy["group_configs"]
 
 # Grouping strategy selection with semantic names
 GROUPING_STRATEGIES = {
@@ -812,51 +533,10 @@ GROUP_PROMPT_TEMPLATES = {
 }
 
 # Validation rules per group
-GROUP_VALIDATION_RULES = {
-    # 8-group strategy validation rules
-    "critical": {
-        "min_confidence": 0.9,
-        "required_fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
-        "allow_empty": False,
-    },
-    "monetary": {
-        "min_confidence": 0.85,
-        "validation_type": "numerical",
-        "allow_empty": True,
-    },
-    "dates": {
-        "min_confidence": 0.8,
-        "validation_type": "temporal",
-        "allow_empty": True,
-    },
-    # 6-group strategy validation rules
-    "regulatory_financial": {
-        "min_confidence": 0.9,
-        "required_fields": ["BUSINESS_ABN", "TOTAL_AMOUNT"],
-        "allow_empty": False,
-    },
-    "entity_contacts": {
-        "min_confidence": 0.8,
-        "allow_empty": True,
-    },
-    "transaction_details": {
-        "min_confidence": 0.85,
-        "allow_empty": True,
-    },
-    "temporal_data": {
-        "min_confidence": 0.8,
-        "validation_type": "temporal",
-        "allow_empty": True,
-    },
-    "banking_payment": {
-        "min_confidence": 0.85,
-        "allow_empty": True,
-    },
-    "document_metadata": {
-        "min_confidence": 0.8,
-        "allow_empty": True,
-    },
-}
+# Generate validation rules dynamically from schema
+GROUP_VALIDATION_RULES = {}
+for group_name in _schema.schema.get("validation_rules", {}):
+    GROUP_VALIDATION_RULES[group_name] = _schema.get_validation_rules(group_name)
 
 # ============================================================================
 # GROUPED EXTRACTION HELPER FUNCTIONS
@@ -917,53 +597,7 @@ def get_extraction_groups_summary():
 # ============================================================================
 
 
-def validate_field_definitions():
-    """
-    Validate that all field definitions are complete and consistent.
-
-    Raises:
-        ValueError: If any field definition is incomplete or invalid
-    """
-    required_keys = [
-        "type",
-        "evaluation_logic",
-        "description",
-        "required",
-    ]
-    valid_types = ["numeric_id", "monetary", "date", "list", "text"]
-    valid_evaluation_logic = [
-        "exact_numeric_match",
-        "monetary_with_tolerance",
-        "flexible_date_match",
-        "list_overlap_match",
-        "fuzzy_text_match",
-    ]
-
-    for field_name, definition in FIELD_DEFINITIONS.items():
-        # Check required keys
-        for key in required_keys:
-            if key not in definition:
-                raise ValueError(f"Field '{field_name}' missing required key: '{key}'")
-
-        # Validate field type
-        if definition["type"] not in valid_types:
-            raise ValueError(
-                f"Field '{field_name}' has invalid type: '{definition['type']}'. "
-                f"Valid types: {valid_types}"
-            )
-
-        # Validate evaluation logic
-        if definition["evaluation_logic"] not in valid_evaluation_logic:
-            raise ValueError(
-                f"Field '{field_name}' has invalid evaluation_logic: '{definition['evaluation_logic']}'. "
-                f"Valid options: {valid_evaluation_logic}"
-            )
-
-        # Instruction validation removed - prompts now managed via YAML files
-
-
-# Run validation on import to catch configuration errors early
-validate_field_definitions()
+# Field validation now handled by schema loader on initialization
 
 # ============================================================================
 # IMAGE PROCESSING CONSTANTS
