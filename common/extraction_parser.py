@@ -8,16 +8,19 @@ model output formats including markdown, plain text, and edge cases.
 
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import pandas as pd
 
 from .config import (
     EXTRACTION_FIELDS,
 )
+from .schema_loader import get_global_schema
 
 
-def parse_extraction_response(response_text: str, clean_conversation_artifacts: bool = False) -> Dict[str, str]:
+def parse_extraction_response(
+    response_text: str, clean_conversation_artifacts: bool = False
+) -> Dict[str, str]:
     """
     Parse structured extraction response into dictionary.
 
@@ -35,8 +38,16 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
     Returns:
         dict: Parsed key-value pairs with all expected fields
     """
+    # Get expected fields dynamically from schema instead of hardcoded list
+    try:
+        schema = get_global_schema()
+        expected_fields = schema.field_names
+    except Exception:
+        # Fallback to config-based fields if schema fails
+        expected_fields = EXTRACTION_FIELDS
+
     if not response_text:
-        return {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
+        return {field: "NOT_FOUND" for field in expected_fields}
 
     # Clean Llama-specific conversation artifacts if requested
     if clean_conversation_artifacts:
@@ -59,11 +70,11 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             )
 
     # Initialize with NOT_FOUND for all fields
-    extracted_data = {field: "NOT_FOUND" for field in EXTRACTION_FIELDS}
+    extracted_data = {field: "NOT_FOUND" for field in expected_fields}
 
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")
-    
+
     # First pass: Try standard parsing (works for Llama and clean InternVL3 output)
     extracted_data_first = {}
     for line in lines:
@@ -75,7 +86,7 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
         clean_line = line
         # Remove markdown formatting
         clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
-        # Fix InternVL3 "KEY:" prefix issues  
+        # Fix InternVL3 "KEY:" prefix issues
         clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
         clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
         # Fix field name variations
@@ -89,11 +100,13 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             value = parts[1].strip()
 
             # Store if it's an expected field
-            if key in EXTRACTION_FIELDS:
+            if key in expected_fields:
                 extracted_data_first[key] = value if value else "NOT_FOUND"
-    
+
     # If first pass got most fields, use it (this preserves Llama's performance)
-    if len(extracted_data_first) >= len(EXTRACTION_FIELDS) * 0.5:  # Got at least 50% of fields
+    if (
+        len(extracted_data_first) >= len(expected_fields) * 0.5
+    ):  # Got at least 50% of fields
         extracted_data.update(extracted_data_first)
     else:
         # Second pass: Handle multi-line markdown format (fallback for problematic InternVL3 output)
@@ -104,27 +117,37 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             if not line:
                 i += 1
                 continue
-                
+
             # Check if this is a markdown key line (e.g., "**SUPPLIER:**" or "**SUPPLIER:** value")
             # Handle both cases: value on same line or next line
             markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*(.*)?$", line)
             if markdown_key_match:
                 key = markdown_key_match.group(1)
-                value = markdown_key_match.group(2).strip() if markdown_key_match.group(2) else ""
-                
+                value = (
+                    markdown_key_match.group(2).strip()
+                    if markdown_key_match.group(2)
+                    else ""
+                )
+
                 # If value is empty and there's a next line, check if it's the value
                 if not value and i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
                     # Only treat next line as value if it doesn't look like another key
-                    if next_line and not re.match(r"^\*\*[A-Z_]+:\*\*", next_line) and ":" not in next_line:
+                    if (
+                        next_line
+                        and not re.match(r"^\*\*[A-Z_]+:\*\*", next_line)
+                        and ":" not in next_line
+                    ):
                         value = next_line
                         i += 2  # Skip both lines
                     else:
                         i += 1  # Just skip the key line
                 else:
                     i += 1  # Just skip the current line
-                    
-                processed_lines.append(f"{key}: {value}" if value else f"{key}: NOT_FOUND")
+
+                processed_lines.append(
+                    f"{key}: {value}" if value else f"{key}: NOT_FOUND"
+                )
             else:
                 processed_lines.append(line)
                 i += 1
@@ -138,12 +161,14 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
             clean_line = line
             # Remove markdown formatting
             clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
-            # Fix InternVL3 "KEY:" prefix issues  
+            # Fix InternVL3 "KEY:" prefix issues
             clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
             clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
             # Fix field name variations
             clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
-            clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
+            clean_line = re.sub(
+                r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line
+            )
 
             # Extract key and value
             parts = clean_line.split(":", 1)
@@ -159,6 +184,45 @@ def parse_extraction_response(response_text: str, clean_conversation_artifacts: 
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data
+
+
+def validate_and_enhance_extraction(extracted_data: Dict[str, str], image_name: str = None) -> Dict[str, Any]:
+    """
+    Validate extracted data and add validation metadata.
+    
+    Args:
+        extracted_data: Raw extracted field data
+        image_name: Name of processed image (for error reporting)
+        
+    Returns:
+        Enhanced dictionary with validation results
+    """
+    from .field_validation import validate_extracted_fields
+    
+    # Run validation
+    validation_result = validate_extracted_fields(extracted_data)
+    
+    # Create enhanced result
+    enhanced_result = {
+        "extracted_data": extracted_data,
+        "validation": {
+            "is_valid": validation_result.is_valid,
+            "error_count": len(validation_result.errors),
+            "warning_count": len(validation_result.warnings),
+            "errors": validation_result.errors,
+            "warnings": validation_result.warnings,
+        }
+    }
+    
+    # Add corrected values if available
+    if validation_result.corrected_values:
+        enhanced_result["corrected_values"] = validation_result.corrected_values
+        
+    # Add image context for debugging
+    if image_name:
+        enhanced_result["image_name"] = image_name
+        
+    return enhanced_result
 
 
 def create_extraction_dataframe(results: List[Dict]) -> tuple:
@@ -213,11 +277,11 @@ def discover_images(directory_path: str) -> List[str]:
     """
     directory = Path(directory_path)
     image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
-    
+
     image_files = []
     for ext in image_extensions:
         image_files.extend(directory.glob(f"*{ext}"))
         image_files.extend(directory.glob(f"*{ext.upper()}"))
-    
+
     # Sort by filename for consistent ordering
     return sorted([str(img) for img in image_files])

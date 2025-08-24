@@ -1,0 +1,511 @@
+# Master Field Schema - SINGLE SOURCE OF TRUTH
+# All field definitions, groupings, and metadata consolidated in one place
+# This file eliminates the need for hardcoded field names throughout the codebase
+
+schema_version: "1.0"
+total_fields: 25
+
+# All 25 fields with complete metadata - SEMANTIC ORDERING PRESERVED
+fields:
+  # Document identifiers - start with most universal fields
+  - name: "DOCUMENT_TYPE"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "metadata"
+    description: "Type of business document"
+    instruction: "[document type (invoice/receipt/statement) or NOT_FOUND]"
+
+  - name: "BUSINESS_ABN"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "critical"
+    description: "11-digit Australian Business Number"
+    instruction: "[11-digit Australian Business Number or NOT_FOUND]"
+
+  - name: "SUPPLIER_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "business_entity"
+    description: "Supplier name"
+    instruction: "[supplier name or NOT_FOUND]"
+
+  # Business entity details
+  - name: "BUSINESS_ADDRESS"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "business_entity"
+    description: "Business address"
+    instruction: "[business address or NOT_FOUND]"
+
+  - name: "BUSINESS_PHONE"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "business_entity"
+    description: "Business phone number"
+    instruction: "[business phone number or NOT_FOUND]"
+
+  - name: "SUPPLIER_WEBSITE"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "business_entity"
+    description: "Supplier website"
+    instruction: "[supplier website or NOT_FOUND]"
+
+  # Payer information
+  - name: "PAYER_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "payer_info"
+    description: "Payer name"
+    instruction: "[payer name or NOT_FOUND]"
+
+  - name: "PAYER_ADDRESS"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "payer_info"
+    description: "Payer address"
+    instruction: "[payer address or NOT_FOUND]"
+
+  - name: "PAYER_PHONE"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "payer_info"
+    description: "Payer phone number"
+    instruction: "[payer phone number or NOT_FOUND]"
+
+  - name: "PAYER_EMAIL"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "payer_info"
+    description: "Payer email address"
+    instruction: "[payer email address or NOT_FOUND]"
+
+  # Temporal data
+  - name: "INVOICE_DATE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    required: false
+    group: "dates"
+    description: "Invoice date"
+    instruction: "[invoice date or NOT_FOUND]"
+
+  - name: "DUE_DATE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    required: false
+    group: "dates"
+    description: "Payment due date"
+    instruction: "[payment due date or NOT_FOUND]"
+
+  - name: "STATEMENT_DATE_RANGE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    required: false
+    group: "dates"
+    description: "Statement period or date range"
+    instruction: "[statement period or date range or NOT_FOUND]"
+
+  # Line item details
+  - name: "LINE_ITEM_DESCRIPTIONS"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    required: false
+    group: "item_details"
+    description: "List of transaction descriptions"
+    instruction: "[list of transaction descriptions or NOT_FOUND]"
+
+  - name: "LINE_ITEM_QUANTITIES"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    required: false
+    group: "item_details"
+    description: "List of quantities"
+    instruction: "[list of quantities or NOT_FOUND]"
+
+  - name: "LINE_ITEM_PRICES"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    required: false
+    group: "item_details"
+    description: "Individual prices in dollars"
+    instruction: "[individual prices in dollars or NOT_FOUND]"
+
+  # Banking information
+  - name: "BANK_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "banking"
+    description: "Bank name (NOT supplier name)"
+    instruction: "[bank name (NOT supplier name) or NOT_FOUND]"
+
+  - name: "BANK_BSB_NUMBER"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    required: false
+    group: "banking"
+    description: "6-digit BSB (NOT ABN)"
+    instruction: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
+
+  - name: "BANK_ACCOUNT_NUMBER"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    required: false
+    group: "banking"
+    description: "Account number"
+    instruction: "[account number or NOT_FOUND]"
+
+  - name: "BANK_ACCOUNT_HOLDER"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    required: false
+    group: "banking"
+    description: "Account holder name"
+    instruction: "[account holder name or NOT_FOUND]"
+
+  - name: "ACCOUNT_OPENING_BALANCE"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    required: false
+    group: "monetary"
+    description: "Opening balance with 2 decimals from bank statements"
+    instruction: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
+
+  - name: "ACCOUNT_CLOSING_BALANCE"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    required: false
+    group: "monetary"
+    description: "Closing balance with 2 decimals (NOT total) from bank statements"
+    instruction: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
+
+  # Financial totals - end with most important field
+  - name: "SUBTOTAL_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    required: false
+    group: "monetary"
+    description: "Subtotal amount in dollars with 2 decimals"
+    instruction: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
+
+  - name: "GST_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    required: false
+    group: "monetary"
+    description: "GST amount in dollars with 2 decimals"
+    instruction: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
+
+  - name: "TOTAL_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "critical"
+    description: "Total amount in dollars with 2 decimals"
+    instruction: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
+
+# Group definitions with processing parameters
+groups:
+  critical:
+    name: "Critical Business Identifiers"
+    max_tokens: 300
+    temperature: 0.0
+    description: "Most important fields for business validation"
+    cognitive_focus: "Essential business identifiers and totals"
+
+  monetary:
+    name: "Monetary Values"
+    max_tokens: 400
+    temperature: 0.0
+    description: "Financial amounts and calculations"
+    cognitive_focus: "All monetary values and balances"
+
+  dates:
+    name: "Date Information"
+    max_tokens: 350
+    temperature: 0.0
+    description: "Temporal information and date fields"
+    cognitive_focus: "Time-related information and deadlines"
+
+  business_entity:
+    name: "Business Entity Details"
+    max_tokens: 450
+    temperature: 0.0
+    description: "Seller/provider information"
+    cognitive_focus: "Business contact and identification details"
+
+  payer_info:
+    name: "Payer Information"
+    max_tokens: 450
+    temperature: 0.0
+    description: "Buyer/customer information"
+    cognitive_focus: "Customer contact and identification details"
+
+  banking:
+    name: "Banking Details"
+    max_tokens: 400
+    temperature: 0.0
+    description: "Financial institution information"
+    cognitive_focus: "Banking and payment infrastructure"
+
+  item_details:
+    name: "Item and Line Details"
+    max_tokens: 500
+    temperature: 0.0
+    description: "Line item information requiring list processing"
+    cognitive_focus: "Transaction line items and pricing details"
+
+  metadata:
+    name: "Document Metadata"
+    max_tokens: 250
+    temperature: 0.0
+    description: "Document classification and typing"
+    cognitive_focus: "Document type and classification"
+
+# Grouping strategies combining groups
+grouping_strategies:
+  detailed_grouped:
+    name: "8-Group Detailed Extraction"
+    description: "Proven stable strategy with 8 focused groups"
+    groups:
+      - critical
+      - monetary
+      - dates
+      - business_entity
+      - payer_info
+      - banking
+      - item_details
+      - metadata
+
+  field_grouped:
+    name: "6-Group Cognitive Optimization"
+    description: "Cognitive load research-based grouping"
+    groups:
+      - regulatory_financial
+      - entity_contacts
+      - transaction_details
+      - temporal_data
+      - banking_payment
+      - document_metadata
+
+# Cognitive grouping strategy groups - 6 groups combining related fields
+  regulatory_financial:
+    name: "Regulatory and Financial Core"
+    max_tokens: 400
+    temperature: 0.0
+    description: "Core business validation and primary financial amounts"
+    cognitive_focus: "Essential regulatory compliance and financial totals"
+    
+  entity_contacts:
+    name: "Entity Contact Information"
+    max_tokens: 600
+    temperature: 0.0
+    description: "All contact information for involved parties"
+    cognitive_focus: "Who is involved - all participant identification"
+    
+  transaction_details:
+    name: "Transaction Line Items"
+    max_tokens: 500
+    temperature: 0.0
+    description: "Detailed line item transaction data"
+    cognitive_focus: "What was bought - item-level transaction details"
+    
+  temporal_data:
+    name: "Temporal Information"
+    max_tokens: 350
+    temperature: 0.0
+    description: "All date and time-related information"
+    cognitive_focus: "When - temporal context and deadlines"
+    
+  banking_payment:
+    name: "Banking and Payment Details"
+    max_tokens: 400
+    temperature: 0.0
+    description: "Financial institution and payment processing information"
+    cognitive_focus: "How payment is processed - banking infrastructure"
+    
+  document_metadata:
+    name: "Document Context and Balances"
+    max_tokens: 350
+    temperature: 0.0
+    description: "Document classification and account balance information"
+    cognitive_focus: "Document type and account state context"
+
+# Validation rules per group
+validation_rules:
+  critical:
+    min_confidence: 0.9
+    allow_empty: false
+    validation_type: "critical"
+
+  monetary:
+    min_confidence: 0.85
+    validation_type: "numerical"
+    allow_empty: true
+
+  dates:
+    min_confidence: 0.8
+    validation_type: "temporal"
+    allow_empty: true
+
+  business_entity:
+    min_confidence: 0.8
+    allow_empty: true
+
+  payer_info:
+    min_confidence: 0.8
+    allow_empty: true
+
+  banking:
+    min_confidence: 0.85
+    allow_empty: true
+
+  item_details:
+    min_confidence: 0.85
+    allow_empty: true
+
+  metadata:
+    min_confidence: 0.8
+    allow_empty: true
+
+# Field interdependency rules for business logic validation
+interdependency_rules:
+  financial_consistency:
+    description: "SUBTOTAL + GST should equal TOTAL"
+    fields: ["SUBTOTAL_AMOUNT", "GST_AMOUNT", "TOTAL_AMOUNT"]
+    rule_type: "mathematical"
+    formula: "SUBTOTAL_AMOUNT + GST_AMOUNT = TOTAL_AMOUNT"
+    tolerance: 0.02  # 2 cent tolerance
+    severity: "error"
+    
+  line_item_consistency:
+    description: "Line item fields should have same count"
+    fields: ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]
+    rule_type: "count_match"
+    severity: "error"
+    
+  date_sequence:
+    description: "Due date should be after invoice date"
+    fields: ["INVOICE_DATE", "DUE_DATE"]
+    rule_type: "temporal_sequence"
+    severity: "warning"
+    
+  gst_percentage:
+    description: "GST should be ~10% of subtotal (Australian standard)"
+    fields: ["SUBTOTAL_AMOUNT", "GST_AMOUNT"]
+    rule_type: "percentage_range"
+    expected_percentage: 10.0
+    tolerance_range: [9.5, 10.5]
+    severity: "warning"
+    
+  invoice_required_fields:
+    description: "Invoice documents must have core fields"
+    condition: "DOCUMENT_TYPE contains 'INVOICE'"
+    required_fields: ["SUPPLIER_NAME", "TOTAL_AMOUNT", "INVOICE_DATE"]
+    rule_type: "conditional_required"
+    severity: "error"
+
+# Model-specific prompt templates for dynamic generation
+model_prompt_templates:
+  llama:
+    # Grouped extraction prompts for field_grouped strategy
+    field_grouped:
+      regulatory_financial:
+        expertise_frame: "Extract critical business identifiers and ALL financial amounts with precision."
+        cognitive_context: "The Australian Business Number (BUSINESS_ABN) is an 11 digit number structured as a 9 digit identifier with two leading check digits (may be formatted with spaces like XX XXX XXX XXX). TOTAL_AMOUNT is the final amount due. GST_AMOUNT is the tax amount (usually smaller, around 10% of subtotal). SUBTOTAL_AMOUNT is the amount before tax. Be EXACT with decimal places - copy them precisely from the document."
+        focus_instruction: "Extract the BUSINESS_ABN (11 digits total) and all monetary amounts. Double-check decimal places and digits (watch for 0 vs 6 confusion in OCR). Verify the BUSINESS_ABN has exactly 11 digits."
+      
+      entity_contacts:
+        expertise_frame: "Extract ALL contact information for both supplier and payer with EXACT digit counts."
+        cognitive_context: "CRITICAL DIGIT RULES: Australian postcodes are EXACTLY 4 digits (5000 NOT 55000 or 50000). Phone numbers are EXACTLY 10 digits including area code. Area codes: (02)=Sydney, (03)=Melbourne, (04)=Mobile, (06)=Canberra, (07)=Brisbane, (08)=Adelaide/Perth. DO NOT add extra digits. If you see 'Adelaide SA 5000', the postcode is 5000 (4 digits only). If you see '(06) 4744 4248', preserve the 06 area code - do NOT change to 66."
+        focus_instruction: "Extract contact details with EXACT digit counts. Postcodes: EXACTLY 4 digits. Phone numbers: EXACTLY 10 digits total. Count the digits carefully. Do NOT add or change digits."
+      
+      transaction_details:
+        expertise_frame: "Extract line item details: descriptions, quantities, and UNIT prices as COMMA-SEPARATED LISTS."
+        cognitive_context: "CRITICAL: Output each field as a SINGLE LINE with COMMA-SEPARATED values. DESCRIPTIONS: ALL product names in one line (e.g., Rice 1kg, Cheese Block 500g, Frozen Peas 1kg). QUANTITIES: ALL quantities in one line (e.g., 3, 3, 3, 1). PRICES: ALL UNIT prices in one line (e.g., $3.80, $8.50, $4.20). If you see '3 × $3.80 = $11.40', the PRICE is $3.80, not $11.40. DO NOT output multiple blocks or multiple DESCRIPTIONS lines."
+        focus_instruction: "Extract ALL items in COMMA-SEPARATED format. One line for ALL descriptions, one line for ALL quantities, one line for ALL prices. THREE LINES TOTAL OUTPUT."
+      
+      temporal_data:
+        expertise_frame: "Extract ALL date information from the document."
+        cognitive_context: "CRITICAL: Look for INVOICE_DATE (document issue date), DUE_DATE (payment due date), and STATEMENT_PERIOD (statement period for bank statements). Dates may be in formats like DD/MM/YYYY, DD-MM-YYYY, or written out. Statement periods may be like 'May 2025' or '01/05/2025 to 31/05/2025'."
+        focus_instruction: "Extract all date fields. Look carefully for invoice dates, due dates, and statement periods. Convert to consistent format."
+      
+      banking_payment:
+        expertise_frame: "Extract banking and payment processing information."
+        cognitive_context: "CRITICAL: Look for BANK_NAME (financial institution), BSB_NUMBER (6-digit Bank State Branch code), BANK_ACCOUNT_NUMBER (account number), and ACCOUNT_HOLDER (account holder name). BSB is NOT the same as ABN. BSB is 6 digits, ABN is 11 digits. Banking details are typically found on bank statements, not invoices."
+        focus_instruction: "Extract banking details if present. BSB: EXACTLY 6 digits. Account numbers vary in length. Bank name is the financial institution, NOT the business name."
+      
+      document_metadata:
+        expertise_frame: "Extract document classification and account balance information."
+        cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE and CLOSING_BALANCE are ONLY for bank statements - NOT invoices or receipts. Opening balance is the starting amount, closing balance is the ending amount. These are different from TOTAL_AMOUNT on invoices."
+        focus_instruction: "Identify document type. Extract account balances ONLY if this is a bank statement. Do NOT confuse invoice totals with account balances."
+    
+    # Single-pass extraction prompt for comprehensive extraction
+    single_pass:
+      opening_text: "Extract key-value data from this business document image."
+      critical_instructions:
+        - "Output ONLY the structured data below"
+        - "Do NOT include any conversation text"
+        - "Do NOT repeat the user's request"
+        - "Do NOT include <image> tokens"
+        - "Start immediately with DOCUMENT_TYPE"
+        - "Stop immediately after TOTAL_AMOUNT"
+      output_format: "REQUIRED OUTPUT FORMAT - EXACTLY {field_count} LINES:"
+      format_rules:
+        - "Use exactly: KEY: value (colon and space)"
+        - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+        - "Plain text only - NO markdown, NO bold, NO italic"
+        - "Include ALL {field_count} keys even if value is NOT_FOUND"
+        - "Output ONLY these {field_count} lines, nothing else"
+      closing_instruction: "STOP after TOTAL_AMOUNT line. Do not add explanations or comments."
+
+  internvl3:
+    # Single-pass extraction optimized for InternVL3's concise style
+    single_pass:
+      opening_text: "Extract data from this business document."
+      output_instruction: "Output ALL fields below with their exact keys."
+      missing_value_instruction: "Use \"NOT_FOUND\" if field is not visible or not present."
+      output_format_header: "OUTPUT FORMAT ({field_count} required fields):"
+      format_rules:
+        - "Use format: KEY: [description or NOT_FOUND]"
+        - "One field per line, exactly {field_count} lines total"
+        - "Do not add extra text or explanations"
+      
+    # Grouped extraction prompts optimized for InternVL3's processing style
+    field_grouped:
+      regulatory_financial:
+        expertise_frame: "Extract business ID and financial amounts."
+        cognitive_context: "BUSINESS_ABN is 11 digits. TOTAL_AMOUNT is final amount due. GST_AMOUNT is tax. SUBTOTAL_AMOUNT is pre-tax amount."
+        focus_instruction: "Find ABN (11 digits) and all dollar amounts. Check decimal places carefully."
+      
+      entity_contacts:
+        expertise_frame: "Extract contact information for supplier and customer."
+        cognitive_context: "SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE are supplier details. PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL are customer details."
+        focus_instruction: "Extract all contact details. Australian postcodes are 4 digits. Phone numbers are 10 digits with area code."
+      
+      transaction_details:
+        expertise_frame: "Extract line items and pricing details."
+        cognitive_context: "DESCRIPTIONS: product names (comma-separated). QUANTITIES: amounts ordered (comma-separated). PRICES: unit prices (comma-separated, not totals)."
+        focus_instruction: "List all items in comma-separated format. One line per field type."
+      
+      temporal_data:
+        expertise_frame: "Extract dates from document."
+        cognitive_context: "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_PERIOD is for bank statements only."
+        focus_instruction: "Find all dates. Convert to consistent DD/MM/YYYY format where possible."
+      
+      banking_payment:
+        expertise_frame: "Extract banking information."
+        cognitive_context: "BANK_NAME is financial institution. BSB_NUMBER is 6 digits. BANK_ACCOUNT_NUMBER varies. ACCOUNT_HOLDER is account name. Typically on bank statements only."
+        focus_instruction: "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
+      
+      document_metadata:
+        expertise_frame: "Extract document type and balances."
+        cognitive_context: "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE/CLOSING_BALANCE only for bank statements, not invoices."
+        focus_instruction: "Identify document type. Extract balances only if bank statement."

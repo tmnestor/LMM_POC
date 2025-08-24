@@ -75,14 +75,16 @@ class InternVL3Processor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(self.extraction_mode, debug, grouping_strategy, model_name="internvl3")
+        self.extraction_strategy = get_extraction_strategy(
+            self.extraction_mode, debug, grouping_strategy, model_name="internvl3"
+        )
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)
         self.is_8b_model = "8B" in str(self.model_path)
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
-        
+
         # Set seeds for reproducibility (CRITICAL for deterministic output)
         self._set_random_seeds(42)
 
@@ -112,10 +114,10 @@ class InternVL3Processor:
         self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
 
         # Ensure deterministic generation (CRITICAL for reproducibility)
-        if self.generation_config.get('do_sample', True):
+        if self.generation_config.get("do_sample", True):
             print("⚠️ WARNING: do_sample was True, forcing to False for determinism")
-            self.generation_config['do_sample'] = False
-        
+            self.generation_config["do_sample"] = False
+
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
             f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
@@ -129,14 +131,14 @@ class InternVL3Processor:
     def _set_random_seeds(self, seed: int = 42):
         """
         Set all random seeds for reproducibility.
-        
+
         CRITICAL: This ensures deterministic output across runs.
         The 2% variation between runs is eliminated by proper seed setting.
         """
         import random
 
         import numpy as np
-        
+
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -146,7 +148,7 @@ class InternVL3Processor:
             # Ensure deterministic algorithms
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
-        
+
         print(f"🎲 Random seeds set to {seed} for deterministic output")
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
@@ -316,62 +318,99 @@ class InternVL3Processor:
             if not yaml_path.exists():
                 print(f"⚠️ InternVL3 single-pass YAML not found: {yaml_path}")
                 return None
-            
-            with yaml_path.open('r', encoding='utf-8') as f:
+
+            with yaml_path.open("r", encoding="utf-8") as f:
                 prompts = yaml.safe_load(f)
-            
+
             return prompts.get("single_pass", {})
         except Exception as e:
             print(f"⚠️ Error loading InternVL3 single-pass YAML: {e}")
             return None
-    
+
     def get_extraction_prompt(self):
-        """Get the extraction prompt for InternVL3."""
-        # Try to load from YAML first, fallback to hardcoded if needed
-        return self._get_single_pass_prompt_from_yaml()
-    
+        """Get the extraction prompt for InternVL3 using schema-driven generation."""
+        # Import schema loader for dynamic prompt generation
+        from common.schema_loader import get_global_schema
+
+        try:
+            schema = get_global_schema()
+            prompt = schema.generate_dynamic_prompt(
+                model_name="internvl3", strategy="single_pass"
+            )
+            return prompt
+
+        except Exception as e:
+            # FAIL FAST - No graceful fallbacks
+            raise RuntimeError(
+                f"❌ FATAL: Schema-based prompt generation failed for InternVL3\n"
+                f"💡 Root cause: {e}\n"
+                f"💡 Expected: Model templates in common/field_schema.yaml\n"
+                f"💡 Fix: Ensure schema contains model_prompt_templates.internvl3.single_pass\n"
+                f"💡 Verify: Schema validation and template completeness"
+            ) from e
+
     def _get_single_pass_prompt_from_yaml(self):
         """Build single-pass prompt from YAML configuration."""
         yaml_config = self._load_single_pass_prompts()
-        
+
         if not yaml_config:
             print("⚠️ InternVL3 YAML config not found, falling back to hardcoded prompt")
             return self._get_hardcoded_prompt()
-        
+
         # Build prompt from YAML structure
-        prompt = yaml_config.get("opening_text", "Extract data from this business document.") + " \n"
-        prompt += yaml_config.get("output_instruction", "Output ALL fields below with their exact keys.") + " \n"
-        prompt += yaml_config.get("missing_value_instruction", 'Use "NOT_FOUND" if field is not visible or not present.') + "\n\n"
-        
+        prompt = (
+            yaml_config.get("opening_text", "Extract data from this business document.")
+            + " \n"
+        )
+        prompt += (
+            yaml_config.get(
+                "output_instruction", "Output ALL fields below with their exact keys."
+            )
+            + " \n"
+        )
+        prompt += (
+            yaml_config.get(
+                "missing_value_instruction",
+                'Use "NOT_FOUND" if field is not visible or not present.',
+            )
+            + "\n\n"
+        )
+
         # Add output format header with dynamic field count
-        output_format_header = yaml_config.get("output_format_header", "OUTPUT FORMAT ({field_count} required fields):")
+        output_format_header = yaml_config.get(
+            "output_format_header", "OUTPUT FORMAT ({field_count} required fields):"
+        )
         prompt += output_format_header.format(field_count=FIELD_COUNT) + "\n"
-        
+
         # Add field instructions
         field_instructions = yaml_config.get("field_instructions", {})
         for field in EXTRACTION_FIELDS:
-            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            instruction = field_instructions.get(
+                field, f"[{field.lower()} or NOT_FOUND]"
+            )
             prompt += f"{field}: {instruction}\n"
-        
+
         # Add final instructions
         instructions_header = yaml_config.get("instructions_header", "INSTRUCTIONS:")
         prompt += f"\n{instructions_header}\n"
-        
+
         instructions = yaml_config.get("instructions", [])
         for instruction in instructions:
             # Replace dynamic field count in instructions
             formatted_instruction = instruction.format(field_count=FIELD_COUNT)
             prompt += f"- {formatted_instruction}\n"
-        
+
         if self.debug:
-            print(f"📝 INTERNVL3 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print(
+                f"📝 INTERNVL3 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields"
+            )
             print("📝 PROMPT CONTENT:")
             print("-" * 40)
             print(prompt)
             print("-" * 40)
 
         return prompt
-    
+
     def _get_hardcoded_prompt(self):
         """Get hardcoded extraction prompt (fallback method)."""
         # Use the same comprehensive prompt for both models now that 8B has proper quantization
@@ -383,7 +422,9 @@ OUTPUT FORMAT ({FIELD_COUNT} required fields):
 """
         # Add all fields with simple fallback instruction (YAML is primary source)
         for field in EXTRACTION_FIELDS:
-            instruction = "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
+            instruction = (
+                "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
+            )
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""
@@ -395,7 +436,9 @@ INSTRUCTIONS:
 - Output exactly {FIELD_COUNT} lines, one for each field"""
 
         if self.debug:
-            print(f"📝 INTERNVL3 HARDCODED PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields")
+            print(
+                f"📝 INTERNVL3 HARDCODED PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields"
+            )
             print("📝 PROMPT CONTENT:")
             print("-" * 40)
             print(prompt)
@@ -545,17 +588,19 @@ INSTRUCTIONS:
 
         return pixel_values
 
-    def _extract_with_prompt(self, image_path: str, prompt: str, generation_config: dict = None) -> str:
+    def _extract_with_prompt(
+        self, image_path: str, prompt: str, generation_config: dict = None
+    ) -> str:
         """
         Core extraction method that handles image processing and model inference.
-        
+
         This is the shared implementation used by both single-pass and grouped extraction.
-        
+
         Args:
             image_path (str): Path to image file
             prompt (str): Extraction prompt
             generation_config (dict): Optional custom generation config
-            
+
         Returns:
             str: Raw model response
         """
@@ -571,7 +616,7 @@ INSTRUCTIONS:
 
         # Prepare conversation
         question = f"<image>\n{prompt}"
-        
+
         # Use provided generation config or default
         config = generation_config or self.generation_config
 
@@ -612,7 +657,7 @@ INSTRUCTIONS:
         # Memory cleanup after processing
         del pixel_values
         comprehensive_memory_cleanup(self.model, self.tokenizer)
-        
+
         return response
 
     def process_single_image(self, image_path):
@@ -627,10 +672,12 @@ INSTRUCTIONS:
         """
         try:
             start_time = time.time()
-            
+
             # Use shared extraction method
-            response = self._extract_with_prompt(image_path, self.get_extraction_prompt())
-            
+            response = self._extract_with_prompt(
+                image_path, self.get_extraction_prompt()
+            )
+
             processing_time = time.time() - start_time
 
             # Parse response
@@ -642,7 +689,9 @@ INSTRUCTIONS:
                 print(response)
                 print("-" * 40)
                 print("🔍 PARSED DATA (single-pass):")
-                for field, value in list(extracted_data.items())[:5]:  # Show first 5 fields
+                for field, value in list(extracted_data.items())[
+                    :5
+                ]:  # Show first 5 fields
                     print(f"  {field}: {value}")
                 print(f"  ... and {len(extracted_data) - 5} more fields")
                 print()
@@ -703,11 +752,18 @@ INSTRUCTIONS:
             # Create generation config - allow group-specific overrides
             custom_generation_config = self.generation_config.copy()
             if "max_new_tokens" in generation_kwargs:
-                custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
+                custom_generation_config["max_new_tokens"] = generation_kwargs[
+                    "max_new_tokens"
+                ]
             # Only set sampling parameters if do_sample is True to avoid warnings
             if custom_generation_config.get("do_sample", False):
-                if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
-                    custom_generation_config["temperature"] = generation_kwargs["temperature"]
+                if (
+                    "temperature" in generation_kwargs
+                    and generation_kwargs["temperature"] is not None
+                ):
+                    custom_generation_config["temperature"] = generation_kwargs[
+                        "temperature"
+                    ]
             else:
                 # Remove all sampling-related parameters when do_sample is False to avoid warnings
                 custom_generation_config.pop("temperature", None)
@@ -715,7 +771,9 @@ INSTRUCTIONS:
                 custom_generation_config.pop("top_p", None)
 
             # Use shared extraction method
-            return self._extract_with_prompt(image_path, prompt, custom_generation_config)
+            return self._extract_with_prompt(
+                image_path, prompt, custom_generation_config
+            )
 
         except Exception as e:
             print(f"❌ Error in InternVL3 custom prompt extraction: {e}")
@@ -746,7 +804,7 @@ INSTRUCTIONS:
             # Memory cleanup before processing
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
-            if self.extraction_mode == "grouped":
+            if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"]:
                 # Use grouped extraction strategy
                 extracted_data, metadata = (
                     self.extraction_strategy.extract_fields_grouped(
@@ -763,7 +821,7 @@ INSTRUCTIONS:
                     )
                 )
             else:
-                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}")
+                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
 
             # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
@@ -897,12 +955,18 @@ INSTRUCTIONS:
             else 0,
             "effective_batch_size": self.batch_size,
         }
-        
+
         # Add group processing statistics if in grouped mode
-        if self.extraction_mode == "grouped" and self.extraction_strategy:
-            batch_statistics["total_groups_processed"] = self.extraction_strategy.stats.get("total_groups_processed", 0)
-            batch_statistics["successful_groups"] = self.extraction_strategy.stats.get("successful_groups", 0)
-            batch_statistics["failed_groups"] = self.extraction_strategy.stats.get("failed_groups", 0)
+        if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"] and self.extraction_strategy:
+            batch_statistics["total_groups_processed"] = (
+                self.extraction_strategy.stats.get("total_groups_processed", 0)
+            )
+            batch_statistics["successful_groups"] = self.extraction_strategy.stats.get(
+                "successful_groups", 0
+            )
+            batch_statistics["failed_groups"] = self.extraction_strategy.stats.get(
+                "failed_groups", 0
+            )
 
         print("\n📊 Batch Processing Complete:")
         print(f"   Total images: {batch_statistics['total_images']}")
@@ -1091,7 +1155,9 @@ INSTRUCTIONS:
                     extracted_fields_count = len(
                         [k for k in extracted_data.keys() if k in EXTRACTION_FIELDS]
                     )
-                    response_completeness = extracted_fields_count / len(EXTRACTION_FIELDS)
+                    response_completeness = extracted_fields_count / len(
+                        EXTRACTION_FIELDS
+                    )
                     content_coverage = extracted_fields_count / len(EXTRACTION_FIELDS)
 
                     result = {

@@ -22,3 +22,103 @@ After this, you can work on the migration plan and commit changes normally:
 git add .
 git commit -m "feat: create field schema migration plan"
 git push  # No need to specify remote/branch thanks to -u flag
+
+
+# On Test Machine (H200 GPU)
+
+# Navigate to project directory
+cd /path/to/LMM_POC
+
+# Fetch latest branches from remote
+git fetch origin
+
+# Switch to the new branch
+git checkout refactor/yaml-single-source-of-truth
+
+# Verify you're on the correct branch
+git branch --show-current
+
+# On Development Machine (V100 Production)
+
+# Navigate to project directory  
+cd /path/to/LMM_POC
+
+# Fetch latest branches from remote
+git fetch origin
+
+# Switch to the new branch
+git checkout refactor/yaml-single-source-of-truth
+
+# Verify you're on the correct branch
+git branch --show-current
+
+# ============================================================================
+# MERGING BACK TO MAIN - PHASE 4 COMPLETE
+# ============================================================================
+
+# 1. Ensure your feature branch is up to date with main
+git checkout refactor/yaml-single-source-of-truth
+git fetch origin
+git merge origin/main  # Resolve any conflicts if they exist
+
+# 2. Run final validation tests
+python test_phase4_migration.py  # Ensure all tests pass
+ruff check *.py models/*.py common/*.py  # Ensure code quality
+
+# 3. Switch to main branch
+git checkout main
+git pull origin main  # Get latest changes
+
+# 4. Merge the feature branch into main
+git merge refactor/yaml-single-source-of-truth --no-ff -m "feat: complete YAML single source of truth migration (Phase 4)
+
+- Implemented schema-driven dynamic prompt generation
+- Replaced hardcoded YAML prompt files with template system  
+- Added field interdependency validation framework
+- Configured multiple grouping strategies (field_grouped, detailed_grouped)
+- Exposed grouping strategies directly in CLI
+- Removed editorial messages from reporting
+- Added comprehensive business logic validation system
+
+BREAKING CHANGE: CLI now uses --extraction-mode with explicit strategies instead of generic 'grouped' mode"
+
+# 5. Push the merged changes to remote
+git push origin main
+
+# 6. Optional: Delete the feature branch locally and remotely
+git branch -d refactor/yaml-single-source-of-truth  # Delete local branch
+git push origin --delete refactor/yaml-single-source-of-truth  # Delete remote branch
+
+# 7. Tag the release (optional but recommended)
+git tag -a v2.0.0 -m "Release v2.0.0 - YAML Single Source of Truth Migration Complete"
+git push origin v2.0.0
+
+# ============================================================================
+# POST-MERGE VERIFICATION
+# ============================================================================
+
+# After merging, verify on test machines:
+
+# On H200 Test Machine:
+git checkout main
+git pull origin main
+python internvl3_keyvalue.py --extraction-mode field_grouped --limit-images 1 --debug
+
+# On V100 Production Machine:
+git checkout main  
+git pull origin main
+python internvl3_keyvalue.py --extraction-mode detailed_grouped --limit-images 1 --debug
+
+Alternative (if branch doesn't exist locally yet)
+
+# Fetch and checkout in one command
+git fetch origin refactor/yaml-single-source-of-truth:refactor/yaml-single-source-of-truth
+git checkout refactor/yaml-single-source-of-truth
+
+Key Points:
+- git fetch origin downloads all new branches without switching
+- git checkout refactor/yaml-single-source-of-truth switches to the branch
+- git branch --show-current confirms you're on the right branch
+- Both machines will need the same commands since they're pulling from the same remote repository
+
+This ensures all three machines (Mac M1, H200, V100) are synchronized on the new branch for the migration work.

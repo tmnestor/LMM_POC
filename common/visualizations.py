@@ -29,7 +29,7 @@ from .config import (
     DEPLOYMENT_READY_THRESHOLD,
     EXCELLENT_FIELD_THRESHOLD,
     EXTRACTION_FIELDS,
-    FIELD_DEFINITIONS,
+    FIELD_TYPES,
     GOOD_FIELD_THRESHOLD,
     PILOT_READY_THRESHOLD,
     POOR_FIELD_THRESHOLD,
@@ -87,18 +87,22 @@ class LMMVisualizer:
         )
 
     def _categorize_fields_by_importance(self) -> Dict[str, List[str]]:
-        """Categorize fields based on business importance from FIELD_DEFINITIONS."""
+        """Categorize fields based on data type for visualization grouping."""
         categories = {
-            "High Priority": [],  # Required fields
-            "Standard": [],  # Important but optional
-            "Supporting": [],  # Nice to have
+            "Financial": [],  # Monetary fields
+            "Identification": [],  # IDs and business info
+            "Supporting": [],  # Everything else
         }
 
-        for field_name, definition in FIELD_DEFINITIONS.items():
-            if definition.get("required", False):
-                categories["High Priority"].append(field_name)
-            elif definition["type"] in ["monetary", "date"]:
-                categories["Standard"].append(field_name)
+        for field_name in EXTRACTION_FIELDS:
+            field_type = FIELD_TYPES.get(field_name, "text")
+            if field_type == "monetary":
+                categories["Financial"].append(field_name)
+            elif field_type in ["numeric_id", "text"] and any(
+                term in field_name.lower()
+                for term in ["abn", "business", "supplier", "name"]
+            ):
+                categories["Identification"].append(field_name)
             else:
                 categories["Supporting"].append(field_name)
 
@@ -188,7 +192,9 @@ class LMMVisualizer:
                 if GOOD_FIELD_THRESHOLD <= acc["accuracy"] < EXCELLENT_FIELD_THRESHOLD
             )
             poor_count = sum(
-                1 for acc in field_accuracies.values() if acc["accuracy"] < POOR_FIELD_THRESHOLD
+                1
+                for acc in field_accuracies.values()
+                if acc["accuracy"] < POOR_FIELD_THRESHOLD
             )
 
             field_summary_data = pd.DataFrame(
@@ -1026,7 +1032,10 @@ class LMMVisualizer:
             # 4. Classification metrics dashboard (if data available)
             if extraction_results is not None and ground_truth_data is not None:
                 classification_chart = self.create_classification_metrics_dashboard(
-                    extraction_results, ground_truth_data, model_name, evaluation_summary
+                    extraction_results,
+                    ground_truth_data,
+                    model_name,
+                    evaluation_summary,
                 )
                 if classification_chart:
                     generated_files.append(classification_chart)
