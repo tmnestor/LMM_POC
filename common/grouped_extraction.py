@@ -25,17 +25,17 @@ from .schema_loader import get_global_schema
 def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, str]]:
     """
     Load model-specific prompts from YAML configuration files.
-    
+
     This function implements a fail-fast design pattern - if configuration
     is missing or invalid, it raises explicit errors with clear diagnostics.
-    
+
     Args:
         model_name (str): Model identifier ("llama" or "internvl3")
         strategy (str): Grouping strategy ("field_grouped" or "detailed_grouped")
-        
+
     Returns:
         Dict: Loaded prompt configuration with group prompts
-        
+
     Raises:
         ValueError: If model_name is not supported
         FileNotFoundError: If YAML config file is missing
@@ -49,47 +49,53 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
             f"❌ FATAL: Unsupported model '{model_name}'. "
             f"💡 Supported models: {supported_models}"
         )
-    
+
     # Only field_grouped strategy uses model-specific prompts currently
     if strategy != "field_grouped":
         raise ValueError(
             f"❌ FATAL: Model-specific prompts only available for 'field_grouped' strategy, not '{strategy}'. "
             f"💡 Use strategy='field_grouped' for model-specific optimization."
         )
-    
+
     # Construct file path
     project_root = Path(__file__).parent.parent
     config_file = project_root / f"{model_name}_prompts.yaml"
-    
+
     # Check file exists
     if not config_file.exists():
         raise FileNotFoundError(
             f"❌ FATAL: Model prompts file not found: {config_file}\n"
-            f"💡 Expected location: {config_file.absolute()}\n" 
+            f"💡 Expected location: {config_file.absolute()}\n"
             f"💡 Create this file with prompt configurations for {model_name}"
         )
-    
+
     # Load and validate YAML
     try:
-        with config_file.open('r', encoding='utf-8') as f:
+        with config_file.open("r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise yaml.YAMLError(
             f"❌ FATAL: Invalid YAML in {config_file}: {e}\n"
             f"💡 Check YAML syntax and structure"
         ) from e
-    
+
     # Validate required structure
     if not isinstance(config, dict):
         raise ValueError(
             f"❌ FATAL: Invalid config structure in {config_file}. Expected dict, got {type(config)}\n"
             f"💡 Ensure YAML contains group configurations at root level"
         )
-    
+
     # Validate required groups for field_grouped strategy (using standardized group names)
-    required_groups = ["regulatory_financial", "entity_contacts", "line_item_transactions", 
-                      "temporal_data", "banking_payment", "document_balances"]
-    
+    required_groups = [
+        "regulatory_financial",
+        "entity_contacts",
+        "line_item_transactions",
+        "temporal_data",
+        "banking_payment",
+        "document_balances",
+    ]
+
     missing_groups = []
     for group in required_groups:
         if group not in config:
@@ -97,7 +103,11 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
         else:
             # Validate each group has required keys
             group_config = config[group]
-            required_keys = ["expertise_frame", "cognitive_context", "focus_instruction"]
+            required_keys = [
+                "expertise_frame",
+                "cognitive_context",
+                "focus_instruction",
+            ]
             missing_keys = [key for key in required_keys if key not in group_config]
             if missing_keys:
                 raise KeyError(
@@ -105,13 +115,13 @@ def load_model_prompts(model_name: str, strategy: str) -> Dict[str, Dict[str, st
                     f"💡 Required keys: {required_keys}\n"
                     f"💡 File: {config_file}"
                 )
-    
+
     if missing_groups:
         raise KeyError(
             f"❌ FATAL: Missing required groups in {config_file}: {missing_groups}\n"
             f"💡 Required groups for field_grouped strategy: {required_groups}"
         )
-    
+
     return config
 
 
@@ -125,7 +135,11 @@ class GroupedExtractionStrategy:
     """
 
     def __init__(
-        self, extraction_mode="grouped", debug=False, grouping_strategy="detailed_grouped", model_name=None
+        self,
+        extraction_mode="grouped",
+        debug=False,
+        grouping_strategy="detailed_grouped",
+        model_name=None,
     ):
         """
         Initialize the grouped extraction strategy.
@@ -133,7 +147,7 @@ class GroupedExtractionStrategy:
         Args:
             extraction_mode (str): Extraction mode ('grouped', 'adaptive', 'single_pass')
             debug (bool): Enable debug logging
-            grouping_strategy (str): Grouping strategy ('detailed_grouped' or 'field_grouped'). 
+            grouping_strategy (str): Grouping strategy ('detailed_grouped' or 'field_grouped').
                                     Defaults to 'detailed_grouped'.
             model_name (str): Model identifier for model-specific prompts ("llama" or "internvl3")
                              Required for 'field_grouped' strategy, optional for others
@@ -142,21 +156,25 @@ class GroupedExtractionStrategy:
         self.grouping_strategy = grouping_strategy
         self.debug = debug
         self.model_name = model_name
-        
+
         # Initialize schema for dynamic field discovery and prompt generation
         self.schema = get_global_schema()
-        
+
         if self.debug:
-            print(f"✅ Initialized schema-driven grouped extraction with {self.schema.total_fields} fields")
-        
+            print(
+                f"✅ Initialized schema-driven grouped extraction with {self.schema.total_fields} fields"
+            )
+
         # Load field groups dynamically from schema instead of hardcoded config
         try:
             strategy_config = self.schema.get_grouping_strategy(grouping_strategy)
             self.field_groups = strategy_config["group_configs"]
-            
+
             if self.debug:
-                print(f"🎯 Using schema-driven {grouping_strategy} strategy with {len(self.field_groups)} groups")
-                
+                print(
+                    f"🎯 Using schema-driven {grouping_strategy} strategy with {len(self.field_groups)} groups"
+                )
+
         except Exception as e:
             # Fallback to config-based groups if schema loading fails
             if self.debug:
@@ -164,11 +182,15 @@ class GroupedExtractionStrategy:
             if grouping_strategy in GROUPING_STRATEGIES:
                 self.field_groups = GROUPING_STRATEGIES[grouping_strategy]
                 if self.debug:
-                    print(f"🔄 Using fallback {grouping_strategy} strategy with {len(self.field_groups)} groups")
+                    print(
+                        f"🔄 Using fallback {grouping_strategy} strategy with {len(self.field_groups)} groups"
+                    )
             else:
                 self.field_groups = FIELD_GROUPS  # Fallback to default
                 if self.debug:
-                    print(f"⚠️ Unknown strategy '{grouping_strategy}', using default groups")
+                    print(
+                        f"⚠️ Unknown strategy '{grouping_strategy}', using default groups"
+                    )
         self.stats = {
             "total_groups_processed": 0,
             "successful_groups": 0,
@@ -220,106 +242,51 @@ class GroupedExtractionStrategy:
 
         Based on cognitive science research showing grouped field extraction outperforms
         single-pass when properly implemented with domain context and reasoning.
-        
-        Now uses schema-driven dynamic prompt generation instead of hardcoded YAML files.
+
+        Now uses schema-driven dynamic prompt generation with model-specific templates.
         """
-        
-        # Try to get group metadata from schema first
-        try:
-            group_metadata = self.schema.get_group_config(group_name)
-            expertise_frame = group_metadata.get("description", f"Extract {group_name} information.")
-            cognitive_context = group_metadata.get("cognitive_focus", f"Process {group_name} fields systematically.")
-            focus_instruction = f"Extract the following {len(fields)} fields: {', '.join(fields)}"
-            
-            if self.debug:
-                print(f"✅ Using schema-driven prompt for group '{group_name}'")
-                
-        except Exception as e:
-            if self.debug:
-                print(f"⚠️ Schema prompt generation failed for '{group_name}', using fallback: {e}")
-            
-            # Generate dynamic fallback prompts based on group name patterns
-            expertise_frame, cognitive_context, focus_instruction = self._generate_fallback_prompts(group_name, fields)
 
-        # Build the streamlined task-focused prompt with context hints
-        prompt = f"""TASK: {expertise_frame}
+        # Try schema-based model-specific prompt generation first
+        if self.model_name:
+            try:
+                prompt = self.schema.generate_dynamic_prompt(
+                    model_name=self.model_name,
+                    strategy="field_grouped",
+                    group_name=group_name,
+                    fields=fields,
+                )
 
-DOCUMENT CONTEXT: You are analyzing a business document image. Consider the document type when extracting fields.
+                if self.debug:
+                    print(
+                        f"✅ Generated model-specific prompt for '{group_name}' using {self.model_name} template"
+                    )
 
-{cognitive_context}
+                return prompt
 
-{focus_instruction}
+            except Exception as e:
+                # FAIL FAST - No graceful fallbacks for model-specific prompts
+                if self.debug:
+                    print(
+                        f"❌ Model-specific prompt generation failed for '{group_name}': {e}"
+                    )
 
-OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
-"""
+                raise RuntimeError(
+                    f"❌ FATAL: Schema-based prompt generation failed for group '{group_name}'\n"
+                    f"💡 Root cause: {e}\n"
+                    f"💡 Model: {self.model_name}\n"
+                    f"💡 Strategy: field_grouped\n"
+                    f"💡 Expected: model_prompt_templates.{self.model_name}.field_grouped.{group_name}\n"
+                    f"💡 Fix: Ensure schema contains required model template\n"
+                    f"💡 Available groups: Check schema model_prompt_templates section"
+                ) from e
 
-        # Add each field with simple fallback instruction (YAML/model-specific prompts are primary)
-        for field in fields:
-            instruction = "[value or NOT_FOUND]"  # Simple fallback - model-specific YAML prompts are primary
-            prompt += f"{field}: {instruction}\n"
-
-        # Enhanced format rules with strict enforcement
-        prompt += f"""
-FORMAT RULES:
-- Use exactly: KEY: value (colon and space)
-- NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
-- Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {len(fields)} fields even if NOT_FOUND
-- Extract ONLY what you can see in the document
-- Do NOT guess, calculate, or make up values
-- Use NOT_FOUND if field is not visible or not applicable
-- Output ONLY these {len(fields)} lines, nothing else
-- For lists: use COMMA-SEPARATED values on ONE LINE per field
-- DO NOT output the same field name multiple times
-
-STOP after the last field. Do not add explanations or comments."""
-
-        return prompt
-    
-    def _generate_fallback_prompts(self, group_name: str, fields: list) -> tuple:
-        """
-        Generate dynamic fallback prompts based on group name patterns when schema fails.
-        
-        Args:
-            group_name (str): Name of the field group
-            fields (list): List of fields in the group
-            
-        Returns:
-            tuple: (expertise_frame, cognitive_context, focus_instruction)
-        """
-        # Pattern-based dynamic prompt generation
-        if "monetary" in group_name.lower() or "financial" in group_name.lower():
-            expertise_frame = "Extract financial amounts and monetary information."
-            cognitive_context = f"Focus on financial values from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = "Extract monetary amounts, being careful to distinguish between different types of financial values."
-            
-        elif "date" in group_name.lower() or "temporal" in group_name.lower():
-            expertise_frame = "Extract dates and time-related information."
-            cognitive_context = f"Focus on temporal data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = "Extract all date-related information from this document."
-            
-        elif "entity" in group_name.lower() or "business" in group_name.lower() or "supplier" in group_name.lower():
-            expertise_frame = "Extract business and entity information."
-            cognitive_context = f"Focus on business identification from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = "Extract business contact and identification details."
-            
-        elif "bank" in group_name.lower() or "payment" in group_name.lower():
-            expertise_frame = "Extract banking and payment information."
-            cognitive_context = f"Focus on financial account data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = "Extract banking information only if this is a bank statement."
-            
-        elif "item" in group_name.lower() or "transaction" in group_name.lower():
-            expertise_frame = "Extract transaction items and line details."
-            cognitive_context = f"Focus on item-level data from {len(fields)} fields: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = "Extract item descriptions, quantities, and individual prices as shown."
-            
-        else:
-            # Generic fallback
-            expertise_frame = f"Extract {group_name.replace('_', ' ')} information."
-            cognitive_context = f"Process {len(fields)} fields systematically: {', '.join(fields[:3])}{'...' if len(fields) > 3 else ''}."
-            focus_instruction = f"Extract all relevant information for {group_name.replace('_', ' ')} fields."
-            
-        return expertise_frame, cognitive_context, focus_instruction
+        # This code should not be reached after YAML migration
+        raise RuntimeError(
+            f"❌ FATAL: Reached deprecated fallback code path for group '{group_name}'\n"
+            f"💡 This indicates incomplete migration to schema-based prompts\n"
+            f"💡 All prompts should come from model_prompt_templates in schema\n"
+            f"💡 Fix: Ensure model_name is set and templates exist in schema"
+        )
 
     def validate_group_results(
         self, group_name: str, extracted_data: Dict[str, str]
@@ -343,7 +310,10 @@ STOP after the last field. Do not add explanations or comments."""
         # Check required fields
         if "required_fields" in rules:
             for field in rules["required_fields"]:
-                if field not in extracted_data or extracted_data[field] in ["", "NOT_FOUND"]:
+                if field not in extracted_data or extracted_data[field] in [
+                    "",
+                    "NOT_FOUND",
+                ]:
                     if not rules.get("allow_empty", True):
                         if self.debug:
                             print(
@@ -400,7 +370,9 @@ STOP after the last field. Do not add explanations or comments."""
             if field not in merged_data:
                 merged_data[field] = "NOT_FOUND"
                 if self.debug:
-                    print(f"⚠️ Field {field} not extracted in any group, setting to NOT_FOUND")
+                    print(
+                        f"⚠️ Field {field} not extracted in any group, setting to NOT_FOUND"
+                    )
 
         # Add group metadata to stats
         self.stats["group_metadata"] = group_metadata
@@ -485,7 +457,8 @@ STOP after the last field. Do not add explanations or comments."""
                 # Filter to only include fields from this group
                 group_fields = group_config["fields"]
                 filtered_data = {
-                    field: extracted_data.get(field, "NOT_FOUND") for field in group_fields
+                    field: extracted_data.get(field, "NOT_FOUND")
+                    for field in group_fields
                 }
 
                 if self.debug:
@@ -629,7 +602,9 @@ STOP after the last field. Do not add explanations or comments."""
             "failed_groups": self.stats["failed_groups"],
             "retries_performed": self.stats["retries_performed"],
             "group_stats": self.stats.get("group_metadata", {}),
-            "fields_extracted": len([v for v in merged_data.values() if v != "NOT_FOUND"]),
+            "fields_extracted": len(
+                [v for v in merged_data.values() if v != "NOT_FOUND"]
+            ),
             "total_fields": len(EXTRACTION_FIELDS),
             "extraction_completeness": len(
                 [v for v in merged_data.values() if v != "NOT_FOUND"]
@@ -726,7 +701,10 @@ class AdaptiveExtractionStrategy:
 
 
 def get_extraction_strategy(
-    mode: str, debug: bool = False, grouping_strategy: str = "detailed_grouped", model_name: str = None
+    mode: str,
+    debug: bool = False,
+    grouping_strategy: str = "detailed_grouped",
+    model_name: str = None,
 ):
     """
     Factory function to get appropriate extraction strategy.
@@ -741,7 +719,9 @@ def get_extraction_strategy(
         Strategy object for the specified mode
     """
     if mode == "grouped":
-        return GroupedExtractionStrategy("grouped", debug, grouping_strategy, model_name)
+        return GroupedExtractionStrategy(
+            "grouped", debug, grouping_strategy, model_name
+        )
     elif mode == "adaptive":
         return AdaptiveExtractionStrategy(debug)
     elif mode == "single_pass":

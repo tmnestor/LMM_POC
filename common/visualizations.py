@@ -98,8 +98,10 @@ class LMMVisualizer:
             field_type = FIELD_TYPES.get(field_name, "text")
             if field_type == "monetary":
                 categories["Financial"].append(field_name)
-            elif field_type in ["numeric_id", "text"] and any(term in field_name.lower() 
-                    for term in ["abn", "business", "supplier", "name"]):
+            elif field_type in ["numeric_id", "text"] and any(
+                term in field_name.lower()
+                for term in ["abn", "business", "supplier", "name"]
+            ):
                 categories["Identification"].append(field_name)
             else:
                 categories["Supporting"].append(field_name)
@@ -190,7 +192,9 @@ class LMMVisualizer:
                 if GOOD_FIELD_THRESHOLD <= acc["accuracy"] < EXCELLENT_FIELD_THRESHOLD
             )
             poor_count = sum(
-                1 for acc in field_accuracies.values() if acc["accuracy"] < POOR_FIELD_THRESHOLD
+                1
+                for acc in field_accuracies.values()
+                if acc["accuracy"] < POOR_FIELD_THRESHOLD
             )
 
             field_summary_data = pd.DataFrame(
@@ -1028,7 +1032,10 @@ class LMMVisualizer:
             # 4. Classification metrics dashboard (if data available)
             if extraction_results is not None and ground_truth_data is not None:
                 classification_chart = self.create_classification_metrics_dashboard(
-                    extraction_results, ground_truth_data, model_name, evaluation_summary
+                    extraction_results,
+                    ground_truth_data,
+                    model_name,
+                    evaluation_summary,
                 )
                 if classification_chart:
                     generated_files.append(classification_chart)

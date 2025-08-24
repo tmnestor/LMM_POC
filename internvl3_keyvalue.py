@@ -237,27 +237,30 @@ def main(extraction_mode=None, debug=False, limit_images=None):
         print("\n" + "=" * 80)
         print("🔧 COMPLETE INTERNVL3 CONFIGURATION DEBUG")
         print("=" * 80)
-        
+
         # Environment and paths
         import os
+
         print(f"📁 Environment: {os.getenv('LMM_ENVIRONMENT', 'not set')}")
         print(f"📁 Model path: {model_path}")
         print(f"📁 Data directory: {data_dir}")
         print(f"📁 Ground truth: {ground_truth_path}")
         print(f"📁 Output directory: {output_dir}")
-        
+
         # Extraction configuration
         print(f"\n🎯 Extraction mode: {extraction_mode}")
         print(f"🎯 Debug enabled: {debug}")
         if limit_images:
             print(f"🎯 Image limit: {limit_images}")
-        
+
         # Field configuration
         print(f"\n📋 Total fields: {FIELD_COUNT}")
         print(f"📋 First field: {EXTRACTION_FIELDS[0]}")
         print(f"📋 Last field: {EXTRACTION_FIELDS[-1]}")
-        print(f"📋 Field sequence: {' → '.join(EXTRACTION_FIELDS[:3])} ... {' → '.join(EXTRACTION_FIELDS[-3:])}")
-        
+        print(
+            f"📋 Field sequence: {' → '.join(EXTRACTION_FIELDS[:3])} ... {' → '.join(EXTRACTION_FIELDS[-3:])}"
+        )
+
         # Prompt file information
         prompt_file = "internvl3_prompts.yaml"
         print(f"\n📝 Prompt file: {prompt_file}")
@@ -266,8 +269,10 @@ def main(extraction_mode=None, debug=False, limit_images=None):
             print("📝 YAML section: single_pass")
         else:
             print("📝 Prompt method: Grouped extraction sections from YAML")
-            print("📝 YAML sections: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances")
-        
+            print(
+                "📝 YAML sections: regulatory_financial, entity_contacts, line_item_transactions, temporal_data, banking_payment, document_balances"
+            )
+
         # Show actual prompt preview
         try:
             sample_prompt = processor.get_extraction_prompt()
@@ -276,12 +281,12 @@ def main(extraction_mode=None, debug=False, limit_images=None):
             print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
         except Exception as e:
             print(f"📝 ⚠️ Could not preview prompt: {e}")
-        
+
         # Model configuration
         print("\n🤖 Model processor: InternVL3Processor")
-        print("🤖 Generation config: temperature=0.0, do_sample=False") 
+        print("🤖 Generation config: temperature=0.0, do_sample=False")
         print(f"🤖 Max tokens: {getattr(processor, 'max_new_tokens', 'default')}")
-        
+
         print("=" * 80)
         print("END DEBUG CONFIGURATION")
         print("=" * 80 + "\n")

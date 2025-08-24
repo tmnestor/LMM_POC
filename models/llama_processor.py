@@ -173,21 +173,37 @@ class LlamaProcessor:
             if not yaml_path.exists():
                 print(f"⚠️ Single-pass YAML not found: {yaml_path}")
                 return None
-            
-            with yaml_path.open('r', encoding='utf-8') as f:
+
+            with yaml_path.open("r", encoding="utf-8") as f:
                 prompts = yaml.safe_load(f)
-            
+
             return prompts.get("single_pass", {})
         except Exception as e:
             print(f"⚠️ Error loading single-pass YAML: {e}")
             return None
-    
 
     def get_extraction_prompt(self):
-        """Get the extraction prompt optimized for Llama Vision."""
-        # Single-pass mode uses YAML prompts, grouped mode uses extraction strategy
+        """Get the extraction prompt optimized for Llama Vision using schema-driven generation."""
+        # Single-pass mode uses schema-based dynamic generation
         if self.extraction_mode == "single_pass":
-            return self._get_single_pass_prompt_from_yaml()
+            from common.schema_loader import get_global_schema
+
+            try:
+                schema = get_global_schema()
+                prompt = schema.generate_dynamic_prompt(
+                    model_name="llama", strategy="single_pass"
+                )
+                return prompt
+
+            except Exception as e:
+                # FAIL FAST - No graceful fallbacks
+                raise RuntimeError(
+                    f"❌ FATAL: Schema-based prompt generation failed for Llama\n"
+                    f"💡 Root cause: {e}\n"
+                    f"💡 Expected: Model templates in common/field_schema.yaml\n"
+                    f"💡 Fix: Ensure schema contains model_prompt_templates.llama.single_pass\n"
+                    f"💡 Verify: Schema validation and template completeness"
+                ) from e
         else:
             # Grouped/adaptive modes use extraction strategy (common/grouped_extraction.py)
             # This method should not be called for grouped mode - use process_single_image_grouped instead
@@ -196,45 +212,59 @@ class LlamaProcessor:
     def _get_single_pass_prompt_from_yaml(self):
         """Build single-pass prompt from YAML configuration."""
         yaml_config = self._load_single_pass_prompts()
-        
+
         if not yaml_config:
             print("⚠️ YAML config not found, falling back to hardcoded prompt")
             return self._get_config_prompt()
-        
+
         # Build prompt from YAML structure to match exact hardcoded format
-        prompt = yaml_config.get("expertise_frame", "Extract key-value data from this business document image.")
+        prompt = yaml_config.get(
+            "expertise_frame",
+            "Extract key-value data from this business document image.",
+        )
         prompt += "\n\n"
-        
+
         # Add critical instructions with header
-        critical_instructions_header = yaml_config.get("critical_instructions_header", "CRITICAL INSTRUCTIONS:")
+        critical_instructions_header = yaml_config.get(
+            "critical_instructions_header", "CRITICAL INSTRUCTIONS:"
+        )
         prompt += f"{critical_instructions_header}\n"
         critical_instructions = yaml_config.get("critical_instructions", [])
         for instruction in critical_instructions:
             prompt += f"- {instruction}\n"
         prompt += "\n"
-        
-        # Add output format  
-        output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES:")
+
+        # Add output format
+        output_format = yaml_config.get(
+            "output_format", "REQUIRED OUTPUT FORMAT - EXACTLY 25 LINES:"
+        )
         prompt += f"{output_format}\n"
-        
+
         # Add field instructions
         field_instructions = yaml_config.get("field_instructions", {})
         for field in EXTRACTION_FIELDS:
-            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            instruction = field_instructions.get(
+                field, f"[{field.lower()} or NOT_FOUND]"
+            )
             prompt += f"{field}: {instruction}\n"
-        
+
         # Add format rules
         format_rules = yaml_config.get("format_rules", [])
         if format_rules:
-            format_rules_header = yaml_config.get("format_rules_header", "FORMAT RULES:")
+            format_rules_header = yaml_config.get(
+                "format_rules_header", "FORMAT RULES:"
+            )
             prompt += f"\n{format_rules_header}\n"
             for rule in format_rules:
                 prompt += f"- {rule}\n"
-        
+
         # Add stop instruction
-        stop_instruction = yaml_config.get("stop_instruction", "STOP after TOTAL line. Do not add explanations or comments.")
+        stop_instruction = yaml_config.get(
+            "stop_instruction",
+            "STOP after TOTAL line. Do not add explanations or comments.",
+        )
         prompt += f"\n{stop_instruction}"
-        
+
         if self.debug:
             print(
                 f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields"
@@ -245,7 +275,6 @@ class LlamaProcessor:
             print("-" * 40)
 
         return prompt
-    
 
     def _get_config_prompt(self):
         """Get extraction prompt from config.py (fallback/grouped mode)."""
@@ -264,7 +293,9 @@ REQUIRED OUTPUT FORMAT - EXACTLY {FIELD_COUNT} LINES:
 
         # Add each field with simple fallback instruction (YAML is primary source)
         for field in EXTRACTION_FIELDS:
-            instruction = "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
+            instruction = (
+                "[value or NOT_FOUND]"  # Simple fallback - YAML prompts are primary
+            )
             prompt += f"{field}: {instruction}\n"
 
         prompt += f"""

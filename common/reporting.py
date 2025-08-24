@@ -35,7 +35,9 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     """
     summary_stats = evaluation_summary
     sorted_fields = sorted(
-        summary_stats["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
+        summary_stats["field_accuracies"].items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True,
     )
 
     # Calculate document quality distribution
@@ -76,9 +78,11 @@ def generate_executive_summary(evaluation_summary, model_name, model_full_name):
     ]
     if excellent_fields:
         for i, (field, accuracy) in enumerate(
-            [item for item in sorted_fields if item[1]["accuracy"] >= EXCELLENT_FIELD_THRESHOLD][
-                :10
-            ],
+            [
+                item
+                for item in sorted_fields
+                if item[1]["accuracy"] >= EXCELLENT_FIELD_THRESHOLD
+            ][:10],
             1,
         ):
             executive_summary += f"{i:2d}. {field:<25} {accuracy['accuracy']:.1%}\n"
@@ -161,7 +165,9 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
     """
     summary_stats = evaluation_summary
     sorted_fields = sorted(
-        summary_stats["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
+        summary_stats["field_accuracies"].items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True,
     )
     excellent_fields = [
         field
@@ -236,7 +242,11 @@ def generate_deployment_checklist(evaluation_summary, model_name, model_full_nam
 
 
 def generate_classification_report(
-    extraction_results, ground_truth_data, model_name, model_full_name, evaluation_summary
+    extraction_results,
+    ground_truth_data,
+    model_name,
+    model_full_name,
+    evaluation_summary,
 ):
     """
     Generate comprehensive sklearn classification report for field extraction.
@@ -480,7 +490,11 @@ def generate_comprehensive_reports(
         print("📊 Generating sklearn classification report...")
         try:
             classification_report_content = generate_classification_report(
-                extraction_results, ground_truth_data, model_name, model_full_name, evaluation_summary
+                extraction_results,
+                ground_truth_data,
+                model_name,
+                model_full_name,
+                evaluation_summary,
             )
 
             if (
@@ -600,7 +614,9 @@ def print_evaluation_summary(evaluation_summary, model_full_name):
 
     # Show top fields
     sorted_fields = sorted(
-        evaluation_summary["field_accuracies"].items(), key=lambda x: x[1]["accuracy"], reverse=True
+        evaluation_summary["field_accuracies"].items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True,
     )
     print("\n📈 Top 5 Performing Fields:")
     for i, (field, accuracy) in enumerate(sorted_fields[:5], 1):
