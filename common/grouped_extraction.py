@@ -718,13 +718,21 @@ def get_extraction_strategy(
     Returns:
         Strategy object for the specified mode
     """
-    if mode == "grouped":
+    if mode in ["grouped", "field_grouped", "detailed_grouped"]:
+        # Map extraction modes to grouping strategies
+        if mode == "field_grouped":
+            grouping_strategy = "field_grouped"
+        elif mode == "detailed_grouped": 
+            grouping_strategy = "detailed_grouped"
+        else:  # "grouped" - legacy mapping
+            grouping_strategy = "detailed_grouped"  # Default to production strategy
+        
         return GroupedExtractionStrategy(
-            "grouped", debug, grouping_strategy, model_name
+            mode, debug, grouping_strategy, model_name
         )
     elif mode == "adaptive":
         return AdaptiveExtractionStrategy(debug)
     elif mode == "single_pass":
         return None  # Use traditional single-pass in processors
     else:
-        raise ValueError(f"Unknown extraction mode: {mode}")
+        raise ValueError(f"Unknown extraction mode: {mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
