@@ -689,51 +689,37 @@ extraction_methodologies:
   description: "Step-by-step reasoning patterns to improve extraction accuracy for complex fields"
   
   abn_extraction:
-    description: "Step-by-step ABN identification process"
+    description: "ABN identification focus"
     steps:
-      step1: "Scan document header and business details section"
-      step2: "Look for 11-digit numbers with 'ABN' label or similar"
-      step3: "Verify format: XX XXX XXX XXX or 11 consecutive digits"  
-      step4: "Confirm it's not BSB (6 digits) or phone (10 digits)"
-      step5: "Extract exact digits, preserve spacing if present"
-    validation_check: "Count digits - must be exactly 11 total"
+      step1: "Look for 'ABN' label or '11-digit number'"
+      step2: "Distinguish from BSB (6 digits) or phone (10 digits)"
+    validation_check: "Extract exact digits as shown"
   
   monetary_extraction:
-    description: "Financial amount identification with validation"
+    description: "Financial amount focus"
     steps:
-      step1: "Identify document sections: totals area, line items, tax details"
-      step2: "Look for $ symbols and decimal patterns (X.XX)"
-      step3: "Distinguish between unit prices and line totals"
-      step4: "Verify decimal places (exactly 2 for Australian currency)"
-      step5: "Cross-reference with field labels (Total, GST, Subtotal)"
-    validation_check: "Ensure format matches $X.XX exactly"
+      step1: "Look for $ symbols and amounts"
+      step2: "Match field labels (Total, GST, Subtotal)"
+    validation_check: "Extract as shown in document"
   
   line_item_extraction:
-    description: "Structured list extraction methodology"  
+    description: "List extraction focus"
     steps:
-      step1: "Identify line item table or list structure"
-      step2: "Extract descriptions in order: product names only, no quantities"
-      step3: "Extract quantities in same order: numbers only, no units"
-      step4: "Extract unit prices in same order: individual prices, not line totals"
-      step5: "Format as comma-separated values, one line per field type"
-    validation_check: "Verify same number of items in each list"
+      step1: "Find line item table/list"
+      step2: "Extract descriptions, quantities, prices in same order"
+      step3: "Use comma-separated format"
+    validation_check: "Same count in each list"
   
   banking_extraction:
-    description: "Banking information identification process"
+    description: "Banking info focus"
     steps:
-      step1: "Look for banking section, usually separate from business details"
-      step2: "Find BSB: exactly 6 digits, often formatted XXX-XXX"
-      step3: "Find account number: varies in length, separate from BSB"
-      step4: "Find bank name: financial institution, not business name"
-      step5: "Find account holder: may differ from business name"
-    validation_check: "BSB must be exactly 6 digits, not 11-digit ABN"
+      step1: "Look for banking section"
+      step2: "BSB = 6 digits, Account = varies, Bank = institution name"
+    validation_check: "BSB ≠ ABN (different lengths)"
   
   date_extraction:
-    description: "Date identification and format recognition"
+    description: "Date identification focus"
     steps:
-      step1: "Scan for date indicators: Invoice Date, Due Date, etc."
-      step2: "Look for date patterns: DD/MM/YYYY, DD-MM-YYYY, written dates"
-      step3: "Distinguish between different date types (issue vs due vs period)"
-      step4: "Verify date makes logical sense (due date after invoice date)"
-      step5: "Extract in original format, note any ambiguities"
-    validation_check: "Ensure dates are logically consistent and properly formatted"
+      step1: "Look for date labels (Invoice Date, Due Date)"
+      step2: "Match dates to correct field types"
+    validation_check: "Extract dates as shown"

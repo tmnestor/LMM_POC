@@ -851,19 +851,13 @@ class FieldSchema:
                 for reminder in critical_reminders:
                     prompt_parts.append(f"- {reminder}")
         
-        # Add Chain-of-Thought reasoning for complex fields
-        complex_fields = ['BUSINESS_ABN', 'TOTAL_AMOUNT', 'LINE_ITEM_DESCRIPTIONS', 
-                         'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES', 'BANK_BSB_NUMBER']
-        
-        cot_fields_in_prompt = [f for f in fields if f in complex_fields]
-        if cot_fields_in_prompt:
-            prompt_parts.append("\n📋 CHAIN-OF-THOUGHT REASONING:")
-            prompt_parts.append("For complex fields, follow these step-by-step approaches:")
-            
-            for field in cot_fields_in_prompt[:3]:  # Limit to 3 to avoid excessive length
-                cot_instructions = self.generate_cot_instructions(field)
-                if cot_instructions:
-                    prompt_parts.append(cot_instructions)
+        # Add minimal focus tips for critical fields only (single-pass prompts need less)
+        if any(f in fields for f in ['BUSINESS_ABN', 'LINE_ITEM_DESCRIPTIONS']):
+            prompt_parts.append("\n💡 KEY DISTINCTIONS:")
+            if 'BUSINESS_ABN' in fields:
+                prompt_parts.append("• ABN = 11 digits, BSB = 6 digits")
+            if any(f in fields for f in ['LINE_ITEM_DESCRIPTIONS', 'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES']):
+                prompt_parts.append("• Line items: maintain same order across descriptions/quantities/prices")
 
         # Closing instruction
         if "closing_instruction" in template:
@@ -901,22 +895,17 @@ class FieldSchema:
         for field in fields:
             prompt_parts.append(f"{field}: [value or NOT_FOUND]")
 
-        # Add Chain-of-Thought reasoning for complex fields in this group
-        complex_fields = ['BUSINESS_ABN', 'TOTAL_AMOUNT', 'LINE_ITEM_DESCRIPTIONS', 
-                         'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES', 'BANK_BSB_NUMBER',
-                         'INVOICE_DATE', 'DUE_DATE']
+        # Add simplified focus tips for most critical fields only
+        critical_fields = ['BUSINESS_ABN', 'LINE_ITEM_DESCRIPTIONS']  # Reduced to most problematic
         
-        cot_fields_in_group = [f for f in fields if f in complex_fields]
+        cot_fields_in_group = [f for f in fields if f in critical_fields]
         if cot_fields_in_group:
-            prompt_parts.append("\n🧠 REASONING APPROACH:")
-            for field in cot_fields_in_group[:2]:  # Limit to 2 for grouped prompts
-                cot_instructions = self.generate_cot_instructions(field)
-                if cot_instructions:
-                    # Make CoT more compact for grouped prompts
-                    compact_cot = cot_instructions.replace('🔍 STEP-BY-STEP EXTRACTION FOR', '• FOR')
-                    compact_cot = compact_cot.replace('\n  ', '\n    - ')
-                    compact_cot = compact_cot.replace('\n  ✓ FINAL CHECK:', '\n    ✓ CHECK:')
-                    prompt_parts.append(compact_cot)
+            prompt_parts.append("\n💡 FOCUS:")
+            for field in cot_fields_in_group[:1]:  # Only 1 field to avoid confusion
+                if field == 'BUSINESS_ABN':
+                    prompt_parts.append("• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)")
+                elif field == 'LINE_ITEM_DESCRIPTIONS':
+                    prompt_parts.append("• Line items: Extract descriptions, quantities, prices in same order")
 
         # Standard format rules
         prompt_parts.append(f"""
