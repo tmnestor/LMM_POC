@@ -364,6 +364,175 @@ class FieldSchema:
         
         return len(missing) == 0
 
+    def validate_field_value(self, field_name: str, value: str) -> tuple[bool, str, list]:
+        """
+        Validate extracted field value against schema patterns.
+        
+        Returns:
+            tuple: (is_valid, validation_message, suggestions)
+        """
+        if value == "NOT_FOUND":
+            return True, "Valid NOT_FOUND value", []
+        
+        # Get field metadata
+        try:
+            field_meta = self.get_field_metadata(field_name)
+        except ValueError:
+            return True, f"Unknown field {field_name}", []
+        
+        field_type = field_meta.get('type', 'text')
+        field_schemas = self.get_field_schemas()
+        
+        if field_type not in field_schemas:
+            return True, f"No validation schema for type {field_type}", []
+        
+        schema = field_schemas[field_type]
+        examples = schema.get('examples', [])
+        extraction_notes = schema.get('extraction_notes', [])
+        
+        # Basic validation
+        issues = []
+        suggestions = []
+        
+        if field_type == 'monetary':
+            issues, suggestions = self._validate_monetary(value, examples)
+        elif field_type == 'numeric_id':  # ABN field type
+            issues, suggestions = self._validate_abn(value, examples)  
+        elif field_type == 'text' and ('phone' in field_name.lower() or 'mobile' in field_name.lower()):
+            issues, suggestions = self._validate_phone(value, examples)
+        elif field_type == 'date':
+            issues, suggestions = self._validate_date(value, examples)
+        
+        is_valid = len(issues) == 0
+        message = "Valid" if is_valid else "; ".join(issues)
+        
+        return is_valid, message, suggestions
+    
+    def _validate_monetary(self, value: str, examples: list) -> tuple[list, list]:
+        """Validate monetary field values."""
+        import re
+        issues = []
+        suggestions = []
+        
+        # Check for common issues
+        if value and not re.search(r'[\d.]', value):
+            issues.append("No digits found")
+            suggestions.append(f"Expected format like: {examples[0] if examples else '$0.00'}")
+        
+        # Check for missing decimal places in amounts over $1
+        if value and '$' in value:
+            clean_value = re.sub(r'[$,]', '', value)
+            try:
+                amount = float(clean_value)
+                if amount >= 1.0 and '.' not in value:
+                    issues.append("Missing decimal places for amounts ≥ $1")
+                    suggestions.append(f"Consider: ${amount:.2f}")
+            except ValueError:
+                pass
+        
+        return issues, suggestions
+    
+    def _validate_abn(self, value: str, examples: list) -> tuple[list, list]:
+        """Validate ABN field values."""
+        import re
+        issues = []
+        suggestions = []
+        
+        # Extract digits only
+        digits_only = re.sub(r'\D', '', value)
+        
+        if len(digits_only) != 11:
+            issues.append(f"ABN must have exactly 11 digits, found {len(digits_only)}")
+            if len(digits_only) == 6:
+                suggestions.append("This looks like a BSB (6 digits), not an ABN (11 digits)")
+            elif len(digits_only) == 10:
+                suggestions.append("This looks like a phone number (10 digits), not an ABN (11 digits)")
+        
+        return issues, suggestions
+    
+    def _validate_phone(self, value: str, examples: list) -> tuple[list, list]:
+        """Validate phone number field values."""
+        import re
+        issues = []
+        suggestions = []
+        
+        # Extract digits only
+        digits_only = re.sub(r'\D', '', value)
+        
+        if len(digits_only) != 10:
+            issues.append(f"Australian phone numbers need 10 digits, found {len(digits_only)}")
+            if len(digits_only) == 11:
+                suggestions.append("This looks like an ABN (11 digits), not a phone (10 digits)")
+        elif not digits_only.startswith('0'):
+            issues.append("Australian phone numbers should start with 0")
+            suggestions.append(f"Expected format: 0{digits_only[1:] if len(digits_only) > 1 else 'X'}")
+        
+        return issues, suggestions
+    
+    def _validate_date(self, value: str, examples: list) -> tuple[list, list]:
+        """Validate date field values.""" 
+        import re
+        issues = []
+        suggestions = []
+        
+        # Check for common date patterns
+        if value and not re.search(r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}', value):
+            if re.search(r'\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}', value):
+                issues.append("Date appears to be in YYYY/MM/DD format")
+                suggestions.append("Australian format is DD/MM/YYYY")
+            elif not re.search(r'\d', value):
+                issues.append("No date pattern found")
+                suggestions.append(f"Expected format like: {examples[0] if examples else '15/03/2024'}")
+        
+        return issues, suggestions
+
+    def validate_extraction_results(self, extracted_fields: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Comprehensive validation of extraction results using field schemas.
+        
+        Args:
+            extracted_fields: Dictionary of field_name -> extracted_value
+            
+        Returns:
+            Dict containing validation results, issues, and suggestions
+        """
+        validation_results = {
+            'overall_valid': True,
+            'total_fields': len(extracted_fields),
+            'valid_fields': 0,
+            'invalid_fields': 0,
+            'field_validations': {},
+            'issues_summary': [],
+            'suggestions': []
+        }
+        
+        for field_name, value in extracted_fields.items():
+            is_valid, message, suggestions = self.validate_field_value(field_name, value)
+            
+            validation_results['field_validations'][field_name] = {
+                'value': value,
+                'valid': is_valid,
+                'message': message,
+                'suggestions': suggestions
+            }
+            
+            if is_valid:
+                validation_results['valid_fields'] += 1
+            else:
+                validation_results['invalid_fields'] += 1
+                validation_results['overall_valid'] = False
+                validation_results['issues_summary'].append(f"{field_name}: {message}")
+                validation_results['suggestions'].extend(suggestions)
+        
+        # Add completion metrics
+        not_found_count = sum(1 for v in extracted_fields.values() if v == "NOT_FOUND")
+        validation_results['completion_rate'] = (
+            (validation_results['total_fields'] - not_found_count) / 
+            validation_results['total_fields'] * 100
+        )
+        
+        return validation_results
+
     def validate_field_completeness(
         self, extracted_fields: Dict[str, str]
     ) -> Dict[str, Any]:
@@ -579,14 +748,34 @@ class FieldSchema:
             header = template["output_format_header"].format(field_count=field_count)
             prompt_parts.append(f"\n{header}")
 
-        # Field instructions
+        # Field instructions with enhanced examples
         prompt_parts.append("")
+        field_schemas = self.get_field_schemas()
+        
         for field in fields:
             field_data = self.get_field_metadata(field)
+            field_type = field_data.get('type', 'text')
+            
+            # Get base instruction
             instruction = field_data.get(
                 "instruction", f"[{field.lower().replace('_', ' ')} or NOT_FOUND]"
             )
-            prompt_parts.append(f"{field}: {instruction}")
+            
+            # Add examples from field schemas if available
+            if field_type in field_schemas:
+                schema = field_schemas[field_type]
+                examples = schema.get('examples', [])
+                if examples:
+                    example_text = ", ".join(examples[:2])  # Use first 2 examples
+                    enhanced_instruction = instruction.replace(
+                        "or NOT_FOUND]", 
+                        f"(e.g., {example_text}) or NOT_FOUND]"
+                    )
+                    prompt_parts.append(f"{field}: {enhanced_instruction}")
+                else:
+                    prompt_parts.append(f"{field}: {instruction}")
+            else:
+                prompt_parts.append(f"{field}: {instruction}")
 
         # Format rules
         if "format_rules" in template:
@@ -594,6 +783,21 @@ class FieldSchema:
             for rule in template["format_rules"]:
                 formatted_rule = rule.format(field_count=field_count)
                 prompt_parts.append(f"- {formatted_rule}")
+        
+        # Add null value strategy guidance
+        null_strategy = self.get_null_value_strategy()
+        if null_strategy:
+            prompt_parts.append(f"\nNOT_FOUND GUIDANCE ({null_strategy.get('principle', 'Use NOT_FOUND when uncertain')}):")
+            use_not_found = null_strategy.get('use_not_found_when', [])
+            for condition in use_not_found[:3]:  # Limit to 3 most important conditions
+                prompt_parts.append(f"- {condition}")
+            
+            # Add critical never-guess reminders
+            never_guess = null_strategy.get('never_guess_for', {})
+            if 'critical_fields' in never_guess:
+                critical_reminders = never_guess['critical_fields'][:2]  # Top 2
+                for reminder in critical_reminders:
+                    prompt_parts.append(f"- {reminder}")
 
         # Closing instruction
         if "closing_instruction" in template:

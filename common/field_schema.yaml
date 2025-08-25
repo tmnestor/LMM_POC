@@ -615,7 +615,7 @@ field_schemas:
       - "May have varying decimal places"
       - "May include comma separators"
   
-  abn:
+  numeric_id:
     type: "string" 
     format: "australian_business_number"
     description: "Australian Business Number - 11 digits"
