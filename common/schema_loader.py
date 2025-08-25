@@ -347,6 +347,10 @@ class FieldSchema:
         """Get null value handling strategy."""
         return self.schema.get('null_value_strategy', {})
     
+    def get_extraction_methodologies(self) -> dict:
+        """Get Chain-of-Thought extraction methodologies."""
+        return self.schema.get('extraction_methodologies', {})
+    
     def validate_enhanced_schema_structure(self) -> bool:
         """Validate new schema sections exist and are properly formatted."""
         optional_sections = [
@@ -532,6 +536,54 @@ class FieldSchema:
         )
         
         return validation_results
+
+    def generate_cot_instructions(self, field_name: str) -> str:
+        """
+        Generate Chain-of-Thought instructions for complex fields.
+        
+        Args:
+            field_name: Name of the field to generate CoT for
+            
+        Returns:
+            String containing step-by-step CoT reasoning instructions
+        """
+        methodologies = self.get_extraction_methodologies()
+        
+        # Map fields to methodologies
+        field_to_methodology = {
+            'BUSINESS_ABN': 'abn_extraction',
+            'TOTAL_AMOUNT': 'monetary_extraction', 
+            'SUBTOTAL_AMOUNT': 'monetary_extraction',
+            'GST_AMOUNT': 'monetary_extraction',
+            'LINE_ITEM_DESCRIPTIONS': 'line_item_extraction',
+            'LINE_ITEM_QUANTITIES': 'line_item_extraction', 
+            'LINE_ITEM_PRICES': 'line_item_extraction',
+            'BANK_NAME': 'banking_extraction',
+            'BANK_BSB_NUMBER': 'banking_extraction',
+            'BANK_ACCOUNT_NUMBER': 'banking_extraction',
+            'BANK_ACCOUNT_HOLDER': 'banking_extraction',
+            'INVOICE_DATE': 'date_extraction',
+            'DUE_DATE': 'date_extraction',
+            'STATEMENT_DATE_RANGE': 'date_extraction'
+        }
+        
+        methodology_key = field_to_methodology.get(field_name)
+        if not methodology_key or methodology_key not in methodologies:
+            return ""
+            
+        methodology = methodologies[methodology_key]
+        steps = methodology.get('steps', {})
+        validation = methodology.get('validation_check', '')
+        
+        cot_instruction = f"\n🔍 STEP-BY-STEP EXTRACTION FOR {field_name}:\n"
+        for step_key in sorted(steps.keys()):
+            step_num = step_key.replace('step', '')
+            cot_instruction += f"  {step_num}. {steps[step_key]}\n"
+        
+        if validation:
+            cot_instruction += f"  ✓ FINAL CHECK: {validation}\n"
+            
+        return cot_instruction
 
     def validate_field_completeness(
         self, extracted_fields: Dict[str, str]
@@ -798,6 +850,20 @@ class FieldSchema:
                 critical_reminders = never_guess['critical_fields'][:2]  # Top 2
                 for reminder in critical_reminders:
                     prompt_parts.append(f"- {reminder}")
+        
+        # Add Chain-of-Thought reasoning for complex fields
+        complex_fields = ['BUSINESS_ABN', 'TOTAL_AMOUNT', 'LINE_ITEM_DESCRIPTIONS', 
+                         'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES', 'BANK_BSB_NUMBER']
+        
+        cot_fields_in_prompt = [f for f in fields if f in complex_fields]
+        if cot_fields_in_prompt:
+            prompt_parts.append("\n📋 CHAIN-OF-THOUGHT REASONING:")
+            prompt_parts.append("For complex fields, follow these step-by-step approaches:")
+            
+            for field in cot_fields_in_prompt[:3]:  # Limit to 3 to avoid excessive length
+                cot_instructions = self.generate_cot_instructions(field)
+                if cot_instructions:
+                    prompt_parts.append(cot_instructions)
 
         # Closing instruction
         if "closing_instruction" in template:
@@ -829,11 +895,28 @@ class FieldSchema:
             prompt_parts.append(f"\n{template['focus_instruction']}")
 
         # Output format
-        prompt_parts.append(f"\nOUTPUT FORMAT - EXACTLY {field_count} LINES:")
+        prompt_parts.append(f"\nOUTPUT FORMAT - EXACTLY {len(fields)} LINES:")
 
         # Field lines
         for field in fields:
             prompt_parts.append(f"{field}: [value or NOT_FOUND]")
+
+        # Add Chain-of-Thought reasoning for complex fields in this group
+        complex_fields = ['BUSINESS_ABN', 'TOTAL_AMOUNT', 'LINE_ITEM_DESCRIPTIONS', 
+                         'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES', 'BANK_BSB_NUMBER',
+                         'INVOICE_DATE', 'DUE_DATE']
+        
+        cot_fields_in_group = [f for f in fields if f in complex_fields]
+        if cot_fields_in_group:
+            prompt_parts.append("\n🧠 REASONING APPROACH:")
+            for field in cot_fields_in_group[:2]:  # Limit to 2 for grouped prompts
+                cot_instructions = self.generate_cot_instructions(field)
+                if cot_instructions:
+                    # Make CoT more compact for grouped prompts
+                    compact_cot = cot_instructions.replace('🔍 STEP-BY-STEP EXTRACTION FOR', '• FOR')
+                    compact_cot = compact_cot.replace('\n  ', '\n    - ')
+                    compact_cot = compact_cot.replace('\n  ✓ FINAL CHECK:', '\n    ✓ CHECK:')
+                    prompt_parts.append(compact_cot)
 
         # Standard format rules
         prompt_parts.append(f"""
@@ -841,11 +924,11 @@ FORMAT RULES:
 - Use exactly: KEY: value (colon and space)
 - NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
 - Plain text only - NO markdown, NO bold, NO italic
-- Include ALL {field_count} fields even if NOT_FOUND
+- Include ALL {len(fields)} fields even if NOT_FOUND
 - Extract ONLY what you can see in the document
 - Do NOT guess, calculate, or make up values
 - Use NOT_FOUND if field is not visible or not applicable
-- Output ONLY these {field_count} lines, nothing else
+- Output ONLY these {len(fields)} lines, nothing else
 - For lists: use COMMA-SEPARATED values on ONE LINE per field
 - DO NOT output the same field name multiple times
 

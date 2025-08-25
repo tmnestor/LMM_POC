@@ -210,7 +210,7 @@ This implementation plan provides step-by-step instructions for implementing the
        low_confidence: "Text is partially visible or has interpretation ambiguity - use NOT_FOUND"
    ```
 
-### Task 1.3: Implement Format Standardization
+### Task 1.3: Implement Extraction-TimeFormat Standardization
 **Estimated Time**: 3 hours  
 **Files Modified**: `common/field_schema.yaml`
 
