@@ -600,3 +600,86 @@ model_prompt_templates:
         expertise_frame: "Extract document type."
         cognitive_context: "DOCUMENT_TYPE (invoice/receipt/statement)."
         focus_instruction: "Identify document type correctly."
+
+# Task 1.1: Field format schemas with validation patterns (informational only, not enforced)
+# NOTE: These are descriptive schemas for documentation, not rigid format enforcement
+field_schemas:
+  monetary:
+    type: "number"
+    format: "currency"
+    description: "Monetary values as they appear in documents"
+    examples: ["$58.62", "$1,234.56", "$0.99", "58.62", "1234.56"]
+    extraction_notes:
+      - "Extract exactly as shown in document"
+      - "May include $ symbol"
+      - "May have varying decimal places"
+      - "May include comma separators"
+  
+  abn:
+    type: "string" 
+    format: "australian_business_number"
+    description: "Australian Business Number - 11 digits"
+    examples: ["12 345 678 901", "12345678901", "12-345-678-901"]
+    extraction_notes:
+      - "Must be exactly 11 digits total"
+      - "May include spaces or hyphens"
+      - "Different from BSB (6 digits)"
+  
+  date:
+    type: "string"
+    format: "date"
+    description: "Date values in various formats"
+    examples: ["15/03/2024", "15-03-2024", "March 15, 2024", "15 Mar 2024"]
+    extraction_notes:
+      - "Extract in whatever format appears in document"
+      - "May be DD/MM/YYYY, DD-MM-YYYY, or written out"
+      - "Preserve original format for accuracy"
+  
+  phone:
+    type: "string"
+    format: "australian_phone"
+    description: "Australian phone numbers"
+    examples: ["0298765432", "(02) 9876 5432", "02-9876-5432", "0412345678"]
+    extraction_notes:
+      - "Must be exactly 10 digits including area code"
+      - "May include spaces, brackets, or hyphens"
+      - "Mobile numbers start with 04"
+  
+  list_format:
+    type: "array"
+    format: "comma_separated"
+    description: "Lists of items"
+    examples: ["Rice 1kg, Cheese Block 500g, Frozen Peas 1kg", "3, 3, 1", "$3.80, $8.50, $4.20"]
+    extraction_notes:
+      - "Single line with comma separation"
+      - "Maintain item order across related lists"
+      - "Extract exactly as shown"
+
+# Task 1.2: Enhanced null value strategy based on research
+null_value_strategy:
+  principle: "NOT_FOUND is better than guessed values"
+  description: "Research-validated approach to handling missing or unclear information"
+  
+  use_not_found_when:
+    - "Text is blurry, partially obscured, or low quality"
+    - "Multiple possible interpretations exist"
+    - "Field would require calculation or inference"
+    - "Information appears present but is illegible"
+    - "Similar-looking text exists but doesn't match field requirements"
+  
+  never_guess_for:
+    critical_fields:
+      - "BUSINESS_ABN: Never guess digit sequences"
+      - "TOTAL_AMOUNT: Never calculate from line items during extraction"
+      - "BANK_BSB_NUMBER: Never confuse with ABN or phone numbers"
+    monetary_fields:
+      - "All amounts: Never calculate missing values"
+      - "GST_AMOUNT: Never derive from subtotal"
+    identification_fields:
+      - "Phone numbers: Never guess area codes"
+      - "Postcodes: Never assume 4-digit format"
+  
+  quality_indicators:
+    high_confidence: "Text is clearly visible and unambiguous"
+    medium_confidence: "Text is visible but may have minor OCR issues"
+    low_confidence: "Text is partially visible or has interpretation ambiguity - use NOT_FOUND"

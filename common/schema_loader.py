@@ -339,6 +339,31 @@ class FieldSchema:
         """
         return self.field_names  # Already in semantic order from YAML
 
+    def get_field_schemas(self) -> dict:
+        """Get field format schemas for validation."""
+        return self.schema.get('field_schemas', {})
+    
+    def get_null_value_strategy(self) -> dict:
+        """Get null value handling strategy."""
+        return self.schema.get('null_value_strategy', {})
+    
+    def validate_enhanced_schema_structure(self) -> bool:
+        """Validate new schema sections exist and are properly formatted."""
+        optional_sections = [
+            'field_schemas', 'null_value_strategy'
+        ]
+        
+        missing = []
+        for section in optional_sections:
+            if section not in self.schema:
+                missing.append(section)
+        
+        if missing:
+            print(f"⚠️  Optional schema sections not found: {missing}")
+            print("💡 These sections enhance functionality but are not required")
+        
+        return len(missing) == 0
+
     def validate_field_completeness(
         self, extracted_fields: Dict[str, str]
     ) -> Dict[str, Any]:
