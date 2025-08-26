@@ -240,9 +240,20 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
     
     def _resilient_generate(self, inputs, **generation_kwargs):
         """Resilient generation with OOM fallback."""
+        
+        # Build clean generation parameters following llama_processor_v2 pattern
+        clean_generation_kwargs = {
+            "max_new_tokens": generation_kwargs.get("max_new_tokens", self.generation_config["max_new_tokens"]),
+            "temperature": generation_kwargs.get("temperature", self.generation_config["temperature"]),
+            "do_sample": generation_kwargs.get("do_sample", self.generation_config["do_sample"]),
+            "top_p": generation_kwargs.get("top_p", self.generation_config["top_p"]),
+            "use_cache": generation_kwargs.get("use_cache", self.generation_config["use_cache"]),
+            "pad_token_id": self.processor.tokenizer.eos_token_id,
+        }
+        
         try:
-            # Standard generation
-            return self.model.generate(**inputs, **generation_kwargs)
+            # Standard generation with clean parameters
+            return self.model.generate(**inputs, **clean_generation_kwargs)
         except torch.cuda.OutOfMemoryError:
             if self.debug:
                 print("⚠️ CUDA OOM during generation, attempting recovery...")
@@ -252,7 +263,7 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
             
             try:
-                return self.model.generate(**inputs, **generation_kwargs)
+                return self.model.generate(**inputs, **clean_generation_kwargs)
             except torch.cuda.OutOfMemoryError:
                 if self.debug:
                     print("❌ Still OOM after cleanup, falling back to CPU")
@@ -261,7 +272,7 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 inputs_cpu = {k: v.cpu() if hasattr(v, 'cpu') else v for k, v in inputs.items()}
                 self.model = self.model.cpu()
                 
-                output = self.model.generate(**inputs_cpu, **generation_kwargs)
+                output = self.model.generate(**inputs_cpu, **clean_generation_kwargs)
                 
                 # Move back to GPU
                 self.model = self.model.to(self.device)
