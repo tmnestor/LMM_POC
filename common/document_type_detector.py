@@ -8,7 +8,7 @@ Supports: invoice, bank_statement, receipt with confidence scoring and fallback.
 
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from common.extraction_parser import discover_images
 
