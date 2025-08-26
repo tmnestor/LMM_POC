@@ -38,8 +38,6 @@ def test_schema_basics():
             
             print(f"✅ {doc_type.upper()}:")
             print(f"   Fields: {field_count}")
-            print(f"   Efficiency: {comparison['efficiency_gain']}")
-            print(f"   Reduction: {comparison['field_reduction']} fields")
             
         return True
         

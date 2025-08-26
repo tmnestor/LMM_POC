@@ -63,14 +63,14 @@ common_fields:
 document_schemas:
   
   # ========================================
-  # INVOICE SCHEMA (19 fields) - ATO TAX INVOICE COMPLIANT
+  # INVOICE SCHEMA (20 fields) - ATO TAX INVOICE COMPLIANT
   # ========================================
   invoice:
     metadata:
       document_type_values: ["invoice", "tax invoice", "bill", "sales invoice", "tax inv", "invoice/tax invoice"]
-      total_fields: 19
+      total_fields: 20
       description: "Australian Tax Office compliant tax invoice"
-      efficiency_gain: "24% fewer fields than unified (25→19)"
+      efficiency_gain: "20% fewer fields than unified (25→20)"
       compliance: "ATO Tax Invoice Requirements"
       ato_reference: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/tax-invoices"
       
@@ -91,9 +91,18 @@ document_schemas:
         evaluation_logic: "fuzzy_text_match"
         group: "payer_info"
         description: "Customer/payer name or identity"
-        instruction: "[customer/payer name/identity or buyer's ABN or NOT_FOUND]"
+        instruction: "[customer/payer name/identity or NOT_FOUND]"
         ato_requirement: "conditional"
-        ato_note: "Required for sales $1,000 or more (buyer's identity or ABN - can capture either in this field)"
+        ato_note: "Required for sales $1,000 or more (buyer's identity)"
+        
+      - name: "PAYER_ABN"
+        type: "numeric_id"
+        evaluation_logic: "exact_numeric_match"
+        group: "payer_info"
+        description: "11-digit customer/buyer Australian Business Number"
+        instruction: "[11-digit customer/buyer ABN or NOT_FOUND]"
+        ato_requirement: "conditional"
+        ato_note: "Alternative to PAYER_NAME for sales $1,000 or more (buyer's ABN)"
         
       - name: "PAYER_ADDRESS"
         type: "text"
@@ -223,10 +232,10 @@ document_schemas:
         
       - name: "ato_buyer_info_threshold"
         description: "Buyer details required for sales $1000 or more"
-        fields: ["TOTAL_AMOUNT", "PAYER_NAME"]
+        fields: ["TOTAL_AMOUNT", "PAYER_NAME", "PAYER_ABN"]
         rule_type: "conditional_presence"
         condition: "TOTAL_AMOUNT >= 1000"
-        requirement: "PAYER_NAME must be present (buyer's identity or ABN)"
+        requirement: "Either PAYER_NAME or PAYER_ABN must be present (buyer's identity or ABN)"
         ato_compliance: true
 
   # ========================================

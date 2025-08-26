@@ -185,7 +185,6 @@ class DocumentTypeFieldSchema(FieldSchema):
         self._compiled_schemas_cache[document_type] = complete_schema
         
         print(f"✅ Schema compiled for {document_type}: {len(complete_fields)} fields")
-        print(f"   Efficiency gain: {doc_schema_def.get('metadata', {}).get('efficiency_gain', 'Unknown')}")
         
         return complete_schema
     
@@ -348,7 +347,6 @@ class DocumentTypeFieldSchema(FieldSchema):
             report += f"""
    {status} {doc_type.upper()}:
       Fields: {comparison['specific_field_count']} (vs {comparison['unified_field_count']} unified)
-      Efficiency: {comparison['efficiency_gain']}
       Excluded: {len(comparison['excluded_fields'])} fields
       Valid: {validation['valid']}
 """
@@ -414,7 +412,6 @@ def main():
             
             # Compare with unified
             comparison = schema_loader.compare_schemas(doc_type)
-            print(f"   Efficiency: {comparison['efficiency_gain']}")
         
         # Generate full report
         print("\n" + schema_loader.generate_schema_report())

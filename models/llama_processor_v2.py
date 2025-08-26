@@ -417,7 +417,6 @@ def main():
             print("✅ Processing completed")
             print(f"   Document type: {result.get('detected_document_type', 'unknown')}")
             print(f"   Fields extracted: {result.get('fields_extracted', 'unknown')}")
-            print(f"   Efficiency gain: {result.get('efficiency_gain', '0%')}")
             print(f"   Processing time: {result.get('total_processing_time', 0):.2f}s")
         else:
             print(f"⚠️ Test image not found: {test_image}")
