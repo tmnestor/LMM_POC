@@ -25,7 +25,7 @@ def test_schema_basics():
     try:
         # Initialize loader
         schema_loader = DocumentTypeFieldSchema()
-        print(f"✅ Schema loader initialized")
+        print("✅ Schema loader initialized")
         
         # Test each document type
         for doc_type in schema_loader.get_supported_document_types():
