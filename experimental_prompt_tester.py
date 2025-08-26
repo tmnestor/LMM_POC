@@ -17,8 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path - ensure we can import project modules
+project_root = Path(__file__).parent.absolute()
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 try:
     from common.evaluation_utils import discover_images
@@ -26,7 +28,10 @@ try:
     from models.llama_processor import LlamaProcessor
 except ImportError as e:
     print(f"❌ Import error: {e}")
-    print("💡 Make sure you're running from the project root directory")
+    print(f"💡 Current directory: {Path.cwd()}")
+    print(f"💡 Project root: {project_root}")
+    print("💡 Make sure you're running from the LMM_POC directory")
+    print("💡 Required files: common/evaluation_utils.py, models/llama_processor.py, models/internvl3_processor.py")
     sys.exit(1)
 
 

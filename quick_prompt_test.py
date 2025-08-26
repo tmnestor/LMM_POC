@@ -9,10 +9,18 @@ Edit the EXPERIMENTAL_PROMPT and run: python quick_prompt_test.py
 import sys
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path - ensure we can import project modules
+project_root = Path(__file__).parent.absolute()
+sys.path.insert(0, str(project_root))
 
-from experimental_prompt_tester import ExperimentalPromptTester
+try:
+    from experimental_prompt_tester import ExperimentalPromptTester
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    print(f"💡 Current directory: {Path.cwd()}")
+    print(f"💡 Project root: {project_root}")
+    print("💡 Make sure you're running from the LMM_POC directory")
+    sys.exit(1)
 
 # ============================================================================
 # EDIT THIS SECTION FOR YOUR EXPERIMENT
