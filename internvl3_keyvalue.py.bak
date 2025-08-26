@@ -17,7 +17,7 @@ Pipeline Overview:
 
 Input Requirements:
     - Document images in DATA_DIR (PNG, JPG, JPEG formats)
-    - Ground truth CSV file for evaluation (ground_truth.csv)
+    - Ground truth CSV file for evaluation (evaluation_ground_truth.csv)
     - InternVL3-2B model at INTERNVL3_MODEL_PATH
     - CUDA-compatible GPU recommended (4GB+ VRAM, CPU fallback available)
 
@@ -155,7 +155,7 @@ def main(extraction_mode=None, debug=False, limit_images=None):
     Configuration Dependencies:
         - DATA_DIR: Must contain document images (*.png, *.jpg, *.jpeg)
         - INTERNVL3_MODEL_PATH: Must point to valid InternVL3-2B model
-        - GROUND_TRUTH_PATH: Must contain ground_truth.csv
+        - GROUND_TRUTH_PATH: Must contain evaluation_ground_truth.csv
         - OUTPUT_DIR: Directory for generated reports (created if missing)
 
     Error Handling:

@@ -17,7 +17,7 @@ Pipeline Overview:
 
 Input Requirements:
     - Document images in DATA_DIR (PNG, JPG, JPEG formats)
-    - Ground truth CSV file for evaluation (ground_truth.csv)
+    - Ground truth CSV file for evaluation (evaluation_ground_truth.csv)
     - Llama-3.2-11B-Vision-Instruct model at LLAMA_MODEL_PATH
     - CUDA-compatible GPU recommended (16GB+ VRAM or 8-bit quantization)
 
@@ -142,7 +142,7 @@ def main(extraction_mode=None, debug=False, limit_images=None):
     Configuration Dependencies:
         - DATA_DIR: Must contain document images (*.png, *.jpg, *.jpeg)
         - LLAMA_MODEL_PATH: Must point to valid Llama-3.2-Vision model
-        - GROUND_TRUTH_PATH: Must contain ground_truth.csv
+        - GROUND_TRUTH_PATH: Must contain evaluation_ground_truth.csv
         - OUTPUT_DIR: Directory for generated reports (created if missing)
 
     Error Handling:

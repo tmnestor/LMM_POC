@@ -222,7 +222,7 @@ def switch_environment(environment: str):
     if not ENV_LLAMA_MODEL_PATH:
         LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
     if not ENV_GROUND_TRUTH_PATH:
-        GROUND_TRUTH_PATH = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        GROUND_TRUTH_PATH = f"{DATA_DIR}/ground_truth.csv"
     if not ENV_OUTPUT_DIR:
         OUTPUT_DIR = f"{BASE_PATH}/{config['output_dir']}"
 
@@ -273,12 +273,12 @@ LLAMA_MODEL_PATH = get_env_or_default(
 if CURRENT_DEPLOYMENT == "AISandbox":
     DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
-    _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    _default_ground_truth = f"{DATA_DIR}/ground_truth.csv"
     _default_output_dir = f"{BASE_PATH}/tod/output"
 else:  # EFS deployment
     DATA_BASE = f"{BASE_PATH}/PoC_data"
     DATA_DIR = f"{DATA_BASE}/evaluation_data"
-    _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+    _default_ground_truth = f"{DATA_DIR}/ground_truth.csv"
     _default_output_dir = f"{DATA_BASE}/output"
 
 # Apply environment variable overrides
@@ -361,12 +361,12 @@ def switch_deployment(deployment: str):
     if CURRENT_DEPLOYMENT == "AISandbox":
         DATA_BASE = f"{BASE_PATH}/tod/LMM_POC"
         DATA_DIR = f"{DATA_BASE}/evaluation_data"
-        _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        _default_ground_truth = f"{DATA_DIR}/ground_truth.csv"
         _default_output_dir = f"{BASE_PATH}/tod/output"
     else:  # EFS deployment
         DATA_BASE = f"{BASE_PATH}/PoC_data"
         DATA_DIR = f"{DATA_BASE}/evaluation_data"
-        _default_ground_truth = f"{DATA_DIR}/evaluation_ground_truth.csv"
+        _default_ground_truth = f"{DATA_DIR}/ground_truth.csv"
         _default_output_dir = f"{DATA_BASE}/output"
 
     # Only update paths if not overridden by environment variables
