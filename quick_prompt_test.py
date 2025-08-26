@@ -15,10 +15,10 @@ sys.path.insert(0, str(project_root))
 
 # Debug: Check if required files exist
 required_files = [
-    'common/extraction_parser.py',
-    'models/llama_processor.py', 
-    'models/internvl3_processor.py',
-    'experimental_prompt_tester.py'
+    "common/extraction_parser.py",
+    "models/llama_processor.py",
+    "models/internvl3_processor.py",
+    "experimental_prompt_tester.py",
 ]
 
 missing_files = []
@@ -37,19 +37,21 @@ if missing_files:
 # Try importing with explicit path debugging
 try:
     import experimental_prompt_tester
+
     ExperimentalPromptTester = experimental_prompt_tester.ExperimentalPromptTester
 except ImportError as e:
     print(f"❌ Import error during experimental_prompt_tester import: {e}")
     print(f"💡 Python path: {sys.path[:3]}...")  # Show first 3 entries
-    
+
     # Try direct import to isolate the issue
     try:
         import common.extraction_parser  # noqa: F401
+
         print("✅ common.extraction_parser imports successfully")
     except ImportError as e2:
         print(f"❌ Direct common.extraction_parser import failed: {e2}")
         print("💡 This suggests a PYTHONPATH or conda environment issue")
-    
+
     sys.exit(1)
 
 # ============================================================================
@@ -60,16 +62,26 @@ except ImportError as e:
 MODEL = "llama"
 
 # Your experimental prompt (edit this!)
-EXPERIMENTAL_PROMPT = """
-Extract all text from this image and format it as proper markdown. Maintain the visual hierarchy:
-- Main titles as # headers
-- Subtitles as ## or ### 
-- Bullet points as - lists
-- Numbered items as 1. 2. 3.
-- Preserve line breaks and spacing
+# EXPERIMENTAL_PROMPT = """
+# Extract all text from this image and format it as proper markdown. Maintain the visual hierarchy:
+# - Main titles as # headers
+# - Subtitles as ## or ###
+# - Bullet points as - lists
+# - Numbered items as 1. 2. 3.
+# - Preserve line breaks and spacing
 
-Markdown output:
-"""
+# Markdown output:
+# """
+
+EXPERIMENTAL_PROMPT = """
+Analyze this image and convert it to markdown. Include:
+- Headers (use # ## ### etc.)
+- Lists (- or 1. 2. 3.)
+- Bold/italic text (**bold** *italic*)
+- Tables if present
+- Code blocks if any
+
+Output clean markdown only."""
 
 # Test image (or None to use first available)
 # TEST_IMAGE = None  # Will auto-select from evaluation_data/
