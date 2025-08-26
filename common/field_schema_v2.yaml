@@ -16,20 +16,25 @@ common_fields:
     group: "metadata"
     description: "Type of business document"
     instruction: "[document type (invoice/receipt/bank_statement) or NOT_FOUND]"
+    ato_note: "Must be labeled as 'Tax Invoice' for ATO compliance when applicable"
     
   - name: "BUSINESS_ABN"
     type: "numeric_id"
     evaluation_logic: "exact_numeric_match"
     group: "critical"
-    description: "11-digit Australian Business Number"
+    description: "11-digit Australian Business Number (ATO mandatory)"
     instruction: "[11-digit Australian Business Number or NOT_FOUND]"
+    ato_requirement: "mandatory"
+    ato_note: "Required on all Australian tax invoices - seller's ABN"
     
   - name: "SUPPLIER_NAME"
     type: "text"
     evaluation_logic: "fuzzy_text_match"
     group: "business_entity"
-    description: "Business/supplier name"
+    description: "Business/supplier name (seller's identity)"
     instruction: "[business/supplier name or NOT_FOUND]"
+    ato_requirement: "mandatory"
+    ato_note: "Seller's identity - required on all tax invoices"
 
   - name: "BUSINESS_ADDRESS"
     type: "text"
@@ -58,14 +63,16 @@ common_fields:
 document_schemas:
   
   # ========================================
-  # INVOICE SCHEMA (18 fields)
+  # INVOICE SCHEMA (19 fields) - ATO TAX INVOICE COMPLIANT
   # ========================================
   invoice:
     metadata:
-      document_type_values: ["invoice", "tax invoice", "bill", "sales invoice"]
+      document_type_values: ["invoice", "tax invoice", "bill", "sales invoice", "tax inv", "invoice/tax invoice"]
       total_fields: 19
-      description: "Sales invoice or bill for goods/services"
+      description: "Australian Tax Office compliant tax invoice"
       efficiency_gain: "24% fewer fields than unified (25→19)"
+      compliance: "ATO Tax Invoice Requirements"
+      ato_reference: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/tax-invoices"
       
     inherits_common: true
     
@@ -74,15 +81,19 @@ document_schemas:
         type: "text"
         evaluation_logic: "exact_match"
         group: "metadata"
-        description: "Invoice reference number"
+        description: "Invoice reference number (ATO required)"
         instruction: "[invoice number/reference or NOT_FOUND]"
+        ato_requirement: "mandatory"
+        ato_note: "Required for all tax invoices"
         
       - name: "PAYER_NAME"
         type: "text"
         evaluation_logic: "fuzzy_text_match"
         group: "payer_info"
-        description: "Customer/payer name"
-        instruction: "[customer/payer name or NOT_FOUND]"
+        description: "Customer/payer name or identity"
+        instruction: "[customer/payer name/identity or buyer's ABN or NOT_FOUND]"
+        ato_requirement: "conditional"
+        ato_note: "Required for sales $1,000 or more (buyer's identity or ABN - can capture either in this field)"
         
       - name: "PAYER_ADDRESS"
         type: "text"
@@ -109,8 +120,10 @@ document_schemas:
         type: "date"
         evaluation_logic: "flexible_date_match"
         group: "dates"
-        description: "Invoice issue date"
+        description: "Invoice issue date (ATO required)"
         instruction: "[invoice date or NOT_FOUND]"
+        ato_requirement: "mandatory"
+        ato_note: "Date when invoice is issued - required for all tax invoices"
         
       - name: "DUE_DATE"
         type: "date"
@@ -123,8 +136,10 @@ document_schemas:
         type: "list"
         evaluation_logic: "list_overlap_match"
         group: "item_details"
-        description: "Product/service descriptions"
+        description: "Brief description of items sold (ATO required)"
         instruction: "[comma-separated list of items or NOT_FOUND]"
+        ato_requirement: "mandatory"
+        ato_note: "Brief description of items/services including quantity and price"
         
       - name: "LINE_ITEM_QUANTITIES"
         type: "list"
@@ -151,8 +166,10 @@ document_schemas:
         type: "monetary"
         evaluation_logic: "monetary_with_tolerance"
         group: "monetary"
-        description: "GST/tax amount"
-        instruction: "[GST amount in dollars with 2 decimals or NOT_FOUND]"
+        description: "GST amount (ATO required)"
+        instruction: "[GST amount in dollars with 2 decimals, or 'Total price includes GST' statement, or NOT_FOUND]"
+        ato_requirement: "mandatory"
+        ato_note: "Must show GST separately or state 'Total price includes GST' if GST is exactly 1/11 of total. For $1000+ must show GST per line item."
         
       - name: "SUPPLIER_WEBSITE"
         type: "text"
@@ -188,6 +205,29 @@ document_schemas:
         description: "Due date should be after invoice date"
         fields: ["INVOICE_DATE", "DUE_DATE"]
         rule_type: "temporal_sequence"
+        
+      - name: "ato_mandatory_fields"
+        description: "ATO required fields must be present"
+        fields: ["DOCUMENT_TYPE", "BUSINESS_NAME", "BUSINESS_ABN", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS", "GST_AMOUNT"]
+        rule_type: "mandatory_presence"
+        ato_compliance: true
+        
+      - name: "ato_gst_calculation"
+        description: "GST should be exactly 1/11 of total when stated as included"
+        fields: ["GST_AMOUNT", "TOTAL_AMOUNT"]
+        rule_type: "mathematical"
+        formula: "GST_AMOUNT * 11 = TOTAL_AMOUNT"
+        tolerance: 0.01
+        ato_compliance: true
+        condition: "when GST is stated as included in total"
+        
+      - name: "ato_buyer_info_threshold"
+        description: "Buyer details required for sales $1000 or more"
+        fields: ["TOTAL_AMOUNT", "PAYER_NAME"]
+        rule_type: "conditional_presence"
+        condition: "TOTAL_AMOUNT >= 1000"
+        requirement: "PAYER_NAME must be present (buyer's identity or ABN)"
+        ato_compliance: true
 
   # ========================================
   # BANK STATEMENT SCHEMA (15 fields)
