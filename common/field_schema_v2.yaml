@@ -63,9 +63,9 @@ document_schemas:
   invoice:
     metadata:
       document_type_values: ["invoice", "tax invoice", "bill", "sales invoice"]
-      total_fields: 18
+      total_fields: 19
       description: "Sales invoice or bill for goods/services"
-      efficiency_gain: "28% fewer fields than unified (25→18)"
+      efficiency_gain: "24% fewer fields than unified (25→19)"
       
     inherits_common: true
     
@@ -293,9 +293,9 @@ document_schemas:
   receipt:
     metadata:
       document_type_values: ["receipt", "purchase receipt", "payment receipt", "sales receipt"]
-      total_fields: 12
+      total_fields: 15
       description: "Proof of purchase or payment"
-      efficiency_gain: "52% fewer fields than unified (25→12)"
+      efficiency_gain: "40% fewer fields than unified (25→15)"
       
     inherits_common: true
     

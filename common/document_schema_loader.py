@@ -198,10 +198,14 @@ class DocumentTypeFieldSchema(FieldSchema):
                 f"💡 Ensure {self.v1_fallback_file} exists for fallback support"
             )
         
-        # Use parent class methods for v1 schema
+        # Use parent class schema structure for v1 schema - convert to field objects
+        field_objects = []
+        for field_def in self.schema["fields"]:  # From parent FieldSchema class
+            field_objects.append(field_def)  # These are already dict objects
+        
         return {
-            "fields": self.field_names,  # From parent FieldSchema class
-            "total_fields": self.total_fields,
+            "fields": field_objects,
+            "total_fields": len(field_objects),
             "document_type": "unified_fallback",
             "metadata": {"description": "Unified 25-field schema for unknown document types"},
             "excluded_fields": [],
@@ -248,17 +252,26 @@ class DocumentTypeFieldSchema(FieldSchema):
         if not unified_schema:
             return {"error": "Unified schema not available for comparison"}
         
-        specific_fields = set(f["name"] for f in specific_schema["fields"])
-        unified_fields = set(f["name"] for f in unified_schema["fields"])
+        # Handle both list of dicts and list of strings for field names
+        if isinstance(specific_schema["fields"][0], dict):
+            specific_fields = set(f["name"] for f in specific_schema["fields"])
+        else:
+            specific_fields = set(specific_schema["fields"])
+            
+        if isinstance(unified_schema["fields"], list) and unified_schema["fields"] and isinstance(unified_schema["fields"][0], dict):
+            unified_fields = set(f["name"] for f in unified_schema["fields"])
+        else:
+            # Handle case where unified_schema["fields"] is a list of field names
+            unified_fields = set(unified_schema["fields"]) if isinstance(unified_schema["fields"], list) else set()
         
         return {
             "document_type": document_type,
             "specific_field_count": len(specific_fields),
             "unified_field_count": len(unified_fields),
             "field_reduction": len(unified_fields) - len(specific_fields),
-            "field_reduction_percentage": ((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100,
+            "field_reduction_percentage": ((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100 if unified_fields else 0,
             "excluded_fields": list(unified_fields - specific_fields),
-            "efficiency_gain": f"{((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100:.0f}% fewer fields"
+            "efficiency_gain": f"{((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100:.0f}% fewer fields" if unified_fields else "No unified comparison available"
         }
     
     def get_supported_document_types(self) -> List[str]:
