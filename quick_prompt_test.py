@@ -13,13 +13,43 @@ from pathlib import Path
 project_root = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
 
-try:
-    from experimental_prompt_tester import ExperimentalPromptTester
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    print(f"💡 Current directory: {Path.cwd()}")
+# Debug: Check if required files exist
+required_files = [
+    'common/evaluation_utils.py',
+    'models/llama_processor.py', 
+    'models/internvl3_processor.py',
+    'experimental_prompt_tester.py'
+]
+
+missing_files = []
+for file_path in required_files:
+    if not (project_root / file_path).exists():
+        missing_files.append(file_path)
+
+if missing_files:
+    print("❌ Missing required files:")
+    for file in missing_files:
+        print(f"   - {file}")
     print(f"💡 Project root: {project_root}")
-    print("💡 Make sure you're running from the LMM_POC directory")
+    print("💡 Please check file locations")
+    sys.exit(1)
+
+# Try importing with explicit path debugging
+try:
+    import experimental_prompt_tester
+    ExperimentalPromptTester = experimental_prompt_tester.ExperimentalPromptTester
+except ImportError as e:
+    print(f"❌ Import error during experimental_prompt_tester import: {e}")
+    print(f"💡 Python path: {sys.path[:3]}...")  # Show first 3 entries
+    
+    # Try direct import to isolate the issue
+    try:
+        import common.evaluation_utils  # noqa: F401
+        print("✅ common.evaluation_utils imports successfully")
+    except ImportError as e2:
+        print(f"❌ Direct common.evaluation_utils import failed: {e2}")
+        print("💡 This suggests a PYTHONPATH or conda environment issue")
+    
     sys.exit(1)
 
 # ============================================================================
