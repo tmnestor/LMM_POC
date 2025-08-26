@@ -82,6 +82,10 @@ datasets/
 # *.jpg
 # *.jpeg
 datasets_old/*
+
+evaluation_data_old/
+ato_synthetic_invoices/
+
 # Archive for legacy code and directories
 archive/*
 # Claude Code related files

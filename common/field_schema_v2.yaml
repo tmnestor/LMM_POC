@@ -93,7 +93,7 @@ document_schemas:
         description: "Customer/payer name or identity"
         instruction: "[customer/payer name/identity or NOT_FOUND]"
         ato_requirement: "conditional"
-        ato_note: "Required for sales $1,000 or more (buyer's identity)"
+        ato_note: "Required for sales of $1,000 or more (buyer's identity)"
         
       - name: "PAYER_ABN"
         type: "numeric_id"
@@ -102,7 +102,7 @@ document_schemas:
         description: "11-digit customer/buyer Australian Business Number"
         instruction: "[11-digit customer/buyer ABN or NOT_FOUND]"
         ato_requirement: "conditional"
-        ato_note: "Alternative to PAYER_NAME for sales $1,000 or more (buyer's ABN)"
+        ato_note: "Alternative to PAYER_NAME for sales of $1,000 or more (buyer's ABN)"
         
       - name: "PAYER_ADDRESS"
         type: "text"
@@ -178,7 +178,7 @@ document_schemas:
         description: "GST amount (ATO required)"
         instruction: "[GST amount in dollars with 2 decimals, or 'Total price includes GST' statement, or NOT_FOUND]"
         ato_requirement: "mandatory"
-        ato_note: "Must show GST separately or state 'Total price includes GST' if GST is exactly 1/11 of total. For $1000+ must show GST per line item."
+        ato_note: "Must show GST separately or state 'Total price includes GST' if GST is exactly 1/11 of total. For sales of $1,000 or more must show GST per line item."
         
       - name: "SUPPLIER_WEBSITE"
         type: "text"
@@ -231,7 +231,7 @@ document_schemas:
         condition: "when GST is stated as included in total"
         
       - name: "ato_buyer_info_threshold"
-        description: "Buyer details required for sales $1000 or more"
+        description: "Buyer details required for sales of $1,000 or more"
         fields: ["TOTAL_AMOUNT", "PAYER_NAME", "PAYER_ABN"]
         rule_type: "conditional_presence"
         condition: "TOTAL_AMOUNT >= 1000"
