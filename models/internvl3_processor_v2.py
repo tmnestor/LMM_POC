@@ -166,7 +166,7 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
                     torch.cuda.synchronize()
             
             # Load and preprocess image
-            image = self._load_and_preprocess_image(image_path)
+            image = self.load_image(image_path)
             
             # Use custom prompt if provided, otherwise use standard
             if custom_prompt:
@@ -252,7 +252,7 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
         """
         try:
             # Load and preprocess image
-            image = self._load_and_preprocess_image(image_path)
+            image = self.load_image(image_path)
             pixel_values = image.unsqueeze(0).to(self.device)
             
             # Create temporary generation config with provided kwargs
