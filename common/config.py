@@ -462,9 +462,8 @@ def show_current_config():
 _schema = get_global_schema()
 EXTRACTION_FIELDS = _schema.field_names
 FIELD_COUNT = _schema.total_fields
-print(
-    f"🎯 Using {FIELD_COUNT} fields from schema: {EXTRACTION_FIELDS[0]} → {EXTRACTION_FIELDS[-1]}"
-)
+# Schema info available via FIELD_COUNT and EXTRACTION_FIELDS variables
+# Print statement removed to support both unified and document-aware modes
 
 # FIELD_INSTRUCTIONS removed - using YAML-first field discovery for single source of truth
 

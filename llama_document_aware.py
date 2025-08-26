@@ -47,20 +47,20 @@ class DocumentAwareLlamaProcessor:
         self.debug = debug
         self.model_path = model_path
         
-        # Initialize Phase 4 components
-        self.schema_loader = DocumentTypeFieldSchema()
-        self.document_detector = DocumentTypeDetector()
-        self.evaluator = DocumentTypeEvaluator()
-        
-        # Set up document detection
-        self.schema_loader.set_document_detector(self.document_detector)
-        
-        # Initialize Llama processor
+        # Initialize Llama processor first
         print("🚀 Initializing Llama Vision processor for document-aware extraction...")
         self.llama_processor = LlamaProcessor(
             model_path=model_path,
             extraction_mode="single_pass"
         )
+        
+        # Initialize Phase 4 components with processor
+        self.schema_loader = DocumentTypeFieldSchema()
+        self.document_detector = DocumentTypeDetector(model_processor=self.llama_processor)
+        self.evaluator = DocumentTypeEvaluator()
+        
+        # Set up document detection
+        self.schema_loader.set_document_detector(self.document_detector)
         
         print("✅ Document-aware Llama processor initialized")
     
