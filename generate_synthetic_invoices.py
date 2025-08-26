@@ -8,13 +8,13 @@ Generates realistic Australian tax invoices that comply with ATO requirements:
 - Proper GST calculations (1/11 of total when included)
 """
 
-import random
 import csv
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Tuple
 import json
-from decimal import Decimal, ROUND_HALF_UP
+import random
+from datetime import datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
+from typing import Dict, List
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -316,7 +316,7 @@ class ATOTaxInvoiceGenerator:
         """Generate a PNG image of the tax invoice."""
         
         if not PIL_AVAILABLE:
-            print(f"⚠️ Skipping PNG generation - PIL not available")
+            print("⚠️ Skipping PNG generation - PIL not available")
             return
             
         # Image dimensions
@@ -434,9 +434,9 @@ class ATOTaxInvoiceGenerator:
         
         # Financial Totals (Right aligned)
         totals = [
-            (f"Subtotal (ex GST):", invoice_data['subtotal_amount']),
-            (f"GST:", invoice_data['gst_amount']),
-            (f"TOTAL:", invoice_data['total_amount'])
+            ("Subtotal (ex GST):", invoice_data['subtotal_amount']),
+            ("GST:", invoice_data['gst_amount']),
+            ("TOTAL:", invoice_data['total_amount'])
         ]
         
         for label, amount in totals:
@@ -505,7 +505,7 @@ class ATOTaxInvoiceGenerator:
         else:
             print(f"📝 Creating new CSV: {csv_file}")
         
-        with open(csv_file, mode, newline='', encoding='utf-8') as f:
+        with csv_file.open(mode, newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             
             if write_header:
@@ -578,14 +578,14 @@ class ATOTaxInvoiceGenerator:
         }
         
         summary_file = output_path / "generation_summary.json"
-        with open(summary_file, 'w') as f:
+        with summary_file.open('w') as f:
             json.dump(summary, f, indent=2)
         
         print(f"\n✅ Generated {count} ATO compliant tax invoices in {output_path}")
         print(f"   Under $1,000: {summary['under_1000']}")
         print(f"   $1,000 or more: {summary['over_1000']}")
         if with_ground_truth:
-            print(f"   Ground truth CSV: ✅ Generated")
+            print("   Ground truth CSV: ✅ Generated")
         
         return invoices
 
@@ -602,7 +602,7 @@ def main():
         with_ground_truth=True
     )
     
-    print(f"\n📊 Sample Invoice Data:")
+    print("\n📊 Sample Invoice Data:")
     print(f"   Total invoices: {len(invoices)}")
     print(f"   Average amount: ${sum(float(inv['total_amount'][1:]) for inv in invoices) / len(invoices):.2f}")
     print(f"   ATO compliant: {all(inv['ato_compliant'] for inv in invoices)}")

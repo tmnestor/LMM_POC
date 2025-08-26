@@ -7,6 +7,7 @@ Merges evaluation_data and ato_synthetic_invoices CSV files.
 import csv
 from pathlib import Path
 
+
 def consolidate_ground_truth():
     """Merge ground truth CSV files with consistent columns."""
     
@@ -61,7 +62,7 @@ def consolidate_ground_truth():
     eval_csv = Path("/Users/tod/Desktop/LMM_POC/evaluation_data/evaluation_ground_truth.csv")
     eval_rows = []
     
-    with open(eval_csv, 'r', encoding='utf-8') as f:
+    with eval_csv.open('r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Standardize field names and fill missing columns
@@ -98,7 +99,7 @@ def consolidate_ground_truth():
     ato_csv = Path("/Users/tod/Desktop/LMM_POC/ato_synthetic_invoices/ground_truth.csv")
     ato_rows = []
     
-    with open(ato_csv, 'r', encoding='utf-8') as f:
+    with ato_csv.open('r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             # All columns should already exist in the ATO CSV
@@ -119,7 +120,7 @@ def consolidate_ground_truth():
     # Write consolidated CSV
     output_path = Path("/Users/tod/Desktop/LMM_POC/consolidated_evaluation_data/ground_truth.csv")
     
-    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+    with output_path.open('w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=unified_columns)
         writer.writeheader()
         writer.writerows(all_rows)
