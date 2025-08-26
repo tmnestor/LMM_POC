@@ -19,18 +19,23 @@ from experimental_prompt_tester import ExperimentalPromptTester
 # ============================================================================
 
 # Choose model: "llama" or "internvl3"
-MODEL = "internvl3"
+MODEL = "llama"
 
 # Your experimental prompt (edit this!)
 EXPERIMENTAL_PROMPT = """
-Extract the business ABN and total amount from this invoice.
+Extract all text from this image and format it as proper markdown. Maintain the visual hierarchy:
+- Main titles as # headers
+- Subtitles as ## or ### 
+- Bullet points as - lists
+- Numbered items as 1. 2. 3.
+- Preserve line breaks and spacing
 
-ABN: [11 digits]  
-TOTAL: [amount with $]
+Markdown output:
 """
 
 # Test image (or None to use first available)
-TEST_IMAGE = None  # Will auto-select from evaluation_data/
+# TEST_IMAGE = None  # Will auto-select from evaluation_data/
+TEST_IMAGE = "evaluation_data/synthetic_invoice_001.png"  # Will auto-select from evaluation_data/
 
 # Compare with baseline? (True/False)
 COMPARE_WITH_BASELINE = True
@@ -39,16 +44,18 @@ COMPARE_WITH_BASELINE = True
 # NO NEED TO EDIT BELOW THIS LINE
 # ============================================================================
 
+
 def main():
     print("🚀 Quick Experimental Prompt Test")
     print(f"📊 Model: {MODEL}")
     print(f"📝 Prompt: {len(EXPERIMENTAL_PROMPT)} characters")
-    
+
     # Auto-select image if none specified
     image_path = TEST_IMAGE
     if not image_path:
         try:
             from common.evaluation_utils import discover_images
+
             images = discover_images("evaluation_data/")
             if images:
                 image_path = str(images[0])
@@ -59,38 +66,40 @@ def main():
         except Exception as e:
             print(f"❌ Error finding images: {e}")
             return
-    
+
     # Run the test
     try:
         tester = ExperimentalPromptTester(MODEL)
-        
+
         if COMPARE_WITH_BASELINE:
             print("\n⚖️  Running comparison with baseline...")
             result = tester.compare_with_baseline(EXPERIMENTAL_PROMPT, image_path)
-            
+
             # Simple analysis
-            baseline_response = result['baseline']['response']
-            experimental_response = result['experimental']['response']
-            
+            baseline_response = result["baseline"]["response"]
+            experimental_response = result["experimental"]["response"]
+
             print("\n📊 QUICK ANALYSIS:")
             print(f"Baseline length: {len(baseline_response)} chars")
             print(f"Experimental length: {len(experimental_response)} chars")
             print(f"Time difference: {result['time_difference']:+.2f}s")
-            
+
         else:
             print("\n🧪 Running experimental prompt only...")
             result = tester.test_prompt(EXPERIMENTAL_PROMPT, image_path)
-        
+
         print("\n✅ Test completed! Review the output above.")
         print("\n💡 To modify the test:")
-        print("   1. Edit EXPERIMENTAL_PROMPT in this file")  
+        print("   1. Edit EXPERIMENTAL_PROMPT in this file")
         print("   2. Change MODEL if needed")
         print("   3. Run again: python quick_prompt_test.py")
-        
+
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()
