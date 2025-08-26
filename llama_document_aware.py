@@ -36,10 +36,10 @@ from common.document_type_detector import DocumentTypeDetector
 from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
 from common.extraction_parser import discover_images
-from models.llama_processor import LlamaProcessor
+from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
 
 
-class DocumentAwareLlamaProcessor:
+class DocumentAwareLlamaHandler:
     """Phase 4 Document-Aware Llama Vision Processor."""
     
     def __init__(self, model_path: str, debug: bool = False):
@@ -47,16 +47,18 @@ class DocumentAwareLlamaProcessor:
         self.debug = debug
         self.model_path = model_path
         
-        # Initialize Llama processor first
         print("🚀 Initializing Llama Vision processor for document-aware extraction...")
-        self.llama_processor = LlamaProcessor(
+        
+        # Initialize a base processor for document type detection
+        self.base_processor = DocumentAwareLlamaProcessor(
             model_path=model_path,
-            extraction_mode="single_pass"
+            extraction_mode="single_pass",
+            debug=debug
         )
         
         # Initialize Phase 4 components with processor
         self.schema_loader = DocumentTypeFieldSchema()
-        self.document_detector = DocumentTypeDetector(model_processor=self.llama_processor)
+        self.document_detector = DocumentTypeDetector(model_processor=self.base_processor)
         self.evaluator = DocumentTypeEvaluator()
         
         # Set up document detection
@@ -88,7 +90,7 @@ class DocumentAwareLlamaProcessor:
     
     def process_document_aware(self, image_path: str, 
                               classification_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Process single document with type-aware extraction."""
+        """Process single document with type-aware extraction using proper processor."""
         
         start_time = time.perf_counter()
         
@@ -100,35 +102,42 @@ class DocumentAwareLlamaProcessor:
             print(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
             print(f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}")
         
-        # CRITICAL FIX: Override the processor's field list with document-specific fields
-        # Temporarily replace the processor's extraction fields
-        original_fields = self.llama_processor.extraction_fields
-        self.llama_processor.extraction_fields = field_names
+        # PROPER SOLUTION: Create a document-aware processor with the specific field list
+        document_processor = DocumentAwareLlamaProcessor(
+            model_path=self.model_path,
+            extraction_mode="single_pass",
+            debug=self.debug,
+            field_list=field_names
+        )
         
-        try:
-            # Extract with document-specific field list
-            extraction_result = self.llama_processor.process_single_image(image_path)
-            
-            if self.debug:
-                found_fields = [k for k, v in extraction_result.items() if v != "NOT_FOUND"]
-                print(f"   ✅ Found {len(found_fields)} fields: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
-            
-        finally:
-            # Restore original fields
-            self.llama_processor.extraction_fields = original_fields
+        # Copy the model and processor from the base processor to avoid reloading
+        document_processor.model = self.base_processor.model
+        document_processor.processor = self.base_processor.processor
+        document_processor.generation_config = self.base_processor.generation_config
         
-        # Use the extraction result directly since we already targeted the right fields
-        filtered_result = extraction_result
+        if self.debug:
+            print(f"   🎯 Created processor for {len(field_names)} {doc_type}-specific fields")
+        
+        # Extract with document-specific processor
+        extraction_result = document_processor.process_single_image(image_path)
+        
+        if self.debug:
+            extracted_data = extraction_result.get("extracted_data", {})
+            found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+            print(f"   ✅ Found {len(found_fields)} fields: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
+        
+        # Extract the data from the processor result
+        extracted_data = extraction_result.get("extracted_data", {})
         
         processing_time = time.perf_counter() - start_time
         
         return {
             "image_file": Path(image_path).name,
             "document_type": doc_type,
-            "detected_fields": len([v for v in filtered_result.values() if v != "NOT_FOUND"]),
+            "detected_fields": len([v for v in extracted_data.values() if v != "NOT_FOUND"]),
             "total_fields": len(field_names),
             "processing_time": processing_time,
-            "extracted_data": filtered_result
+            "extracted_data": extracted_data
         }
     
     def evaluate_document_aware(self, results: List[Dict], ground_truth: Dict) -> Dict[str, Any]:
@@ -253,7 +262,7 @@ def main():
         return
     
     # Initialize document-aware processor
-    processor = DocumentAwareLlamaProcessor(args.model_path, debug=args.debug)
+    processor = DocumentAwareLlamaHandler(args.model_path, debug=args.debug)
     
     # Load ground truth and discover images
     ground_truth = load_ground_truth(args.ground_truth)
