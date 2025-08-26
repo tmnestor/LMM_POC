@@ -94,8 +94,8 @@ class DocumentAwareLlamaProcessor:
             print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
             # Auto-detect batch size based on available memory
-            available_memory = get_available_gpu_memory()
-            self.batch_size = get_auto_batch_size(available_memory)
+            available_memory = get_available_gpu_memory(self.device)
+            self.batch_size = get_auto_batch_size("llama", available_memory)
             print(f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)")
     
     def _configure_generation(self):
