@@ -49,22 +49,18 @@ class DocumentAwareLlamaHandler:
         
         print("🚀 Initializing Llama Vision processor for document-aware extraction...")
         
-        # Initialize a base processor for document type detection
-        self.base_processor = DocumentAwareLlamaProcessor(
-            model_path=model_path,
-            extraction_mode="single_pass",
-            debug=debug
-        )
+        # We'll create processors on-demand to avoid loading multiple models
+        self.base_processor = None
+        self.model_loaded = False
         
-        # Initialize Phase 4 components with processor
+        # Initialize Phase 4 components
         self.schema_loader = DocumentTypeFieldSchema()
-        self.document_detector = DocumentTypeDetector(model_processor=self.base_processor)
         self.evaluator = DocumentTypeEvaluator()
         
-        # Set up document detection
-        self.schema_loader.set_document_detector(self.document_detector)
+        # Note: Document detector will be configured when we need it
+        self.document_detector = None
         
-        print("✅ Document-aware Llama processor initialized")
+        print("✅ Document-aware Llama handler initialized (model will load on first use)")
     
     def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
         """Detect document type and get appropriate schema."""
@@ -72,7 +68,19 @@ class DocumentAwareLlamaHandler:
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
         
-        # Use schema loader's detection method
+        # Initialize document detector on first use
+        if not self.document_detector:
+            # Create a minimal processor just for document type detection
+            detection_fields = ["DOCUMENT_TYPE"]  # Only need this for classification
+            self.base_processor = DocumentAwareLlamaProcessor(
+                field_list=detection_fields,
+                model_path=self.model_path,
+                debug=self.debug
+            )
+            self.document_detector = DocumentTypeDetector(model_processor=self.base_processor)
+            self.schema_loader.set_document_detector(self.document_detector)
+        
+        # Detect document type
         doc_type = self.schema_loader.detect_document_type(image_path)
         schema = self.schema_loader.get_document_schema(doc_type)
         
@@ -90,7 +98,7 @@ class DocumentAwareLlamaHandler:
     
     def process_document_aware(self, image_path: str, 
                               classification_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Process single document with type-aware extraction using proper processor."""
+        """Process single document with type-aware extraction reusing loaded model."""
         
         start_time = time.perf_counter()
         
@@ -102,21 +110,26 @@ class DocumentAwareLlamaHandler:
             print(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
             print(f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}")
         
-        # PROPER SOLUTION: Create a document-aware processor with the specific field list
+        # Create document-specific processor, skip model loading if we can reuse
+        skip_loading = self.base_processor and hasattr(self.base_processor, 'model')
+        
         document_processor = DocumentAwareLlamaProcessor(
+            field_list=field_names,
             model_path=self.model_path,
-            extraction_mode="single_pass",
             debug=self.debug,
-            field_list=field_names
+            skip_model_loading=skip_loading
         )
         
-        # Copy the model and processor from the base processor to avoid reloading
-        document_processor.model = self.base_processor.model
-        document_processor.processor = self.base_processor.processor
-        document_processor.generation_config = self.base_processor.generation_config
+        # CRITICAL OPTIMIZATION: Reuse the already-loaded model from base processor
+        if skip_loading:
+            if self.debug:
+                print("   🔄 Reusing already loaded model (avoiding redundant load)")
+            
+            document_processor.model = self.base_processor.model
+            document_processor.processor = self.base_processor.processor
         
         if self.debug:
-            print(f"   🎯 Created processor for {len(field_names)} {doc_type}-specific fields")
+            print(f"   🎯 Processor ready for {len(field_names)} {doc_type}-specific fields")
         
         # Extract with document-specific processor
         extraction_result = document_processor.process_single_image(image_path)
