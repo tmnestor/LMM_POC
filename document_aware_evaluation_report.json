@@ -1,0 +1,59 @@
+{
+  "summary": {
+    "total_documents": 40,
+    "timestamp": "2025-08-27T07:35:42.263625",
+    "dataset": "evaluation_data/ground_truth.csv"
+  },
+  "document_detection": {
+    "accuracy": 0.975,
+    "correct": 39,
+    "total": 40
+  },
+  "extraction_accuracy": {
+    "average": 0.8742007223942209,
+    "min": 0.6533333333333334,
+    "max": 1.0,
+    "std_dev": 0.1010149084465572
+  },
+  "quality_metrics": {
+    "meeting_threshold": 0.225,
+    "critical_fields_perfect": 0.75,
+    "documents_passing": 9,
+    "documents_failing": 31
+  },
+  "performance": {
+    "avg_extraction_time": 3.5875229514203967e-06,
+    "total_time": 0.00014350091805681586,
+    "documents_per_second": 278743.8613052143
+  },
+  "by_document_type": {
+    "invoice": {
+      "count": 26,
+      "avg_accuracy": 0.9319507290095526,
+      "avg_time": 3.660272341221571e-06,
+      "meeting_threshold": 9,
+      "detection_accuracy": 1.0,
+      "ato_compliance": {
+        "compliant": 16,
+        "total": 26,
+        "compliance_rate": 0.6153846153846154
+      }
+    },
+    "receipt": {
+      "count": 9,
+      "avg_accuracy": 0.7164912280701754,
+      "avg_time": 3.4444318670365546e-06,
+      "meeting_threshold": 0,
+      "detection_accuracy": 0.8888888888888888,
+      "ato_compliance": null
+    },
+    "bank_statement": {
+      "count": 5,
+      "avg_accuracy": 0.8577777777777778,
+      "avg_time": 3.4667900763452053e-06,
+      "meeting_threshold": 0,
+      "detection_accuracy": 1.0,
+      "ato_compliance": null
+    }
+  }
+}
