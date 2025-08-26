@@ -186,7 +186,7 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
             
             # Clean up
             if CLEAR_GPU_CACHE_AFTER_BATCH:
-                clear_model_caches()
+                clear_model_caches(self.model)
             
             return {
                 "image_path": image_path,
