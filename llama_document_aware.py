@@ -94,28 +94,37 @@ class DocumentAwareLlamaProcessor:
         
         # Extract using document-specific fields
         field_names = classification_info["field_names"]
+        doc_type = classification_info["document_type"]
         
         if self.debug:
-            print(f"🔍 Extracting {len(field_names)} {classification_info['document_type']} fields...")
+            print(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
+            print(f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}")
         
-        # Use the existing Llama processor but with targeted field list
-        # Note: This is a simplified approach - ideally we'd modify the processor
-        # to use document-specific prompts
-        extraction_result = self.llama_processor.process_single_image(image_path)
+        # CRITICAL FIX: Override the processor's field list with document-specific fields
+        # Temporarily replace the processor's extraction fields
+        original_fields = self.llama_processor.extraction_fields
+        self.llama_processor.extraction_fields = field_names
         
-        # Filter results to only include relevant fields for this document type
-        filtered_result = {}
-        for field in field_names:
-            if field in extraction_result:
-                filtered_result[field] = extraction_result[field]
-            else:
-                filtered_result[field] = "NOT_FOUND"
+        try:
+            # Extract with document-specific field list
+            extraction_result = self.llama_processor.process_single_image(image_path)
+            
+            if self.debug:
+                found_fields = [k for k, v in extraction_result.items() if v != "NOT_FOUND"]
+                print(f"   ✅ Found {len(found_fields)} fields: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
+            
+        finally:
+            # Restore original fields
+            self.llama_processor.extraction_fields = original_fields
+        
+        # Use the extraction result directly since we already targeted the right fields
+        filtered_result = extraction_result
         
         processing_time = time.perf_counter() - start_time
         
         return {
             "image_file": Path(image_path).name,
-            "document_type": classification_info["document_type"],
+            "document_type": doc_type,
             "detected_fields": len([v for v in filtered_result.values() if v != "NOT_FOUND"]),
             "total_fields": len(field_names),
             "processing_time": processing_time,
