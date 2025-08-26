@@ -73,9 +73,17 @@ class ExperimentalPromptTester:
         start_time = time.time()
         
         try:
-            # Use the processor's custom prompt method
+            # Use the processor's custom prompt method with higher token limits
             if hasattr(self.processor, '_extract_with_custom_prompt'):
-                response = self.processor._extract_with_custom_prompt(image_path, prompt)
+                # Use higher token limits for experimental prompts (especially markdown conversion)
+                generation_kwargs = {
+                    'max_new_tokens': 2048,  # Increased from default for complete output
+                    'temperature': 0.0,      # Deterministic output
+                    'do_sample': False       # Greedy decoding
+                }
+                response = self.processor._extract_with_custom_prompt(
+                    image_path, prompt, **generation_kwargs
+                )
             else:
                 raise AttributeError(f"No _extract_with_custom_prompt method found in {self.model_name} processor")
             
