@@ -101,6 +101,9 @@ TEST_IMAGE = "evaluation_data/synthetic_invoice_001.png"  # Will auto-select fro
 # Compare with baseline? (True/False)
 COMPARE_WITH_BASELINE = True
 
+# Maximum tokens for generation (increase for longer outputs like markdown)
+MAX_TOKENS = 2048
+
 # ============================================================================
 # NO NEED TO EDIT BELOW THIS LINE
 # ============================================================================
@@ -130,7 +133,7 @@ def main():
 
     # Run the test
     try:
-        tester = ExperimentalPromptTester(MODEL)
+        tester = ExperimentalPromptTester(MODEL, max_tokens=MAX_TOKENS)
 
         if COMPARE_WITH_BASELINE:
             print("\n⚖️  Running comparison with baseline...")

@@ -38,12 +38,14 @@ except ImportError as e:
 class ExperimentalPromptTester:
     """Simple utility for testing experimental prompts on vision-language models."""
     
-    def __init__(self, model_name: str, debug: bool = True):
+    def __init__(self, model_name: str, debug: bool = True, max_tokens: int = 2048):
         self.model_name = model_name.lower()
         self.debug = debug
+        self.max_tokens = max_tokens
         self.processor = None
         
         print(f"🚀 Initializing {model_name} for experimental prompt testing...")
+        print(f"🎯 Max tokens: {self.max_tokens}")
         
         if self.model_name == "llama":
             self.processor = LlamaProcessor()
@@ -77,7 +79,7 @@ class ExperimentalPromptTester:
             if hasattr(self.processor, '_extract_with_custom_prompt'):
                 # Use higher token limits for experimental prompts (especially markdown conversion)
                 generation_kwargs = {
-                    'max_new_tokens': 2048,  # Increased from default for complete output
+                    'max_new_tokens': self.max_tokens,  # Configurable token limit
                     'temperature': 0.0,      # Deterministic output
                     'do_sample': False       # Greedy decoding
                 }
@@ -200,6 +202,9 @@ Examples:
     parser.add_argument('--no-debug', action='store_true',
                        help='Disable debug output')
     
+    parser.add_argument('--max-tokens', type=int, default=2048,
+                       help='Maximum tokens for generation (default: 2048)')
+    
     args = parser.parse_args()
     
     # Validate arguments
@@ -236,7 +241,7 @@ Examples:
     
     # Initialize tester
     try:
-        tester = ExperimentalPromptTester(args.model, debug=not args.no_debug)
+        tester = ExperimentalPromptTester(args.model, debug=not args.no_debug, max_tokens=args.max_tokens)
         
         if len(prompts) == 1:
             # Single prompt test
