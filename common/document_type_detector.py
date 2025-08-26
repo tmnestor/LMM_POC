@@ -36,41 +36,28 @@ class DocumentTypeDetector:
         self.classification_prompts = {
             "llama": {
                 "system": "You are a document classifier. Analyze this business document image.",
-                "prompt": """Identify the document type of this business document.
-
-DOCUMENT TYPES:
-- invoice: Sales invoice, tax invoice, bill for goods/services
-- bank_statement: Bank account statement, transaction history
-- receipt: Purchase receipt, payment receipt, proof of payment
-
-Look for key indicators:
-- Invoice: Invoice number, due date, line items with quantities
-- Bank statement: Account number, statement period, transaction list
-- Receipt: Receipt number, payment method, store location
-
-Output format:
-DOCUMENT_TYPE: [invoice|bank_statement|receipt]
-CONFIDENCE: [0.0-1.0]
-REASONING: [brief explanation]
-
-Begin analysis:""",
-                "max_tokens": 150
-            },
-            
-            "internvl3": {
-                "prompt": """Document type classification:
+                "prompt": """What type of business document is this?
 
 Types: invoice, bank_statement, receipt
 
-Key features:
-- invoice: has due date, line items, customer details
-- bank_statement: has account number, transaction history
-- receipt: has payment method, store details
+Look for:
+- invoice: has invoice number, due date, line items
+- bank_statement: has account details, transactions
+- receipt: has payment method, purchase items
 
-Output only:
-TYPE: [invoice|bank_statement|receipt]
-CONFIDENCE: [0.0-1.0]""",
+Answer with just the document type: invoice, bank_statement, or receipt""",
                 "max_tokens": 50
+            },
+            
+            "internvl3": {
+                "prompt": """Document type: invoice, bank_statement, or receipt?
+
+- invoice: billing document with due date
+- bank_statement: account transactions  
+- receipt: purchase proof
+
+Answer:""",
+                "max_tokens": 20
             }
         }
     
@@ -113,6 +100,9 @@ CONFIDENCE: [0.0-1.0]""",
             
             processing_time = time.time() - start_time
             
+            # Debug: Show raw response
+            print(f"🔍 Raw model response: '{response.strip()}'")
+            
             # Parse classification result
             parsed_result = self._parse_classification_response(response)
             parsed_result['processing_time'] = processing_time
@@ -152,7 +142,8 @@ CONFIDENCE: [0.0-1.0]""",
         Returns:
             Dict with parsed classification results
         """
-        response = response.strip().lower()
+        original_response = response.strip()
+        response_lower = response.strip().lower()
         
         # Initialize result
         result = {
@@ -163,27 +154,46 @@ CONFIDENCE: [0.0-1.0]""",
         }
         
         # Extract document type
-        doc_type = self._extract_document_type(response)
+        doc_type = self._extract_document_type(response_lower)
         if doc_type:
             result['type'] = doc_type
+            result['reasoning'] = f'Detected {doc_type} from response'
         
         # Extract confidence if present
-        confidence = self._extract_confidence(response)
+        confidence = self._extract_confidence(response_lower)
         if confidence is not None:
             result['confidence'] = confidence
         else:
-            # Assign default confidence based on type detection
+            # Assign default confidence based on type detection strength
             if result['type'] != 'unknown':
-                result['confidence'] = 0.8  # Default high confidence if type detected
+                # Higher confidence if type is clearly mentioned multiple times
+                type_mentions = response_lower.count(result['type'])
+                if 'invoice' in response_lower and result['type'] == 'invoice':
+                    type_mentions += response_lower.count('bill') + response_lower.count('tax invoice')
+                elif 'statement' in response_lower and result['type'] == 'bank_statement':
+                    type_mentions += response_lower.count('bank') + response_lower.count('account')
+                elif 'receipt' in response_lower and result['type'] == 'receipt':
+                    type_mentions += response_lower.count('payment') + response_lower.count('purchase')
+                
+                # Set confidence based on strength of detection
+                if type_mentions >= 3:
+                    result['confidence'] = 0.95
+                elif type_mentions >= 2:
+                    result['confidence'] = 0.90
+                else:
+                    result['confidence'] = 0.85
         
         # Extract reasoning if present
-        reasoning = self._extract_reasoning(response)
+        reasoning = self._extract_reasoning(original_response)
         if reasoning:
             result['reasoning'] = reasoning
+        elif result['type'] != 'unknown':
+            # Provide basic reasoning based on detection
+            result['reasoning'] = f'Identified as {result["type"]} based on document characteristics'
         
         # Apply fallback logic if confidence too low
-        if result['confidence'] < self.confidence_threshold:
-            result = self._apply_fallback_classification(response, result)
+        if result['confidence'] < self.confidence_threshold and result['type'] == 'unknown':
+            result = self._apply_fallback_classification(response_lower, result)
         
         return result
     
