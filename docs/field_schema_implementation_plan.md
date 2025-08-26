@@ -1,13 +1,13 @@
 # Field Schema Enhancement Implementation Plan
 
 **Project**: LMM_POC Field Schema Research-Based Improvements  
-**Document Version**: 1.0  
+**Document Version**: 2.0 (Updated August 26, 2025)  
 **Created**: August 24, 2025  
 **Based on**: `field_schema_research_analysis.md`
 
 ## Overview
 
-This implementation plan provides step-by-step instructions for implementing the five critical enhancements identified in the research analysis. The plan is organized into three phases with specific tasks, file changes, and validation steps.
+This implementation plan tracks the actual progress of field schema enhancements. **Updated to reflect completed work and lessons learned from CoT integration performance regression.**
 
 **Target Performance Goals:**
 - Precision: 95.5% (Applied KIE Pipeline benchmark)
@@ -15,21 +15,124 @@ This implementation plan provides step-by-step instructions for implementing the
 - Format Compliance: >98% adherence to standardized formats
 - Null Value Accuracy: 40-60% reduction in false positives
 
-## Phase 1: Critical Enhancements (High Impact, Low Risk)
-**Timeline**: 3-5 days  
-**Priority**: Must complete before Phase 2
+## ✅ COMPLETED PHASES (August 24-26, 2025)
 
-### Task 1.1: Add Formal Schema Definitions
-**Estimated Time**: 4 hours  
+### ✅ Phase 1: Critical Enhancements (COMPLETED)
+**Status**: COMPLETED August 24-25, 2025  
+**Result**: Successfully implemented with 90.6% accuracy maintained
+
+#### ✅ Task 1.1: Add Formal Schema Definitions (COMPLETED)
+**Status**: ✅ COMPLETED  
+**Files Modified**: `common/field_schema.yaml`  
+**Implementation**: Added `field_schemas` section with 5 field types:
+- `monetary`: Currency format with examples
+- `numeric_id`: ABN format with validation notes  
+- `date`: Date formats with extraction guidelines
+- `phone`: Australian phone number formats
+- `list_format`: Comma-separated list standards
+
+#### ✅ Task 1.2: Enhanced Null Value Strategy (COMPLETED)
+**Status**: ✅ COMPLETED  
+**Files Modified**: `common/field_schema.yaml`  
+**Implementation**: Added comprehensive `null_value_strategy` section:
+- Research-backed principle: "NOT_FOUND is better than guessed values"
+- Specific guidance for critical fields (ABN, monetary amounts)
+- Quality confidence indicators for extraction decisions
+
+### ✅ Phase 2.1: Chain-of-Thought Integration (COMPLETED - SIMPLIFIED APPROACH)
+**Status**: ✅ COMPLETED with lessons learned  
+**Result**: Simplified CoT approach achieved 90.6% accuracy  
+
+#### ✅ Task 2.1: Integrate Chain-of-Thought (CoT) Prompting (COMPLETED - SIMPLIFIED)
+**Status**: ✅ COMPLETED (Simplified version)  
+**Files Modified**: `common/field_schema.yaml`, `common/schema_loader.py`  
+**Implementation**: 
+- Added `extraction_methodologies` with 6 simplified CoT patterns
+- Integrated CoT instructions into prompt generation pipeline
+- **LESSON LEARNED**: Complex CoT caused -7% accuracy regression (90.6% → 83.6%)
+- **SOLUTION**: Reverted to simplified CoT approach with brief focus tips
+
+**Critical Finding**: Detailed step-by-step CoT instructions create cognitive overload in vision-language models. Simple focus tips (`💡 FOCUS: • ABN: Look for 'ABN' label`) are significantly more effective than verbose reasoning chains.
+
+## ❌ ATTEMPTED BUT REVERTED (August 26, 2025)
+
+### ❌ Complete CoT Integration (REVERTED)
+**Status**: ❌ REVERTED due to performance regression  
+**Problem**: Detailed CoT instructions caused:
+- Accuracy drop: 90.6% → 83.6% (-7.0%)  
+- Prompt bloat: 2,868 → 4,082 characters (+42.3%)
+- Critical extraction errors: ABN corruption, GST calculation errors
+- Field name confusion in model responses
+
+**Git States**:
+- ❌ Problematic: `4baa328` (Complete CoT - 83.6% accuracy)
+- ✅ Stable: `34958ea` (Simplified CoT - 90.6% accuracy) ← CURRENT STATE
+
+**Analysis**: Documented in `docs/CoT_integration_performance_analysis.md`
+
+## 🚧 REMAINING PHASES (Not Started)
+
+**Current Status**: On stable simplified CoT approach (90.6% accuracy)
+**Next Priority**: Consider incremental improvements only, avoid wholesale changes
+
+### 🚧 Task 1.3: Format Standardization (NOT STARTED)
+**Status**: DEFERRED - Current flexible approach working well
+**Estimated Time**: 3 hours if needed
 **Files Modified**: `common/field_schema.yaml`
+**Risk Assessment**: LOW priority - current extraction handles format variations well
 
-#### Implementation Steps
+### 🚧 Phase 2.2: Self-Validation Framework (NOT STARTED) 
+**Status**: DEFERRED - High complexity, uncertain benefit
+**Estimated Time**: 5 hours
+**Files Modified**: `common/field_schema.yaml`, `common/schema_loader.py`
+**Risk Assessment**: MEDIUM-HIGH risk of prompt bloat similar to complex CoT
 
-1. **Add Schema Definitions Section**
-   ```bash
-   # Location: After line 213 in field_schema.yaml
-   # CRITICAL: This requires updating ALL modules that process field_schema.yaml
-   ```
+### 🚧 Phase 3: Performance Monitoring (NOT STARTED)
+**Status**: DEFERRED - Consider for production deployment
+**Estimated Time**: 4 hours  
+**Files Modified**: Create new `common/performance_monitor.py`
+
+## CURRENT IMPLEMENTATION STATUS SUMMARY
+
+### ✅ What's Working (90.6% Accuracy)
+1. **Simplified Field Schema** (Phase 1.1 & 1.2)
+   - Flexible field format definitions without rigid constraints
+   - Research-backed null value strategy 
+   - Comprehensive extraction guidance
+
+2. **Simplified CoT Integration** (Phase 2.1 - Simplified)
+   - Brief focus tips for complex fields (`💡 FOCUS: • ABN: Look for 'ABN' label`)
+   - Integrated into prompt generation pipeline
+   - Avoids cognitive overload while providing guidance
+
+### 🎯 Key Lessons Learned
+1. **Less is More**: Simple prompts outperform complex step-by-step instructions
+2. **Prompt Length Matters**: Keep groups under 3,000 characters to maintain model focus
+3. **Incremental Testing**: Always test changes on small scale before full deployment
+4. **Performance Regression Protocol**: Immediate rollback on accuracy drops >5%
+
+### 🚨 Avoid These Patterns (Proven to Cause Regression)
+- ❌ Detailed step-by-step CoT reasoning chains
+- ❌ Verbose validation instructions within prompts  
+- ❌ Multiple CoT sections per prompt group
+- ❌ Prompts longer than 4,000 characters
+
+### 📋 Recommended Next Steps
+1. **Maintain Current State**: Stay on simplified approach (90.6% accuracy)
+2. **Micro-improvements Only**: Single-sentence enhancements, not wholesale changes
+3. **A/B Test Changes**: Always compare new vs current performance
+4. **Document Everything**: Performance analysis for all changes
+
+### 📊 Performance Benchmarks
+- **Baseline**: 90.6% accuracy (commit `34958ea`)
+- **Problematic**: 83.6% accuracy (commit `4baa328` - reverted)
+- **Target**: Maintain >90% accuracy with any future changes
+
+---
+
+## DEPRECATED SECTIONS (Pre-Implementation Details)
+
+**Note**: The following sections contain the original detailed implementation plans that were written before actual implementation. They are preserved for reference but should not be followed as the actual implementation differs significantly.
    
    Add the following YAML structure:
    ```yaml
