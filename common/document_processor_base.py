@@ -91,6 +91,11 @@ class DocumentAwareProcessor:
             return self._get_unified_schema()
         
         try:
+            # Proactive memory cleanup before document detection (V100 optimization)
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
             # Get document-specific schema (includes auto-detection)
             schema = self.schema_loader.get_schema_for_image(image_path)
             

@@ -43,10 +43,20 @@ def configure_cuda_memory_allocation():
             print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
             del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
 
-    # Set PYTORCH_CUDA_ALLOC_CONF with more aggressive fragmentation prevention
-    # Smaller blocks = better fragmentation handling but slight performance cost
-    # 64MB blocks for maximum fragmentation resistance (half of 128MB)
-    cuda_alloc_config = "max_split_size_mb:64"
+    # Detect GPU type and configure accordingly
+    gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
+    is_v100 = "V100" in gpu_name
+    
+    # Set PYTORCH_CUDA_ALLOC_CONF with GPU-specific fragmentation prevention
+    if is_v100:
+        # V100: Ultra-aggressive fragmentation prevention
+        # 32MB blocks for maximum fragmentation resistance on older architecture
+        cuda_alloc_config = "max_split_size_mb:32"
+        print("🎯 V100 detected: Using ultra-aggressive memory settings")
+    else:
+        # Modern GPUs: Standard aggressive settings
+        # 64MB blocks for good fragmentation handling
+        cuda_alloc_config = "max_split_size_mb:64"
 
     # Apply the safe configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
@@ -157,6 +167,13 @@ def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = Tr
     """
     if not torch.cuda.is_available():
         return
+
+    # V100 optimization: Use more aggressive threshold for older GPUs
+    gpu_name = torch.cuda.get_device_name(0)
+    is_v100 = "V100" in gpu_name
+    if is_v100 and threshold_gb > 0.3:
+        threshold_gb = min(threshold_gb, 0.3)  # Cap at 300MB for V100
+        print(f"🎯 V100 detected: Using aggressive threshold {threshold_gb:.1f}GB")
 
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 

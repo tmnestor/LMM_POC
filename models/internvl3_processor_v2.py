@@ -152,8 +152,18 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
         try:
             start_time = time.time()
             
-            # Memory optimization
-            handle_memory_fragmentation(threshold_gb=0.5, aggressive=False)
+            # Memory optimization - V100 optimized
+            handle_memory_fragmentation(threshold_gb=0.2, aggressive=True)
+            
+            # Additional V100 safety check
+            import torch
+            if torch.cuda.is_available():
+                allocated = torch.cuda.memory_allocated() / 1e9
+                reserved = torch.cuda.memory_reserved() / 1e9
+                if reserved > 20.0:  # Alert if approaching V100 limits
+                    print(f"🚨 HIGH MEMORY WARNING: {reserved:.1f}GB reserved - potential V100 crash risk")
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
             
             # Load and preprocess image
             image = self._load_and_preprocess_image(image_path)
