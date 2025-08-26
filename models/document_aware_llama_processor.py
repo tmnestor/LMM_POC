@@ -297,8 +297,24 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 print(f"📝 Generated prompt for {self.field_count} fields")
                 print(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}")
             
-            # Process with model
-            inputs = self.processor(image, prompt, return_tensors="pt").to(self.device)
+            # Create multimodal conversation
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+            
+            # Apply chat template
+            input_text = self.processor.apply_chat_template(
+                messages, add_generation_prompt=True
+            )
+            
+            # Process inputs
+            inputs = self.processor(image, input_text, return_tensors="pt").to(self.device)
             
             if self.debug:
                 print(f"🖼️  Input tensor shape: {inputs['input_ids'].shape}")
