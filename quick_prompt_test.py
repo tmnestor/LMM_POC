@@ -61,6 +61,17 @@ except ImportError as e:
 # Choose model: "llama" or "internvl3"
 MODEL = "llama"
 
+EXPERIMENTAL_PROMPT = """
+You are a markdown converter. Look at this document image and recreate it as markdown:
+
+1. Identify the document structure (headers, paragraphs, lists)
+2. Preserve formatting (bold, italic, emphasis)
+3. Convert tables to markdown table format
+4. Output only the markdown, no explanations
+
+Begin:"""
+
+
 # Your experimental prompt (edit this!)
 # EXPERIMENTAL_PROMPT = """
 # Extract all text from this image and format it as proper markdown. Maintain the visual hierarchy:
@@ -73,15 +84,15 @@ MODEL = "llama"
 # Markdown output:
 # """
 
-EXPERIMENTAL_PROMPT = """
-Analyze this image and convert it to markdown. Include:
-- Headers (use # ## ### etc.)
-- Lists (- or 1. 2. 3.)
-- Bold/italic text (**bold** *italic*)
-- Tables if present
-- Code blocks if any
+# EXPERIMENTAL_PROMPT = """
+# Analyze this image and convert it to markdown. Include:
+# - Headers (use # ## ### etc.)
+# - Lists (- or 1. 2. 3.)
+# - Bold/italic text (**bold** *italic*)
+# - Tables if present
+# - Code blocks if any
 
-Output clean markdown only."""
+# Output clean markdown only."""
 
 # Test image (or None to use first available)
 # TEST_IMAGE = None  # Will auto-select from evaluation_data/
