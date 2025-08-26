@@ -23,7 +23,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from common.evaluation_utils import discover_images
+    from common.extraction_parser import discover_images
     from models.internvl3_processor import InternVL3Processor
     from models.llama_processor import LlamaProcessor
 except ImportError as e:
@@ -31,7 +31,7 @@ except ImportError as e:
     print(f"💡 Current directory: {Path.cwd()}")
     print(f"💡 Project root: {project_root}")
     print("💡 Make sure you're running from the LMM_POC directory")
-    print("💡 Required files: common/evaluation_utils.py, models/llama_processor.py, models/internvl3_processor.py")
+    print("💡 Required files: common/extraction_parser.py, models/llama_processor.py, models/internvl3_processor.py")
     sys.exit(1)
 
 

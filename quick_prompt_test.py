@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 # Debug: Check if required files exist
 required_files = [
-    'common/evaluation_utils.py',
+    'common/extraction_parser.py',
     'models/llama_processor.py', 
     'models/internvl3_processor.py',
     'experimental_prompt_tester.py'
@@ -44,10 +44,10 @@ except ImportError as e:
     
     # Try direct import to isolate the issue
     try:
-        import common.evaluation_utils  # noqa: F401
-        print("✅ common.evaluation_utils imports successfully")
+        import common.extraction_parser  # noqa: F401
+        print("✅ common.extraction_parser imports successfully")
     except ImportError as e2:
-        print(f"❌ Direct common.evaluation_utils import failed: {e2}")
+        print(f"❌ Direct common.extraction_parser import failed: {e2}")
         print("💡 This suggests a PYTHONPATH or conda environment issue")
     
     sys.exit(1)
@@ -92,7 +92,7 @@ def main():
     image_path = TEST_IMAGE
     if not image_path:
         try:
-            from common.evaluation_utils import discover_images
+            from common.extraction_parser import discover_images
 
             images = discover_images("evaluation_data/")
             if images:
