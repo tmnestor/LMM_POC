@@ -206,8 +206,11 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
     def _generate_response(self, image: torch.Tensor, prompt: str) -> str:
         """Generate response using InternVL3 model."""
         try:
-            # Prepare inputs
-            pixel_values = image.unsqueeze(0).to(self.device)
+            # Prepare inputs - InternVL3 load_image already returns properly batched tensor
+            pixel_values = image.to(torch.bfloat16).to(self.device)
+            
+            # InternVL3 expects prompts with <image> token
+            formatted_prompt = f"<image>\n{prompt}"
             
             # Method selection based on model capabilities
             if hasattr(self.model, 'chat') and callable(self.model.chat):
@@ -215,7 +218,7 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
                 response, _ = self.model.chat(
                     self.tokenizer,
                     pixel_values,
-                    prompt,
+                    formatted_prompt,
                     generation_config=self.generation_config,
                     history=None,
                     return_history=True
@@ -253,7 +256,7 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
         try:
             # Load and preprocess image
             image = self.load_image(image_path)
-            pixel_values = image.unsqueeze(0).to(self.device)
+            pixel_values = image.to(torch.bfloat16).to(self.device)
             
             # Create temporary generation config with provided kwargs
             temp_generation_config = self.generation_config
@@ -263,12 +266,15 @@ class DocumentAwareInternVL3Processor(InternVL3Processor, DocumentAwareProcessor
                     if hasattr(temp_generation_config, key):
                         setattr(temp_generation_config, key, value)
             
+            # InternVL3 expects prompts with <image> token
+            formatted_prompt = f"<image>\n{prompt}"
+            
             # Generate response using appropriate method
             if hasattr(self.model, 'chat') and callable(self.model.chat):
                 response, _ = self.model.chat(
                     self.tokenizer,
                     pixel_values,
-                    prompt,
+                    formatted_prompt,
                     generation_config=temp_generation_config,
                     history=None,
                     return_history=True
