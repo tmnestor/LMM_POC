@@ -73,24 +73,11 @@ class ExperimentalPromptTester:
         start_time = time.time()
         
         try:
-            # Use the processor's direct generation method
-            if hasattr(self.processor, '_generate_response'):
-                response = self.processor._generate_response(image_path, prompt)
-            elif hasattr(self.processor, 'process_single_image'):
-                # Temporarily override the prompt generation
-                original_method = getattr(self.processor.schema_loader, 'generate_dynamic_prompt', None)
-                if original_method:
-                    # Monkey patch for testing
-                    self.processor.schema_loader.generate_dynamic_prompt = lambda *_args, **_kwargs: prompt
-                
-                result = self.processor.process_single_image(image_path)
-                response = result.get('raw_response', str(result))
-                
-                # Restore original method
-                if original_method:
-                    self.processor.schema_loader.generate_dynamic_prompt = original_method
+            # Use the processor's custom prompt method
+            if hasattr(self.processor, '_extract_with_custom_prompt'):
+                response = self.processor._extract_with_custom_prompt(image_path, prompt)
             else:
-                raise AttributeError(f"No suitable method found in {self.model_name} processor")
+                raise AttributeError(f"No _extract_with_custom_prompt method found in {self.model_name} processor")
             
             processing_time = time.time() - start_time
             
