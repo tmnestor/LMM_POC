@@ -28,6 +28,7 @@ from common.config import (
 )
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
+    comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
     get_available_gpu_memory,
     handle_memory_fragmentation,
@@ -293,7 +294,7 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 print(f"💭 Generating with max_new_tokens={self.generation_config['max_new_tokens']}")
             
             # Generate response
-            output = self._resilient_generate(**inputs, **self.generation_config)
+            output = self._resilient_generate(inputs, **self.generation_config)
             
             # Decode response
             full_response = self.processor.decode(output[0], skip_special_tokens=True)
@@ -319,9 +320,9 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             response_completeness = extracted_fields_count / len(self.field_list)
             content_coverage = extracted_fields_count / len(self.field_list)
             
-            # Cleanup
+            # Cleanup with V100 optimizations
             del inputs, output, image
-            torch.cuda.empty_cache()
+            comprehensive_memory_cleanup(self.model, self.processor)
             
             return {
                 "image_name": Path(image_path).name,
@@ -351,3 +352,78 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 "extracted_fields_count": 0,
                 "field_count": self.field_count
             }
+    
+    def _extract_with_custom_prompt(self, image_path: str, prompt: str, **generation_kwargs) -> str:
+        """
+        Extract fields using a custom prompt with specific generation parameters.
+        
+        Required method for DocumentTypeDetector compatibility.
+        
+        Args:
+            image_path (str): Path to image file
+            prompt (str): Custom extraction prompt
+            **generation_kwargs: Additional generation parameters
+            
+        Returns:
+            str: Raw model response
+        """
+        try:
+            # Load image
+            image = self.load_document_image(image_path)
+            
+            # Create multimodal conversation with custom prompt
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+            
+            # Apply chat template
+            input_text = self.processor.apply_chat_template(
+                messages, add_generation_prompt=True
+            )
+            
+            # Process inputs
+            inputs = self.processor(image, input_text, return_tensors="pt").to(self.device)
+            
+            # Merge generation kwargs with defaults
+            final_generation_kwargs = {
+                "do_sample": self.generation_config["do_sample"],
+                "top_p": self.generation_config["top_p"],
+                "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
+            }
+            final_generation_kwargs.update(generation_kwargs)
+            
+            # Clean up temperature if do_sample is False to avoid warnings
+            if not final_generation_kwargs.get("do_sample", False):
+                final_generation_kwargs.pop("temperature", None)
+                final_generation_kwargs.pop("top_p", None)
+            
+            # Generate response with resilient fallback
+            with torch.no_grad():
+                output = self._resilient_generate(inputs, **final_generation_kwargs)
+            
+            # Decode response
+            response = self.processor.decode(output[0], skip_special_tokens=True)
+            
+            # Extract only the assistant's response
+            if "assistant\\n\\n" in response:
+                response = response.split("assistant\\n\\n")[-1].strip()
+            elif "assistant" in response:
+                response = response.split("assistant")[-1].strip()
+            
+            # Cleanup with V100 optimizations
+            del inputs, output, image
+            comprehensive_memory_cleanup(self.model, self.processor)
+            
+            return response
+            
+        except Exception as e:
+            if self.debug:
+                print(f"❌ Error in custom prompt extraction: {e}")
+            return f"Error: {str(e)}"
