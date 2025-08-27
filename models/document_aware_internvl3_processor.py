@@ -133,14 +133,15 @@ class DocumentAwareInternVL3Processor:
         # Calculate dynamic max_new_tokens based on actual field count
         max_tokens = get_max_new_tokens("internvl3", self.field_count)
 
-        # Base generation config optimized for InternVL3
-        self.generation_config = {
-            "max_new_tokens": max_tokens,
-            "do_sample": False,  # Deterministic output
-            "temperature": 0.0,
-            "top_p": 0.95,
-            "use_cache": True,
-        }
+        # Get generation config from centralized config (matches original internvl3_processor)
+        from common.config import GENERATION_CONFIGS
+        base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
+        self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
+
+        # Ensure deterministic generation (matches original internvl3_processor)
+        if self.generation_config.get("do_sample", True):
+            print("⚠️ WARNING: do_sample was True, forcing to False for determinism")
+            self.generation_config["do_sample"] = False
 
         print(
             f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
