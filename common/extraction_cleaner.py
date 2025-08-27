@@ -70,6 +70,10 @@ class ExtractionCleaner:
         if self.debug:
             print(f"🧹 Cleaning {field_name}: '{raw_value}' -> ", end="")
         
+        # Pre-process lists: convert comma-separated to pipe-separated format
+        if self._is_list_field(field_name) and ',' in value and '|' not in value:
+            value = ' | '.join(item.strip() for item in value.split(','))
+        
         # Route to appropriate cleaning method based on field type
         cleaned_value = value
         
