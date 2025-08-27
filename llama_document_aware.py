@@ -330,8 +330,11 @@ def main():
         evaluation_report = processor.evaluate_document_aware(results, ground_truth)
         
         # Save detailed results
+        from common.config import OUTPUT_DIR
+        output_dir = Path(OUTPUT_DIR)
+        output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = f"llama_document_aware_report_{timestamp}.json"
+        report_path = output_dir / f"llama_document_aware_report_{timestamp}.json"
         
         with Path(report_path).open('w') as f:
             json.dump(evaluation_report, f, indent=2, default=str)

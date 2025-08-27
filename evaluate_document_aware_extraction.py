@@ -351,7 +351,10 @@ class DocumentAwareEvaluationPipeline:
         print(f"  Documents Failing: {report['quality_metrics']['documents_failing']}")
         
         # Save detailed report
-        report_path = Path("document_aware_evaluation_report.json")
+        from common.config import OUTPUT_DIR
+        output_dir = Path(OUTPUT_DIR)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        report_path = output_dir / "document_aware_evaluation_report.json"
         with report_path.open('w') as f:
             json.dump(report, f, indent=2, default=str)
         
@@ -365,7 +368,10 @@ class DocumentAwareEvaluationPipeline:
     def _save_evaluation_csv(self) -> None:
         """Save detailed evaluation results to CSV."""
         
-        csv_path = Path("evaluation_results.csv")
+        from common.config import OUTPUT_DIR
+        output_dir = Path(OUTPUT_DIR)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / "evaluation_results.csv"
         
         with csv_path.open('w', newline='') as f:
             fieldnames = [
