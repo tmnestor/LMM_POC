@@ -220,10 +220,13 @@ REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
         
         prompt += f"""
 OUTPUT RULES:
--- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting
+-- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting  
 -- Plain text only - NO markdown, NO bold, NO italic
 -- Include ALL {self.field_count} keys even if value is NOT_FOUND
 -- Output ONLY these {self.field_count} lines, nothing else
+-- Use exact text from document (e.g., "TAX INVOICE" not "Invoice")
+-- Use pipe separators for lists (e.g., "item1 | item2 | item3")
+-- Be conservative: use NOT_FOUND if field is truly missing
 
 STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
         
@@ -515,8 +518,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             
             # Clean the line from various formatting issues
             clean_line = line
-            # Remove markdown formatting first
-            clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
+            # Remove markdown formatting - handle **KEY**: value pattern specifically
+            clean_line = re.sub(r"\*\*([^*]+)\*\*:", r"\1:", clean_line)
             # Fix various prefix issues
             clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
             clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
