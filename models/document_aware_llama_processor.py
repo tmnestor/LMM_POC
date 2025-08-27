@@ -295,6 +295,10 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             if self.debug:
                 print(f"📝 Generated prompt for {self.field_count} fields")
                 print(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}")
+                print(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):")
+                print("=" * 80)
+                print(prompt)
+                print("=" * 80)
             
             # Create multimodal conversation
             messages = [
