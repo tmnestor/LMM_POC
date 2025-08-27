@@ -26,7 +26,6 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
-from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
@@ -333,8 +332,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             else:
                 response = full_response.strip()
             
-            # Parse response using dynamic field list
-            extracted_data = parse_extraction_response(response, field_names=self.field_list)
+            # Parse response using document-specific field list
+            extracted_data = self._parse_document_aware_response(response)
             
             if self.debug:
                 found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
@@ -454,3 +453,59 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             if self.debug:
                 print(f"❌ Error in custom prompt extraction: {e}")
             return f"Error: {str(e)}"
+    
+    def _parse_document_aware_response(self, response_text: str) -> dict:
+        """Parse extraction response for document-specific field list."""
+        import re
+        
+        if not response_text:
+            return {field: "NOT_FOUND" for field in self.field_list}
+        
+        # Initialize with NOT_FOUND for all document-specific fields
+        extracted_data = {field: "NOT_FOUND" for field in self.field_list}
+        
+        # Clean Llama-specific conversation artifacts
+        clean_patterns = [
+            r"I'll extract.*?\n",
+            r"I can extract.*?\n", 
+            r"Here (?:is|are) the.*?\n",
+            r"Based on.*?\n",
+            r"Looking at.*?\n",
+            r"<\|start_header_id\|>.*?<\|end_header_id\|>",
+            r"<image>",
+            r"assistant\n\n",
+            r"^\s*Extract.*?below\.\s*\n",
+        ]
+        
+        for pattern in clean_patterns:
+            response_text = re.sub(
+                pattern, "", response_text, flags=re.IGNORECASE | re.MULTILINE
+            )
+        
+        # Process each line looking for key-value pairs
+        lines = response_text.strip().split("\n")
+        
+        for line in lines:
+            # Skip empty lines and non-key-value lines
+            if not line.strip() or ":" not in line:
+                continue
+            
+            # Clean the line from various formatting issues
+            clean_line = line
+            # Remove markdown formatting
+            clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
+            # Fix various prefix issues
+            clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
+            clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
+            
+            # Extract key and value
+            parts = clean_line.split(":", 1)
+            if len(parts) == 2:
+                key = parts[0].strip().upper()
+                value = parts[1].strip()
+                
+                # Store if it's in our document-specific field list
+                if key in self.field_list:
+                    extracted_data[key] = value if value else "NOT_FOUND"
+        
+        return extracted_data
