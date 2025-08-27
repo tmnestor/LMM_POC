@@ -336,10 +336,24 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             else:
                 response = full_response.strip()
             
+            if self.debug:
+                print(f"📄 RAW MODEL RESPONSE ({len(response)} chars):")
+                print("=" * 80)
+                print(response)
+                print("=" * 80)
+            
             # Parse response using document-specific field list
             extracted_data = self._parse_document_aware_response(response)
             
             if self.debug:
+                print("📊 PARSED EXTRACTION RESULTS:")
+                print("=" * 80)
+                for field in self.field_list:
+                    value = extracted_data.get(field, "NOT_FOUND")
+                    status = "✅" if value != "NOT_FOUND" else "❌"
+                    print(f"  {status} {field}: \"{value}\"")
+                print("=" * 80)
+                
                 found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
                 print(f"✅ Extracted {len(found_fields)}/{self.field_count} fields")
                 if found_fields:
