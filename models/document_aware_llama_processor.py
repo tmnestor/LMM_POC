@@ -214,9 +214,9 @@ CRITICAL INSTRUCTIONS:
 REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
 """
         
-        # Add each field with instruction
+        # Add each field with instruction (proper newlines)
         for field in self.field_list:
-            prompt += f"{field}: [value or NOT_FOUND]\\n"
+            prompt += f"{field}: [value or NOT_FOUND]\n"
         
         prompt += f"""
 OUTPUT RULES:
@@ -515,6 +515,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             # Fix various prefix issues
             clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
             clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
+            # Fix GST field name variations
+            clean_line = re.sub(r"^GST\s*\d+%:", "GST_AMOUNT:", clean_line)
             
             # Extract key and value
             parts = clean_line.split(":", 1)
