@@ -138,18 +138,23 @@ class ExtractionCleaner:
     
     def _clean_list_field(self, field_name: str, value: str) -> str:
         """
-        Clean comma-separated list fields (LINE_ITEM_*).
+        Clean list fields (LINE_ITEM_*) and convert to pipe-separated format.
         
         Handles:
-        - Split by comma, clean each item
+        - Split by comma or pipe, clean each item
         - Remove price suffixes from price lists
+        - Convert to standard pipe-separated format
         - Normalize whitespace and separators
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
         
-        # Split by comma and clean each item
-        items = [item.strip() for item in value.split(',')]
+        # Split by comma or pipe and clean each item
+        if '|' in value:
+            items = [item.strip() for item in value.split('|')]
+        else:
+            items = [item.strip() for item in value.split(',')]
+        
         cleaned_items = []
         
         for item in items:
@@ -168,7 +173,8 @@ class ExtractionCleaner:
             if cleaned_item and cleaned_item != "NOT_FOUND":
                 cleaned_items.append(cleaned_item)
         
-        return ', '.join(cleaned_items) if cleaned_items else "NOT_FOUND"
+        # Always return pipe-separated format for consistency
+        return ' | '.join(cleaned_items) if cleaned_items else "NOT_FOUND"
     
     def _clean_date_field(self, value: str) -> str:
         """
