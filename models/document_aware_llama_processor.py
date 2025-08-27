@@ -482,7 +482,13 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
         # Initialize with NOT_FOUND for all document-specific fields
         extracted_data = {field: "NOT_FOUND" for field in self.field_list}
         
-        # Clean Llama-specific conversation artifacts
+        # Clean Llama-specific conversation artifacts and extract only assistant response
+        if "assistant" in response_text:
+            # Split on 'assistant' and take the last part (the actual response)
+            parts = response_text.split("assistant")
+            response_text = parts[-1].strip()
+        
+        # Additional cleaning patterns
         clean_patterns = [
             r"I'll extract.*?\n",
             r"I can extract.*?\n", 
@@ -491,7 +497,6 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             r"Looking at.*?\n",
             r"<\|start_header_id\|>.*?<\|end_header_id\|>",
             r"<image>",
-            r"assistant\n\n",
             r"^\s*Extract.*?below\.\s*\n",
         ]
         
@@ -510,13 +515,13 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             
             # Clean the line from various formatting issues
             clean_line = line
-            # Remove markdown formatting
+            # Remove markdown formatting first
             clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
             # Fix various prefix issues
             clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
             clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
-            # Fix GST field name variations
-            clean_line = re.sub(r"^GST\s*\d+%:", "GST_AMOUNT:", clean_line)
+            # Fix GST field name variations (after markdown removal)
+            clean_line = re.sub(r"^GST[_\s]*\d*%?:", "GST_AMOUNT:", clean_line)
             
             # Extract key and value
             parts = clean_line.split(":", 1)
