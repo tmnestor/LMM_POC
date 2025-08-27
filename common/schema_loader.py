@@ -944,14 +944,14 @@ def get_global_schema() -> FieldSchema:
     global _global_schema
     if _global_schema is None:
         try:
-            # Try v2 schema first (document-aware with phone types)
-            _global_schema = FieldSchema("field_schema_v2.yaml")
+            # Use v3 schema (clean document-aware with no legacy compatibility)
+            _global_schema = FieldSchema("field_schema_v3.yaml")
         except Exception as e:
             raise RuntimeError(
                 f"❌ FATAL: Cannot load schema for system configuration\n"
-                f"💡 Attempted to load: field_schema_v2.yaml\n"
-                f"💡 Document-aware extraction requires v2 schema\n"
-                f"💡 Ensure field_schema_v2.yaml exists in common/ directory\n"
+                f"💡 Attempted to load: field_schema_v3.yaml\n"
+                f"💡 Document-aware extraction requires v3 schema\n"
+                f"💡 Ensure field_schema_v3.yaml exists in common/ directory\n"
                 f"💡 Error details: {str(e)}"
             ) from e
     return _global_schema

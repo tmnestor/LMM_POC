@@ -27,7 +27,7 @@ class ATOTaxInvoiceGenerator:
     def __init__(self):
         """Initialize with realistic Australian business data."""
         
-        # Field schema mapping for ground truth CSV generation (matches field_schema_v2.yaml)
+        # Field schema mapping for ground truth CSV generation (matches field_schema_v3.yaml)
         self.field_schema_mapping = {
             # Document metadata
             "DOCUMENT_TYPE": "document_type",
