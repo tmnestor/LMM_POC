@@ -302,10 +302,6 @@ def main():
     print("🔍 Discovering document images...")
     image_files = discover_images(args.data_dir)
     
-    if args.limit_images:
-        image_files = image_files[:args.limit_images]
-        print(f"🔢 Limited to {len(image_files)} images")
-
     if not image_files:
         print("❌ No image files found!")
         return
@@ -318,6 +314,7 @@ def main():
     
     results = []
     start_time = time.perf_counter()
+    processed_count = 0
     
     for idx, image_path in enumerate(image_files, 1):
         print(f"\n[{idx}/{len(image_files)}] Processing: {Path(image_path).name}")
@@ -335,6 +332,7 @@ def main():
             # Phase 2: Document-Aware Extraction
             result = processor.process_document_aware(image_path, classification_info)
             results.append(result)
+            processed_count += 1
             
             # Display results
             reduction = result["field_reduction"] 
@@ -344,6 +342,11 @@ def main():
             
             print(f"  ✅ {classification_info['document_type']}: {detected}/{total} fields ({reduction} field reduction)")
             print(f"  ⏱️ Processing time: {time_taken:.2f}s")
+            
+            # Check if we've processed enough documents of the target type
+            if args.limit_images and processed_count >= args.limit_images:
+                print(f"\n🎯 Reached limit: processed {processed_count} {args.document_type or 'document'}(s)")
+                break
             
         except Exception as e:
             print(f"  ❌ Error processing {Path(image_path).name}: {e}")
