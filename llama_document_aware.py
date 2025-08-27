@@ -21,6 +21,7 @@ Pipeline Flow:
 Usage:
     python llama_document_aware.py --limit-images 5 --debug
     python llama_document_aware.py --document-type invoice
+    python llama_document_aware.py --image-path "path/to/single_image.jpg" --debug
 """
 
 import argparse
@@ -246,6 +247,7 @@ def main():
     parser.add_argument("--model-path", default="/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
                        help="Path to Llama model")
     parser.add_argument("--data-dir", default="evaluation_data", help="Directory with images")
+    parser.add_argument("--image-path", help="Path to single image file for testing")
     parser.add_argument("--ground-truth", default="evaluation_data/ground_truth.csv", 
                        help="Ground truth CSV file")
     parser.add_argument("--limit-images", type=int, help="Limit number of images to process")
@@ -258,93 +260,164 @@ def main():
     print("\\n" + "=" * 80)
     print("🚀 LLAMA DOCUMENT-AWARE EXTRACTION - PHASE 4")
     print("=" * 80)
-    print(f"📁 Data directory: {args.data_dir}")
-    print(f"📊 Ground truth: {args.ground_truth}")
-    print(f"🔧 Model: {args.model_path}")
-    print(f"🎯 Document type filter: {args.document_type or 'All types'}")
-    print(f"📸 Image limit: {args.limit_images or 'No limit'}")
-    print(f"🐛 Debug mode: {args.debug}")
     
-    # Verify files exist
-    if not Path(args.ground_truth).exists():
-        print(f"❌ ERROR: Ground truth file not found: {args.ground_truth}")
-        return
-    
-    if not Path(args.data_dir).exists():
-        print(f"❌ ERROR: Data directory not found: {args.data_dir}")
-        return
-    
-    # Initialize document-aware processor
-    processor = DocumentAwareLlamaHandler(args.model_path, debug=args.debug)
-    
-    # Load ground truth and discover images
-    ground_truth = load_ground_truth(args.ground_truth)
-    all_images = discover_images(args.data_dir)
-    
-    # Filter images if document type specified
-    if args.document_type:
-        filtered_images = []
-        for img in all_images:
-            img_name = Path(img).name
-            if img_name in ground_truth:
-                gt_doc_type = ground_truth[img_name].get("DOCUMENT_TYPE", "").lower()
-                if args.document_type.lower() in gt_doc_type:
-                    filtered_images.append(img)
-        all_images = filtered_images
-        print(f"🔍 Filtered to {len(all_images)} {args.document_type} documents")
-    
-    # Limit images if specified
-    if args.limit_images:
-        all_images = all_images[:args.limit_images]
-        print(f"📸 Processing {len(all_images)} images")
-    
-    # Process each image with document-aware extraction
-    results = []
-    
-    print(f"\\n🔄 Processing {len(all_images)} documents...")
-    
-    for i, image_path in enumerate(all_images, 1):
-        print(f"\\n📄 [{i}/{len(all_images)}] Processing {Path(image_path).name}...")
+    # Determine if single image or batch processing
+    if args.image_path:
+        print(f"🖼️  Single image: {args.image_path}")
+        
+        # Verify single image exists
+        if not Path(args.image_path).exists():
+            print(f"❌ ERROR: Image file not found: {args.image_path}")
+            return
+        
+        print(f"🔧 Model: {args.model_path}")
+        print(f"🐛 Debug mode: {args.debug}")
+        
+        # Single image mode
+        processor = DocumentAwareLlamaHandler(args.model_path, debug=args.debug)
+        
+        print(f"\\n📄 Processing single image: {Path(args.image_path).name}...")
         
         try:
             # Step 1: Detect document type and get schema
-            classification_info = processor.detect_and_classify_document(image_path)
+            classification_info = processor.detect_and_classify_document(args.image_path)
             
             # Step 2: Extract with document-specific schema
-            result = processor.process_document_aware(image_path, classification_info)
-            results.append(result)
+            result = processor.process_document_aware(args.image_path, classification_info)
             
-            # Show progress
+            # Display results
+            print("\\n📋 RESULTS:")
+            print(f"   Document Type: {result['document_type']}")
+            print(f"   Fields Found: {result['detected_fields']}/{result['total_fields']}")
+            print(f"   Processing Time: {result['processing_time']:.3f}s")
+            
             efficiency = (25 - result["total_fields"]) / 25 * 100  # vs unified 25 fields
-            print(f"   ✅ {result['document_type']}: {result['detected_fields']}/{result['total_fields']} fields ({efficiency:.0f}% field reduction)")
-            print(f"   ⏱️  Processing time: {result['processing_time']:.3f}s")
+            print(f"   Field Reduction: {efficiency:.0f}% fewer fields than unified approach")
+            
+            print("\\n📊 EXTRACTED DATA:")
+            extracted_data = result["extracted_data"]
+            for field_name, value in extracted_data.items():
+                status = "✅" if value != "NOT_FOUND" else "❌"
+                print(f"   {status} {field_name}: {value}")
+            
+            # If ground truth available, evaluate single result
+            if Path(args.ground_truth).exists():
+                ground_truth = load_ground_truth(args.ground_truth)
+                image_name = Path(args.image_path).name
+                
+                if image_name in ground_truth:
+                    evaluation_report = processor.evaluate_document_aware([result], ground_truth)
+                    print("\\n📈 EVALUATION vs Ground Truth:")
+                    
+                    # Find this document's evaluation
+                    doc_type = result['document_type']
+                    type_metrics = evaluation_report['by_document_type'].get(doc_type, {})
+                    print(f"   Accuracy: {type_metrics.get('avg_accuracy', 0)*100:.1f}%")
+                    print(f"   Meets Threshold: {'Yes' if type_metrics.get('meets_threshold', 0) > 0 else 'No'}")
+                    if doc_type == 'invoice':
+                        print(f"   ATO Compliant: {'Yes' if type_metrics.get('ato_compliant', 0) > 0 else 'No'}")
+                else:
+                    print(f"\\n⚠️  No ground truth available for {image_name}")
+            
+            print("\\n✅ Single image processing complete!")
+            return
             
         except Exception as e:
-            print(f"   ❌ Error processing {image_path}: {e}")
+            print(f"❌ Error processing {args.image_path}: {e}")
             if args.debug:
                 import traceback
                 traceback.print_exc()
+            return
     
-    # Evaluate results
-    if results:
-        evaluation_report = processor.evaluate_document_aware(results, ground_truth)
-        
-        # Save detailed results
-        from common.config import OUTPUT_DIR
-        output_dir = Path(OUTPUT_DIR)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = output_dir / f"llama_document_aware_report_{timestamp}.json"
-        
-        with Path(report_path).open('w') as f:
-            json.dump(evaluation_report, f, indent=2, default=str)
-        
-        print(f"\\n✅ Detailed report saved to: {report_path}")
-        print("\\n" + "=" * 80)
-        print("✅ PHASE 4 DOCUMENT-AWARE EXTRACTION COMPLETE")
-        print("=" * 80)
     else:
-        print("❌ No results to evaluate")
+        # Batch processing mode
+        print(f"📁 Data directory: {args.data_dir}")
+        print(f"📊 Ground truth: {args.ground_truth}")
+        print(f"🔧 Model: {args.model_path}")
+        print(f"🎯 Document type filter: {args.document_type or 'All types'}")
+        print(f"📸 Image limit: {args.limit_images or 'No limit'}")
+        print(f"🐛 Debug mode: {args.debug}")
+        
+        # Verify files exist for batch processing
+        if not Path(args.ground_truth).exists():
+            print(f"❌ ERROR: Ground truth file not found: {args.ground_truth}")
+            return
+        
+        if not Path(args.data_dir).exists():
+            print(f"❌ ERROR: Data directory not found: {args.data_dir}")
+            return
+        
+        # Initialize document-aware processor for batch processing
+        processor = DocumentAwareLlamaHandler(args.model_path, debug=args.debug)
+        
+        # Load ground truth and discover images
+        ground_truth = load_ground_truth(args.ground_truth)
+        all_images = discover_images(args.data_dir)
+        
+        # Filter images if document type specified
+        if args.document_type:
+            filtered_images = []
+            for img in all_images:
+                img_name = Path(img).name
+                if img_name in ground_truth:
+                    gt_doc_type = ground_truth[img_name].get("DOCUMENT_TYPE", "").lower()
+                    if args.document_type.lower() in gt_doc_type:
+                        filtered_images.append(img)
+            all_images = filtered_images
+            print(f"🔍 Filtered to {len(all_images)} {args.document_type} documents")
+        
+        # Limit images if specified
+        if args.limit_images:
+            all_images = all_images[:args.limit_images]
+            print(f"📸 Processing {len(all_images)} images")
+        
+        # Process each image with document-aware extraction
+        results = []
+        
+        print(f"\\n🔄 Processing {len(all_images)} documents...")
+        
+        for i, image_path in enumerate(all_images, 1):
+            print(f"\\n📄 [{i}/{len(all_images)}] Processing {Path(image_path).name}...")
+            
+            try:
+                # Step 1: Detect document type and get schema
+                classification_info = processor.detect_and_classify_document(image_path)
+                
+                # Step 2: Extract with document-specific schema
+                result = processor.process_document_aware(image_path, classification_info)
+                results.append(result)
+                
+                # Show progress
+                efficiency = (25 - result["total_fields"]) / 25 * 100  # vs unified 25 fields
+                print(f"   ✅ {result['document_type']}: {result['detected_fields']}/{result['total_fields']} fields ({efficiency:.0f}% field reduction)")
+                print(f"   ⏱️  Processing time: {result['processing_time']:.3f}s")
+                
+            except Exception as e:
+                print(f"   ❌ Error processing {image_path}: {e}")
+                if args.debug:
+                    import traceback
+                    traceback.print_exc()
+        
+        # Evaluate results
+        if results:
+            evaluation_report = processor.evaluate_document_aware(results, ground_truth)
+            
+            # Save detailed results
+            from common.config import OUTPUT_DIR
+            output_dir = Path(OUTPUT_DIR)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_path = output_dir / f"llama_document_aware_report_{timestamp}.json"
+            
+            with Path(report_path).open('w') as f:
+                json.dump(evaluation_report, f, indent=2, default=str)
+            
+            print(f"\\n✅ Detailed report saved to: {report_path}")
+            print("\\n" + "=" * 80)
+            print("✅ PHASE 4 DOCUMENT-AWARE EXTRACTION COMPLETE")
+            print("=" * 80)
+        else:
+            print("❌ No results to evaluate")
 
 
 if __name__ == "__main__":
