@@ -10,8 +10,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from common.extraction_parser import discover_images
-
 
 class DocumentTypeDetector:
     """
@@ -310,7 +308,10 @@ Answer:""",
             List of classification results
         """
         try:
-            images = discover_images(image_directory)
+            # Simple image discovery without circular imports
+            image_path = Path(image_directory)
+            image_extensions = {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.gif'}
+            images = [str(f) for f in image_path.rglob('*') if f.suffix.lower() in image_extensions]
         except Exception as e:
             print(f"❌ Error discovering images: {e}")
             return []

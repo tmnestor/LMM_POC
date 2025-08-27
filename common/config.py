@@ -456,132 +456,80 @@ def show_current_config():
 # DERIVED CONFIGURATIONS - AUTO-GENERATED FROM FIELD_DEFINITIONS
 # ============================================================================
 
-# Document-aware schema system - lazy initialization to avoid circular imports
-_doc_schema = None
-_schema_initialized = False
+# Document-aware schema system - deferred initialization to avoid module-level import
+_config = None
+
+def _get_config():
+    """Get schema configuration with deferred initialization."""
+    global _config
+    if _config is None:
+        from .schema_config import get_schema_config
+        _config = get_schema_config()
+    return _config
 
 def get_document_schema():
-    """Get document schema with lazy initialization."""
-    global _doc_schema, _schema_initialized
-    if not _schema_initialized:
-        try:
-            from .document_schema_loader import DocumentTypeFieldSchema
-            _doc_schema = DocumentTypeFieldSchema("field_schema_v3.yaml", fallback_file=None)
-            _schema_initialized = True
-            print("✅ Document-aware schema system initialized")
-            print("   Schema: field_schema_v3.yaml")
-            print(f"   Supported document types: {', '.join(_doc_schema.get_supported_document_types())}")
-        except Exception as e:
-            raise RuntimeError(
-                f"❌ FATAL: Document-aware schema system initialization failed\n"
-                f"💡 Expected schema file: field_schema_v3.yaml\n" 
-                f"💡 Document-aware extraction cannot proceed without proper schema\n"
-                f"💡 Ensure field_schema_v3.yaml exists in common/ directory\n"
-                f"💡 Error details: {str(e)}"
-            ) from e
-    return _doc_schema
+    """Get document schema loader."""
+    return _get_config().schema_loader
 
-# Generate unified field lists for evaluation system - lazy initialization
-_all_field_types = None
-_all_field_names = None
-EXTRACTION_FIELDS = None
+# Schema loader and fields - deferred access
+def _get_extraction_fields():
+    return _get_config().extraction_fields
+
+def _get_field_count():
+    return _get_config().field_count
+
+def _get_field_types():
+    return _get_config().field_types
+
+def _get_phone_fields():
+    return _get_config().phone_fields
+
+def _get_list_fields():
+    return _get_config().list_fields
+
+def _get_monetary_fields():
+    return _get_config().monetary_fields
+
+def _get_numeric_id_fields():
+    return _get_config().numeric_id_fields
+
+def _get_date_fields():
+    return _get_config().date_fields
+
+def _get_text_fields():
+    return _get_config().text_fields
+
+# Module-level access via function calls (no module-level initialization)
+EXTRACTION_FIELDS = None  # Will be set on first access
 FIELD_COUNT = None
-FIELD_TYPES = None
-
-def _initialize_field_lists():
-    """Initialize field lists from schema."""
-    global _all_field_types, _all_field_names, EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
-    
-    if _all_field_types is not None:
-        return  # Already initialized
-        
-    schema = get_document_schema()
-    _all_field_types = {}
-    _all_field_names = set()
-
-    for doc_type in schema.get_supported_document_types():
-        try:
-            doc_schema = schema.get_document_schema(doc_type)
-            for field in doc_schema["fields"]:
-                field_name = field["name"]
-                field_type = field.get("type", "text")
-                _all_field_names.add(field_name)
-                _all_field_types[field_name] = field_type
-        except Exception as e:
-            raise RuntimeError(
-                f"❌ FATAL: Failed to process document schema for {doc_type}\n"
-                f"💡 Schema structure may be invalid\n"
-                f"💡 Error details: {str(e)}"
-            ) from e
-
-    # Set global variables
-    EXTRACTION_FIELDS = sorted(list(_all_field_names))
-    FIELD_COUNT = len(EXTRACTION_FIELDS)
-    FIELD_TYPES = _all_field_types
-    
-    print(f"📊 Unified evaluation fields: {FIELD_COUNT} fields across {len(schema.get_supported_document_types())} document types")
-
-# Field type groupings for evaluation logic - lazy initialization
-_field_types_initialized = False
-NUMERIC_ID_FIELDS = None
-MONETARY_FIELDS = None 
-DATE_FIELDS = None
-LIST_FIELDS = None
-TEXT_FIELDS = None
+FIELD_TYPES = None  
 PHONE_FIELDS = None
+LIST_FIELDS = None
+MONETARY_FIELDS = None
+NUMERIC_ID_FIELDS = None
+DATE_FIELDS = None
+TEXT_FIELDS = None
 
-def _get_fields_by_type(field_type: str) -> list:
-    """Get fields by type with fail-fast error handling."""
-    _initialize_field_lists()  # Ensure field lists are initialized
-    fields = [name for name, ftype in FIELD_TYPES.items() if ftype == field_type]
-    if not fields and field_type in ["phone"]:  # Critical types that must exist
-        available_types = list(set(FIELD_TYPES.values()))
-        raise RuntimeError(
-            f"❌ FATAL: No fields found for critical type '{field_type}'\n"
-            f"💡 Available field types: {sorted(available_types)}\n"
-            f"💡 Document-aware schema must define fields for all required types\n"
-            f"💡 Check field_schema_v3.yaml field type definitions"
-        )
-    return fields
-
-def _initialize_field_types():
-    """Initialize field type lists."""
-    global _field_types_initialized, NUMERIC_ID_FIELDS, MONETARY_FIELDS, DATE_FIELDS, LIST_FIELDS, TEXT_FIELDS, PHONE_FIELDS
+def _ensure_initialized():
+    """Ensure module-level variables are initialized."""
+    global EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
+    global PHONE_FIELDS, LIST_FIELDS, MONETARY_FIELDS, NUMERIC_ID_FIELDS, DATE_FIELDS, TEXT_FIELDS
     
-    if _field_types_initialized:
-        return
-    
-    _initialize_field_lists()  # Ensure field lists are ready
-    
-    NUMERIC_ID_FIELDS = _get_fields_by_type("numeric_id")
-    MONETARY_FIELDS = _get_fields_by_type("monetary") 
-    DATE_FIELDS = _get_fields_by_type("date")
-    LIST_FIELDS = _get_fields_by_type("list")
-    TEXT_FIELDS = _get_fields_by_type("text")
-    PHONE_FIELDS = _get_fields_by_type("phone")
+    if EXTRACTION_FIELDS is None:
+        config = _get_config()
+        EXTRACTION_FIELDS = config.extraction_fields
+        FIELD_COUNT = config.field_count
+        FIELD_TYPES = config.field_types
+        PHONE_FIELDS = config.phone_fields
+        LIST_FIELDS = config.list_fields
+        MONETARY_FIELDS = config.monetary_fields
+        NUMERIC_ID_FIELDS = config.numeric_id_fields
+        DATE_FIELDS = config.date_fields
+        TEXT_FIELDS = config.text_fields
 
-    # Validation - ensure critical field types are present
-    critical_types = {"phone": PHONE_FIELDS, "list": LIST_FIELDS, "monetary": MONETARY_FIELDS}
-    missing_critical = []
-    for type_name, fields in critical_types.items():
-        if not fields:
-            missing_critical.append(type_name)
-
-    if missing_critical:
-        raise RuntimeError(
-            f"❌ FATAL: Missing critical field types in schema\n"
-            f"💡 Missing types: {missing_critical}\n"
-            f"💡 Document-aware schema must define fields for all critical types\n"
-            f"💡 Check field_schema_v3.yaml includes PHONE_FIELDS, LIST_FIELDS, MONETARY_FIELDS"
-        )
-
-    _field_types_initialized = True
-    print(f"📋 Field types: phone={len(PHONE_FIELDS)}, list={len(LIST_FIELDS)}, monetary={len(MONETARY_FIELDS)}, numeric_id={len(NUMERIC_ID_FIELDS)}")
-
-# Make document schema available for processors - lazy initialization
 def get_document_schema_loader():
-    """Get document schema loader with lazy initialization."""
-    return get_document_schema()
+    """Get document schema loader (alias for compatibility)."""
+    return _get_config().schema_loader
 
 # All fields are required for extraction (must attempt to extract and return value or NOT_FOUND)
 
@@ -596,111 +544,72 @@ DEFAULT_EXTRACTION_MODE = "detailed_grouped"  # Production default
 # Field groups for grouped extraction strategy
 # Based on research showing improved accuracy with focused field extraction
 
-# Field groups for grouped extraction strategy - using clean document-aware groups from v3 schema
-def _get_grouping_strategy():
-    """Get grouping strategy from clean document-aware schema."""
-    _initialize_field_types()  # Ensure field types are initialized
-    
-    # Use groups from v3 schema directly - clean, simple approach
-    schema = get_document_schema()
-    groups = schema.schema.get("groups", {})
-    
-    # Build field groups based on document-aware schema groups
-    field_groups = []
-    for group_name, group_config in groups.items():
-        # Find fields that belong to this group across all document types  
-        group_fields = []
-        for doc_type in schema.get_supported_document_types():
-            doc_schema = schema.get_document_schema(doc_type)
-            for field in doc_schema["fields"]:
-                if field.get("group") == group_name and field["name"] not in [f["field"] for f in group_fields]:
-                    group_fields.append({
-                        "field": field["name"], 
-                        "instruction": field.get("instruction", f"[{field['name']} or NOT_FOUND]")
-                    })
-        
-        if group_fields:  # Only add groups that have fields
-            field_groups.append({
-                "group_name": group_config.get("name", group_name),
-                "fields": group_fields,
-                "max_tokens": group_config.get("max_tokens", 400),
-                "temperature": group_config.get("temperature", 0.0)
-            })
-    
-    return {"group_configs": field_groups}
-
-# Lazy initialization for grouping strategies
-_grouping_initialized = False
+# Field groups from clean configuration - deferred initialization
 FIELD_GROUPS_DETAILED = None
-FIELD_GROUPS_COGNITIVE = None 
+FIELD_GROUPS_COGNITIVE = None
 GROUPING_STRATEGIES = None
 
-def _initialize_grouping_strategies():
-    """Initialize grouping strategies."""
-    global _grouping_initialized, FIELD_GROUPS_DETAILED, FIELD_GROUPS_COGNITIVE, GROUPING_STRATEGIES
+def _ensure_field_groups_initialized():
+    """Ensure field groups are initialized."""
+    global FIELD_GROUPS_DETAILED, FIELD_GROUPS_COGNITIVE, GROUPING_STRATEGIES
     
-    if _grouping_initialized:
-        return
+    if FIELD_GROUPS_DETAILED is None:
+        config = _get_config()
+        FIELD_GROUPS_DETAILED = config.field_groups
+        FIELD_GROUPS_COGNITIVE = config.field_groups  # Same for clean architecture
         
-    strategy = _get_grouping_strategy()
-    FIELD_GROUPS_DETAILED = strategy["group_configs"]
-    FIELD_GROUPS_COGNITIVE = strategy["group_configs"]  # Same for clean architecture
-    
-    GROUPING_STRATEGIES = {
-        "detailed_grouped": FIELD_GROUPS_DETAILED, 
-        "field_grouped": FIELD_GROUPS_COGNITIVE,
-    }
-    
-    _grouping_initialized = True
+        GROUPING_STRATEGIES = {
+            "detailed_grouped": FIELD_GROUPS_DETAILED, 
+            "field_grouped": FIELD_GROUPS_COGNITIVE,
+        }
 
 # Default grouping strategy (using semantic name)
 DEFAULT_GROUPING_STRATEGY = "detailed_grouped"  # 8-group detailed extraction
 
+# Clean accessor functions with deferred initialization
 def get_field_groups():
-    """Get field groups with lazy initialization."""
-    _initialize_grouping_strategies()
+    """Get field groups."""
+    _ensure_field_groups_initialized()
     return FIELD_GROUPS_DETAILED
 
 def get_grouping_strategies():
-    """Get grouping strategies with lazy initialization."""
-    _initialize_grouping_strategies()
+    """Get grouping strategies."""
+    _ensure_field_groups_initialized()
     return GROUPING_STRATEGIES
 
-# Group processing order (semantic order from schema) - lazy initialization
 def get_group_processing_order():
-    """Get group processing order with lazy initialization.""" 
-    _initialize_grouping_strategies()
+    """Get group processing order.""" 
+    _ensure_field_groups_initialized()
     return [group["group_name"] for group in FIELD_GROUPS_DETAILED]
 
-# Helper functions for accessing field types with lazy initialization
 def get_phone_fields():
-    """Get phone fields with lazy initialization."""
-    _initialize_field_types()
+    """Get phone fields."""
+    _ensure_initialized()
     return PHONE_FIELDS
 
 def get_list_fields():
-    """Get list fields with lazy initialization."""
-    _initialize_field_types()
+    """Get list fields."""
+    _ensure_initialized()
     return LIST_FIELDS
 
 def get_monetary_fields():
-    """Get monetary fields with lazy initialization."""
-    _initialize_field_types()
+    """Get monetary fields."""
+    _ensure_initialized()
     return MONETARY_FIELDS
 
 def get_all_field_types():
-    """Get all field types with lazy initialization."""
-    _initialize_field_lists()
+    """Get all field types."""
+    _ensure_initialized()
     return FIELD_TYPES
 
 def get_extraction_fields():
-    """Get extraction fields with lazy initialization."""
-    _initialize_field_lists()
+    """Get extraction fields."""
+    _ensure_initialized()
     return EXTRACTION_FIELDS
 
 def get_field_count():
-    """Get field count with lazy initialization."""
-    _initialize_field_lists()
+    """Get field count."""
+    _ensure_initialized()
     return FIELD_COUNT
 
 # Adaptive mode thresholds
@@ -721,22 +630,17 @@ GROUP_PROMPT_TEMPLATES = {
     "classification": "Identify ONLY the document type from the image.",
 }
 
-# Validation rules per group - lazy initialization
-GROUP_VALIDATION_RULES = {}
-
+# Validation rules per document type from clean configuration  
 def get_group_validation_rules():
-    """Get group validation rules with lazy initialization."""
-    global GROUP_VALIDATION_RULES
-    if not GROUP_VALIDATION_RULES:
-        # Clean document-aware approach - no complex validation rules needed
-        # Document schemas contain their own validation rules in metadata
-        schema = get_document_schema()
-        for doc_type in schema.get_supported_document_types():
-            doc_schema = schema.get_document_schema(doc_type)
-            validation_rules = doc_schema.get("validation_rules", [])
-            if validation_rules:
-                GROUP_VALIDATION_RULES[doc_type] = validation_rules
-    return GROUP_VALIDATION_RULES
+    """Get group validation rules from document schemas."""
+    validation_rules = {}
+    schema = get_document_schema()
+    for doc_type in schema.get_supported_document_types():
+        doc_schema = schema.get_document_schema(doc_type)
+        rules = doc_schema.get("validation_rules", [])
+        if rules:
+            validation_rules[doc_type] = rules
+    return validation_rules
 
 # ============================================================================
 # GROUPED EXTRACTION HELPER FUNCTIONS
@@ -753,8 +657,8 @@ def get_fields_for_group(group_name):
     Returns:
         list: List of field names in the group
     """
-    field_groups = get_field_groups()
-    group_dict = {group["group_name"]: group for group in field_groups}
+    _ensure_field_groups_initialized()
+    group_dict = {group["group_name"]: group for group in FIELD_GROUPS_DETAILED}
     if group_name not in group_dict:
         raise ValueError(f"Unknown extraction group: {group_name}")
     return [field["field"] for field in group_dict[group_name]["fields"]]
@@ -770,8 +674,8 @@ def get_group_for_field(field_name):
     Returns:
         str: Group name containing the field, or None if not found
     """
-    field_groups = get_field_groups()
-    for group in field_groups:
+    _ensure_field_groups_initialized()
+    for group in FIELD_GROUPS_DETAILED:
         field_names = [field["field"] for field in group["fields"]]
         if field_name in field_names:
             return group["group_name"]
@@ -785,9 +689,9 @@ def get_extraction_groups_summary():
     Returns:
         dict: Summary of groups with field counts and priorities
     """
+    _ensure_field_groups_initialized()
     summary = {}
-    field_groups = get_field_groups()
-    for group in field_groups:
+    for group in FIELD_GROUPS_DETAILED:
         summary[group["group_name"]] = {
             "name": group["group_name"],
             "field_count": len(group["fields"]),
