@@ -22,7 +22,7 @@ class DocumentTypeFieldSchema:
     optimized purely for document-aware extraction with maximum efficiency.
     """
     
-    def __init__(self, schema_file: str = "field_schema_v3.yaml", fallback_file: Optional[str] = None):
+    def __init__(self, schema_file: str = "field_schema_v4.yaml", fallback_file: Optional[str] = None):
         """
         Initialize document-aware schema loader - clean, no legacy compatibility.
         

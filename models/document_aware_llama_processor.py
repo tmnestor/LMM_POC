@@ -158,7 +158,7 @@ class DocumentAwareLlamaProcessor:
             raise
     
     def generate_dynamic_prompt(self) -> str:
-        """Generate prompt for specific field list."""
+        """Generate prompt for specific field list with v4 field type support."""
         
         # Try to load YAML configuration
         yaml_config = self._load_yaml_config()
@@ -182,7 +182,7 @@ class DocumentAwareLlamaProcessor:
         return {}
     
     def _generate_yaml_prompt(self, yaml_config: dict) -> str:
-        """Generate prompt using YAML configuration with dynamic fields."""
+        """Generate prompt using YAML configuration with dynamic fields and v4 field type support."""
         
         persona = yaml_config.get("persona", "You are an expert document analyzer.")
         task_description = yaml_config.get("task_description", "Extract key information from business documents.")
@@ -190,10 +190,13 @@ class DocumentAwareLlamaProcessor:
         
         prompt = f"{persona}\\n\\n{task_description}\\n\\n{output_format}\\n"
         
-        # Add field instructions using dynamic field list
+        # Add field instructions using dynamic field list with v4 field type awareness
         field_instructions = yaml_config.get("field_instructions", {})
         for field in self.field_list:
-            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            # Get field type-specific instruction or use default
+            instruction = field_instructions.get(field)
+            if not instruction:
+                instruction = self._get_field_type_instruction(field)
             prompt += f"{field}: {instruction}\\n"
         
         # Add stop instruction
@@ -218,9 +221,10 @@ CRITICAL INSTRUCTIONS:
 REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
 """
         
-        # Add each field with instruction (proper newlines)
+        # Add each field with type-aware instruction
         for field in self.field_list:
-            prompt += f"{field}: [value or NOT_FOUND]\n"
+            instruction = self._get_field_type_instruction(field)
+            prompt += f"{field}: {instruction}\n"
         
         prompt += f"""
 OUTPUT RULES:
@@ -231,6 +235,9 @@ OUTPUT RULES:
 -- Use exact text from document (e.g., "TAX INVOICE" not "Invoice")
 -- Use pipe separators for lists (e.g., "item1 | item2 | item3")
 -- Be conservative: use NOT_FOUND if field is truly missing
+-- For boolean fields: use "true" or "false" (not "yes"/"no")
+-- For calculated fields: show computed values with proper formatting
+-- For transaction lists: use pipe separators between transactions
 
 STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
         
@@ -543,3 +550,47 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                     extracted_data[key] = cleaned_value
         
         return extracted_data
+    
+    def _get_field_type_instruction(self, field: str) -> str:
+        """Get field type-specific instruction for v4 schema fields."""
+        from common.config import (
+            get_boolean_fields,
+            get_calculated_fields,
+            get_transaction_list_fields,
+        )
+        
+        try:
+            # Check field type and provide appropriate instruction
+            if field in get_boolean_fields():
+                if "IS_GST_INCLUDED" in field:
+                    return "[true if GST included in prices, false if GST separate, or NOT_FOUND]"
+                else:
+                    return "[true or false, or NOT_FOUND]"
+            
+            elif field in get_calculated_fields():
+                if "LINE_ITEM_TOTAL_PRICES" in field:
+                    return "[pipe-separated calculated totals: qty×price for each item, or NOT_FOUND]"
+                elif "DISCOUNT" in field:
+                    return "[discount amount calculated from line items, or NOT_FOUND]"
+                else:
+                    return "[calculated value or NOT_FOUND]"
+            
+            elif field in get_transaction_list_fields():
+                if "TRANSACTION_DATES" in field:
+                    return "[pipe-separated transaction dates in chronological order, or NOT_FOUND]"
+                elif "TRANSACTION_AMOUNTS" in field:
+                    return "[pipe-separated transaction amounts with signs (+/-), or NOT_FOUND]"
+                elif "TRANSACTION_DESCRIPTIONS" in field:
+                    return "[pipe-separated transaction descriptions/references, or NOT_FOUND]"
+                elif "RUNNING_BALANCES" in field:
+                    return "[pipe-separated account balances after each transaction, or NOT_FOUND]"
+                else:
+                    return "[pipe-separated transaction data or NOT_FOUND]"
+            
+            else:
+                # Default instruction for standard field types
+                return "[value or NOT_FOUND]"
+                
+        except Exception:
+            # Fallback if field type checking fails
+            return "[value or NOT_FOUND]"

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Llama Vision Document-Aware Key-Value Extraction - Phase 4 Implementation
+Llama Vision Document-Aware Key-Value Extraction - V4 Schema Implementation
 
-This module implements the Phase 4 document-aware extraction pipeline for the 
+This module implements the V4 document-aware extraction pipeline for the 
 Llama-3.2-11B-Vision-Instruct model, featuring:
 - Document type detection and classification
 - Type-specific field schema routing 
-- Targeted extraction (invoice: 20 fields, receipt: 15 fields, bank_statement: 15 fields)
+- Comprehensive extraction (invoice: 29 fields, receipt: 20 fields, bank_statement: 16 fields)
 - ATO compliance validation for invoices
-- Performance optimization through reduced field sets
+- Complete field coverage with v4 schema including payment tracking
 
 Pipeline Flow:
     1. Document Type Detection - Classify document type with confidence scoring
@@ -41,20 +41,20 @@ from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
 
 
 class DocumentAwareLlamaHandler:
-    """Phase 4 Document-Aware Llama Vision Processor."""
+    """V4 Document-Aware Llama Vision Processor with comprehensive field coverage."""
     
     def __init__(self, model_path: str, debug: bool = False):
         """Initialize document-aware processor."""
         self.debug = debug
         self.model_path = model_path
         
-        print("🚀 Initializing Llama Vision processor for document-aware extraction...")
+        print("🚀 Initializing Llama Vision processor for V4 document-aware extraction...")
         
         # We'll create processors on-demand to avoid loading multiple models
         self.base_processor = None
         self.model_loaded = False
         
-        # Initialize Phase 4 components
+        # Initialize V4 components
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
         
@@ -388,8 +388,7 @@ def main():
                 results.append(result)
                 
                 # Show progress
-                efficiency = (25 - result["total_fields"]) / 25 * 100  # vs unified 25 fields
-                print(f"   ✅ {result['document_type']}: {result['detected_fields']}/{result['total_fields']} fields ({efficiency:.0f}% field reduction)")
+                print(f"   ✅ {result['document_type']}: {result['detected_fields']}/{result['total_fields']} fields")
                 print(f"   ⏱️  Processing time: {result['processing_time']:.3f}s")
                 
             except Exception as e:

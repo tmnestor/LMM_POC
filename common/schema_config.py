@@ -15,7 +15,7 @@ class DocumentAwareConfig:
     
     def __init__(self):
         # Initialize document schema
-        self.schema_loader = DocumentTypeFieldSchema("field_schema_v3.yaml", fallback_file=None)
+        self.schema_loader = DocumentTypeFieldSchema("field_schema_v4.yaml", fallback_file=None)
         
         # Generate unified field lists
         self._build_unified_fields()
@@ -58,7 +58,13 @@ class DocumentAwareConfig:
         self.date_fields = [name for name, ftype in field_types.items() if ftype == "date"]
         self.text_fields = [name for name, ftype in field_types.items() if ftype == "text"]
         
+        # New field types in v4
+        self.boolean_fields = [name for name, ftype in field_types.items() if ftype == "boolean"]
+        self.calculated_fields = [name for name, ftype in field_types.items() if ftype == "calculated"]
+        self.transaction_list_fields = [name for name, ftype in field_types.items() if ftype == "transaction_list"]
+        
         print(f"📋 Field types: phone={len(self.phone_fields)}, list={len(self.list_fields)}, monetary={len(self.monetary_fields)}")
+        print(f"📋 New v4 types: boolean={len(self.boolean_fields)}, calculated={len(self.calculated_fields)}, transaction_list={len(self.transaction_list_fields)}")
     
     def _build_field_groups(self):
         """Build field groups for extraction strategies.""" 

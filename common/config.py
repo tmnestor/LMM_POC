@@ -499,8 +499,35 @@ def _get_date_fields():
 def _get_text_fields():
     return _get_config().text_fields
 
+def _get_boolean_fields():
+    return _get_config().boolean_fields
+
+def _get_calculated_fields():
+    return _get_config().calculated_fields
+
+def _get_transaction_list_fields():
+    return _get_config().transaction_list_fields
+
 # Module-level access via function calls (no module-level initialization)
-EXTRACTION_FIELDS = None  # Will be set on first access
+EXTRACTION_FIELDS = []  # Will be set on first access
+
+
+def _ensure_fields_loaded():
+    """Ensure field data is loaded from schema."""
+    global EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
+    
+    if not EXTRACTION_FIELDS:
+        from .schema_config import get_schema_config
+        config = get_schema_config()
+        EXTRACTION_FIELDS = config.extraction_fields
+        FIELD_COUNT = config.field_count
+        # Use the field_types dict that's already available
+        FIELD_TYPES = config.field_types
+
+
+# Initialize fields on module import for backward compatibility
+_ensure_fields_loaded()
+
 FIELD_COUNT = None
 FIELD_TYPES = None  
 PHONE_FIELDS = None
@@ -509,23 +536,13 @@ MONETARY_FIELDS = None
 NUMERIC_ID_FIELDS = None
 DATE_FIELDS = None
 TEXT_FIELDS = None
+BOOLEAN_FIELDS = None
+CALCULATED_FIELDS = None
+TRANSACTION_LIST_FIELDS = None
 
 def _ensure_initialized():
     """Ensure module-level variables are initialized."""
-    global EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
-    global PHONE_FIELDS, LIST_FIELDS, MONETARY_FIELDS, NUMERIC_ID_FIELDS, DATE_FIELDS, TEXT_FIELDS
-    
-    if EXTRACTION_FIELDS is None:
-        config = _get_config()
-        EXTRACTION_FIELDS = config.extraction_fields
-        FIELD_COUNT = config.field_count
-        FIELD_TYPES = config.field_types
-        PHONE_FIELDS = config.phone_fields
-        LIST_FIELDS = config.list_fields
-        MONETARY_FIELDS = config.monetary_fields
-        NUMERIC_ID_FIELDS = config.numeric_id_fields
-        DATE_FIELDS = config.date_fields
-        TEXT_FIELDS = config.text_fields
+    _ensure_fields_loaded()  # Use the new initialization function
 
 def get_document_schema_loader():
     """Get document schema loader (alias for compatibility)."""
@@ -611,6 +628,21 @@ def get_field_count():
     """Get field count."""
     _ensure_initialized()
     return FIELD_COUNT
+
+def get_boolean_fields():
+    """Get boolean fields."""
+    _ensure_initialized()
+    return BOOLEAN_FIELDS
+
+def get_calculated_fields():
+    """Get calculated fields."""
+    _ensure_initialized()
+    return CALCULATED_FIELDS
+
+def get_transaction_list_fields():
+    """Get transaction list fields."""
+    _ensure_initialized()
+    return TRANSACTION_LIST_FIELDS
 
 # Adaptive mode thresholds
 ADAPTIVE_MODE_CONFIG = {

@@ -116,6 +116,14 @@ class FieldSchema:
     def total_fields(self) -> int:
         """Get total number of fields."""
         return len(self.field_names)
+    
+    def get_extraction_fields(self) -> List[str]:
+        """Get ordered list of extraction field names (backward compatibility)."""
+        return self.field_names
+    
+    def get_all_field_types(self) -> Dict[str, str]:
+        """Get field type mapping (backward compatibility)."""
+        return {field["name"]: field["type"] for field in self.schema["fields"]}
 
     def get_field_metadata(self, field_name: str) -> dict:
         """

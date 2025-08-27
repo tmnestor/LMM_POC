@@ -15,10 +15,13 @@ import pandas as pd
 
 from .config import (
     get_all_field_types,
+    get_boolean_fields,
+    get_calculated_fields,
     get_extraction_fields,
     get_list_fields,
     get_monetary_fields,
     get_phone_fields,
+    get_transaction_list_fields,
 )
 
 
@@ -263,6 +266,30 @@ def calculate_field_accuracy(
             print(
                 f"    📋 LIST: {matches}/{max(len(ground_truth_items), len(extracted_items))} matches - score: {score}"
             )
+        return score
+
+    elif field_name in get_boolean_fields():
+        # Boolean fields - exact match for true/false values
+        extracted_bool = _parse_boolean_value(extracted)
+        ground_truth_bool = _parse_boolean_value(ground_truth)
+        
+        if extracted_bool is None or ground_truth_bool is None:
+            score = 0.0
+        else:
+            score = 1.0 if extracted_bool == ground_truth_bool else 0.0
+            
+        if debug:
+            print(f"    ✅ BOOLEAN: {extracted_bool} vs {ground_truth_bool} = {score}")
+        return score
+
+    elif field_name in get_calculated_fields():
+        # Calculated fields - validate calculations or compare values
+        score = _evaluate_calculated_field(extracted, ground_truth, field_name, debug)
+        return score
+
+    elif field_name in get_transaction_list_fields():
+        # Transaction list fields - compare structured transaction data
+        score = _evaluate_transaction_list(extracted, ground_truth, field_name, debug)
         return score
 
     else:
@@ -734,3 +761,163 @@ def generate_overall_classification_summary(evaluation_summary: Dict) -> Dict:
             "overall_metrics": {"error": str(e)},
             "field_metrics": {},
         }
+
+
+# ============================================================================
+# V4 FIELD TYPE EVALUATION HELPERS
+# ============================================================================
+
+def _parse_boolean_value(value: str) -> bool:
+    """Parse boolean value from text string with strict matching."""
+    if not value or value == "NOT_FOUND":
+        return None
+    
+    value_lower = value.lower().strip()
+    
+    # Strict boolean matching - only accept exact values
+    true_values = ["true", "1"]
+    false_values = ["false", "0"]
+    
+    if value_lower in true_values:
+        return True
+    elif value_lower in false_values:
+        return False
+    else:
+        return None
+
+
+def _evaluate_calculated_field(extracted: str, ground_truth: str, field_name: str, debug: bool = False) -> float:
+    """Evaluate calculated fields with validation logic."""
+    if not extracted or extracted == "NOT_FOUND":
+        return 0.0 if ground_truth and ground_truth != "NOT_FOUND" else 1.0
+    
+    if not ground_truth or ground_truth == "NOT_FOUND":
+        return 0.0
+    
+    # For LINE_ITEM_TOTAL_PRICES - could validate against quantities × prices
+    # For now, treat as list comparison
+    if "TOTAL_PRICES" in field_name:
+        return _evaluate_calculated_totals(extracted, ground_truth, debug)
+    else:
+        # Default to monetary comparison for other calculated fields
+        return _compare_monetary_values(extracted, ground_truth, debug)
+
+
+def _evaluate_calculated_totals(extracted: str, ground_truth: str, debug: bool = False) -> float:
+    """Evaluate line item total calculations."""
+    try:
+        # Parse pipe-separated values
+        extracted_items = [item.strip() for item in extracted.split("|")]
+        ground_truth_items = [item.strip() for item in ground_truth.split("|")]
+        
+        if len(extracted_items) != len(ground_truth_items):
+            if debug:
+                print(f"    🧮 CALCULATED: Length mismatch {len(extracted_items)} vs {len(ground_truth_items)}")
+            return 0.0
+        
+        matches = 0
+        for ext_val, gt_val in zip(extracted_items, ground_truth_items, strict=False):
+            if _compare_monetary_values(ext_val, gt_val, False) == 1.0:
+                matches += 1
+        
+        score = matches / len(ground_truth_items) if ground_truth_items else 0.0
+        if debug:
+            print(f"    🧮 CALCULATED: {matches}/{len(ground_truth_items)} totals match = {score}")
+        return score
+        
+    except Exception as e:
+        if debug:
+            print(f"    🧮 CALCULATED: Error evaluating totals: {e}")
+        return 0.0
+
+
+def _compare_monetary_values(extracted: str, ground_truth: str, debug: bool = False) -> float:
+    """Compare monetary values with tolerance."""
+    try:
+        extracted_num = float(re.sub(r"[^\d.-]", "", extracted))
+        ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth))
+        
+        # Allow 1% tolerance for rounding
+        tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+        score = 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
+        
+        if debug:
+            print(f"    💰 MONETARY: {extracted_num} vs {ground_truth_num} (tolerance: {tolerance}) = {score}")
+        return score
+    except (ValueError, TypeError):
+        if debug:
+            print(f"    💰 MONETARY: Parse error - {extracted} vs {ground_truth}")
+        return 0.0
+
+
+def _evaluate_transaction_list(extracted: str, ground_truth: str, field_name: str, debug: bool = False) -> float:
+    """Evaluate transaction list fields with structured comparison."""
+    if not extracted or extracted == "NOT_FOUND":
+        return 0.0 if ground_truth and ground_truth != "NOT_FOUND" else 1.0
+    
+    if not ground_truth or ground_truth == "NOT_FOUND":
+        return 0.0
+    
+    try:
+        # Parse pipe-separated transaction data
+        extracted_items = [item.strip() for item in extracted.split("|")]
+        ground_truth_items = [item.strip() for item in ground_truth.split("|")]
+        
+        # For transaction lists, order matters and length should match
+        if len(extracted_items) != len(ground_truth_items):
+            # Partial credit based on overlap
+            overlap = min(len(extracted_items), len(ground_truth_items))
+            matches = 0
+            for i in range(overlap):
+                if _transaction_item_matches(extracted_items[i], ground_truth_items[i], field_name):
+                    matches += 1
+            
+            score = matches / max(len(extracted_items), len(ground_truth_items))
+            if debug:
+                print(f"    📊 TRANSACTION: Length mismatch - partial score: {score}")
+            return score
+        
+        # Full comparison when lengths match
+        matches = 0
+        for ext_item, gt_item in zip(extracted_items, ground_truth_items, strict=False):
+            if _transaction_item_matches(ext_item, gt_item, field_name):
+                matches += 1
+        
+        score = matches / len(ground_truth_items) if ground_truth_items else 0.0
+        if debug:
+            print(f"    📊 TRANSACTION: {matches}/{len(ground_truth_items)} transactions match = {score}")
+        return score
+        
+    except Exception as e:
+        if debug:
+            print(f"    📊 TRANSACTION: Error evaluating transactions: {e}")
+        return 0.0
+
+
+def _transaction_item_matches(extracted_item: str, ground_truth_item: str, field_name: str) -> bool:
+    """Check if individual transaction items match."""
+    if "AMOUNT" in field_name:
+        # Monetary comparison for transaction amounts
+        return _compare_monetary_values(extracted_item, ground_truth_item, False) == 1.0
+    elif "DATE" in field_name:
+        # Date comparison for transaction dates
+        return _compare_dates_fuzzy(extracted_item, ground_truth_item)
+    elif "BALANCE" in field_name:
+        # Monetary comparison for balances
+        return _compare_monetary_values(extracted_item, ground_truth_item, False) == 1.0
+    else:
+        # Text comparison for descriptions
+        return extracted_item.lower().strip() == ground_truth_item.lower().strip()
+
+
+def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
+    """Fuzzy date comparison allowing for different formats."""
+    if extracted_date.strip() == ground_truth_date.strip():
+        return True
+    
+    # Extract numbers from dates for loose comparison
+    extracted_nums = re.findall(r'\d+', extracted_date)
+    ground_truth_nums = re.findall(r'\d+', ground_truth_date)
+    
+    # If same number of components and they match, consider it a match
+    return len(extracted_nums) >= 2 and extracted_nums == ground_truth_nums

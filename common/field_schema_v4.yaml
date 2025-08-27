@@ -1,0 +1,571 @@
+# Document-Aware Field Schema - Version 4.0
+# Expanded schema with comprehensive field coverage as mandated by management
+# Includes all boss-required fields for complete document extraction
+
+schema_version: "4.0"
+extraction_mode: "document_aware_only"
+optimized_for: "comprehensive_extraction"
+
+# ============================================================================
+# COMMON FIELDS - Shared across document types
+# ============================================================================
+common_fields:
+  - name: "DOCUMENT_TYPE"
+    type: "text"
+    evaluation_logic: "exact_match"
+    group: "metadata"
+    description: "Type of business document"
+    instruction: "[document type (invoice/receipt/bank_statement) or NOT_FOUND]"
+    
+  - name: "BUSINESS_ABN"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "critical"
+    description: "11-digit Australian Business Number"
+    instruction: "[11-digit Australian Business Number or NOT_FOUND]"
+    
+  - name: "SUPPLIER_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Business/supplier name"
+    instruction: "[business/supplier name or NOT_FOUND]"
+
+  - name: "BUSINESS_ADDRESS"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Business address"
+    instruction: "[business address or NOT_FOUND]"
+    
+  - name: "BUSINESS_PHONE"
+    type: "phone"
+    evaluation_logic: "phone_number_match"
+    group: "business_entity"
+    description: "Business phone number"
+    instruction: "[business phone number or NOT_FOUND]"
+
+  - name: "SUPPLIER_EMAIL"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Supplier email address"
+    instruction: "[supplier email address or NOT_FOUND]"
+
+  - name: "TOTAL_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "critical"
+    description: "Total amount in dollars"
+    instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+
+# ============================================================================
+# DOCUMENT TYPE SCHEMAS - Optimized for document-aware extraction
+# ============================================================================
+document_schemas:
+  
+  # ========================================
+  # INVOICE SCHEMA (25 fields)
+  # ========================================
+  invoice:
+    metadata:
+      document_type_values: ["invoice", "tax invoice", "bill", "sales invoice", "estimate", "quote", "quotation", "proforma invoice"]
+      total_fields: 25
+      description: "Comprehensive invoice extraction with payment tracking"
+      
+    inherits_common: true
+    
+    specific_fields:
+      - name: "INVOICE_NUMBER"
+        type: "text"
+        evaluation_logic: "exact_match"
+        group: "metadata"
+        description: "Invoice reference number"
+        instruction: "[invoice number/reference or NOT_FOUND]"
+        
+      - name: "INVOICE_DATE"
+        type: "date"
+        evaluation_logic: "flexible_date_match"
+        group: "dates"
+        description: "Invoice issue date"
+        instruction: "[invoice date or NOT_FOUND]"
+        
+      - name: "DUE_DATE"
+        type: "date"
+        evaluation_logic: "flexible_date_match"
+        group: "dates"
+        description: "Payment due date"
+        instruction: "[payment due date or NOT_FOUND]"
+
+      - name: "PAYER_NAME"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer/payer name"
+        instruction: "[customer/payer name or NOT_FOUND]"
+        
+      - name: "PAYER_ABN"
+        type: "numeric_id"
+        evaluation_logic: "exact_numeric_match"
+        group: "payer_info"
+        description: "Customer ABN"
+        instruction: "[11-digit customer ABN or NOT_FOUND]"
+        
+      - name: "PAYER_ADDRESS"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer address"
+        instruction: "[customer address or NOT_FOUND]"
+        
+      - name: "PAYER_PHONE"
+        type: "phone"
+        evaluation_logic: "phone_number_match"
+        group: "payer_info"
+        description: "Customer phone number"
+        instruction: "[customer phone number or NOT_FOUND]"
+        
+      - name: "PAYER_EMAIL"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer email address"
+        instruction: "[customer email address or NOT_FOUND]"
+
+      - name: "LINE_ITEM_DESCRIPTIONS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Items sold descriptions"
+        instruction: "[pipe-separated list of items or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_QUANTITIES"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Quantities ordered"
+        instruction: "[pipe-separated quantities or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_PRICES"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Unit prices"
+        instruction: "[pipe-separated unit prices or NOT_FOUND]"
+
+      - name: "LINE_ITEM_TOTAL_PRICES"
+        type: "calculated"
+        evaluation_logic: "calculated_field_match"
+        group: "item_details"
+        description: "Total price per line item (quantity × unit price)"
+        instruction: "[pipe-separated line totals or NOT_FOUND]"
+
+      - name: "LINE_ITEM_GST_AMOUNTS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "GST amount per line item"
+        instruction: "[pipe-separated GST amounts per line or NOT_FOUND]"
+
+      - name: "LINE_ITEM_DISCOUNT_AMOUNTS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Discount amount per line item"
+        instruction: "[pipe-separated discount amounts per line or NOT_FOUND]"
+        
+      - name: "SUBTOTAL_AMOUNT"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Subtotal before tax"
+        instruction: "[subtotal amount in dollars with 2 decimals or NOT_FOUND]"
+
+      - name: "TOTAL_DISCOUNT_AMOUNT"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Total discount applied"
+        instruction: "[total discount amount in dollars or NOT_FOUND]"
+        
+      - name: "GST_AMOUNT"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "GST amount"
+        instruction: "[GST amount in dollars with 2 decimals or NOT_FOUND]"
+
+      - name: "IS_GST_INCLUDED"
+        type: "boolean"
+        evaluation_logic: "boolean_match"
+        group: "monetary"
+        description: "Whether GST is included in prices"
+        instruction: "[true if GST included, false if not, or NOT_FOUND]"
+
+      - name: "TOTAL_AMOUNT_PAID"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "payment_status"
+        description: "Amount already paid"
+        instruction: "[amount paid in dollars or NOT_FOUND]"
+
+      - name: "BALANCE_OF_PAYMENT"
+        type: "calculated"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "payment_status"
+        description: "Remaining balance due"
+        instruction: "[balance remaining in dollars or NOT_FOUND]"
+
+      - name: "TOTAL_AMOUNT_PAYABLE"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "payment_status"
+        description: "Total amount still payable"
+        instruction: "[total payable amount in dollars or NOT_FOUND]"
+
+      - name: "SUPPLIER_WEBSITE"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "business_entity"
+        description: "Supplier website"
+        instruction: "[supplier website or NOT_FOUND]"
+
+  # ========================================
+  # RECEIPT SCHEMA (19 fields - unchanged)
+  # ========================================
+  receipt:
+    metadata:
+      document_type_values: ["receipt", "purchase receipt", "payment receipt", "sales receipt"]
+      total_fields: 19
+      description: "Purchase receipt extraction"
+      
+    inherits_common: true
+    
+    specific_fields:
+      - name: "RECEIPT_NUMBER"
+        type: "text"
+        evaluation_logic: "exact_match"
+        group: "metadata"
+        description: "Receipt reference number"
+        instruction: "[receipt number or NOT_FOUND]"
+        
+      - name: "TRANSACTION_DATE"
+        type: "date"
+        evaluation_logic: "flexible_date_match"
+        group: "dates"
+        description: "Date of purchase"
+        instruction: "[transaction date or NOT_FOUND]"
+        
+      - name: "PAYMENT_METHOD"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payment"
+        description: "Payment type"
+        instruction: "[payment method or NOT_FOUND]"
+
+      - name: "LINE_ITEM_DESCRIPTIONS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Items purchased"
+        instruction: "[pipe-separated items or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_QUANTITIES"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Quantities"
+        instruction: "[pipe-separated quantities or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_PRICES"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Prices"
+        instruction: "[pipe-separated prices or NOT_FOUND]"
+        
+      - name: "SUBTOTAL_AMOUNT"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Subtotal"
+        instruction: "[subtotal in dollars with 2 decimals or NOT_FOUND]"
+        
+      - name: "GST_AMOUNT"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "GST amount"
+        instruction: "[GST in dollars with 2 decimals or NOT_FOUND]"
+        
+      - name: "PAYER_NAME"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer name"
+        instruction: "[customer name or NOT_FOUND]"
+        
+      - name: "PAYER_ADDRESS"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer address"
+        instruction: "[customer address or NOT_FOUND]"
+        
+      - name: "PAYER_PHONE"
+        type: "phone"
+        evaluation_logic: "phone_number_match"
+        group: "payer_info"
+        description: "Customer phone number"
+        instruction: "[customer phone number or NOT_FOUND]"
+        
+      - name: "PAYER_EMAIL"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer email address"
+        instruction: "[customer email address or NOT_FOUND]"
+        
+      - name: "STORE_LOCATION"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "business_entity"
+        description: "Store/branch location"
+        instruction: "[store location or NOT_FOUND]"
+
+  # ========================================
+  # BANK STATEMENT SCHEMA (17 fields)
+  # ========================================
+  bank_statement:
+    metadata:
+      document_type_values: ["bank statement", "account statement", "statement", "credit card statement"]
+      total_fields: 17
+      description: "Comprehensive bank statement with transaction details"
+      
+    inherits_common: false
+    
+    specific_fields:
+      - name: "DOCUMENT_TYPE"
+        type: "text"
+        evaluation_logic: "exact_match"
+        group: "metadata"
+        description: "Document type"
+        instruction: "[document type (bank_statement/credit_card_statement) or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_DESCRIPTIONS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Transaction descriptions"
+        instruction: "[pipe-separated transaction descriptions or NOT_FOUND]"
+        
+      - name: "BANK_NAME"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "banking"
+        description: "Financial institution name"
+        instruction: "[bank name or NOT_FOUND]"
+        
+      - name: "BANK_BSB_NUMBER"
+        type: "numeric_id"
+        evaluation_logic: "conditional_numeric_match"
+        group: "banking"
+        description: "6-digit BSB (not required for credit cards)"
+        instruction: "[6-digit BSB number or NOT_FOUND if credit card]"
+        
+      - name: "BANK_ACCOUNT_NUMBER"
+        type: "numeric_id"
+        evaluation_logic: "exact_numeric_match"
+        group: "banking"
+        description: "Account number"
+        instruction: "[account number or NOT_FOUND]"
+        
+      - name: "BANK_ACCOUNT_HOLDER"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "banking"
+        description: "Account holder name"
+        instruction: "[account holder name or NOT_FOUND]"
+        
+      - name: "STATEMENT_DATE_RANGE"
+        type: "date"
+        evaluation_logic: "flexible_date_match"
+        group: "dates"
+        description: "Statement period"
+        instruction: "[statement period or NOT_FOUND]"
+
+      - name: "CREDIT_CARD_DUE_DATE"
+        type: "date"
+        evaluation_logic: "flexible_date_match"
+        group: "dates"
+        description: "Due date for credit card statements"
+        instruction: "[due date for credit card or NOT_FOUND]"
+        
+      - name: "ACCOUNT_OPENING_BALANCE"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Starting balance"
+        instruction: "[opening balance with 2 decimals or NOT_FOUND]"
+        
+      - name: "ACCOUNT_CLOSING_BALANCE"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Ending balance"
+        instruction: "[closing balance with 2 decimals or NOT_FOUND]"
+        
+      - name: "TOTAL_CREDITS"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Total deposits/credits"
+        instruction: "[total credits in dollars or NOT_FOUND]"
+        
+      - name: "TOTAL_DEBITS"
+        type: "monetary"
+        evaluation_logic: "monetary_with_tolerance"
+        group: "monetary"
+        description: "Total withdrawals/debits"
+        instruction: "[total debits in dollars or NOT_FOUND]"
+
+      - name: "TRANSACTION_DATES"
+        type: "transaction_list"
+        evaluation_logic: "transaction_list_match"
+        group: "transaction_details"
+        description: "Individual transaction dates"
+        instruction: "[pipe-separated transaction dates or NOT_FOUND]"
+
+      - name: "TRANSACTION_AMOUNTS_PAID"
+        type: "transaction_list"
+        evaluation_logic: "transaction_list_match"
+        group: "transaction_details"
+        description: "Amounts paid per transaction (0 for credits)"
+        instruction: "[pipe-separated debit amounts or NOT_FOUND]"
+
+      - name: "TRANSACTION_AMOUNTS_RECEIVED"
+        type: "transaction_list"
+        evaluation_logic: "transaction_list_match"
+        group: "transaction_details"
+        description: "Amounts received per transaction (0 for debits)"
+        instruction: "[pipe-separated credit amounts or NOT_FOUND]"
+
+      - name: "TRANSACTION_BALANCES"
+        type: "transaction_list"
+        evaluation_logic: "transaction_list_match"
+        group: "transaction_details"
+        description: "Running balance after each transaction"
+        instruction: "[pipe-separated running balances or NOT_FOUND]"
+
+# ============================================================================
+# FIELD TYPE DEFINITIONS - Enhanced with new types
+# ============================================================================
+groups:
+  critical:
+    name: "Critical Business Identifiers"
+    max_tokens: 300
+    temperature: 0.0
+
+  monetary:
+    name: "Monetary Values" 
+    max_tokens: 400
+    temperature: 0.0
+
+  dates:
+    name: "Date Information"
+    max_tokens: 350
+    temperature: 0.0
+
+  business_entity:
+    name: "Business Entity Details"
+    max_tokens: 450
+    temperature: 0.0
+
+  payer_info:
+    name: "Payer Information"
+    max_tokens: 450
+    temperature: 0.0
+
+  banking:
+    name: "Banking Details"
+    max_tokens: 400
+    temperature: 0.0
+
+  item_details:
+    name: "Item and Line Details"
+    max_tokens: 600
+    temperature: 0.0
+
+  metadata:
+    name: "Document Metadata"
+    max_tokens: 250
+    temperature: 0.0
+    
+  payment:
+    name: "Payment Information"
+    max_tokens: 300
+    temperature: 0.0
+
+  payment_status:
+    name: "Payment Status & Balance"
+    max_tokens: 350
+    temperature: 0.0
+
+  transaction_details:
+    name: "Individual Transaction Data"
+    max_tokens: 700
+    temperature: 0.0
+
+# ============================================================================
+# DOCUMENT-AWARE PROCESSING CONFIGURATION
+# ============================================================================
+processing_config:
+  document_detection:
+    enabled: true
+    method: "lightweight_classification"
+    confidence_threshold: 0.85
+    
+  extraction_optimization:
+    enable_field_reduction: true
+    enable_targeted_prompts: true
+    enable_type_validation: true
+    
+  performance_targets:
+    field_reduction_percentage:
+      invoice: 0  # Now comprehensive extraction
+      receipt: 24  
+      bank_statement: 32  # Less reduction due to more fields
+    accuracy_target: 90
+    processing_speed_target: "maintain_current"
+
+# ============================================================================
+# MODEL-SPECIFIC OPTIMIZATIONS 
+# ============================================================================
+model_prompt_templates:
+  llama:
+    document_type_specific:
+      invoice:
+        opening: "Extract comprehensive invoice information including payment status."
+        focus: "Focus on all invoice fields: customer details, dates, line items, financial amounts, and payment tracking."
+        
+      receipt:
+        opening: "Extract receipt information from this purchase document."
+        focus: "Focus on transaction details, payment method, items purchased, and amounts."
+        
+      bank_statement:
+        opening: "Extract detailed bank statement information including individual transactions."
+        focus: "Focus on account details, statement period, balances, and individual transaction data."
+        
+  internvl3:
+    document_type_specific:
+      invoice:
+        prompt_prefix: "Comprehensive invoice extraction:"
+        field_focus: "customer, dates, items, amounts, payments, discounts"
+        
+      receipt:
+        prompt_prefix: "Receipt extraction:"
+        field_focus: "payment, items, amounts, store"
+        
+      bank_statement:
+        prompt_prefix: "Bank statement with transactions:"
+        field_focus: "account, period, balances, individual transactions"

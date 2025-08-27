@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-InternVL3 Vision Document-Aware Key-Value Extraction - Phase 4 Implementation
+InternVL3 Vision Document-Aware Key-Value Extraction - V4 Schema Implementation
 
-This module implements the Phase 4 document-aware extraction pipeline for the 
+This module implements the V4 document-aware extraction pipeline for the 
 InternVL3 model (2B/8B variants), featuring:
 - Document type detection and classification
 - Type-specific field schema routing 
-- Targeted extraction (invoice: 20 fields, receipt: 15 fields, bank_statement: 15 fields)
+- Comprehensive extraction (invoice: 29 fields, receipt: 20 fields, bank_statement: 16 fields)
 - ATO compliance validation for invoices
-- Performance optimization through reduced field sets
+- Complete field coverage with v4 schema including payment tracking
 
 Pipeline Flow:
     1. Document Type Detection - Classify document type with confidence scoring
@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Import Phase 4 document-aware components
+# Import V4 document-aware components
 from common.document_schema_loader import DocumentTypeFieldSchema
 from common.document_type_detector import DocumentTypeDetector
 from common.document_type_metrics import DocumentTypeEvaluator
@@ -41,20 +41,20 @@ from models.document_aware_internvl3_processor import DocumentAwareInternVL3Proc
 
 
 class DocumentAwareInternVL3Handler:
-    """Phase 4 Document-Aware InternVL3 Vision Processor."""
+    """V4 Document-Aware InternVL3 Vision Processor with comprehensive field coverage."""
     
     def __init__(self, model_path: str, debug: bool = False):
         """Initialize document-aware processor."""
         self.debug = debug
         self.model_path = model_path
         
-        print("🚀 Initializing InternVL3 Vision processor for document-aware extraction...")
+        print("🚀 Initializing InternVL3 Vision processor for V4 document-aware extraction...")
         
         # We'll create processors on-demand to avoid loading multiple models
         self.base_processor = None
         self.model_loaded = False
         
-        # Initialize Phase 4 components
+        # Initialize V4 components
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
         
@@ -150,7 +150,6 @@ class DocumentAwareInternVL3Handler:
             "document_type": doc_type,
             "detected_fields": len([v for v in extracted_data.values() if v != "NOT_FOUND"]),
             "total_fields": len(field_names),
-            "field_reduction": f"{((25 - len(field_names)) / 25 * 100):.0f}%",
             "processing_time": processing_time,
             "extracted_data": extracted_data,
             "raw_response": extraction_result.get("raw_response", "")
@@ -198,7 +197,6 @@ class DocumentAwareInternVL3Handler:
                 evaluation["detected_fields"] = result["detected_fields"]
                 evaluation["total_fields"] = result["total_fields"]
                 evaluation["processing_time"] = result["processing_time"]
-                evaluation["field_reduction"] = result["field_reduction"]
                 
                 evaluation_results.append(evaluation)
         
@@ -209,7 +207,6 @@ class DocumentAwareInternVL3Handler:
         # Overall metrics across all document types
         overall_accuracies = [r["overall_metrics"]["overall_accuracy"] for r in evaluation_results]
         processing_times = [r["processing_time"] for r in evaluation_results]
-        field_reductions = [float(r["field_reduction"].rstrip('%')) for r in evaluation_results if r["field_reduction"] != "0%"]
         
         # Document type breakdown
         type_breakdown = {}
@@ -238,7 +235,6 @@ class DocumentAwareInternVL3Handler:
             "overall_metrics": {
                 "average_accuracy": sum(overall_accuracies) / len(overall_accuracies) if overall_accuracies else 0,
                 "average_processing_time": sum(processing_times) / len(processing_times) if processing_times else 0,
-                "average_field_reduction": sum(field_reductions) / len(field_reductions) if field_reductions else 0,
                 "documents_above_80_percent": sum(1 for acc in overall_accuracies if acc >= 0.8),
                 "documents_above_90_percent": sum(1 for acc in overall_accuracies if acc >= 0.9),
             }
@@ -314,7 +310,6 @@ def main():
             print(f"   Document Type: {result['document_type']}")
             print(f"   Fields Found: {result['detected_fields']}/{result['total_fields']}")
             print(f"   Processing Time: {result['processing_time']:.3f}s")
-            print(f"   Field Reduction: {result['field_reduction']} fewer fields than unified approach")
             
             print("\\n📊 EXTRACTED DATA:")
             extracted_data = result["extracted_data"]
@@ -407,12 +402,12 @@ def main():
                 processed_count += 1
                 
                 # Display results
-                reduction = result["field_reduction"] 
+ 
                 detected = result["detected_fields"]
                 total = result["total_fields"]
                 time_taken = result["processing_time"]
                 
-                print(f"  ✅ {classification_info['document_type']}: {detected}/{total} fields ({reduction} field reduction)")
+                print(f"  ✅ {classification_info['document_type']}: {detected}/{total} fields")
                 print(f"  ⏱️ Processing time: {time_taken:.2f}s")
                 
                 # Check if we've processed enough documents of the target type
@@ -446,7 +441,6 @@ def main():
             print("=" * 80)
             print(f"📊 Overall Accuracy: {summary['overall_metrics']['average_accuracy'] * 100:.1f}%")
             print(f"⚡ Average Processing Time: {summary['overall_metrics']['average_processing_time']:.2f}s")
-            print(f"🔧 Average Field Reduction: {summary['overall_metrics']['average_field_reduction']:.0f}%")
             print(f"🎯 Documents >80%: {summary['overall_metrics']['documents_above_80_percent']}/{summary['total_documents']}")
             print(f"🏆 Documents >90%: {summary['overall_metrics']['documents_above_90_percent']}/{summary['total_documents']}")
             
@@ -458,8 +452,6 @@ def main():
                     print(f"    ATO Compliance: {stats['ato_compliance']['compliance_rate']}")
             
             print("\n💡 INSIGHTS:")
-            if summary['overall_metrics']['average_field_reduction'] > 0:
-                print(f"  • Field reduction improved efficiency by {summary['overall_metrics']['average_field_reduction']:.0f}%")
             if summary['overall_metrics']['documents_above_90_percent'] > 0:
                 print(f"  • {summary['overall_metrics']['documents_above_90_percent']} documents achieved >90% accuracy")
             
