@@ -30,31 +30,44 @@ class DocumentTypeDetector:
         self.supported_types = ["invoice", "bank_statement", "receipt"]
         self.confidence_threshold = 0.85
         
+        # Map document variants to canonical schema types
+        self.type_to_schema = {
+            "invoice": "invoice",
+            "tax invoice": "invoice",
+            "bill": "invoice",
+            "estimate": "invoice",
+            "quote": "invoice",
+            "quotation": "invoice",
+            "proforma invoice": "invoice",
+            "receipt": "receipt",
+            "purchase receipt": "receipt",
+            "payment receipt": "receipt",
+            "bank statement": "bank_statement",
+            "account statement": "bank_statement",
+            "statement": "bank_statement"
+        }
+        
         # Classification prompts optimized for speed and accuracy
         self.classification_prompts = {
             "llama": {
                 "system": "You are a document classifier. Analyze this business document image.",
                 "prompt": """What type of business document is this?
 
-Types: invoice, bank_statement, receipt
+Look for document types like:
+- invoice, tax invoice, bill, estimate, quote, quotation
+- bank_statement, account statement
+- receipt, purchase receipt
 
-Look for:
-- invoice: has invoice number, due date, line items
-- bank_statement: has account details, transactions
-- receipt: has payment method, purchase items
-
-Answer with just the document type: invoice, bank_statement, or receipt""",
+Answer with the exact document type you see (e.g., 'invoice', 'estimate', 'receipt', 'bank_statement', etc.).""",
                 "max_tokens": 50
             },
             
             "internvl3": {
-                "prompt": """Document type: invoice, bank_statement, or receipt?
+                "prompt": """What document type is this?
 
-- invoice: billing document with due date
-- bank_statement: account transactions  
-- receipt: purchase proof
+Types: invoice, estimate, quote, receipt, bank_statement
 
-Answer:""",
+Answer with the exact type:""",
                 "max_tokens": 20
             }
         }
@@ -197,28 +210,27 @@ Answer:""",
     
     def _extract_document_type(self, response: str) -> Optional[str]:
         """Extract document type from response."""
-        # Look for explicit format
+        response_lower = response.lower().strip()
+        
+        # First check for exact matches to any known type
+        for doc_type in self.type_to_schema.keys():
+            if doc_type.lower() in response_lower:
+                # Return the actual detected type (not the schema type)
+                return doc_type.lower()
+        
+        # Look for explicit format with type field
         for line in response.split('\n'):
             line = line.strip().lower()
             if 'document_type:' in line or 'type:' in line:
-                for doc_type in self.supported_types:
-                    if doc_type in line:
-                        return doc_type
+                # Check all known types
+                for doc_type in self.type_to_schema.keys():
+                    if doc_type.lower() in line:
+                        return doc_type.lower()
         
-        # Look for document type keywords anywhere in response
-        type_counts = {}
+        # Fallback: look for supported schema types
         for doc_type in self.supported_types:
-            # Count occurrences, with preference for exact matches
-            count = response.count(doc_type)
-            if 'statement' in response and doc_type == 'bank_statement':
-                count += response.count('statement')
-            type_counts[doc_type] = count
-        
-        # Return most mentioned type
-        if type_counts:
-            max_type = max(type_counts, key=type_counts.get)
-            if type_counts[max_type] > 0:
-                return max_type
+            if doc_type in response_lower:
+                return doc_type
         
         return None
     

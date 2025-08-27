@@ -107,7 +107,7 @@ class DocumentTypeFieldSchema:
             image_path: Path to document image
             
         Returns:
-            Document type string (invoice, bank_statement, receipt, or unknown)
+            Schema type string (invoice, bank_statement, receipt, or unknown)
         """
         if not self.document_detector:
             print("⚠️ No document detector configured - using unified fallback")
@@ -115,21 +115,56 @@ class DocumentTypeFieldSchema:
         
         try:
             result = self.document_detector.detect_document_type(image_path)
-            doc_type = result['type']
+            detected_type = result['type']
             confidence = result['confidence']
             
-            print(f"📋 Document classified as: {doc_type} (confidence: {confidence:.2f})")
+            print(f"📋 Document detected as: {detected_type} (confidence: {confidence:.2f})")
             
-            # Use classification if confidence is high enough
-            if confidence >= self.document_detector.confidence_threshold:
-                return doc_type
+            # Map detected type to schema type
+            schema_type = self._map_to_schema_type(detected_type)
+            
+            if schema_type and confidence >= self.document_detector.confidence_threshold:
+                if detected_type != schema_type:
+                    print(f"   → Mapping '{detected_type}' to schema type '{schema_type}'")
+                return schema_type
             else:
-                print(f"⚠️ Low confidence ({confidence:.2f}) - falling back to unified")
+                print(f"⚠️ Low confidence or unknown type - falling back to unified")
                 return "unknown"
                 
         except Exception as e:
             print(f"❌ Document detection failed: {e}")
             return "unknown"
+    
+    def _map_to_schema_type(self, detected_type: str) -> Optional[str]:
+        """
+        Map detected document type to canonical schema type.
+        
+        Args:
+            detected_type: The detected document type (e.g., 'estimate', 'quote')
+            
+        Returns:
+            Canonical schema type ('invoice', 'receipt', 'bank_statement') or None
+        """
+        type_mapping = {
+            "invoice": "invoice",
+            "tax invoice": "invoice",
+            "bill": "invoice",
+            "estimate": "invoice",
+            "quote": "invoice",
+            "quotation": "invoice",
+            "proforma invoice": "invoice",
+            "receipt": "receipt",
+            "purchase receipt": "receipt",
+            "payment receipt": "receipt",
+            "sales receipt": "receipt",
+            "bank statement": "bank_statement",
+            "account statement": "bank_statement",
+            "statement": "bank_statement"
+        }
+        
+        # Normalize the detected type
+        normalized = detected_type.lower().strip()
+        return type_mapping.get(normalized)
     
     def get_document_schema(self, document_type: str) -> Dict[str, Any]:
         """
