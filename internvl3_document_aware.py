@@ -21,6 +21,7 @@ Pipeline Flow:
 Usage:
     python internvl3_document_aware.py --limit-images 5 --debug
     python internvl3_document_aware.py --document-type invoice
+    python internvl3_document_aware.py --image-path "path/to/single_image.jpg" --debug
 """
 
 import argparse
@@ -271,6 +272,7 @@ def main():
     parser = argparse.ArgumentParser(description="InternVL3 Document-Aware Extraction Pipeline")
     parser.add_argument("--model-path", default=None, help="Path to InternVL3 model")
     parser.add_argument("--data-dir", default="evaluation_data", help="Directory with images")
+    parser.add_argument("--image-path", help="Path to single image file for testing")
     parser.add_argument("--ground-truth", default="evaluation_data/ground_truth.csv", 
                        help="Ground truth CSV file")
     parser.add_argument("--limit-images", type=int, help="Limit number of images to process")
@@ -282,131 +284,201 @@ def main():
 
     print("🚀 InternVL3 Vision Document-Aware Extraction Pipeline")
     print("=" * 80)
-    print(f"📂 Data directory: {args.data_dir}")
-    print(f"📋 Ground truth: {args.ground_truth}")
-    if args.limit_images:
-        print(f"🔢 Limiting to: {args.limit_images} images")
-    if args.document_type:
-        print(f"📄 Document type filter: {args.document_type}")
-    print()
-
-    # Initialize processor
-    processor = DocumentAwareInternVL3Handler(model_path=args.model_path, debug=args.debug)
-
-    # Load ground truth
-    print("📚 Loading ground truth data...")
-    ground_truth = load_ground_truth(args.ground_truth)
-    print(f"✅ Loaded ground truth for {len(ground_truth)} documents")
-
-    # Discover images
-    print("🔍 Discovering document images...")
-    image_files = discover_images(args.data_dir)
     
-    if not image_files:
-        print("❌ No image files found!")
-        return
-
-    print(f"📁 Found {len(image_files)} document images")
-
-    # Process documents with document-aware pipeline
-    print("\n🔬 PHASE 4: DOCUMENT-AWARE EXTRACTION")
-    print("=" * 80)
-    
-    results = []
-    start_time = time.perf_counter()
-    processed_count = 0
-    
-    for idx, image_path in enumerate(image_files, 1):
-        print(f"\n[{idx}/{len(image_files)}] Processing: {Path(image_path).name}")
+    # Determine if single image or batch processing
+    if args.image_path:
+        print(f"🖼️  Single image: {args.image_path}")
+        
+        # Verify single image exists
+        if not Path(args.image_path).exists():
+            print(f"❌ ERROR: Image file not found: {args.image_path}")
+            return
+        
+        print(f"🔧 Model: {args.model_path or 'Default InternVL3 path'}")
+        print(f"🐛 Debug mode: {args.debug}")
+        
+        # Single image mode
+        processor = DocumentAwareInternVL3Handler(model_path=args.model_path, debug=args.debug)
+        
+        print(f"\\n📄 Processing single image: {Path(args.image_path).name}...")
         
         try:
-            # Phase 1: Document Type Detection & Schema Routing
-            classification_info = processor.detect_and_classify_document(image_path)
-            print(f"  📋 Document Type: {classification_info['document_type']} ({classification_info['field_count']} fields)")
+            # Step 1: Detect document type and get schema
+            classification_info = processor.detect_and_classify_document(args.image_path)
             
-            # Optional: Filter by document type
-            if args.document_type and classification_info['document_type'] != args.document_type:
-                print(f"  ⏭️ Skipping - looking for {args.document_type} documents")
-                continue
-            
-            # Phase 2: Document-Aware Extraction
-            result = processor.process_document_aware(image_path, classification_info)
-            results.append(result)
-            processed_count += 1
+            # Step 2: Extract with document-specific schema
+            result = processor.process_document_aware(args.image_path, classification_info)
             
             # Display results
-            reduction = result["field_reduction"] 
-            detected = result["detected_fields"]
-            total = result["total_fields"]
-            time_taken = result["processing_time"]
+            print("\\n📋 RESULTS:")
+            print(f"   Document Type: {result['document_type']}")
+            print(f"   Fields Found: {result['detected_fields']}/{result['total_fields']}")
+            print(f"   Processing Time: {result['processing_time']:.3f}s")
+            print(f"   Field Reduction: {result['field_reduction']} fewer fields than unified approach")
             
-            print(f"  ✅ {classification_info['document_type']}: {detected}/{total} fields ({reduction} field reduction)")
-            print(f"  ⏱️ Processing time: {time_taken:.2f}s")
+            print("\\n📊 EXTRACTED DATA:")
+            extracted_data = result["extracted_data"]
+            for field_name, value in extracted_data.items():
+                status = "✅" if value != "NOT_FOUND" else "❌"
+                print(f"   {status} {field_name}: {value}")
             
-            # Check if we've processed enough documents of the target type
-            if args.limit_images and processed_count >= args.limit_images:
-                print(f"\n🎯 Reached limit: processed {processed_count} {args.document_type or 'document'}(s)")
-                break
+            # If ground truth available, evaluate single result
+            if Path(args.ground_truth).exists():
+                ground_truth = load_ground_truth(args.ground_truth)
+                image_name = Path(args.image_path).name
+                
+                if image_name in ground_truth:
+                    evaluation_report = processor.evaluate_document_aware([result], ground_truth)
+                    summary = evaluation_report["summary"]
+                    print("\\n📈 EVALUATION vs Ground Truth:")
+                    print(f"   Accuracy: {summary['overall_metrics']['average_accuracy']*100:.1f}%")
+                    
+                    # Document type specific metrics
+                    doc_type = result['document_type']
+                    type_stats = summary['document_type_breakdown'].get(doc_type, {})
+                    if 'ato_compliance' in type_stats:
+                        print(f"   ATO Compliant: {type_stats['ato_compliance']['compliance_rate']}")
+                else:
+                    print(f"\\n⚠️  No ground truth available for {image_name}")
+            
+            print("\\n✅ Single image processing complete!")
+            return
             
         except Exception as e:
-            print(f"  ❌ Error processing {Path(image_path).name}: {e}")
+            print(f"❌ Error processing {args.image_path}: {e}")
             if args.debug:
                 import traceback
                 traceback.print_exc()
-            continue
-
-    total_time = time.perf_counter() - start_time
-
-    # Results summary
-    print("\n📊 PROCESSING COMPLETE")
-    print("=" * 80)
-    print(f"✅ Processed: {len(results)} documents")
-    print(f"⏱️ Total time: {total_time:.2f}s")
-    print(f"🏎️ Average time: {total_time / len(results):.2f}s per document" if results else "No results")
-
-    # Evaluate results
-    if results:
-        evaluation_report = processor.evaluate_document_aware(results, ground_truth)
-        
-        # Display summary
-        summary = evaluation_report["summary"]
-        print("\n📈 DOCUMENT-AWARE EVALUATION RESULTS")
-        print("=" * 80)
-        print(f"📊 Overall Accuracy: {summary['overall_metrics']['average_accuracy'] * 100:.1f}%")
-        print(f"⚡ Average Processing Time: {summary['overall_metrics']['average_processing_time']:.2f}s")
-        print(f"🔧 Average Field Reduction: {summary['overall_metrics']['average_field_reduction']:.0f}%")
-        print(f"🎯 Documents >80%: {summary['overall_metrics']['documents_above_80_percent']}/{summary['total_documents']}")
-        print(f"🏆 Documents >90%: {summary['overall_metrics']['documents_above_90_percent']}/{summary['total_documents']}")
-        
-        print("\n📄 BY DOCUMENT TYPE:")
-        print("-" * 40)
-        for doc_type, stats in summary["document_type_breakdown"].items():
-            print(f"  {doc_type.upper()}: {stats['accuracy_percentage']} ({stats['documents']} docs)")
-            if "ato_compliance" in stats:
-                print(f"    ATO Compliance: {stats['ato_compliance']['compliance_rate']}")
-        
-        print("\n💡 INSIGHTS:")
-        if summary['overall_metrics']['average_field_reduction'] > 0:
-            print(f"  • Field reduction improved efficiency by {summary['overall_metrics']['average_field_reduction']:.0f}%")
-        if summary['overall_metrics']['documents_above_90_percent'] > 0:
-            print(f"  • {summary['overall_metrics']['documents_above_90_percent']} documents achieved >90% accuracy")
-        
-        # Save detailed results
-        from common.config import OUTPUT_DIR
-        output_dir = Path(OUTPUT_DIR)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = output_dir / f"internvl3_document_aware_report_{timestamp}.json"
-        
-        with report_path.open('w') as f:
-            json.dump(evaluation_report, f, indent=2, default=str)
-        
-        print(f"\n✅ Detailed report saved to: {report_path}")
-        print("\n" + "=" * 80)
-        print("✅ PHASE 4 DOCUMENT-AWARE EXTRACTION COMPLETE")
-        print("=" * 80)
+            return
+    
     else:
-        print("❌ No results to evaluate")
+        # Batch processing mode
+        print(f"📂 Data directory: {args.data_dir}")
+        print(f"📋 Ground truth: {args.ground_truth}")
+        if args.limit_images:
+            print(f"🔢 Limiting to: {args.limit_images} images")
+        if args.document_type:
+            print(f"📄 Document type filter: {args.document_type}")
+        print()
+
+        # Initialize processor
+        processor = DocumentAwareInternVL3Handler(model_path=args.model_path, debug=args.debug)
+
+        # Load ground truth
+        print("📚 Loading ground truth data...")
+        ground_truth = load_ground_truth(args.ground_truth)
+        print(f"✅ Loaded ground truth for {len(ground_truth)} documents")
+
+        # Discover images
+        print("🔍 Discovering document images...")
+        image_files = discover_images(args.data_dir)
+        
+        if not image_files:
+            print("❌ No image files found!")
+            return
+
+        print(f"📁 Found {len(image_files)} document images")
+
+        
+        # Process documents with document-aware pipeline
+        print("\n🔬 PHASE 4: DOCUMENT-AWARE EXTRACTION")
+        print("=" * 80)
+        
+        results = []
+        start_time = time.perf_counter()
+        processed_count = 0
+        
+        for idx, image_path in enumerate(image_files, 1):
+            print(f"\n[{idx}/{len(image_files)}] Processing: {Path(image_path).name}")
+            
+            try:
+                # Phase 1: Document Type Detection & Schema Routing
+                classification_info = processor.detect_and_classify_document(image_path)
+                print(f"  📋 Document Type: {classification_info['document_type']} ({classification_info['field_count']} fields)")
+                
+                # Optional: Filter by document type
+                if args.document_type and classification_info['document_type'] != args.document_type:
+                    print(f"  ⏭️ Skipping - looking for {args.document_type} documents")
+                    continue
+                
+                # Phase 2: Document-Aware Extraction
+                result = processor.process_document_aware(image_path, classification_info)
+                results.append(result)
+                processed_count += 1
+                
+                # Display results
+                reduction = result["field_reduction"] 
+                detected = result["detected_fields"]
+                total = result["total_fields"]
+                time_taken = result["processing_time"]
+                
+                print(f"  ✅ {classification_info['document_type']}: {detected}/{total} fields ({reduction} field reduction)")
+                print(f"  ⏱️ Processing time: {time_taken:.2f}s")
+                
+                # Check if we've processed enough documents of the target type
+                if args.limit_images and processed_count >= args.limit_images:
+                    print(f"\n🎯 Reached limit: processed {processed_count} {args.document_type or 'document'}(s)")
+                    break
+                
+            except Exception as e:
+                print(f"  ❌ Error processing {Path(image_path).name}: {e}")
+                if args.debug:
+                    import traceback
+                    traceback.print_exc()
+                continue
+
+        total_time = time.perf_counter() - start_time
+
+        # Results summary
+        print("\n📊 PROCESSING COMPLETE")
+        print("=" * 80)
+        print(f"✅ Processed: {len(results)} documents")
+        print(f"⏱️ Total time: {total_time:.2f}s")
+        print(f"🏎️ Average time: {total_time / len(results):.2f}s per document" if results else "No results")
+
+        # Evaluate results
+        if results:
+            evaluation_report = processor.evaluate_document_aware(results, ground_truth)
+            
+            # Display summary
+            summary = evaluation_report["summary"]
+            print("\n📈 DOCUMENT-AWARE EVALUATION RESULTS")
+            print("=" * 80)
+            print(f"📊 Overall Accuracy: {summary['overall_metrics']['average_accuracy'] * 100:.1f}%")
+            print(f"⚡ Average Processing Time: {summary['overall_metrics']['average_processing_time']:.2f}s")
+            print(f"🔧 Average Field Reduction: {summary['overall_metrics']['average_field_reduction']:.0f}%")
+            print(f"🎯 Documents >80%: {summary['overall_metrics']['documents_above_80_percent']}/{summary['total_documents']}")
+            print(f"🏆 Documents >90%: {summary['overall_metrics']['documents_above_90_percent']}/{summary['total_documents']}")
+            
+            print("\n📄 BY DOCUMENT TYPE:")
+            print("-" * 40)
+            for doc_type, stats in summary["document_type_breakdown"].items():
+                print(f"  {doc_type.upper()}: {stats['accuracy_percentage']} ({stats['documents']} docs)")
+                if "ato_compliance" in stats:
+                    print(f"    ATO Compliance: {stats['ato_compliance']['compliance_rate']}")
+            
+            print("\n💡 INSIGHTS:")
+            if summary['overall_metrics']['average_field_reduction'] > 0:
+                print(f"  • Field reduction improved efficiency by {summary['overall_metrics']['average_field_reduction']:.0f}%")
+            if summary['overall_metrics']['documents_above_90_percent'] > 0:
+                print(f"  • {summary['overall_metrics']['documents_above_90_percent']} documents achieved >90% accuracy")
+            
+            # Save detailed results
+            from common.config import OUTPUT_DIR
+            output_dir = Path(OUTPUT_DIR)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_path = output_dir / f"internvl3_document_aware_report_{timestamp}.json"
+            
+            with report_path.open('w') as f:
+                json.dump(evaluation_report, f, indent=2, default=str)
+            
+            print(f"\n✅ Detailed report saved to: {report_path}")
+            print("\n" + "=" * 80)
+            print("✅ PHASE 4 DOCUMENT-AWARE EXTRACTION COMPLETE")
+            print("=" * 80)
+        else:
+            print("❌ No results to evaluate")
 
 
 if __name__ == "__main__":

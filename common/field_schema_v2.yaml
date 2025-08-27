@@ -239,18 +239,32 @@ document_schemas:
         ato_compliance: true
 
   # ========================================
-  # BANK STATEMENT SCHEMA (15 fields)
+  # BANK STATEMENT SCHEMA (12 fields)
   # ========================================
   bank_statement:
     metadata:
       document_type_values: ["bank statement", "account statement", "statement of account", "statement"]
-      total_fields: 15
+      total_fields: 12
       description: "Bank account statement showing transactions"
-      efficiency_gain: "40% fewer fields than unified (25→15)"
+      efficiency_gain: "52% fewer fields than unified (25→12)"
       
-    inherits_common: true
+    inherits_common: false
     
     specific_fields:
+      - name: "DOCUMENT_TYPE"
+        type: "text"
+        evaluation_logic: "exact_match"
+        group: "metadata"
+        description: "Type of business document"
+        instruction: "[document type (bank_statement) or NOT_FOUND]"
+        
+      - name: "LINE_ITEM_DESCRIPTIONS"
+        type: "list"
+        evaluation_logic: "list_overlap_match"
+        group: "item_details"
+        description: "Transaction types and descriptions"
+        instruction: "[pipe-separated transaction descriptions or NOT_FOUND]"
+        
       - name: "BANK_NAME"
         type: "text"
         evaluation_logic: "fuzzy_text_match"
@@ -316,17 +330,28 @@ document_schemas:
     
     excluded_fields:
       # Invoice/receipt only
+      - "BUSINESS_ABN"
+      - "SUPPLIER_NAME" 
+      - "BUSINESS_ADDRESS"
+      - "BUSINESS_PHONE"
+      - "TOTAL_AMOUNT"
       - "INVOICE_DATE"
       - "DUE_DATE"
-      - "LINE_ITEM_DESCRIPTIONS"
       - "LINE_ITEM_QUANTITIES"
       - "LINE_ITEM_PRICES"
       - "SUBTOTAL_AMOUNT"
       - "GST_AMOUNT"
       - "PAYER_NAME"
+      - "PAYER_ABN"
       - "PAYER_ADDRESS"
       - "PAYER_PHONE"
       - "PAYER_EMAIL"
+      - "SUPPLIER_WEBSITE"
+      - "INVOICE_NUMBER"
+      - "RECEIPT_NUMBER"
+      - "TRANSACTION_DATE"
+      - "PAYMENT_METHOD"
+      - "STORE_LOCATION"
       
     validation_rules:
       - name: "balance_calculation"
@@ -337,14 +362,14 @@ document_schemas:
         tolerance: 0.02
 
   # ========================================
-  # RECEIPT SCHEMA (12 fields)
+  # RECEIPT SCHEMA (19 fields)
   # ========================================
   receipt:
     metadata:
       document_type_values: ["receipt", "purchase receipt", "payment receipt", "sales receipt"]
-      total_fields: 15
+      total_fields: 19
       description: "Proof of purchase or payment"
-      efficiency_gain: "40% fewer fields than unified (25→15)"
+      efficiency_gain: "24% fewer fields than unified (25→19)"
       
     inherits_common: true
     
@@ -405,6 +430,34 @@ document_schemas:
         description: "GST amount"
         instruction: "[GST in dollars with 2 decimals or NOT_FOUND]"
         
+      - name: "PAYER_NAME"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer/payer name who made the purchase"
+        instruction: "[customer/payer name or NOT_FOUND]"
+        
+      - name: "PAYER_ADDRESS"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer address"
+        instruction: "[customer address or NOT_FOUND]"
+        
+      - name: "PAYER_PHONE"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer phone number"
+        instruction: "[customer phone number or NOT_FOUND]"
+        
+      - name: "PAYER_EMAIL"
+        type: "text"
+        evaluation_logic: "fuzzy_text_match"
+        group: "payer_info"
+        description: "Customer email address"
+        instruction: "[customer email address or NOT_FOUND]"
+        
       - name: "STORE_LOCATION"
         type: "text"
         evaluation_logic: "fuzzy_text_match"
@@ -415,10 +468,6 @@ document_schemas:
     excluded_fields:
       # Invoice only
       - "DUE_DATE"
-      - "PAYER_NAME"
-      - "PAYER_ADDRESS"
-      - "PAYER_PHONE"
-      - "PAYER_EMAIL"
       # Bank statement only
       - "BANK_NAME"
       - "BANK_BSB_NUMBER"
@@ -600,9 +649,9 @@ performance_tracking:
     
   targets:
     field_reduction: 
-      invoice: 28
-      bank_statement: 40
-      receipt: 52
+      invoice: 20
+      bank_statement: 52
+      receipt: 24
     processing_time_improvement: 30  # percent
     accuracy_target: 90  # percent
     token_reduction: 35  # percent
