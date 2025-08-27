@@ -44,8 +44,8 @@ common_fields:
     instruction: "[business address or NOT_FOUND]"
     
   - name: "BUSINESS_PHONE"
-    type: "text"
-    evaluation_logic: "fuzzy_text_match"
+    type: "phone"
+    evaluation_logic: "phone_number_match"
     group: "business_entity"
     description: "Business phone number"
     instruction: "[business phone number or NOT_FOUND]"
@@ -112,8 +112,8 @@ document_schemas:
         instruction: "[customer address or NOT_FOUND]"
         
       - name: "PAYER_PHONE"
-        type: "text"
-        evaluation_logic: "fuzzy_text_match"
+        type: "phone"
+        evaluation_logic: "phone_number_match"
         group: "payer_info"
         description: "Customer phone number"
         instruction: "[customer phone number or NOT_FOUND]"
@@ -445,8 +445,8 @@ document_schemas:
         instruction: "[customer address or NOT_FOUND]"
         
       - name: "PAYER_PHONE"
-        type: "text"
-        evaluation_logic: "fuzzy_text_match"
+        type: "phone"
+        evaluation_logic: "phone_number_match"
         group: "payer_info"
         description: "Customer phone number"
         instruction: "[customer phone number or NOT_FOUND]"
@@ -655,3 +655,252 @@ performance_tracking:
     processing_time_improvement: 30  # percent
     accuracy_target: 90  # percent
     token_reduction: 35  # percent
+
+# ============================================================================
+# V1 SCHEMA COMPATIBILITY - For base FieldSchema class
+# ============================================================================
+# Unified fields list combining all document types for backward compatibility
+fields:
+  # Common fields (used by multiple document types)
+  - name: "DOCUMENT_TYPE"
+    type: "text"
+    evaluation_logic: "exact_match"
+    group: "metadata"
+    description: "Type of business document"
+    instruction: "[document type (invoice/receipt/bank_statement) or NOT_FOUND]"
+    
+  - name: "BUSINESS_ABN"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "critical"
+    description: "11-digit Australian Business Number (ATO mandatory)"
+    instruction: "[11-digit Australian Business Number or NOT_FOUND]"
+    
+  - name: "SUPPLIER_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Business/supplier name (seller's identity)"
+    instruction: "[business/supplier name or NOT_FOUND]"
+
+  - name: "BUSINESS_ADDRESS"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Business address"
+    instruction: "[business address or NOT_FOUND]"
+    
+  - name: "BUSINESS_PHONE"
+    type: "phone"
+    evaluation_logic: "phone_number_match"
+    group: "business_entity"
+    description: "Business phone number"
+    instruction: "[business phone number or NOT_FOUND]"
+
+  - name: "TOTAL_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "critical"
+    description: "Total amount in dollars"
+    instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+
+  # Invoice-specific fields
+  - name: "INVOICE_NUMBER"
+    type: "text"
+    evaluation_logic: "exact_match"
+    group: "metadata"
+    description: "Invoice reference number (ATO required)"
+    instruction: "[invoice number/reference or NOT_FOUND]"
+    
+  - name: "INVOICE_DATE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    group: "dates"
+    description: "Invoice issue date (ATO required)"
+    instruction: "[invoice date or NOT_FOUND]"
+    
+  - name: "DUE_DATE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    group: "dates"
+    description: "Payment due date"
+    instruction: "[payment due date or NOT_FOUND]"
+
+  - name: "PAYER_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "payer_info"
+    description: "Customer/payer name or identity"
+    instruction: "[customer/payer name/identity or NOT_FOUND]"
+    
+  - name: "PAYER_ABN"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "payer_info"
+    description: "11-digit customer/buyer Australian Business Number"
+    instruction: "[11-digit customer/buyer ABN or NOT_FOUND]"
+    
+  - name: "PAYER_ADDRESS"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "payer_info"
+    description: "Customer address"
+    instruction: "[customer address or NOT_FOUND]"
+    
+  - name: "PAYER_PHONE"
+    type: "phone"
+    evaluation_logic: "phone_number_match"
+    group: "payer_info"
+    description: "Customer phone number"
+    instruction: "[customer phone number or NOT_FOUND]"
+    
+  - name: "PAYER_EMAIL"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "payer_info"
+    description: "Customer email address"
+    instruction: "[customer email address or NOT_FOUND]"
+
+  - name: "LINE_ITEM_DESCRIPTIONS"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    group: "item_details"
+    description: "Brief description of items sold (ATO required)"
+    instruction: "[pipe-separated list of items or NOT_FOUND]"
+    
+  - name: "LINE_ITEM_QUANTITIES"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    group: "item_details"
+    description: "Quantities ordered"
+    instruction: "[pipe-separated quantities or NOT_FOUND]"
+    
+  - name: "LINE_ITEM_PRICES"
+    type: "list"
+    evaluation_logic: "list_overlap_match"
+    group: "item_details"
+    description: "Unit prices"
+    instruction: "[pipe-separated unit prices or NOT_FOUND]"
+    
+  - name: "SUBTOTAL_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "Subtotal before tax"
+    instruction: "[subtotal amount in dollars with 2 decimals or NOT_FOUND]"
+    
+  - name: "GST_AMOUNT"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "GST amount (ATO required)"
+    instruction: "[GST amount in dollars with 2 decimals, or 'Total price includes GST' statement, or NOT_FOUND]"
+
+  - name: "SUPPLIER_WEBSITE"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Supplier website"
+    instruction: "[supplier website or NOT_FOUND]"
+
+  # Receipt-specific fields
+  - name: "RECEIPT_NUMBER"
+    type: "text"
+    evaluation_logic: "exact_match"
+    group: "metadata"
+    description: "Receipt reference number"
+    instruction: "[receipt number or NOT_FOUND]"
+    
+  - name: "TRANSACTION_DATE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    group: "dates"
+    description: "Date of purchase"
+    instruction: "[transaction date or NOT_FOUND]"
+    
+  - name: "PAYMENT_METHOD"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "payment"
+    description: "Payment type (cash/card/etc)"
+    instruction: "[payment method or NOT_FOUND]"
+    
+  - name: "STORE_LOCATION"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "business_entity"
+    description: "Store/branch location"
+    instruction: "[store location or NOT_FOUND]"
+
+  # Bank statement fields
+  - name: "BANK_NAME"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "banking"
+    description: "Financial institution name"
+    instruction: "[bank name or NOT_FOUND]"
+    
+  - name: "BANK_BSB_NUMBER"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "banking"
+    description: "6-digit BSB"
+    instruction: "[6-digit BSB number or NOT_FOUND]"
+    
+  - name: "BANK_ACCOUNT_NUMBER"
+    type: "numeric_id"
+    evaluation_logic: "exact_numeric_match"
+    group: "banking"
+    description: "Account number"
+    instruction: "[account number or NOT_FOUND]"
+    
+  - name: "BANK_ACCOUNT_HOLDER"
+    type: "text"
+    evaluation_logic: "fuzzy_text_match"
+    group: "banking"
+    description: "Account holder name"
+    instruction: "[account holder name or NOT_FOUND]"
+    
+  - name: "STATEMENT_DATE_RANGE"
+    type: "date"
+    evaluation_logic: "flexible_date_match"
+    group: "dates"
+    description: "Statement period"
+    instruction: "[statement period (e.g., May 2025) or NOT_FOUND]"
+    
+  - name: "ACCOUNT_OPENING_BALANCE"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "Starting balance"
+    instruction: "[opening balance with 2 decimals or NOT_FOUND]"
+    
+  - name: "ACCOUNT_CLOSING_BALANCE"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "Ending balance"
+    instruction: "[closing balance with 2 decimals or NOT_FOUND]"
+    
+  - name: "TOTAL_CREDITS"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "Total deposits/credits"
+    instruction: "[total credits in dollars or NOT_FOUND]"
+    
+  - name: "TOTAL_DEBITS"
+    type: "monetary"
+    evaluation_logic: "monetary_with_tolerance"
+    group: "monetary"
+    description: "Total withdrawals/debits"
+    instruction: "[total debits in dollars or NOT_FOUND]"
+
+total_fields: 25
+
+# V1 compatibility grouping strategies
+grouping_strategies:
+  detailed_grouped:
+    name: "Detailed Grouped Extraction"
+    description: "Groups fields by logical categories for focused extraction"
+    groups: ["critical", "business_entity", "payer_info", "dates", "item_details", "monetary", "banking"]

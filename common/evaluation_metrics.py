@@ -14,11 +14,11 @@ import numpy as np
 import pandas as pd
 
 from .config import (
-    DATE_FIELDS,
-    EXTRACTION_FIELDS,
-    LIST_FIELDS,
-    MONETARY_FIELDS,
-    NUMERIC_ID_FIELDS,
+    get_all_field_types,
+    get_extraction_fields,
+    get_list_fields,
+    get_monetary_fields,
+    get_phone_fields,
 )
 
 
@@ -147,7 +147,8 @@ def calculate_field_accuracy(
         return 1.0
 
     # Field-specific comparison logic using centralized field type definitions
-    if field_name in NUMERIC_ID_FIELDS:
+    field_types = get_all_field_types()
+    if field_types.get(field_name) == "numeric_id":
         # Numeric identifiers - exact match required
         extracted_digits = re.sub(r"\D", "", extracted)
         ground_truth_digits = re.sub(r"\D", "", ground_truth)
@@ -158,7 +159,7 @@ def calculate_field_accuracy(
             )
         return score
 
-    elif field_name in MONETARY_FIELDS:
+    elif field_name in get_monetary_fields():
         # Monetary values - numeric comparison
         try:
             extracted_num = float(re.sub(r"[^\d.-]", "", extracted))
@@ -176,7 +177,29 @@ def calculate_field_accuracy(
                 print("    💰 MONETARY: Parsing failed - score: 0.0")
             return 0.0
 
-    elif field_name in DATE_FIELDS:
+    elif field_name in get_phone_fields():
+        # Phone number fields - digit-based with partial matching for OCR errors
+        extracted_digits = re.sub(r"\D", "", extracted)
+        ground_truth_digits = re.sub(r"\D", "", ground_truth)
+        
+        if extracted_digits == ground_truth_digits:
+            score = 1.0
+        elif len(extracted_digits) == len(ground_truth_digits):
+            # Same length - check how many digits match
+            matches = sum(1 for e, g in zip(extracted_digits, ground_truth_digits, strict=False) if e == g)
+            match_ratio = matches / len(ground_truth_digits)
+            # Give partial credit for phone numbers with mostly correct digits (OCR tolerance)
+            score = 0.8 if match_ratio >= 0.8 else (0.5 if match_ratio >= 0.6 else 0.0)
+        else:
+            score = 0.0
+        
+        if debug:
+            print(
+                f"    📞 PHONE: '{extracted_digits}' vs '{ground_truth_digits}' = {score}"
+            )
+        return score
+
+    elif field_types.get(field_name) == "date":
         # Date fields - flexible matching
         # Extract date components
         extracted_numbers = re.findall(r"\d+", extracted)
@@ -203,7 +226,7 @@ def calculate_field_accuracy(
             )
         return 0.0
 
-    elif field_name in LIST_FIELDS:
+    elif field_name in get_list_fields():
         # List fields - check overlap
         # These fields may contain multiple items
         extracted_items = [
@@ -410,7 +433,7 @@ def evaluate_extraction_results(
 
     # Track field-level accuracies
     field_accuracies = {
-        field: {"correct": 0, "total": 0, "details": []} for field in EXTRACTION_FIELDS
+        field: {"correct": 0, "total": 0, "details": []} for field in get_extraction_fields()
     }
 
     # Detailed results for analysis
@@ -443,7 +466,7 @@ def evaluate_extraction_results(
         partial_matches = 0
         no_matches = 0
 
-        for field in EXTRACTION_FIELDS:
+        for field in get_extraction_fields():
             extracted_value = extracted_data.get(field, "NOT_FOUND")
             ground_truth_value = gt_data.get(field, "NOT_FOUND")
 
@@ -527,7 +550,7 @@ def evaluate_extraction_results(
 
     # Calculate equivalent overall statistics
     total_fields_evaluated = (
-        len(detailed_results) * len(EXTRACTION_FIELDS) if detailed_results else 0
+        len(detailed_results) * len(get_extraction_fields()) if detailed_results else 0
     )
     total_accuracy_score = (
         overall_accuracy * total_fields_evaluated if total_fields_evaluated else 0

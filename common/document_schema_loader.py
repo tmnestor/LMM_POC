@@ -12,38 +12,31 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from common.document_type_detector import DocumentTypeDetector
-from common.schema_loader import FieldSchema
 
 
-class DocumentTypeFieldSchema(FieldSchema):
+class DocumentTypeFieldSchema:
     """
-    Extended schema loader supporting document-type-specific extraction.
+    Clean document-aware schema loader - no legacy compatibility.
     
     Automatically detects document type and selects appropriate field schema,
-    reducing extraction overhead and improving accuracy through targeted prompts.
+    optimized purely for document-aware extraction with maximum efficiency.
     """
     
-    def __init__(self, schema_file: str = "field_schema_v2.yaml", fallback_file: str = "field_schema.yaml"):
+    def __init__(self, schema_file: str = "field_schema_v3.yaml", fallback_file: Optional[str] = None):
         """
-        Initialize document-type-specific schema loader.
+        Initialize document-aware schema loader - clean, no legacy compatibility.
         
         Args:
-            schema_file: Path to v2 schema file with document-specific definitions
-            fallback_file: Path to v1 unified schema for backward compatibility
+            schema_file: Path to v3+ schema file with document-specific definitions
+            fallback_file: Ignored - no fallback support for clean architecture
         """
-        self.v2_schema_file = schema_file
-        self.v1_fallback_file = fallback_file
+        if fallback_file is not None:
+            print("⚠️  Fallback file ignored - document-aware system uses clean architecture")
+            
+        self.schema_file = schema_file
         
-        # Load v2 schema
-        self.v2_schema = self._load_v2_schema()
-        
-        # Initialize v1 schema for fallback
-        try:
-            super().__init__(fallback_file)
-            self.v1_available = True
-        except Exception as e:
-            print(f"⚠️ V1 schema not available: {e}")
-            self.v1_available = False
+        # Load document-aware schema
+        self.schema = self._load_document_schema()
         
         # Cache for performance
         self._document_schemas_cache = {}
@@ -52,21 +45,21 @@ class DocumentTypeFieldSchema(FieldSchema):
         # Document type detector (will be set by processor)
         self.document_detector: Optional[DocumentTypeDetector] = None
         
-        print("✅ Document-type schema loader initialized")
-        print(f"   V2 Schema: {self.v2_schema_file}")
-        print(f"   V1 Fallback: {'Available' if self.v1_available else 'Not available'}")
-        print(f"   Extraction mode: {self.v2_schema.get('extraction_mode', 'unknown')}")
+        print("✅ Document-aware schema loader initialized (clean architecture)")
+        print(f"   Schema: {self.schema_file}")
+        print(f"   Extraction mode: {self.schema.get('extraction_mode', 'document_aware')}")
+        print(f"   Supported document types: {len(self.schema.get('document_schemas', {}))}")
     
-    def _load_v2_schema(self) -> dict:
-        """Load v2 schema with comprehensive error handling."""
+    def _load_document_schema(self) -> dict:
+        """Load document-aware schema with comprehensive error handling."""
         try:
-            schema_path = Path(__file__).parent / self.v2_schema_file
+            schema_path = Path(__file__).parent / self.schema_file
             
             if not schema_path.exists():
                 raise FileNotFoundError(
-                    f"❌ FATAL: V2 schema file not found: {schema_path}\n"
-                    f"💡 Cannot proceed without document-specific schema\n"
-                    f"💡 Ensure {self.v2_schema_file} exists in common/ directory"
+                    f"❌ FATAL: Document-aware schema file not found: {schema_path}\n"
+                    f"💡 Cannot proceed without document-aware schema\n"
+                    f"💡 Ensure {self.schema_file} exists in common/ directory"
                 )
             
             with schema_path.open("r", encoding="utf-8") as f:
@@ -74,7 +67,7 @@ class DocumentTypeFieldSchema(FieldSchema):
             
             if not isinstance(schema, dict):
                 raise ValueError(
-                    f"❌ FATAL: Invalid v2 schema structure in {self.v2_schema_file}\n"
+                    f"❌ FATAL: Invalid document-aware schema structure in {self.schema_file}\n"
                     f"💡 Expected dictionary at root level"
                 )
             
@@ -84,7 +77,7 @@ class DocumentTypeFieldSchema(FieldSchema):
             
             if missing_sections:
                 raise ValueError(
-                    f"❌ FATAL: Missing required sections in v2 schema: {missing_sections}\n"
+                    f"❌ FATAL: Missing required sections in document schema: {missing_sections}\n"
                     f"💡 Required sections: {required_sections}"
                 )
             
@@ -92,12 +85,12 @@ class DocumentTypeFieldSchema(FieldSchema):
             
         except yaml.YAMLError as e:
             raise ValueError(
-                f"❌ FATAL: Invalid YAML in {self.v2_schema_file}: {e}\n"
+                f"❌ FATAL: Invalid YAML in {self.schema_file}: {e}\n"
                 f"💡 Check YAML syntax and structure"
             ) from e
         except Exception as e:
             raise RuntimeError(
-                f"❌ FATAL: V2 schema loading failed: {e}\n"
+                f"❌ FATAL: Document-aware schema loading failed: {e}\n"
                 f"💡 Cannot proceed without document-specific definitions"
             ) from e
     
@@ -152,18 +145,22 @@ class DocumentTypeFieldSchema(FieldSchema):
         if document_type in self._compiled_schemas_cache:
             return self._compiled_schemas_cache[document_type]
         
-        # Handle unknown/unsupported types
-        if document_type == "unknown" or document_type not in self.v2_schema["document_schemas"]:
-            print(f"📋 Using unified fallback for document type: {document_type}")
-            return self._get_unified_fallback_schema()
+        # Handle unknown/unsupported types - fail fast for clean architecture
+        if document_type == "unknown" or document_type not in self.schema["document_schemas"]:
+            raise RuntimeError(
+                f"❌ FATAL: Unsupported document type '{document_type}'\n"
+                f"💡 Supported types: {list(self.schema['document_schemas'].keys())}\n"
+                f"💡 Document-aware system requires proper document classification\n"
+                f"💡 No fallback support - use clean document-aware approach only"
+            )
         
         # Build document-specific schema
-        doc_schema_def = self.v2_schema["document_schemas"][document_type]
+        doc_schema_def = self.schema["document_schemas"][document_type]
         
         # Start with common fields if inherited
         complete_fields = []
         if doc_schema_def.get("inherits_common", False):
-            complete_fields.extend(self.v2_schema["common_fields"])
+            complete_fields.extend(self.schema["common_fields"])
         
         # Add document-specific fields
         if "specific_fields" in doc_schema_def:
@@ -177,8 +174,8 @@ class DocumentTypeFieldSchema(FieldSchema):
             "metadata": doc_schema_def.get("metadata", {}),
             "excluded_fields": doc_schema_def.get("excluded_fields", []),
             "validation_rules": doc_schema_def.get("validation_rules", []),
-            "groups": self.v2_schema["groups"],
-            "extraction_mode": "document_type_specific"
+            "groups": self.schema["groups"],
+            "extraction_mode": "document_aware"
         }
         
         # Cache result
@@ -187,31 +184,6 @@ class DocumentTypeFieldSchema(FieldSchema):
         print(f"✅ Schema compiled for {document_type}: {len(complete_fields)} fields")
         
         return complete_schema
-    
-    def _get_unified_fallback_schema(self) -> Dict[str, Any]:
-        """Get unified schema for fallback when document type is unknown."""
-        if not self.v1_available:
-            raise RuntimeError(
-                f"❌ FATAL: Unified fallback schema not available\n"
-                f"💡 Cannot process unknown document types without v1 schema\n"
-                f"💡 Ensure {self.v1_fallback_file} exists for fallback support"
-            )
-        
-        # Use parent class schema structure for v1 schema - convert to field objects
-        field_objects = []
-        for field_def in self.schema["fields"]:  # From parent FieldSchema class
-            field_objects.append(field_def)  # These are already dict objects
-        
-        return {
-            "fields": field_objects,
-            "total_fields": len(field_objects),
-            "document_type": "unified_fallback",
-            "metadata": {"description": "Unified 25-field schema for unknown document types"},
-            "excluded_fields": [],
-            "validation_rules": self.schema.get("interdependency_rules", []),
-            "groups": self.schema["groups"],
-            "extraction_mode": "unified"
-        }
     
     def get_schema_for_image(self, image_path: str) -> Dict[str, Any]:
         """
@@ -237,45 +209,33 @@ class DocumentTypeFieldSchema(FieldSchema):
     
     def compare_schemas(self, document_type: str) -> Dict[str, Any]:
         """
-        Compare document-specific schema with unified schema.
+        Get document-specific schema metrics (no unified comparison in clean architecture).
         
         Args:
-            document_type: Document type to compare
+            document_type: Document type to analyze
             
         Returns:
-            Comparison metrics and field differences
+            Document schema metrics
         """
         specific_schema = self.get_document_schema(document_type)
-        unified_schema = self._get_unified_fallback_schema() if self.v1_available else None
         
-        if not unified_schema:
-            return {"error": "Unified schema not available for comparison"}
-        
-        # Handle both list of dicts and list of strings for field names
+        # Get field names from schema
         if isinstance(specific_schema["fields"][0], dict):
             specific_fields = set(f["name"] for f in specific_schema["fields"])
         else:
             specific_fields = set(specific_schema["fields"])
-            
-        if isinstance(unified_schema["fields"], list) and unified_schema["fields"] and isinstance(unified_schema["fields"][0], dict):
-            unified_fields = set(f["name"] for f in unified_schema["fields"])
-        else:
-            # Handle case where unified_schema["fields"] is a list of field names
-            unified_fields = set(unified_schema["fields"]) if isinstance(unified_schema["fields"], list) else set()
         
         return {
             "document_type": document_type,
-            "specific_field_count": len(specific_fields),
-            "unified_field_count": len(unified_fields),
-            "field_reduction": len(unified_fields) - len(specific_fields),
-            "field_reduction_percentage": ((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100 if unified_fields else 0,
-            "excluded_fields": list(unified_fields - specific_fields),
-            "efficiency_gain": f"{((len(unified_fields) - len(specific_fields)) / len(unified_fields)) * 100:.0f}% fewer fields" if unified_fields else "No unified comparison available"
+            "field_count": len(specific_fields),
+            "fields": sorted(list(specific_fields)),
+            "extraction_mode": specific_schema.get("extraction_mode", "document_aware"),
+            "architecture": "Clean document-aware (no legacy compatibility)"
         }
     
     def get_supported_document_types(self) -> List[str]:
         """Get list of supported document types."""
-        return list(self.v2_schema["document_schemas"].keys())
+        return list(self.schema["document_schemas"].keys())
     
     def validate_document_type_schema(self, document_type: str) -> Dict[str, Any]:
         """
@@ -287,7 +247,7 @@ class DocumentTypeFieldSchema(FieldSchema):
         Returns:
             Validation results
         """
-        if document_type not in self.v2_schema["document_schemas"]:
+        if document_type not in self.schema["document_schemas"]:
             return {
                 "valid": False,
                 "error": f"Document type '{document_type}' not found in schema"
@@ -330,10 +290,10 @@ class DocumentTypeFieldSchema(FieldSchema):
 {'='*60}
 
 📋 OVERVIEW:
-   Schema Version: {self.v2_schema.get('schema_version', 'Unknown')}
-   Extraction Mode: {self.v2_schema.get('extraction_mode', 'Unknown')}
+   Schema Version: {self.schema.get('schema_version', 'Unknown')}
+   Extraction Mode: {self.schema.get('extraction_mode', 'Unknown')}
    Supported Document Types: {len(self.get_supported_document_types())}
-   V1 Fallback Available: {'Yes' if self.v1_available else 'No'}
+   Architecture: Clean document-aware (no legacy compatibility)
 
 📈 DOCUMENT TYPE SCHEMAS:
 """
@@ -346,21 +306,22 @@ class DocumentTypeFieldSchema(FieldSchema):
             
             report += f"""
    {status} {doc_type.upper()}:
-      Fields: {comparison['specific_field_count']} (vs {comparison['unified_field_count']} unified)
-      Excluded: {len(comparison['excluded_fields'])} fields
+      Fields: {comparison['field_count']} fields
+      Architecture: {comparison['architecture']}
       Valid: {validation['valid']}
 """
         
         # Common fields info
-        common_field_count = len(self.v2_schema["common_fields"])
+        common_field_count = len(self.schema["common_fields"])
         report += f"""
 🔄 COMMON FIELDS:
    Shared across document types: {common_field_count} fields
    
 🎯 PERFORMANCE TARGETS:
-   Field Reduction: 28-52% per document type
-   Processing Speed: 30-50% faster
+   Field Reduction: 20-52% per document type
+   Processing Speed: 30%+ faster  
    Accuracy Target: 90%+ per document type
+   Architecture: Clean, efficient, no technical debt
 """
         
         return report
@@ -378,7 +339,7 @@ class DocumentTypeFieldSchema(FieldSchema):
         schema = self.get_document_schema(document_type)
         
         # Get model-specific templates if available
-        model_templates = self.v2_schema.get("model_prompt_templates", {})
+        model_templates = self.schema.get("model_prompt_templates", {})
         
         return {
             "document_type": document_type,
