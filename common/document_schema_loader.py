@@ -128,7 +128,7 @@ class DocumentTypeFieldSchema:
                     print(f"   → Mapping '{detected_type}' to schema type '{schema_type}'")
                 return schema_type
             else:
-                print(f"⚠️ Low confidence or unknown type - falling back to unified")
+                print("⚠️ Low confidence or unknown type - falling back to unified")
                 return "unknown"
                 
         except Exception as e:
