@@ -26,6 +26,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
+from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
@@ -70,6 +71,9 @@ class DocumentAwareLlamaProcessor:
         self.model = None
         self.processor = None
         self.generation_config = None
+        
+        # Initialize extraction cleaner for value normalization
+        self.cleaner = ExtractionCleaner(debug=debug)
         
         if self.debug:
             print(f"🎯 Document-aware processor initialized for {self.field_count} fields: {field_list[0]} → {field_list[-1]}")
@@ -534,6 +538,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 
                 # Store if it's in our document-specific field list
                 if key in self.field_list:
-                    extracted_data[key] = value if value else "NOT_FOUND"
+                    # Clean the extracted value using the centralized cleaner
+                    cleaned_value = self.cleaner.clean_field_value(key, value) if value else "NOT_FOUND"
+                    extracted_data[key] = cleaned_value
         
         return extracted_data

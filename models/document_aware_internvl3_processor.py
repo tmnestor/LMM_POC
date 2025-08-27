@@ -28,6 +28,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
+from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     clear_model_caches,
     comprehensive_memory_cleanup,
@@ -73,6 +74,9 @@ class DocumentAwareInternVL3Processor:
         self.model = None
         self.tokenizer = None
         self.generation_config = None
+        
+        # Initialize extraction cleaner for value normalization
+        self.cleaner = ExtractionCleaner(debug=debug)
 
         # Fix 8B detection using actual model path
         self.is_8b_model = "8B" in str(self.model_path)
@@ -646,6 +650,8 @@ INSTRUCTIONS:
 
                 # Store if it's in our document-specific field list
                 if key in self.field_list:
-                    extracted_data[key] = value if value else "NOT_FOUND"
+                    # Clean the extracted value using the centralized cleaner
+                    cleaned_value = self.cleaner.clean_field_value(key, value) if value else "NOT_FOUND"
+                    extracted_data[key] = cleaned_value
 
         return extracted_data
