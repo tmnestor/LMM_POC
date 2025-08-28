@@ -1074,20 +1074,10 @@ def get_document_type_fields(document_type: str) -> list:
         mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
         schema = loader.get_document_schema(mapped_type)
         
-        # Extract field names from schema
-        field_names = []
+        # Extract field names from schema (V4 uses 'fields' key with list of field dicts)
+        fields = schema.get("fields", [])
+        field_names = [field["name"] for field in fields if isinstance(field, dict) and "name" in field]
         
-        # Add common fields
-        if schema.get("inherits_common", False):
-            common_fields = loader.schema.get("common_fields", [])
-            for field in common_fields:
-                field_names.append(field["name"])
-        
-        # Add document-specific fields
-        specific_fields = schema.get("specific_fields", [])
-        for field in specific_fields:
-            field_names.append(field["name"])
-            
         return field_names
         
     except Exception as e:

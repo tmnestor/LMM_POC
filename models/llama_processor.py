@@ -235,9 +235,7 @@ class LlamaProcessor:
                     print(f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}")
                 
                 # Step 1: Detect document type
-                doc_type = self.document_detector.detect_document_type(
-                    image_path, self._quick_extract_for_detection
-                )
+                doc_type = self.document_detector.classify_document_type(image_path)
                 
                 if self.debug:
                     print(f"📄 Detected document type: {doc_type}")
