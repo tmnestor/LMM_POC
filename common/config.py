@@ -515,14 +515,29 @@ EXTRACTION_FIELDS = []  # Will be set on first access
 def _ensure_fields_loaded():
     """Ensure field data is loaded from schema."""
     global EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
+    global PHONE_FIELDS, LIST_FIELDS, MONETARY_FIELDS, NUMERIC_ID_FIELDS, DATE_FIELDS, TEXT_FIELDS
+    global BOOLEAN_FIELDS, CALCULATED_FIELDS, TRANSACTION_LIST_FIELDS
     
-    if not EXTRACTION_FIELDS:
+    if not EXTRACTION_FIELDS or BOOLEAN_FIELDS is None:
         from .schema_config import get_schema_config
         config = get_schema_config()
         EXTRACTION_FIELDS = config.extraction_fields
         FIELD_COUNT = config.field_count
         # Use the field_types dict that's already available
         FIELD_TYPES = config.field_types
+        
+        # Initialize all field type lists
+        PHONE_FIELDS = config.phone_fields
+        LIST_FIELDS = config.list_fields
+        MONETARY_FIELDS = config.monetary_fields
+        NUMERIC_ID_FIELDS = config.numeric_id_fields
+        DATE_FIELDS = config.date_fields
+        TEXT_FIELDS = config.text_fields
+        
+        # Initialize new v4 field types
+        BOOLEAN_FIELDS = config.boolean_fields
+        CALCULATED_FIELDS = config.calculated_fields
+        TRANSACTION_LIST_FIELDS = config.transaction_list_fields
 
 
 # Initialize fields on module import for backward compatibility
