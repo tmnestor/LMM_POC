@@ -331,7 +331,7 @@ class ExtractionCleaner:
                 if len(price_list) == len(total_list) == len(qty_list):
                     issues_found = []
                     
-                    for i, (unit_price, total_price, qty) in enumerate(zip(price_list, total_list, qty_list)):
+                    for i, (unit_price, total_price, qty) in enumerate(zip(price_list, total_list, qty_list, strict=False)):
                         if unit_price and total_price and qty:
                             expected_total = unit_price * qty
                             # Allow 1% tolerance for rounding
@@ -339,7 +339,7 @@ class ExtractionCleaner:
                                 issues_found.append(f"Item {i+1}: Unit=${unit_price:.2f} × {qty} ≠ Total=${total_price:.2f}")
                     
                     if issues_found and self.debug:
-                        print(f"⚠️  LINE_ITEM_PRICES validation issues:")
+                        print("⚠️  LINE_ITEM_PRICES validation issues:")
                         for issue in issues_found:
                             print(f"   {issue}")
                             
