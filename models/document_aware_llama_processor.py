@@ -343,11 +343,23 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             # Decode response
             full_response = self.processor.decode(output[0], skip_special_tokens=True)
             
-            # Extract assistant's response
+            # Extract assistant's response - handle multiple chat template formats
             if "<|start_header_id|>assistant<|end_header_id|>" in full_response:
+                # Llama 3.2 official format
                 response = full_response.split("<|start_header_id|>assistant<|end_header_id|>")[1]
                 response = response.split("<|eot_id|>")[0].strip()
+            elif "\nassistant\n\n" in full_response:
+                # Common format: user\n[prompt]\nassistant\n\n[response]
+                response = full_response.split("\nassistant\n\n")[1].strip()
+            elif "\nassistant\n" in full_response:
+                # Variant format: user\n[prompt]\nassistant\n[response]
+                response = full_response.split("\nassistant\n")[1].strip()
+            elif "assistant" in full_response:
+                # Fallback: split on assistant keyword and take the last part
+                parts = full_response.split("assistant")
+                response = parts[-1].strip()
             else:
+                # No chat template detected, use full response
                 response = full_response.strip()
             
             if self.debug:
