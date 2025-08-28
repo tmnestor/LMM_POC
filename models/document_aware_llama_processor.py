@@ -609,6 +609,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                     return "[business phone number (not customer phone) (e.g. (XX) XXXX XXXX) or NOT_FOUND]"
                 elif field == "DOCUMENT_TYPE":
                     return "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+                elif field == "LINE_ITEM_PRICES":
+                    return "[numbers in the right most column with 2 decimal places or NOT_FOUND]"
                 else:
                     # Default instruction for other field types
                     return "[value or NOT_FOUND]"
