@@ -1,0 +1,125 @@
+# InternVL3 Single-Pass Prompt - V4 Schema (49 Fields)
+# Optimized for InternVL3's concise response style with V4 schema coverage
+# Part of Integrated V4 + YAML-First Implementation Plan
+
+single_pass:
+  # Opening prompt text - concise for InternVL3
+  opening_text: "Extract structured data from this business document image."
+  
+  # Instruction about output format
+  output_instruction: "Output ALL fields below with their exact keys."
+  
+  # Missing value instruction
+  missing_value_instruction: "Use \"NOT_FOUND\" if field is not visible or not present."
+  
+  # Output format header (dynamic field count)
+  output_format_header: "OUTPUT FORMAT (V4 Schema - 49 fields):"
+  
+  # V4 Schema - All 49 fields optimized for InternVL3's processing style
+  field_instructions:
+    # Document identifiers
+    DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
+    BUSINESS_ABN: "[11-digit Australian Business Number or NOT_FOUND]"
+    SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
+    
+    # Business entity details (V4 enhanced)
+    BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
+    BUSINESS_PHONE: "[business phone number or NOT_FOUND]"
+    SUPPLIER_EMAIL: "[supplier email address or NOT_FOUND]"
+    SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
+    
+    # Payer information (V4 enhanced)
+    PAYER_NAME: "[payer name or NOT_FOUND]"
+    PAYER_ABN: "[11-digit customer ABN or NOT_FOUND]"
+    PAYER_ADDRESS: "[payer address or NOT_FOUND]"
+    PAYER_PHONE: "[payer phone number or NOT_FOUND]"
+    PAYER_EMAIL: "[payer email address or NOT_FOUND]"
+    
+    # Document references (V4 enhanced)
+    INVOICE_NUMBER: "[invoice number or NOT_FOUND]"
+    RECEIPT_NUMBER: "[receipt number or NOT_FOUND]"
+    
+    # Temporal data
+    INVOICE_DATE: "[invoice date or NOT_FOUND]"
+    DUE_DATE: "[payment due date or NOT_FOUND]"
+    STATEMENT_DATE_RANGE: "[statement period or NOT_FOUND]"
+    
+    # Line item details (V4 greatly enhanced)
+    LINE_ITEM_DESCRIPTIONS: "[pipe-separated item descriptions or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[pipe-separated quantities or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[pipe-separated unit prices or NOT_FOUND]"
+    LINE_ITEM_TOTAL_PRICES: "[pipe-separated line totals or NOT_FOUND]"
+    LINE_ITEM_GST_AMOUNTS: "[pipe-separated GST per line or NOT_FOUND]"
+    LINE_ITEM_DISCOUNT_AMOUNTS: "[pipe-separated discounts per line or NOT_FOUND]"
+    
+    # Banking information
+    BANK_NAME: "[bank name or NOT_FOUND]"
+    BANK_BSB_NUMBER: "[6-digit BSB or NOT_FOUND]"
+    BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
+    BANK_ACCOUNT_HOLDER: "[account holder or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[opening balance or NOT_FOUND]"
+    ACCOUNT_CLOSING_BALANCE: "[closing balance or NOT_FOUND]"
+    
+    # Transaction details (V4 new)
+    TRANSACTION_DATES: "[pipe-separated transaction dates or NOT_FOUND]"
+    TRANSACTION_DESCRIPTIONS: "[pipe-separated transaction descriptions or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_PAID: "[pipe-separated amounts paid or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated amounts received or NOT_FOUND]"
+    TRANSACTION_BALANCES: "[pipe-separated balances or NOT_FOUND]"
+    CREDIT_CARD_DUE_DATE: "[credit card due date or NOT_FOUND]"
+    
+    # Store information
+    STORE_LOCATION: "[store location or NOT_FOUND]"
+    
+    # Financial totals (V4 enhanced)
+    SUBTOTAL_AMOUNT: "[subtotal amount with $ symbol or NOT_FOUND]"
+    TOTAL_DISCOUNT_AMOUNT: "[total discount with $ symbol or NOT_FOUND]"
+    GST_AMOUNT: "[GST amount with $ symbol or NOT_FOUND]"
+    IS_GST_INCLUDED: "[true or false or NOT_FOUND]"
+    TOTAL_AMOUNT: "[total amount with $ symbol or NOT_FOUND]"
+    
+    # Payment status (V4 new)
+    TOTAL_AMOUNT_PAID: "[amount paid with $ symbol or NOT_FOUND]"
+    BALANCE_OF_PAYMENT: "[balance remaining with $ symbol or NOT_FOUND]"
+    TOTAL_AMOUNT_PAYABLE: "[total payable with $ symbol or NOT_FOUND]"
+  
+  # Closing instruction - concise for InternVL3
+  closing_instruction: "Provide ONLY the key-value pairs above. Be precise with values."
+
+# Grouped extraction configuration (for compatibility)
+regulatory_financial:
+  expertise_frame: "Extract business identifiers and financial amounts."
+  cognitive_context: "Focus on BUSINESS_ABN, monetary amounts, and payment status fields."
+  focus_instruction: "Extract ABN and all financial values with exact formatting."
+
+entity_contacts:
+  expertise_frame: "Extract contact information."
+  cognitive_context: "Get supplier and payer details including new V4 email fields."
+  focus_instruction: "Extract all contact details for both parties."
+
+line_item_transactions:
+  expertise_frame: "Extract comprehensive line item details."
+  cognitive_context: "V4 enhancement: Get descriptions, quantities, unit prices, totals, GST, and discounts."
+  focus_instruction: "Extract all line item information with pipe separation."
+
+temporal_data:
+  expertise_frame: "Extract date information."
+  cognitive_context: "Find document dates, due dates, and transaction date lists."
+  focus_instruction: "Extract all dates and time periods."
+
+banking_payment:
+  expertise_frame: "Extract banking and payment information."
+  cognitive_context: "V4 enhancement: Include transaction lists and payment status fields."
+  focus_instruction: "Extract banking details and payment tracking."
+
+document_metadata:
+  expertise_frame: "Extract document classification and metadata."
+  cognitive_context: "Document type, numbers, locations, and account balances."
+  focus_instruction: "Classify document and extract reference information."
+
+# V4 Schema Notes:
+# - OPTIMIZED for InternVL3's concise processing style
+# - EXPANDED from 25 → 49 fields with comprehensive coverage
+# - SIMPLIFIED instructions compared to Llama (InternVL3 prefers brevity)
+# - MAINTAINED semantic ordering and standardized naming
+# - ENHANCED with V4 features: payment tracking, transaction lists, calculated fields

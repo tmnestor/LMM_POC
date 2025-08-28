@@ -1018,6 +1018,138 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
 
 
 # ============================================================================
+# V4 SCHEMA INTEGRATION FUNCTIONS
+# ============================================================================
+
+def get_v4_field_list() -> list:
+    """
+    Get all unique fields from v4 schema (49 total fields).
+    
+    This is the main function for V4 schema integration that returns
+    all 49 unique fields across all document types.
+    
+    Returns:
+        List[str]: All 49 unique field names from V4 schema
+    """
+    _ensure_initialized()
+    return EXTRACTION_FIELDS
+
+
+def get_document_type_fields(document_type: str) -> list:
+    """
+    Get fields specific to document type for intelligent field filtering.
+    
+    This enables the document-aware approach where:
+    - Invoice documents: 25 fields
+    - Receipt documents: 19 fields  
+    - Bank statement documents: 17 fields
+    
+    Args:
+        document_type (str): Document type ('invoice', 'receipt', 'bank_statement')
+        
+    Returns:
+        List[str]: Fields specific to the document type
+        
+    Raises:
+        ValueError: If document type not supported
+    """
+    try:
+        from .document_schema_loader import DocumentTypeFieldSchema
+        loader = DocumentTypeFieldSchema("field_schema_v4.yaml")
+        
+        # Map common document type variations
+        doc_type_mapping = {
+            'invoice': 'invoice',
+            'tax_invoice': 'invoice', 
+            'bill': 'invoice',
+            'receipt': 'receipt',
+            'purchase_receipt': 'receipt',
+            'bank_statement': 'bank_statement',
+            'statement': 'bank_statement'
+        }
+        
+        mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
+        schema = loader.get_document_schema(mapped_type)
+        
+        # Extract field names from schema
+        field_names = []
+        
+        # Add common fields
+        if schema.get("inherits_common", False):
+            common_fields = loader.schema.get("common_fields", [])
+            for field in common_fields:
+                field_names.append(field["name"])
+        
+        # Add document-specific fields
+        specific_fields = schema.get("specific_fields", [])
+        for field in specific_fields:
+            field_names.append(field["name"])
+            
+        return field_names
+        
+    except Exception as e:
+        # Fallback to full field list if document-specific filtering fails
+        print(f"⚠️ Document-specific field filtering failed for '{document_type}': {e}")
+        print("🔄 Falling back to full V4 field list (49 fields)")
+        return get_v4_field_list()
+
+
+def get_v4_field_count() -> int:
+    """
+    Get the total V4 schema field count (49).
+    
+    Returns:
+        int: Total number of fields in V4 schema
+    """
+    return len(get_v4_field_list())
+
+
+def is_v4_schema_enabled() -> bool:
+    """
+    Check if V4 schema is currently enabled.
+    
+    Returns:
+        bool: True if V4 schema is enabled
+    """
+    _ensure_initialized()
+    return FIELD_COUNT >= 49  # V4 has 49+ fields vs V3's 25
+
+
+def get_v4_new_fields() -> list:
+    """
+    Get fields that were added in V4 schema (not present in V3).
+    
+    Returns:
+        List[str]: Fields added in V4 schema
+    """
+    v4_new_fields = [
+        # Enhanced business details
+        "SUPPLIER_EMAIL", "PAYER_ABN",
+        
+        # Document references
+        "INVOICE_NUMBER", "RECEIPT_NUMBER",
+        
+        # Enhanced line items
+        "LINE_ITEM_TOTAL_PRICES", "LINE_ITEM_GST_AMOUNTS", "LINE_ITEM_DISCOUNT_AMOUNTS",
+        
+        # Enhanced monetary
+        "TOTAL_DISCOUNT_AMOUNT", "IS_GST_INCLUDED",
+        
+        # Payment status (new category)
+        "TOTAL_AMOUNT_PAID", "BALANCE_OF_PAYMENT", "TOTAL_AMOUNT_PAYABLE",
+        
+        # Transaction details (new category)
+        "TRANSACTION_DATES", "TRANSACTION_DESCRIPTIONS", 
+        "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED", 
+        "TRANSACTION_BALANCES", "CREDIT_CARD_DUE_DATE"
+    ]
+    
+    # Return only fields that exist in current schema
+    all_fields = get_v4_field_list()
+    return [field for field in v4_new_fields if field in all_fields]
+
+
+# ============================================================================
 # VISUALIZATION CONFIGURATION
 # ============================================================================
 

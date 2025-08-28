@@ -29,8 +29,12 @@ from common.config import (
     INTERNVL3_MODEL_PATH,
     INTERNVL3_TOKEN_LIMITS,
     get_auto_batch_size,
+    get_document_type_fields,
     get_max_new_tokens,
     get_model_name_with_size,
+    get_v4_field_count,
+    get_v4_field_list,
+    is_v4_schema_enabled,
 )
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
@@ -42,6 +46,8 @@ from common.gpu_optimization import (
     optimize_model_for_v100,
 )
 from common.grouped_extraction import get_extraction_strategy
+from common.prompt_loader import PromptLoader
+from models.lightweight_document_detector import LightweightDocumentDetector
 
 
 class InternVL3Processor:
@@ -55,6 +61,8 @@ class InternVL3Processor:
         extraction_mode=None,
         debug=False,
         grouping_strategy="detailed_grouped",
+        enable_v4_schema=True,
+        prompt_environment=None,
     ):
         """
         Initialize InternVL3 processor with model and tokenizer.
@@ -66,6 +74,8 @@ class InternVL3Processor:
             extraction_mode (str): Extraction mode ('single_pass', 'grouped', 'adaptive')
             debug (bool): Enable debug logging for extraction
             grouping_strategy (str): Grouping strategy ('8_groups' or '6_groups')
+            enable_v4_schema (bool): Enable V4 schema with 49 fields and document intelligence
+            prompt_environment (str): Environment for prompt loading (local/dev/prod, None for auto)
         """
         self.model_path = model_path or INTERNVL3_MODEL_PATH
         self.device = device
@@ -81,6 +91,22 @@ class InternVL3Processor:
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)
         self.is_8b_model = "8B" in str(self.model_path)
+
+        # V4 Schema Integration - YAML-first prompt system
+        self.enable_v4_schema = enable_v4_schema and is_v4_schema_enabled()
+        if self.enable_v4_schema:
+            self.prompt_loader = PromptLoader(environment=prompt_environment)
+            self.document_detector = LightweightDocumentDetector()
+            if debug:
+                print("🔧 V4 Schema enabled with document-aware field extraction")
+                print(f"📊 Total V4 fields: {get_v4_field_count()}")
+        else:
+            # Legacy V3 mode fallback
+            self.prompt_loader = None
+            self.document_detector = None
+            if debug:
+                print("🔧 Legacy V3 schema mode (25 fields)")
+                print(f"📊 Total V3 fields: {FIELD_COUNT}")
 
         # Configure CUDA memory allocation for V100 optimization
         configure_cuda_memory_allocation()
@@ -327,27 +353,98 @@ class InternVL3Processor:
             print(f"⚠️ Error loading InternVL3 single-pass YAML: {e}")
             return None
 
-    def get_extraction_prompt(self):
-        """Get the extraction prompt for InternVL3 using schema-driven generation."""
-        # Import schema loader for dynamic prompt generation
-        from common.schema_loader import get_global_schema
+    def get_extraction_prompt(self, image_path=None):
+        """Get the extraction prompt for InternVL3 with V4 schema and document intelligence."""
+        if self.enable_v4_schema and self.prompt_loader is not None:
+            return self._get_integrated_v4_prompt(image_path)
+        else:
+            # Legacy V3 schema fallback using schema-driven generation
+            from common.schema_loader import get_global_schema
+            
+            try:
+                schema = get_global_schema()
+                prompt = schema.generate_dynamic_prompt(
+                    model_name="internvl3", strategy="single_pass"
+                )
+                return prompt
 
+            except Exception as e:
+                # FAIL FAST - No graceful fallbacks
+                raise RuntimeError(
+                    f"❌ FATAL: Schema-based prompt generation failed for InternVL3\n"
+                    f"💡 Root cause: {e}\n"
+                    f"💡 Expected: Model templates in common/field_schema.yaml\n"
+                    f"💡 Fix: Ensure schema contains model_prompt_templates.internvl3.single_pass\n"
+                    f"💡 Verify: Schema validation and template completeness"
+                ) from e
+    
+    def _get_integrated_v4_prompt(self, image_path=None):
+        """Generate V4 prompt with YAML configuration and document intelligence."""
         try:
-            schema = get_global_schema()
-            prompt = schema.generate_dynamic_prompt(
-                model_name="internvl3", strategy="single_pass"
-            )
-            return prompt
-
+            # Get strategy from extraction mode
+            strategy = "single_pass" if self.extraction_mode == "single_pass" else "grouped"
+            
+            # Load YAML prompt configuration
+            prompt_config = self.prompt_loader.load_prompt_config("internvl3", strategy)
+            
+            # Determine active fields based on document type
+            if image_path and self.document_detector:
+                try:
+                    detected_type = self.document_detector.classify_document_type(image_path)
+                    active_fields = get_document_type_fields(detected_type)
+                    if self.debug:
+                        print(f"📄 Document type detected: {detected_type}")
+                        print(f"🎯 Active fields: {len(active_fields)}/{get_v4_field_count()}")
+                except Exception as e:
+                    if self.debug:
+                        print(f"⚠️ Document detection failed: {e}, using full field set")
+                    active_fields = get_v4_field_list()
+            else:
+                # No image path provided or detector unavailable, use all fields
+                active_fields = get_v4_field_list()
+            
+            # Generate prompt for active fields
+            return self._generate_prompt_for_fields(prompt_config, active_fields)
+            
         except Exception as e:
             # FAIL FAST - No graceful fallbacks
             raise RuntimeError(
-                f"❌ FATAL: Schema-based prompt generation failed for InternVL3\n"
+                f"❌ FATAL: V4 prompt generation failed for InternVL3 processor\n"
                 f"💡 Root cause: {e}\n"
-                f"💡 Expected: Model templates in common/field_schema.yaml\n"
-                f"💡 Fix: Ensure schema contains model_prompt_templates.internvl3.single_pass\n"
-                f"💡 Verify: Schema validation and template completeness"
+                f"💡 Expected: YAML prompt files and V4 schema configuration\n"
+                f"💡 Check: prompts/internvl3_single_pass_v4.yaml exists and is valid\n"
+                f"💡 Verify: V4 schema functions in common/config.py are working\n"
+                f"💡 Fix: Ensure all V4 dependencies are properly configured"
             ) from e
+    
+    def _generate_prompt_for_fields(self, config, fields):
+        """Generate dynamic prompt from YAML config and field list."""
+        single_pass = config.get("single_pass", {})
+        
+        # Build prompt sections
+        prompt = single_pass.get("opening_text", "Extract structured data from this business document image.") + "\n"
+        prompt += single_pass.get("output_instruction", "Output ALL fields below with their exact keys.") + "\n"
+        prompt += single_pass.get("missing_value_instruction", 'Use "NOT_FOUND" if field is not visible or not present.') + "\n\n"
+        
+        # Dynamic field count in header
+        header = single_pass.get("output_format_header", "OUTPUT FORMAT (V4 Schema - {field_count} fields):")
+        prompt += header.format(field_count=len(fields)) + "\n"
+        
+        # Add field instructions
+        field_instructions = single_pass.get("field_instructions", {})
+        for field in fields:
+            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            prompt += f"{field}: {instruction}\n"
+        
+        # Add closing instruction
+        prompt += "\n" + single_pass.get("closing_instruction", "Provide ONLY the key-value pairs above. Be precise with values.")
+        
+        if self.debug:
+            print(f"📝 V4 INTERNVL3 PROMPT: {len(prompt)} chars, {len(fields)} fields")
+            if len(fields) < get_v4_field_count():
+                print(f"🎯 Document-specific subset: {len(fields)}/{get_v4_field_count()} fields")
+        
+        return prompt
 
     def _get_single_pass_prompt_from_yaml(self):
         """Build single-pass prompt from YAML configuration."""
@@ -675,7 +772,7 @@ INSTRUCTIONS:
 
             # Use shared extraction method
             response = self._extract_with_prompt(
-                image_path, self.get_extraction_prompt()
+                image_path, self.get_extraction_prompt(image_path)
             )
 
             processing_time = time.time() - start_time
