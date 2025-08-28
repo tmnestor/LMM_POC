@@ -46,7 +46,6 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
-from common.grouped_extraction import get_extraction_strategy
 from common.prompt_loader import PromptLoader
 
 
@@ -82,36 +81,32 @@ class InternVL3Processor:
         self.model = None
         self.tokenizer = None
 
-        # V4 Schema Integration - YAML-first prompt system (initialize first)
+        # V4 Schema Integration - FAIL FAST, NO FALLBACKS
         self.enable_v4_schema = enable_v4_schema and is_v4_schema_enabled()
-        if self.enable_v4_schema:
-            self.prompt_loader = PromptLoader(environment=prompt_environment)
-            self.document_detector = LightweightDocumentDetector()
-            if debug:
-                print("🔧 V4 Schema enabled with document-aware field extraction")
-                print(f"📊 Total V4 fields: {get_v4_field_count()}")
-        else:
-            # Legacy V3 mode fallback
-            self.prompt_loader = None
-            self.document_detector = None
-            if debug:
-                print("🔧 Legacy V3 schema mode (25 fields)")
-                print(f"📊 Total V3 fields: {FIELD_COUNT}")
+        if not self.enable_v4_schema:
+            # FAIL FAST - No legacy V3 fallbacks
+            raise RuntimeError(
+                f"❌ FATAL: V4 schema is required for InternVL3Processor\n"
+                f"💡 enable_v4_schema: {enable_v4_schema}\n"
+                f"💡 is_v4_schema_enabled(): {is_v4_schema_enabled()}\n"
+                f"💡 Set V4_SCHEMA_ENABLED=true environment variable\n"
+                f"💡 Ensure YAML prompt files exist in prompts/ directory\n"
+                f"💡 No fallback to broken V3 system - fix V4 configuration instead"
+            )
+        
+        # Initialize V4 system components
+        self.prompt_loader = PromptLoader(environment=prompt_environment)
+        self.document_detector = LightweightDocumentDetector()
+        if debug:
+            print("🔧 V4 Schema enabled with document-aware field extraction")
+            print(f"📊 Total V4 fields: {get_v4_field_count()}")
 
-        # Configure extraction strategy
+        # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        
-        # Only initialize old extraction strategy if V4 is not enabled
-        if not self.enable_v4_schema:
-            self.extraction_strategy = get_extraction_strategy(
-                self.extraction_mode, debug, grouping_strategy, model_name="internvl3"
-            )
-        else:
-            # V4 uses YAML-first prompt system, no extraction strategy needed
-            self.extraction_strategy = None
-            if debug:
-                print("🔧 V4 Schema: Skipping legacy extraction strategy initialization")
+        self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
+        if debug:
+            print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
         
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)

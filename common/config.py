@@ -53,6 +53,9 @@ ENV_INTERNVL3_MODEL_PATH = os.getenv("INTERNVL3_MODEL_PATH")
 ENV_GROUND_TRUTH_PATH = os.getenv("GROUND_TRUTH_PATH")
 ENV_OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
+# V4 Schema Configuration - Enable by default, configurable via environment
+V4_SCHEMA_ENABLED = os.getenv("V4_SCHEMA_ENABLED", "true").lower() in ("true", "1", "yes", "on")
+
 # ============================================================================
 # ENVIRONMENT PROFILES
 # ============================================================================
@@ -1109,10 +1112,9 @@ def is_v4_schema_enabled() -> bool:
     Check if V4 schema is currently enabled.
     
     Returns:
-        bool: True if V4 schema is enabled
+        bool: True if V4 schema is enabled (configurable via V4_SCHEMA_ENABLED)
     """
-    _ensure_initialized()
-    return FIELD_COUNT >= 49  # V4 has 49+ fields vs V3's 25
+    return V4_SCHEMA_ENABLED
 
 
 def get_v4_new_fields() -> list:

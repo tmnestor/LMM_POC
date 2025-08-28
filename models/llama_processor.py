@@ -30,6 +30,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
     get_v4_field_count,
+    is_v4_schema_enabled,
 )
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
@@ -39,7 +40,6 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
-from common.grouped_extraction import get_extraction_strategy
 
 warnings.filterwarnings("ignore")
 
@@ -80,31 +80,30 @@ class LlamaProcessor:
         self.enable_v4_schema = enable_v4_schema
         self.prompt_environment = prompt_environment
         
-        # Initialize YAML-based prompt loader
+        # V4 Schema Integration - FAIL FAST, NO FALLBACKS
+        if not self.enable_v4_schema:
+            # FAIL FAST - No legacy V3 fallbacks
+            raise RuntimeError(
+                f"❌ FATAL: V4 schema is required for LlamaProcessor\n"
+                f"💡 enable_v4_schema: {enable_v4_schema}\n"
+                f"💡 is_v4_schema_enabled(): {is_v4_schema_enabled()}\n"
+                f"💡 Set V4_SCHEMA_ENABLED=true environment variable\n"
+                f"💡 Ensure YAML prompt files exist in prompts/ directory\n"
+                f"💡 No fallback to broken V3 system - fix V4 configuration instead"
+            )
+        
+        # Initialize V4 system components
+        from common.document_type_detector import LightweightDocumentDetector
         from common.prompt_loader import PromptLoader
         self.prompt_loader = PromptLoader()
-        
-        # Initialize document type detector for V4 schema intelligence
-        if self.enable_v4_schema:
-            from common.document_type_detector import LightweightDocumentDetector
-            self.document_detector = LightweightDocumentDetector()
-        else:
-            self.document_detector = None
+        self.document_detector = LightweightDocumentDetector()
 
-        # Configure extraction strategy
+        # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        
-        # Only initialize old extraction strategy if V4 is not enabled
-        if not self.enable_v4_schema:
-            self.extraction_strategy = get_extraction_strategy(
-                self.extraction_mode, debug, grouping_strategy, model_name="llama"
-            )
-        else:
-            # V4 uses YAML-first prompt system, no extraction strategy needed
-            self.extraction_strategy = None
-            if debug:
-                print("🔧 V4 Schema: Skipping legacy extraction strategy initialization")
+        self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
+        if debug:
+            print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()
