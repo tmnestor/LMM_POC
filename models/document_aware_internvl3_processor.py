@@ -16,7 +16,6 @@ from typing import List, Optional
 
 import torch
 import torchvision.transforms as T
-import yaml
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
@@ -257,85 +256,12 @@ class DocumentAwareInternVL3Processor:
             raise
 
     def generate_dynamic_prompt(self) -> str:
-        """Generate prompt for specific field list with v4 field type support using schema loader."""
-
-        # Use schema loader approach like Llama processor for consistent high-quality prompts
-        try:
-            from common.schema_loader import FieldSchema
-            
-            # Use the working field_schema.yaml directly (same as Llama uses)
-            schema = FieldSchema("field_schema.yaml")
-            prompt = schema.generate_dynamic_prompt(
-                model_name="internvl3", strategy="single_pass", fields=self.field_list
-            )
-            
-            if self.debug:
-                print(f"📝 Generated schema-based prompt from field_schema.yaml ({len(prompt)} chars)")
-                
-            return prompt
-            
-        except Exception as e:
-            if self.debug:
-                print(f"⚠️ Schema loader failed: {e}")
-                print("   Falling back to YAML or simple prompt")
-            
-            # Fallback to existing YAML/simple prompt generation
-            yaml_config = self._load_yaml_config()
-            if yaml_config:
-                return self._generate_yaml_prompt(yaml_config)
-            else:
-                return self._generate_simple_prompt()
-
-    def _load_yaml_config(self) -> dict:
-        """Load YAML configuration if available."""
-        try:
-            yaml_path = Path(__file__).parent.parent / "internvl3_prompts.yaml"
-            if yaml_path.exists():
-                with yaml_path.open("r", encoding="utf-8") as f:
-                    yaml_data = yaml.safe_load(f)
-                    return yaml_data.get("single_pass", {})
-        except Exception as e:
-            if self.debug:
-                print(f"⚠️ Could not load YAML config: {e}")
-        return {}
-
-    def _generate_yaml_prompt(self, yaml_config: dict) -> str:
-        """Generate prompt using YAML configuration with dynamic fields and v4 field type support."""
-
-        opening_text = yaml_config.get("opening_text", "Extract data from this business document.")
-        output_instruction = yaml_config.get("output_instruction", "Output ALL fields below with their exact keys.")
-        missing_value_instruction = yaml_config.get("missing_value_instruction", 'Use "NOT_FOUND" if field is not visible or not present.')
-
-        prompt = f"{opening_text} \n{output_instruction} \n{missing_value_instruction}\n\n"
-
-        # Add output format header with dynamic field count
-        output_format_header = yaml_config.get("output_format_header", "OUTPUT FORMAT ({field_count} required fields):")
-        prompt += output_format_header.format(field_count=self.field_count) + "\n"
-
-        # Add field instructions using dynamic field list with v4 field type awareness
-        field_instructions = yaml_config.get("field_instructions", {})
-        for field in self.field_list:
-            # Get field type-specific instruction or use default
-            instruction = field_instructions.get(field)
-            if not instruction:
-                instruction = self._get_field_type_instruction(field)
-            prompt += f"{field}: {instruction}\n"
-
-        # Add final instructions
-        instructions_header = yaml_config.get("instructions_header", "INSTRUCTIONS:")
-        prompt += f"\n{instructions_header}\n"
-
-        instructions = yaml_config.get("instructions", [])
-        for instruction in instructions:
-            formatted_instruction = instruction.format(field_count=self.field_count)
-            prompt += f"- {formatted_instruction}\n"
+        """Generate prompt for specific field list - EXACT COPY of Llama's successful approach."""
         
-        # Add v4-specific instructions
-        prompt += "- For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")\n"
-        prompt += "- For calculated fields: show computed values with proper formatting\n"
-        prompt += "- For transaction lists: use pipe separators between transactions\n"
+        # Use Llama's exact simple prompt approach (no schema loading, no fallbacks)
+        return self._generate_simple_prompt()
 
-        return prompt
+    # Removed unnecessary YAML loading methods - using Llama's simple approach only
 
     def _generate_simple_prompt(self) -> str:
         """Generate simple fallback prompt with dynamic fields - matches successful Llama structure."""
@@ -374,6 +300,50 @@ OUTPUT RULES:
 STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
 
         return prompt
+
+    def _get_field_type_instruction(self, field: str) -> str:
+        """Get field type-specific instruction for v4 schema fields - EXACT COPY from Llama."""
+        from common.config import (
+            get_boolean_fields,
+            get_calculated_fields,
+            get_transaction_list_fields,
+        )
+        
+        try:
+            # Check field type and provide appropriate instruction
+            if field in get_boolean_fields():
+                if "IS_GST_INCLUDED" in field:
+                    return "[true if GST included in prices, false if GST separate, or NOT_FOUND]"
+                else:
+                    return "[true or false, or NOT_FOUND]"
+            
+            elif field in get_calculated_fields():
+                if "LINE_ITEM_TOTAL_PRICES" in field:
+                    return "[pipe-separated calculated totals: qty×price for each item, or NOT_FOUND]"
+                elif "DISCOUNT" in field:
+                    return "[discount amount calculated from line items, or NOT_FOUND]"
+                else:
+                    return "[calculated value or NOT_FOUND]"
+            
+            elif field in get_transaction_list_fields():
+                if "TRANSACTION_DATES" in field:
+                    return "[pipe-separated transaction dates in chronological order, or NOT_FOUND]"
+                elif "TRANSACTION_AMOUNTS" in field:
+                    return "[pipe-separated transaction amounts with signs (+/-), or NOT_FOUND]"
+                elif "TRANSACTION_DESCRIPTIONS" in field:
+                    return "[pipe-separated transaction descriptions/references, or NOT_FOUND]"
+                elif "RUNNING_BALANCES" in field:
+                    return "[pipe-separated account balances after each transaction, or NOT_FOUND]"
+                else:
+                    return "[pipe-separated transaction data or NOT_FOUND]"
+            
+            else:
+                # Default instruction for standard field types
+                return "[value or NOT_FOUND]"
+                
+        except Exception:
+            # Fallback if field type checking fails
+            return "[value or NOT_FOUND]"
 
     def build_transform(self, input_size=DEFAULT_IMAGE_SIZE):
         """Build InternVL3 image transformation pipeline."""
