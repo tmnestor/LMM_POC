@@ -512,20 +512,32 @@ model_prompt_templates:
       closing_instruction: "STOP after TOTAL_AMOUNT line. Do not add explanations, comments, or additional analysis. Do not attempt to verify or validate the extracted data."
 
   internvl3:
-    # Single-pass extraction optimized for InternVL3's concise style
+    # Single-pass extraction with enhanced rules matching successful Llama structure
     single_pass:
-      opening_text: "Extract data from this business document."
-      output_instruction: "Output ALL fields below with their exact keys."
-      missing_value_instruction: "Use \"NOT_FOUND\" if field is not clearly visible or not present. Do NOT guess or calculate missing values."
-      anti_assumption_rules:
-        - "Extract only what you can clearly see - no inference"
-        - "Do NOT attempt calculations or cross-field validation during extraction"
-        - "Use exact text formatting as it appears in the document"
-      output_format_header: "OUTPUT FORMAT ({field_count} required fields):"
+      opening_text: "Extract structured data from this business document image."
+      critical_instructions:
+        - "Output ONLY the structured data below"
+        - "Do NOT include any conversation text"
+        - "Do NOT repeat the user's request"
+        - "Do NOT include <image> tokens"
+        - "Start immediately with DOCUMENT_TYPE"
+        - "Stop immediately after TOTAL_AMOUNT"
+        - "CRITICAL: Do NOT guess or infer values not clearly visible"
+        - "CRITICAL: Use EXACT text as it appears - no paraphrasing"
+      output_format: "REQUIRED OUTPUT FORMAT - EXACTLY {field_count} LINES:"
       format_rules:
-        - "Use format: KEY: [description or NOT_FOUND]"
-        - "One field per line, exactly {field_count} lines total"
-        - "Do not add extra text or explanations"
+        - "Use exactly: KEY: value (colon and space)"
+        - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+        - "Plain text only - NO markdown, NO bold, NO italic"
+        - "Include ALL {field_count} keys even if value is NOT_FOUND"
+        - "Output ONLY these {field_count} lines, nothing else"
+        - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+        - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+        - "Be conservative: use NOT_FOUND if field is truly missing"
+        - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+        - "For calculated fields: show computed values with proper formatting"
+        - "For transaction lists: use pipe separators between transactions"
+      closing_instruction: "STOP after TOTAL_AMOUNT line. Do not add explanations, comments, or additional analysis."
       
     # Grouped extraction prompts optimized for InternVL3's processing style
     field_grouped:

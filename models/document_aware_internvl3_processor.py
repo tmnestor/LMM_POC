@@ -261,15 +261,16 @@ class DocumentAwareInternVL3Processor:
 
         # Use schema loader approach like Llama processor for consistent high-quality prompts
         try:
-            from common.schema_loader import get_global_schema
+            from common.schema_loader import FieldSchema
             
-            schema = get_global_schema()
+            # Use the working field_schema.yaml directly (same as Llama uses)
+            schema = FieldSchema("field_schema.yaml")
             prompt = schema.generate_dynamic_prompt(
                 model_name="internvl3", strategy="single_pass", fields=self.field_list
             )
             
             if self.debug:
-                print(f"📝 Generated schema-based prompt ({len(prompt)} chars)")
+                print(f"📝 Generated schema-based prompt from field_schema.yaml ({len(prompt)} chars)")
                 
             return prompt
             
