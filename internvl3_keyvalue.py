@@ -235,10 +235,15 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None):
     # MODEL PROCESSOR INITIALIZATION
     # =============================================================================
     # Load InternVL3 model with optimal configuration for extraction tasks
-    extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+    # V4 schema uses single_pass mode with YAML-first prompts and document intelligence
+    original_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+    extraction_mode = "single_pass"  # V4 system uses single_pass with intelligent field filtering
     print(
-        f"\n🚀 Initializing InternVL3 processor with {extraction_mode} extraction mode..."
+        f"\n🚀 Initializing InternVL3 processor with {extraction_mode} extraction mode (V4 schema)..."
     )
+    if original_mode != extraction_mode:
+        print(f"💡 Note: Overriding {original_mode} → {extraction_mode} for V4 compatibility")
+    
     processor = InternVL3Processor(
         model_path=model_path, 
         extraction_mode=extraction_mode, 
