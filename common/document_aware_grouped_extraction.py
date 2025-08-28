@@ -200,12 +200,14 @@ Look for key indicators:
 - Statement: "STATEMENT", bank statement, account statement, transaction history
 
 OUTPUT FORMAT:
-DOCUMENT_TYPE: [invoice, receipt, or statement]
+DOCUMENT_TYPE: [document type as written on document]
 
 Instructions:
-- Output EXACTLY one of: invoice, receipt, statement
-- Base decision on document headers and layout
-- Look for distinctive elements of each document type"""
+- Extract the document type EXACTLY as written (e.g., "TAX INVOICE", "INVOICE", "RECEIPT", "STATEMENT")
+- If it says "TAX INVOICE" - output "TAX INVOICE" 
+- If it says "INVOICE" - output "INVOICE"
+- Look for the actual document header text
+- Base decision on document headers and layout"""
 
         try:
             # Single model call for document type detection
@@ -397,15 +399,15 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             if field == "PAYMENT_METHOD":
                 prompt += f"{field}: [payment type like AMEX, Visa, Mastercard, Cash, EFTPOS or NOT_FOUND]\n"
             elif field == "LINE_ITEM_QUANTITIES":
-                prompt += f"{field}: [pipe-separated numbers like: 3 | 1 | 1 | 3, use 1 if unclear, no blanks or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated quantities for ALL items, scan entire document or NOT_FOUND]\n"
             elif field == "LINE_ITEM_DESCRIPTIONS":
-                prompt += f"{field}: [pipe-separated ALL items including duplicates like: Car Wash | Coffee | Petrol | Car Wash | Diesel or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated ALL item descriptions, scan entire document for every item or NOT_FOUND]\n"
             elif field == "LINE_ITEM_PRICES":
-                prompt += f"{field}: [pipe-separated ALL prices like: $15.00 | $4.50 | $1.65 | $15.00 | $1.70 or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated ALL item prices with $ symbol, scan entire document or NOT_FOUND]\n"
             elif field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
                 prompt += f"{field}: [complete phone like (08) 4482 2347 with area code or NOT_FOUND]\n"
             elif field == "BUSINESS_ABN":
-                prompt += f"{field}: [11-digit ABN like 06 082 698 025 with spaces or NOT_FOUND]\n"
+                prompt += f"{field}: [11-digit ABN with spaces - read digits carefully or NOT_FOUND]\n"
             elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
                 prompt += f"{field}: [complete address with 4-digit postcode like 'Street, City STATE 6000' or NOT_FOUND]\n"
             elif field == "STORE_LOCATION":
@@ -419,11 +421,11 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         
         # Add focus section with enhanced instructions matching 90.6% accuracy format
         if group_name == "regulatory_financial":
-            prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)\n• Dollar amounts: Include $ symbol, 2 decimal places\n• GST vs Total: GST is tax component, Total is final amount\n"
+            prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, read digits carefully - 11 digits total\n• Dollar amounts: Include $ symbol, 2 decimal places\n• GST vs Total: GST is tax component, Total is final amount\n• CRITICAL: Read all digits precisely - don't misread similar numbers\n"
         elif group_name == "entity_contacts":
             prompt += "\n💡 FOCUS:\n• Supplier vs Payer: Supplier is business issuing document, Payer is customer\n• Complete addresses: Include street, city, state, FULL 4-digit postcode\n• Phone format: Look for (08) or (02) area codes - Australian format\n• Phone extraction: Look carefully for complete numbers, not partial\n• ABN format: 11 digits, may have spaces between groups\n"
         elif group_name == "transaction_details":
-            prompt += "\n💡 FOCUS:\n• SCAN ENTIRE DOCUMENT: Look for ALL line items (may be 4, 5, 6+ items)\n• Include duplicates: Car Wash may appear twice with different quantities\n• FORMAT: Use PIPE-SEPARATED with spaces: value1 | value2 | value3\n• Example: Car Wash | Coffee | Petrol | Car Wash | Diesel (5 items)\n• Quantities example: 3 | 1 | 1 | 2 | 3 (5 matching quantities)\n• Prices: Unit prices with $ symbol: $15.00 | $4.50 | $1.65 | $15.00 | $1.70\n• CRITICAL: Don't stop at 4 items - keep scanning for more!\n"
+            prompt += "\n💡 FOCUS:\n• SCAN ENTIRE DOCUMENT: Look for ALL line items, don't stop early\n• Include duplicates: Some items may appear multiple times\n• FORMAT: Use PIPE-SEPARATED with spaces: item1 | item2 | item3 | etc.\n• THOROUGHNESS: Look in all table sections, don't miss any rows\n• COMPLETENESS: Each description needs matching quantity and price\n• CRITICAL: Scan the full document area for line items\n• DOUBLE CHECK: Count all items you can see in the document\n"
         elif group_name == "temporal_data":
             prompt += "\n💡 FOCUS:\n• Date format: DD/MM/YYYY preferred\n• Invoice vs Transaction dates: Invoice=issued, Transaction=occurred\n• Due dates: Payment deadline for invoices\n"
         elif group_name == "document_metadata":
@@ -441,8 +443,9 @@ FORMAT RULES:
 - Use NOT_FOUND if field is not visible or not applicable
 - Output ONLY these """ + str(len(fields)) + """ lines, nothing else
 - For LINE_ITEM fields: use PIPE-SEPARATED format (e.g., value1 | value2 | value3)
-- For other lists: use appropriate separation
+- CRITICAL: Find ALL line items in the document - scan thoroughly
 - For LINE_ITEM_QUANTITIES: NEVER leave blanks, use 1 if quantity unclear
+- SCAN CAREFULLY: Look for all items in the table, don't stop early
 - For PAYMENT_METHOD: Look for ANY payment indicator (AMEX, card types, etc)
 - For addresses: Include FULL address with postcode
 - DO NOT output the same field name multiple times
@@ -502,7 +505,8 @@ STOP after the last field. Do not add explanations or comments."""
                         
                         # Handle special field formatting and cleanup
                         if matched_field == "DOCUMENT_TYPE":
-                            field_value = field_value.lower()
+                            # Keep original case for exact ground truth matching (e.g., "TAX INVOICE")
+                            field_value = field_value.strip()
                         elif matched_field in ["LINE_ITEM_QUANTITIES", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_PRICES"]:
                             # Convert to pipe-separated format and fix empty values
                             if ',' in field_value and '|' not in field_value:
