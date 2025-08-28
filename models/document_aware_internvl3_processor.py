@@ -284,7 +284,7 @@ OUTPUT FORMAT ({self.field_count} required fields):
         for field in self.field_list:
             prompt += f"{field}: [value or NOT_FOUND]\n"
         
-        prompt += f"\nProvide ONLY the key-value pairs above. Be precise with numerical values."
+        prompt += "\nProvide ONLY the key-value pairs above. Be precise with numerical values."
 
         return prompt
 
