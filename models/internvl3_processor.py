@@ -47,7 +47,7 @@ from common.gpu_optimization import (
 )
 from common.grouped_extraction import get_extraction_strategy
 from common.prompt_loader import PromptLoader
-from models.lightweight_document_detector import LightweightDocumentDetector
+from common.document_type_detector import LightweightDocumentDetector
 
 
 class InternVL3Processor:
