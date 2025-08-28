@@ -264,40 +264,26 @@ class DocumentAwareInternVL3Processor:
     # Removed unnecessary YAML loading methods - using Llama's simple approach only
 
     def _generate_simple_prompt(self) -> str:
-        """Generate simple fallback prompt with dynamic fields - matches successful Llama structure."""
+        """Generate simple prompt optimized for InternVL3 with few-shot examples for problematic fields."""
         
-        prompt = f"""Extract structured data from this business document image.
+        # Simple, direct approach like legacy YAML
+        prompt = f"""Extract data from this business document.
 
-CRITICAL INSTRUCTIONS:
--- Output ONLY the structured data below
--- Do NOT include any conversation text
--- Do NOT repeat the user's request
--- Do NOT include <image> tokens
--- Start immediately with {self.field_list[0]}
--- Stop immediately after {self.field_list[-1]}
+Use "NOT_FOUND" if field is not visible.
 
-REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
+Examples for key fields:
+LINE_ITEM_DESCRIPTIONS: Rice 1kg | Cheese Block 500g | Frozen Peas
+LINE_ITEM_QUANTITIES: 3 | 2 | 1  
+LINE_ITEM_PRICES: $3.80 | $8.50 | $4.20
+
+OUTPUT ({self.field_count} fields):
 """
         
-        # Add each field with type-aware instruction
+        # Add each field with simple instruction  
         for field in self.field_list:
-            instruction = self._get_field_type_instruction(field)
-            prompt += f"{field}: {instruction}\n"
+            prompt += f"{field}: [value or NOT_FOUND]\n"
         
-        prompt += f"""
-OUTPUT RULES:
--- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting  
--- Plain text only - NO markdown, NO bold, NO italic
--- Include ALL {self.field_count} keys even if value is NOT_FOUND
--- Output ONLY these {self.field_count} lines, nothing else
--- Use exact text from document (e.g., "TAX INVOICE" not "Invoice")
--- Use pipe separators for lists (e.g., "item1 | item2 | item3")
--- Be conservative: use NOT_FOUND if field is truly missing
--- For boolean fields: use "true" or "false" (not "yes"/"no")
--- For calculated fields: show computed values with proper formatting
--- For transaction lists: use pipe separators between transactions
-
-STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
+        prompt += f"\nProvide only the {self.field_count} key-value pairs above."
 
         return prompt
 
