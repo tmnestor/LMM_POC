@@ -7,7 +7,6 @@ without requiring heavy model loading for document-aware extraction.
 
 import re
 from pathlib import Path
-from typing import Optional
 
 
 class LightweightDocumentDetector:
@@ -77,7 +76,7 @@ class LightweightDocumentDetector:
             
             # Final fallback - default to invoice (most common document type)
             if self.debug:
-                print(f"📄 No specific pattern matched, defaulting to: invoice")
+                print("📄 No specific pattern matched, defaulting to: invoice")
             return "invoice"
             
         except Exception as e:
