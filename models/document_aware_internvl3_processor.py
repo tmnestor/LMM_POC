@@ -257,15 +257,33 @@ class DocumentAwareInternVL3Processor:
             raise
 
     def generate_dynamic_prompt(self) -> str:
-        """Generate prompt for specific field list with v4 field type support."""
+        """Generate prompt for specific field list with v4 field type support using schema loader."""
 
-        # Try to load YAML configuration
-        yaml_config = self._load_yaml_config()
-
-        if yaml_config:
-            return self._generate_yaml_prompt(yaml_config)
-        else:
-            return self._generate_simple_prompt()
+        # Use schema loader approach like Llama processor for consistent high-quality prompts
+        try:
+            from common.schema_loader import get_global_schema
+            
+            schema = get_global_schema()
+            prompt = schema.generate_dynamic_prompt(
+                model_name="internvl3", strategy="single_pass", fields=self.field_list
+            )
+            
+            if self.debug:
+                print(f"📝 Generated schema-based prompt ({len(prompt)} chars)")
+                
+            return prompt
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Schema loader failed: {e}")
+                print("   Falling back to YAML or simple prompt")
+            
+            # Fallback to existing YAML/simple prompt generation
+            yaml_config = self._load_yaml_config()
+            if yaml_config:
+                return self._generate_yaml_prompt(yaml_config)
+            else:
+                return self._generate_simple_prompt()
 
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
@@ -319,29 +337,40 @@ class DocumentAwareInternVL3Processor:
         return prompt
 
     def _generate_simple_prompt(self) -> str:
-        """Generate simple fallback prompt with dynamic fields."""
+        """Generate simple fallback prompt with dynamic fields - matches successful Llama structure."""
+        
+        prompt = f"""Extract structured data from this business document image.
 
-        prompt = f"""Extract data from this business document. 
-Output ALL fields below with their exact keys. 
-Use "NOT_FOUND" if field is not visible or not present.
+CRITICAL INSTRUCTIONS:
+-- Output ONLY the structured data below
+-- Do NOT include any conversation text
+-- Do NOT repeat the user's request
+-- Do NOT include <image> tokens
+-- Start immediately with {self.field_list[0]}
+-- Stop immediately after {self.field_list[-1]}
 
-OUTPUT FORMAT ({self.field_count} required fields):
+REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
 """
-        # Add all fields with type-aware instruction
+        
+        # Add each field with type-aware instruction
         for field in self.field_list:
             instruction = self._get_field_type_instruction(field)
             prompt += f"{field}: {instruction}\n"
-
+        
         prompt += f"""
-INSTRUCTIONS:
-- Keep field names EXACTLY as shown above
-- Use "NOT_FOUND" for any missing/unclear information
-- Do not add explanations or comments
-- Extract actual values from the document image
-- Output exactly {self.field_count} lines, one for each field
-- For boolean fields: use "true" or "false" (not "yes"/"no")
-- For calculated fields: show computed values with proper formatting
-- For transaction lists: use pipe separators between transactions"""
+OUTPUT RULES:
+-- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting  
+-- Plain text only - NO markdown, NO bold, NO italic
+-- Include ALL {self.field_count} keys even if value is NOT_FOUND
+-- Output ONLY these {self.field_count} lines, nothing else
+-- Use exact text from document (e.g., "TAX INVOICE" not "Invoice")
+-- Use pipe separators for lists (e.g., "item1 | item2 | item3")
+-- Be conservative: use NOT_FOUND if field is truly missing
+-- For boolean fields: use "true" or "false" (not "yes"/"no")
+-- For calculated fields: show computed values with proper formatting
+-- For transaction lists: use pipe separators between transactions
+
+STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
 
         return prompt
 
