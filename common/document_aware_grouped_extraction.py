@@ -34,9 +34,9 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     
     "transaction_details": {
         "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
-        "expertise_frame": "Extract ALL line items with quantities and prices.",
-        "cognitive_context": "DESCRIPTIONS: ALL product/service names. QUANTITIES: ALL numeric quantities. PRICES: ALL unit prices with $ symbol.",
-        "focus_instruction": "Extract EVERY line item. Use PIPE-SEPARATED format (e.g., Item1 | Item2 | Item3). For quantities, use the number shown (if unclear, use 1). Never leave blanks. Match the order: first description goes with first quantity and first price."
+        "expertise_frame": "Extract ALL line items - scan the ENTIRE document for every item.",
+        "cognitive_context": "CRITICAL: Look for ALL line items, even duplicates (e.g., Car Wash appearing twice). DESCRIPTIONS: Every product/service name. QUANTITIES: Every numeric quantity. PRICES: Every unit price with $ symbol. Count carefully - there may be 4, 5, 6+ items.",
+        "focus_instruction": "SCAN ENTIRE DOCUMENT for line items. Extract EVERY SINGLE item including duplicates. Use PIPE-SEPARATED format. Count items carefully - don't stop at 4 items, look for more. Match quantities and prices to each description in exact order."
     },
     
     "temporal_data": {
@@ -54,10 +54,10 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     },
     
     "document_metadata": {
-        "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "TRANSACTION_DATE", "PAYMENT_METHOD", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
-        "expertise_frame": "Extract document identifiers and payment information.",
-        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction/reference number like R789121. TRANSACTION_DATE: purchase/transaction date. PAYMENT_METHOD: Look for AMEX, Visa, Mastercard, Cash, EFTPOS, credit card types.",
-        "focus_instruction": "Extract document type (invoice/receipt/statement). Find receipt/reference numbers starting with R or similar. Look for payment methods including card types (AMEX, Visa, etc). Extract transaction dates."
+        "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "TRANSACTION_DATE", "PAYMENT_METHOD", "STORE_LOCATION", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
+        "expertise_frame": "Extract document identifiers and location information.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction/reference number like R789121. TRANSACTION_DATE: purchase/transaction date. PAYMENT_METHOD: Look for AMEX, Visa, Mastercard, Cash, EFTPOS. STORE_LOCATION: Store location/address (may be same as business address).",
+        "focus_instruction": "Extract document type, receipt numbers (R789121 format), payment methods (AMEX, etc), transaction dates, and store locations. Look for location info that may include city and postcode."
     }
 }
 
@@ -399,9 +399,17 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             elif field == "LINE_ITEM_QUANTITIES":
                 prompt += f"{field}: [pipe-separated numbers like: 3 | 1 | 1 | 3, use 1 if unclear, no blanks or NOT_FOUND]\n"
             elif field == "LINE_ITEM_DESCRIPTIONS":
-                prompt += f"{field}: [pipe-separated items like: Rice | Cheese | Peas or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated ALL items including duplicates like: Car Wash | Coffee | Petrol | Car Wash | Diesel or NOT_FOUND]\n"
             elif field == "LINE_ITEM_PRICES":
-                prompt += f"{field}: [pipe-separated prices like: $3.80 | $8.50 | $4.20 or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated ALL prices like: $15.00 | $4.50 | $1.65 | $15.00 | $1.70 or NOT_FOUND]\n"
+            elif field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
+                prompt += f"{field}: [complete phone like (08) 4482 2347 with area code or NOT_FOUND]\n"
+            elif field == "BUSINESS_ABN":
+                prompt += f"{field}: [11-digit ABN like 06 082 698 025 with spaces or NOT_FOUND]\n"
+            elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
+                prompt += f"{field}: [complete address with 4-digit postcode like 'Street, City STATE 6000' or NOT_FOUND]\n"
+            elif field == "STORE_LOCATION":
+                prompt += f"{field}: [store location like 'Perth WA 6000' or NOT_FOUND]\n"
             elif field == "RECEIPT_NUMBER":
                 prompt += f"{field}: [receipt/reference number like R789121 or NOT_FOUND]\n"
             elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
@@ -413,9 +421,9 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         if group_name == "regulatory_financial":
             prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)\n• Dollar amounts: Include $ symbol, 2 decimal places\n• GST vs Total: GST is tax component, Total is final amount\n"
         elif group_name == "entity_contacts":
-            prompt += "\n💡 FOCUS:\n• Supplier vs Payer: Supplier is business issuing document, Payer is customer\n• Complete addresses: Include street, city, state, postcode\n• Phone format: Include area code in parentheses\n"
+            prompt += "\n💡 FOCUS:\n• Supplier vs Payer: Supplier is business issuing document, Payer is customer\n• Complete addresses: Include street, city, state, FULL 4-digit postcode\n• Phone format: Look for (08) or (02) area codes - Australian format\n• Phone extraction: Look carefully for complete numbers, not partial\n• ABN format: 11 digits, may have spaces between groups\n"
         elif group_name == "transaction_details":
-            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n• FORMAT: Use PIPE-SEPARATED with spaces: value1 | value2 | value3\n• Example: Car Wash | Coffee | Petrol (NOT comma-separated)\n• Quantities example: 3 | 1 | 1 | 3 (NOT 3, 1, 1, 3)\n• Prices: Unit prices with $ symbol: $15.00 | $4.50 | $1.65\n"
+            prompt += "\n💡 FOCUS:\n• SCAN ENTIRE DOCUMENT: Look for ALL line items (may be 4, 5, 6+ items)\n• Include duplicates: Car Wash may appear twice with different quantities\n• FORMAT: Use PIPE-SEPARATED with spaces: value1 | value2 | value3\n• Example: Car Wash | Coffee | Petrol | Car Wash | Diesel (5 items)\n• Quantities example: 3 | 1 | 1 | 2 | 3 (5 matching quantities)\n• Prices: Unit prices with $ symbol: $15.00 | $4.50 | $1.65 | $15.00 | $1.70\n• CRITICAL: Don't stop at 4 items - keep scanning for more!\n"
         elif group_name == "temporal_data":
             prompt += "\n💡 FOCUS:\n• Date format: DD/MM/YYYY preferred\n• Invoice vs Transaction dates: Invoice=issued, Transaction=occurred\n• Due dates: Payment deadline for invoices\n"
         elif group_name == "document_metadata":
