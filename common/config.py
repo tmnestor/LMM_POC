@@ -1207,3 +1207,70 @@ VIZ_OUTPUT_PATTERNS = {
     "classification_metrics": "{model}_classification_metrics_{timestamp}.png",
     "html_summary": "visualization_summary_{timestamp}.html",
 }
+
+
+# ============================================================================
+# GROUPED EXTRACTION CONFIGURATION
+# ============================================================================
+
+# Field group definitions for grouped extraction strategy
+FIELD_GROUPS = {
+    "regulatory_financial": {
+        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT", "ACCOUNT_OPENING_BALANCE", 
+                   "ACCOUNT_CLOSING_BALANCE", "SUBTOTAL_AMOUNT", "GST_AMOUNT"],
+        "expertise_frame": "Extract business ID and financial amounts.",
+        "cognitive_context": "BUSINESS_ABN is 11 digits. TOTAL_AMOUNT is final amount due. GST_AMOUNT is tax. SUBTOTAL_AMOUNT is pre-tax amount.",
+        "focus_instruction": "Find ABN (11 digits) and all dollar amounts. Check decimal places carefully."
+    },
+    
+    "entity_contacts": {
+        "fields": ["SUPPLIER_NAME", "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
+                   "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL"],
+        "expertise_frame": "Extract contact information for supplier and customer.",
+        "cognitive_context": "SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE are supplier details. PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL are customer details.",
+        "focus_instruction": "Extract all contact details. Australian postcodes are 4 digits. Phone numbers are 10 digits with area code."
+    },
+    
+    "transaction_details": {
+        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
+        "expertise_frame": "Extract ALL line items - scan the ENTIRE document for every item.",
+        "cognitive_context": "CRITICAL: Look for ALL line items, even duplicates (e.g., Car Wash appearing twice). DESCRIPTIONS: Every product/service name. QUANTITIES: Every numeric quantity. PRICES: Every unit price with $ symbol. Count carefully - there may be 4, 5, 6+ items.",
+        "focus_instruction": "SCAN ENTIRE DOCUMENT for line items. Extract EVERY SINGLE item including duplicates. Use PIPE-SEPARATED format. Count items carefully - don't stop at 4 items, look for more. Match quantities and prices to each description in exact order."
+    },
+    
+    "temporal_data": {
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
+        "expertise_frame": "Extract document dates and periods.",
+        "cognitive_context": "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_DATE_RANGE is for bank statements only. For receipts, look for transaction date or purchase date.",
+        "focus_instruction": "Find all dates. Convert to consistent DD/MM/YYYY format where possible. For receipts, focus on transaction/purchase dates."
+    },
+    
+    "banking_payment": {
+        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
+        "expertise_frame": "Extract banking information.",
+        "cognitive_context": "BANK_NAME is financial institution. BSB_NUMBER is 6 digits. BANK_ACCOUNT_NUMBER varies. ACCOUNT_HOLDER is account name. Typically on bank statements only.",
+        "focus_instruction": "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
+    },
+    
+    "document_metadata": {
+        "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "STORE_LOCATION"],
+        "expertise_frame": "Extract document identifiers and location information.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction/reference number. STORE_LOCATION: Store location/address.",
+        "focus_instruction": "Extract document type, receipt numbers, and store locations. Look for location info that may include city and postcode."
+    }
+}
+
+# Grouping strategies configuration
+GROUPING_STRATEGIES = {
+    "detailed_grouped": FIELD_GROUPS,
+    "6_groups": FIELD_GROUPS,  # Alias for backward compatibility
+    "8_groups": FIELD_GROUPS,  # Alias for backward compatibility
+}
+
+# Group validation rules
+GROUP_VALIDATION_RULES = {
+    "min_fields_per_group": 1,
+    "max_fields_per_group": 20,
+    "required_groups": ["regulatory_financial", "entity_contacts"],
+    "optional_groups": ["transaction_details", "temporal_data", "banking_payment", "document_metadata"]
+}
