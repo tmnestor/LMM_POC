@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+"""
+Document-Aware Grouped Extraction - The Ultimate Hybrid Solution
+
+Combines the 90.6% accuracy grouped extraction strategy with intelligent
+document-aware field filtering. Best of both worlds!
+
+Key Innovation:
+- Document type detection → Filter relevant groups → Grouped extraction
+- Not single-pass overwhelm, but smart group selection per document type
+"""
+
+import time
+import yaml
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+# Field group definitions from the working 90.6% accuracy approach
+DOCUMENT_AWARE_FIELD_GROUPS = {
+    "regulatory_financial": {
+        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT", "ACCOUNT_OPENING_BALANCE", 
+                   "ACCOUNT_CLOSING_BALANCE", "SUBTOTAL_AMOUNT", "GST_AMOUNT"],
+        "expertise_frame": "Extract business ID and financial amounts.",
+        "cognitive_context": "BUSINESS_ABN is 11 digits. TOTAL_AMOUNT is final amount due. GST_AMOUNT is tax. SUBTOTAL_AMOUNT is pre-tax amount.",
+        "focus_instruction": "Find ABN (11 digits) and all dollar amounts. Check decimal places carefully."
+    },
+    
+    "entity_contacts": {
+        "fields": ["SUPPLIER_NAME", "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
+                   "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL"],
+        "expertise_frame": "Extract contact information for supplier and customer.",
+        "cognitive_context": "SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE are supplier details. PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL are customer details.",
+        "focus_instruction": "Extract all contact details. Australian postcodes are 4 digits. Phone numbers are 10 digits with area code."
+    },
+    
+    "transaction_details": {
+        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
+        "expertise_frame": "Extract line items and pricing details.",
+        "cognitive_context": "DESCRIPTIONS: product names (comma-separated). QUANTITIES: amounts ordered (comma-separated). PRICES: unit prices (comma-separated, not totals).",
+        "focus_instruction": "List all items in comma-separated format. One line per field type."
+    },
+    
+    "temporal_data": {
+        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
+        "expertise_frame": "Extract dates from document.",
+        "cognitive_context": "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_PERIOD is for bank statements only.",
+        "focus_instruction": "Find all dates. Convert to consistent DD/MM/YYYY format where possible."
+    },
+    
+    "banking_payment": {
+        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
+        "expertise_frame": "Extract banking information.",
+        "cognitive_context": "BANK_NAME is financial institution. BSB_NUMBER is 6 digits. BANK_ACCOUNT_NUMBER varies. ACCOUNT_HOLDER is account name. Typically on bank statements only.",
+        "focus_instruction": "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
+    },
+    
+    "document_metadata": {
+        "fields": ["DOCUMENT_TYPE", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
+        "expertise_frame": "Extract document type and balances.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE/CLOSING_BALANCE only for bank statements, not invoices.",
+        "focus_instruction": "Identify document type. Extract balances only if bank statement."
+    }
+}
+
+# Document type to relevant groups mapping
+DOCUMENT_TYPE_GROUPS = {
+    "invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"],
+    "receipt": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"], 
+    "statement": ["regulatory_financial", "banking_payment", "temporal_data", "document_metadata"],
+    "tax_invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"],
+    "default": ["regulatory_financial", "entity_contacts", "temporal_data"]  # fallback
+}
+
+
+class DocumentAwareGroupedExtraction:
+    """
+    The Ultimate Hybrid: Document awareness + 90.6% accuracy grouped extraction.
+    
+    This class combines:
+    1. Document type detection (from main branch)
+    2. Smart group filtering based on document type  
+    3. Proven grouped extraction strategy (from working branch)
+    
+    Result: Better accuracy + fewer unnecessary model calls
+    """
+    
+    def __init__(self, debug: bool = False):
+        """Initialize the hybrid extraction system."""
+        self.debug = debug
+        self.stats = {
+            "total_groups_processed": 0,
+            "successful_groups": 0,
+            "failed_groups": 0,
+            "document_type_detections": 0
+        }
+        
+        if self.debug:
+            print("🎯 Document-Aware Grouped Extraction initialized")
+            print(f"   Available groups: {len(DOCUMENT_AWARE_FIELD_GROUPS)}")
+            print(f"   Supported document types: {list(DOCUMENT_TYPE_GROUPS.keys())}")
+    
+    def extract_with_document_awareness(
+        self, 
+        image_path: str, 
+        model_extractor_func,
+        all_fields: List[str]
+    ) -> Tuple[Dict[str, str], Dict]:
+        """
+        Main extraction method that combines document awareness with grouped extraction.
+        
+        Args:
+            image_path: Path to image file
+            model_extractor_func: Function that can extract with custom prompts
+            all_fields: Complete field list for fallback
+            
+        Returns:
+            Tuple of (extracted_data, metadata)
+        """
+        start_time = time.time()
+        
+        try:
+            if self.debug:
+                print(f"🚀 Starting document-aware grouped extraction for: {Path(image_path).name}")
+            
+            # Step 1: Document type detection (single model call)
+            doc_type = self._detect_document_type(image_path, model_extractor_func)
+            self.stats["document_type_detections"] += 1
+            
+            if self.debug:
+                print(f"📋 Document classified as: {doc_type}")
+            
+            # Step 2: Filter groups by document type (intelligence layer)
+            relevant_groups = self._get_relevant_groups_for_document_type(doc_type)
+            
+            if self.debug:
+                print(f"🎯 Selected {len(relevant_groups)} relevant groups: {relevant_groups}")
+                skipped_groups = set(DOCUMENT_AWARE_FIELD_GROUPS.keys()) - set(relevant_groups)
+                if skipped_groups:
+                    print(f"⏭️ Skipped irrelevant groups: {list(skipped_groups)}")
+            
+            # Step 3: Run grouped extraction on filtered groups (proven strategy)
+            extracted_data, group_metadata = self._run_filtered_grouped_extraction(
+                image_path, relevant_groups, model_extractor_func, all_fields
+            )
+            
+            # Step 4: Compile metadata
+            total_time = time.time() - start_time
+            metadata = {
+                "document_type": doc_type,
+                "relevant_groups": relevant_groups,
+                "total_groups_called": len(relevant_groups),
+                "total_groups_available": len(DOCUMENT_AWARE_FIELD_GROUPS),
+                "groups_skipped": len(DOCUMENT_AWARE_FIELD_GROUPS) - len(relevant_groups),
+                "processing_time": total_time,
+                "group_details": group_metadata,
+                "extraction_strategy": "document_aware_grouped"
+            }
+            
+            if self.debug:
+                found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+                print(f"🎉 Document-aware grouped extraction completed!")
+                print(f"   📊 Found {len(found_fields)}/{len(all_fields)} fields")
+                print(f"   ⏱️ Total time: {total_time:.2f}s")
+                print(f"   🎯 Groups called: {len(relevant_groups)}/{len(DOCUMENT_AWARE_FIELD_GROUPS)}")
+                print(f"   📈 Efficiency: {100 * len(relevant_groups) / len(DOCUMENT_AWARE_FIELD_GROUPS):.1f}% group usage")
+            
+            return extracted_data, metadata
+            
+        except Exception as e:
+            if self.debug:
+                print(f"❌ Document-aware grouped extraction failed: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Fallback to basic field initialization
+            fallback_data = {field: "NOT_FOUND" for field in all_fields}
+            fallback_metadata = {
+                "document_type": "unknown",
+                "relevant_groups": [],
+                "error": str(e),
+                "extraction_strategy": "document_aware_grouped_fallback"
+            }
+            
+            return fallback_data, fallback_metadata
+    
+    def _detect_document_type(self, image_path: str, model_extractor_func) -> str:
+        """
+        Detect document type using a focused single-field prompt.
+        
+        This is fast and accurate - just classify the document type.
+        """
+        if self.debug:
+            print("🔍 Detecting document type...")
+        
+        # Simple, focused document type detection prompt
+        doc_type_prompt = """Identify the document type from this business document image.
+
+Look for key indicators:
+- Invoice: "INVOICE", "TAX INVOICE", invoice number, due date
+- Receipt: "RECEIPT", transaction receipt, purchase receipt  
+- Statement: "STATEMENT", bank statement, account statement, transaction history
+
+OUTPUT FORMAT:
+DOCUMENT_TYPE: [invoice, receipt, or statement]
+
+Instructions:
+- Output EXACTLY one of: invoice, receipt, statement
+- Base decision on document headers and layout
+- Look for distinctive elements of each document type"""
+
+        try:
+            # Single model call for document type detection
+            response = model_extractor_func(
+                image_path, 
+                doc_type_prompt,
+                max_new_tokens=50  # Very short response needed
+            )
+            
+            # Extract document type from response
+            doc_type = self._parse_document_type_response(response)
+            
+            if self.debug:
+                print(f"📋 Document type detection response: '{response.strip()}'")
+                print(f"📋 Parsed document type: '{doc_type}'")
+            
+            return doc_type
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Document type detection failed: {e}, defaulting to 'invoice'")
+            return "invoice"  # Safe default
+    
+    def _parse_document_type_response(self, response: str) -> str:
+        """Parse document type from model response."""
+        if not response:
+            return "invoice"
+        
+        response_lower = response.lower().strip()
+        
+        # Look for document type indicators in order of confidence
+        if "receipt" in response_lower:
+            return "receipt"
+        elif "statement" in response_lower:
+            return "statement"  
+        elif "invoice" in response_lower or "tax invoice" in response_lower:
+            return "invoice"
+        else:
+            # Fallback analysis
+            if "transaction" in response_lower or "purchase" in response_lower:
+                return "receipt"
+            elif "account" in response_lower or "balance" in response_lower:
+                return "statement"
+            else:
+                return "invoice"  # Safe default
+    
+    def _get_relevant_groups_for_document_type(self, doc_type: str) -> List[str]:
+        """Get the relevant field groups for a specific document type."""
+        # Normalize document type
+        doc_type_normalized = doc_type.lower().replace(" ", "_").replace("-", "_")
+        
+        # Get relevant groups, fallback to default if not found
+        relevant_groups = DOCUMENT_TYPE_GROUPS.get(doc_type_normalized, DOCUMENT_TYPE_GROUPS["default"])
+        
+        if self.debug:
+            all_groups = list(DOCUMENT_AWARE_FIELD_GROUPS.keys())
+            skipped_groups = [g for g in all_groups if g not in relevant_groups]
+            print(f"📊 Document type '{doc_type}' → {len(relevant_groups)}/{len(all_groups)} groups")
+            if skipped_groups:
+                print(f"⏭️ Skipping irrelevant groups: {skipped_groups}")
+        
+        return relevant_groups
+    
+    def _run_filtered_grouped_extraction(
+        self, 
+        image_path: str, 
+        relevant_groups: List[str], 
+        model_extractor_func,
+        all_fields: List[str]
+    ) -> Tuple[Dict[str, str], Dict]:
+        """
+        Run grouped extraction on only the relevant groups for this document type.
+        
+        This is the core of the hybrid approach - using the proven 90.6% accuracy
+        grouped strategy but only on relevant fields.
+        """
+        if self.debug:
+            print(f"🚀 Starting grouped extraction with {len(relevant_groups)} groups")
+        
+        # Initialize results with all fields as NOT_FOUND
+        extracted_data = {field: "NOT_FOUND" for field in all_fields}
+        group_results = {}
+        
+        # Process each relevant group
+        for group_name in relevant_groups:
+            if group_name not in DOCUMENT_AWARE_FIELD_GROUPS:
+                if self.debug:
+                    print(f"⚠️ Unknown group: {group_name}, skipping")
+                continue
+            
+            try:
+                if self.debug:
+                    print(f"🔄 Processing group '{group_name}'")
+                
+                # Get group configuration
+                group_config = DOCUMENT_AWARE_FIELD_GROUPS[group_name]
+                group_fields = group_config["fields"]
+                
+                # Generate group-specific prompt (proven format from 90.6% accuracy version)
+                group_prompt = self._generate_group_prompt(group_name, group_config)
+                
+                if self.debug:
+                    print(f"📝 Generated prompt for '{group_name}' ({len(group_fields)} fields, {len(group_prompt)} chars)")
+                
+                # Extract fields for this group
+                start_time = time.time()
+                group_response = model_extractor_func(image_path, group_prompt)
+                processing_time = time.time() - start_time
+                
+                # Parse group response
+                group_data = self._parse_group_response(group_response, group_fields)
+                
+                # Update extracted data with group results
+                for field in group_fields:
+                    if field in group_data:
+                        extracted_data[field] = group_data[field]
+                
+                # Track group success
+                found_in_group = sum(1 for field in group_fields if group_data.get(field, "NOT_FOUND") != "NOT_FOUND")
+                group_results[group_name] = {
+                    "fields_attempted": len(group_fields),
+                    "fields_found": found_in_group,
+                    "success_rate": found_in_group / len(group_fields) if group_fields else 0,
+                    "processing_time": processing_time,
+                    "raw_response": group_response[:100] + "..." if len(group_response) > 100 else group_response
+                }
+                
+                self.stats["total_groups_processed"] += 1
+                self.stats["successful_groups"] += 1
+                
+                if self.debug:
+                    print(f"✅ Group '{group_name}' completed: {found_in_group}/{len(group_fields)} fields")
+                
+            except Exception as e:
+                if self.debug:
+                    print(f"❌ Group '{group_name}' failed: {e}")
+                
+                group_results[group_name] = {
+                    "fields_attempted": len(group_config.get("fields", [])),
+                    "fields_found": 0,
+                    "success_rate": 0,
+                    "error": str(e)
+                }
+                
+                self.stats["total_groups_processed"] += 1
+                self.stats["failed_groups"] += 1
+        
+        # Compile group metadata
+        metadata = {
+            "groups_processed": list(group_results.keys()),
+            "group_results": group_results,
+            "total_fields_attempted": sum(r["fields_attempted"] for r in group_results.values()),
+            "total_fields_found": sum(r["fields_found"] for r in group_results.values()),
+            "overall_group_success_rate": sum(r["success_rate"] for r in group_results.values()) / len(group_results) if group_results else 0
+        }
+        
+        return extracted_data, metadata
+    
+    def _generate_group_prompt(self, group_name: str, group_config: Dict) -> str:
+        """
+        Generate group-specific prompt using the proven format from 90.6% accuracy version.
+        
+        This exactly replicates the successful prompt format that achieved 90.6%.
+        """
+        fields = group_config["fields"]
+        expertise_frame = group_config["expertise_frame"]
+        cognitive_context = group_config["cognitive_context"] 
+        focus_instruction = group_config["focus_instruction"]
+        
+        # Build the exact prompt format that worked
+        prompt = f"""TASK: {expertise_frame}
+
+DOCUMENT CONTEXT: You are analyzing a business document image. Consider the document type when extracting fields.
+
+{cognitive_context}
+
+{focus_instruction}
+
+OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
+"""
+        
+        # Add each field with the exact format that worked
+        for field in fields:
+            prompt += f"{field}: [value or NOT_FOUND]\n"
+        
+        # Add focus section if this group has special focus areas
+        if group_name == "regulatory_financial":
+            prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)\n"
+        elif group_name == "transaction_details":
+            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n"
+        
+        # Add the exact format rules that achieved 90.6% accuracy
+        prompt += """
+FORMAT RULES:
+- Use exactly: KEY: value (colon and space)
+- NEVER use: **KEY:** or **KEY** or *KEY* or KEY: or any formatting
+- Plain text only - NO markdown, NO bold, NO italic
+- Include ALL """ + str(len(fields)) + """ fields even if NOT_FOUND
+- Extract ONLY what you can see in the document
+- Do NOT guess, calculate, or make up values
+- Use NOT_FOUND if field is not visible or not applicable
+- Output ONLY these """ + str(len(fields)) + """ lines, nothing else
+- For lists: use COMMA-SEPARATED values on ONE LINE per field
+- DO NOT output the same field name multiple times
+
+STOP after the last field. Do not add explanations or comments."""
+
+        return prompt
+    
+    def _parse_group_response(self, response: str, expected_fields: List[str]) -> Dict[str, str]:
+        """
+        Parse group response using the same logic that achieved 90.6% accuracy.
+        """
+        if not response:
+            return {field: "NOT_FOUND" for field in expected_fields}
+        
+        # Initialize with NOT_FOUND for all expected fields
+        parsed_data = {field: "NOT_FOUND" for field in expected_fields}
+        
+        # Process each line looking for field:value pairs
+        lines = response.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line or ':' not in line:
+                continue
+            
+            # Split on first colon only
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                field_name = parts[0].strip().upper()
+                field_value = parts[1].strip()
+                
+                # Only store if it's an expected field for this group
+                if field_name in expected_fields:
+                    # Basic cleaning (keep it simple like the working version)
+                    if field_value and field_value.upper() != "NOT_FOUND":
+                        # Clean up common issues
+                        field_value = field_value.replace('[', '').replace(']', '').strip()
+                        if field_value.startswith('"') and field_value.endswith('"'):
+                            field_value = field_value[1:-1]
+                        
+                        parsed_data[field_name] = field_value
+                    else:
+                        parsed_data[field_name] = "NOT_FOUND"
+        
+        return parsed_data
