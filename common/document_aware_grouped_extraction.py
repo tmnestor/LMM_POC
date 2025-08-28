@@ -41,9 +41,9 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     
     "temporal_data": {
         "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
-        "expertise_frame": "Extract dates from document.",
-        "cognitive_context": "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_PERIOD is for bank statements only.",
-        "focus_instruction": "Find all dates. Convert to consistent DD/MM/YYYY format where possible."
+        "expertise_frame": "Extract document dates and periods.",
+        "cognitive_context": "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_DATE_RANGE is for bank statements only. For receipts, look for transaction date or purchase date.",
+        "focus_instruction": "Find all dates. Convert to consistent DD/MM/YYYY format where possible. For receipts, focus on transaction/purchase dates."
     },
     
     "banking_payment": {
@@ -54,20 +54,20 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     },
     
     "document_metadata": {
-        "fields": ["DOCUMENT_TYPE", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
-        "expertise_frame": "Extract document type and balances.",
-        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. OPENING_BALANCE/CLOSING_BALANCE only for bank statements, not invoices.",
-        "focus_instruction": "Identify document type. Extract balances only if bank statement."
+        "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "TRANSACTION_DATE", "PAYMENT_METHOD", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
+        "expertise_frame": "Extract document identifiers and metadata.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction ID for receipts. TRANSACTION_DATE: when transaction occurred. PAYMENT_METHOD: how payment was made. OPENING_BALANCE/CLOSING_BALANCE only for bank statements.",
+        "focus_instruction": "Identify document type and extract receipt-specific identifiers. Extract balances only if bank statement."
     }
 }
 
-# Document type to relevant groups mapping
+# Document type to relevant groups mapping - FIXED for better field coverage
 DOCUMENT_TYPE_GROUPS = {
-    "invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"],
-    "receipt": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"], 
+    "invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data", "document_metadata"],
+    "receipt": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data", "document_metadata"],  # FIXED: Include document_metadata for DOCUMENT_TYPE
     "statement": ["regulatory_financial", "banking_payment", "temporal_data", "document_metadata"],
-    "tax_invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data"],
-    "default": ["regulatory_financial", "entity_contacts", "temporal_data"]  # fallback
+    "tax_invoice": ["regulatory_financial", "entity_contacts", "transaction_details", "temporal_data", "document_metadata"],
+    "default": ["regulatory_financial", "entity_contacts", "temporal_data", "document_metadata"]  # FIXED: Always include document_metadata
 }
 
 
@@ -391,11 +391,17 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         for field in fields:
             prompt += f"{field}: [value or NOT_FOUND]\n"
         
-        # Add focus section if this group has special focus areas
+        # Add focus section with enhanced instructions matching 90.6% accuracy format
         if group_name == "regulatory_financial":
-            prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)\n"
+            prompt += "\n💡 FOCUS:\n• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)\n• Dollar amounts: Include $ symbol, 2 decimal places\n• GST vs Total: GST is tax component, Total is final amount\n"
+        elif group_name == "entity_contacts":
+            prompt += "\n💡 FOCUS:\n• Supplier vs Payer: Supplier is business issuing document, Payer is customer\n• Complete addresses: Include street, city, state, postcode\n• Phone format: Include area code in parentheses\n"
         elif group_name == "transaction_details":
-            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n"
+            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n• Use COMMA-SEPARATED format for lists (not pipe-separated)\n• Prices: Unit prices, not total line amounts\n"
+        elif group_name == "temporal_data":
+            prompt += "\n💡 FOCUS:\n• Date format: DD/MM/YYYY preferred\n• Invoice vs Transaction dates: Invoice=issued, Transaction=occurred\n• Due dates: Payment deadline for invoices\n"
+        elif group_name == "document_metadata":
+            prompt += "\n💡 FOCUS:\n• Document type: Exactly 'invoice', 'receipt', or 'statement'\n• Receipt number: Transaction ID, reference number\n• Payment method: Card type, cash, transfer method\n"
         
         # Add the exact format rules that achieved 90.6% accuracy
         prompt += """
@@ -408,7 +414,7 @@ FORMAT RULES:
 - Do NOT guess, calculate, or make up values
 - Use NOT_FOUND if field is not visible or not applicable
 - Output ONLY these """ + str(len(fields)) + """ lines, nothing else
-- For lists: use COMMA-SEPARATED values on ONE LINE per field
+- For lists: use COMMA-SEPARATED values on ONE LINE per field (except LINE_ITEM fields which may use pipes)
 - DO NOT output the same field name multiple times
 
 STOP after the last field. Do not add explanations or comments."""
@@ -418,6 +424,7 @@ STOP after the last field. Do not add explanations or comments."""
     def _parse_group_response(self, response: str, expected_fields: List[str]) -> Dict[str, str]:
         """
         Parse group response using the same logic that achieved 90.6% accuracy.
+        Enhanced with better field name matching and value cleaning.
         """
         if not response:
             return {field: "NOT_FOUND" for field in expected_fields}
@@ -427,6 +434,9 @@ STOP after the last field. Do not add explanations or comments."""
         
         # Process each line looking for field:value pairs
         lines = response.strip().split('\n')
+        
+        if self.debug:
+            print(f"🔍 Parsing group response with {len(lines)} lines for fields: {expected_fields[:3]}{'...' if len(expected_fields) > 3 else ''}")
         
         for line in lines:
             line = line.strip()
@@ -439,17 +449,43 @@ STOP after the last field. Do not add explanations or comments."""
                 field_name = parts[0].strip().upper()
                 field_value = parts[1].strip()
                 
-                # Only store if it's an expected field for this group
+                # Handle field name variations and exact matches
+                matched_field = None
                 if field_name in expected_fields:
-                    # Basic cleaning (keep it simple like the working version)
-                    if field_value and field_value.upper() != "NOT_FOUND":
-                        # Clean up common issues
+                    matched_field = field_name
+                else:
+                    # Try partial matching for common variations
+                    for expected_field in expected_fields:
+                        if field_name in expected_field or expected_field in field_name:
+                            matched_field = expected_field
+                            break
+                
+                if matched_field:
+                    # Enhanced cleaning (keep it simple but effective)
+                    if field_value and field_value.upper() not in ["NOT_FOUND", "NOT FOUND", "N/A", "NONE"]:
+                        # Clean up common formatting issues
                         field_value = field_value.replace('[', '').replace(']', '').strip()
                         if field_value.startswith('"') and field_value.endswith('"'):
                             field_value = field_value[1:-1]
+                        if field_value.startswith("'") and field_value.endswith("'"):
+                            field_value = field_value[1:-1]
                         
-                        parsed_data[field_name] = field_value
+                        # Handle DOCUMENT_TYPE special case - normalize to lowercase
+                        if matched_field == "DOCUMENT_TYPE":
+                            field_value = field_value.lower()
+                        
+                        parsed_data[matched_field] = field_value
+                        
+                        if self.debug:
+                            print(f"  ✅ {matched_field}: '{field_value}'")
                     else:
-                        parsed_data[field_name] = "NOT_FOUND"
+                        parsed_data[matched_field] = "NOT_FOUND"
+                        if self.debug:
+                            print(f"  ❌ {matched_field}: NOT_FOUND")
+        
+        # Log parsing results
+        if self.debug:
+            found_count = sum(1 for v in parsed_data.values() if v != "NOT_FOUND")
+            print(f"📊 Group parsing result: {found_count}/{len(expected_fields)} fields found")
         
         return parsed_data
