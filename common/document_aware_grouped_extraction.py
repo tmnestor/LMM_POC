@@ -35,8 +35,8 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     "transaction_details": {
         "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
         "expertise_frame": "Extract ALL line items with quantities and prices.",
-        "cognitive_context": "DESCRIPTIONS: ALL product/service names in order. QUANTITIES: ALL numeric quantities (no blanks). PRICES: ALL unit prices with $ symbol.",
-        "focus_instruction": "Extract EVERY line item. For quantities, use the number shown (if unclear, use 1). Never leave blanks. Match the order: first description goes with first quantity and first price. Use comma-separated format."
+        "cognitive_context": "DESCRIPTIONS: ALL product/service names. QUANTITIES: ALL numeric quantities. PRICES: ALL unit prices with $ symbol.",
+        "focus_instruction": "Extract EVERY line item. Use PIPE-SEPARATED format (e.g., Item1 | Item2 | Item3). For quantities, use the number shown (if unclear, use 1). Never leave blanks. Match the order: first description goes with first quantity and first price."
     },
     
     "temporal_data": {
@@ -397,7 +397,11 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
             if field == "PAYMENT_METHOD":
                 prompt += f"{field}: [payment type like AMEX, Visa, Mastercard, Cash, EFTPOS or NOT_FOUND]\n"
             elif field == "LINE_ITEM_QUANTITIES":
-                prompt += f"{field}: [comma-separated numbers, use 1 if unclear, no blanks or NOT_FOUND]\n"
+                prompt += f"{field}: [pipe-separated numbers like: 3 | 1 | 1 | 3, use 1 if unclear, no blanks or NOT_FOUND]\n"
+            elif field == "LINE_ITEM_DESCRIPTIONS":
+                prompt += f"{field}: [pipe-separated items like: Rice | Cheese | Peas or NOT_FOUND]\n"
+            elif field == "LINE_ITEM_PRICES":
+                prompt += f"{field}: [pipe-separated prices like: $3.80 | $8.50 | $4.20 or NOT_FOUND]\n"
             elif field == "RECEIPT_NUMBER":
                 prompt += f"{field}: [receipt/reference number like R789121 or NOT_FOUND]\n"
             elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
@@ -411,7 +415,7 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         elif group_name == "entity_contacts":
             prompt += "\n💡 FOCUS:\n• Supplier vs Payer: Supplier is business issuing document, Payer is customer\n• Complete addresses: Include street, city, state, postcode\n• Phone format: Include area code in parentheses\n"
         elif group_name == "transaction_details":
-            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n• Use COMMA-SEPARATED format for lists (not pipe-separated)\n• Prices: Unit prices, not total line amounts\n"
+            prompt += "\n💡 FOCUS:\n• Line items: Extract descriptions, quantities, prices in same order\n• FORMAT: Use PIPE-SEPARATED with spaces: value1 | value2 | value3\n• Example: Car Wash | Coffee | Petrol (NOT comma-separated)\n• Quantities example: 3 | 1 | 1 | 3 (NOT 3, 1, 1, 3)\n• Prices: Unit prices with $ symbol: $15.00 | $4.50 | $1.65\n"
         elif group_name == "temporal_data":
             prompt += "\n💡 FOCUS:\n• Date format: DD/MM/YYYY preferred\n• Invoice vs Transaction dates: Invoice=issued, Transaction=occurred\n• Due dates: Payment deadline for invoices\n"
         elif group_name == "document_metadata":
@@ -428,7 +432,8 @@ FORMAT RULES:
 - Do NOT guess, calculate, or make up values
 - Use NOT_FOUND if field is not visible or not applicable
 - Output ONLY these """ + str(len(fields)) + """ lines, nothing else
-- For lists: use COMMA-SEPARATED values on ONE LINE per field
+- For LINE_ITEM fields: use PIPE-SEPARATED format (e.g., value1 | value2 | value3)
+- For other lists: use appropriate separation
 - For LINE_ITEM_QUANTITIES: NEVER leave blanks, use 1 if quantity unclear
 - For PAYMENT_METHOD: Look for ANY payment indicator (AMEX, card types, etc)
 - For addresses: Include FULL address with postcode
@@ -490,17 +495,28 @@ STOP after the last field. Do not add explanations or comments."""
                         # Handle special field formatting and cleanup
                         if matched_field == "DOCUMENT_TYPE":
                             field_value = field_value.lower()
-                        elif matched_field == "LINE_ITEM_QUANTITIES":
-                            # Fix empty values in quantities
-                            parts = field_value.split(',')
+                        elif matched_field in ["LINE_ITEM_QUANTITIES", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_PRICES"]:
+                            # Convert to pipe-separated format and fix empty values
+                            if ',' in field_value and '|' not in field_value:
+                                # Convert comma to pipe separation
+                                parts = field_value.split(',')
+                            elif '|' in field_value:
+                                # Already pipe-separated
+                                parts = field_value.split('|')
+                            else:
+                                # Single value or other format
+                                parts = [field_value]
+                            
                             cleaned_parts = []
                             for part in parts:
                                 part = part.strip()
-                                if part == '' or part == ' ':
-                                    cleaned_parts.append('1')  # Default to 1 if empty
-                                else:
+                                if matched_field == "LINE_ITEM_QUANTITIES" and (part == '' or part == ' '):
+                                    cleaned_parts.append('1')  # Default to 1 if empty quantity
+                                elif part:
                                     cleaned_parts.append(part)
-                            field_value = ', '.join(cleaned_parts)
+                            
+                            # Join with pipe separator WITH SPACES (ground truth format)
+                            field_value = ' | '.join(cleaned_parts)
                         elif matched_field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
                             # Ensure monetary values have $ symbol
                             if field_value and not field_value.startswith('$'):
