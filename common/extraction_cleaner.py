@@ -316,7 +316,7 @@ class ExtractionCleaner:
         
         Business Knowledge:
         - LINE_ITEM_PRICES = price per unit (unit price)
-        - LINE_ITEM_TOTAL_PRICES = quantity × unit price (line total)
+        - LINE_ITEM_TOTAL_PRICES = quantity × unit price (often labeled 'Amount' column)
         """
         prices = data.get("LINE_ITEM_PRICES", "NOT_FOUND")
         total_prices = data.get("LINE_ITEM_TOTAL_PRICES", "NOT_FOUND")

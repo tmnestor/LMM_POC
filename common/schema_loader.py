@@ -866,6 +866,7 @@ class FieldSchema:
                 prompt_parts.append("• ABN = 11 digits, BSB = 6 digits")
             if any(f in fields for f in ['LINE_ITEM_DESCRIPTIONS', 'LINE_ITEM_QUANTITIES', 'LINE_ITEM_PRICES']):
                 prompt_parts.append("• Line items: maintain same order across descriptions/quantities/prices")
+                prompt_parts.append("• Unit prices from 'Price' column, totals from 'Amount' column")
 
         # Closing instruction
         if "closing_instruction" in template:
@@ -913,7 +914,8 @@ class FieldSchema:
                 if field == 'BUSINESS_ABN':
                     prompt_parts.append("• ABN: Look for 'ABN' label, distinguish from BSB (6 digits)")
                 elif field == 'LINE_ITEM_DESCRIPTIONS':
-                    prompt_parts.append("• Line items: Extract descriptions, quantities, prices in same order")
+                    prompt_parts.append("• Line items: Extract descriptions, quantities, unit prices (not totals) in same order")
+                    prompt_parts.append("• Look for table columns: Description, Qty, Price (unit), Amount (total)")
 
         # Standard format rules
         prompt_parts.append(f"""

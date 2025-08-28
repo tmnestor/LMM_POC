@@ -157,8 +157,8 @@ document_schemas:
         type: "calculated"
         evaluation_logic: "calculated_field_match"
         group: "item_details"
-        description: "Total price per line item (quantity × unit price)"
-        instruction: "[pipe-separated line totals or NOT_FOUND]"
+        description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
+        instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
 
       - name: "LINE_ITEM_GST_AMOUNTS"
         type: "list"
