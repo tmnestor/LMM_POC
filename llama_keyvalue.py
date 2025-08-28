@@ -36,11 +36,11 @@ Configuration:
     - DATA_DIR: Path to document images
     - LLAMA_MODEL_PATH: Path to model weights
     - OUTPUT_DIR: Path for generated reports
-    - EXTRACTION_FIELDS: List of fields to extract (currently 25 business document fields)
+    - EXTRACTION_FIELDS: List of fields to extract (V4 schema with 47 business document fields)
 
 Model Specifications:
-    - Parameters: 11B parameter model
-    - Field extraction: 25 structured fields (ABN, TOTAL, INVOICE_DATE, etc.)
+    - Parameters: 11B parameter model  
+    - Field extraction: V4 schema with 47 structured fields including document intelligence
 
 Dependencies:
     - models.llama_processor: Llama-specific processing logic
@@ -92,6 +92,7 @@ Examples:
   python llama_keyvalue.py --extraction-mode grouped --debug
   python llama_keyvalue.py --extraction-mode adaptive
   python llama_keyvalue.py --extraction-mode single_pass
+  python llama_keyvalue.py --image-path path/to/image.png --debug
         """,
     )
 
@@ -114,10 +115,16 @@ Examples:
         help="Limit processing to first N images (for testing)",
     )
 
+    parser.add_argument(
+        "--image-path",
+        type=str,
+        help="Path to single image file for testing (overrides directory processing)",
+    )
+
     return parser.parse_args()
 
 
-def main(extraction_mode=None, debug=False, limit_images=None):
+def main(extraction_mode=None, debug=False, limit_images=None, image_path=None):
     """
     Execute the complete Llama Vision evaluation pipeline.
 
@@ -215,7 +222,10 @@ def main(extraction_mode=None, debug=False, limit_images=None):
         f"\n🚀 Initializing Llama Vision processor with {extraction_mode} extraction mode..."
     )
     processor = LlamaProcessor(
-        model_path=model_path, extraction_mode=extraction_mode, debug=debug
+        model_path=model_path, 
+        extraction_mode=extraction_mode, 
+        debug=debug,
+        enable_v4_schema=True
     )
 
     # =============================================================================
@@ -283,23 +293,36 @@ def main(extraction_mode=None, debug=False, limit_images=None):
     # =============================================================================
     # DOCUMENT IMAGE DISCOVERY AND FILTERING
     # =============================================================================
-    # Scan data directory for supported image formats (PNG, JPG, JPEG)
-    print(f"\n📁 Discovering images in: {data_dir}")
-    image_files = discover_images(data_dir)
-
-    # Apply filtering to match evaluation dataset
-    # Currently filters for synthetic invoice test images - modify for different datasets
-    image_files = [f for f in image_files if "synthetic_invoice" in Path(f).name]
-
-    # Apply image limit if specified
-    if limit_images and limit_images > 0:
-        original_count = len(image_files)
-        image_files = image_files[:limit_images]
-        print(
-            f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
-        )
+    if image_path:
+        # Single image processing mode
+        image_path_obj = Path(image_path)
+        if not image_path_obj.exists():
+            print(f"❌ ERROR: Image file not found: {image_path}")
+            return
+        if not image_path_obj.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+            print(f"❌ ERROR: Unsupported image format: {image_path_obj.suffix}")
+            return
+        image_files = [str(image_path_obj)]
+        print(f"\n📷 Single image processing: {image_path_obj.name}")
     else:
-        print(f"📷 Found {len(image_files)} images for processing")
+        # Batch processing mode - scan data directory
+        print(f"\n📁 Discovering images in: {data_dir}")
+        image_files = discover_images(data_dir)
+
+        # Apply filtering to match evaluation dataset
+        # Currently filters for synthetic invoice test images - modify for different datasets
+        image_files = [f for f in image_files if "synthetic_invoice" in Path(f).name]
+
+        # Apply image limit if specified
+        if limit_images and limit_images > 0:
+            original_count = len(image_files)
+            image_files = image_files[:limit_images]
+            print(
+                f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
+            )
+        else:
+            print(f"📷 Found {len(image_files)} images for processing")
+    
     if not image_files:
         print("❌ No images found for processing")
         print(
@@ -420,4 +443,5 @@ if __name__ == "__main__":
         extraction_mode=args.extraction_mode,
         debug=args.debug,
         limit_images=args.limit_images,
+        image_path=args.image_path,
     )
