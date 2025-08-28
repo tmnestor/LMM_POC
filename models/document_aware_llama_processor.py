@@ -604,7 +604,7 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 if field == "SUPPLIER_NAME":
                     return "[business name from document header or NOT_FOUND]"
                 elif field == "BUSINESS_ABN":
-                    return "[11-digit Australian Business Number or NOT_FOUND]"
+                    return "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
                 elif field == "BUSINESS_PHONE":
                     return "[business phone number (not customer phone) or NOT_FOUND]"
                 elif field == "DOCUMENT_TYPE":
