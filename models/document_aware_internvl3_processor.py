@@ -27,8 +27,8 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
-from common.extraction_cleaner import ExtractionCleaner
 from common.document_aware_grouped_extraction import DocumentAwareGroupedExtraction
+from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     clear_model_caches,
     comprehensive_memory_cleanup,
@@ -373,7 +373,7 @@ class DocumentAwareInternVL3Processor:
             if self.debug:
                 print(f"🚀 Starting HYBRID extraction for {Path(image_path).name}")
                 print(f"📊 Target fields: {self.field_count} fields")
-                print(f"🎯 Strategy: Document-aware + 90.6% accuracy grouped extraction")
+                print("🎯 Strategy: Document-aware + 90.6% accuracy grouped extraction")
 
             # Memory cleanup
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)

@@ -11,9 +11,8 @@ Key Innovation:
 """
 
 import time
-import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 # Field group definitions from the working 90.6% accuracy approach
 DOCUMENT_AWARE_FIELD_GROUPS = {
@@ -158,7 +157,7 @@ class DocumentAwareGroupedExtraction:
             
             if self.debug:
                 found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-                print(f"🎉 Document-aware grouped extraction completed!")
+                print("🎉 Document-aware grouped extraction completed!")
                 print(f"   📊 Found {len(found_fields)}/{len(all_fields)} fields")
                 print(f"   ⏱️ Total time: {total_time:.2f}s")
                 print(f"   🎯 Groups called: {len(relevant_groups)}/{len(DOCUMENT_AWARE_FIELD_GROUPS)}")
