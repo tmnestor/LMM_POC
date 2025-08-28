@@ -264,26 +264,27 @@ class DocumentAwareInternVL3Processor:
     # Removed unnecessary YAML loading methods - using Llama's simple approach only
 
     def _generate_simple_prompt(self) -> str:
-        """Generate simple prompt optimized for InternVL3 with few-shot examples for problematic fields."""
+        """Generate simple prompt optimized for InternVL3 - based on legacy successful approach."""
         
-        # Simple, direct approach like legacy YAML
+        # Use exact legacy YAML structure with few-shot examples
         prompt = f"""Extract data from this business document.
 
-Use "NOT_FOUND" if field is not visible.
+Output ALL fields below with their exact keys.
+Use "NOT_FOUND" if field is not visible or not present.
 
-Examples for key fields:
+Examples for line items:
 LINE_ITEM_DESCRIPTIONS: Rice 1kg | Cheese Block 500g | Frozen Peas
 LINE_ITEM_QUANTITIES: 3 | 2 | 1  
 LINE_ITEM_PRICES: $3.80 | $8.50 | $4.20
 
-OUTPUT ({self.field_count} fields):
+OUTPUT FORMAT ({self.field_count} required fields):
 """
         
-        # Add each field with simple instruction  
+        # Add each field with simple instruction matching legacy format
         for field in self.field_list:
             prompt += f"{field}: [value or NOT_FOUND]\n"
         
-        prompt += f"\nProvide only the {self.field_count} key-value pairs above."
+        prompt += f"\nProvide ONLY the key-value pairs above. Be precise with numerical values."
 
         return prompt
 
