@@ -58,8 +58,9 @@ class ExtractionCleaner:
         Returns:
             str: Cleaned and normalized value
         """
-        # Handle None, empty, or NOT_FOUND cases
-        if not raw_value or raw_value in ["NOT_FOUND", "None", "null", ""]:
+        # Handle None, empty, or NOT_FOUND cases (including model variations)
+        missing_values = ["NOT_FOUND", "Not Found", "not found", "None", "null", "", "N/A", "n/a"]
+        if not raw_value or raw_value in missing_values:
             return "NOT_FOUND"
             
         # Convert to string and basic cleaning
