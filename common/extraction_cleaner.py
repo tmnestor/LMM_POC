@@ -33,6 +33,7 @@ class ExtractionCleaner:
         self.list_patterns = ["LINE_ITEM", "ITEMS", "DESCRIPTIONS", "QUANTITIES", "PRICES"]
         self.date_patterns = ["DATE", "TIME", "PERIOD", "RANGE"]
         self.id_patterns = ["NUMBER", "ID", "ABN", "BSB", "ACCOUNT"]
+        self.address_patterns = ["ADDRESS", "LOCATION", "STREET"]
         
         # Common cleaning patterns
         self.price_suffix_patterns = [
@@ -86,6 +87,8 @@ class ExtractionCleaner:
             cleaned_value = self._clean_date_field(value)
         elif self._is_id_field(field_name):
             cleaned_value = self._clean_id_field(value)
+        elif self._is_address_field(field_name):
+            cleaned_value = self._clean_address_field(value)
         else:
             cleaned_value = self._clean_text_field(value)
             
@@ -109,6 +112,10 @@ class ExtractionCleaner:
     def _is_id_field(self, field_name: str) -> bool:
         """Check if field is ID/number type."""
         return any(pattern in field_name.upper() for pattern in self.id_patterns)
+    
+    def _is_address_field(self, field_name: str) -> bool:
+        """Check if field is address type."""
+        return any(pattern in field_name.upper() for pattern in self.address_patterns)
     
     def _clean_monetary_field(self, value: str) -> str:
         """
@@ -250,6 +257,41 @@ class ExtractionCleaner:
         
         # Remove trailing punctuation that might be artifacts
         cleaned = re.sub(r'\s*[,;]\s*$', '', cleaned)
+        
+        return cleaned if cleaned else "NOT_FOUND"
+        
+    def _clean_address_field(self, value: str) -> str:
+        """
+        Clean address fields by removing embedded contact information.
+        
+        Business Knowledge:
+        - Addresses often contain embedded phone numbers, emails, or other contact info
+        - These should be cleaned to extract pure address only
+        """
+        if not value or value == "NOT_FOUND":
+            return "NOT_FOUND"
+            
+        cleaned = value.strip()
+        
+        # Remove common address suffixes with contact info
+        # Pattern: " - P: (phone)" or " - Phone: (phone)" or " - Tel: (phone)"
+        cleaned = re.sub(r'\s*-\s*(?:P|Phone|Tel|T):\s*\(?[0-9\s\)\(-]+', '', cleaned, flags=re.IGNORECASE)
+        
+        # Remove email addresses from address fields
+        cleaned = re.sub(r'\s*-?\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '', cleaned)
+        
+        # Remove standalone phone numbers at end of address
+        # Pattern: phone numbers with common formats
+        cleaned = re.sub(r'\s*-?\s*\(?[0-9]{2,4}\)?\s*[0-9\s\-]{6,}$', '', cleaned)
+        
+        # Clean up any trailing punctuation left after removals
+        cleaned = re.sub(r'\s*[,;\-]\s*$', '', cleaned)
+        
+        # Normalize whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        if self.debug and cleaned != value.strip():
+            print(f"🏠 Address cleaned: '{value.strip()}' -> '{cleaned}'")
         
         return cleaned if cleaned else "NOT_FOUND"
     
