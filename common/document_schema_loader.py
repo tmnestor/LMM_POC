@@ -159,6 +159,7 @@ class DocumentTypeFieldSchema:
             "sales receipt": "receipt",
             "bank statement": "bank_statement",
             "account statement": "bank_statement",
+            "credit card statement": "bank_statement",
             "statement": "bank_statement"
         }
         

@@ -44,6 +44,7 @@ class DocumentTypeDetector:
             "payment receipt": "receipt",
             "bank statement": "bank_statement",
             "account statement": "bank_statement",
+            "credit card statement": "bank_statement",
             "statement": "bank_statement"
         }
         
@@ -55,7 +56,7 @@ class DocumentTypeDetector:
 
 Look for document types like:
 - invoice, tax invoice, bill, estimate, quote, quotation
-- bank_statement, account statement
+- bank_statement, account statement, credit card statement
 - receipt, purchase receipt
 
 Answer with the exact document type you see (e.g., 'invoice', 'estimate', 'receipt', 'bank_statement', etc.).""",
@@ -65,7 +66,7 @@ Answer with the exact document type you see (e.g., 'invoice', 'estimate', 'recei
             "internvl3": {
                 "prompt": """What document type is this?
 
-Types: invoice, estimate, quote, receipt, bank_statement
+Types: invoice, estimate, quote, receipt, bank_statement, credit card statement
 
 Answer with the exact type:""",
                 "max_tokens": 20
@@ -274,7 +275,7 @@ Answer with the exact type:""",
         # Keyword-based fallback classification
         keywords = {
             'invoice': ['invoice', 'due date', 'bill to', 'line item', 'subtotal', 'tax invoice'],
-            'bank_statement': ['account', 'statement', 'balance', 'transaction', 'bsb', 'deposit', 'withdrawal'],
+            'bank_statement': ['account', 'statement', 'balance', 'transaction', 'bsb', 'deposit', 'withdrawal', 'credit card', 'visa', 'mastercard', 'amex'],
             'receipt': ['receipt', 'payment', 'cash', 'card', 'store', 'purchase', 'thank you']
         }
         
