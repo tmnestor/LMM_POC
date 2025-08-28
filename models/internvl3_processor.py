@@ -36,6 +36,7 @@ from common.config import (
     get_v4_field_list,
     is_v4_schema_enabled,
 )
+from common.document_type_detector import LightweightDocumentDetector
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     clear_model_caches,
@@ -47,7 +48,6 @@ from common.gpu_optimization import (
 )
 from common.grouped_extraction import get_extraction_strategy
 from common.prompt_loader import PromptLoader
-from common.document_type_detector import LightweightDocumentDetector
 
 
 class InternVL3Processor:
