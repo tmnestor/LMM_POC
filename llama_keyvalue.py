@@ -299,7 +299,7 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None):
         if not image_path_obj.exists():
             print(f"❌ ERROR: Image file not found: {image_path}")
             return
-        if not image_path_obj.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+        if image_path_obj.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
             print(f"❌ ERROR: Unsupported image format: {image_path_obj.suffix}")
             return
         image_files = [str(image_path_obj)]
