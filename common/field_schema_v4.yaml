@@ -150,8 +150,8 @@ document_schemas:
         type: "list"
         evaluation_logic: "list_overlap_match"
         group: "item_details"
-        description: "Unit prices"
-        instruction: "[pipe-separated unit prices or NOT_FOUND]"
+        description: "Unit prices (price per individual item, NOT total prices)"
+        instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
 
       - name: "LINE_ITEM_TOTAL_PRICES"
         type: "calculated"

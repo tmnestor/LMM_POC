@@ -255,7 +255,7 @@ class ExtractionCleaner:
     
     def clean_extraction_dict(self, field_dict: Dict[str, Any]) -> Dict[str, str]:
         """
-        Clean all fields in an extraction dictionary.
+        Clean all fields in an extraction dictionary with business knowledge validation.
         
         Args:
             field_dict (Dict[str, Any]): Dictionary of extracted field values
@@ -265,8 +265,12 @@ class ExtractionCleaner:
         """
         cleaned_dict = {}
         
+        # Step 1: Clean individual fields
         for field_name, raw_value in field_dict.items():
             cleaned_dict[field_name] = self.clean_field_value(field_name, raw_value)
+        
+        # Step 2: Apply business knowledge validation
+        cleaned_dict = self._apply_business_knowledge(cleaned_dict)
         
         if self.debug:
             cleaned_count = sum(1 for v in cleaned_dict.values() if v != "NOT_FOUND")
@@ -274,6 +278,116 @@ class ExtractionCleaner:
             print(f"🧹 Cleaned {cleaned_count}/{total_count} fields")
         
         return cleaned_dict
+    
+    def _apply_business_knowledge(self, cleaned_dict: Dict[str, str]) -> Dict[str, str]:
+        """
+        Apply business knowledge and cross-field validation.
+        
+        Key business rules:
+        - LINE_ITEM_PRICES = unit prices (price per individual item)
+        - LINE_ITEM_TOTAL_PRICES = quantity × unit price
+        - GST calculations must be consistent
+        """
+        validated_dict = cleaned_dict.copy()
+        
+        # Business Rule: LINE_ITEM_PRICES validation
+        if self._has_line_items(cleaned_dict):
+            validated_dict = self._validate_line_item_pricing(validated_dict)
+        
+        # Business Rule: GST consistency validation  
+        if self._has_gst_fields(cleaned_dict):
+            validated_dict = self._validate_gst_consistency(validated_dict)
+            
+        return validated_dict
+    
+    def _has_line_items(self, data: Dict[str, str]) -> bool:
+        """Check if document has line item data."""
+        required_fields = ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]
+        return any(data.get(field, "NOT_FOUND") != "NOT_FOUND" for field in required_fields)
+    
+    def _has_gst_fields(self, data: Dict[str, str]) -> bool:
+        """Check if document has GST-related fields."""
+        gst_fields = ["GST_AMOUNT", "IS_GST_INCLUDED", "LINE_ITEM_GST_AMOUNTS"]
+        return any(data.get(field, "NOT_FOUND") != "NOT_FOUND" for field in gst_fields)
+    
+    def _validate_line_item_pricing(self, data: Dict[str, str]) -> Dict[str, str]:
+        """
+        Validate LINE_ITEM_PRICES represents unit prices, not totals.
+        
+        Business Knowledge:
+        - LINE_ITEM_PRICES = price per unit (unit price)
+        - LINE_ITEM_TOTAL_PRICES = quantity × unit price (line total)
+        """
+        prices = data.get("LINE_ITEM_PRICES", "NOT_FOUND")
+        total_prices = data.get("LINE_ITEM_TOTAL_PRICES", "NOT_FOUND")
+        quantities = data.get("LINE_ITEM_QUANTITIES", "NOT_FOUND")
+        
+        if all(field != "NOT_FOUND" for field in [prices, total_prices, quantities]):
+            try:
+                price_list = [self._parse_monetary_value(p.strip()) for p in prices.split('|')]
+                total_list = [self._parse_monetary_value(p.strip()) for p in total_prices.split('|')]
+                qty_list = [float(q.strip()) for q in quantities.split('|')]
+                
+                if len(price_list) == len(total_list) == len(qty_list):
+                    issues_found = []
+                    
+                    for i, (unit_price, total_price, qty) in enumerate(zip(price_list, total_list, qty_list)):
+                        if unit_price and total_price and qty:
+                            expected_total = unit_price * qty
+                            # Allow 1% tolerance for rounding
+                            if abs(total_price - expected_total) > (expected_total * 0.01):
+                                issues_found.append(f"Item {i+1}: Unit=${unit_price:.2f} × {qty} ≠ Total=${total_price:.2f}")
+                    
+                    if issues_found and self.debug:
+                        print(f"⚠️  LINE_ITEM_PRICES validation issues:")
+                        for issue in issues_found:
+                            print(f"   {issue}")
+                            
+            except (ValueError, AttributeError) as e:
+                if self.debug:
+                    print(f"⚠️  Could not validate line item pricing: {e}")
+        
+        return data
+    
+    def _validate_gst_consistency(self, data: Dict[str, str]) -> Dict[str, str]:
+        """Validate GST calculations are internally consistent."""
+        gst_amount = data.get("GST_AMOUNT", "NOT_FOUND")
+        subtotal = data.get("SUBTOTAL_AMOUNT", "NOT_FOUND") 
+        total = data.get("TOTAL_AMOUNT", "NOT_FOUND")
+        is_gst_included = data.get("IS_GST_INCLUDED", "NOT_FOUND")
+        
+        if all(field != "NOT_FOUND" for field in [gst_amount, subtotal, total]):
+            try:
+                gst_val = self._parse_monetary_value(gst_amount)
+                subtotal_val = self._parse_monetary_value(subtotal)
+                total_val = self._parse_monetary_value(total)
+                
+                if gst_val and subtotal_val and total_val:
+                    if is_gst_included.lower() == "true":
+                        # GST included: total = subtotal, gst = total/11 (for 10% GST)
+                        expected_gst = total_val / 11
+                    else:
+                        # GST excluded: total = subtotal + gst
+                        expected_total = subtotal_val + gst_val
+                        if abs(total_val - expected_total) > 0.02 and self.debug:
+                            print(f"⚠️  GST calculation: ${subtotal_val} + ${gst_val} ≠ ${total_val}")
+                            
+            except (ValueError, AttributeError) as e:
+                if self.debug:
+                    print(f"⚠️  Could not validate GST consistency: {e}")
+        
+        return data
+    
+    def _parse_monetary_value(self, value: str) -> float | None:
+        """Parse monetary string to float value."""
+        if not value or value == "NOT_FOUND":
+            return None
+        try:
+            # Remove currency symbols, commas, and whitespace
+            cleaned = re.sub(r'[^\d.-]', '', value.replace(',', ''))
+            return float(cleaned) if cleaned else None
+        except ValueError:
+            return None
     
     def get_cleaning_stats(self, original_dict: Dict[str, Any], cleaned_dict: Dict[str, str]) -> Dict[str, Any]:
         """
