@@ -95,7 +95,7 @@ class InternVL3Processor:
             )
         
         # Initialize V4 system components
-        self.prompt_loader = PromptLoader(environment=prompt_environment)
+        self.prompt_loader = PromptLoader()
         self.document_detector = LightweightDocumentDetector()
         if debug:
             print("🔧 V4 Schema enabled with document-aware field extraction")
