@@ -76,21 +76,24 @@ class ExtractionCleaner:
         if self._is_list_field(field_name) and ',' in value and '|' not in value:
             value = ' | '.join(item.strip() for item in value.split(','))
         
-        # Route to appropriate cleaning method based on field type
-        cleaned_value = value
+        # Route to appropriate cleaning method based on field type using pattern matching
+        field_type = self._get_field_type(field_name)
         
-        if self._is_monetary_field(field_name):
-            cleaned_value = self._clean_monetary_field(value)
-        elif self._is_list_field(field_name):
-            cleaned_value = self._clean_list_field(field_name, value)
-        elif self._is_date_field(field_name):
-            cleaned_value = self._clean_date_field(value)
-        elif self._is_id_field(field_name):
-            cleaned_value = self._clean_id_field(value)
-        elif self._is_address_field(field_name):
-            cleaned_value = self._clean_address_field(value)
-        else:
-            cleaned_value = self._clean_text_field(value)
+        match field_type:
+            case "monetary":
+                cleaned_value = self._clean_monetary_field(value)
+            case "list":
+                cleaned_value = self._clean_list_field(field_name, value)
+            case "date":
+                cleaned_value = self._clean_date_field(value)
+            case "id":
+                cleaned_value = self._clean_id_field(value)
+            case "address":
+                cleaned_value = self._clean_address_field(value)
+            case "text":
+                cleaned_value = self._clean_text_field(value)
+            case _:
+                cleaned_value = self._clean_text_field(value)
             
         if self.debug:
             print(f"'{cleaned_value}'")
@@ -116,6 +119,27 @@ class ExtractionCleaner:
     def _is_address_field(self, field_name: str) -> bool:
         """Check if field is address type."""
         return any(pattern in field_name.upper() for pattern in self.address_patterns)
+    
+    def _get_field_type(self, field_name: str) -> str:
+        """
+        Determine the field type for pattern matching.
+        
+        Returns:
+            str: Field type category for routing to appropriate cleaning method
+        """
+        match field_name.upper():
+            case name if any(pattern in name for pattern in self.monetary_patterns):
+                return "monetary"
+            case name if any(pattern in name for pattern in self.list_patterns):
+                return "list"
+            case name if any(pattern in name for pattern in self.date_patterns):
+                return "date"
+            case name if any(pattern in name for pattern in self.id_patterns):
+                return "id"
+            case name if any(pattern in name for pattern in self.address_patterns):
+                return "address"
+            case _:
+                return "text"
     
     def _clean_monetary_field(self, value: str) -> str:
         """
@@ -323,7 +347,7 @@ class ExtractionCleaner:
     
     def _apply_business_knowledge(self, cleaned_dict: Dict[str, str]) -> Dict[str, str]:
         """
-        Apply business knowledge and cross-field validation.
+        Apply business knowledge and cross-field validation using pattern matching.
         
         Key business rules:
         - LINE_ITEM_PRICES = unit prices (price per individual item)
@@ -332,13 +356,21 @@ class ExtractionCleaner:
         """
         validated_dict = cleaned_dict.copy()
         
-        # Business Rule: LINE_ITEM_PRICES validation
-        if self._has_line_items(cleaned_dict):
-            validated_dict = self._validate_line_item_pricing(validated_dict)
-        
-        # Business Rule: GST consistency validation  
-        if self._has_gst_fields(cleaned_dict):
-            validated_dict = self._validate_gst_consistency(validated_dict)
+        # Apply business rules based on data characteristics
+        match (self._has_line_items(cleaned_dict), self._has_gst_fields(cleaned_dict)):
+            case (True, True):
+                # Document has both line items and GST - validate both
+                validated_dict = self._validate_line_item_pricing(validated_dict)
+                validated_dict = self._validate_gst_consistency(validated_dict)
+            case (True, False):
+                # Document has line items only - validate pricing
+                validated_dict = self._validate_line_item_pricing(validated_dict)
+            case (False, True):
+                # Document has GST only - validate GST consistency
+                validated_dict = self._validate_gst_consistency(validated_dict)
+            case (False, False):
+                # No special validation needed
+                pass
             
         return validated_dict
     
@@ -392,31 +424,42 @@ class ExtractionCleaner:
         return data
     
     def _validate_gst_consistency(self, data: Dict[str, str]) -> Dict[str, str]:
-        """Validate GST calculations are internally consistent."""
+        """Validate GST calculations are internally consistent using pattern matching."""
         gst_amount = data.get("GST_AMOUNT", "NOT_FOUND")
         subtotal = data.get("SUBTOTAL_AMOUNT", "NOT_FOUND") 
         total = data.get("TOTAL_AMOUNT", "NOT_FOUND")
         is_gst_included = data.get("IS_GST_INCLUDED", "NOT_FOUND")
         
-        if all(field != "NOT_FOUND" for field in [gst_amount, subtotal, total]):
-            try:
-                gst_val = self._parse_monetary_value(gst_amount)
-                subtotal_val = self._parse_monetary_value(subtotal)
-                total_val = self._parse_monetary_value(total)
-                
-                if gst_val and subtotal_val and total_val:
-                    if is_gst_included.lower() == "true":
-                        # GST included: total = subtotal, gst = total/11 (for 10% GST)
-                        expected_gst = total_val / 11
-                    else:
-                        # GST excluded: total = subtotal + gst
-                        expected_total = subtotal_val + gst_val
-                        if abs(total_val - expected_total) > 0.02 and self.debug:
-                            print(f"⚠️  GST calculation: ${subtotal_val} + ${gst_val} ≠ ${total_val}")
-                            
-            except (ValueError, AttributeError) as e:
-                if self.debug:
-                    print(f"⚠️  Could not validate GST consistency: {e}")
+        # Use pattern matching for GST validation logic
+        match (gst_amount, subtotal, total, is_gst_included):
+            case (gst, sub, tot, inc) if all(field != "NOT_FOUND" for field in [gst, sub, tot]):
+                try:
+                    gst_val = self._parse_monetary_value(gst)
+                    subtotal_val = self._parse_monetary_value(sub)
+                    total_val = self._parse_monetary_value(tot)
+                    
+                    if all(val is not None for val in [gst_val, subtotal_val, total_val]):
+                        match inc.lower():
+                            case "true":
+                                # GST included: total = subtotal, gst = total/11 (for 10% GST)
+                                expected_gst = total_val / 11
+                                if abs(gst_val - expected_gst) > 0.02 and self.debug:
+                                    print(f"⚠️  GST included calculation: expected ${expected_gst:.2f}, got ${gst_val:.2f}")
+                            case "false":
+                                # GST excluded: total = subtotal + gst
+                                expected_total = subtotal_val + gst_val
+                                if abs(total_val - expected_total) > 0.02 and self.debug:
+                                    print(f"⚠️  GST excluded calculation: ${subtotal_val:.2f} + ${gst_val:.2f} ≠ ${total_val:.2f}")
+                            case _:
+                                if self.debug:
+                                    print(f"⚠️  Unknown GST inclusion status: '{inc}'")
+                                    
+                except (ValueError, AttributeError) as e:
+                    if self.debug:
+                        print(f"⚠️  Could not validate GST consistency: {e}")
+            case _:
+                # Insufficient data for GST validation
+                pass
         
         return data
     
@@ -469,19 +512,22 @@ class ExtractionCleaner:
         return stats
     
     def _identify_cleaning_operation(self, field_name: str, original: str, cleaned: str) -> str:
-        """Identify what cleaning operation was performed."""
-        if original == cleaned:
-            return "none"
-        elif "each" in original.lower() and "each" not in cleaned.lower():
-            return "price_suffix_removal"
-        elif len(original.split()) != len(cleaned.split()):
-            return "whitespace_normalization" 
-        elif '$' in original and '$' in cleaned and original != cleaned:
-            return "currency_formatting"
-        elif ',' in original and ',' in cleaned:
-            return "list_formatting"
-        else:
-            return "general_cleaning"
+        """Identify what cleaning operation was performed using pattern matching."""
+        match (original, cleaned):
+            case (orig, clean) if orig == clean:
+                return "none"
+            case (orig, clean) if "each" in orig.lower() and "each" not in clean.lower():
+                return "price_suffix_removal"
+            case (orig, clean) if len(orig.split()) != len(clean.split()):
+                return "whitespace_normalization"
+            case (orig, clean) if '$' in orig and '$' in clean and orig != clean:
+                return "currency_formatting"
+            case (orig, clean) if ',' in orig and '|' in clean:
+                return "list_formatting"
+            case (orig, clean) if "P:" in orig and "P:" not in clean:
+                return "address_contact_removal"
+            case _:
+                return "general_cleaning"
 
 
 # Convenience functions for direct use
