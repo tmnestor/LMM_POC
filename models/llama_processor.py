@@ -29,6 +29,7 @@ from common.config import (
     LLAMA_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
+    get_v4_field_count,
 )
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
@@ -93,9 +94,17 @@ class LlamaProcessor:
         # Configure extraction strategy
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        self.extraction_strategy = get_extraction_strategy(
-            self.extraction_mode, debug, grouping_strategy, model_name="llama"
-        )
+        
+        # Only initialize old extraction strategy if V4 is not enabled
+        if not self.enable_v4_schema:
+            self.extraction_strategy = get_extraction_strategy(
+                self.extraction_mode, debug, grouping_strategy, model_name="llama"
+            )
+        else:
+            # V4 uses YAML-first prompt system, no extraction strategy needed
+            self.extraction_strategy = None
+            if debug:
+                print("🔧 V4 Schema: Skipping legacy extraction strategy initialization")
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()
@@ -128,8 +137,9 @@ class LlamaProcessor:
         self.generation_config = LLAMA_GENERATION_CONFIG.copy()
 
         # Calculate dynamic max_new_tokens based on field count
+        field_count = get_v4_field_count() if self.enable_v4_schema else FIELD_COUNT
         self.generation_config["max_new_tokens"] = get_max_new_tokens(
-            "llama", FIELD_COUNT
+            "llama", field_count
         )
 
         print(
