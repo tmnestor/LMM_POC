@@ -600,8 +600,18 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                     return "[pipe-separated transaction data or NOT_FOUND]"
             
             else:
-                # Default instruction for standard field types
-                return "[value or NOT_FOUND]"
+                # Field-specific instructions for common fields
+                if field == "SUPPLIER_NAME":
+                    return "[business name from document header or NOT_FOUND]"
+                elif field == "BUSINESS_ABN":
+                    return "[11-digit Australian Business Number or NOT_FOUND]"
+                elif field == "BUSINESS_PHONE":
+                    return "[business phone number (not customer phone) or NOT_FOUND]"
+                elif field == "DOCUMENT_TYPE":
+                    return "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+                else:
+                    # Default instruction for other field types
+                    return "[value or NOT_FOUND]"
                 
         except Exception:
             # Fallback if field type checking fails
