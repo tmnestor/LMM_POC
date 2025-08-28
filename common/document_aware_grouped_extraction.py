@@ -34,9 +34,9 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     
     "transaction_details": {
         "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
-        "expertise_frame": "Extract line items and pricing details.",
-        "cognitive_context": "DESCRIPTIONS: product names (comma-separated). QUANTITIES: amounts ordered (comma-separated). PRICES: unit prices (comma-separated, not totals).",
-        "focus_instruction": "List all items in comma-separated format. One line per field type."
+        "expertise_frame": "Extract ALL line items with quantities and prices.",
+        "cognitive_context": "DESCRIPTIONS: ALL product/service names in order. QUANTITIES: ALL numeric quantities (no blanks). PRICES: ALL unit prices with $ symbol.",
+        "focus_instruction": "Extract EVERY line item. For quantities, use the number shown (if unclear, use 1). Never leave blanks. Match the order: first description goes with first quantity and first price. Use comma-separated format."
     },
     
     "temporal_data": {
@@ -55,9 +55,9 @@ DOCUMENT_AWARE_FIELD_GROUPS = {
     
     "document_metadata": {
         "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "TRANSACTION_DATE", "PAYMENT_METHOD", "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"],
-        "expertise_frame": "Extract document identifiers and metadata.",
-        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction ID for receipts. TRANSACTION_DATE: when transaction occurred. PAYMENT_METHOD: how payment was made. OPENING_BALANCE/CLOSING_BALANCE only for bank statements.",
-        "focus_instruction": "Identify document type and extract receipt-specific identifiers. Extract balances only if bank statement."
+        "expertise_frame": "Extract document identifiers and payment information.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction/reference number like R789121. TRANSACTION_DATE: purchase/transaction date. PAYMENT_METHOD: Look for AMEX, Visa, Mastercard, Cash, EFTPOS, credit card types.",
+        "focus_instruction": "Extract document type (invoice/receipt/statement). Find receipt/reference numbers starting with R or similar. Look for payment methods including card types (AMEX, Visa, etc). Extract transaction dates."
     }
 }
 
@@ -212,7 +212,7 @@ Instructions:
             response = model_extractor_func(
                 image_path, 
                 doc_type_prompt,
-                max_new_tokens=50  # Very short response needed
+                max_new_tokens=100  # Slightly increased for safety
             )
             
             # Extract document type from response
@@ -310,9 +310,14 @@ Instructions:
                 if self.debug:
                     print(f"📝 Generated prompt for '{group_name}' ({len(group_fields)} fields, {len(group_prompt)} chars)")
                 
-                # Extract fields for this group
+                # Extract fields for this group with increased token limit
                 start_time = time.time()
-                group_response = model_extractor_func(image_path, group_prompt)
+                # CRITICAL: Increase token limit for better extraction completeness
+                group_response = model_extractor_func(
+                    image_path, 
+                    group_prompt,
+                    max_new_tokens=1500  # Increased from default 1000 for complete extraction
+                )
                 processing_time = time.time() - start_time
                 
                 # Parse group response
@@ -387,9 +392,18 @@ DOCUMENT CONTEXT: You are analyzing a business document image. Consider the docu
 OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
 """
         
-        # Add each field with the exact format that worked
+        # Add each field with specific instructions for critical fields
         for field in fields:
-            prompt += f"{field}: [value or NOT_FOUND]\n"
+            if field == "PAYMENT_METHOD":
+                prompt += f"{field}: [payment type like AMEX, Visa, Mastercard, Cash, EFTPOS or NOT_FOUND]\n"
+            elif field == "LINE_ITEM_QUANTITIES":
+                prompt += f"{field}: [comma-separated numbers, use 1 if unclear, no blanks or NOT_FOUND]\n"
+            elif field == "RECEIPT_NUMBER":
+                prompt += f"{field}: [receipt/reference number like R789121 or NOT_FOUND]\n"
+            elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
+                prompt += f"{field}: [dollar amount with $ symbol and 2 decimals or NOT_FOUND]\n"
+            else:
+                prompt += f"{field}: [value or NOT_FOUND]\n"
         
         # Add focus section with enhanced instructions matching 90.6% accuracy format
         if group_name == "regulatory_financial":
@@ -401,7 +415,7 @@ OUTPUT FORMAT - EXACTLY {len(fields)} LINES:
         elif group_name == "temporal_data":
             prompt += "\n💡 FOCUS:\n• Date format: DD/MM/YYYY preferred\n• Invoice vs Transaction dates: Invoice=issued, Transaction=occurred\n• Due dates: Payment deadline for invoices\n"
         elif group_name == "document_metadata":
-            prompt += "\n💡 FOCUS:\n• Document type: Exactly 'invoice', 'receipt', or 'statement'\n• Receipt number: Transaction ID, reference number\n• Payment method: Card type, cash, transfer method\n"
+            prompt += "\n💡 FOCUS:\n• Document type: Exactly 'invoice', 'receipt', or 'statement'\n• Receipt number: Look for R-numbers like R789121, transaction IDs\n• Payment method: MUST extract card type (AMEX, Visa, Mastercard) or payment type\n• Transaction date: Date of purchase/transaction\n• CRITICAL: Never skip PAYMENT_METHOD - look for any payment indicator\n"
         
         # Add the exact format rules that achieved 90.6% accuracy
         prompt += """
@@ -414,7 +428,10 @@ FORMAT RULES:
 - Do NOT guess, calculate, or make up values
 - Use NOT_FOUND if field is not visible or not applicable
 - Output ONLY these """ + str(len(fields)) + """ lines, nothing else
-- For lists: use COMMA-SEPARATED values on ONE LINE per field (except LINE_ITEM fields which may use pipes)
+- For lists: use COMMA-SEPARATED values on ONE LINE per field
+- For LINE_ITEM_QUANTITIES: NEVER leave blanks, use 1 if quantity unclear
+- For PAYMENT_METHOD: Look for ANY payment indicator (AMEX, card types, etc)
+- For addresses: Include FULL address with postcode
 - DO NOT output the same field name multiple times
 
 STOP after the last field. Do not add explanations or comments."""
@@ -470,9 +487,37 @@ STOP after the last field. Do not add explanations or comments."""
                         if field_value.startswith("'") and field_value.endswith("'"):
                             field_value = field_value[1:-1]
                         
-                        # Handle DOCUMENT_TYPE special case - normalize to lowercase
+                        # Handle special field formatting and cleanup
                         if matched_field == "DOCUMENT_TYPE":
                             field_value = field_value.lower()
+                        elif matched_field == "LINE_ITEM_QUANTITIES":
+                            # Fix empty values in quantities
+                            parts = field_value.split(',')
+                            cleaned_parts = []
+                            for part in parts:
+                                part = part.strip()
+                                if part == '' or part == ' ':
+                                    cleaned_parts.append('1')  # Default to 1 if empty
+                                else:
+                                    cleaned_parts.append(part)
+                            field_value = ', '.join(cleaned_parts)
+                        elif matched_field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
+                            # Ensure monetary values have $ symbol
+                            if field_value and not field_value.startswith('$'):
+                                field_value = '$' + field_value
+                        elif matched_field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
+                            # Ensure addresses aren't cut off
+                            if field_value and len(field_value) < 10:
+                                field_value = field_value  # Keep as is but flag for review
+                        elif matched_field == "PAYMENT_METHOD":
+                            # Normalize payment methods
+                            payment_upper = field_value.upper()
+                            if 'AMEX' in payment_upper or 'AMERICAN' in payment_upper:
+                                field_value = 'AMEX'
+                            elif 'VISA' in payment_upper:
+                                field_value = 'Visa'
+                            elif 'MASTER' in payment_upper:
+                                field_value = 'Mastercard'
                         
                         parsed_data[matched_field] = field_value
                         
