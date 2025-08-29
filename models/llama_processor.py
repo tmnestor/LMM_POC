@@ -250,8 +250,16 @@ class LlamaProcessor:
         This is the core integration point for the new system.
         """
         try:
-            if self.enable_v4_schema and image_path and self.document_detector:
-                # V4 Mode: Document type detection + intelligent field filtering
+            # SINGLE_PASS MODE: Use full 48-field semantic YAML, no document-aware filtering
+            if self.extraction_mode == "single_pass":
+                if self.debug:
+                    print(f"🎯 Single-Pass Mode: Using full V4 YAML with semantic field ordering")
+                
+                # Use the full 48-field semantic-ordered YAML prompt
+                return self._get_single_pass_prompt_from_yaml()
+                
+            elif self.enable_v4_schema and image_path and self.document_detector:
+                # V4 Mode: Document type detection + intelligent field filtering (for grouped/adaptive modes)
                 if self.debug:
                     print(f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}")
                 
@@ -410,13 +418,22 @@ class LlamaProcessor:
         )
         prompt += f"{output_format}\n"
 
-        # Add field instructions
+        # Add field instructions - USE YAML FIELD ORDER (semantic), not EXTRACTION_FIELDS (alphabetical)
         field_instructions = yaml_config.get("field_instructions", {})
-        for field in EXTRACTION_FIELDS:
+        yaml_field_order = list(field_instructions.keys()) if field_instructions else EXTRACTION_FIELDS
+        
+        if self.debug and field_instructions:
+            print(f"🎯 Using semantic field order from YAML: {len(yaml_field_order)} fields")
+            print(f"🎯 First 5 fields: {yaml_field_order[:5]}")
+        
+        for field in yaml_field_order:
             instruction = field_instructions.get(
                 field, f"[{field.lower()} or NOT_FOUND]"
             )
             prompt += f"{field}: {instruction}\n"
+            
+        # Store active fields for parsing (use YAML order, not config order)
+        self.active_fields = yaml_field_order
 
         # Add format rules
         format_rules = yaml_config.get("format_rules", [])
@@ -437,7 +454,7 @@ class LlamaProcessor:
 
         if self.debug:
             print(
-                f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(EXTRACTION_FIELDS)} fields"
+                f"📝 SINGLE-PASS PROMPT: {len(prompt)} chars, {len(yaml_field_order)} fields"
             )
             print("📝 PROMPT CONTENT:")
             print("-" * 40)
