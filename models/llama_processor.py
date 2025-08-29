@@ -253,7 +253,7 @@ class LlamaProcessor:
             # SINGLE_PASS MODE: Use full 48-field semantic YAML, no document-aware filtering
             if self.extraction_mode == "single_pass":
                 if self.debug:
-                    print(f"🎯 Single-Pass Mode: Using full V4 YAML with semantic field ordering")
+                    print("🎯 Single-Pass Mode: Using full V4 YAML with semantic field ordering")
                 
                 # Use the full 48-field semantic-ordered YAML prompt
                 return self._get_single_pass_prompt_from_yaml()
