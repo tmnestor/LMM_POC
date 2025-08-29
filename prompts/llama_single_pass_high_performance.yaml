@@ -60,7 +60,7 @@ single_pass:
     BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
     BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
     BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
-    ACCOUNT_OPENING_BALANCE: "[starting balance at beginning of statement period (look for 'Opening Balance' or first balance) or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]"
     ACCOUNT_CLOSING_BALANCE: "[ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]"
     
     # Transaction details (V4 new - for bank statements)
