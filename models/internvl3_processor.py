@@ -1375,27 +1375,31 @@ INSTRUCTIONS:
                 print(f"📝 Using debug OCR prompt: {len(user_prompt)} chars")
                 print(f"🎛️ Settings: max_tokens={max_tokens}, temperature={temperature}")
             
-            # Load and preprocess image (same as regular processing)
-            image = Image.open(image_path).convert("RGB")
+            # Load and preprocess image using the same method as working code
+            pixel_values = self.load_image(image_path)
             
-            # Apply transforms to create pixel_values (same format as regular processing)
-            transform = self.build_transform()
-            pixel_values = transform(image).unsqueeze(0)  # Add batch dimension
+            # Move to appropriate device and dtype (same as working code)
+            pixel_values = pixel_values.to(torch.bfloat16).cuda()
             
-            # Use model.chat() like regular processing (consistent with InternVL3 approach)
-            generation_config = dict(
-                max_new_tokens=max_tokens,
-                do_sample=False,
-                temperature=temperature,
-                use_cache=True
-            )
+            # Prepare conversation in proper format (same as working code)
+            question = f"<image>\n{user_prompt}"
             
-            # Generate OCR output using model.chat() with pixel_values
+            # Use generation config format (same as working code)
+            config = {
+                'max_new_tokens': max_tokens,
+                'do_sample': False,
+                'temperature': temperature,
+                'use_cache': True
+            }
+            
+            # Generate OCR output using exact same pattern as working code
             ocr_output = self.model.chat(
                 self.tokenizer,
                 pixel_values,
-                user_prompt,
-                generation_config
+                question,
+                config,
+                history=None,
+                return_history=False
             )
             
             processing_time = time.perf_counter() - start_time
@@ -1433,8 +1437,8 @@ INSTRUCTIONS:
                 if self.debug:
                     print(f"💾 OCR output saved to: {output_path}")
             
-            # Cleanup
-            del image, pixel_values
+            # Cleanup (same as working code)
+            del pixel_values
             clear_model_caches(self.model, self.tokenizer)
             
             return {
