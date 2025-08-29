@@ -1385,12 +1385,9 @@ INSTRUCTIONS:
             question = f"<image>\n{user_prompt}"
             
             # Use generation config format (same as working code)
-            config = {
-                'max_new_tokens': max_tokens,
-                'do_sample': False,
-                'temperature': temperature,
-                'use_cache': True
-            }
+            # Start with base config and override max_new_tokens
+            config = self.generation_config.copy()
+            config['max_new_tokens'] = max_tokens
             
             # Generate OCR output using exact same pattern as working code
             ocr_output = self.model.chat(
