@@ -160,16 +160,13 @@ class DocumentAwareLlamaProcessor:
     def generate_dynamic_prompt(self) -> str:
         """Generate prompt for specific field list with v4 field type support."""
         
-        # A/B TEST: Use original simple prompt structure (95.3% performance)
-        # Comment out YAML loading to force simple prompt generation
-        return self._generate_simple_prompt()
+        # Try to load YAML configuration
+        yaml_config = self._load_yaml_config()
         
-        # Original YAML-first approach (84.7% performance) - commented for A/B test
-        # yaml_config = self._load_yaml_config()
-        # if yaml_config:
-        #     return self._generate_yaml_prompt(yaml_config)
-        # else:
-        #     return self._generate_simple_prompt()
+        if yaml_config:
+            return self._generate_yaml_prompt(yaml_config)
+        else:
+            return self._generate_simple_prompt()
     
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""

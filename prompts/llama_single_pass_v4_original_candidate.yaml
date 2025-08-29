@@ -1,0 +1,106 @@
+# Llama Single-Pass Prompt - V4 Schema (49 Fields)
+# Based on proven ~84% accuracy structure with V4 schema enhancements
+# Part of Integrated V4 + YAML-First Implementation Plan
+
+single_pass:
+  expertise_frame: "Extract comprehensive key-value data from this business document image."
+  
+  critical_instructions_header: "CRITICAL INSTRUCTIONS:"
+  critical_instructions:
+    - "Output ONLY the structured data below"
+    - "Do NOT include any conversation text" 
+    - "Do NOT repeat the user's request"
+    - "Do NOT include <image> tokens"
+    - "Start immediately with DOCUMENT_TYPE"
+    - "Stop immediately after TOTAL_AMOUNT"
+  
+  output_format: "REQUIRED OUTPUT FORMAT - V4 SCHEMA (49 FIELDS):"
+  
+  # V4 Schema - All 49 fields in SEMANTIC ORDER for optimal model performance
+  field_instructions:
+    # Document identifiers - start with most universal fields
+    DOCUMENT_TYPE: "[document type (invoice/receipt/statement) or NOT_FOUND]"
+    BUSINESS_ABN: "[11-digit Australian Business Number or NOT_FOUND]"
+    SUPPLIER_NAME: "[supplier name or NOT_FOUND]"
+    
+    # Business entity details (enhanced in V4)
+    BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
+    BUSINESS_PHONE: "[business phone number or NOT_FOUND]"
+    SUPPLIER_EMAIL: "[supplier email address or NOT_FOUND]"
+    SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
+    
+    # Payer information (enhanced in V4)
+    PAYER_NAME: "[payer name or NOT_FOUND]"
+    PAYER_ABN: "[11-digit customer ABN or NOT_FOUND]"
+    PAYER_ADDRESS: "[payer address or NOT_FOUND]"
+    PAYER_PHONE: "[payer phone number or NOT_FOUND]"
+    PAYER_EMAIL: "[payer email address or NOT_FOUND]"
+    
+    # Document-specific identifiers (V4 enhanced)
+    INVOICE_NUMBER: "[invoice number/reference or NOT_FOUND]"
+    RECEIPT_NUMBER: "[receipt/reference number or NOT_FOUND]"
+    
+    # Temporal data
+    INVOICE_DATE: "[invoice date or NOT_FOUND]"
+    DUE_DATE: "[payment due date or NOT_FOUND]"
+    STATEMENT_DATE_RANGE: "[statement period or date range or NOT_FOUND]"
+    
+    # Line item details (V4 greatly enhanced)
+    LINE_ITEM_DESCRIPTIONS: "[pipe-separated list of ALL items or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[pipe-separated quantities matching each item or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+    LINE_ITEM_TOTAL_PRICES: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+    LINE_ITEM_GST_AMOUNTS: "[pipe-separated GST amounts per line or NOT_FOUND]"
+    LINE_ITEM_DISCOUNT_AMOUNTS: "[pipe-separated discount amounts per line or NOT_FOUND]"
+    
+    # Banking information
+    BANK_NAME: "[bank name (NOT supplier name) or NOT_FOUND]"
+    BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
+    BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
+    BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
+    ACCOUNT_CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
+    
+    # Transaction details (V4 new - for bank statements)
+    TRANSACTION_DATES: "[pipe-separated transaction dates or NOT_FOUND]"
+    TRANSACTION_DESCRIPTIONS: "[pipe-separated transaction descriptions or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_PAID: "[pipe-separated amounts paid/debited or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated amounts received/credited or NOT_FOUND]"
+    TRANSACTION_BALANCES: "[pipe-separated running balances or NOT_FOUND]"
+    CREDIT_CARD_DUE_DATE: "[credit card payment due date or NOT_FOUND]"
+    
+    # Store/location information
+    STORE_LOCATION: "[store location or NOT_FOUND]"
+    
+    # Financial totals and calculations (V4 greatly enhanced)
+    SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals or NOT_FOUND]"
+    TOTAL_DISCOUNT_AMOUNT: "[total discount amount in dollars or NOT_FOUND]"
+    GST_AMOUNT: "[GST amount in dollars with 2 decimals or NOT_FOUND]"
+    IS_GST_INCLUDED: "[true if GST included, false if not, or NOT_FOUND]"
+    TOTAL_AMOUNT: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+    
+    # Payment status tracking (V4 new)
+    TOTAL_AMOUNT_PAID: "[amount paid in dollars or NOT_FOUND]"
+    BALANCE_OF_PAYMENT: "[balance remaining in dollars or NOT_FOUND]"
+    TOTAL_AMOUNT_PAYABLE: "[total payable amount in dollars or NOT_FOUND]"
+
+  format_rules_header: "FORMAT RULES:"
+  format_rules:
+    - "Use exactly: KEY: value (colon and space)"
+    - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+    - "Plain text only - NO markdown, NO bold, NO italic"
+    - "For boolean fields: use 'true' or 'false' (lowercase)"
+    - "For pipe-separated lists: use ' | ' with spaces around pipes"
+    - "For monetary values: include $ symbol and 2 decimal places"
+    - "Include ALL fields even if value is NOT_FOUND"
+    - "Output ONLY these fields, nothing else"
+
+  stop_instruction: "STOP after TOTAL_AMOUNT_PAYABLE line. Do not add explanations or comments."
+
+# V4 Schema Notes:
+# - EXPANDED from 25 → 49 fields with comprehensive document coverage
+# - NEW V4 FIELDS: Enhanced line item details, payment tracking, transaction lists
+# - ENHANCED INSTRUCTIONS: Boolean fields, calculated fields, transaction lists
+# - MAINTAINED: Semantic field ordering for optimal model performance
+# - MAINTAINED: Standardized field naming conventions
+# - DOCUMENT-AWARE: Supports invoice (25), receipt (19), and statement (17) subsets
