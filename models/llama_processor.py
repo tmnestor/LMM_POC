@@ -219,6 +219,12 @@ class LlamaProcessor:
         try:
             # Use new YAML-based prompt loader (replaces hardcoded paths)
             config = self.prompt_loader.load_prompt_config("llama", "single_pass")
+            
+            if self.debug:
+                # Show which YAML file is being used
+                yaml_path = self.prompt_loader.get_prompt_path("llama", "single_pass")
+                print(f"📂 Loading YAML prompt from: {yaml_path}")
+                
             return config.get("single_pass", {})
         except Exception as e:
             print(f"⚠️ Error loading YAML prompts via prompt loader: {e}")
