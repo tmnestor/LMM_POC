@@ -201,8 +201,8 @@ class DocumentAwareLlamaProcessor:
                 prompt += f"- {instruction}\n"
             prompt += "\n"
         
-        # Add output format with exact field count
-        output_format = yaml_config.get("output_format", f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:")
+        # Add output format with dynamic field count (document-aware)
+        output_format = f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:"
         prompt += f"{output_format}\n"
         
         # Add field instructions using semantic field list order
@@ -214,16 +214,20 @@ class DocumentAwareLlamaProcessor:
                 instruction = "[value or NOT_FOUND]"  # High-performance default
             prompt += f"{field}: {instruction}\n"
         
-        # Add format rules section (CRITICAL for proper parsing)
+        # Add format rules section with dynamic field count (CRITICAL for proper parsing)
         format_rules_header = yaml_config.get("format_rules_header", "OUTPUT RULES:")
         format_rules = yaml_config.get("format_rules", [])
         if format_rules:
             prompt += f"\n{format_rules_header}\n"
             for rule in format_rules:
-                prompt += f"- {rule}\n"
+                # Replace static field counts with dynamic values
+                dynamic_rule = rule.replace("ALL 29 keys", f"ALL {self.field_count} keys")
+                dynamic_rule = dynamic_rule.replace("these 29 lines", f"these {self.field_count} lines")
+                prompt += f"- {dynamic_rule}\n"
         
-        # Add stop instruction using exact archaeological format
-        stop_instruction = yaml_config.get("stop_instruction", f"STOP after {self.field_list[-1]} line. Do not add explanations or comments.")
+        # Add stop instruction with dynamic last field (document-aware)
+        last_field = self.field_list[-1] if self.field_list else "all fields"
+        stop_instruction = f"STOP after {last_field} line. Do not add explanations or comments."
         prompt += f"\n{stop_instruction}"
         
         return prompt
