@@ -541,8 +541,8 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
             
             # Clean the line from various formatting issues
             clean_line = line
-            # Remove markdown formatting - handle **KEY**: value pattern specifically
-            clean_line = re.sub(r"\*\*([^*]+)\*\*:", r"\1:", clean_line)
+            # Remove all markdown formatting - simple and effective approach
+            clean_line = clean_line.replace('**', '').replace('*', '')
             # Fix various prefix issues
             clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
             clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)
