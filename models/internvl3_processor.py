@@ -1375,8 +1375,12 @@ INSTRUCTIONS:
                 print(f"📝 Using debug OCR prompt: {len(user_prompt)} chars")
                 print(f"🎛️ Settings: max_tokens={max_tokens}, temperature={temperature}")
             
-            # Load and preprocess image
+            # Load and preprocess image (same as regular processing)
             image = Image.open(image_path).convert("RGB")
+            
+            # Apply transforms to create pixel_values (same format as regular processing)
+            transform = self.build_transform()
+            pixel_values = transform(image).unsqueeze(0)  # Add batch dimension
             
             # Use model.chat() like regular processing (consistent with InternVL3 approach)
             generation_config = dict(
@@ -1386,12 +1390,12 @@ INSTRUCTIONS:
                 use_cache=True
             )
             
-            # Generate OCR output using model.chat()
+            # Generate OCR output using model.chat() with pixel_values
             ocr_output = self.model.chat(
                 self.tokenizer,
-                image,
+                pixel_values,
                 user_prompt,
-                generation_config=generation_config
+                generation_config
             )
             
             processing_time = time.perf_counter() - start_time
@@ -1430,7 +1434,7 @@ INSTRUCTIONS:
                     print(f"💾 OCR output saved to: {output_path}")
             
             # Cleanup
-            del image
+            del image, pixel_values
             clear_model_caches(self.model, self.tokenizer)
             
             return {
