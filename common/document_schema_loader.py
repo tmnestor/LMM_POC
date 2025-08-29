@@ -38,6 +38,9 @@ class DocumentTypeFieldSchema:
         # Load document-aware schema
         self.schema = self._load_document_schema()
         
+        # Load document type mappings from YAML (YAML-first approach)
+        self.type_mappings = self._load_type_mappings()
+        
         # Cache for performance
         self._document_schemas_cache = {}
         self._compiled_schemas_cache = {}
@@ -135,9 +138,52 @@ class DocumentTypeFieldSchema:
             print(f"❌ Document detection failed: {e}")
             return "unknown"
     
+    def _load_type_mappings(self) -> dict:
+        """
+        Load document type mappings from YAML configuration (YAML-first approach).
+        
+        Returns:
+            Dictionary mapping detected types to canonical schema types
+        """
+        try:
+            mappings_path = Path(__file__).parent.parent / "config" / "document_type_mappings.yaml"
+            
+            if not mappings_path.exists():
+                # Fallback to hardcoded mappings if YAML doesn't exist
+                print("⚠️  Document type mappings YAML not found, using defaults")
+                return self._get_default_mappings()
+            
+            with mappings_path.open("r", encoding="utf-8") as f:
+                mappings_config = yaml.safe_load(f)
+            
+            # Build flat mapping dictionary from YAML structure
+            type_mapping = {}
+            doc_mappings = mappings_config.get("document_type_mappings", {})
+            
+            for canonical_type, variations in doc_mappings.items():
+                for variation in variations:
+                    type_mapping[variation.lower().strip()] = canonical_type
+            
+            print(f"✅ Loaded {len(type_mapping)} document type mappings from YAML")
+            return type_mapping
+            
+        except Exception as e:
+            print(f"⚠️  Error loading type mappings YAML: {e}")
+            return self._get_default_mappings()
+    
+    def _get_default_mappings(self) -> dict:
+        """Get default document type mappings as fallback."""
+        return {
+            "invoice": "invoice",
+            "receipt": "receipt",
+            "bank statement": "bank_statement",
+            "bank_statement": "bank_statement",
+            "statement": "bank_statement"
+        }
+    
     def _map_to_schema_type(self, detected_type: str) -> Optional[str]:
         """
-        Map detected document type to canonical schema type.
+        Map detected document type to canonical schema type using YAML-based mappings.
         
         Args:
             detected_type: The detected document type (e.g., 'estimate', 'quote')
@@ -145,27 +191,9 @@ class DocumentTypeFieldSchema:
         Returns:
             Canonical schema type ('invoice', 'receipt', 'bank_statement') or None
         """
-        type_mapping = {
-            "invoice": "invoice",
-            "tax invoice": "invoice",
-            "bill": "invoice",
-            "estimate": "invoice",
-            "quote": "invoice",
-            "quotation": "invoice",
-            "proforma invoice": "invoice",
-            "receipt": "receipt",
-            "purchase receipt": "receipt",
-            "payment receipt": "receipt",
-            "sales receipt": "receipt",
-            "bank statement": "bank_statement",
-            "account statement": "bank_statement",
-            "credit card statement": "bank_statement",
-            "statement": "bank_statement"
-        }
-        
         # Normalize the detected type
         normalized = detected_type.lower().strip()
-        return type_mapping.get(normalized)
+        return self.type_mappings.get(normalized)
     
     def get_document_schema(self, document_type: str) -> Dict[str, Any]:
         """

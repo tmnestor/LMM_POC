@@ -1,0 +1,52 @@
+# Document Type Mappings - YAML-First Configuration
+# Maps detected document type strings to canonical schema types
+# Part of YAML-first architecture for maintainable configuration
+
+document_type_mappings:
+  # Invoice variations
+  invoice:
+    - "invoice"
+    - "tax invoice"
+    - "tax_invoice"
+    - "bill"
+    - "estimate"
+    - "quote"
+    - "quotation"
+    - "proforma invoice"
+    - "proforma_invoice"
+    
+  # Receipt variations
+  receipt:
+    - "receipt"
+    - "purchase receipt"
+    - "purchase_receipt"
+    - "payment receipt"
+    - "payment_receipt"
+    - "sales receipt"
+    - "sales_receipt"
+    - "store receipt"
+    
+  # Bank statement variations
+  bank_statement:
+    - "bank statement"
+    - "bank_statement"
+    - "bankstatement"
+    - "account statement"
+    - "account_statement"
+    - "credit card statement"
+    - "credit_card_statement"
+    - "creditcard statement"
+    - "statement"
+    - "bank account statement"
+    - "monthly statement"
+
+# Detection configuration
+detection_config:
+  confidence_threshold: 0.85
+  fallback_type: "unknown"
+  
+# Supported document types for validation
+supported_types:
+  - "invoice"
+  - "receipt"
+  - "bank_statement"
