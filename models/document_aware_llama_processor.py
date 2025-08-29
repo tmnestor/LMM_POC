@@ -202,6 +202,14 @@ class DocumentAwareLlamaProcessor:
                 instruction = self._get_field_type_instruction(field)
             prompt += f"{field}: {instruction}\n"
         
+        # Add format rules section (CRITICAL for proper parsing)
+        format_rules_header = yaml_config.get("format_rules_header", "FORMAT RULES:")
+        format_rules = yaml_config.get("format_rules", [])
+        if format_rules:
+            prompt += f"\n{format_rules_header}\n"
+            for rule in format_rules:
+                prompt += f"- {rule}\n"
+        
         # Add dynamic stop instruction based on actual field list
         last_field = self.field_list[-1] if self.field_list else "all fields"
         stop_instruction = f"STOP after {last_field} line. Do not add explanations or comments."
@@ -576,20 +584,28 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                         if not next_line:
                             j += 1
                             continue
-                        # Check if this is a bullet point or continuation
-                        if next_line.startswith('*') or next_line.startswith('-') or next_line.startswith('•'):
+                        
+                        # Check if this is the start of a new field (BEFORE cleaning markdown)
+                        # Look for patterns like "**FIELD_NAME:" or "FIELD_NAME:"
+                        is_next_field = False
+                        if ":" in next_line:
+                            # Remove ** to check if it's a field name
+                            clean_check = next_line.replace('**', '').strip().upper()
+                            field_name = clean_check.split(':')[0].strip().replace(' ', '_')
+                            if field_name in self.field_list:
+                                is_next_field = True
+                        
+                        if is_next_field:
+                            # Next field found, stop collecting
+                            break
+                        elif next_line.startswith('*') or next_line.startswith('-') or next_line.startswith('•'):
                             # Extract bullet point content
                             bullet_content = next_line.lstrip('*-•').strip()
                             if bullet_content:
                                 bullet_values.append(bullet_content)
                             j += 1
-                        elif ":" in next_line and next_line.strip().startswith('**'):
-                            # Next field found (markdown formatted), stop collecting
-                            break
                         else:
-                            # Potential continuation line
-                            if next_line and not next_line.startswith('**'):
-                                bullet_values.append(next_line)
+                            # Skip section headers or other non-field content
                             j += 1
                     
                     if bullet_values:
