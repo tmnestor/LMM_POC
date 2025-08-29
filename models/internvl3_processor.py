@@ -99,6 +99,10 @@ class InternVL3Processor:
         # Use proper content-based detector that analyzes actual document content
         self.document_detector = DocumentTypeDetector(model_processor=self)
         
+        # Configure extraction strategy - V4 uses YAML-first prompts only
+        self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+        self.debug = debug
+        
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if debug:
@@ -111,10 +115,6 @@ class InternVL3Processor:
         if debug:
             print("🔧 V4 Schema enabled with document-aware field extraction")
             print(f"📊 Total V4 fields: {get_v4_field_count()}")
-
-        # Configure extraction strategy - V4 uses YAML-first prompts only
-        self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
-        self.debug = debug
         self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
         if debug:
             print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")

@@ -99,6 +99,10 @@ class LlamaProcessor:
         # Use proper content-based detector that analyzes actual document content
         self.document_detector = DocumentTypeDetector(model_processor=self)
         
+        # Configure extraction strategy - V4 uses YAML-first prompts only
+        self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
+        self.debug = debug
+        
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if self.debug:
@@ -108,10 +112,6 @@ class LlamaProcessor:
             except Exception as e:
                 print(f"⚠️ Debug OCR prompts not available: {e}")
                 self.debug_ocr_config = None
-
-        # Configure extraction strategy - V4 uses YAML-first prompts only
-        self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
-        self.debug = debug
         self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
         if debug:
             print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
