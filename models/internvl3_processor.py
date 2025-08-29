@@ -1377,31 +1377,22 @@ INSTRUCTIONS:
             
             # Load and preprocess image
             image = Image.open(image_path).convert("RGB")
-            transform = self.build_transform()
-            pixel_values = transform(image).unsqueeze(0).to(self.device)
             
-            # Tokenize prompt
-            inputs = self.tokenizer(user_prompt, return_tensors="pt")
-            input_ids = inputs.input_ids.to(self.device)
-            attention_mask = inputs.attention_mask.to(self.device)
+            # Use model.chat() like regular processing (consistent with InternVL3 approach)
+            generation_config = dict(
+                max_new_tokens=max_tokens,
+                do_sample=False,
+                temperature=temperature,
+                use_cache=True
+            )
             
-            # Generate OCR output
-            with torch.no_grad():
-                generation_output = self.model.generate(
-                    input_ids=input_ids,
-                    pixel_values=pixel_values, 
-                    attention_mask=attention_mask,
-                    do_sample=False,
-                    max_new_tokens=max_tokens,
-                    temperature=temperature,
-                    use_cache=True,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                )
-            
-            # Decode response
-            input_token_len = input_ids.shape[1]
-            response_tokens = generation_output[0][input_token_len:]
-            ocr_output = self.tokenizer.decode(response_tokens, skip_special_tokens=True)
+            # Generate OCR output using model.chat()
+            ocr_output = self.model.chat(
+                self.tokenizer,
+                image,
+                user_prompt,
+                generation_config=generation_config
+            )
             
             processing_time = time.perf_counter() - start_time
             
@@ -1439,7 +1430,7 @@ INSTRUCTIONS:
                     print(f"💾 OCR output saved to: {output_path}")
             
             # Cleanup
-            del inputs, pixel_values, generation_output, image
+            del image
             clear_model_caches(self.model, self.tokenizer)
             
             return {
