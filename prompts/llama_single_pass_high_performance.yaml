@@ -1,0 +1,89 @@
+# Llama Single-Pass High Performance Prompt - YAML-First Version
+# Based on 95.3% accuracy performance from archaeological investigation
+# Semantic field ordering preserved for optimal model performance
+
+single_pass:
+  expertise_frame: "Extract structured data from this business document image."
+  
+  critical_instructions_header: "CRITICAL INSTRUCTIONS:"
+  critical_instructions:
+    - "Output ONLY the structured data below"
+    - "Do NOT include any conversation text"
+    - "Do NOT repeat the user's request"
+    - "Do NOT include <image> tokens"
+    - "Start immediately with DOCUMENT_TYPE"
+    - "Stop immediately after SUPPLIER_WEBSITE"
+  
+  output_format: "REQUIRED OUTPUT FORMAT - EXACTLY 29 LINES:"
+  
+  # HIGH-PERFORMANCE SEMANTIC FIELD ORDERING (95.3% accuracy)
+  # Document identifiers → Business details → Financial totals → Line items → Payer info
+  field_instructions:
+    # Document identifiers (most universal fields first)
+    DOCUMENT_TYPE: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+    BUSINESS_ABN: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
+    SUPPLIER_NAME: "[business name from document header or NOT_FOUND]"
+    
+    # Business entity details
+    BUSINESS_ADDRESS: "[value or NOT_FOUND]"
+    BUSINESS_PHONE: "[business phone number (not customer phone) (e.g. (XX) XXXX XXXX) or NOT_FOUND]"
+    SUPPLIER_EMAIL: "[value or NOT_FOUND]"
+    
+    # Most important field - financial total
+    TOTAL_AMOUNT: "[value or NOT_FOUND]"
+    
+    # Document reference numbers
+    INVOICE_NUMBER: "[value or NOT_FOUND]"
+    INVOICE_DATE: "[value or NOT_FOUND]"
+    DUE_DATE: "[value or NOT_FOUND]"
+    
+    # Payer/customer information
+    PAYER_NAME: "[value or NOT_FOUND]"
+    PAYER_ABN: "[value or NOT_FOUND]"
+    PAYER_ADDRESS: "[value or NOT_FOUND]"
+    PAYER_PHONE: "[value or NOT_FOUND]"
+    PAYER_EMAIL: "[value or NOT_FOUND]"
+    
+    # Line item details (grouped together)
+    LINE_ITEM_DESCRIPTIONS: "[value or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[value or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[numbers in the right most column with 2 decimal places or NOT_FOUND]"
+    LINE_ITEM_TOTAL_PRICES: "[pipe-separated calculated totals: qty×price for each item, or NOT_FOUND]"
+    LINE_ITEM_GST_AMOUNTS: "[value or NOT_FOUND]"
+    LINE_ITEM_DISCOUNT_AMOUNTS: "[value or NOT_FOUND]"
+    
+    # Financial calculations
+    SUBTOTAL_AMOUNT: "[value or NOT_FOUND]"
+    TOTAL_DISCOUNT_AMOUNT: "[value or NOT_FOUND]"
+    GST_AMOUNT: "[value or NOT_FOUND]"
+    IS_GST_INCLUDED: "[true if GST included in prices, false if GST separate, or NOT_FOUND]"
+    
+    # Payment tracking
+    TOTAL_AMOUNT_PAID: "[value or NOT_FOUND]"
+    BALANCE_OF_PAYMENT: "[calculated value or NOT_FOUND]"
+    TOTAL_AMOUNT_PAYABLE: "[value or NOT_FOUND]"
+    
+    # Supplier contact (final field)
+    SUPPLIER_WEBSITE: "[value or NOT_FOUND]"
+
+  format_rules_header: "OUTPUT RULES:"
+  format_rules:
+    - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+    - "Plain text only - NO markdown, NO bold, NO italic"
+    - "Include ALL 29 keys even if value is NOT_FOUND"
+    - "Output ONLY these 29 lines, nothing else"
+    - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+    - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+    - "Be conservative: use NOT_FOUND if field is truly missing"
+    - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+    - "For calculated fields: show computed values with proper formatting"
+    - "For transaction lists: use pipe separators between transactions"
+
+  stop_instruction: "STOP after SUPPLIER_WEBSITE line. Do not add explanations or comments."
+
+# Performance Notes:
+# - SEMANTIC ORDERING: Document ID → Business → Financial → Line Items → Payer → Contact
+# - 95.3% ACCURACY: This exact field order achieved archaeological best performance
+# - DOCUMENT-AWARE: 29 invoice fields (filtered from full 48-field schema)
+# - YAML-FIRST: Structured configuration maintains architectural consistency
+# - PLAIN TEXT: No markdown formatting to prevent parsing conflicts

@@ -160,22 +160,20 @@ class DocumentAwareLlamaProcessor:
     def generate_dynamic_prompt(self) -> str:
         """Generate prompt for specific field list with v4 field type support."""
         
-        # A/B TEST: Use original simple prompt structure (95.3% performance)
-        # Comment out YAML loading to force simple prompt generation
-        return self._generate_simple_prompt()
-        
-        # Original YAML-first approach (84.7% performance) - commented for A/B test
-        # yaml_config = self._load_yaml_config()
-        # if yaml_config:
-        #     return self._generate_yaml_prompt(yaml_config)
-        # else:
-        #     return self._generate_simple_prompt()
+        # YAML-FIRST HIGH PERFORMANCE: Use archaeological best performance structure (95.3%)
+        # Switch from A/B test to high-performance YAML configuration
+        yaml_config = self._load_yaml_config()
+        if yaml_config:
+            return self._generate_yaml_prompt(yaml_config)
+        else:
+            # Fallback to simple prompt if YAML loading fails
+            return self._generate_simple_prompt()
     
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
         try:
-            # Use the same V4 semantic-ordered prompt as the regular processor
-            yaml_path = Path(__file__).parent.parent / "prompts" / "llama_single_pass_v4.yaml"
+            # Use the high-performance YAML (95.3% accuracy from archaeological investigation)
+            yaml_path = Path(__file__).parent.parent / "prompts" / "llama_single_pass_high_performance.yaml"
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f)
@@ -186,36 +184,46 @@ class DocumentAwareLlamaProcessor:
         return {}
     
     def _generate_yaml_prompt(self, yaml_config: dict) -> str:
-        """Generate prompt using YAML configuration with dynamic fields and v4 field type support."""
+        """Generate prompt using high-performance YAML configuration matching archaeological structure."""
         
-        persona = yaml_config.get("persona", "You are an expert document analyzer.")
-        task_description = yaml_config.get("task_description", "Extract key information from business documents.")
+        # Use exact structure from 95.3% performance archaeological investigation
+        expertise_frame = yaml_config.get("expertise_frame", "Extract structured data from this business document image.")
         
-        # Generate dynamic output format header with correct field count
-        output_format = f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} FIELDS:"
+        # Build prompt exactly like high-performance original
+        prompt = f"{expertise_frame}\n\n"
         
-        prompt = f"{persona}\n\n{task_description}\n\n{output_format}\n"
+        # Add critical instructions
+        critical_header = yaml_config.get("critical_instructions_header", "CRITICAL INSTRUCTIONS:")
+        critical_instructions = yaml_config.get("critical_instructions", [])
+        if critical_instructions:
+            prompt += f"{critical_header}\n"
+            for instruction in critical_instructions:
+                prompt += f"- {instruction}\n"
+            prompt += "\n"
         
-        # Add field instructions using dynamic field list with v4 field type awareness
+        # Add output format with exact field count
+        output_format = yaml_config.get("output_format", f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:")
+        prompt += f"{output_format}\n"
+        
+        # Add field instructions using semantic field list order
         field_instructions = yaml_config.get("field_instructions", {})
         for field in self.field_list:
-            # Get field type-specific instruction or use default
+            # Get field instruction from YAML (preserves archaeological structure)
             instruction = field_instructions.get(field)
             if not instruction:
-                instruction = self._get_field_type_instruction(field)
+                instruction = "[value or NOT_FOUND]"  # High-performance default
             prompt += f"{field}: {instruction}\n"
         
         # Add format rules section (CRITICAL for proper parsing)
-        format_rules_header = yaml_config.get("format_rules_header", "FORMAT RULES:")
+        format_rules_header = yaml_config.get("format_rules_header", "OUTPUT RULES:")
         format_rules = yaml_config.get("format_rules", [])
         if format_rules:
             prompt += f"\n{format_rules_header}\n"
             for rule in format_rules:
                 prompt += f"- {rule}\n"
         
-        # Add dynamic stop instruction based on actual field list
-        last_field = self.field_list[-1] if self.field_list else "all fields"
-        stop_instruction = f"STOP after {last_field} line. Do not add explanations or comments."
+        # Add stop instruction using exact archaeological format
+        stop_instruction = yaml_config.get("stop_instruction", f"STOP after {self.field_list[-1]} line. Do not add explanations or comments.")
         prompt += f"\n{stop_instruction}"
         
         return prompt
