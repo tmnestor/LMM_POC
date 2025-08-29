@@ -171,7 +171,8 @@ class DocumentAwareLlamaProcessor:
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
         try:
-            yaml_path = Path(__file__).parent.parent / "common" / "llama_single_pass_prompts.yaml"
+            # Use the same V4 semantic-ordered prompt as the regular processor
+            yaml_path = Path(__file__).parent.parent / "prompts" / "llama_single_pass_v4.yaml"
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f)
