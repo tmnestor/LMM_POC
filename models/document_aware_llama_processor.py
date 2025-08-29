@@ -598,8 +598,12 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 
                 # Store if it's in our document-specific field list
                 if normalized_key in self.field_list:
-                    # Clean the extracted value using the centralized cleaner
-                    cleaned_value = self.cleaner.clean_field_value(normalized_key, value) if value else "NOT_FOUND"
+                    # Normalize common "not found" variations before cleaning
+                    if value.lower() in ['not found', 'not_found', 'notfound', 'n/a', 'na']:
+                        cleaned_value = "NOT_FOUND"
+                    else:
+                        # Clean the extracted value using the centralized cleaner
+                        cleaned_value = self.cleaner.clean_field_value(normalized_key, value) if value else "NOT_FOUND"
                     extracted_data[normalized_key] = cleaned_value
             
             i += 1

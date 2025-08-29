@@ -25,9 +25,9 @@ single_pass:
     SUPPLIER_NAME: "[business name from document header or NOT_FOUND]"
     
     # Business entity details (enhanced in V4)
-    BUSINESS_ADDRESS: "[business address or NOT_FOUND]"
-    BUSINESS_PHONE: "[business phone number or NOT_FOUND]"
-    SUPPLIER_EMAIL: "[supplier email address or NOT_FOUND]"
+    BUSINESS_ADDRESS: "[complete business address from document header/footer or NOT_FOUND]"
+    BUSINESS_PHONE: "[business contact phone number (check header, footer, contact details) or NOT_FOUND]"
+    SUPPLIER_EMAIL: "[business email address from contact information or NOT_FOUND]"
     
     # KEY FINANCIAL AMOUNT - moved to position 7 for better extraction
     TOTAL_AMOUNT: "[total amount in dollars with 2 decimals (e.g. $58.62) or NOT_FOUND]"
@@ -48,17 +48,17 @@ single_pass:
     
     # Line item details (V4 greatly enhanced) - INVOICE OPTIMIZED
     LINE_ITEM_DESCRIPTIONS: "[list of transaction descriptions or NOT_FOUND]"
-    LINE_ITEM_QUANTITIES: "[list of quantities or NOT_FOUND]"
-    LINE_ITEM_PRICES: "[individual prices in dollars or NOT_FOUND]"
+    LINE_ITEM_QUANTITIES: "[quantities for each item (check left column, qty column, or assume 1 if none shown) or NOT_FOUND]"
+    LINE_ITEM_PRICES: "[individual unit prices in dollars (before quantity multiplication) or NOT_FOUND]"
     LINE_ITEM_TOTAL_PRICES: "[pipe-separated calculated totals: qty×price for each item, or NOT_FOUND]"
     LINE_ITEM_GST_AMOUNTS: "[GST amounts for each item or NOT_FOUND]"
     LINE_ITEM_DISCOUNT_AMOUNTS: "[discount amounts for each item or NOT_FOUND]"
     
     # Financial totals and calculations (V4 greatly enhanced) - INVOICE OPTIMIZED
-    SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals (e.g. $53.29) or NOT_FOUND]"
-    TOTAL_DISCOUNT_AMOUNT: "[total discount amount or NOT_FOUND]"
-    GST_AMOUNT: "[GST amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
-    IS_GST_INCLUDED: "[true if GST included in prices, false if GST separate, or NOT_FOUND]"
+    SUBTOTAL_AMOUNT: "[pre-tax subtotal amount (before GST/discounts) in dollars or NOT_FOUND]"
+    TOTAL_DISCOUNT_AMOUNT: "[sum of all discount amounts or NOT_FOUND]"
+    GST_AMOUNT: "[GST/tax amount in dollars with 2 decimals (e.g. $5.33) or NOT_FOUND]"
+    IS_GST_INCLUDED: "[true if GST already included in line item prices, false if added separately, or NOT_FOUND]"
     
     # Payment status tracking (V4 new) - INVOICE OPTIMIZED
     TOTAL_AMOUNT_PAID: "[total amount paid or NOT_FOUND]"
