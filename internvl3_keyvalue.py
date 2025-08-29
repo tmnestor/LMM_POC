@@ -375,12 +375,41 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
             print(f"   Average processing time: {result.get('processing_time', 0):.2f}s")
             print(f"   Effective batch size: {batch_statistics.get('batch_size', 1)}")
             
-            # Display clean extraction results with status icons
-            print("\n📊 EXTRACTED DATA:")
-            extracted_data = result.get('extracted_data', {})
+            # Get and clean the extracted data properly
+            raw_extracted_data = result.get('extracted_data', {})
+            
+            # Apply cleaning using ExtractionCleaner like the processors do
+            from common.extraction_cleaner import ExtractionCleaner
+            cleaner = ExtractionCleaner(debug=debug)
+            
+            # Clean each field and track changes
+            cleaned_extracted_data = {}
+            cleaning_changes = []
+            
+            for field_name, raw_value in raw_extracted_data.items():
+                if raw_value != "NOT_FOUND" and raw_value:
+                    cleaned_value = cleaner.clean_field_value(field_name, raw_value)
+                    cleaned_extracted_data[field_name] = cleaned_value
+                    
+                    # Track cleaning changes for display
+                    if cleaned_value != raw_value:
+                        cleaning_changes.append((field_name, raw_value, cleaned_value))
+                else:
+                    cleaned_extracted_data[field_name] = raw_value
+            
+            # Show cleaning process if there were changes
+            if cleaning_changes and debug:
+                print("\n🧹 FIELD CLEANING APPLIED:")
+                for field_name, raw_val, clean_val in cleaning_changes:
+                    print(f"🧹 Cleaning {field_name}: '{raw_val}' -> '{clean_val}'")
+            
+            # Use cleaned data for display and evaluation
+            extracted_data = cleaned_extracted_data
             found_count = 0
             total_count = len(extracted_data)
             
+            # Display clean extraction results with status icons
+            print("\n📊 EXTRACTED DATA:")
             for field_name, value in extracted_data.items():
                 if value and value != "NOT_FOUND":
                     status = "✅"
@@ -403,7 +432,9 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
             # Load ground truth for evaluation if available
             if ground_truth_data and image_path_obj.name in ground_truth_data:
                 print("\n🎯 Evaluating extraction results against ground truth...")
-                evaluation_summary = evaluate_extraction_results(extraction_results, ground_truth_data)
+                # Update result with cleaned data for accurate evaluation
+                result['extracted_data'] = cleaned_extracted_data
+                evaluation_summary = evaluate_extraction_results([result], ground_truth_data)
                 
                 print("\n📈 EVALUATION vs Ground Truth:")
                 overall_accuracy = evaluation_summary.get('overall_accuracy', 0)
