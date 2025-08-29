@@ -36,7 +36,7 @@ from common.config import (
     get_v4_field_list,
     is_v4_schema_enabled,
 )
-from common.document_type_detector import LightweightDocumentDetector
+from common.document_type_detector import DocumentTypeDetector
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     clear_model_caches,
@@ -96,7 +96,8 @@ class InternVL3Processor:
         
         # Initialize V4 system components
         self.prompt_loader = PromptLoader()
-        self.document_detector = LightweightDocumentDetector()
+        # Use proper content-based detector that analyzes actual document content
+        self.document_detector = DocumentTypeDetector(model_processor=self)
         if debug:
             print("🔧 V4 Schema enabled with document-aware field extraction")
             print(f"📊 Total V4 fields: {get_v4_field_count()}")
@@ -395,10 +396,12 @@ class InternVL3Processor:
             # Determine active fields based on document type
             if image_path and self.document_detector:
                 try:
-                    detected_type = self.document_detector.classify_document_type(image_path)
+                    detection_result = self.document_detector.detect_document_type(image_path)
+                    detected_type = detection_result.get("type", "invoice")
                     active_fields = get_document_type_fields(detected_type)
                     if self.debug:
-                        print(f"📄 Document type detected: {detected_type}")
+                        confidence = detection_result.get("confidence", 0)
+                        print(f"📄 Document type detected: {detected_type} (confidence: {confidence:.1%})")
                         print(f"🎯 Active fields: {len(active_fields)}/{get_v4_field_count()}")
                 except Exception as e:
                     if self.debug:

@@ -93,10 +93,11 @@ class LlamaProcessor:
             )
         
         # Initialize V4 system components
-        from common.document_type_detector import LightweightDocumentDetector
+        from common.document_type_detector import DocumentTypeDetector
         from common.prompt_loader import PromptLoader
         self.prompt_loader = PromptLoader()
-        self.document_detector = LightweightDocumentDetector()
+        # Use proper content-based detector that analyzes actual document content
+        self.document_detector = DocumentTypeDetector(model_processor=self)
 
         # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
@@ -234,11 +235,18 @@ class LlamaProcessor:
                 if self.debug:
                     print(f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}")
                 
-                # Step 1: Detect document type
-                doc_type = self.document_detector.classify_document_type(image_path)
+                # Step 1: Detect document type using content analysis
+                detection_result = self.document_detector.detect_document_type(image_path)
+                doc_type = detection_result.get("type", "invoice")
                 
                 if self.debug:
+                    confidence = detection_result.get("confidence", 0)
+                    reasoning = detection_result.get("reasoning", "No reasoning provided")
+                    processing_time = detection_result.get("processing_time", 0)
                     print(f"📄 Detected document type: {doc_type}")
+                    print(f"   Confidence: {confidence:.1%}")
+                    print(f"   Reasoning: {reasoning}")
+                    print(f"   Detection time: {processing_time:.2f}s")
                 
                 # Step 2: Get document-specific fields
                 from common.config import get_document_type_fields

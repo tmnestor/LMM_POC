@@ -525,7 +525,15 @@ class LightweightDocumentDetector:
             elif any(keyword in filename for keyword in ["synthetic_statement", "sample_statement"]):
                 return "statement"
             
-            # Final fallback - default to invoice (most common document type)
+            # Check for generic filename patterns that need content-based detection
+            if re.match(r'^(image|doc|document|file|test)_?\d*$', filename):
+                if self.debug:
+                    print(f"🔍 Generic filename detected: {filename}")
+                    print("💡 Consider using content-based detection or descriptive filenames")
+                # Keep original default - invoices are typically most common business documents
+                return "invoice"
+            
+            # Final fallback - default to invoice (most common business document type)
             if self.debug:
                 print("📄 No specific pattern matched, defaulting to: invoice")
             return "invoice"
