@@ -192,12 +192,17 @@ class DocumentAwareLlamaProcessor:
         # Build prompt exactly like high-performance original
         prompt = f"{expertise_frame}\n\n"
         
-        # Add critical instructions
+        # Add critical instructions with dynamic last field
         critical_header = yaml_config.get("critical_instructions_header", "CRITICAL INSTRUCTIONS:")
         critical_instructions = yaml_config.get("critical_instructions", [])
         if critical_instructions:
             prompt += f"{critical_header}\n"
             for instruction in critical_instructions:
+                # Replace static last field reference with dynamic one
+                if "TOTAL_AMOUNT_PAYABLE" in instruction or "SUPPLIER_WEBSITE" in instruction:
+                    # Replace with actual last field for this document type
+                    last_field = self.field_list[-1] if self.field_list else "last field"
+                    instruction = f"Stop immediately after {last_field}"
                 prompt += f"- {instruction}\n"
             prompt += "\n"
         
