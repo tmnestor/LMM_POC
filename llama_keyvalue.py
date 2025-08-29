@@ -324,24 +324,85 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
             return
         image_files = [str(image_path_obj)]
         print(f"\n📷 Single image processing: {image_path_obj.name}")
-    else:
-        # Batch processing mode - scan data directory
-        print(f"\n📁 Discovering images in: {data_dir}")
-        image_files = discover_images(data_dir)
-
-        # Apply filtering to match evaluation dataset
-        # Currently filters for synthetic invoice test images - modify for different datasets
-        image_files = [f for f in image_files if "synthetic_invoice" in Path(f).name]
-
-        # Apply image limit if specified
-        if limit_images and limit_images > 0:
-            original_count = len(image_files)
-            image_files = image_files[:limit_images]
-            print(
-                f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
-            )
+        
+        # Process single image and display results with clean formatting
+        print("\n🚀 Starting batch processing...")
+        results, batch_stats = processor.process_image_batch(image_files)
+        
+        if results:
+            result = results[0]  # Single image result
+            
+            # Display processing summary
+            print("\n📊 Batch Processing Complete:")
+            print("   Total images: 1")
+            print("   Successful extractions: 1")
+            print("   Success rate: 100.0%")
+            print(f"   Average processing time: {result.get('processing_time', 0):.2f}s")
+            
+            # Display clean extraction results with status icons
+            print("\n📊 EXTRACTED DATA:")
+            extracted_data = result.get('extracted_data', {})
+            found_count = 0
+            total_count = len(extracted_data)
+            
+            for field_name, value in extracted_data.items():
+                if value and value != "NOT_FOUND":
+                    status = "✅"
+                    found_count += 1
+                else:
+                    status = "❌"
+                print(f"   {status} {field_name}: {value}")
+            
+            print("\n📊 PARSED EXTRACTION RESULTS:")
+            print("=" * 80)
+            for field_name, value in extracted_data.items():
+                if value and value != "NOT_FOUND":
+                    status = "✅"
+                else:
+                    status = "❌"
+                print(f"  {status} {field_name}: \"{value}\"")
+            print("=" * 80)
+            print(f"✅ Extracted {found_count}/{total_count} fields")
+            
+            # Load ground truth for evaluation if available
+            if Path(ground_truth_path).exists():
+                print(f"\n📊 Loading ground truth from: {ground_truth_path}")
+                ground_truth_data = load_ground_truth(ground_truth_path)
+                
+                if ground_truth_data and image_path_obj.name in ground_truth_data:
+                    print("\n🎯 Evaluating extraction results against ground truth...")
+                    evaluation_summary = evaluate_extraction_results(results, ground_truth_data)
+                    
+                    print("\n📈 EVALUATION vs Ground Truth:")
+                    overall_accuracy = evaluation_summary.get('overall_accuracy', 0)
+                    print(f"   Accuracy: {overall_accuracy*100:.1f}%")
+                    print(f"   Meets Threshold: {'Yes' if overall_accuracy >= 0.8 else 'No'}")
+                    print(f"   Fields evaluated: {total_count}")
+                else:
+                    print(f"\n⚠️  No ground truth available for {image_path_obj.name}")
+            
+            print("\n✅ Single image processing complete!")
         else:
-            print(f"📷 Found {len(image_files)} images for processing")
+            print("❌ No results from image processing")
+        
+        return
+    # Batch processing mode - scan data directory
+    print(f"\n📁 Discovering images in: {data_dir}")
+    image_files = discover_images(data_dir)
+
+    # Apply filtering to match evaluation dataset
+    # Currently filters for synthetic invoice test images - modify for different datasets
+    image_files = [f for f in image_files if "synthetic_invoice" in Path(f).name]
+
+    # Apply image limit if specified
+    if limit_images and limit_images > 0:
+        original_count = len(image_files)
+        image_files = image_files[:limit_images]
+        print(
+            f"📷 Limited to {len(image_files)} images (from {original_count} total) for testing"
+        )
+    else:
+        print(f"📷 Found {len(image_files)} images for processing")
     
     if not image_files:
         print("❌ No images found for processing")

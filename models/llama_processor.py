@@ -32,6 +32,7 @@ from common.config import (
     get_v4_field_count,
     is_v4_schema_enabled,
 )
+from common.extraction_cleaner import ExtractionCleaner
 from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
@@ -117,6 +118,9 @@ class LlamaProcessor:
         self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
         if debug:
             print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
+
+        # Initialize extraction cleaner for value normalization and field cleaning visibility
+        self.cleaner = ExtractionCleaner(debug=debug)
 
         # Configure CUDA memory allocation strategy (from PyTorch forums)
         configure_cuda_memory_allocation()
@@ -708,6 +712,45 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         print("✅ CPU processing completed successfully")
         return output
 
+    def _show_field_cleaning_and_results(self, extracted_data: dict):
+        """Show field cleaning process and results with visual indicators like llama_document_aware.py."""
+        
+        # Get the field list to iterate through (using active_fields if available for document-aware)
+        field_list = self.active_fields or EXTRACTION_FIELDS
+        
+        # Apply cleaning to each field and show the process
+        cleaned_extracted_data = {}
+        for field in field_list:
+            original_value = extracted_data.get(field, "NOT_FOUND")
+            if original_value != "NOT_FOUND" and original_value:
+                # Apply cleaning using the ExtractionCleaner
+                cleaned_value = self.cleaner.clean_field_value(field, original_value)
+                cleaned_extracted_data[field] = cleaned_value
+                
+                # Show cleaning process if value changed
+                if cleaned_value != original_value and self.debug:
+                    print(f"🧹 Cleaning {field}: '{original_value}' -> '{cleaned_value}'")
+            else:
+                cleaned_extracted_data[field] = original_value
+        
+        # Update the extracted_data with cleaned values
+        extracted_data.update(cleaned_extracted_data)
+        
+        # Show structured results with visual indicators
+        print("📊 PARSED EXTRACTION RESULTS:")
+        print("=" * 80)
+        for field in field_list:
+            value = extracted_data.get(field, "NOT_FOUND")
+            status = "✅" if value != "NOT_FOUND" else "❌"
+            print(f"  {status} {field}: \"{value}\"")
+        print("=" * 80)
+        
+        # Show summary statistics
+        found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+        print(f"✅ Extracted {len(found_fields)}/{len(field_list)} fields")
+        if found_fields:
+            print(f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
+
     def process_single_image(self, image_path):
         """
         Process a single image through Llama extraction pipeline.
@@ -779,15 +822,13 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             )
 
             if self.debug:
-                print("🔍 RAW MODEL RESPONSE (single-pass):")
-                print("-" * 40)
+                print(f"📄 RAW MODEL RESPONSE ({len(response)} chars):")
+                print("=" * 80)
                 print(response)
-                print("-" * 40)
-                print("🔍 PARSED DATA (single-pass):")
-                for field, value in extracted_data.items():
-                    print(f"  {field}: {value}")
-                print(f"  Total fields: {len(extracted_data)}")
-                print()
+                print("=" * 80)
+                
+                # Show field cleaning process and final results with visual indicators
+                self._show_field_cleaning_and_results(extracted_data)
 
             # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
             extracted_fields_count = len(

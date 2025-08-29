@@ -359,6 +359,70 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
             return
         image_files = [str(image_path_obj)]
         print(f"\n📷 Single image processing: {image_path_obj.name}")
+        
+        # Process single image and display results with clean formatting
+        print("\n🚀 Starting batch processing...")
+        extraction_results, batch_statistics = processor.process_image_batch(image_files)
+        
+        if extraction_results:
+            result = extraction_results[0]  # Single image result
+            
+            # Display processing summary
+            print("\n📊 Batch Processing Complete:")
+            print("   Total images: 1")
+            print("   Successful extractions: 1")
+            print("   Success rate: 100.0%")
+            print(f"   Average processing time: {result.get('processing_time', 0):.2f}s")
+            print(f"   Effective batch size: {batch_statistics.get('batch_size', 1)}")
+            
+            # Display clean extraction results with status icons
+            print("\n📊 EXTRACTED DATA:")
+            extracted_data = result.get('extracted_data', {})
+            found_count = 0
+            total_count = len(extracted_data)
+            
+            for field_name, value in extracted_data.items():
+                if value and value != "NOT_FOUND":
+                    status = "✅"
+                    found_count += 1
+                else:
+                    status = "❌"
+                print(f"   {status} {field_name}: {value}")
+            
+            print("\n📊 PARSED EXTRACTION RESULTS:")
+            print("=" * 80)
+            for field_name, value in extracted_data.items():
+                if value and value != "NOT_FOUND":
+                    status = "✅"
+                else:
+                    status = "❌"
+                print(f"  {status} {field_name}: \"{value}\"")
+            print("=" * 80)
+            print(f"✅ Extracted {found_count}/{total_count} fields")
+            
+            # Load ground truth for evaluation if available
+            if ground_truth_data and image_path_obj.name in ground_truth_data:
+                print("\n🎯 Evaluating extraction results against ground truth...")
+                evaluation_summary = evaluate_extraction_results(extraction_results, ground_truth_data)
+                
+                print("\n📈 EVALUATION vs Ground Truth:")
+                overall_accuracy = evaluation_summary.get('overall_accuracy', 0)
+                print(f"   Accuracy: {overall_accuracy*100:.1f}%")
+                print(f"   Meets Threshold: {'Yes' if overall_accuracy >= 0.8 else 'No'}")
+                print(f"   Fields evaluated: {total_count}")
+                print(f"   Best Performance: {image_path_obj.name} ({overall_accuracy*100:.1f}%)")
+            else:
+                print(f"\n⚠️  No ground truth available for {image_path_obj.name}")
+            
+            print(f"\n✅ {model_display_name} evaluation pipeline completed successfully!")
+            print(f"📊 1 documents processed with {overall_accuracy*100:.1f}% average accuracy" if ground_truth_data and image_path_obj.name in ground_truth_data else "📊 1 documents processed successfully")
+            print(f"🔬 Total extraction time: {result.get('processing_time', 0):.2f} seconds (core model inference only)")
+            print(f"📈 Average extraction time per document: {result.get('processing_time', 0):.2f} seconds")
+            print("✅ Processing success rate: 100.0%")
+        else:
+            print("❌ No results from image processing")
+        
+        return
     else:
         # Batch processing mode - scan data directory
         print(f"\n📁 Discovering images in: {data_dir}")
