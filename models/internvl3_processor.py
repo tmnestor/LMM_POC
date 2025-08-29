@@ -136,7 +136,6 @@ class InternVL3Processor:
         self._load_model()
 
         # Initialize DocumentTypeDetector AFTER model loading
-        from common.document_type_detector import DocumentTypeDetector
         self.document_detector = DocumentTypeDetector(model_processor=self)
 
         # Setup generation config from centralized configuration
