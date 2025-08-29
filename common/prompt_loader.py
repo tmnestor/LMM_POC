@@ -24,9 +24,38 @@ class PromptLoader:
         Args:
             config_file: Path to prompt configuration YAML file
         """
-        self.config_file = Path(config_file)
+        # Resolve path relative to project root, not current directory
+        if not Path(config_file).is_absolute():
+            # Find project root by looking for common project files
+            current_dir = Path.cwd()
+            project_root = self._find_project_root(current_dir)
+            self.config_file = project_root / config_file
+        else:
+            self.config_file = Path(config_file)
+        
         self.config = self._load_config()
         self._validate_config()
+    
+    def _find_project_root(self, start_path: Path) -> Path:
+        """Find project root by looking for indicator files."""
+        current = start_path
+        
+        # Look for common project root indicators
+        indicators = [
+            "llama_document_aware.py",
+            "common",
+            "models", 
+            "prompts",
+            ".git"
+        ]
+        
+        while current != current.parent:  # Stop at filesystem root
+            if any((current / indicator).exists() for indicator in indicators):
+                return current
+            current = current.parent
+        
+        # Fallback to current directory if no project root found
+        return start_path
         
     def _load_config(self) -> Dict:
         """Load prompt configuration from YAML file."""
