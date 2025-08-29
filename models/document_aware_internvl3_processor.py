@@ -399,12 +399,11 @@ class DocumentAwareInternVL3Processor:
                 print(f"📊 Results: {len(found_fields)}/{self.field_count} fields found")
                 
                 # Show field results summary
-                for field in self.field_list[:5]:  # Show first 5 fields
+                for field in self.field_list:
                     value = extracted_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
                     print(f"  {status} {field}: \"{value}\"")
-                if len(self.field_list) > 5:
-                    print(f"  ... and {len(self.field_list) - 5} more fields")
+                print(f"  Total fields: {len(self.field_list)}")
                 print("=" * 80)
 
             # Calculate standard metrics for compatibility

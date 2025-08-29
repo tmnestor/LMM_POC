@@ -13,7 +13,7 @@ single_pass:
   missing_value_instruction: "Use \"NOT_FOUND\" if field is not visible or not present."
   
   # Output format header (dynamic field count)
-  output_format_header: "OUTPUT FORMAT (V4 Schema - 49 fields):"
+  output_format_header: "OUTPUT FORMAT (V4 Schema - {field_count} fields):"
   
   # V4 Schema - All 49 fields optimized for InternVL3's processing style
   field_instructions:

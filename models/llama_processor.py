@@ -92,12 +92,11 @@ class LlamaProcessor:
                 f"💡 No fallback to broken V3 system - fix V4 configuration instead"
             )
         
-        # Initialize V4 system components
-        from common.document_type_detector import DocumentTypeDetector
+        # Initialize V4 system components  
         from common.prompt_loader import PromptLoader
         self.prompt_loader = PromptLoader()
-        # Use proper content-based detector that analyzes actual document content
-        self.document_detector = DocumentTypeDetector(model_processor=self)
+        # DocumentTypeDetector will be initialized after model loading
+        self.document_detector = None
         
         # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
@@ -127,6 +126,10 @@ class LlamaProcessor:
 
         # Initialize model and processor
         self._load_model()
+
+        # Initialize DocumentTypeDetector AFTER model loading
+        from common.document_type_detector import DocumentTypeDetector
+        self.document_detector = DocumentTypeDetector(model_processor=self)
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -772,11 +775,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 print(response)
                 print("-" * 40)
                 print("🔍 PARSED DATA (single-pass):")
-                for field, value in list(extracted_data.items())[
-                    :5
-                ]:  # Show first 5 fields
+                for field, value in extracted_data.items():
                     print(f"  {field}: {value}")
-                print(f"  ... and {len(extracted_data) - 5} more fields")
+                print(f"  Total fields: {len(extracted_data)}")
                 print()
 
             # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
