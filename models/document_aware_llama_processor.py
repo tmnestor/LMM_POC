@@ -187,7 +187,9 @@ class DocumentAwareLlamaProcessor:
         
         persona = yaml_config.get("persona", "You are an expert document analyzer.")
         task_description = yaml_config.get("task_description", "Extract key information from business documents.")
-        output_format = yaml_config.get("output_format", "Provide information in the following format:")
+        
+        # Generate dynamic output format header with correct field count
+        output_format = f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} FIELDS:"
         
         prompt = f"{persona}\n\n{task_description}\n\n{output_format}\n"
         
@@ -200,8 +202,9 @@ class DocumentAwareLlamaProcessor:
                 instruction = self._get_field_type_instruction(field)
             prompt += f"{field}: {instruction}\n"
         
-        # Add stop instruction
-        stop_instruction = yaml_config.get("stop_instruction", "Stop after providing all required information.")
+        # Add dynamic stop instruction based on actual field list
+        last_field = self.field_list[-1] if self.field_list else "all fields"
+        stop_instruction = f"STOP after {last_field} line. Do not add explanations or comments."
         prompt += f"\n{stop_instruction}"
         
         return prompt
