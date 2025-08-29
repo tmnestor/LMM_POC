@@ -129,6 +129,15 @@ class DocumentTypeDetector:
             parsed_result['processing_time'] = processing_time
             parsed_result['raw_response'] = response
             
+            # Apply robust document type mapping (like llama_document_aware.py)
+            detected_type = parsed_result['type']
+            mapped_type = self._map_to_schema_type(detected_type)
+            
+            if mapped_type and mapped_type != detected_type:
+                print(f"📄 Mapping '{detected_type}' → '{mapped_type}' schema")
+                parsed_result['original_type'] = detected_type
+                parsed_result['type'] = mapped_type
+            
             print(f"✅ Classification: {parsed_result['type']} (confidence: {parsed_result['confidence']:.2f})")
             
             return parsed_result
@@ -152,6 +161,36 @@ class DocumentTypeDetector:
             return 'internvl3'
         else:
             return 'llama'  # Default fallback
+    
+    def _map_to_schema_type(self, detected_type: str) -> Optional[str]:
+        """
+        Map detected document type to canonical schema type using YAML configuration.
+        YAML-FIRST: No hardcoded mappings - uses prompts/document_type_detection.yaml
+        
+        Args:
+            detected_type: The detected document type (e.g., 'estimate', 'quote')
+            
+        Returns:
+            Canonical schema type ('invoice', 'receipt', 'bank_statement') or None
+        """
+        # Get type mappings from YAML configuration (YAML-FIRST!)
+        type_mappings = self.detection_config.get("type_mappings", {})
+        
+        # Normalize input for matching
+        normalized_type = detected_type.lower().strip()
+        
+        # Check direct mapping from YAML
+        mapped_type = type_mappings.get(normalized_type)
+        if mapped_type:
+            return mapped_type
+            
+        # Check if it's already a canonical type
+        supported_types = self.detection_config.get("supported_types", [])
+        if normalized_type in [t.lower() for t in supported_types]:
+            return normalized_type
+            
+        # No mapping found
+        return None
     
     def _parse_classification_response(self, response: str) -> Dict:
         """
