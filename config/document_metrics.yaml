@@ -1,0 +1,191 @@
+# Document Type Metrics Configuration - YAML-First Architecture
+# Defines document-type-specific evaluation metrics and field requirements
+# Part of the V4 document-aware extraction system
+
+document_metrics:
+  invoice:
+    document_type: "invoice"
+    accuracy_threshold: 0.95  # 95% accuracy required for invoices
+    
+    required_fields:
+      - "DOCUMENT_TYPE"
+      - "INVOICE_NUMBER"
+      - "INVOICE_DATE"
+      - "DUE_DATE"
+      - "SUPPLIER_NAME"
+      - "BUSINESS_ABN"
+      - "BUSINESS_ADDRESS"
+      - "BUSINESS_PHONE"
+      - "LINE_ITEM_DESCRIPTIONS"
+      - "LINE_ITEM_QUANTITIES"
+      - "LINE_ITEM_PRICES"
+      - "SUBTOTAL_AMOUNT"
+      - "GST_AMOUNT"
+      - "TOTAL_AMOUNT"
+    
+    optional_fields:
+      - "PAYER_NAME"
+      - "PAYER_ABN"
+      - "PAYER_ADDRESS"
+      - "PAYER_PHONE"
+      - "PAYER_EMAIL"
+      - "SUPPLIER_WEBSITE"
+    
+    critical_fields:
+      - "BUSINESS_ABN"
+      - "GST_AMOUNT"
+      - "TOTAL_AMOUNT"
+      - "INVOICE_NUMBER"
+    
+    ato_compliance_fields:
+      - "BUSINESS_ABN"
+      - "GST_AMOUNT"
+      - "INVOICE_DATE"
+      - "SUPPLIER_NAME"
+  
+  bank_statement:
+    document_type: "bank_statement"
+    accuracy_threshold: 0.90  # 90% accuracy for bank statements
+    
+    required_fields:
+      - "DOCUMENT_TYPE"
+      - "BANK_NAME"
+      - "BANK_BSB_NUMBER"
+      - "BANK_ACCOUNT_NUMBER"
+      - "BANK_ACCOUNT_HOLDER"
+      - "STATEMENT_DATE_RANGE"
+      - "ACCOUNT_OPENING_BALANCE"
+      - "ACCOUNT_CLOSING_BALANCE"
+    
+    optional_fields:
+      - "TOTAL_CREDITS"
+      - "TOTAL_DEBITS"
+      - "LINE_ITEM_DESCRIPTIONS"
+    
+    critical_fields:
+      - "BANK_ACCOUNT_NUMBER"
+      - "ACCOUNT_CLOSING_BALANCE"
+    
+    ato_compliance_fields: []  # Not applicable for bank statements
+  
+  receipt:
+    document_type: "receipt"
+    accuracy_threshold: 0.85  # 85% accuracy for receipts
+    
+    required_fields:
+      - "DOCUMENT_TYPE"
+      - "SUPPLIER_NAME"
+      - "BUSINESS_ABN"
+      - "LINE_ITEM_DESCRIPTIONS"
+      - "LINE_ITEM_QUANTITIES"
+      - "LINE_ITEM_PRICES"
+      - "SUBTOTAL_AMOUNT"
+      - "GST_AMOUNT"
+      - "TOTAL_AMOUNT"
+      - "INVOICE_DATE"
+    
+    optional_fields:
+      - "BUSINESS_ADDRESS"
+      - "BUSINESS_PHONE"
+      - "SUPPLIER_WEBSITE"
+      - "PAYER_NAME"
+      - "PAYER_ADDRESS"
+    
+    critical_fields:
+      - "TOTAL_AMOUNT"
+      - "GST_AMOUNT"
+    
+    ato_compliance_fields:
+      - "BUSINESS_ABN"
+      - "GST_AMOUNT"
+
+# Field category definitions for evaluation reporting
+field_categories:
+  identification:
+    - "DOCUMENT_TYPE"
+    - "INVOICE_NUMBER"
+    - "RECEIPT_NUMBER"
+    - "BUSINESS_ABN"
+    - "PAYER_ABN"
+  
+  business_details:
+    - "SUPPLIER_NAME"
+    - "BUSINESS_ADDRESS"
+    - "BUSINESS_PHONE"
+    - "SUPPLIER_EMAIL"
+    - "SUPPLIER_WEBSITE"
+  
+  customer_details:
+    - "PAYER_NAME"
+    - "PAYER_ADDRESS"
+    - "PAYER_PHONE"
+    - "PAYER_EMAIL"
+  
+  temporal:
+    - "INVOICE_DATE"
+    - "DUE_DATE"
+    - "TRANSACTION_DATE"
+    - "STATEMENT_DATE_RANGE"
+  
+  line_items:
+    - "LINE_ITEM_DESCRIPTIONS"
+    - "LINE_ITEM_QUANTITIES"
+    - "LINE_ITEM_PRICES"
+    - "LINE_ITEM_TOTAL_PRICES"
+    - "LINE_ITEM_GST_AMOUNTS"
+    - "LINE_ITEM_DISCOUNT_AMOUNTS"
+  
+  financial:
+    - "SUBTOTAL_AMOUNT"
+    - "TOTAL_DISCOUNT_AMOUNT"
+    - "GST_AMOUNT"
+    - "TOTAL_AMOUNT"
+    - "TOTAL_AMOUNT_PAID"
+    - "BALANCE_OF_PAYMENT"
+    - "TOTAL_AMOUNT_PAYABLE"
+  
+  banking:
+    - "BANK_NAME"
+    - "BANK_BSB_NUMBER"
+    - "BANK_ACCOUNT_NUMBER"
+    - "BANK_ACCOUNT_HOLDER"
+    - "ACCOUNT_OPENING_BALANCE"
+    - "ACCOUNT_CLOSING_BALANCE"
+    - "TOTAL_CREDITS"
+    - "TOTAL_DEBITS"
+  
+  transactions:
+    - "TRANSACTION_DATES"
+    - "TRANSACTION_AMOUNTS_PAID"
+    - "TRANSACTION_AMOUNTS_RECEIVED"
+    - "TRANSACTION_BALANCES"
+
+# Evaluation configuration
+evaluation:
+  # Minimum accuracy for field to be considered "correct"
+  field_accuracy_threshold: 0.8
+  
+  # Fuzzy matching settings
+  fuzzy_matching:
+    enabled: true
+    ratio_threshold: 0.85  # Minimum similarity ratio
+    
+  # Special handling for specific field types
+  field_type_handling:
+    monetary_fields:
+      normalize_currency: true
+      ignore_decimal_differences: false
+      tolerance: 0.01
+    
+    date_fields:
+      flexible_parsing: true
+      formats:
+        - "%d/%m/%Y"
+        - "%Y-%m-%d"
+        - "%d-%m-%Y"
+        - "%d %b %Y"
+    
+    list_fields:
+      separator: "|"
+      normalize_whitespace: true
+      order_sensitive: false

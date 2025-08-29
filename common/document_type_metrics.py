@@ -10,7 +10,9 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 
 @dataclass
@@ -28,57 +30,86 @@ class DocumentTypeMetrics:
 class DocumentTypeEvaluator:
     """Evaluator that provides document-type-specific metrics and scoring."""
     
-    def __init__(self):
-        """Initialize with document-type-specific metric definitions."""
+    def __init__(self, config_file: Optional[str] = None):
+        """Initialize with document-type-specific metric definitions from YAML."""
         
-        # Define metrics for each document type
-        self.metrics_config = {
-            "invoice": DocumentTypeMetrics(
-                document_type="invoice",
-                required_fields=[
-                    "DOCUMENT_TYPE", "INVOICE_NUMBER", "INVOICE_DATE", "DUE_DATE",
-                    "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS", "BUSINESS_PHONE",
-                    "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
-                    "SUBTOTAL_AMOUNT", "GST_AMOUNT", "TOTAL_AMOUNT"
-                ],
-                optional_fields=[
-                    "PAYER_NAME", "PAYER_ABN", "PAYER_ADDRESS", "PAYER_PHONE", 
-                    "PAYER_EMAIL", "SUPPLIER_WEBSITE"
-                ],
-                critical_fields=["BUSINESS_ABN", "GST_AMOUNT", "TOTAL_AMOUNT", "INVOICE_NUMBER"],
-                ato_compliance_fields=["BUSINESS_ABN", "GST_AMOUNT", "INVOICE_DATE", "SUPPLIER_NAME"],
-                accuracy_threshold=0.95  # 95% accuracy required for invoices
-            ),
-            "bank_statement": DocumentTypeMetrics(
-                document_type="bank_statement",
-                required_fields=[
-                    "DOCUMENT_TYPE", "BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER",
-                    "BANK_ACCOUNT_HOLDER", "STATEMENT_DATE_RANGE", 
-                    "ACCOUNT_OPENING_BALANCE", "ACCOUNT_CLOSING_BALANCE"
-                ],
-                optional_fields=[
-                    "TOTAL_CREDITS", "TOTAL_DEBITS", "LINE_ITEM_DESCRIPTIONS"
-                ],
-                critical_fields=["BANK_ACCOUNT_NUMBER", "ACCOUNT_CLOSING_BALANCE"],
-                ato_compliance_fields=[],  # Not applicable for bank statements
-                accuracy_threshold=0.90  # 90% accuracy for bank statements
-            ),
-            "receipt": DocumentTypeMetrics(
-                document_type="receipt",
-                required_fields=[
-                    "DOCUMENT_TYPE", "SUPPLIER_NAME", "BUSINESS_ABN",
-                    "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
-                    "SUBTOTAL_AMOUNT", "GST_AMOUNT", "TOTAL_AMOUNT", "INVOICE_DATE"
-                ],
-                optional_fields=[
-                    "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
-                    "PAYER_NAME", "PAYER_ADDRESS"
-                ],
-                critical_fields=["TOTAL_AMOUNT", "GST_AMOUNT"],
-                ato_compliance_fields=["BUSINESS_ABN", "GST_AMOUNT"],
-                accuracy_threshold=0.85  # 85% accuracy for receipts
-            )
-        }
+        # Load metrics from YAML configuration (YAML-first architecture)
+        self.metrics_config = self._load_metrics_config(config_file)
+        self.field_categories = self._load_field_categories(config_file)
+        self.evaluation_config = self._load_evaluation_config(config_file)
+    
+    def _load_metrics_config(self, config_file: Optional[str] = None) -> Dict[str, DocumentTypeMetrics]:
+        """Load document metrics configuration from YAML."""
+        
+        # Default path to document metrics YAML
+        if config_file is None:
+            config_path = Path(__file__).parent.parent / "config" / "document_metrics.yaml"
+        else:
+            config_path = Path(config_file)
+        
+        # Load YAML configuration
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            
+            metrics_config = {}
+            for doc_type, metrics_data in config_data.get("document_metrics", {}).items():
+                metrics_config[doc_type] = DocumentTypeMetrics(
+                    document_type=metrics_data["document_type"],
+                    required_fields=metrics_data["required_fields"],
+                    optional_fields=metrics_data["optional_fields"],
+                    critical_fields=metrics_data["critical_fields"],
+                    ato_compliance_fields=metrics_data["ato_compliance_fields"],
+                    accuracy_threshold=metrics_data["accuracy_threshold"]
+                )
+            
+            return metrics_config
+            
+        except Exception as e:
+            # Fallback to minimal hardcoded config if YAML fails
+            print(f"⚠️ Could not load document metrics YAML: {e}")
+            print(f"💡 Expected location: {config_path}")
+            # Return minimal config for basic functionality
+            return {
+                "invoice": DocumentTypeMetrics(
+                    document_type="invoice",
+                    required_fields=["DOCUMENT_TYPE", "TOTAL_AMOUNT"],
+                    optional_fields=[],
+                    critical_fields=["TOTAL_AMOUNT"],
+                    ato_compliance_fields=[],
+                    accuracy_threshold=0.85
+                )
+            }
+    
+    def _load_field_categories(self, config_file: Optional[str] = None) -> Dict[str, List[str]]:
+        """Load field categories from YAML configuration."""
+        
+        if config_file is None:
+            config_path = Path(__file__).parent.parent / "config" / "document_metrics.yaml"
+        else:
+            config_path = Path(config_file)
+        
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            return config_data.get("field_categories", {})
+        except Exception:
+            return {}
+    
+    def _load_evaluation_config(self, config_file: Optional[str] = None) -> Dict[str, Any]:
+        """Load evaluation configuration from YAML."""
+        
+        if config_file is None:
+            config_path = Path(__file__).parent.parent / "config" / "document_metrics.yaml"
+        else:
+            config_path = Path(config_file)
+        
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            return config_data.get("evaluation", {})
+        except Exception:
+            return {"field_accuracy_threshold": 0.8}
     
     def evaluate_extraction(self, 
                            extracted_data: Dict[str, Any], 

@@ -161,13 +161,15 @@ class DocumentAwareLlamaProcessor:
         """Generate prompt for specific field list with v4 field type support."""
         
         # YAML-FIRST HIGH PERFORMANCE: Use archaeological best performance structure (95.3%)
-        # Switch from A/B test to high-performance YAML configuration
+        # Always use YAML configuration - fail fast if not available
         yaml_config = self._load_yaml_config()
-        if yaml_config:
-            return self._generate_yaml_prompt(yaml_config)
-        else:
-            # Fallback to simple prompt if YAML loading fails
-            return self._generate_simple_prompt()
+        if not yaml_config:
+            raise ValueError(
+                "❌ FATAL: YAML prompt configuration not found or invalid.\n"
+                "💡 Expected: prompts/llama_single_pass_high_performance.yaml\n"
+                "💡 This is required for the YAML-first architecture."
+            )
+        return self._generate_yaml_prompt(yaml_config)
     
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
@@ -237,43 +239,6 @@ class DocumentAwareLlamaProcessor:
         
         return prompt
     
-    def _generate_simple_prompt(self) -> str:
-        """Generate simple fallback prompt with dynamic fields."""
-        
-        prompt = f"""Extract structured data from this business document image.
-
-CRITICAL INSTRUCTIONS:
--- Output ONLY the structured data below
--- Do NOT include any conversation text
--- Do NOT repeat the user's request
--- Do NOT include <image> tokens
-- Start immediately with {self.field_list[0]}
-- Stop immediately after {self.field_list[-1]}
-
-REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:
-"""
-        
-        # Add each field with type-aware instruction
-        for field in self.field_list:
-            instruction = self._get_field_type_instruction(field)
-            prompt += f"{field}: {instruction}\n"
-        
-        prompt += f"""
-OUTPUT RULES:
--- NEVER use: **KEY:** or **KEY** or *KEY* or any formatting  
--- Plain text only - NO markdown, NO bold, NO italic
--- Include ALL {self.field_count} keys even if value is NOT_FOUND
--- Output ONLY these {self.field_count} lines, nothing else
--- Use exact text from document (e.g., "TAX INVOICE" not "Invoice")
--- Use pipe separators for lists (e.g., "item1 | item2 | item3")
--- Be conservative: use NOT_FOUND if field is truly missing
--- For boolean fields: use "true" or "false" (not "yes"/"no")
--- For calculated fields: show computed values with proper formatting
--- For transaction lists: use pipe separators between transactions
-
-STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
-        
-        return prompt
     
     def load_document_image(self, image_path: str) -> Image.Image:
         """Load document image with error handling."""
@@ -646,58 +611,3 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
         
         return extracted_data
     
-    def _get_field_type_instruction(self, field: str) -> str:
-        """Get field type-specific instruction for v4 schema fields."""
-        from common.config import (
-            get_boolean_fields,
-            get_calculated_fields,
-            get_transaction_list_fields,
-        )
-        
-        try:
-            # Check field type and provide appropriate instruction
-            if field in get_boolean_fields():
-                if "IS_GST_INCLUDED" in field:
-                    return "[true if GST included in prices, false if GST separate, or NOT_FOUND]"
-                else:
-                    return "[true or false, or NOT_FOUND]"
-            
-            elif field in get_calculated_fields():
-                if "LINE_ITEM_TOTAL_PRICES" in field:
-                    return "[pipe-separated calculated totals: qty×price for each item, or NOT_FOUND]"
-                elif "DISCOUNT" in field:
-                    return "[discount amount calculated from line items, or NOT_FOUND]"
-                else:
-                    return "[calculated value or NOT_FOUND]"
-            
-            elif field in get_transaction_list_fields():
-                if "TRANSACTION_DATES" in field:
-                    return "[pipe-separated transaction dates in chronological order, or NOT_FOUND]"
-                elif "TRANSACTION_AMOUNTS" in field:
-                    return "[pipe-separated transaction amounts with signs (+/-), or NOT_FOUND]"
-                elif "TRANSACTION_DESCRIPTIONS" in field:
-                    return "[pipe-separated transaction descriptions/references, or NOT_FOUND]"
-                elif "RUNNING_BALANCES" in field:
-                    return "[pipe-separated account balances after each transaction, or NOT_FOUND]"
-                else:
-                    return "[pipe-separated transaction data or NOT_FOUND]"
-            
-            else:
-                # Field-specific instructions for common fields
-                if field == "SUPPLIER_NAME":
-                    return "[business name from document header or NOT_FOUND]"
-                elif field == "BUSINESS_ABN":
-                    return "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
-                elif field == "BUSINESS_PHONE":
-                    return "[business phone number (not customer phone) (e.g. (XX) XXXX XXXX) or NOT_FOUND]"
-                elif field == "DOCUMENT_TYPE":
-                    return "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
-                elif field == "LINE_ITEM_PRICES":
-                    return "[numbers in the right most column with 2 decimal places or NOT_FOUND]"
-                else:
-                    # Default instruction for other field types
-                    return "[value or NOT_FOUND]"
-                
-        except Exception:
-            # Fallback if field type checking fails
-            return "[value or NOT_FOUND]"
