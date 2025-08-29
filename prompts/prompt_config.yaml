@@ -11,6 +11,9 @@ prompts:
     single_pass: "internvl3_single_pass_v4.yaml" 
     grouped: "internvl3_grouped_v4.yaml"
 
+# Document type detection prompts (YAML-first architecture)
+detection_prompts: "document_type_detection.yaml"
+
 # Base directory for all prompt files (relative to project root)
 base_path: "prompts/"
 

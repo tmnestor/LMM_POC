@@ -140,6 +140,43 @@ class PromptLoader:
         """Get expected field count from configuration."""
         return self.config.get("field_count", 49)
     
+    def load_detection_prompts(self) -> Dict:
+        """
+        Load document type detection prompts from YAML configuration.
+        
+        Returns:
+            Dict: Parsed detection prompt configuration
+            
+        Raises:
+            FileNotFoundError: If detection prompts file doesn't exist
+            yaml.YAMLError: If detection prompts file has invalid YAML
+        """
+        detection_file = self.config.get("detection_prompts")
+        if not detection_file:
+            raise ValueError(
+                f"❌ FATAL: No detection_prompts configured in {self.config_file}\n"
+                f"💡 Add 'detection_prompts: \"document_type_detection.yaml\"' to config"
+            )
+        
+        # Build full path to detection prompts file
+        base_path = Path(self.config["base_path"])
+        detection_path = base_path / detection_file
+        
+        try:
+            with detection_path.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"❌ FATAL: Detection prompts file not found: {detection_path.absolute()}\n"
+                f"💡 Expected location: {detection_path.absolute()}\n"
+                f"💡 Create this file with document type detection prompts"
+            ) from None
+        except yaml.YAMLError as e:
+            raise yaml.YAMLError(
+                f"❌ FATAL: Invalid YAML in detection prompts file: {e}\n"
+                f"💡 Check YAML syntax in {detection_path}"
+            ) from e
+    
     def get_experimental_prompt_path(self, experiment_name: str) -> Optional[Path]:
         """
         Get path to experimental prompt file.
