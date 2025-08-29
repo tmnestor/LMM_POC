@@ -7,7 +7,7 @@ image preprocessing, and batch processing logic.
 
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torchvision.transforms as T
@@ -98,6 +98,16 @@ class InternVL3Processor:
         self.prompt_loader = PromptLoader()
         # Use proper content-based detector that analyzes actual document content
         self.document_detector = DocumentTypeDetector(model_processor=self)
+        
+        # Initialize debug OCR capability
+        self.debug_ocr_config = None
+        if debug:
+            try:
+                self.debug_ocr_config = self.prompt_loader.load_debug_ocr_prompts()
+                print("🔧 Debug OCR mode available - use process_debug_ocr() for raw markdown output")
+            except Exception as e:
+                print(f"⚠️ Debug OCR prompts not available: {e}")
+                self.debug_ocr_config = None
         if debug:
             print("🔧 V4 Schema enabled with document-aware field extraction")
             print(f"📊 Total V4 fields: {get_v4_field_count()}")
@@ -1321,3 +1331,122 @@ INSTRUCTIONS:
             "extracted_fields_count": 0,
             "raw_response_length": 0,
         }
+
+    def process_debug_ocr(self, image_path: str) -> Dict[str, Any]:
+        """
+        Process document using debug OCR prompts for raw markdown output.
+        
+        This method outputs raw OCR text in markdown format instead of structured
+        field extraction. Useful for diagnosing OCR vs document understanding issues.
+        
+        Args:
+            image_path (str): Path to image file
+            
+        Returns:
+            Dict with 'ocr_output', 'processing_time', 'model_used'
+        """
+        if not self.debug_ocr_config:
+            raise ValueError(
+                "❌ DEBUG OCR not available\n"
+                "💡 Ensure debug=True when initializing processor\n"  
+                "💡 Check that prompts/debug_ocr_prompts.yaml exists"
+            )
+        
+        start_time = time.perf_counter()
+        
+        if self.debug:
+            print(f"🔍 DEBUG OCR MODE: Processing {Path(image_path).name}")
+            print("🎯 Output: Raw markdown OCR text (not structured extraction)")
+        
+        try:
+            # Get debug OCR prompt configuration  
+            debug_prompts = self.debug_ocr_config.get("debug_ocr_prompts", {})
+            internvl3_config = debug_prompts.get("internvl3", {})
+            
+            if not internvl3_config:
+                raise ValueError("No debug OCR prompt configured for InternVL3 model")
+            
+            # Extract prompt settings
+            user_prompt = internvl3_config.get("user_prompt", "")
+            max_tokens = internvl3_config.get("max_tokens", 1500) 
+            temperature = internvl3_config.get("temperature", 0.0)
+            
+            if self.debug:
+                print(f"📝 Using debug OCR prompt: {len(user_prompt)} chars")
+                print(f"🎛️ Settings: max_tokens={max_tokens}, temperature={temperature}")
+            
+            # Load and preprocess image
+            image = Image.open(image_path).convert("RGB")
+            pixel_values = self.transform(image).unsqueeze(0).to(self.device)
+            
+            # Tokenize prompt
+            inputs = self.tokenizer(user_prompt, return_tensors="pt")
+            input_ids = inputs.input_ids.to(self.device)
+            attention_mask = inputs.attention_mask.to(self.device)
+            
+            # Generate OCR output
+            with torch.no_grad():
+                generation_output = self.model.generate(
+                    input_ids=input_ids,
+                    pixel_values=pixel_values, 
+                    attention_mask=attention_mask,
+                    do_sample=False,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    use_cache=True,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                )
+            
+            # Decode response
+            input_token_len = input_ids.shape[1]
+            response_tokens = generation_output[0][input_token_len:]
+            ocr_output = self.tokenizer.decode(response_tokens, skip_special_tokens=True)
+            
+            processing_time = time.perf_counter() - start_time
+            
+            # Clean up OCR output
+            ocr_markdown = ocr_output.strip()
+            
+            if self.debug:
+                print(f"📊 OCR completed in {processing_time:.2f}s")
+                print(f"📄 Output length: {len(ocr_markdown)} characters")
+                print("🔍 OCR OUTPUT (Raw Markdown):")
+                print("-" * 50)
+                print(ocr_markdown[:500] + ("..." if len(ocr_markdown) > 500 else ""))
+                print("-" * 50)
+            
+            # Optional: Save OCR output to file
+            debug_config = self.debug_ocr_config.get("debug_config", {})
+            if debug_config.get("save_ocr_output", False):
+                output_suffix = debug_config.get("ocr_output_suffix", "_debug_ocr.md")
+                output_path = Path(image_path).with_suffix(output_suffix)
+                
+                with output_path.open("w", encoding="utf-8") as f:
+                    f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
+                    f.write(f"**Processing Time:** {processing_time:.2f}s\n")
+                    f.write(f"**Model:** InternVL3\n")
+                    f.write(f"**Prompt Tokens:** {max_tokens}\n\n")
+                    f.write("---\n\n")
+                    f.write(ocr_markdown)
+                
+                if self.debug:
+                    print(f"💾 OCR output saved to: {output_path}")
+            
+            # Cleanup
+            del inputs, pixel_values, generation_output, image
+            clear_model_caches(self.model, self.tokenizer)
+            
+            return {
+                "ocr_output": ocr_markdown,
+                "processing_time": processing_time,
+                "model_used": "internvl3",
+                "prompt_tokens": max_tokens,
+                "image_path": image_path,
+                "output_length": len(ocr_markdown)
+            }
+            
+        except Exception as e:
+            processing_time = time.perf_counter() - start_time
+            if self.debug:
+                print(f"❌ Debug OCR failed after {processing_time:.2f}s: {e}")
+            raise RuntimeError(f"Debug OCR processing failed: {e}") from e

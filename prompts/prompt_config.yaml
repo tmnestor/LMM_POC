@@ -14,6 +14,9 @@ prompts:
 # Document type detection prompts (YAML-first architecture)
 detection_prompts: "document_type_detection.yaml"
 
+# Debug OCR prompts for diagnosing extraction issues
+debug_ocr_prompts: "debug_ocr_prompts.yaml"
+
 # Base directory for all prompt files (relative to project root)
 base_path: "prompts/"
 

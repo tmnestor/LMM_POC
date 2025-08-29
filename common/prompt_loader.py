@@ -177,6 +177,43 @@ class PromptLoader:
                 f"💡 Check YAML syntax in {detection_path}"
             ) from e
     
+    def load_debug_ocr_prompts(self) -> Dict:
+        """
+        Load debug OCR prompts from YAML configuration.
+        
+        Returns:
+            Dict: Parsed debug OCR prompt configuration
+            
+        Raises:
+            FileNotFoundError: If debug OCR prompts file doesn't exist
+            yaml.YAMLError: If debug OCR prompts file has invalid YAML
+        """
+        debug_file = self.config.get("debug_ocr_prompts")
+        if not debug_file:
+            raise ValueError(
+                f"❌ FATAL: No debug_ocr_prompts configured in {self.config_file}\n"
+                f"💡 Add 'debug_ocr_prompts: \"debug_ocr_prompts.yaml\"' to config"
+            )
+        
+        # Build full path to debug OCR prompts file
+        base_path = Path(self.config["base_path"])
+        debug_path = base_path / debug_file
+        
+        try:
+            with debug_path.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"❌ FATAL: Debug OCR prompts file not found: {debug_path.absolute()}\n"
+                f"💡 Expected location: {debug_path.absolute()}\n"
+                f"💡 Create this file with debug OCR prompts for raw markdown output"
+            ) from None
+        except yaml.YAMLError as e:
+            raise yaml.YAMLError(
+                f"❌ FATAL: Invalid YAML in debug OCR prompts file: {e}\n"
+                f"💡 Check YAML syntax in {debug_path}"
+            ) from e
+    
     def get_experimental_prompt_path(self, experiment_name: str) -> Optional[Path]:
         """
         Get path to experimental prompt file.

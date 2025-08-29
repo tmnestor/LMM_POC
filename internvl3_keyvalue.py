@@ -134,10 +134,16 @@ Examples:
         help="Path to single image file for testing (overrides directory processing)",
     )
 
+    parser.add_argument(
+        "--debug-ocr",
+        action="store_true", 
+        help="Enable debug OCR mode for raw markdown output (requires --debug)",
+    )
+
     return parser.parse_args()
 
 
-def main(extraction_mode=None, debug=False, limit_images=None, image_path=None):
+def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, debug_ocr=False):
     """
     Execute the complete InternVL3 Vision evaluation pipeline.
 
@@ -372,6 +378,50 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None):
         print(f"   ... and {len(image_files) - 5} more files")
 
     # =============================================================================
+    # DEBUG OCR MODE CHECK
+    # =============================================================================
+    # Handle debug OCR mode for raw markdown output instead of structured extraction
+    if debug_ocr:
+        if not debug:
+            print("❌ ERROR: --debug-ocr requires --debug flag")
+            print("💡 Usage: python internvl3_keyvalue.py --image-path IMAGE --debug --debug-ocr")
+            return
+        
+        print("\n🔍 DEBUG OCR MODE ENABLED")
+        print("🎯 Processing will output raw markdown OCR instead of structured extraction")
+        print("💡 This helps diagnose OCR vs document understanding issues")
+        print()
+        
+        # Process each image in debug OCR mode
+        ocr_results = []
+        for i, image_path in enumerate(image_files, 1):
+            print(f"[{i}/{len(image_files)}] Processing {Path(image_path).name}...")
+            try:
+                ocr_result = processor.process_debug_ocr(image_path)
+                ocr_results.append(ocr_result)
+                print(f"✅ OCR completed: {ocr_result['output_length']} chars in {ocr_result['processing_time']:.2f}s")
+            except Exception as e:
+                print(f"❌ OCR failed for {Path(image_path).name}: {e}")
+                continue
+        
+        # Summary for debug OCR mode
+        print(f"\n🎯 DEBUG OCR SUMMARY:")
+        print(f"   Images processed: {len(ocr_results)}/{len(image_files)}")
+        if ocr_results:
+            avg_time = sum(r['processing_time'] for r in ocr_results) / len(ocr_results)
+            total_chars = sum(r['output_length'] for r in ocr_results)
+            print(f"   Average processing time: {avg_time:.2f}s")
+            print(f"   Total OCR output: {total_chars:,} characters")
+            print(f"   Average output per document: {total_chars // len(ocr_results):,} chars")
+        
+        print("\n💡 Use this output to diagnose:")
+        print("   - OCR quality issues (garbled text, missing characters)")
+        print("   - Layout preservation problems")  
+        print("   - Document structure recognition")
+        print("   - Compare with structured extraction accuracy")
+        return
+
+    # =============================================================================
     # BATCH PROCESSING PIPELINE
     # =============================================================================
     # Process all discovered images through InternVL3 extraction pipeline
@@ -518,4 +568,5 @@ if __name__ == "__main__":
         debug=args.debug,
         limit_images=args.limit_images,
         image_path=args.image_path,
+        debug_ocr=args.debug_ocr,
     )
