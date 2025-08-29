@@ -56,6 +56,19 @@ class PromptLoader:
         
         # Fallback to current directory if no project root found
         return start_path
+    
+    def _resolve_base_path(self) -> Path:
+        """Resolve base_path relative to project root."""
+        base_path_str = self.config.get("base_path", "prompts/")
+        base_path = Path(base_path_str)
+        
+        if base_path.is_absolute():
+            return base_path
+        else:
+            # Since config file is already in prompts/, and base_path is "prompts/", 
+            # we need to resolve relative to the project root, not the config file location
+            project_root = self._find_project_root(self.config_file.parent)
+            return project_root / base_path
         
     def _load_config(self) -> Dict:
         """Load prompt configuration from YAML file."""
@@ -123,8 +136,8 @@ class PromptLoader:
                     f"💡 Add '{strategy}' to {model_name} section in {self.config_file}"
                 ) from e
         
-        # Build full path
-        base_path = Path(self.config["base_path"])
+        # Build full path using resolved base path
+        base_path = self._resolve_base_path()
         full_path = base_path / prompt_file
         
         return full_path
@@ -187,8 +200,8 @@ class PromptLoader:
                 f"💡 Add 'detection_prompts: \"document_type_detection.yaml\"' to config"
             )
         
-        # Build full path to detection prompts file
-        base_path = Path(self.config["base_path"])
+        # Build full path to detection prompts file, resolving relative to project root
+        base_path = self._resolve_base_path()
         detection_path = base_path / detection_file
         
         try:
@@ -224,8 +237,8 @@ class PromptLoader:
                 f"💡 Add 'debug_ocr_prompts: \"debug_ocr_prompts.yaml\"' to config"
             )
         
-        # Build full path to debug OCR prompts file
-        base_path = Path(self.config["base_path"])
+        # Build full path to debug OCR prompts file, resolving relative to project root
+        base_path = self._resolve_base_path()
         debug_path = base_path / debug_file
         
         try:
