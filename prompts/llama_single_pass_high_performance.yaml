@@ -60,16 +60,16 @@ single_pass:
     BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
     BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
     BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
-    ACCOUNT_OPENING_BALANCE: "[opening balance with 2 decimals from bank statements or NOT_FOUND]"
-    ACCOUNT_CLOSING_BALANCE: "[closing balance with 2 decimals (NOT total) from bank statements or NOT_FOUND]"
+    ACCOUNT_OPENING_BALANCE: "[starting balance at beginning of statement period (look for 'Opening Balance' or first balance) or NOT_FOUND]"
+    ACCOUNT_CLOSING_BALANCE: "[ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]"
     
     # Transaction details (V4 new - for bank statements)
-    TRANSACTION_DATES: "[pipe-separated transaction dates or NOT_FOUND]"
-    TRANSACTION_AMOUNTS_PAID: "[pipe-separated amounts paid/debited or NOT_FOUND]"
-    TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated amounts received/credited or NOT_FOUND]"
-    TRANSACTION_BALANCES: "[pipe-separated running balances or NOT_FOUND]"
-    TOTAL_CREDITS: "[total credits amount for bank statements or NOT_FOUND]"
-    TOTAL_DEBITS: "[total debits amount for bank statements or NOT_FOUND]"
+    TRANSACTION_DATES: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_PAID: "[pipe-separated debit/payment amounts from transaction list (negative values or withdrawals) or NOT_FOUND]"
+    TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated credit/deposit amounts from transaction list (positive values or deposits) or NOT_FOUND]"
+    TRANSACTION_BALANCES: "[pipe-separated balance after each transaction from rightmost column or NOT_FOUND]"
+    TOTAL_CREDITS: "[sum of all credits/deposits shown in statement summary (look for 'Total Credits' or 'Deposits') or NOT_FOUND]"
+    TOTAL_DEBITS: "[sum of all debits/withdrawals shown in statement summary (look for 'Total Debits' or 'Withdrawals') or NOT_FOUND]"
     CREDIT_CARD_DUE_DATE: "[credit card payment due date or NOT_FOUND]"
     
     # Store/location and payment information
