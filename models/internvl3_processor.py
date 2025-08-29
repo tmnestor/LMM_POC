@@ -103,6 +103,9 @@ class InternVL3Processor:
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
         
+        # Track active field list for filtered parsing (document-aware extraction)
+        self.active_fields = None
+        
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if debug:
@@ -423,6 +426,9 @@ class InternVL3Processor:
             else:
                 # No image path provided or detector unavailable, use all fields
                 active_fields = get_v4_field_list()
+            
+            # Store active fields for filtered parsing
+            self.active_fields = active_fields
             
             # Generate prompt for active fields
             return self._generate_prompt_for_fields(prompt_config, active_fields)
@@ -798,8 +804,8 @@ INSTRUCTIONS:
 
             processing_time = time.time() - start_time
 
-            # Parse response
-            extracted_data = parse_extraction_response(response)
+            # Parse response using filtered fields
+            extracted_data = parse_extraction_response(response, expected_fields=self.active_fields)
 
             if self.debug:
                 print("🔍 RAW MODEL RESPONSE (single-pass):")
@@ -1264,8 +1270,8 @@ INSTRUCTIONS:
                             )
                             raise
 
-                    # Parse response
-                    extracted_data = parse_extraction_response(response)
+                    # Parse response using filtered fields
+                    extracted_data = parse_extraction_response(response, expected_fields=self.active_fields)
 
                     # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
                     extracted_fields_count = len(

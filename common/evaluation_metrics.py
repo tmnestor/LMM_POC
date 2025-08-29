@@ -458,10 +458,8 @@ def evaluate_extraction_results(
 
     print(f"🔍 Evaluating {len(extraction_results)} extraction results...")
 
-    # Track field-level accuracies
-    field_accuracies = {
-        field: {"correct": 0, "total": 0, "details": []} for field in get_extraction_fields()
-    }
+    # Track field-level accuracies - will be populated dynamically per document type
+    field_accuracies = {}
 
     # Detailed results for analysis
     detailed_results = []
@@ -488,12 +486,32 @@ def evaluate_extraction_results(
         result_details = {"image_name": image_name, "fields": {}}
         image_accuracies = {}
 
+        # Get document type to determine which fields to evaluate
+        doc_type_raw = extracted_data.get("DOCUMENT_TYPE", "invoice").lower()
+        
+        # Map detected type to schema type (robust mapping like document_aware)
+        type_mapping = {
+            "invoice": "invoice",
+            "tax invoice": "invoice",
+            "estimate": "invoice",
+            "quote": "invoice",
+            "quotation": "invoice",
+            "receipt": "receipt",
+            "bank statement": "bank_statement",
+            "statement": "bank_statement",
+        }
+        doc_type = type_mapping.get(doc_type_raw, "invoice")
+        
+        # Get document-specific fields for evaluation
+        from common.config import get_document_type_fields
+        fields_to_evaluate = get_document_type_fields(doc_type)
+        
         # Compare each field
         perfect_matches = 0
         partial_matches = 0
         no_matches = 0
 
-        for field in get_extraction_fields():
+        for field in fields_to_evaluate:
             extracted_value = extracted_data.get(field, "NOT_FOUND")
             ground_truth_value = gt_data.get(field, "NOT_FOUND")
 
@@ -513,6 +531,10 @@ def evaluate_extraction_results(
             image_accuracies[field] = accuracy_score
             is_correct = accuracy_score > 0.5  # Convert to boolean for detailed results
 
+            # Initialize field accuracy tracking if needed (document-aware)
+            if field not in field_accuracies:
+                field_accuracies[field] = {"correct": 0, "total": 0, "details": []}
+            
             field_accuracies[field]["total"] += 1
             field_accuracies[field]["correct"] += (
                 accuracy_score  # Use float score for partial credit
@@ -575,13 +597,10 @@ def evaluate_extraction_results(
 
     # Field accuracy summary calculated
 
-    # Calculate equivalent overall statistics
-    total_fields_evaluated = (
-        len(detailed_results) * len(get_extraction_fields()) if detailed_results else 0
-    )
-    total_accuracy_score = (
-        overall_accuracy * total_fields_evaluated if total_fields_evaluated else 0
-    )
+    # Calculate equivalent overall statistics (document-aware)
+    # Count actual fields evaluated across all documents
+    total_fields_evaluated = sum(data["total"] for data in field_accuracies.values())
+    total_accuracy_score = sum(data["correct"] for data in field_accuracies.values())
 
     # Total statistics calculated
 

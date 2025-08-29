@@ -102,6 +102,9 @@ class LlamaProcessor:
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
         
+        # Track active field list for filtered parsing (document-aware extraction)
+        self.active_fields = None
+        
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if self.debug:
@@ -265,6 +268,9 @@ class LlamaProcessor:
                 from common.config import get_document_type_fields
                 fields = get_document_type_fields(doc_type)
                 
+                # Store active fields for filtered parsing
+                self.active_fields = fields
+                
                 if self.debug:
                     print(f"🔍 Using {len(fields)} document-specific fields for {doc_type}")
                 
@@ -272,7 +278,7 @@ class LlamaProcessor:
                 return self._generate_prompt_for_fields(fields)
                 
             else:
-                # Fallback: Use all V4 fields (49 total) or V3 compatibility
+                # Fallback: Use all V4 fields (47 total) or V3 compatibility
                 if self.enable_v4_schema:
                     from common.config import get_v4_field_list
                     fields = get_v4_field_list()
@@ -283,6 +289,9 @@ class LlamaProcessor:
                     fields = get_extraction_fields()
                     if self.debug:
                         print(f"🔧 V3 Compatibility: Using {len(fields)} legacy fields")
+                
+                # Store active fields for filtered parsing
+                self.active_fields = fields
                 
                 return self._generate_prompt_for_fields(fields)
                 
@@ -764,9 +773,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
             processing_time = time.time() - start_time
 
-            # Parse response with Llama-specific cleaning
+            # Parse response with Llama-specific cleaning using filtered fields
             extracted_data = parse_extraction_response(
-                response, clean_conversation_artifacts=True
+                response, clean_conversation_artifacts=True, expected_fields=self.active_fields
             )
 
             if self.debug:

@@ -19,7 +19,7 @@ from .schema_loader import get_global_schema
 
 
 def parse_extraction_response(
-    response_text: str, clean_conversation_artifacts: bool = False
+    response_text: str, clean_conversation_artifacts: bool = False, expected_fields: List[str] = None
 ) -> Dict[str, str]:
     """
     Parse structured extraction response into dictionary.
@@ -34,17 +34,19 @@ def parse_extraction_response(
     Args:
         response_text (str): Raw model response containing key-value pairs
         clean_conversation_artifacts (bool): Whether to clean Llama-style artifacts
+        expected_fields (List[str]): Optional list of fields to parse (for filtered extraction)
 
     Returns:
         dict: Parsed key-value pairs with all expected fields
     """
-    # Get expected fields dynamically from schema instead of hardcoded list
-    try:
-        schema = get_global_schema()
-        expected_fields = schema.field_names
-    except Exception:
-        # Fallback to config-based fields if schema fails
-        expected_fields = EXTRACTION_FIELDS
+    # Use provided fields or get from schema (supports filtered field extraction)
+    if expected_fields is None:
+        try:
+            schema = get_global_schema()
+            expected_fields = schema.field_names
+        except Exception:
+            # Fallback to config-based fields if schema fails
+            expected_fields = EXTRACTION_FIELDS
 
     if not response_text:
         return {field: "NOT_FOUND" for field in expected_fields}
