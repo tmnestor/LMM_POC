@@ -1377,7 +1377,8 @@ INSTRUCTIONS:
             
             # Load and preprocess image
             image = Image.open(image_path).convert("RGB")
-            pixel_values = self.transform(image).unsqueeze(0).to(self.device)
+            transform = self.build_transform()
+            pixel_values = transform(image).unsqueeze(0).to(self.device)
             
             # Tokenize prompt
             inputs = self.tokenizer(user_prompt, return_tensors="pt")
