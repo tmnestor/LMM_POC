@@ -280,11 +280,20 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
             try:
                 sample_prompt = processor.get_extraction_prompt()
                 print(f"📝 Prompt length: {len(sample_prompt)} characters")
-                print("📝 Prompt preview (first 200 chars):")
-                print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
-                print(
-                    f"📝 Critical instruction: {sample_prompt.split('CRITICAL INSTRUCTIONS:')[1].split('REQUIRED OUTPUT FORMAT')[0].strip()[:100] if 'CRITICAL INSTRUCTIONS:' in sample_prompt else 'Not found'}"
-                )
+                
+                if args.debug:
+                    # Show full prompt in debug mode
+                    print("📝 FULL PROMPT (Debug Mode):")
+                    print("=" * 80)
+                    print(sample_prompt)
+                    print("=" * 80)
+                else:
+                    # Show preview in normal mode
+                    print("📝 Prompt preview (first 200 chars):")
+                    print(f"    {sample_prompt[:200].replace(chr(10), ' ')}")
+                    print(
+                        f"📝 Critical instruction: {sample_prompt.split('CRITICAL INSTRUCTIONS:')[1].split('REQUIRED OUTPUT FORMAT')[0].strip()[:100] if 'CRITICAL INSTRUCTIONS:' in sample_prompt else 'Not found'}"
+                    )
             except Exception as e:
                 print(f"📝 ⚠️ Could not preview prompt: {e}")
         else:
