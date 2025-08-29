@@ -535,9 +535,13 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
         # Process each line looking for key-value pairs
         lines = response_text.strip().split("\n")
         
-        for line in lines:
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
             # Skip empty lines and non-key-value lines
             if not line.strip() or ":" not in line:
+                i += 1
                 continue
             
             # Clean the line from various formatting issues
@@ -556,11 +560,46 @@ STOP after {self.field_list[-1]} line. Do not add explanations or comments."""
                 key = parts[0].strip().upper()
                 value = parts[1].strip()
                 
+                # Normalize field name: convert spaces to underscores for matching
+                normalized_key = key.replace(" ", "_")
+                
+                # Handle multi-line fields (like bullet point lists)
+                if not value or value == "":
+                    # Look ahead for bullet points or continuation lines
+                    bullet_values = []
+                    j = i + 1
+                    while j < len(lines):
+                        next_line = lines[j].strip()
+                        if not next_line:
+                            j += 1
+                            continue
+                        # Check if this is a bullet point or continuation
+                        if next_line.startswith('*') or next_line.startswith('-') or next_line.startswith('•'):
+                            # Extract bullet point content
+                            bullet_content = next_line.lstrip('*-•').strip()
+                            if bullet_content:
+                                bullet_values.append(bullet_content)
+                            j += 1
+                        elif ":" in next_line and next_line.strip().startswith('**'):
+                            # Next field found (markdown formatted), stop collecting
+                            break
+                        else:
+                            # Potential continuation line
+                            if next_line and not next_line.startswith('**'):
+                                bullet_values.append(next_line)
+                            j += 1
+                    
+                    if bullet_values:
+                        value = " | ".join(bullet_values)
+                        i = j - 1  # Skip the processed lines
+                
                 # Store if it's in our document-specific field list
-                if key in self.field_list:
+                if normalized_key in self.field_list:
                     # Clean the extracted value using the centralized cleaner
-                    cleaned_value = self.cleaner.clean_field_value(key, value) if value else "NOT_FOUND"
-                    extracted_data[key] = cleaned_value
+                    cleaned_value = self.cleaner.clean_field_value(normalized_key, value) if value else "NOT_FOUND"
+                    extracted_data[normalized_key] = cleaned_value
+            
+            i += 1
         
         return extracted_data
     
