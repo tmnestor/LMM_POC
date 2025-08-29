@@ -256,15 +256,7 @@ class LlamaProcessor:
         This is the core integration point for the new system.
         """
         try:
-            # SINGLE_PASS MODE: Use full 48-field semantic YAML, no document-aware filtering
-            if self.extraction_mode == "single_pass":
-                if self.debug:
-                    print("🎯 Single-Pass Mode: Using full V4 YAML with semantic field ordering")
-                
-                # Use the full 48-field semantic-ordered YAML prompt
-                return self._get_single_pass_prompt_from_yaml()
-                
-            elif self.enable_v4_schema and image_path and self.document_detector:
+            if self.enable_v4_schema and image_path and self.document_detector:
                 # V4 Mode: Document type detection + intelligent field filtering (for grouped/adaptive modes)
                 if self.debug:
                     print(f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}")
@@ -352,17 +344,35 @@ class LlamaProcessor:
             output_format = output_format.replace("49 FIELDS", f"{len(field_list)} FIELDS")
             prompt_parts.append(f"\n{output_format}")
             
-            # Add field instructions (filtered to requested fields)
+            # Add field instructions (filtered to requested fields in SEMANTIC ORDER)
             all_field_instructions = yaml_config.get("field_instructions", {})
+            yaml_field_order = list(all_field_instructions.keys()) if all_field_instructions else field_list
+            
+            # Reorder field_list to match semantic order from YAML
+            field_list_set = set(field_list)
+            semantic_ordered_fields = [field for field in yaml_field_order if field in field_list_set]
+            
+            # Add any missing fields at the end (shouldn't happen but safety check)
+            missing_fields = field_list_set - set(semantic_ordered_fields)
+            if missing_fields:
+                semantic_ordered_fields.extend(sorted(missing_fields))
+            
+            if self.debug:
+                print(f"🎯 Reordered {len(field_list)} fields from alphabetical to semantic order")
+                print(f"🎯 First 5 fields: {semantic_ordered_fields[:5]}")
+            
             prompt_parts.append("")
             
-            for field in field_list:
+            for field in semantic_ordered_fields:
                 if field in all_field_instructions:
                     instruction = all_field_instructions[field]
                     prompt_parts.append(f"{field}: {instruction}")
                 else:
                     # Fallback instruction for missing fields
                     prompt_parts.append(f"{field}: [value or NOT_FOUND]")
+                    
+            # Store the semantic-ordered fields for parsing
+            self.active_fields = semantic_ordered_fields
             
             # Add format rules
             if "format_rules_header" in yaml_config:
@@ -378,7 +388,7 @@ class LlamaProcessor:
             final_prompt = "\n".join(prompt_parts)
             
             if self.debug:
-                print(f"✅ Generated V4 prompt: {len(final_prompt)} chars, {len(field_list)} fields")
+                print(f"✅ Generated V4 prompt: {len(final_prompt)} chars, {len(semantic_ordered_fields)} fields")
             
             return final_prompt
             
