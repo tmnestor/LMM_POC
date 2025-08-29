@@ -1312,7 +1312,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
             debug_config = self.debug_ocr_config.get("debug_config", {})
             if debug_config.get("save_ocr_output", False):
                 output_suffix = debug_config.get("ocr_output_suffix", "_debug_ocr.md")
-                output_path = Path(image_path).with_suffix(output_suffix)
+                # Use stem + suffix instead of with_suffix for compound suffixes
+                input_path = Path(image_path)
+                output_path = input_path.parent / (input_path.stem + output_suffix)
                 
                 with output_path.open("w", encoding="utf-8") as f:
                     f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
