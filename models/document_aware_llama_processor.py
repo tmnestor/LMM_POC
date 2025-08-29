@@ -188,7 +188,7 @@ class DocumentAwareLlamaProcessor:
         task_description = yaml_config.get("task_description", "Extract key information from business documents.")
         output_format = yaml_config.get("output_format", "Provide information in the following format:")
         
-        prompt = f"{persona}\\n\\n{task_description}\\n\\n{output_format}\\n"
+        prompt = f"{persona}\n\n{task_description}\n\n{output_format}\n"
         
         # Add field instructions using dynamic field list with v4 field type awareness
         field_instructions = yaml_config.get("field_instructions", {})
@@ -197,11 +197,11 @@ class DocumentAwareLlamaProcessor:
             instruction = field_instructions.get(field)
             if not instruction:
                 instruction = self._get_field_type_instruction(field)
-            prompt += f"{field}: {instruction}\\n"
+            prompt += f"{field}: {instruction}\n"
         
         # Add stop instruction
         stop_instruction = yaml_config.get("stop_instruction", "Stop after providing all required information.")
-        prompt += f"\\n{stop_instruction}"
+        prompt += f"\n{stop_instruction}"
         
         return prompt
     
