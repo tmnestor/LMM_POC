@@ -17,7 +17,6 @@ from .config import (
     get_all_field_types,
     get_boolean_fields,
     get_calculated_fields,
-    get_extraction_fields,
     get_list_fields,
     get_monetary_fields,
     get_phone_fields,
