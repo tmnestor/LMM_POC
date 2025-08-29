@@ -1424,7 +1424,7 @@ INSTRUCTIONS:
                 with output_path.open("w", encoding="utf-8") as f:
                     f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
                     f.write(f"**Processing Time:** {processing_time:.2f}s\n")
-                    f.write(f"**Model:** InternVL3\n")
+                    f.write("**Model:** InternVL3\n")
                     f.write(f"**Prompt Tokens:** {max_tokens}\n\n")
                     f.write("---\n\n")
                     f.write(ocr_markdown)

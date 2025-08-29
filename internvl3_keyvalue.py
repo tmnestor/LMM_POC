@@ -405,7 +405,7 @@ def main(extraction_mode=None, debug=False, limit_images=None, image_path=None, 
                 continue
         
         # Summary for debug OCR mode
-        print(f"\n🎯 DEBUG OCR SUMMARY:")
+        print("\n🎯 DEBUG OCR SUMMARY:")
         print(f"   Images processed: {len(ocr_results)}/{len(image_files)}")
         if ocr_results:
             avg_time = sum(r['processing_time'] for r in ocr_results) / len(ocr_results)

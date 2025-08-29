@@ -1317,7 +1317,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 with output_path.open("w", encoding="utf-8") as f:
                     f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
                     f.write(f"**Processing Time:** {processing_time:.2f}s\n")
-                    f.write(f"**Model:** Llama-3.2-11B-Vision-Instruct\n")
+                    f.write("**Model:** Llama-3.2-11B-Vision-Instruct\n")
                     f.write(f"**Prompt Tokens:** {max_tokens}\n\n")
                     f.write("---\n\n")
                     f.write(ocr_markdown)
