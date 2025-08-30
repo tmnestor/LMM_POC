@@ -67,34 +67,36 @@ class DocumentAwareLlamaHandler:
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
         
-        # Initialize processor for direct extraction (more reliable than detector)
-        if not self.processor:
-            # Create processor for document type detection using single field
-            detection_fields = ["DOCUMENT_TYPE"]
-            self.processor = DocumentAwareLlamaProcessor(
-                field_list=detection_fields,
-                model_path=self.model_path,
-                debug=self.debug
-            )
+        # Initialize DocumentTypeDetector with YAML-first approach
+        if not self.document_detector:
+            # First create a basic processor for the detector
+            if not self.processor:
+                self.processor = DocumentAwareLlamaProcessor(
+                    field_list=["DOCUMENT_TYPE"],  # Minimal field list for type detection
+                    model_path=self.model_path,
+                    debug=self.debug
+                )
+            
+            # Initialize YAML-first document type detector
+            from common.document_type_detector import DocumentTypeDetector
+            self.document_detector = DocumentTypeDetector(model_processor=self.processor)
         
-        # Phase 1: Extract document type directly (bypass problematic detector)
+        # Phase 1: Use YAML-first document type detection
         if self.debug:
-            print("🔍 Phase 1: Direct DOCUMENT_TYPE extraction (bypassing detector)")
+            print("🔍 Phase 1: YAML-first document type detection")
             
         try:
-            # Use reliable extraction instead of problematic document detector
-            result = self.processor.process_single_image(image_path)
-            raw_doc_type = result.get("DOCUMENT_TYPE", "unknown").replace("NOT_FOUND", "unknown")
-            
-            # Normalize to canonical schema type
-            doc_type = self._normalize_document_type(raw_doc_type)
+            # Use proper YAML-configured document type detection
+            detection_result = self.document_detector.detect_document_type(image_path)
+            doc_type = detection_result.get("type", "invoice")
+            confidence = detection_result.get("confidence", 0.0)
             
             if self.debug:
-                print(f"   Raw extraction: '{raw_doc_type}' → Canonical: '{doc_type}'")
+                print(f"   📄 Document type: {doc_type} (confidence: {confidence:.2f})")
                 
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Direct extraction failed: {e}")
+                print(f"   ⚠️ YAML document detection failed: {e}")
             doc_type = "invoice"  # Fallback to prevent crashes
         
         # Get schema for correctly detected document type
@@ -112,36 +114,7 @@ class DocumentAwareLlamaHandler:
             "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]]
         }
     
-    def _normalize_document_type(self, raw_type: str) -> str:
-        """Normalize raw document type to canonical schema type."""
-        if not raw_type or raw_type.lower() in ["unknown", "not_found"]:
-            return "invoice"  # Default fallback
-            
-        normalized = raw_type.lower().strip()
-        
-        # Direct mapping of common variations
-        type_mapping = {
-            # Bank statement variations
-            "statement": "bank_statement",
-            "bank statement": "bank_statement", 
-            "account statement": "bank_statement",
-            "credit card statement": "bank_statement",
-            "financial statement": "bank_statement",
-            
-            # Invoice variations
-            "invoice": "invoice",
-            "tax invoice": "invoice",
-            "bill": "invoice",
-            "estimate": "invoice",
-            "quote": "invoice",
-            
-            # Receipt variations  
-            "receipt": "receipt",
-            "purchase receipt": "receipt",
-            "sales receipt": "receipt",
-        }
-        
-        return type_mapping.get(normalized, "invoice")  # Default to invoice if no match
+    # _normalize_document_type removed - normalization now handled by YAML-first DocumentTypeDetector
     
     def process_document_aware(self, image_path: str, 
                               classification_info: Dict[str, Any]) -> Dict[str, Any]:

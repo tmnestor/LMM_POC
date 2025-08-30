@@ -365,8 +365,9 @@ class DocumentAwareLlamaProcessor:
                 print(response)
                 print("=" * 80)
             
-            # Parse response using document-specific field list
-            extracted_data = self._parse_document_aware_response(response)
+            # Parse response using robust extraction parser with field filtering
+            from common.extraction_parser import parse_extraction_response
+            extracted_data = parse_extraction_response(response, expected_fields=self.field_list)
             
             if self.debug:
                 print("📊 PARSED EXTRACTION RESULTS:")
