@@ -95,7 +95,7 @@ class DocumentAwareInternVL3Handler:
             "document_type": doc_type,
             "schema": schema,
             "field_count": len(schema["fields"]),
-            "field_names": [f["name"] for f in schema["fields"]]
+            "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]]
         }
     
     def process_document_aware(self, image_path: str, 
