@@ -466,8 +466,29 @@ def _get_config():
     """Get schema configuration with deferred initialization."""
     global _config
     if _config is None:
-        from .schema_config import get_schema_config
-        _config = get_schema_config()
+        # Use simplified schema
+        from .unified_schema import DocumentTypeFieldSchema
+        schema = DocumentTypeFieldSchema()
+        # Create simple config object
+        class SimpleConfig:
+            def __init__(self, schema):
+                self.schema_loader = schema
+                self.extraction_fields = schema.get_all_fields()
+                self.field_count = schema.get_field_count()
+                # Simplified field types (all text for now - complexity removed)
+                self.field_types = {field: "text" for field in self.extraction_fields}
+                
+                # Simplified field type lists - just empty lists for backward compatibility
+                self.phone_fields = []
+                self.list_fields = []
+                self.monetary_fields = []
+                self.numeric_id_fields = []
+                self.date_fields = []
+                self.text_fields = self.extraction_fields  # All fields are text
+                self.boolean_fields = []
+                self.calculated_fields = []
+                self.transaction_list_fields = []
+        _config = SimpleConfig(schema)
     return _config
 
 def get_document_schema():
@@ -522,8 +543,9 @@ def _ensure_fields_loaded():
     global BOOLEAN_FIELDS, CALCULATED_FIELDS, TRANSACTION_LIST_FIELDS
     
     if not EXTRACTION_FIELDS or BOOLEAN_FIELDS is None:
-        from .schema_config import get_schema_config
-        config = get_schema_config()
+        # Use simplified schema
+        from .unified_schema import DocumentTypeFieldSchema
+        config = _get_config()
         EXTRACTION_FIELDS = config.extraction_fields
         FIELD_COUNT = config.field_count
         # Use the field_types dict that's already available
@@ -1057,8 +1079,8 @@ def get_document_type_fields(document_type: str) -> list:
         ValueError: If document type not supported
     """
     try:
-        from .document_schema_loader import DocumentTypeFieldSchema
-        loader = DocumentTypeFieldSchema("field_schema_v4.yaml")
+        from .unified_schema import DocumentTypeFieldSchema
+        loader = DocumentTypeFieldSchema("config/fields.yaml")
         
         # Map common document type variations
         doc_type_mapping = {
@@ -1074,9 +1096,14 @@ def get_document_type_fields(document_type: str) -> list:
         mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
         schema = loader.get_document_schema(mapped_type)
         
-        # Extract field names from schema (V4 uses 'fields' key with list of field dicts)
+        # Extract field names from simplified unified schema
         fields = schema.get("fields", [])
-        field_names = [field["name"] for field in fields if isinstance(field, dict) and "name" in field]
+        if fields and isinstance(fields[0], str):
+            # New unified schema returns field names directly
+            field_names = fields
+        else:
+            # Legacy format with field dictionaries
+            field_names = [field["name"] for field in fields if isinstance(field, dict) and "name" in field]
         
         return field_names
         

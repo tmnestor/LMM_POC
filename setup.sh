@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# LMM_POC Environment Setup Script
-# This script sets up environment variables and activates the conda environment
+# LMM_POC Environment Setup Script - YAML-First Architecture
+# This script activates the conda environment and validates YAML configurations
 # for the vision-language model document extraction project.
 
 set -e  # Exit on any error
@@ -86,69 +86,50 @@ else
 fi
 
 # ============================================================================
-# ENVIRONMENT VARIABLES CONFIGURATION
+# YAML CONFIGURATION VALIDATION
 # ============================================================================
 
-echo -e "\n${BLUE}🌍 Environment Variables Setup${NC}"
+echo -e "\n${BLUE}📋 YAML Configuration Validation${NC}"
 
-# Determine environment profile - check for existing env var first, then detect
-if [ -n "$LMM_ENVIRONMENT" ]; then
-    echo -e "${BLUE}🔧 Using pre-set LMM_ENVIRONMENT: $LMM_ENVIRONMENT${NC}"
-elif [[ $(hostname) == *"jovyan"* ]] || [[ $(hostname) == *"jupyter"* ]]; then
-    LMM_ENVIRONMENT="testing"
-    echo -e "${BLUE}🧪 Detected Jupyter/H200 environment - using 'testing' profile${NC}"
-elif [[ "$PWD" == *"/efs/"* ]] || [[ "$PWD" == *"v100"* ]]; then
-    LMM_ENVIRONMENT="production"
-    echo -e "${BLUE}🚀 Detected EFS/V100 environment - using 'production' profile${NC}"
-else
-    LMM_ENVIRONMENT="development"
-    echo -e "${BLUE}🏠 Using 'development' profile for local environment${NC}"
+# Check for critical YAML configuration files
+YAML_FILES=(
+    "config/fields.yaml"
+    "prompts/prompt_config.yaml"
+    "prompts/llama_single_pass_high_performance.yaml"
+    "prompts/internvl3_single_pass_v4.yaml"
+    "prompts/document_type_detection.yaml"
+    "config/document_metrics.yaml"
+)
+
+echo -e "${BLUE}Checking YAML configuration files...${NC}"
+YAML_MISSING=0
+
+for yaml_file in "${YAML_FILES[@]}"; do
+    if [ -f "${PROJECT_ROOT}/${yaml_file}" ]; then
+        echo -e "  ${GREEN}✅${NC} ${yaml_file}"
+    else
+        echo -e "  ${RED}❌${NC} ${yaml_file} - NOT FOUND"
+        YAML_MISSING=$((YAML_MISSING + 1))
+    fi
+done
+
+if [ $YAML_MISSING -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  Warning: ${YAML_MISSING} YAML configuration file(s) missing${NC}"
+    echo -e "${YELLOW}💡 The YAML-first architecture requires these configuration files${NC}"
 fi
 
-# Set environment variables
-export LMM_ENVIRONMENT="$LMM_ENVIRONMENT"
-
-# Model paths (customize these based on your setup)
-# Set model paths based on environment
-case "$LMM_ENVIRONMENT" in
-    "development")
-        # Local development paths - use environment profile defaults
-        echo -e "${BLUE}🏠 Using environment profile defaults for model paths${NC}"
-        # Don't set model path environment variables - let config.py use profile defaults
-        ;;
-    "testing")
-        # H200 GPU testing environment
-        export LLAMA_MODEL_PATH="/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
-        export INTERNVL3_MODEL_PATH="/home/jovyan/nfs_share/models/InternVL3-8B"
-        echo -e "${BLUE}🧪 Set model paths for H200 testing environment${NC}"
-        ;;
-    "production")
-        # V100 production environment
-        export LLAMA_MODEL_PATH="/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
-        export INTERNVL3_MODEL_PATH="/efs/shared/PTM/InternVL3-8B"
-        echo -e "${BLUE}🚀 Set model paths for V100 production environment${NC}"
-        ;;
-esac
-
-# Data and output paths
-export GROUND_TRUTH_PATH="${PROJECT_ROOT}/evaluation_data/evaluation_ground_truth.csv"
-export OUTPUT_DIR="${PROJECT_ROOT}/output"
+# Check ground truth data
+GROUND_TRUTH_PATH="${PROJECT_ROOT}/evaluation_data/ground_truth.csv"
+if [ -f "$GROUND_TRUTH_PATH" ]; then
+    echo -e "${GREEN}✅ Ground truth data found: ground_truth.csv${NC}"
+else
+    echo -e "${YELLOW}⚠️  Ground truth not found at: $GROUND_TRUTH_PATH${NC}"
+fi
 
 # Create output directory if it doesn't exist
+OUTPUT_DIR="${PROJECT_ROOT}/output"
 mkdir -p "$OUTPUT_DIR"
-
-echo -e "${GREEN}✅ Environment variables set:${NC}"
-echo "   LMM_ENVIRONMENT: $LMM_ENVIRONMENT"
-echo "   GROUND_TRUTH_PATH: $GROUND_TRUTH_PATH"
-echo "   OUTPUT_DIR: $OUTPUT_DIR"
-
-# Show model paths if they are set
-if [ -n "$LLAMA_MODEL_PATH" ]; then
-    echo "   LLAMA_MODEL_PATH: $LLAMA_MODEL_PATH"
-fi
-if [ -n "$INTERNVL3_MODEL_PATH" ]; then
-    echo "   INTERNVL3_MODEL_PATH: $INTERNVL3_MODEL_PATH"
-fi
+echo -e "${GREEN}✅ Output directory ready: $OUTPUT_DIR${NC}"
 
 # ============================================================================
 # CONDA ACTIVATION SCRIPT
@@ -171,16 +152,28 @@ fi
 
 echo -e "\n${GREEN}🎉 Setup Complete!${NC}"
 echo "=================================="
-echo -e "${BLUE}To activate the environment manually:${NC}"
+echo -e "${BLUE}📋 YAML-First Configuration Active${NC}"
+echo ""
+echo -e "${BLUE}To activate the environment:${NC}"
 echo "   source setup.sh"
 echo "   conda activate $CONDA_ENV_NAME"
 echo ""
-echo -e "${BLUE}To run the project:${NC}"
+echo -e "${BLUE}To run evaluations:${NC}"
 echo "   python llama_keyvalue.py        # Run Llama evaluation"
 echo "   python internvl3_keyvalue.py    # Run InternVL3 evaluation"
+echo "   python llama_document_aware.py  # Run document-aware extraction"
 echo ""
-echo -e "${BLUE}To check configuration:${NC}"
-echo "   python -c \"from common.config import show_current_config; show_current_config()\""
+echo -e "${BLUE}To run notebooks:${NC}"
+echo "   jupyter notebook llama_document_aware.ipynb"
+echo ""
+echo -e "${BLUE}Configuration locations (YAML-first):${NC}"
+echo "   📁 Field Schema: config/fields.yaml (simplified!)"
+echo "   📁 Prompts: prompts/prompt_config.yaml"
+echo "   📁 Metrics: config/document_metrics.yaml"
+echo "   📁 Model paths: Set in common/config.py (not env vars)"
+echo ""
+echo -e "${YELLOW}💡 Note: Model paths are configured in common/config.py${NC}"
+echo -e "${YELLOW}   NOT through environment variables (YAML-first strategy)${NC}"
 
 # ============================================================================
 # ACTIVATION (if sourced)
@@ -203,11 +196,40 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     if [[ "$CONDA_DEFAULT_ENV" == "$CONDA_ENV_NAME" ]]; then
         echo -e "${GREEN}✅ Successfully activated: $CONDA_DEFAULT_ENV${NC}"
         
-        # Test import
-        python -c "from common.config import show_current_config; show_current_config()" 2>/dev/null && {
-            echo -e "${GREEN}✅ Configuration loaded successfully${NC}"
+        # Test YAML configuration loading
+        python -c "
+from pathlib import Path
+import sys
+
+# Test prompt loader
+try:
+    from common.prompt_loader import PromptLoader
+    loader = PromptLoader()
+    print('✅ YAML prompt loader initialized successfully')
+except Exception as e:
+    print(f'⚠️  Prompt loader initialization failed: {e}')
+    sys.exit(1)
+
+# Test schema loader
+try:
+    from common.unified_schema import DocumentTypeFieldSchema
+    schema = DocumentTypeFieldSchema()
+    print(f'✅ Schema loaded: {schema.get_field_count()} fields from config/fields.yaml')
+    print(f'✅ Document types: {len(schema.get_supported_document_types())} supported')
+except Exception as e:
+    print(f'⚠️  Schema loader failed: {e}')
+    sys.exit(1)
+
+# Verify model paths in config.py (not environment variables)
+try:
+    from common.config import LLAMA_MODEL_PATH, INTERNVL3_MODEL_PATH
+    print('✅ Model paths configured in common/config.py')
+except Exception as e:
+    print(f'⚠️  Model path configuration issue: {e}')
+" 2>/dev/null && {
+            echo -e "${GREEN}✅ YAML-first configuration validated${NC}"
         } || {
-            echo -e "${YELLOW}⚠️  Configuration test failed - check dependencies${NC}"
+            echo -e "${YELLOW}⚠️  Configuration validation failed - check YAML files${NC}"
         }
     else
         echo -e "${RED}❌ Environment activation verification failed${NC}"
@@ -217,7 +239,13 @@ else
     echo "   source setup.sh"
 fi
 
-# Export functions for convenience
+# Export only essential paths (not model paths - those are in YAML/config)
 export PROJECT_ROOT
 export CONDA_ENV_NAME
 export CONDA_ENV_PATH
+
+# Reminder about YAML-first configuration
+echo -e "\n${BLUE}📋 Remember: All configuration is in YAML files${NC}"
+echo -e "${BLUE}   Model paths: common/config.py${NC}"
+echo -e "${BLUE}   Prompts: prompts/prompt_config.yaml${NC}"
+echo -e "${BLUE}   Schema: config/schema_v4.yaml${NC}"

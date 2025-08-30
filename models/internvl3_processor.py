@@ -380,8 +380,8 @@ class InternVL3Processor:
         if self.enable_v4_schema and self.prompt_loader is not None:
             return self._get_integrated_v4_prompt(image_path)
         else:
-            # Legacy V3 schema fallback using schema-driven generation
-            from common.schema_loader import get_global_schema
+            # Legacy V3 schema fallback - now using unified schema
+            from common.unified_schema import get_global_schema
             
             try:
                 schema = get_global_schema()

@@ -31,8 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Import V4 document-aware components
-from common.document_schema_loader import DocumentTypeFieldSchema
+# Import unified schema loader (simplified YAML-first)
+from common.unified_schema import DocumentTypeFieldSchema
 from common.document_type_detector import DocumentTypeDetector
 from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth

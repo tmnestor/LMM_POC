@@ -15,7 +15,7 @@ import pandas as pd
 from .config import (
     EXTRACTION_FIELDS,
 )
-from .schema_loader import get_global_schema
+from .unified_schema import get_global_schema
 
 
 def parse_extraction_response(
