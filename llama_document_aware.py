@@ -31,7 +31,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from common.document_type_detector import DocumentTypeDetector
 from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
 from common.extraction_parser import discover_images
