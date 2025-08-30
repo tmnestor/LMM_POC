@@ -544,7 +544,6 @@ def _ensure_fields_loaded():
     
     if not EXTRACTION_FIELDS or BOOLEAN_FIELDS is None:
         # Use simplified schema
-        from .unified_schema import DocumentTypeFieldSchema
         config = _get_config()
         EXTRACTION_FIELDS = config.extraction_fields
         FIELD_COUNT = config.field_count
