@@ -35,24 +35,33 @@ class DocumentTypeDetector:
     def _load_detection_config(self):
         """Load detection configuration from YAML files."""
         try:
-            from common.prompt_loader import PromptLoader
+            import yaml
             
-            self.prompt_loader = PromptLoader()
-            self.detection_config = self.prompt_loader.load_detection_prompts()
+            # Direct YAML loading - eliminates PromptLoader dependency
+            yaml_path = Path(__file__).parent.parent / "prompts" / "document_type_detection.yaml"
+            
+            if not yaml_path.exists():
+                raise FileNotFoundError(f"YAML configuration not found: {yaml_path}")
+                
+            with yaml_path.open("r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
             
             # Extract configuration from YAML
-            self.supported_types = self.detection_config.get("supported_types", ["invoice", "receipt", "bank_statement"])
-            self.type_to_schema = self.detection_config.get("type_mappings", {})
+            self.supported_types = config.get("supported_types", ["invoice", "receipt", "bank_statement"])
+            self.type_to_schema = config.get("type_mappings", {}).copy()
             
             # Add identity mappings for supported types
             for doc_type in self.supported_types:
                 self.type_to_schema[doc_type] = doc_type
             
             # Get detection settings
-            detection_settings = self.detection_config.get("detection_config", {})
+            detection_settings = config.get("detection_config", {})
             self.confidence_threshold = detection_settings.get("confidence_threshold", 0.85)
             self.fallback_type = detection_settings.get("fallback_type", "invoice")
             self.debug_enabled = detection_settings.get("enable_debug_output", True)
+            
+            # Store detection prompts for use
+            self.detection_prompts = config.get("detection_prompts", {})
             
             if self.debug_enabled:
                 print("✅ DocumentTypeDetector initialized with YAML-first configuration")
@@ -93,14 +102,13 @@ class DocumentTypeDetector:
         try:
             # Get model-specific classification prompt from YAML configuration
             model_name = self._get_processor_type()
-            detection_prompts = self.detection_config.get("detection_prompts", {})
-            prompt_config = detection_prompts.get(model_name, detection_prompts.get("llama", {}))
+            prompt_config = self.detection_prompts.get(model_name, self.detection_prompts.get("llama", {}))
             
             if not prompt_config:
                 raise ValueError(
                     f"❌ FATAL: No detection prompts configured for model '{model_name}'\n"
                     f"💡 Add '{model_name}' section to prompts/document_type_detection.yaml\n"
-                    f"💡 Available models: {list(detection_prompts.keys())}"
+                    f"💡 Available models: {list(self.detection_prompts.keys())}"
                 )
             
             # Run classification using YAML-configured prompt
