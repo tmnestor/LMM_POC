@@ -150,6 +150,7 @@ class DocumentTypeFieldSchema:
             "total_fields": len(fields),
             "document_type": self._normalize_document_type(document_type),
             "critical_fields": self.get_critical_fields(),
+            "extraction_mode": "document_aware",
         }
     
     def get_schema_for_image(self, image_path: str, document_type: str) -> Dict:
