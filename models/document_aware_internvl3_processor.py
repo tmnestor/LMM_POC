@@ -222,12 +222,54 @@ class DocumentAwareInternVL3Processor:
 
                 model_kwargs["device_map"] = "auto"
 
-                self.model = AutoModel.from_pretrained(
-                    self.model_path, **model_kwargs
-                ).eval()
+                try:
+                    self.model = AutoModel.from_pretrained(
+                        self.model_path, **model_kwargs
+                    ).eval()
 
-                print("✅ InternVL3-8B loaded with 8-bit quantization")
-                print("   Memory footprint reduced by ~50%")
+                    print("✅ InternVL3-8B loaded with 8-bit quantization")
+                    print("   Memory footprint reduced by ~50%")
+                    
+                except Exception as quant_error:
+                    print(f"❌ 8-bit quantization failed: {quant_error}")
+                    print("💾 V100 has only 16GB VRAM - InternVL3-8B REQUIRES 8-bit quantization")
+                    
+                    # Try alternative quantization approaches before giving up
+                    success = False
+                    
+                    # Try legacy API with specific device mapping
+                    if not success:
+                        try:
+                            print("🔧 Trying legacy load_in_8bit approach...")
+                            legacy_kwargs = {
+                                "torch_dtype": torch.bfloat16,
+                                "load_in_8bit": True,
+                                "device_map": {"": 0},  # Force GPU 0
+                                "low_cpu_mem_usage": True,
+                                "trust_remote_code": True,
+                            }
+                            
+                            self.model = AutoModel.from_pretrained(
+                                self.model_path, **legacy_kwargs
+                            ).eval()
+                            
+                            print("✅ InternVL3-8B loaded with legacy 8-bit quantization")
+                            success = True
+                            
+                        except Exception as legacy_error:
+                            print(f"   ❌ Legacy approach failed: {legacy_error}")
+                    
+                    # If all approaches fail, provide clear guidance
+                    if not success:
+                        print("\n❌ FATAL: Cannot load InternVL3-8B on V100")
+                        print("🔍 ISSUE: bitsandbytes 0.47.0 compatibility problem")
+                        print("💾 V100 limitation: 16GB VRAM insufficient for FP16 (needs ~22GB)")
+                        print("\n🛠️ SOLUTIONS:")
+                        print("   1. Use InternVL3-2B instead: MODEL_PATH = '.../InternVL3-2B'")
+                        print("   2. Try: pip install bitsandbytes==0.41.1")
+                        print("   3. Use Llama-3.2-Vision-11B with 8-bit quantization")
+                        print("   4. Upgrade to A100/H100 with >20GB VRAM")
+                        raise RuntimeError("InternVL3-8B incompatible with V100 due to bitsandbytes issues") from None
 
             else:
                 # 2B model doesn't need quantization
