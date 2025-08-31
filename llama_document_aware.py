@@ -261,7 +261,7 @@ class DocumentAwareLlamaHandler:
         agreement = complex_result["document_type"] == simple_result["document_type"]
         
         if self.debug:
-            print(f"   📊 A/B Test Results:")
+            print("   📊 A/B Test Results:")
             print(f"      Complex: {complex_result['document_type']} (confidence: {complex_result.get('confidence', 'N/A')})")
             print(f"      Simple:  {simple_result['document_type']}")
             print(f"      Agreement: {'✅ YES' if agreement else '❌ NO'}")
