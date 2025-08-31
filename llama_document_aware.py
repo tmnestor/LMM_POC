@@ -54,32 +54,30 @@ class DocumentAwareLlamaHandler:
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
         
-        # Initialize YAML-first prompt loader for simple detection (Phase 1: Parallel Implementation)
+        # Initialize YAML-first prompt loader for document detection
         from common.prompt_loader import PromptLoader
         self.prompt_loader = PromptLoader()
         self.detection_config = self.prompt_loader.load_detection_prompts()
         
         if self.debug:
-            print("📝 YAML-first prompt loader initialized (parallel with complex detector)")
+            print("📝 YAML-first prompt loader initialized")
             print(f"   Detection config version: {self.detection_config.get('version', 'unknown')}")
             print(f"   Supported types: {len(self.detection_config.get('supported_types', []))}")
         
         # Create a single processor that will be reused for all operations
         # Initially with just DOCUMENT_TYPE for detection, then reconfigured for extraction
         self.processor = None
-        self.document_detector = None
         
         print("✅ Document-aware Llama handler initialized (model will load on first use)")
     
-    def _detect_document_type_yaml_simple(self, image_path: str) -> str:
+    def _detect_document_type_yaml(self, image_path: str) -> str:
         """
-        Simple YAML-first document type detection (copied from InternVL3 approach).
+        YAML-first document type detection using configurable prompts.
         
-        This is the simplified approach for Phase 1 parallel implementation.
         Uses prompts/document_type_detection.yaml for maintainable prompt management.
         """
         if self.debug:
-            print("📝 Using simple YAML-first document detection approach (Phase 1)")
+            print("📝 Using YAML-first document detection approach")
         
         # Get Llama-specific prompt from YAML configuration
         llama_config = self.detection_config['detection_prompts']['llama']
@@ -107,7 +105,7 @@ class DocumentAwareLlamaHandler:
         )
         
         # Parse and normalize using YAML type mappings
-        doc_type = self._parse_document_type_response_yaml_simple(response)
+        doc_type = self._parse_document_type_response_yaml(response)
         
         if self.debug:
             print(f"   Raw response: '{response.strip()}'")
@@ -115,8 +113,8 @@ class DocumentAwareLlamaHandler:
         
         return doc_type
     
-    def _parse_document_type_response_yaml_simple(self, response: str) -> str:
-        """Parse document type response using YAML-configured type mappings (simple version)."""
+    def _parse_document_type_response_yaml(self, response: str) -> str:
+        """Parse document type response using YAML-configured type mappings."""
         if not response:
             return self.detection_config['detection_config'].get('fallback_type', 'invoice')
         
@@ -145,142 +143,46 @@ class DocumentAwareLlamaHandler:
         
         return raw_type
     
-    def detect_and_classify_document(self, image_path: str, detection_method: str = "complex") -> Dict[str, Any]:
+    def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
         """
-        Detect document type and get appropriate schema.
+        Detect document type using YAML-first approach and get appropriate schema.
         
         Args:
             image_path: Path to document image
-            detection_method: "complex" (DocumentTypeDetector), "simple" (YAML-first), or "both" (A/B test)
             
         Returns:
-            Dict with document type, schema, and detection metadata
+            Dict with document type, schema, and field information
         """
         
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
-            print(f"   Detection method: {detection_method}")
-        
-        # Phase 1: Parallel Implementation - Support both methods
-        if detection_method == "both":
-            # A/B Testing: Run both methods and compare
-            return self._run_ab_detection_test(image_path)
-        elif detection_method == "simple":
-            # Use simple YAML-first approach
-            return self._detect_with_simple_method(image_path)
-        else:
-            # Use existing complex DocumentTypeDetector (default)
-            return self._detect_with_complex_method(image_path)
-    
-    def _detect_with_complex_method(self, image_path: str) -> Dict[str, Any]:
-        """Use existing complex DocumentTypeDetector approach."""
-        # Initialize DocumentTypeDetector with YAML-first approach
-        if not self.document_detector:
-            # First create a basic processor for the detector
-            if not self.processor:
-                self.processor = DocumentAwareLlamaProcessor(
-                    field_list=["DOCUMENT_TYPE"],  # Minimal field list for type detection
-                    model_path=self.model_path,
-                    debug=self.debug
-                )
-            
-            # Initialize YAML-first document type detector
-            from common.document_type_detector import DocumentTypeDetector
-            self.document_detector = DocumentTypeDetector(model_processor=self.processor)
-        
-        # Use complex document type detection
-        if self.debug:
-            print("🔍 Using complex DocumentTypeDetector approach")
+            print("   Using YAML-first detection approach")
             
         try:
-            # Use proper YAML-configured document type detection
-            detection_result = self.document_detector.detect_document_type(image_path)
-            doc_type = detection_result.get("type", "invoice")
-            confidence = detection_result.get("confidence", 0.0)
+            # Use YAML-first document detection
+            doc_type = self._detect_document_type_yaml(image_path)
             
             if self.debug:
-                print(f"   📄 Complex detection result: {doc_type} (confidence: {confidence:.2f})")
+                print(f"   📄 Detected document type: {doc_type}")
                 
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Complex detection failed: {e}")
-            doc_type = "invoice"  # Fallback to prevent crashes
-            confidence = 0.0
-
-        # Get schema for detected document type
-        schema = self.schema_loader.get_document_schema(doc_type)
-        
-        return {
-            "document_type": doc_type,
-            "schema": schema,
-            "field_count": len(schema["fields"]),
-            "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]],
-            "detection_method": "complex",
-            "confidence": confidence
-        }
-    
-    def _detect_with_simple_method(self, image_path: str) -> Dict[str, Any]:
-        """Use simple YAML-first approach (InternVL3 style)."""
-        if self.debug:
-            print("🔍 Using simple YAML-first approach")
-            
-        try:
-            # Use simple YAML-first document detection
-            doc_type = self._detect_document_type_yaml_simple(image_path)
-            
-            if self.debug:
-                print(f"   📄 Simple detection result: {doc_type}")
-                
-        except Exception as e:
-            if self.debug:
-                print(f"   ⚠️ Simple detection failed: {e}")
+                print(f"   ⚠️ Detection failed: {e}, using fallback")
             doc_type = self.detection_config['detection_config'].get('fallback_type', 'invoice')
 
         # Get schema for detected document type
         schema = self.schema_loader.get_document_schema(doc_type)
         
+        if self.debug:
+            print(f"   Schema Fields: {len(schema['fields'])} fields")
+            print(f"   Extraction Mode: {schema['extraction_mode']}")
+        
         return {
             "document_type": doc_type,
             "schema": schema,
             "field_count": len(schema["fields"]),
-            "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]],
-            "detection_method": "simple",
-            "confidence": None  # Simple method doesn't provide confidence
+            "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]]
         }
-    
-    def _run_ab_detection_test(self, image_path: str) -> Dict[str, Any]:
-        """Run both detection methods and compare results (A/B testing)."""
-        if self.debug:
-            print("🔍 Running A/B detection test (both methods)")
-        
-        # Run both methods
-        complex_result = self._detect_with_complex_method(image_path)
-        simple_result = self._detect_with_simple_method(image_path)
-        
-        # Compare results
-        agreement = complex_result["document_type"] == simple_result["document_type"]
-        
-        if self.debug:
-            print("   📊 A/B Test Results:")
-            print(f"      Complex: {complex_result['document_type']} (confidence: {complex_result.get('confidence', 'N/A')})")
-            print(f"      Simple:  {simple_result['document_type']}")
-            print(f"      Agreement: {'✅ YES' if agreement else '❌ NO'}")
-        
-        # For A/B testing, return complex result but include comparison metadata
-        result = complex_result.copy()
-        result.update({
-            "detection_method": "both",
-            "ab_test": {
-                "complex_type": complex_result["document_type"],
-                "simple_type": simple_result["document_type"],
-                "agreement": agreement,
-                "complex_confidence": complex_result.get("confidence")
-            }
-        })
-        
-        return result
-    
-    # _normalize_document_type removed - normalization now handled by YAML-first DocumentTypeDetector
     
     def process_document_aware(self, image_path: str, 
                               classification_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -436,8 +338,6 @@ def main():
     parser.add_argument("--limit-images", type=int, help="Limit number of images to process")
     parser.add_argument("--document-type", choices=["invoice", "receipt", "bank_statement"],
                        help="Process only specific document type")
-    parser.add_argument("--detection-method", choices=["complex", "simple", "both"], 
-                       default="complex", help="Document detection method: complex (DocumentTypeDetector), simple (YAML-first), both (A/B test)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     
     args = parser.parse_args()
@@ -456,7 +356,6 @@ def main():
             return
         
         print(f"🔧 Model: {args.model_path}")
-        print(f"🧪 Detection method: {args.detection_method}")
         print(f"🐛 Debug mode: {args.debug}")
         
         # Single image mode
@@ -465,8 +364,8 @@ def main():
         print(f"\\n📄 Processing single image: {Path(args.image_path).name}...")
         
         try:
-            # Step 1: Detect document type and get schema
-            classification_info = processor.detect_and_classify_document(args.image_path, args.detection_method)
+            # Step 1: Detect document type and get schema (YAML-first approach)
+            classification_info = processor.detect_and_classify_document(args.image_path)
             
             # Step 2: Extract with document-specific schema
             result = processor.process_document_aware(args.image_path, classification_info)
@@ -520,7 +419,6 @@ def main():
         print(f"📁 Data directory: {args.data_dir}")
         print(f"📊 Ground truth: {args.ground_truth}")
         print(f"🔧 Model: {args.model_path}")
-        print(f"🧪 Detection method: {args.detection_method}")
         print(f"🎯 Document type filter: {args.document_type or 'All types'}")
         print(f"📸 Image limit: {args.limit_images or 'No limit'}")
         print(f"🐛 Debug mode: {args.debug}")
@@ -567,8 +465,8 @@ def main():
             print(f"\\n📄 [{i}/{len(all_images)}] Processing {Path(image_path).name}...")
             
             try:
-                # Step 1: Detect document type and get schema
-                classification_info = processor.detect_and_classify_document(image_path, args.detection_method)
+                # Step 1: Detect document type and get schema (YAML-first approach)
+                classification_info = processor.detect_and_classify_document(image_path)
                 
                 # Step 2: Extract with document-specific schema
                 result = processor.process_document_aware(image_path, classification_info)

@@ -27,7 +27,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
-from common.document_aware_grouped_extraction import DocumentAwareGroupedExtraction
+# Removed: DocumentAwareGroupedExtraction import - now using direct field extraction
 from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     clear_model_caches,
@@ -78,8 +78,7 @@ class DocumentAwareInternVL3Processor:
         # Initialize extraction cleaner for value normalization
         self.cleaner = ExtractionCleaner(debug=debug)
         
-        # Initialize the hybrid document-aware grouped extraction system
-        self.grouped_extractor = DocumentAwareGroupedExtraction(debug=debug)
+        # Note: Previously used DocumentAwareGroupedExtraction but now using direct field extraction
 
         # Fix 8B detection using actual model path
         self.is_8b_model = "8B" in str(self.model_path)
