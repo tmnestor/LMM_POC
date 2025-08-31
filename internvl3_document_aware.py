@@ -58,6 +58,20 @@ class DocumentAwareInternVL3Handler:
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
         
+        # DEBUG: Test schema loader directly
+        if self.debug:
+            print("🔍 DEBUG: Testing schema loader directly...")
+            receipt_schema = self.schema_loader.get_document_schema("receipt")
+            invoice_schema = self.schema_loader.get_document_schema("invoice")
+            print(f"   Receipt schema fields: {len(receipt_schema['fields'])} (expected: 20)")
+            print(f"   Invoice schema fields: {len(invoice_schema['fields'])} (expected: 29)")
+            print(f"   Receipt first 5: {receipt_schema['fields'][:5]}")
+            print(f"   Invoice first 5: {invoice_schema['fields'][:5]}")
+            if len(receipt_schema['fields']) != 20:
+                print(f"   ❌ SCHEMA BUG: Receipt has {len(receipt_schema['fields'])} fields, expected 20!")
+            if len(invoice_schema['fields']) != 29:
+                print(f"   ❌ SCHEMA BUG: Invoice has {len(invoice_schema['fields'])} fields, expected 29!")
+        
         # Note: Document detector will be configured when we need it
         self.document_detector = None
         
@@ -106,12 +120,21 @@ class DocumentAwareInternVL3Handler:
             print(f"   Document Type: {doc_type}")
             print(f"   Schema Fields: {len(schema['fields'])} fields")
             print(f"   Extraction Mode: {schema['extraction_mode']}")
+            print(f"   🔍 DEBUG: First 5 schema fields: {schema['fields'][:5]}")
+            print(f"   🔍 DEBUG: Total schema fields: {len(schema['fields'])}")
+        
+        # Extract field names
+        field_names = schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]]
+        
+        if self.debug:
+            print(f"   🔍 DEBUG: Field names length: {len(field_names)}")
+            print(f"   🔍 DEBUG: First 5 field names: {field_names[:5]}")
         
         return {
             "document_type": doc_type,
             "schema": schema,
             "field_count": len(schema["fields"]),
-            "field_names": schema["fields"] if isinstance(schema["fields"][0], str) else [f["name"] for f in schema["fields"]]
+            "field_names": field_names
         }
     
     def _normalize_document_type(self, raw_type: str) -> str:
@@ -158,9 +181,16 @@ class DocumentAwareInternVL3Handler:
         if self.debug:
             print(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
             print(f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}")
+            print(f"   🔍 DEBUG: process_document_aware received {len(field_names)} fields for {doc_type}")
+            print(f"   🔍 DEBUG: Classification info field_count: {classification_info.get('field_count', 'MISSING')}")
+            print(f"   🔍 DEBUG: First 10 field names: {field_names[:10]}")
         
         # Create document-specific processor, skip model loading if we can reuse
         skip_loading = self.base_processor and hasattr(self.base_processor, 'model')
+        
+        if self.debug:
+            print(f"   🔍 DEBUG: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields")
+            print(f"   🔍 DEBUG: Field list being passed: {field_names[:5]}{'...' if len(field_names) > 5 else ''}")
         
         document_processor = DocumentAwareInternVL3Processor(
             field_list=field_names,
