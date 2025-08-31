@@ -100,12 +100,13 @@ class DocumentAwareInternVL3Handler:
         try:
             # Use reliable extraction instead of problematic document detector
             result = self.base_processor.process_single_image(image_path)
-            raw_doc_type = result.get("DOCUMENT_TYPE", "unknown").replace("NOT_FOUND", "unknown")
+            raw_doc_type = result.get("extracted_data", {}).get("DOCUMENT_TYPE", "unknown").replace("NOT_FOUND", "unknown")
             
             # Normalize to canonical schema type
             doc_type = self._normalize_document_type(raw_doc_type)
             
             if self.debug:
+                print(f"   Extraction result: {result.get('extracted_data', {})}")
                 print(f"   Raw extraction: '{raw_doc_type}' → Canonical: '{doc_type}'")
                 
         except Exception as e:
