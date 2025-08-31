@@ -165,9 +165,9 @@ class DocumentAwareInternVL3Processor:
             print("🎯 InternVL3-2B detected - using standard optimizations")
 
         try:
-            # Base model configuration
+            # Base model configuration - use float16 for V100 compatibility
             model_kwargs = {
-                "torch_dtype": torch.bfloat16,
+                "torch_dtype": torch.float16,  # fp16 for V100 (bfloat16 causes type mismatches)
                 "low_cpu_mem_usage": True,
                 "use_flash_attn": False,  # Disabled for compatibility
                 "trust_remote_code": True,
@@ -218,7 +218,7 @@ class DocumentAwareInternVL3Processor:
                         print("   Status: Using modern API (recommended)")
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
-                            bnb_8bit_compute_dtype=torch.bfloat16,
+                            bnb_8bit_compute_dtype=torch.float16,  # fp16 for V100 compatibility
                         )
                         model_kwargs["quantization_config"] = quantization_config
                         print("   ✅ BitsAndBytesConfig created successfully")
@@ -254,7 +254,7 @@ class DocumentAwareInternVL3Processor:
                             print("   Strategy: Using explicit device mapping for V100 compatibility")
                             
                             legacy_kwargs = {
-                                "torch_dtype": torch.bfloat16,
+                                "torch_dtype": torch.float16,  # fp16 for V100 compatibility
                                 "load_in_8bit": True,
                                 "device_map": {"": 0},  # Force GPU 0
                                 "low_cpu_mem_usage": True,
