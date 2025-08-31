@@ -27,6 +27,7 @@ from common.config import (
     get_auto_batch_size,
     get_max_new_tokens,
 )
+
 # Removed: DocumentAwareGroupedExtraction import - now using direct field extraction
 from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
