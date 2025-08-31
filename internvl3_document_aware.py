@@ -58,6 +58,16 @@ class DocumentAwareInternVL3Handler:
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
         
+        # Initialize YAML-first prompt loader for document detection
+        from common.prompt_loader import PromptLoader
+        self.prompt_loader = PromptLoader()
+        self.detection_config = self.prompt_loader.load_detection_prompts()
+        
+        if self.debug:
+            print("📝 YAML-first prompt loader initialized")
+            print(f"   Detection config version: {self.detection_config.get('version', 'unknown')}")
+            print(f"   Supported types: {len(self.detection_config.get('supported_types', []))}")
+        
         # DEBUG: Test schema loader directly
         if self.debug:
             print("🔍 DEBUG: Testing schema loader directly...")
@@ -93,26 +103,21 @@ class DocumentAwareInternVL3Handler:
                 debug=self.debug
             )
         
-        # Phase 1: Extract document type directly (bypass problematic detector)
+        # Phase 1: YAML-first document type detection
         if self.debug:
-            print("🔍 Phase 1: Direct DOCUMENT_TYPE extraction (bypassing detector)")
+            print("🔍 Phase 1: YAML-first DOCUMENT_TYPE detection")
             
         try:
-            # Use reliable extraction instead of problematic document detector
-            result = self.base_processor.process_single_image(image_path)
-            raw_doc_type = result.get("extracted_data", {}).get("DOCUMENT_TYPE", "unknown").replace("NOT_FOUND", "unknown")
-            
-            # Normalize to canonical schema type
-            doc_type = self._normalize_document_type(raw_doc_type)
+            # Use YAML-first document detection instead of generic field extraction
+            doc_type = self._detect_document_type_yaml(image_path)
             
             if self.debug:
-                print(f"   Extraction result: {result.get('extracted_data', {})}")
-                print(f"   Raw extraction: '{raw_doc_type}' → Canonical: '{doc_type}'")
+                print(f"   YAML-based detection result: '{doc_type}'")
                 
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Direct extraction failed: {e}")
-            doc_type = "invoice"  # Fallback to prevent crashes
+                print(f"   ⚠️ YAML detection failed: {e}, using fallback")
+            doc_type = self.detection_config['detection_config'].get('fallback_type', 'invoice')
         
         # Get schema for correctly detected document type
         schema = self.schema_loader.get_document_schema(doc_type)
@@ -168,6 +173,71 @@ class DocumentAwareInternVL3Handler:
         }
         
         return type_mapping.get(normalized, "invoice")  # Default to invoice if no match
+    
+    def _detect_document_type_yaml(self, image_path: str) -> str:
+        """
+        YAML-first document type detection using configurable prompts.
+        
+        Uses prompts/document_type_detection.yaml for maintainable prompt management.
+        """
+        if self.debug:
+            print("📝 Using YAML-first document detection approach")
+        
+        # Get InternVL3-specific prompt from YAML configuration
+        internvl3_config = self.detection_config['detection_prompts']['internvl3']
+        doc_type_prompt = internvl3_config['user_prompt']
+        max_tokens = internvl3_config.get('max_tokens', 20)
+        
+        if self.debug:
+            print(f"   YAML config version: {self.detection_config.get('version', 'unknown')}")
+            print(f"   Max tokens: {max_tokens}")
+            print(f"   Prompt: {doc_type_prompt[:100]}...")
+
+        # Use the base processor to extract with YAML prompt
+        response = self.base_processor._extract_with_custom_prompt(
+            image_path, 
+            doc_type_prompt,
+            max_new_tokens=max_tokens
+        )
+        
+        # Parse and normalize using YAML type mappings
+        doc_type = self._parse_document_type_response_yaml(response)
+        
+        if self.debug:
+            print(f"   Raw response: '{response.strip()}'")
+            print(f"   Parsed type: '{doc_type}'")
+        
+        return doc_type
+    
+    def _parse_document_type_response_yaml(self, response: str) -> str:
+        """Parse document type response using YAML-configured type mappings."""
+        if not response:
+            return self.detection_config['detection_config'].get('fallback_type', 'invoice')
+        
+        response_lower = response.lower().strip()
+        
+        # First try to extract any document type mentioned in response
+        raw_type = None
+        supported_types = self.detection_config.get('supported_types', [])
+        
+        for doc_type in supported_types:
+            if doc_type in response_lower:
+                raw_type = doc_type
+                break
+        
+        # If no direct match, look in type mappings
+        if not raw_type:
+            type_mappings = self.detection_config.get('type_mappings', {})
+            for variant, canonical in type_mappings.items():
+                if variant.lower() in response_lower:
+                    raw_type = canonical
+                    break
+        
+        # Final fallback
+        if not raw_type:
+            raw_type = self.detection_config['detection_config'].get('fallback_type', 'invoice')
+        
+        return raw_type
     
     def process_document_aware(self, image_path: str, 
                               classification_info: Dict[str, Any]) -> Dict[str, Any]:
