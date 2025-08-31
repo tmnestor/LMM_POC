@@ -173,6 +173,9 @@ class DocumentAwareInternVL3Processor:
                 "trust_remote_code": True,
             }
 
+            # Initialize quantization tracking for proper warm-up logic
+            quantization_success = False
+            
             # Configure 8-bit quantization for 8B model on V100
             if self.is_8b_model:
                 print("🔧 Loading InternVL3-8B with 8-bit quantization for V100")
@@ -203,12 +206,16 @@ class DocumentAwareInternVL3Processor:
                         use_old_api = False
 
                 if use_old_api:
-                    print(f"   Using load_in_8bit for bitsandbytes {bnb_version} (old API)")
+                    print("📦 QUANTIZATION APPROACH: Legacy load_in_8bit=True")
+                    print(f"   Reason: bitsandbytes {bnb_version} < 0.44.0")
+                    print("   Status: Using legacy API for compatibility")
                     model_kwargs["load_in_8bit"] = True
                 else:
                     try:
                         from transformers import BitsAndBytesConfig
-                        print(f"   Using BitsAndBytesConfig for bitsandbytes {bnb_version} (new API)")
+                        print("📦 QUANTIZATION APPROACH: Modern BitsAndBytesConfig")
+                        print(f"   Reason: bitsandbytes {bnb_version} >= 0.44.0")
+                        print("   Status: Using modern API (recommended)")
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
                             bnb_8bit_compute_dtype=torch.bfloat16,
@@ -216,8 +223,9 @@ class DocumentAwareInternVL3Processor:
                         model_kwargs["quantization_config"] = quantization_config
                         print("   ✅ BitsAndBytesConfig created successfully")
                     except ImportError as e:
-                        print(f"   ⚠️ BitsAndBytesConfig import failed: {e}")
-                        print("   Falling back to load_in_8bit (expect deprecation warning)")
+                        print("📦 QUANTIZATION APPROACH: Fallback to Legacy load_in_8bit=True")
+                        print(f"   Reason: BitsAndBytesConfig import failed: {e}")
+                        print("   Status: Using legacy API as fallback")
                         model_kwargs["load_in_8bit"] = True
 
                 model_kwargs["device_map"] = "auto"
@@ -229,6 +237,7 @@ class DocumentAwareInternVL3Processor:
 
                     print("✅ InternVL3-8B loaded with 8-bit quantization")
                     print("   Memory footprint reduced by ~50%")
+                    quantization_success = True
                     
                 except Exception as quant_error:
                     print(f"❌ 8-bit quantization failed: {quant_error}")
@@ -240,7 +249,10 @@ class DocumentAwareInternVL3Processor:
                     # Try legacy API with specific device mapping
                     if not success:
                         try:
-                            print("🔧 Trying legacy load_in_8bit approach...")
+                            print("\n📦 QUANTIZATION FALLBACK: Attempting Legacy load_in_8bit=True")
+                            print("   Reason: Primary approach failed, trying alternative")
+                            print("   Strategy: Using explicit device mapping for V100 compatibility")
+                            
                             legacy_kwargs = {
                                 "torch_dtype": torch.bfloat16,
                                 "load_in_8bit": True,
@@ -253,11 +265,13 @@ class DocumentAwareInternVL3Processor:
                                 self.model_path, **legacy_kwargs
                             ).eval()
                             
-                            print("✅ InternVL3-8B loaded with legacy 8-bit quantization")
+                            print("✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
+                            print("   Approach: Legacy load_in_8bit=True with explicit device mapping")
                             success = True
+                            quantization_success = True
                             
                         except Exception as legacy_error:
-                            print(f"   ❌ Legacy approach failed: {legacy_error}")
+                            print(f"   ❌ Legacy fallback failed: {legacy_error}")
                     
                     # If all approaches fail, provide clear guidance
                     if not success:
@@ -272,13 +286,28 @@ class DocumentAwareInternVL3Processor:
                         raise RuntimeError("InternVL3-8B incompatible with V100 due to bitsandbytes issues") from None
 
             else:
-                # 2B model doesn't need quantization
-                print("🔧 Loading InternVL3-2B model...")
-                model_kwargs["device_map"] = "auto"
+                # InternVL3-2B: Optimize for V100 with fp16 (better than bfloat16 on V100)
+                print("\n📦 LOADING APPROACH: Direct fp16 (No Quantization Needed)")
+                print("   Model: InternVL3-2B")
+                print("   Reason: 2B model fits comfortably in V100 16GB VRAM")
+                print("   Precision: fp16 (optimal for V100 architecture)")
+                
+                # V100-optimized configuration for 2B model
+                v100_2b_kwargs = {
+                    "torch_dtype": torch.float16,  # fp16 > bfloat16 on V100
+                    "low_cpu_mem_usage": True,
+                    "use_flash_attn": False,  # V100 compatibility
+                    "trust_remote_code": True,
+                    "device_map": "auto"
+                }
 
                 self.model = AutoModel.from_pretrained(
-                    self.model_path, **model_kwargs
+                    self.model_path, **v100_2b_kwargs
                 ).eval()
+                
+                print("✅ SUCCESS: InternVL3-2B loaded in fp16")
+                print("   Approach: Direct loading without quantization")
+                print("   VRAM Usage: ~4-6GB (plenty of headroom on 16GB V100)")
 
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -288,14 +317,40 @@ class DocumentAwareInternVL3Processor:
             )
 
             print("✅ InternVL3 model and tokenizer loaded successfully")
+            
+            # Print loading summary
+            print("\n" + "="*60)
+            print("📊 MODEL LOADING SUMMARY")
+            print("="*60)
+            if self.is_8b_model:
+                if quantization_success:
+                    print("Model: InternVL3-8B")
+                    print("Status: ✅ Successfully loaded with 8-bit quantization")
+                    print("Method: Modern BitsAndBytesConfig or Legacy load_in_8bit")
+                    print("VRAM: ~8GB (50% reduction from fp16)")
+                else:
+                    print("Model: InternVL3-8B")
+                    print("Status: ⚠️ Loaded but quantization method unclear")
+            else:
+                print("Model: InternVL3-2B")
+                print("Status: ✅ Successfully loaded in fp16")
+                print("Method: Direct loading (no quantization needed)")
+                print("VRAM: ~4-6GB")
+            print("Hardware: V100 GPU (16GB VRAM)")
+            print("="*60 + "\n")
 
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
 
-            # Skip warm-up for 8B model with quantization
-            if self.is_8b_model:
+            # Configure warm-up based on model type and precision
+            if self.is_8b_model and quantization_success:
                 print("⚠️ Skipping warm-up test for quantized 8B model (expected with 8-bit)")
                 print("   Model will be tested during actual inference")
+            elif self.is_8b_model:
+                print("ℹ️ 8B model loaded - warm-up enabled to verify stability")
+            else:
+                print("✅ InternVL3-2B fp16 model loaded - enabling warm-up for verification")
+                print("   V100 fp16 optimizations active")
 
         except Exception as e:
             print(f"❌ Error loading InternVL3 model: {e}")
