@@ -12,7 +12,7 @@ with targeted field lists (invoice: 20 fields, receipt: 15 fields, etc.)
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import torch
 import torchvision.transforms as T
@@ -365,34 +365,39 @@ class DocumentAwareInternVL3Processor:
         return pixel_values
 
     def process_single_image(self, image_path: str) -> dict:
-        """Process single image with hybrid document-aware grouped extraction."""
+        """Process single image with document-aware field extraction."""
 
         try:
             start_time = time.time()
 
             if self.debug:
-                print(f"🚀 Starting HYBRID extraction for {Path(image_path).name}")
+                print(f"🚀 Starting document-aware extraction for {Path(image_path).name}")
                 print(f"📊 Target fields: {self.field_count} fields")
-                print("🎯 Strategy: Document-aware + 90.6% accuracy grouped extraction")
+                print("🎯 Strategy: Direct field extraction (document type already detected)")
+                print(f"📝 Field list: {self.field_list[:5]}{'...' if len(self.field_list) > 5 else ''}")
 
             # Memory cleanup
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
-            # USE THE HYBRID SYSTEM! Document awareness + grouped extraction
-            extracted_data, metadata = self.grouped_extractor.extract_with_document_awareness(
-                image_path, 
-                self._extract_with_custom_prompt,  # Model extractor function
-                self.field_list  # All fields for fallback
-            )
+            # FIXED: Use direct extraction with the already-determined field list
+            # Don't re-detect document type - we already have the correct fields
+            extracted_data = self._extract_fields_directly(image_path, self.field_list)
+            
+            # Create metadata for compatibility
+            metadata = {
+                "document_type": "pre_detected",
+                "extraction_strategy": "document_aware_direct",
+                "total_fields": len(self.field_list),
+                "extraction_method": "single_pass_with_predefined_fields"
+            }
 
             processing_time = time.time() - start_time
 
             if self.debug:
-                print("🎉 HYBRID EXTRACTION COMPLETED!")
+                print("🎉 DOCUMENT-AWARE EXTRACTION COMPLETED!")
                 print("=" * 80)
-                print(f"📋 Document type: {metadata.get('document_type', 'unknown')}")
-                print(f"🎯 Groups used: {metadata.get('total_groups_called', 0)}/{metadata.get('total_groups_available', 0)}")
-                print(f"⚡ Efficiency: {metadata.get('groups_skipped', 0)} groups skipped")
+                print("📋 Document type: Pre-detected (using provided field schema)")
+                print(f"🎯 Fields processed: {len(self.field_list)} document-specific fields")
                 print(f"⏱️ Processing time: {processing_time:.2f}s")
                 
                 found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
@@ -417,19 +422,19 @@ class DocumentAwareInternVL3Processor:
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": extracted_data,
-                "raw_response": f"HYBRID: {metadata.get('document_type', 'unknown')} via {metadata.get('total_groups_called', 0)} groups",
+                "raw_response": f"DOCUMENT-AWARE: {len(self.field_list)} document-specific fields",
                 "processing_time": processing_time,
                 "response_completeness": response_completeness,
                 "content_coverage": content_coverage,
                 "extracted_fields_count": extracted_fields_count,
                 "field_count": self.field_count,
-                "extraction_metadata": metadata,  # NEW: Include hybrid metadata
-                "extraction_strategy": "document_aware_grouped_hybrid"  # NEW: Strategy identifier
+                "extraction_metadata": metadata,
+                "extraction_strategy": "document_aware_direct"
             }
 
         except Exception as e:
             if self.debug:
-                print(f"❌ Hybrid extraction error for {image_path}: {e}")
+                print(f"❌ Document-aware extraction error for {image_path}: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -437,14 +442,70 @@ class DocumentAwareInternVL3Processor:
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": {field: "NOT_FOUND" for field in self.field_list},
-                "raw_response": f"Hybrid extraction error: {str(e)}",
+                "raw_response": f"Document-aware extraction error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
                 "content_coverage": 0,
                 "extracted_fields_count": 0,
                 "field_count": self.field_count,
-                "extraction_strategy": "document_aware_grouped_hybrid_error"
+                "extraction_strategy": "document_aware_direct_error"
             }
+
+    def _extract_fields_directly(self, image_path: str, field_list: List[str]) -> Dict[str, str]:
+        """
+        Extract specific fields using a simple, direct prompt.
+        
+        This bypasses the grouped extraction system and uses the pre-determined field list.
+        """
+        if self.debug:
+            print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
+        
+        # Create a simple extraction prompt for the specific fields
+        field_lines = []
+        for field in field_list:
+            if field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
+                field_lines.append(f"{field}: [complete phone number with area code or NOT_FOUND]")
+            elif field == "BUSINESS_ABN":
+                field_lines.append(f"{field}: [11-digit ABN or NOT_FOUND]")
+            elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
+                field_lines.append(f"{field}: [dollar amount with $ symbol or NOT_FOUND]")
+            elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
+                field_lines.append(f"{field}: [complete address with postcode or NOT_FOUND]")
+            elif field == "PAYMENT_METHOD":
+                field_lines.append(f"{field}: [payment type like AMEX, Visa, Cash, etc. or NOT_FOUND]")
+            elif field in ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]:
+                field_lines.append(f"{field}: [pipe-separated values for all items or NOT_FOUND]")
+            else:
+                field_lines.append(f"{field}: [value as shown or NOT_FOUND]")
+        
+        prompt = f"""Extract structured data from this business document image.
+
+OUTPUT FORMAT - EXACTLY {len(field_list)} LINES:
+{chr(10).join(field_lines)}
+
+INSTRUCTIONS:
+- Extract values exactly as they appear in the document
+- Use NOT_FOUND if a field is not present or cannot be determined
+- Use colon and space format: FIELD_NAME: value
+- For line items, use pipe-separated format: item1 | item2 | item3
+- Include $ symbol for monetary amounts
+- Output only the {len(field_list)} lines above, nothing else"""
+
+        # Extract using the model
+        raw_response = self._extract_with_prompt(image_path, prompt)
+        
+        if self.debug:
+            print(f"📝 Raw response ({len(raw_response)} chars): {raw_response[:200]}...")
+        
+        # Parse the response using the extraction parser
+        from common.extraction_parser import parse_extraction_response
+        extracted_data = parse_extraction_response(raw_response, expected_fields=field_list)
+        
+        if self.debug:
+            found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+            print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
+        
+        return extracted_data
 
     def _extract_with_prompt(self, image_path: str, prompt: str, generation_config: dict = None) -> str:
         """Core extraction method that handles image processing and model inference."""
