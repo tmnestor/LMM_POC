@@ -49,11 +49,11 @@ class DocumentAwareLlamaHandler:
 
     def __init__(self, model_path: str, debug: bool = False):
         """Initialize document-aware processor."""
-        # Proactive GPU cache clearing for V100 compatibility
-        self._clear_gpu_cache()
-        
         self.debug = debug
         self.model_path = model_path
+        
+        # Proactive GPU cache clearing for V100 compatibility
+        self._clear_gpu_cache()
 
         print(
             "🚀 Initializing Llama Vision processor for V4 document-aware extraction..."

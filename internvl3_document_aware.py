@@ -49,11 +49,11 @@ class DocumentAwareInternVL3Handler:
     
     def __init__(self, model_path: str, debug: bool = False):
         """Initialize document-aware processor."""
-        # Proactive GPU cache clearing for V100 compatibility
-        self._clear_gpu_cache()
-        
         self.debug = debug
         self.model_path = model_path
+        
+        # Proactive GPU cache clearing for V100 compatibility
+        self._clear_gpu_cache()
         
         print("🚀 Initializing InternVL3 Vision processor for V4 document-aware extraction...")
         
