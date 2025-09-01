@@ -119,43 +119,40 @@ class DocumentAwareLlamaProcessor:
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
-
+        
         try:
-            # Configure simple 8-bit quantization for V100 compatibility
+            # Configure 8-bit quantization for V100 compatibility
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=True,
-                llm_int8_enable_fp32_cpu_offload=True,  # Standard setting
-                llm_int8_skip_modules=[
-                    "vision_tower",
-                    "multi_modal_projector",
-                ],  # Skip vision modules that cause tensor issues
+                llm_int8_enable_fp32_cpu_offload=True,
+                llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],
                 llm_int8_threshold=6.0,
             )
-
-            # Load model with simple, stable configuration
+            
+            # Load model
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
-                torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
-                device_map="auto",  # Automatic device mapping
-                quantization_config=quantization_config,  # Simple 8-bit quantization
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+                quantization_config=quantization_config,
             )
-
+            
             # Load processor for multimodal inputs
             self.processor = AutoProcessor.from_pretrained(self.model_path)
-
-            # Call tie_weights() method after model loading (warning will persist but model works)
+            
+            # Call tie_weights() after loading
             try:
                 self.model.tie_weights()
                 print("✅ Llama Vision model loaded successfully (tie_weights called)")
             except Exception as e:
                 print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
-
+            
             print(f"🔧 Device: {self.model.device}")
             print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
-
+            
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
-
+            
         except Exception as e:
             print(f"❌ Error loading Llama model: {e}")
             raise
