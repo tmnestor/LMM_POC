@@ -119,66 +119,43 @@ class DocumentAwareLlamaProcessor:
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
         print(f"🔄 Loading Llama Vision model from: {self.model_path}")
-        
+
         try:
-            # Configure 8-bit quantization for V100 compatibility
+            # Configure simple 8-bit quantization for V100 compatibility
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=True,
-                llm_int8_enable_fp32_cpu_offload=True,
-                llm_int8_skip_modules=["vision_tower", "multi_modal_projector"],
+                llm_int8_enable_fp32_cpu_offload=True,  # Standard setting
+                llm_int8_skip_modules=[
+                    "vision_tower",
+                    "multi_modal_projector",
+                ],  # Skip vision modules that cause tensor issues
                 llm_int8_threshold=6.0,
             )
-            
-            # Load model
+
+            # Load model with simple, stable configuration
             self.model = MllamaForConditionalGeneration.from_pretrained(
                 self.model_path,
-                torch_dtype=torch.bfloat16,
-                device_map="auto",
-                quantization_config=quantization_config,
+                torch_dtype=torch.bfloat16,  # Memory-efficient 16-bit precision
+                device_map="auto",  # Automatic device mapping
+                quantization_config=quantization_config,  # Simple 8-bit quantization
             )
-            
+
             # Load processor for multimodal inputs
             self.processor = AutoProcessor.from_pretrained(self.model_path)
-            
-            # Call tie_weights() after loading
+
+            # Call tie_weights() method after model loading (warning will persist but model works)
             try:
                 self.model.tie_weights()
                 print("✅ Llama Vision model loaded successfully (tie_weights called)")
             except Exception as e:
                 print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
-            
-            # CRITICAL FIX: Ensure all model parameters are properly placed on device
-            # This addresses "Cannot copy out of meta tensors: no data!" error
-            print("🔄 Ensuring proper device placement for all model parameters...")
-            try:
-                # Force synchronization to ensure all parameters are loaded to their target devices
-                torch.cuda.synchronize() if torch.cuda.is_available() else None
-                
-                # Check for any parameters still on meta device and move them
-                meta_params = []
-                for name, param in self.model.named_parameters():
-                    if param.device.type == 'meta':
-                        meta_params.append(name)
-                
-                if meta_params:
-                    print(f"⚠️ Found {len(meta_params)} parameters still on meta device")
-                    # Force model to cuda if any meta parameters found
-                    if torch.cuda.is_available() and self.device == "cuda":
-                        print("🔧 Moving model components to CUDA...")
-                        # This will trigger proper loading of meta parameters
-                        _ = self.model.to(self.device)
-                else:
-                    print("✅ All parameters properly placed on target devices")
-                    
-            except Exception as e:
-                print(f"⚠️ Device placement check completed with warnings: {e}")
-            
+
             print(f"🔧 Device: {self.model.device}")
             print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
-            
+
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
-            
+
         except Exception as e:
             print(f"❌ Error loading Llama model: {e}")
             raise
