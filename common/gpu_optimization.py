@@ -49,19 +49,19 @@ def configure_cuda_memory_allocation():
     
     # Set PYTORCH_CUDA_ALLOC_CONF with GPU-specific fragmentation prevention
     if is_v100:
-        # V100: Ultra-aggressive fragmentation prevention
-        # 32MB blocks for maximum fragmentation resistance on older architecture
-        cuda_alloc_config = "max_split_size_mb:32"
-        print("🎯 V100 detected: Using ultra-aggressive memory settings")
-    else:
-        # Modern GPUs: Standard aggressive settings
-        # 64MB blocks for good fragmentation handling
+        # V100: Use proven 64MB blocks (from V100_MEMORY_STRATEGIES.md)
+        # 64MB blocks proven to work on V100 (32MB was too aggressive)
         cuda_alloc_config = "max_split_size_mb:64"
+        print("🎯 V100 detected: Using proven 64MB memory blocks")
+    else:
+        # Modern GPUs: Standard settings
+        # 128MB blocks for modern architectures with more memory
+        cuda_alloc_config = "max_split_size_mb:128"
 
     # Apply the safe configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
     print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
-    print("💡 Using 64MB memory blocks to reduce fragmentation")
+    print(f"💡 Using {cuda_alloc_config.split(':')[1]}MB memory blocks for optimal performance")
 
     # Also set cudnn benchmarking for better performance
     torch.backends.cudnn.benchmark = True
@@ -168,12 +168,8 @@ def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = Tr
     if not torch.cuda.is_available():
         return
 
-    # V100 optimization: Use more aggressive threshold for older GPUs
-    gpu_name = torch.cuda.get_device_name(0)
-    is_v100 = "V100" in gpu_name
-    if is_v100 and threshold_gb > 0.3:
-        threshold_gb = min(threshold_gb, 0.3)  # Cap at 300MB for V100
-        print(f"🎯 V100 detected: Using aggressive threshold {threshold_gb:.1f}GB")
+    # Keep standard thresholds for all GPUs - aggressive V100 settings cause issues
+    # Note: V100 "optimizations" were causing premature fallbacks with minimal fragmentation
 
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 
