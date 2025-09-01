@@ -98,6 +98,11 @@ class DocumentAwareInternVL3Handler:
         """Proactively clear GPU memory cache to prevent OOM on V100."""
         print("🧹 Clearing GPU memory cache for V100 compatibility...")
         
+        # Set environment variables for bitsandbytes 0.47.0 compatibility with V100
+        os.environ['BITSANDBYTES_NOWELCOME'] = '1'
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+        print("   🔧 Set bitsandbytes environment variables for V100 compatibility")
+        
         # Clear Python garbage collection
         gc.collect()
         

@@ -90,6 +90,11 @@ class DocumentAwareLlamaHandler:
         """Proactively clear GPU memory cache to prevent OOM on V100."""
         print("🧹 Clearing GPU memory cache for V100 compatibility...")
         
+        # Set environment variables for better V100 compatibility
+        os.environ['BITSANDBYTES_NOWELCOME'] = '1'  # Suppress bitsandbytes welcome message
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'    # Synchronous CUDA for better error handling
+        print("   🔧 Set environment variables for V100 compatibility")
+        
         # Clear Python garbage collection
         gc.collect()
         
