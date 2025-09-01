@@ -25,15 +25,11 @@ Usage:
 """
 
 import argparse
-import gc
 import json
-import os
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
-
-import torch
 
 from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
@@ -51,9 +47,6 @@ class DocumentAwareLlamaHandler:
         """Initialize document-aware processor."""
         self.debug = debug
         self.model_path = model_path
-        
-        # Proactive GPU cache clearing for V100 compatibility
-        self._clear_gpu_cache()
 
         print(
             "🚀 Initializing Llama Vision processor for V4 document-aware extraction..."
@@ -85,55 +78,6 @@ class DocumentAwareLlamaHandler:
         print(
             "✅ Document-aware Llama handler initialized (model will load on first use)"
         )
-
-    def _clear_gpu_cache(self):
-        """Proactively clear GPU memory cache to prevent OOM on V100."""
-        print("🧹 Clearing GPU memory cache for V100 compatibility...")
-        
-        # Set environment variables for better V100 compatibility
-        os.environ['BITSANDBYTES_NOWELCOME'] = '1'  # Suppress bitsandbytes welcome message
-        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'    # Synchronous CUDA for better error handling
-        print("   🔧 Set environment variables for V100 compatibility")
-        
-        # Clear Python garbage collection
-        gc.collect()
-        
-        # Clear PyTorch CUDA cache if available
-        if torch.cuda.is_available():
-            # Get initial memory stats
-            initial_memory = torch.cuda.memory_allocated() / 1024**3
-            initial_reserved = torch.cuda.memory_reserved() / 1024**3
-            
-            if self.debug:
-                print(f"   📊 Initial GPU memory: {initial_memory:.2f}GB allocated, {initial_reserved:.2f}GB reserved")
-            
-            # Empty all caches
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            
-            # Force garbage collection again
-            gc.collect()
-            
-            # Clear any cached allocator stats
-            if hasattr(torch.cuda, 'reset_peak_memory_stats'):
-                torch.cuda.reset_peak_memory_stats()
-            if hasattr(torch.cuda, 'reset_accumulated_memory_stats'):
-                torch.cuda.reset_accumulated_memory_stats()
-            
-            # Get final memory stats
-            final_memory = torch.cuda.memory_allocated() / 1024**3
-            final_reserved = torch.cuda.memory_reserved() / 1024**3
-            
-            if self.debug:
-                print(f"   ✅ Final GPU memory: {final_memory:.2f}GB allocated, {final_reserved:.2f}GB reserved")
-                print(f"   💾 Memory freed: {initial_memory - final_memory:.2f}GB")
-            
-            # Additional environment variable for better memory management
-            os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
-            print("   ✅ GPU cache cleared, PYTORCH_CUDA_ALLOC_CONF set for V100 optimization")
-        else:
-            if self.debug:
-                print("   ℹ️  No CUDA device available, skipping GPU cache clearing")
 
     def _detect_document_type_yaml(self, image_path: str) -> str:
         """
