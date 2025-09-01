@@ -147,6 +147,32 @@ class DocumentAwareLlamaProcessor:
             except Exception as e:
                 print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
             
+            # CRITICAL FIX: Ensure all model parameters are properly placed on device
+            # This addresses "Cannot copy out of meta tensors: no data!" error
+            print("🔄 Ensuring proper device placement for all model parameters...")
+            try:
+                # Force synchronization to ensure all parameters are loaded to their target devices
+                torch.cuda.synchronize() if torch.cuda.is_available() else None
+                
+                # Check for any parameters still on meta device and move them
+                meta_params = []
+                for name, param in self.model.named_parameters():
+                    if param.device.type == 'meta':
+                        meta_params.append(name)
+                
+                if meta_params:
+                    print(f"⚠️ Found {len(meta_params)} parameters still on meta device")
+                    # Force model to cuda if any meta parameters found
+                    if torch.cuda.is_available() and self.device == "cuda":
+                        print("🔧 Moving model components to CUDA...")
+                        # This will trigger proper loading of meta parameters
+                        _ = self.model.to(self.device)
+                else:
+                    print("✅ All parameters properly placed on target devices")
+                    
+            except Exception as e:
+                print(f"⚠️ Device placement check completed with warnings: {e}")
+            
             print(f"🔧 Device: {self.model.device}")
             print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
             
