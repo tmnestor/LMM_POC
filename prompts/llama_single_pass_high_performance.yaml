@@ -1,11 +1,10 @@
-# Llama Single-Pass High Performance Prompt - BOSS FIELD REDUCTION - YAML-First Version
-# BOSS FIELD REDUCTION: Reduced from 49 fields to 15 essential fields for performance
-# Archaeological high-performance structure preserved for essential fields only
+# Llama Single-Pass High Performance Prompt - ESSENTIAL FIELD REDUCTION - YAML-First Version
+# ESSENTIAL FIELD REDUCTION: Reduced from 48 fields to 15 essential fields for performance
 
 single_pass:
-  expertise_frame: "Extract structured data from this business document image using BOSS REDUCED FIELD SCHEMA."
+  expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
   
-  critical_instructions_header: "CRITICAL INSTRUCTIONS - BOSS FIELD REDUCTION:"
+  critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
   critical_instructions:
     - "Output ONLY the structured data below"
     - "Do NOT include any conversation text"
@@ -14,9 +13,9 @@ single_pass:
     - "Start immediately with DOCUMENT_TYPE"
     - "Stop immediately after TOTAL_AMOUNT"  # SUBSET: New final field in reduced schema
   
-  output_format: "REQUIRED OUTPUT FORMAT - BOSS REDUCED SCHEMA (15 ESSENTIAL FIELDS):"
+  output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA (15 ESSENTIAL FIELDS):"
   
-  # BOSS FIELD REDUCTION: HIGH-PERFORMANCE SEMANTIC FIELD ORDERING (15 ESSENTIAL FIELDS)
+  # ESSENTIAL FIELD REDUCTION: HIGH-PERFORMANCE SEMANTIC FIELD ORDERING (15 ESSENTIAL FIELDS)
   # Document identifiers → Essential Business → Essential Payer → Essential Dates → Essential Line Items → Essential Transactions → Essential Financial
   field_instructions:
     # Document identifiers - start with most universal fields
@@ -90,7 +89,7 @@ single_pass:
     # SUPER_SET: BALANCE_OF_PAYMENT: "[balance remaining in dollars or NOT_FOUND]"
     # SUPER_SET: TOTAL_AMOUNT_PAYABLE: "[total payable amount in dollars or NOT_FOUND]"
 
-  format_rules_header: "OUTPUT RULES - BOSS REDUCED SCHEMA:"
+  format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
   format_rules:
     - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
     - "Plain text only - NO markdown, NO bold, NO italic"
@@ -100,7 +99,7 @@ single_pass:
     - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
     - "Be conservative: use NOT_FOUND if field is truly missing"
     - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
-    - "BOSS PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+    - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
     - "For calculated fields: show computed values with proper formatting"
     - "For transaction lists: use pipe separators between transactions"
     - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
