@@ -209,6 +209,7 @@ class DocumentAwareLlamaProcessor:
 
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
+        print("DEBUG: _load_yaml_config() starting")
         try:
             # Use the high-performance YAML (95.3% accuracy from archaeological investigation)
             yaml_path = (
