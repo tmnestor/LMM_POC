@@ -219,7 +219,13 @@ class DocumentAwareLlamaProcessor:
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f)
-                    return yaml_data.get("single_pass", {})
+                    single_pass = yaml_data.get("single_pass", {})
+                    field_instructions = single_pass.get("field_instructions", {})
+                    print(f"DEBUG: Loaded {len(field_instructions)} field instructions")
+                    print(f"DEBUG: GST_AMOUNT in loaded config: {'GST_AMOUNT' in field_instructions}")
+                    if 'GST_AMOUNT' in field_instructions:
+                        print(f"DEBUG: Loaded GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
+                    return single_pass
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Could not load YAML config: {e}")
