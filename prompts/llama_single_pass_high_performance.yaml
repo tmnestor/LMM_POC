@@ -79,11 +79,10 @@ single_pass:
     # SUPER_SET: SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals or NOT_FOUND]"
     # SUPER_SET: TOTAL_DISCOUNT_AMOUNT: "[total discount amount in dollars or NOT_FOUND]"
     
-    # FINAL SEQUENCE - Boss's requested order
+    # FINAL SEQUENCE - Boss's requested order: LINE_ITEM_DESCRIPTIONS, LINE_ITEM_TOTAL_PRICES, IS_GST_INCLUDED, TOTAL_AMOUNT
     LINE_ITEM_DESCRIPTIONS: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"  # SUBSET: Essential line items / transaction descriptions
     LINE_ITEM_TOTAL_PRICES: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"  # SUBSET: Essential line item totals
     IS_GST_INCLUDED: "[if line totals already include GST (GST-inclusive pricing) return true, otherwise they are (GST-exclusive pricing) so return false]"  # SUBSET: Essential tax classification
-    GST_AMOUNT: "[total GST amount in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential tax information
     TOTAL_AMOUNT: "[total amount in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential financial total
     
     # SUPER_SET: Payment status tracking (removed from boss's reduced schema)
