@@ -1,0 +1,359 @@
+# Unified Schema Configuration - True YAML-First Architecture
+# Single source of truth for all field definitions, document types, and prompt generation
+# BOSS FIELD REDUCTION: 15 essential fields optimized for high performance
+
+schema_version: "5.0-unified"
+description: "Unified schema eliminating cascade failures and Python dynamic overrides"
+
+# CORE SEMANTIC FIELD ORDER - Single source of truth
+# Document identifiers → Business → Payer → Temporal → Line Items → Transactions → Financial
+semantic_field_order:
+  - DOCUMENT_TYPE
+  - BUSINESS_ABN
+  - SUPPLIER_NAME
+  - BUSINESS_ADDRESS
+  - PAYER_NAME
+  - PAYER_ADDRESS
+  - INVOICE_DATE
+  - STATEMENT_DATE_RANGE
+  - LINE_ITEM_DESCRIPTIONS
+  - LINE_ITEM_TOTAL_PRICES
+  - IS_GST_INCLUDED
+  - GST_AMOUNT
+  - TOTAL_AMOUNT
+  - TRANSACTION_DATES
+  - TRANSACTION_AMOUNTS_PAID
+
+# COMPLETE FIELD DEFINITIONS - All 15 essential fields
+field_definitions:
+  DOCUMENT_TYPE:
+    order: 1
+    instruction: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+    description: "Essential document identifier"
+    applicable_documents: [invoice, receipt, bank_statement]
+    required: true
+    category: "identification"
+    
+  BUSINESS_ABN:
+    order: 2
+    instruction: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
+    description: "Essential business identifier"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "identification"
+    critical: true
+    
+  SUPPLIER_NAME:
+    order: 3
+    instruction: "[business name from document header or NOT_FOUND]"
+    description: "Essential supplier information"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "business_details"
+    critical: true
+    
+  BUSINESS_ADDRESS:
+    order: 4
+    instruction: "[business address or NOT_FOUND]"
+    description: "Essential supplier location"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "business_details"
+    
+  PAYER_NAME:
+    order: 5
+    instruction: "[payer name or NOT_FOUND]"
+    description: "Essential payer information"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "customer_details"
+    
+  PAYER_ADDRESS:
+    order: 6
+    instruction: "[payer address or NOT_FOUND]"
+    description: "Essential payer location"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "customer_details"
+    
+  INVOICE_DATE:
+    order: 7
+    instruction: "[invoice date or NOT_FOUND]"
+    description: "Essential temporal information"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "temporal"
+    
+  STATEMENT_DATE_RANGE:
+    order: 8
+    instruction: "[statement period or date range or NOT_FOUND]"
+    description: "Essential bank statement temporal"
+    applicable_documents: [bank_statement]
+    required: true
+    category: "temporal"
+    
+  LINE_ITEM_DESCRIPTIONS:
+    order: 9
+    instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
+    description: "Essential line items / transaction descriptions"
+    applicable_documents: [invoice, receipt, bank_statement]
+    required: true
+    category: "line_items"
+    
+  LINE_ITEM_TOTAL_PRICES:
+    order: 10
+    instruction: "[right most (or Amount) column of line totals (not unit prices) or NOT_FOUND]"
+    description: "Essential line item totals"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "line_items"
+    
+  IS_GST_INCLUDED:
+    order: 11
+    instruction: "[Determines GST pricing method: true if line item prices already include GST (GST-inclusive pricing), false if GST is added separately to line item prices (GST-exclusive pricing), or NOT_FOUND if pricing method cannot be determined]"
+    description: "Essential tax classification"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "financial"
+    
+  GST_AMOUNT:
+    order: 12
+    instruction: "[total GST amount in dollars with 2 decimals or NOT_FOUND]"
+    description: "Essential tax information"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "financial"
+    critical: true
+    
+  TOTAL_AMOUNT:
+    order: 13
+    instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+    description: "Essential financial total"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "financial"
+    critical: true
+    
+  TRANSACTION_DATES:
+    order: 14
+    instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+    description: "Essential bank statement dates"
+    applicable_documents: [bank_statement]
+    required: true
+    category: "transactions"
+    
+  TRANSACTION_AMOUNTS_PAID:
+    order: 15
+    instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
+    description: "Essential bank statement amounts"
+    applicable_documents: [bank_statement]
+    required: true
+    category: "transactions"
+
+# DOCUMENT TYPE CONFIGURATIONS
+document_types:
+  invoice:
+    document_type: "invoice"
+    accuracy_threshold: 0.95
+    field_count: 12
+    required_fields:
+      - DOCUMENT_TYPE
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - BUSINESS_ADDRESS
+      - PAYER_NAME
+      - PAYER_ADDRESS
+      - INVOICE_DATE
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_TOTAL_PRICES
+      - IS_GST_INCLUDED
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+    critical_fields:
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+    ato_compliance_fields:
+      - BUSINESS_ABN
+      - GST_AMOUNT
+      - INVOICE_DATE
+      - SUPPLIER_NAME
+    aliases:
+      - "invoice"
+      - "tax invoice"
+      - "tax_invoice"
+      - "bill"
+      - "estimate"
+      - "quote"
+      - "quotation"
+      - "proforma invoice"
+      - "proforma_invoice"
+      
+  receipt:
+    document_type: "receipt"
+    accuracy_threshold: 0.85
+    field_count: 12
+    required_fields:
+      - DOCUMENT_TYPE
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - BUSINESS_ADDRESS
+      - PAYER_NAME
+      - PAYER_ADDRESS
+      - INVOICE_DATE  # For receipts, this is the transaction date
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_TOTAL_PRICES
+      - IS_GST_INCLUDED
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+    critical_fields:
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+    ato_compliance_fields:
+      - BUSINESS_ABN
+      - GST_AMOUNT
+    aliases:
+      - "receipt"
+      - "purchase receipt"
+      - "purchase_receipt"
+      - "payment receipt"
+      - "payment_receipt"
+      - "sales receipt"
+      - "sales_receipt"
+      - "store receipt"
+      
+  bank_statement:
+    document_type: "bank_statement"
+    accuracy_threshold: 0.90
+    field_count: 5
+    required_fields:
+      - DOCUMENT_TYPE
+      - STATEMENT_DATE_RANGE
+      - LINE_ITEM_DESCRIPTIONS
+      - TRANSACTION_DATES
+      - TRANSACTION_AMOUNTS_PAID
+    critical_fields:
+      - STATEMENT_DATE_RANGE
+      - TRANSACTION_AMOUNTS_PAID
+    ato_compliance_fields: []
+    aliases:
+      - "bank statement"
+      - "bank_statement"
+      - "bankstatement"
+      - "account statement"
+      - "account_statement"
+      - "credit card statement"
+      - "credit_card_statement"
+      - "creditcard statement"
+      - "statement"
+      - "bank account statement"
+      - "monthly statement"
+
+# PROMPT TEMPLATES - No Python overrides, pure YAML
+prompt_templates:
+  expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+  
+  critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
+  critical_instructions:
+    - "Output ONLY the structured data below"
+    - "Do NOT include any conversation text"
+    - "Do NOT repeat the user's request"
+    - "Do NOT include <image> tokens"
+    - "Start immediately with DOCUMENT_TYPE"
+    - "Stop immediately after {last_field}"
+    
+  output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
+  
+  format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
+  format_rules:
+    - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+    - "Plain text only - NO markdown, NO bold, NO italic"
+    - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
+    - "Output ONLY these {field_count} lines, nothing else"
+    - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+    - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+    - "Be conservative: use NOT_FOUND if field is truly missing"
+    - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+    - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+    - "For calculated fields: show computed values with proper formatting"
+    - "For transaction lists: use pipe separators between transactions"
+    - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
+    
+  stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
+
+# FIELD CATEGORIES for evaluation reporting
+field_categories:
+  identification:
+    - DOCUMENT_TYPE
+    - BUSINESS_ABN
+  business_details:
+    - SUPPLIER_NAME
+    - BUSINESS_ADDRESS
+  customer_details:
+    - PAYER_NAME
+    - PAYER_ADDRESS
+  temporal:
+    - INVOICE_DATE
+    - STATEMENT_DATE_RANGE
+  line_items:
+    - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_TOTAL_PRICES
+  financial:
+    - IS_GST_INCLUDED
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+  transactions:
+    - TRANSACTION_DATES
+    - TRANSACTION_AMOUNTS_PAID
+
+# EVALUATION CONFIGURATION
+evaluation:
+  field_accuracy_threshold: 0.8
+  detection_config:
+    confidence_threshold: 0.85
+    fallback_type: "unknown"
+  
+  fuzzy_matching:
+    enabled: true
+    ratio_threshold: 0.85
+    
+  field_type_handling:
+    monetary_fields:
+      normalize_currency: true
+      ignore_decimal_differences: false
+      tolerance: 0.01
+    date_fields:
+      flexible_parsing: true
+      formats:
+        - "%d/%m/%Y"
+        - "%Y-%m-%d"
+        - "%d-%m-%Y"
+        - "%d %b %Y"
+    list_fields:
+      separator: "|"
+      normalize_whitespace: true
+      order_sensitive: false
+
+# CRITICAL FIELDS requiring special attention (for validation)
+critical_fields:
+  - BUSINESS_ABN    # Essential business identifier (11-digit ABN)
+  - SUPPLIER_NAME   # Essential supplier information
+  - GST_AMOUNT      # Essential tax information
+  - TOTAL_AMOUNT    # Essential financial total
+
+# SUPPORTED DOCUMENT TYPES for validation
+supported_document_types:
+  - "invoice"
+  - "receipt" 
+  - "bank_statement"
+
+# VERSION HISTORY
+version_history:
+  "5.0-unified": "Unified schema eliminating cascade failures - True YAML-first architecture"
+  "4.0-reduced": "Boss field reduction - 15 essential fields"
+  "3.0": "Document-aware architecture with field subsets"
+  "2.0": "YAML-first architecture implementation"
+  "1.0": "Initial field schema"

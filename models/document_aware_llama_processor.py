@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import torch
-import yaml
 from PIL import Image
 from transformers import (
     AutoProcessor,
@@ -39,6 +38,7 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
+from common.yaml_template_renderer import PureYAMLRenderer
 
 warnings.filterwarnings("ignore")
 
@@ -83,6 +83,12 @@ class DocumentAwareLlamaProcessor:
 
         # Initialize extraction cleaner for value normalization
         self.cleaner = ExtractionCleaner(debug=debug)
+
+        # Initialize pure YAML template renderer - True YAML-first architecture
+        self.yaml_renderer = PureYAMLRenderer(debug=debug)
+
+        # Validate unified schema consistency at startup - fail fast
+        self.yaml_renderer.validate_field_consistency()
 
         if self.debug:
             print(
@@ -191,95 +197,60 @@ class DocumentAwareLlamaProcessor:
             print(f"❌ Error loading Llama model: {e}")
             raise
 
-    def generate_dynamic_prompt(self) -> str:
-        """Generate prompt for specific field list with v4 field type support."""
+    def generate_dynamic_prompt(self, document_type: str = "invoice") -> str:
+        """
+        Generate prompt using pure YAML templates - zero Python overrides.
 
-        # YAML-FIRST HIGH PERFORMANCE: Use archaeological best performance structure (95.3%)
-        # Always use YAML configuration - fail fast if not available
-        yaml_config = self._load_yaml_config()
-        if not yaml_config:
-            raise ValueError(
-                "❌ FATAL: YAML prompt configuration not found or invalid.\n"
-                "💡 Expected: prompts/llama_single_pass_high_performance.yaml\n"
-                "💡 This is required for the YAML-first architecture."
+        Args:
+            document_type: Document type (invoice, receipt, bank_statement)
+
+        Returns:
+            Complete prompt string from unified schema templates
+        """
+        # TRUE YAML-FIRST: Pure template rendering with no Python dynamic modifications
+        if self.debug:
+            print(
+                f"🎯 Generating prompt for {document_type} with {len(self.field_list)} fields"
             )
-        return self._generate_yaml_prompt(yaml_config)
 
-    def _load_yaml_config(self) -> dict:
-        """Load YAML configuration if available."""
         try:
-            # Use the high-performance YAML (95.3% accuracy from archaeological investigation)
-            yaml_path = (
-                Path(__file__).parent.parent
-                / "prompts"
-                / "llama_single_pass_high_performance.yaml"
+            return self.yaml_renderer.render_prompt_for_document_type(
+                document_type=document_type, field_list=self.field_list
             )
-            if yaml_path.exists():
-                with yaml_path.open("r", encoding="utf-8") as f:
-                    yaml_data = yaml.safe_load(f)
-                    return yaml_data.get("single_pass", {})
         except Exception as e:
-            if self.debug:
-                print(f"⚠️ Could not load YAML config: {e}")
-        return {}
+            raise ValueError(
+                f"❌ FATAL: Could not generate prompt from unified schema: {e}\n"
+                "💡 Check unified_schema.yaml exists and has valid templates\n"
+                "💡 Ensure document_type '{document_type}' is supported"
+            ) from e
 
-    def _generate_yaml_prompt(self, yaml_config: dict) -> str:
-        """Generate prompt using high-performance YAML configuration matching archaeological structure."""
+    def get_supported_document_types(self) -> List[str]:
+        """Get list of supported document types from unified schema."""
+        return self.yaml_renderer.get_supported_document_types()
 
-        # Use exact structure from 95.3% performance archaeological investigation
-        expertise_frame = yaml_config.get(
-            "expertise_frame",
-            "Extract structured data from this business document image.",
-        )
+    def detect_document_type(self, field_list: List[str] = None) -> str:
+        """
+        Detect document type based on field composition.
+        Simple heuristic for backward compatibility.
 
-        # Build prompt exactly like high-performance original
-        prompt = f"{expertise_frame}\n\n"
+        Args:
+            field_list: Optional field list to analyze (uses self.field_list if None)
 
-        # Add critical instructions with dynamic last field
-        critical_header = yaml_config.get(
-            "critical_instructions_header", "CRITICAL INSTRUCTIONS:"
-        )
-        critical_instructions = yaml_config.get("critical_instructions", [])
-        if critical_instructions:
-            prompt += f"{critical_header}\n"
-            for instruction in critical_instructions:
-                # Replace static last field reference with dynamic one
-                if (
-                    "TOTAL_AMOUNT_PAYABLE" in instruction
-                    or "SUPPLIER_WEBSITE" in instruction
-                ):
-                    # Replace with actual last field for this document type
-                    last_field = (
-                        self.field_list[-1] if self.field_list else "last field"
-                    )
-                    instruction = f"Stop immediately after {last_field}"
-                prompt += f"- {instruction}\n"
-            prompt += "\n"
+        Returns:
+            Detected document type (invoice, receipt, bank_statement)
+        """
+        fields_to_check = field_list or self.field_list
+        field_set = set(fields_to_check)
 
-        # Add output format from YAML configuration (YAML-first architecture)
-        output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT:")
-        prompt += f"{output_format}\n"
-
-        # Add field instructions in YAML order (YAML-first architecture)
-        field_instructions = yaml_config.get("field_instructions", {})
-        for field, instruction in field_instructions.items():
-            prompt += f"{field}: {instruction}\n"
-
-        # Add format rules section with dynamic field count (CRITICAL for proper parsing)
-        format_rules_header = yaml_config.get("format_rules_header", "OUTPUT RULES:")
-        format_rules = yaml_config.get("format_rules", [])
-        if format_rules:
-            prompt += f"\n{format_rules_header}\n"
-            for rule in format_rules:
-                # YAML-first architecture: use rules as-is from YAML configuration
-                prompt += f"- {rule}\n"
-
-        # Add stop instruction from YAML configuration (YAML-first architecture)
-        if "stop_instruction" in yaml_config:
-            stop_instruction = yaml_config["stop_instruction"]
-            prompt += f"\n{stop_instruction}"
-
-        return prompt
+        # Simple heuristic based on unique fields
+        if "STATEMENT_DATE_RANGE" in field_set or "TRANSACTION_DATES" in field_set:
+            return "bank_statement"
+        elif "INVOICE_DATE" in field_set and "GST_AMOUNT" in field_set:
+            # Both invoice and receipt have these, default to invoice
+            return "invoice"
+        else:
+            # Fallback to invoice for unknown patterns
+            return "invoice"
 
     def load_document_image(self, image_path: str) -> Image.Image:
         """Load document image with error handling."""
@@ -351,8 +322,9 @@ class DocumentAwareLlamaProcessor:
             # Load image
             image = self.load_document_image(image_path)
 
-            # Generate prompt for specific field list
-            prompt = self.generate_dynamic_prompt()
+            # Generate prompt for specific field list using unified schema
+            document_type = self.detect_document_type()
+            prompt = self.generate_dynamic_prompt(document_type=document_type)
 
             if self.debug:
                 print(f"📝 Generated prompt for {self.field_count} fields")
