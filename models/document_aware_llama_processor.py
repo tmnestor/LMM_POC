@@ -221,7 +221,12 @@ class DocumentAwareLlamaProcessor:
             print(f"DEBUG: YAML file exists: {yaml_path.exists()}")
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
-                    yaml_data = yaml.safe_load(f)
+                    raw_content = f.read()
+                    print(f"DEBUG: Raw file length: {len(raw_content)} chars")
+                    print(f"DEBUG: GST_AMOUNT in raw content: {'GST_AMOUNT:' in raw_content}")
+                    
+                    # Parse YAML from string content
+                    yaml_data = yaml.safe_load(raw_content)
                     print(f"DEBUG: Raw YAML keys: {list(yaml_data.keys())}")
                     single_pass = yaml_data.get("single_pass", {})
                     print(f"DEBUG: single_pass keys: {list(single_pass.keys())}")
