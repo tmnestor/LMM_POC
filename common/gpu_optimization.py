@@ -46,7 +46,7 @@ def configure_cuda_memory_allocation():
     # Detect GPU type and configure accordingly
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
     is_v100 = "V100" in gpu_name
-    
+
     # Set PYTORCH_CUDA_ALLOC_CONF with GPU-specific fragmentation prevention
     if is_v100:
         # V100: Ultra-aggressive fragmentation prevention

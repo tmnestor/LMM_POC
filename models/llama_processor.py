@@ -76,11 +76,11 @@ class LlamaProcessor:
         self.device = device
         self.model = None
         self.processor = None
-        
+
         # Integrated V4 + YAML system initialization
         self.enable_v4_schema = enable_v4_schema
         self.prompt_environment = prompt_environment
-        
+
         # V4 Schema Integration - FAIL FAST, NO FALLBACKS
         if not self.enable_v4_schema:
             # FAIL FAST - No legacy V3 fallbacks
@@ -92,32 +92,37 @@ class LlamaProcessor:
                 f"💡 Ensure YAML prompt files exist in prompts/ directory\n"
                 f"💡 No fallback to broken V3 system - fix V4 configuration instead"
             )
-        
-        # Initialize V4 system components  
+
+        # Initialize V4 system components
         from common.prompt_loader import PromptLoader
+
         self.prompt_loader = PromptLoader()
         # DocumentTypeDetector will be initialized after model loading
         self.document_detector = None
-        
+
         # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        
+
         # Track active field list for filtered parsing (document-aware extraction)
         self.active_fields = None
-        
+
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if self.debug:
             try:
                 self.debug_ocr_config = self.prompt_loader.load_debug_ocr_prompts()
-                print("🔧 Debug OCR mode available - use process_debug_ocr() for raw markdown output")
+                print(
+                    "🔧 Debug OCR mode available - use process_debug_ocr() for raw markdown output"
+                )
             except Exception as e:
                 print(f"⚠️ Debug OCR prompts not available: {e}")
                 self.debug_ocr_config = None
         self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
         if debug:
-            print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
+            print(
+                "🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)"
+            )
 
         # Initialize extraction cleaner for value normalization and field cleaning visibility
         self.cleaner = ExtractionCleaner(debug=debug)
@@ -136,6 +141,7 @@ class LlamaProcessor:
 
         # Initialize DocumentTypeDetector AFTER model loading
         from common.document_type_detector import DocumentTypeDetector
+
         self.document_detector = DocumentTypeDetector(model_processor=self)
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
@@ -219,25 +225,27 @@ class LlamaProcessor:
         try:
             # Use new YAML-based prompt loader (replaces hardcoded paths)
             config = self.prompt_loader.load_prompt_config("llama", "single_pass")
-            
+
             if self.debug:
                 # Show which YAML file is being used
                 yaml_path = self.prompt_loader.get_prompt_path("llama", "single_pass")
                 print(f"📂 Loading YAML prompt from: {yaml_path}")
-                
+
             return config.get("single_pass", {})
         except Exception as e:
             print(f"⚠️ Error loading YAML prompts via prompt loader: {e}")
-            print("💡 Check prompts/prompt_config.yaml and prompts/llama_single_pass_v4.yaml")
+            print(
+                "💡 Check prompts/prompt_config.yaml and prompts/llama_single_pass_v4.yaml"
+            )
             return None
 
     def get_extraction_prompt(self, image_path=None):
         """
         Get extraction prompt with integrated YAML + V4 schema support.
-        
+
         Args:
             image_path (str, optional): Image path for document-type detection (V4 schema)
-            
+
         Returns:
             str: Generated extraction prompt
         """
@@ -248,63 +256,74 @@ class LlamaProcessor:
             # Grouped/adaptive modes use extraction strategy (common/grouped_extraction.py)
             # This method should not be called for grouped mode - use process_single_image_grouped instead
             return self._get_config_prompt()
-            
+
     def _get_integrated_v4_prompt(self, image_path=None):
         """
         Generate prompt using integrated V4 schema + YAML configuration.
-        
+
         This is the core integration point for the new system.
         """
         try:
             if self.enable_v4_schema and image_path and self.document_detector:
                 # V4 Mode: Document type detection + intelligent field filtering (for grouped/adaptive modes)
                 if self.debug:
-                    print(f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}")
-                
+                    print(
+                        f"🎯 V4 Mode: Document-aware extraction for {Path(image_path).name}"
+                    )
+
                 # Step 1: Detect document type using content analysis
-                detection_result = self.document_detector.detect_document_type(image_path)
+                detection_result = self.document_detector.detect_document_type(
+                    image_path
+                )
                 doc_type = detection_result.get("type", "invoice")
-                
+
                 if self.debug:
                     confidence = detection_result.get("confidence", 0)
-                    reasoning = detection_result.get("reasoning", "No reasoning provided")
+                    reasoning = detection_result.get(
+                        "reasoning", "No reasoning provided"
+                    )
                     processing_time = detection_result.get("processing_time", 0)
                     print(f"📄 Detected document type: {doc_type}")
                     print(f"   Confidence: {confidence:.1%}")
                     print(f"   Reasoning: {reasoning}")
                     print(f"   Detection time: {processing_time:.2f}s")
-                
+
                 # Step 2: Get document-specific fields
                 from common.config import get_document_type_fields
+
                 fields = get_document_type_fields(doc_type)
-                
+
                 # Store active fields for filtered parsing
                 self.active_fields = fields
-                
+
                 if self.debug:
-                    print(f"🔍 Using {len(fields)} document-specific fields for {doc_type}")
-                
+                    print(
+                        f"🔍 Using {len(fields)} document-specific fields for {doc_type}"
+                    )
+
                 # Step 3: Generate prompt with filtered fields
                 return self._generate_prompt_for_fields(fields)
-                
+
             else:
                 # Fallback: Use all V4 fields (47 total) or V3 compatibility
                 if self.enable_v4_schema:
                     from common.config import get_v4_field_list
+
                     fields = get_v4_field_list()
                     if self.debug:
                         print(f"🔧 V4 Mode: Using all {len(fields)} V4 fields")
                 else:
                     from common.config import get_extraction_fields
+
                     fields = get_extraction_fields()
                     if self.debug:
                         print(f"🔧 V3 Compatibility: Using {len(fields)} legacy fields")
-                
+
                 # Store active fields for filtered parsing
                 self.active_fields = fields
-                
+
                 return self._generate_prompt_for_fields(fields)
-                
+
         except Exception as e:
             # FAIL FAST - No graceful fallbacks
             raise RuntimeError(
@@ -315,54 +334,64 @@ class LlamaProcessor:
                 f"💡 Verify: V4 schema functions in common/config.py are working\n"
                 f"💡 Fix: Ensure all V4 dependencies are properly configured"
             ) from e
-            
+
     def _generate_prompt_for_fields(self, field_list):
         """Generate extraction prompt for specific field subset using YAML template."""
         try:
             # Load prompt template from YAML configuration
             yaml_config = self._load_single_pass_prompts()
-            
+
             if not yaml_config:
                 raise ValueError("YAML prompt configuration not available")
-            
+
             # Build prompt using YAML structure with field filtering
             prompt_parts = []
-            
+
             # Add expertise frame
             if "expertise_frame" in yaml_config:
                 prompt_parts.append(yaml_config["expertise_frame"])
-            
+
             # Add critical instructions
             if "critical_instructions_header" in yaml_config:
                 prompt_parts.append(f"\n{yaml_config['critical_instructions_header']}")
                 if "critical_instructions" in yaml_config:
                     for instruction in yaml_config["critical_instructions"]:
                         prompt_parts.append(f"- {instruction}")
-            
+
             # Add output format with dynamic field count
             output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT:")
-            output_format = output_format.replace("49 FIELDS", f"{len(field_list)} FIELDS")
+            output_format = output_format.replace(
+                "49 FIELDS", f"{len(field_list)} FIELDS"
+            )
             prompt_parts.append(f"\n{output_format}")
-            
+
             # Add field instructions (filtered to requested fields in SEMANTIC ORDER)
             all_field_instructions = yaml_config.get("field_instructions", {})
-            yaml_field_order = list(all_field_instructions.keys()) if all_field_instructions else field_list
-            
+            yaml_field_order = (
+                list(all_field_instructions.keys())
+                if all_field_instructions
+                else field_list
+            )
+
             # Reorder field_list to match semantic order from YAML
             field_list_set = set(field_list)
-            semantic_ordered_fields = [field for field in yaml_field_order if field in field_list_set]
-            
+            semantic_ordered_fields = [
+                field for field in yaml_field_order if field in field_list_set
+            ]
+
             # Add any missing fields at the end (shouldn't happen but safety check)
             missing_fields = field_list_set - set(semantic_ordered_fields)
             if missing_fields:
                 semantic_ordered_fields.extend(sorted(missing_fields))
-            
+
             if self.debug:
-                print(f"🎯 Reordered {len(field_list)} fields from alphabetical to semantic order")
+                print(
+                    f"🎯 Reordered {len(field_list)} fields from alphabetical to semantic order"
+                )
                 print(f"🎯 First 5 fields: {semantic_ordered_fields[:5]}")
-            
+
             prompt_parts.append("")
-            
+
             for field in semantic_ordered_fields:
                 if field in all_field_instructions:
                     instruction = all_field_instructions[field]
@@ -370,32 +399,34 @@ class LlamaProcessor:
                 else:
                     # Fallback instruction for missing fields
                     prompt_parts.append(f"{field}: [value or NOT_FOUND]")
-                    
+
             # Store the semantic-ordered fields for parsing
             self.active_fields = semantic_ordered_fields
-            
+
             # Add format rules
             if "format_rules_header" in yaml_config:
                 prompt_parts.append(f"\n{yaml_config['format_rules_header']}")
                 if "format_rules" in yaml_config:
                     for rule in yaml_config["format_rules"]:
                         prompt_parts.append(f"- {rule}")
-            
+
             # Add stop instruction
             if "stop_instruction" in yaml_config:
                 prompt_parts.append(f"\n{yaml_config['stop_instruction']}")
-            
+
             final_prompt = "\n".join(prompt_parts)
-            
+
             if self.debug:
-                print(f"✅ Generated V4 prompt: {len(final_prompt)} chars, {len(semantic_ordered_fields)} fields")
-            
+                print(
+                    f"✅ Generated V4 prompt: {len(final_prompt)} chars, {len(semantic_ordered_fields)} fields"
+                )
+
             return final_prompt
-            
+
         except Exception as e:
             print(f"❌ Error generating field-specific prompt: {e}")
             return self._get_single_pass_prompt_from_yaml()
-            
+
     def _quick_extract_for_detection(self, image_path, prompt, **kwargs):
         """Quick extraction method for document type detection."""
         # Simplified extraction for document type detection only
@@ -436,18 +467,22 @@ class LlamaProcessor:
 
         # Add field instructions - USE YAML FIELD ORDER (semantic), not EXTRACTION_FIELDS (alphabetical)
         field_instructions = yaml_config.get("field_instructions", {})
-        yaml_field_order = list(field_instructions.keys()) if field_instructions else EXTRACTION_FIELDS
-        
+        yaml_field_order = (
+            list(field_instructions.keys()) if field_instructions else EXTRACTION_FIELDS
+        )
+
         if self.debug and field_instructions:
-            print(f"🎯 Using semantic field order from YAML: {len(yaml_field_order)} fields")
+            print(
+                f"🎯 Using semantic field order from YAML: {len(yaml_field_order)} fields"
+            )
             print(f"🎯 First 5 fields: {yaml_field_order[:5]}")
-        
+
         for field in yaml_field_order:
             instruction = field_instructions.get(
                 field, f"[{field.lower()} or NOT_FOUND]"
             )
             prompt += f"{field}: {instruction}\n"
-            
+
         # Store active fields for parsing (use YAML order, not config order)
         self.active_fields = yaml_field_order
 
@@ -747,10 +782,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
     def _show_field_cleaning_and_results(self, extracted_data: dict):
         """Show field cleaning process and results with visual indicators like llama_document_aware.py."""
-        
+
         # Get the field list to iterate through (using active_fields if available for document-aware)
         field_list = self.active_fields or EXTRACTION_FIELDS
-        
+
         # Apply cleaning to each field and show the process
         cleaned_extracted_data = {}
         for field in field_list:
@@ -759,30 +794,34 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 # Apply cleaning using the ExtractionCleaner
                 cleaned_value = self.cleaner.clean_field_value(field, original_value)
                 cleaned_extracted_data[field] = cleaned_value
-                
+
                 # Show cleaning process if value changed
                 if cleaned_value != original_value and self.debug:
-                    print(f"🧹 Cleaning {field}: '{original_value}' -> '{cleaned_value}'")
+                    print(
+                        f"🧹 Cleaning {field}: '{original_value}' -> '{cleaned_value}'"
+                    )
             else:
                 cleaned_extracted_data[field] = original_value
-        
+
         # Update the extracted_data with cleaned values
         extracted_data.update(cleaned_extracted_data)
-        
+
         # Show structured results with visual indicators
         print("📊 PARSED EXTRACTION RESULTS:")
         print("=" * 80)
         for field in field_list:
             value = extracted_data.get(field, "NOT_FOUND")
             status = "✅" if value != "NOT_FOUND" else "❌"
-            print(f"  {status} {field}: \"{value}\"")
+            print(f'  {status} {field}: "{value}"')
         print("=" * 80)
-        
+
         # Show summary statistics
         found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
         print(f"✅ Extracted {len(found_fields)}/{len(field_list)} fields")
         if found_fields:
-            print(f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
+            print(
+                f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
+            )
 
     def process_single_image(self, image_path):
         """
@@ -809,7 +848,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     "role": "user",
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": self.get_extraction_prompt(image_path)},
+                        {
+                            "type": "text",
+                            "text": self.get_extraction_prompt(image_path),
+                        },
                     ],
                 }
             ]
@@ -851,7 +893,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
 
             # Parse response with Llama-specific cleaning using filtered fields
             extracted_data = parse_extraction_response(
-                response, clean_conversation_artifacts=True, expected_fields=self.active_fields
+                response,
+                clean_conversation_artifacts=True,
+                expected_fields=self.active_fields,
             )
 
             if self.debug:
@@ -859,7 +903,7 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 print("=" * 80)
                 print(response)
                 print("=" * 80)
-                
+
                 # Show field cleaning process and final results with visual indicators
                 self._show_field_cleaning_and_results(extracted_data)
 
@@ -1025,7 +1069,9 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     )
                 )
             else:
-                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
+                raise ValueError(
+                    f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}"
+                )
 
             # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
@@ -1152,7 +1198,10 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
         }
 
         # Add group processing statistics if in grouped mode
-        if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"] and self.extraction_strategy:
+        if (
+            self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"]
+            and self.extraction_strategy
+        ):
             batch_statistics["total_groups_processed"] = (
                 self.extraction_strategy.stats.get("total_groups_processed", 0)
             )
@@ -1330,60 +1379,60 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
     def process_debug_ocr(self, image_path: str) -> Dict[str, Any]:
         """
         Process document using debug OCR prompts for raw markdown output.
-        
+
         This method outputs raw OCR text in markdown format instead of structured
         field extraction. Useful for diagnosing OCR vs document understanding issues.
-        
+
         Args:
             image_path (str): Path to image file
-            
+
         Returns:
             Dict with 'ocr_output', 'processing_time', 'model_used'
         """
         if not self.debug_ocr_config:
             raise ValueError(
                 "❌ DEBUG OCR not available\n"
-                "💡 Ensure debug=True when initializing processor\n"  
+                "💡 Ensure debug=True when initializing processor\n"
                 "💡 Check that prompts/debug_ocr_prompts.yaml exists"
             )
-        
+
         start_time = time.perf_counter()
-        
+
         if self.debug:
             print(f"🔍 DEBUG OCR MODE: Processing {Path(image_path).name}")
             print("🎯 Output: Raw markdown OCR text (not structured extraction)")
-        
+
         try:
-            # Get debug OCR prompt configuration  
+            # Get debug OCR prompt configuration
             debug_prompts = self.debug_ocr_config.get("debug_ocr_prompts", {})
             llama_config = debug_prompts.get("llama", {})
-            
+
             if not llama_config:
                 raise ValueError("No debug OCR prompt configured for Llama model")
-            
+
             # Extract prompt settings
             user_prompt = llama_config.get("user_prompt", "")
-            max_tokens = llama_config.get("max_tokens", 2000) 
+            max_tokens = llama_config.get("max_tokens", 2000)
             temperature = llama_config.get("temperature", 0.0)
-            
+
             if self.debug:
                 print(f"📝 Using debug OCR prompt: {len(user_prompt)} chars")
                 print(f"🎛️ Settings: max_tokens={max_tokens}, temperature={temperature}")
-            
+
             # Process image with OCR prompt
             ocr_output = self._extract_with_custom_prompt(
                 image_path,
-                user_prompt, 
+                user_prompt,
                 max_new_tokens=max_tokens,
                 temperature=temperature,
-                do_sample=False
+                do_sample=False,
             )
-            
+
             processing_time = time.perf_counter() - start_time
-            
+
             # Clean up OCR output
             ocr_markdown = ocr_output.strip()
-            
+
             if self.debug:
                 print(f"📊 OCR completed in {processing_time:.2f}s")
                 print(f"📄 Output length: {len(ocr_markdown)} characters")
@@ -1391,18 +1440,19 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                 print("-" * 50)
                 print(ocr_markdown[:500] + ("..." if len(ocr_markdown) > 500 else ""))
                 print("-" * 50)
-            
+
             # Optional: Save OCR output to file
             debug_config = self.debug_ocr_config.get("debug_config", {})
             if debug_config.get("save_ocr_output", False):
                 output_suffix = debug_config.get("ocr_output_suffix", "_debug_ocr.md")
                 # Use configured output directory instead of image directory
                 from common.config import OUTPUT_DIR
+
                 input_path = Path(image_path)
                 output_dir = Path(OUTPUT_DIR)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_path = output_dir / (input_path.stem + output_suffix)
-                
+
                 with output_path.open("w", encoding="utf-8") as f:
                     f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
                     f.write(f"**Processing Time:** {processing_time:.2f}s\n")
@@ -1410,19 +1460,19 @@ STOP after {EXTRACTION_FIELDS[-1]} line. Do not add explanations or comments."""
                     f.write(f"**Prompt Tokens:** {max_tokens}\n\n")
                     f.write("---\n\n")
                     f.write(ocr_markdown)
-                
+
                 if self.debug:
                     print(f"💾 OCR output saved to: {output_path}")
-            
+
             return {
                 "ocr_output": ocr_markdown,
                 "processing_time": processing_time,
                 "model_used": "llama-3.2-11b-vision",
                 "prompt_tokens": max_tokens,
                 "image_path": image_path,
-                "output_length": len(ocr_markdown)
+                "output_length": len(ocr_markdown),
             }
-            
+
         except Exception as e:
             processing_time = time.perf_counter() - start_time
             if self.debug:

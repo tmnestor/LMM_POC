@@ -2,7 +2,7 @@
 """
 Document-Aware InternVL3 Processor - Standalone Implementation
 
-A complete standalone processor designed from the ground up for 
+A complete standalone processor designed from the ground up for
 document-aware extraction with dynamic field lists. NO INHERITANCE.
 
 Adapted from InternVL3Processor but optimized for document-specific extraction
@@ -52,7 +52,7 @@ class DocumentAwareInternVL3Processor:
         device: str = "cuda",
         debug: bool = False,
         batch_size: Optional[int] = None,
-        skip_model_loading: bool = False
+        skip_model_loading: bool = False,
     ):
         """
         Initialize document-aware InternVL3 processor with specific field list.
@@ -75,17 +75,19 @@ class DocumentAwareInternVL3Processor:
         self.model = None
         self.tokenizer = None
         self.generation_config = None
-        
+
         # Initialize extraction cleaner for value normalization
         self.cleaner = ExtractionCleaner(debug=debug)
-        
+
         # Note: Previously used DocumentAwareGroupedExtraction but now using direct field extraction
 
         # Fix 8B detection using actual model path
         self.is_8b_model = "8B" in str(self.model_path)
 
         if self.debug:
-            print(f"🎯 Document-aware InternVL3 processor initialized for {self.field_count} fields")
+            print(
+                f"🎯 Document-aware InternVL3 processor initialized for {self.field_count} fields"
+            )
             print(f"   Fields: {field_list[0]} → {field_list[-1]}")
             print(f"   Model variant: {'8B' if self.is_8b_model else '2B'}")
 
@@ -133,7 +135,9 @@ class DocumentAwareInternVL3Processor:
             available_memory = get_available_gpu_memory(self.device)
             model_key = "internvl3-8b" if self.is_8b_model else "internvl3-2b"
             self.batch_size = get_auto_batch_size(model_key, available_memory)
-            print(f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {model_key})")
+            print(
+                f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {model_key})"
+            )
 
     def _configure_generation(self):
         """Configure generation parameters for dynamic field count."""
@@ -142,6 +146,7 @@ class DocumentAwareInternVL3Processor:
 
         # Get generation config from centralized config (matches original internvl3_processor)
         from common.config import GENERATION_CONFIGS
+
         base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
         self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
 
@@ -175,7 +180,7 @@ class DocumentAwareInternVL3Processor:
 
             # Initialize quantization tracking for proper warm-up logic
             quantization_success = False
-            
+
             # Configure 8-bit quantization for 8B model on V100
             if self.is_8b_model:
                 print("🔧 Loading InternVL3-8B with 8-bit quantization for V100")
@@ -184,6 +189,7 @@ class DocumentAwareInternVL3Processor:
                 # Check bitsandbytes version and use appropriate API
                 try:
                     import bitsandbytes as bnb
+
                     bnb_version = getattr(bnb, "__version__", "unknown")
                     print(f"   bitsandbytes version: {bnb_version}")
                 except ImportError:
@@ -199,10 +205,14 @@ class DocumentAwareInternVL3Processor:
                         minor = int(version_parts[1]) if len(version_parts) > 1 else 0
                         use_old_api = major == 0 and minor < 44
                         if self.debug:
-                            print(f"   Version check: major={major}, minor={minor}, use_old_api={use_old_api}")
+                            print(
+                                f"   Version check: major={major}, minor={minor}, use_old_api={use_old_api}"
+                            )
                     except (ValueError, IndexError):
                         if self.debug:
-                            print(f"   ⚠️ Could not parse version {bnb_version}, will try new API")
+                            print(
+                                f"   ⚠️ Could not parse version {bnb_version}, will try new API"
+                            )
                         use_old_api = False
 
                 if use_old_api:
@@ -213,6 +223,7 @@ class DocumentAwareInternVL3Processor:
                 else:
                     try:
                         from transformers import BitsAndBytesConfig
+
                         print("📦 QUANTIZATION APPROACH: Modern BitsAndBytesConfig")
                         print(f"   Reason: bitsandbytes {bnb_version} >= 0.44.0")
                         print("   Status: Using modern API (recommended)")
@@ -223,7 +234,9 @@ class DocumentAwareInternVL3Processor:
                         model_kwargs["quantization_config"] = quantization_config
                         print("   ✅ BitsAndBytesConfig created successfully")
                     except ImportError as e:
-                        print("📦 QUANTIZATION APPROACH: Fallback to Legacy load_in_8bit=True")
+                        print(
+                            "📦 QUANTIZATION APPROACH: Fallback to Legacy load_in_8bit=True"
+                        )
                         print(f"   Reason: BitsAndBytesConfig import failed: {e}")
                         print("   Status: Using legacy API as fallback")
                         model_kwargs["load_in_8bit"] = True
@@ -238,21 +251,29 @@ class DocumentAwareInternVL3Processor:
                     print("✅ InternVL3-8B loaded with 8-bit quantization")
                     print("   Memory footprint reduced by ~50%")
                     quantization_success = True
-                    
+
                 except Exception as quant_error:
                     print(f"❌ 8-bit quantization failed: {quant_error}")
-                    print("💾 V100 has only 16GB VRAM - InternVL3-8B REQUIRES 8-bit quantization")
-                    
+                    print(
+                        "💾 V100 has only 16GB VRAM - InternVL3-8B REQUIRES 8-bit quantization"
+                    )
+
                     # Try alternative quantization approaches before giving up
                     success = False
-                    
+
                     # Try legacy API with specific device mapping
                     if not success:
                         try:
-                            print("\n📦 QUANTIZATION FALLBACK: Attempting Legacy load_in_8bit=True")
-                            print("   Reason: Primary approach failed, trying alternative")
-                            print("   Strategy: Using explicit device mapping for V100 compatibility")
-                            
+                            print(
+                                "\n📦 QUANTIZATION FALLBACK: Attempting Legacy load_in_8bit=True"
+                            )
+                            print(
+                                "   Reason: Primary approach failed, trying alternative"
+                            )
+                            print(
+                                "   Strategy: Using explicit device mapping for V100 compatibility"
+                            )
+
                             legacy_kwargs = {
                                 "torch_dtype": torch.bfloat16,
                                 "load_in_8bit": True,
@@ -260,30 +281,40 @@ class DocumentAwareInternVL3Processor:
                                 "low_cpu_mem_usage": True,
                                 "trust_remote_code": True,
                             }
-                            
+
                             self.model = AutoModel.from_pretrained(
                                 self.model_path, **legacy_kwargs
                             ).eval()
-                            
-                            print("✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
-                            print("   Approach: Legacy load_in_8bit=True with explicit device mapping")
+
+                            print(
+                                "✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization"
+                            )
+                            print(
+                                "   Approach: Legacy load_in_8bit=True with explicit device mapping"
+                            )
                             success = True
                             quantization_success = True
-                            
+
                         except Exception as legacy_error:
                             print(f"   ❌ Legacy fallback failed: {legacy_error}")
-                    
+
                     # If all approaches fail, provide clear guidance
                     if not success:
                         print("\n❌ FATAL: Cannot load InternVL3-8B on V100")
                         print("🔍 ISSUE: bitsandbytes 0.47.0 compatibility problem")
-                        print("💾 V100 limitation: 16GB VRAM insufficient for FP16 (needs ~22GB)")
+                        print(
+                            "💾 V100 limitation: 16GB VRAM insufficient for FP16 (needs ~22GB)"
+                        )
                         print("\n🛠️ SOLUTIONS:")
-                        print("   1. Use InternVL3-2B instead: MODEL_PATH = '.../InternVL3-2B'")
+                        print(
+                            "   1. Use InternVL3-2B instead: MODEL_PATH = '.../InternVL3-2B'"
+                        )
                         print("   2. Try: pip install bitsandbytes==0.41.1")
                         print("   3. Use Llama-3.2-Vision-11B with 8-bit quantization")
                         print("   4. Upgrade to A100/H100 with >20GB VRAM")
-                        raise RuntimeError("InternVL3-8B incompatible with V100 due to bitsandbytes issues") from None
+                        raise RuntimeError(
+                            "InternVL3-8B incompatible with V100 due to bitsandbytes issues"
+                        ) from None
 
             else:
                 # InternVL3-2B: Direct loading without quantization
@@ -291,14 +322,14 @@ class DocumentAwareInternVL3Processor:
                 print("   Model: InternVL3-2B")
                 print("   Reason: 2B model fits comfortably in V100 16GB VRAM")
                 print("   Precision: bfloat16 (model requires this precision)")
-                
+
                 # Configuration for 2B model - use model's native bfloat16
                 model_kwargs["device_map"] = "auto"
 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
                 ).eval()
-                
+
                 print("✅ SUCCESS: InternVL3-2B loaded in bfloat16")
                 print("   Approach: Direct loading without quantization")
                 print("   VRAM Usage: ~4-6GB (plenty of headroom on 16GB V100)")
@@ -311,11 +342,11 @@ class DocumentAwareInternVL3Processor:
             )
 
             print("✅ InternVL3 model and tokenizer loaded successfully")
-            
+
             # Print loading summary
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("📊 MODEL LOADING SUMMARY")
-            print("="*60)
+            print("=" * 60)
             if self.is_8b_model:
                 if quantization_success:
                     print("Model: InternVL3-8B")
@@ -331,19 +362,23 @@ class DocumentAwareInternVL3Processor:
                 print("Method: Direct loading (no quantization needed)")
                 print("VRAM: ~4-6GB")
             print("Hardware: V100 GPU (16GB VRAM)")
-            print("="*60 + "\n")
+            print("=" * 60 + "\n")
 
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
 
             # Configure warm-up based on model type and precision
             if self.is_8b_model and quantization_success:
-                print("⚠️ Skipping warm-up test for quantized 8B model (expected with 8-bit)")
+                print(
+                    "⚠️ Skipping warm-up test for quantized 8B model (expected with 8-bit)"
+                )
                 print("   Model will be tested during actual inference")
             elif self.is_8b_model:
                 print("ℹ️ 8B model loaded - warm-up enabled to verify stability")
             else:
-                print("✅ InternVL3-2B bfloat16 model loaded - enabling warm-up for verification")
+                print(
+                    "✅ InternVL3-2B bfloat16 model loaded - enabling warm-up for verification"
+                )
                 print("   V100 optimizations active")
 
         except Exception as e:
@@ -353,21 +388,27 @@ class DocumentAwareInternVL3Processor:
     # OLD SINGLE-PASS METHODS REMOVED - NOW USING HYBRID GROUPED EXTRACTION
     # The hybrid system automatically handles:
     # - Document type detection
-    # - Smart group filtering  
+    # - Smart group filtering
     # - Proven 90.6% accuracy grouped prompts
     # - Field-specific instructions per group
 
     def build_transform(self, input_size=DEFAULT_IMAGE_SIZE):
         """Build InternVL3 image transformation pipeline."""
-        transform = T.Compose([
-            T.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
-            T.Resize((input_size, input_size), interpolation=T.InterpolationMode.BICUBIC),
-            T.ToTensor(),
-            T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        ])
+        transform = T.Compose(
+            [
+                T.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+                T.Resize(
+                    (input_size, input_size), interpolation=T.InterpolationMode.BICUBIC
+                ),
+                T.ToTensor(),
+                T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            ]
+        )
         return transform
 
-    def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
+    def find_closest_aspect_ratio(
+        self, aspect_ratio, target_ratios, width, height, image_size
+    ):
         """Find closest aspect ratio for InternVL3 dynamic preprocessing."""
         best_ratio_diff = float("inf")
         best_ratio = (1, 1)
@@ -386,7 +427,14 @@ class DocumentAwareInternVL3Processor:
 
         return best_ratio
 
-    def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=DEFAULT_IMAGE_SIZE, use_thumbnail=False):
+    def dynamic_preprocess(
+        self,
+        image,
+        min_num=1,
+        max_num=12,
+        image_size=DEFAULT_IMAGE_SIZE,
+        use_thumbnail=False,
+    ):
         """InternVL3 dynamic preprocessing algorithm."""
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
@@ -462,10 +510,16 @@ class DocumentAwareInternVL3Processor:
             start_time = time.time()
 
             if self.debug:
-                print(f"🚀 Starting document-aware extraction for {Path(image_path).name}")
+                print(
+                    f"🚀 Starting document-aware extraction for {Path(image_path).name}"
+                )
                 print(f"📊 Target fields: {self.field_count} fields")
-                print("🎯 Strategy: Direct field extraction (document type already detected)")
-                print(f"📝 Field list: {self.field_list[:5]}{'...' if len(self.field_list) > 5 else ''}")
+                print(
+                    "🎯 Strategy: Direct field extraction (document type already detected)"
+                )
+                print(
+                    f"📝 Field list: {self.field_list[:5]}{'...' if len(self.field_list) > 5 else ''}"
+                )
 
             # Memory cleanup
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
@@ -473,13 +527,13 @@ class DocumentAwareInternVL3Processor:
             # FIXED: Use direct extraction with the already-determined field list
             # Don't re-detect document type - we already have the correct fields
             extracted_data = self._extract_fields_directly(image_path, self.field_list)
-            
+
             # Create metadata for compatibility
             metadata = {
                 "document_type": "pre_detected",
                 "extraction_strategy": "document_aware_direct",
                 "total_fields": len(self.field_list),
-                "extraction_method": "single_pass_with_predefined_fields"
+                "extraction_method": "single_pass_with_predefined_fields",
             }
 
             processing_time = time.time() - start_time
@@ -488,22 +542,30 @@ class DocumentAwareInternVL3Processor:
                 print("🎉 DOCUMENT-AWARE EXTRACTION COMPLETED!")
                 print("=" * 80)
                 print("📋 Document type: Pre-detected (using provided field schema)")
-                print(f"🎯 Fields processed: {len(self.field_list)} document-specific fields")
+                print(
+                    f"🎯 Fields processed: {len(self.field_list)} document-specific fields"
+                )
                 print(f"⏱️ Processing time: {processing_time:.2f}s")
-                
-                found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-                print(f"📊 Results: {len(found_fields)}/{self.field_count} fields found")
-                
+
+                found_fields = [
+                    k for k, v in extracted_data.items() if v != "NOT_FOUND"
+                ]
+                print(
+                    f"📊 Results: {len(found_fields)}/{self.field_count} fields found"
+                )
+
                 # Show field results summary
                 for field in self.field_list:
                     value = extracted_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
-                    print(f"  {status} {field}: \"{value}\"")
+                    print(f'  {status} {field}: "{value}"')
                 print(f"  Total fields: {len(self.field_list)}")
                 print("=" * 80)
 
             # Calculate standard metrics for compatibility
-            extracted_fields_count = len([k for k in extracted_data.keys() if k in self.field_list])
+            extracted_fields_count = len(
+                [k for k in extracted_data.keys() if k in self.field_list]
+            )
             response_completeness = extracted_fields_count / len(self.field_list)
             content_coverage = extracted_fields_count / len(self.field_list)
 
@@ -520,13 +582,14 @@ class DocumentAwareInternVL3Processor:
                 "extracted_fields_count": extracted_fields_count,
                 "field_count": self.field_count,
                 "extraction_metadata": metadata,
-                "extraction_strategy": "document_aware_direct"
+                "extraction_strategy": "document_aware_direct",
             }
 
         except Exception as e:
             if self.debug:
                 print(f"❌ Document-aware extraction error for {image_path}: {e}")
                 import traceback
+
                 traceback.print_exc()
 
             # Return error result with dynamic fields
@@ -539,36 +602,52 @@ class DocumentAwareInternVL3Processor:
                 "content_coverage": 0,
                 "extracted_fields_count": 0,
                 "field_count": self.field_count,
-                "extraction_strategy": "document_aware_direct_error"
+                "extraction_strategy": "document_aware_direct_error",
             }
 
-    def _extract_fields_directly(self, image_path: str, field_list: List[str]) -> Dict[str, str]:
+    def _extract_fields_directly(
+        self, image_path: str, field_list: List[str]
+    ) -> Dict[str, str]:
         """
         Extract specific fields using a simple, direct prompt.
-        
+
         This bypasses the grouped extraction system and uses the pre-determined field list.
         """
         if self.debug:
             print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
-        
+
         # Create a simple extraction prompt for the specific fields
         field_lines = []
         for field in field_list:
             if field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
-                field_lines.append(f"{field}: [complete phone number with area code or NOT_FOUND]")
+                field_lines.append(
+                    f"{field}: [complete phone number with area code or NOT_FOUND]"
+                )
             elif field == "BUSINESS_ABN":
                 field_lines.append(f"{field}: [11-digit ABN or NOT_FOUND]")
             elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
-                field_lines.append(f"{field}: [dollar amount with $ symbol or NOT_FOUND]")
+                field_lines.append(
+                    f"{field}: [dollar amount with $ symbol or NOT_FOUND]"
+                )
             elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
-                field_lines.append(f"{field}: [complete address with postcode or NOT_FOUND]")
+                field_lines.append(
+                    f"{field}: [complete address with postcode or NOT_FOUND]"
+                )
             elif field == "PAYMENT_METHOD":
-                field_lines.append(f"{field}: [payment type like AMEX, Visa, Cash, etc. or NOT_FOUND]")
-            elif field in ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]:
-                field_lines.append(f"{field}: [pipe-separated values for all items or NOT_FOUND]")
+                field_lines.append(
+                    f"{field}: [payment type like AMEX, Visa, Cash, etc. or NOT_FOUND]"
+                )
+            elif field in [
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+            ]:
+                field_lines.append(
+                    f"{field}: [pipe-separated values for all items or NOT_FOUND]"
+                )
             else:
                 field_lines.append(f"{field}: [value as shown or NOT_FOUND]")
-        
+
         prompt = f"""Extract structured data from this business document image.
 
 OUTPUT FORMAT - EXACTLY {len(field_list)} LINES:
@@ -584,21 +663,28 @@ INSTRUCTIONS:
 
         # Extract using the model
         raw_response = self._extract_with_prompt(image_path, prompt)
-        
+
         if self.debug:
-            print(f"📝 Raw response ({len(raw_response)} chars): {raw_response[:200]}...")
-        
+            print(
+                f"📝 Raw response ({len(raw_response)} chars): {raw_response[:200]}..."
+            )
+
         # Parse the response using the extraction parser
         from common.extraction_parser import parse_extraction_response
-        extracted_data = parse_extraction_response(raw_response, expected_fields=field_list)
-        
+
+        extracted_data = parse_extraction_response(
+            raw_response, expected_fields=field_list
+        )
+
         if self.debug:
             found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
             print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
-        
+
         return extracted_data
 
-    def _extract_with_prompt(self, image_path: str, prompt: str, generation_config: dict = None) -> str:
+    def _extract_with_prompt(
+        self, image_path: str, prompt: str, generation_config: dict = None
+    ) -> str:
         """Core extraction method that handles image processing and model inference."""
         # Pre-processing cleanup with fragmentation detection
         handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
@@ -654,7 +740,9 @@ INSTRUCTIONS:
 
         return response
 
-    def _extract_with_custom_prompt(self, image_path: str, prompt: str, **generation_kwargs) -> str:
+    def _extract_with_custom_prompt(
+        self, image_path: str, prompt: str, **generation_kwargs
+    ) -> str:
         """
         Extract fields using a custom prompt with specific generation parameters.
 
@@ -671,14 +759,21 @@ INSTRUCTIONS:
         try:
             # Create generation config - allow custom overrides
             custom_generation_config = self.generation_config.copy()
-            
+
             if "max_new_tokens" in generation_kwargs:
-                custom_generation_config["max_new_tokens"] = generation_kwargs["max_new_tokens"]
-                
+                custom_generation_config["max_new_tokens"] = generation_kwargs[
+                    "max_new_tokens"
+                ]
+
             # Only set sampling parameters if do_sample is True to avoid warnings
             if custom_generation_config.get("do_sample", False):
-                if "temperature" in generation_kwargs and generation_kwargs["temperature"] is not None:
-                    custom_generation_config["temperature"] = generation_kwargs["temperature"]
+                if (
+                    "temperature" in generation_kwargs
+                    and generation_kwargs["temperature"] is not None
+                ):
+                    custom_generation_config["temperature"] = generation_kwargs[
+                        "temperature"
+                    ]
             else:
                 # Remove all sampling-related parameters when do_sample is False
                 custom_generation_config.pop("temperature", None)
@@ -686,7 +781,9 @@ INSTRUCTIONS:
                 custom_generation_config.pop("top_p", None)
 
             # Use shared extraction method
-            return self._extract_with_prompt(image_path, prompt, custom_generation_config)
+            return self._extract_with_prompt(
+                image_path, prompt, custom_generation_config
+            )
 
         except Exception as e:
             if self.debug:
@@ -695,4 +792,3 @@ INSTRUCTIONS:
 
     # OLD SINGLE-PASS PARSING REMOVED - NOW USING HYBRID GROUPED EXTRACTION
     # Each group handles its own parsing with proven 90.6% accuracy format
-    

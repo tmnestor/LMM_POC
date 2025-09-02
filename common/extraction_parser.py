@@ -19,7 +19,9 @@ from .unified_schema import get_global_schema
 
 
 def parse_extraction_response(
-    response_text: str, clean_conversation_artifacts: bool = False, expected_fields: List[str] = None
+    response_text: str,
+    clean_conversation_artifacts: bool = False,
+    expected_fields: List[str] = None,
 ) -> Dict[str, str]:
     """
     Parse structured extraction response into dictionary.
@@ -188,22 +190,24 @@ def parse_extraction_response(
     return extracted_data
 
 
-def validate_and_enhance_extraction(extracted_data: Dict[str, str], image_name: str = None) -> Dict[str, Any]:
+def validate_and_enhance_extraction(
+    extracted_data: Dict[str, str], image_name: str = None
+) -> Dict[str, Any]:
     """
     Validate extracted data and add validation metadata.
-    
+
     Args:
         extracted_data: Raw extracted field data
         image_name: Name of processed image (for error reporting)
-        
+
     Returns:
         Enhanced dictionary with validation results
     """
     from .field_validation import validate_extracted_fields
-    
+
     # Run validation
     validation_result = validate_extracted_fields(extracted_data)
-    
+
     # Create enhanced result
     enhanced_result = {
         "extracted_data": extracted_data,
@@ -213,17 +217,17 @@ def validate_and_enhance_extraction(extracted_data: Dict[str, str], image_name: 
             "warning_count": len(validation_result.warnings),
             "errors": validation_result.errors,
             "warnings": validation_result.warnings,
-        }
+        },
     }
-    
+
     # Add corrected values if available
     if validation_result.corrected_values:
         enhanced_result["corrected_values"] = validation_result.corrected_values
-        
+
     # Add image context for debugging
     if image_name:
         enhanced_result["image_name"] = image_name
-        
+
     return enhanced_result
 
 

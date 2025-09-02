@@ -54,7 +54,12 @@ ENV_GROUND_TRUTH_PATH = os.getenv("GROUND_TRUTH_PATH")
 ENV_OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
 # V4 Schema Configuration - Enable by default, configurable via environment
-V4_SCHEMA_ENABLED = os.getenv("V4_SCHEMA_ENABLED", "true").lower() in ("true", "1", "yes", "on")
+V4_SCHEMA_ENABLED = os.getenv("V4_SCHEMA_ENABLED", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+    "on",
+)
 
 # ============================================================================
 # ENVIRONMENT PROFILES
@@ -462,75 +467,140 @@ def show_current_config():
 # Document-aware schema system - deferred initialization to avoid module-level import
 _config = None
 
+
 def _get_config():
-    """Get schema configuration with deferred initialization."""
+    """
+    Get schema configuration with deferred initialization.
+
+    BOSS FIELD REDUCTION: Updated to support reduced field schema.
+    """
     global _config
     if _config is None:
-        # Use simplified schema
+        # Use simplified schema with boss's field reduction
         from .unified_schema import DocumentTypeFieldSchema
+
         schema = DocumentTypeFieldSchema()
-        # Create simple config object
+
+        # Create simple config object with boss's reduced field counts
         class SimpleConfig:
             def __init__(self, schema):
                 self.schema_loader = schema
                 self.extraction_fields = schema.get_all_fields()
-                self.field_count = schema.get_field_count()
-                # Simplified field types (all text for now - complexity removed)
-                self.field_types = {field: "text" for field in self.extraction_fields}
-                
-                # Simplified field type lists - just empty lists for backward compatibility
-                self.phone_fields = []
-                self.list_fields = []
-                self.monetary_fields = []
-                self.numeric_id_fields = []
-                self.date_fields = []
-                self.text_fields = self.extraction_fields  # All fields are text
-                self.boolean_fields = []
-                self.calculated_fields = []
-                self.transaction_list_fields = []
+                # OLD_COUNT: schema.get_field_count() returned 48
+                # NEW_COUNT: Active fields are 15 unique fields after boss reduction
+                self.field_count = schema.get_field_count()  # Keep for compatibility
+                self.active_field_count = 15  # NEW_COUNT: Boss's reduced schema
+
+                # BOSS FIELD REDUCTION: Only classify fields that are in the reduced schema
+                # All active fields from reduced schema (no complex classification needed)
+                active_fields = [
+                    "DOCUMENT_TYPE",
+                    "INVOICE_DATE",
+                    "SUPPLIER_NAME",
+                    "BUSINESS_ABN",
+                    "BUSINESS_ADDRESS",
+                    "PAYER_NAME",
+                    "PAYER_ADDRESS",
+                    "LINE_ITEM_DESCRIPTIONS",
+                    "LINE_ITEM_TOTAL_PRICES",
+                    "GST_AMOUNT",
+                    "IS_GST_INCLUDED",
+                    "TOTAL_AMOUNT",
+                    "STATEMENT_DATE_RANGE",
+                    "TRANSACTION_DATES",
+                    "TRANSACTION_AMOUNTS_PAID",
+                ]
+
+                # Simplified field types - focus on essential fields only
+                self.field_types = {field: "text" for field in active_fields}
+
+                # BOSS FIELD REDUCTION: Classify only the essential fields
+                # SUPER_SET: Most field type lists now empty due to reduction
+                self.phone_fields = []  # SUPER_SET: No phone fields in reduced schema
+                self.list_fields = [
+                    "LINE_ITEM_DESCRIPTIONS"
+                ]  # SUBSET: Essential line items
+                self.monetary_fields = [
+                    "GST_AMOUNT",
+                    "TOTAL_AMOUNT",
+                    "TRANSACTION_AMOUNTS_PAID",
+                ]  # SUBSET: Essential amounts
+                self.numeric_id_fields = ["BUSINESS_ABN"]  # SUBSET: Essential ID
+                self.date_fields = [
+                    "INVOICE_DATE",
+                    "STATEMENT_DATE_RANGE",
+                    "TRANSACTION_DATES",
+                ]  # SUBSET: Essential dates
+                self.text_fields = [
+                    "SUPPLIER_NAME",
+                    "BUSINESS_ADDRESS",
+                    "PAYER_NAME",
+                    "PAYER_ADDRESS",
+                ]  # SUBSET: Essential text
+                self.boolean_fields = ["IS_GST_INCLUDED"]  # SUBSET: Essential boolean
+                self.calculated_fields = []  # SUPER_SET: No calculated fields in reduced schema
+                self.transaction_list_fields = [
+                    "TRANSACTION_DATES",
+                    "TRANSACTION_AMOUNTS_PAID",
+                ]  # SUBSET: Bank statement transactions
+
         _config = SimpleConfig(schema)
     return _config
+
 
 def get_document_schema():
     """Get document schema loader."""
     return _get_config().schema_loader
 
+
 # Schema loader and fields - deferred access
 def _get_extraction_fields():
     return _get_config().extraction_fields
 
+
 def _get_field_count():
     return _get_config().field_count
+
 
 def _get_field_types():
     return _get_config().field_types
 
+
 def _get_phone_fields():
     return _get_config().phone_fields
+
 
 def _get_list_fields():
     return _get_config().list_fields
 
+
 def _get_monetary_fields():
     return _get_config().monetary_fields
+
 
 def _get_numeric_id_fields():
     return _get_config().numeric_id_fields
 
+
 def _get_date_fields():
     return _get_config().date_fields
+
 
 def _get_text_fields():
     return _get_config().text_fields
 
+
 def _get_boolean_fields():
     return _get_config().boolean_fields
+
 
 def _get_calculated_fields():
     return _get_config().calculated_fields
 
+
 def _get_transaction_list_fields():
     return _get_config().transaction_list_fields
+
 
 # Module-level access via function calls (no module-level initialization)
 EXTRACTION_FIELDS = []  # Will be set on first access
@@ -539,9 +609,15 @@ EXTRACTION_FIELDS = []  # Will be set on first access
 def _ensure_fields_loaded():
     """Ensure field data is loaded from schema."""
     global EXTRACTION_FIELDS, FIELD_COUNT, FIELD_TYPES
-    global PHONE_FIELDS, LIST_FIELDS, MONETARY_FIELDS, NUMERIC_ID_FIELDS, DATE_FIELDS, TEXT_FIELDS
+    global \
+        PHONE_FIELDS, \
+        LIST_FIELDS, \
+        MONETARY_FIELDS, \
+        NUMERIC_ID_FIELDS, \
+        DATE_FIELDS, \
+        TEXT_FIELDS
     global BOOLEAN_FIELDS, CALCULATED_FIELDS, TRANSACTION_LIST_FIELDS
-    
+
     if not EXTRACTION_FIELDS or BOOLEAN_FIELDS is None:
         # Use simplified schema
         config = _get_config()
@@ -549,7 +625,7 @@ def _ensure_fields_loaded():
         FIELD_COUNT = config.field_count
         # Use the field_types dict that's already available
         FIELD_TYPES = config.field_types
-        
+
         # Initialize all field type lists
         PHONE_FIELDS = config.phone_fields
         LIST_FIELDS = config.list_fields
@@ -557,7 +633,7 @@ def _ensure_fields_loaded():
         NUMERIC_ID_FIELDS = config.numeric_id_fields
         DATE_FIELDS = config.date_fields
         TEXT_FIELDS = config.text_fields
-        
+
         # Initialize new v4 field types
         BOOLEAN_FIELDS = config.boolean_fields
         CALCULATED_FIELDS = config.calculated_fields
@@ -568,7 +644,7 @@ def _ensure_fields_loaded():
 _ensure_fields_loaded()
 
 FIELD_COUNT = None
-FIELD_TYPES = None  
+FIELD_TYPES = None
 PHONE_FIELDS = None
 LIST_FIELDS = None
 MONETARY_FIELDS = None
@@ -579,13 +655,16 @@ BOOLEAN_FIELDS = None
 CALCULATED_FIELDS = None
 TRANSACTION_LIST_FIELDS = None
 
+
 def _ensure_initialized():
     """Ensure module-level variables are initialized."""
     _ensure_fields_loaded()  # Use the new initialization function
 
+
 def get_document_schema_loader():
     """Get document schema loader (alias for compatibility)."""
     return _get_config().schema_loader
+
 
 # All fields are required for extraction (must attempt to extract and return value or NOT_FOUND)
 
@@ -605,22 +684,25 @@ FIELD_GROUPS_DETAILED = None
 FIELD_GROUPS_COGNITIVE = None
 GROUPING_STRATEGIES = None
 
+
 def _ensure_field_groups_initialized():
     """Ensure field groups are initialized."""
     global FIELD_GROUPS_DETAILED, FIELD_GROUPS_COGNITIVE, GROUPING_STRATEGIES
-    
+
     if FIELD_GROUPS_DETAILED is None:
         config = _get_config()
         FIELD_GROUPS_DETAILED = config.field_groups
         FIELD_GROUPS_COGNITIVE = config.field_groups  # Same for clean architecture
-        
+
         GROUPING_STRATEGIES = {
-            "detailed_grouped": FIELD_GROUPS_DETAILED, 
+            "detailed_grouped": FIELD_GROUPS_DETAILED,
             "field_grouped": FIELD_GROUPS_COGNITIVE,
         }
 
+
 # Default grouping strategy (using semantic name)
 DEFAULT_GROUPING_STRATEGY = "detailed_grouped"  # 8-group detailed extraction
+
 
 # Clean accessor functions with deferred initialization
 def get_field_groups():
@@ -628,60 +710,72 @@ def get_field_groups():
     _ensure_field_groups_initialized()
     return FIELD_GROUPS_DETAILED
 
+
 def get_grouping_strategies():
     """Get grouping strategies."""
     _ensure_field_groups_initialized()
     return GROUPING_STRATEGIES
 
+
 def get_group_processing_order():
-    """Get group processing order.""" 
+    """Get group processing order."""
     _ensure_field_groups_initialized()
     return [group["group_name"] for group in FIELD_GROUPS_DETAILED]
+
 
 def get_phone_fields():
     """Get phone fields."""
     _ensure_initialized()
     return PHONE_FIELDS
 
+
 def get_list_fields():
     """Get list fields."""
     _ensure_initialized()
     return LIST_FIELDS
+
 
 def get_monetary_fields():
     """Get monetary fields."""
     _ensure_initialized()
     return MONETARY_FIELDS
 
+
 def get_all_field_types():
     """Get all field types."""
     _ensure_initialized()
     return FIELD_TYPES
+
 
 def get_extraction_fields():
     """Get extraction fields."""
     _ensure_initialized()
     return EXTRACTION_FIELDS
 
+
 def get_field_count():
     """Get field count."""
     _ensure_initialized()
     return FIELD_COUNT
+
 
 def get_boolean_fields():
     """Get boolean fields."""
     _ensure_initialized()
     return BOOLEAN_FIELDS
 
+
 def get_calculated_fields():
     """Get calculated fields."""
     _ensure_initialized()
     return CALCULATED_FIELDS
 
+
 def get_transaction_list_fields():
     """Get transaction list fields."""
     _ensure_initialized()
     return TRANSACTION_LIST_FIELDS
+
 
 # Adaptive mode thresholds
 ADAPTIVE_MODE_CONFIG = {
@@ -701,7 +795,8 @@ GROUP_PROMPT_TEMPLATES = {
     "classification": "Identify ONLY the document type from the image.",
 }
 
-# Validation rules per document type from clean configuration  
+
+# Validation rules per document type from clean configuration
 def get_group_validation_rules():
     """Get group validation rules from document schemas."""
     validation_rules = {}
@@ -712,6 +807,7 @@ def get_group_validation_rules():
         if rules:
             validation_rules[doc_type] = rules
     return validation_rules
+
 
 # ============================================================================
 # GROUPED EXTRACTION HELPER FUNCTIONS
@@ -1045,13 +1141,14 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
 # V4 SCHEMA INTEGRATION FUNCTIONS
 # ============================================================================
 
+
 def get_v4_field_list() -> list:
     """
     Get all unique fields from v4 schema (49 total fields).
-    
+
     This is the main function for V4 schema integration that returns
     all 49 unique fields across all document types.
-    
+
     Returns:
         List[str]: All 49 unique field names from V4 schema
     """
@@ -1062,39 +1159,40 @@ def get_v4_field_list() -> list:
 def get_document_type_fields(document_type: str) -> list:
     """
     Get fields specific to document type for intelligent field filtering.
-    
+
     This enables the document-aware approach where:
     - Invoice documents: 25 fields
-    - Receipt documents: 19 fields  
+    - Receipt documents: 19 fields
     - Bank statement documents: 17 fields
-    
+
     Args:
         document_type (str): Document type ('invoice', 'receipt', 'bank_statement')
-        
+
     Returns:
         List[str]: Fields specific to the document type
-        
+
     Raises:
         ValueError: If document type not supported
     """
     try:
         from .unified_schema import DocumentTypeFieldSchema
+
         loader = DocumentTypeFieldSchema("config/fields.yaml")
-        
+
         # Map common document type variations
         doc_type_mapping = {
-            'invoice': 'invoice',
-            'tax_invoice': 'invoice', 
-            'bill': 'invoice',
-            'receipt': 'receipt',
-            'purchase_receipt': 'receipt',
-            'bank_statement': 'bank_statement',
-            'statement': 'bank_statement'
+            "invoice": "invoice",
+            "tax_invoice": "invoice",
+            "bill": "invoice",
+            "receipt": "receipt",
+            "purchase_receipt": "receipt",
+            "bank_statement": "bank_statement",
+            "statement": "bank_statement",
         }
-        
+
         mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
         schema = loader.get_document_schema(mapped_type)
-        
+
         # Extract field names from simplified unified schema
         fields = schema.get("fields", [])
         if fields and isinstance(fields[0], str):
@@ -1102,10 +1200,14 @@ def get_document_type_fields(document_type: str) -> list:
             field_names = fields
         else:
             # Legacy format with field dictionaries
-            field_names = [field["name"] for field in fields if isinstance(field, dict) and "name" in field]
-        
+            field_names = [
+                field["name"]
+                for field in fields
+                if isinstance(field, dict) and "name" in field
+            ]
+
         return field_names
-        
+
     except Exception as e:
         # Fallback to full field list if document-specific filtering fails
         print(f"⚠️ Document-specific field filtering failed for '{document_type}': {e}")
@@ -1116,7 +1218,7 @@ def get_document_type_fields(document_type: str) -> list:
 def get_v4_field_count() -> int:
     """
     Get the total V4 schema field count (49).
-    
+
     Returns:
         int: Total number of fields in V4 schema
     """
@@ -1126,7 +1228,7 @@ def get_v4_field_count() -> int:
 def is_v4_schema_enabled() -> bool:
     """
     Check if V4 schema is currently enabled.
-    
+
     Returns:
         bool: True if V4 schema is enabled (configurable via V4_SCHEMA_ENABLED)
     """
@@ -1136,32 +1238,37 @@ def is_v4_schema_enabled() -> bool:
 def get_v4_new_fields() -> list:
     """
     Get fields that were added in V4 schema (not present in V3).
-    
+
     Returns:
         List[str]: Fields added in V4 schema
     """
     v4_new_fields = [
         # Enhanced business details
-        "SUPPLIER_EMAIL", "PAYER_ABN",
-        
+        "SUPPLIER_EMAIL",
+        "PAYER_ABN",
         # Document references
-        "INVOICE_NUMBER", "RECEIPT_NUMBER",
-        
+        "INVOICE_NUMBER",
+        "RECEIPT_NUMBER",
         # Enhanced line items
-        "LINE_ITEM_TOTAL_PRICES", "LINE_ITEM_GST_AMOUNTS", "LINE_ITEM_DISCOUNT_AMOUNTS",
-        
+        "LINE_ITEM_TOTAL_PRICES",
+        "LINE_ITEM_GST_AMOUNTS",
+        "LINE_ITEM_DISCOUNT_AMOUNTS",
         # Enhanced monetary
-        "TOTAL_DISCOUNT_AMOUNT", "IS_GST_INCLUDED",
-        
+        "TOTAL_DISCOUNT_AMOUNT",
+        "IS_GST_INCLUDED",
         # Payment status (new category)
-        "TOTAL_AMOUNT_PAID", "BALANCE_OF_PAYMENT", "TOTAL_AMOUNT_PAYABLE",
-        
+        "TOTAL_AMOUNT_PAID",
+        "BALANCE_OF_PAYMENT",
+        "TOTAL_AMOUNT_PAYABLE",
         # Transaction details (new category)
-        "TRANSACTION_DATES", "TRANSACTION_DESCRIPTIONS", 
-        "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED", 
-        "TRANSACTION_BALANCES", "CREDIT_CARD_DUE_DATE"
+        "TRANSACTION_DATES",
+        "TRANSACTION_DESCRIPTIONS",
+        "TRANSACTION_AMOUNTS_PAID",
+        "TRANSACTION_AMOUNTS_RECEIVED",
+        "TRANSACTION_BALANCES",
+        "CREDIT_CARD_DUE_DATE",
     ]
-    
+
     # Return only fields that exist in current schema
     all_fields = get_v4_field_list()
     return [field for field in v4_new_fields if field in all_fields]
@@ -1232,50 +1339,95 @@ VIZ_OUTPUT_PATTERNS = {
 # ============================================================================
 
 # Field group definitions for grouped extraction strategy
+# BOSS FIELD REDUCTION: Drastically reduced field groups for performance
 FIELD_GROUPS = {
     "regulatory_financial": {
-        "fields": ["BUSINESS_ABN", "TOTAL_AMOUNT", "ACCOUNT_OPENING_BALANCE", 
-                   "ACCOUNT_CLOSING_BALANCE", "SUBTOTAL_AMOUNT", "GST_AMOUNT"],
+        # OLD_COUNT: 6 fields
+        # NEW_COUNT: 3 fields (50% reduction)
+        "fields": [
+            "BUSINESS_ABN",  # SUBSET: Essential business identifier
+            "TOTAL_AMOUNT",  # SUBSET: Essential financial total
+            # SUPER_SET: "ACCOUNT_OPENING_BALANCE",    # Removed from boss's reduced schema
+            # SUPER_SET: "ACCOUNT_CLOSING_BALANCE",    # Removed from boss's reduced schema
+            # SUPER_SET: "SUBTOTAL_AMOUNT",            # Removed from boss's reduced schema
+            "GST_AMOUNT",  # SUBSET: Essential tax information
+        ],
         "expertise_frame": "Extract business ID and financial amounts.",
-        "cognitive_context": "BUSINESS_ABN is 11 digits. TOTAL_AMOUNT is final amount due. GST_AMOUNT is tax. SUBTOTAL_AMOUNT is pre-tax amount.",
-        "focus_instruction": "Find ABN (11 digits) and all dollar amounts. Check decimal places carefully."
+        "cognitive_context": "BUSINESS_ABN is 11 digits. TOTAL_AMOUNT is final amount due. GST_AMOUNT is tax.",
+        "focus_instruction": "Find ABN (11 digits) and essential dollar amounts. Check decimal places carefully.",
     },
-    
     "entity_contacts": {
-        "fields": ["SUPPLIER_NAME", "BUSINESS_ADDRESS", "BUSINESS_PHONE", "SUPPLIER_WEBSITE",
-                   "PAYER_NAME", "PAYER_ADDRESS", "PAYER_PHONE", "PAYER_EMAIL"],
-        "expertise_frame": "Extract contact information for supplier and customer.",
-        "cognitive_context": "SUPPLIER_NAME, BUSINESS_ADDRESS, BUSINESS_PHONE are supplier details. PAYER_NAME, PAYER_ADDRESS, PAYER_PHONE, PAYER_EMAIL are customer details.",
-        "focus_instruction": "Extract all contact details. Australian postcodes are 4 digits. Phone numbers are 10 digits with area code."
+        # OLD_COUNT: 8 fields
+        # NEW_COUNT: 4 fields (50% reduction)
+        "fields": [
+            "SUPPLIER_NAME",  # SUBSET: Essential supplier info
+            "BUSINESS_ADDRESS",  # SUBSET: Essential supplier location
+            # SUPER_SET: "BUSINESS_PHONE",             # Removed from boss's reduced schema
+            # SUPER_SET: "SUPPLIER_WEBSITE",           # Removed from boss's reduced schema
+            "PAYER_NAME",  # SUBSET: Essential payer info
+            "PAYER_ADDRESS",  # SUBSET: Essential payer location
+            # SUPER_SET: "PAYER_PHONE",                # Removed from boss's reduced schema
+            # SUPER_SET: "PAYER_EMAIL"                 # Removed from boss's reduced schema
+        ],
+        "expertise_frame": "Extract essential contact information for supplier and customer.",
+        "cognitive_context": "SUPPLIER_NAME, BUSINESS_ADDRESS are supplier details. PAYER_NAME, PAYER_ADDRESS are customer details.",
+        "focus_instruction": "Extract essential contact details. Focus on names and addresses. Australian postcodes are 4 digits.",
     },
-    
     "transaction_details": {
-        "fields": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"],
-        "expertise_frame": "Extract ALL line items - scan the ENTIRE document for every item.",
-        "cognitive_context": "CRITICAL: Look for ALL line items, even duplicates (e.g., Car Wash appearing twice). DESCRIPTIONS: Every product/service name. QUANTITIES: Every numeric quantity. PRICES: Every unit price with $ symbol. Count carefully - there may be 4, 5, 6+ items.",
-        "focus_instruction": "SCAN ENTIRE DOCUMENT for line items. Extract EVERY SINGLE item including duplicates. Use PIPE-SEPARATED format. Count items carefully - don't stop at 4 items, look for more. Match quantities and prices to each description in exact order."
+        # OLD_COUNT: 3 fields
+        # NEW_COUNT: 2 fields (33% reduction)
+        "fields": [
+            "LINE_ITEM_DESCRIPTIONS",  # SUBSET: Essential line item data
+            # SUPER_SET: "LINE_ITEM_QUANTITIES",       # Removed from boss's reduced schema
+            # SUPER_SET: "LINE_ITEM_PRICES",           # Removed from boss's reduced schema
+            "LINE_ITEM_TOTAL_PRICES",  # SUBSET: Essential line item totals
+        ],
+        "expertise_frame": "Extract essential line item information.",
+        "cognitive_context": "DESCRIPTIONS: Every product/service name. TOTAL_PRICES: Final price for each line item.",
+        "focus_instruction": "Extract line item descriptions and total prices only. Use PIPE-SEPARATED format.",
     },
-    
     "temporal_data": {
-        "fields": ["INVOICE_DATE", "DUE_DATE", "STATEMENT_DATE_RANGE"],
-        "expertise_frame": "Extract document dates and periods.",
-        "cognitive_context": "INVOICE_DATE is issue date. DUE_DATE is payment due. STATEMENT_DATE_RANGE is for bank statements only. For receipts, look for transaction date or purchase date.",
-        "focus_instruction": "Find all dates. Convert to consistent DD/MM/YYYY format where possible. For receipts, focus on transaction/purchase dates."
+        # OLD_COUNT: 3 fields
+        # NEW_COUNT: 2 fields (33% reduction)
+        "fields": [
+            "INVOICE_DATE",  # SUBSET: Essential invoice temporal data
+            # SUPER_SET: "DUE_DATE",                   # Removed from boss's reduced schema
+            "STATEMENT_DATE_RANGE",  # SUBSET: Essential bank statement temporal data
+        ],
+        "expertise_frame": "Extract essential document dates.",
+        "cognitive_context": "INVOICE_DATE is issue date. STATEMENT_DATE_RANGE is for bank statements only.",
+        "focus_instruction": "Find essential dates. Convert to consistent DD/MM/YYYY format where possible.",
     },
-    
-    "banking_payment": {
-        "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
-        "expertise_frame": "Extract banking information.",
-        "cognitive_context": "BANK_NAME is financial institution. BSB_NUMBER is 6 digits. BANK_ACCOUNT_NUMBER varies. ACCOUNT_HOLDER is account name. Typically on bank statements only.",
-        "focus_instruction": "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
-    },
-    
+    # SUPER_SET: Entire banking_payment group removed due to boss's field reduction
+    # "banking_payment": {
+    #     "fields": ["BANK_NAME", "BANK_BSB_NUMBER", "BANK_ACCOUNT_NUMBER", "BANK_ACCOUNT_HOLDER"],
+    #     "expertise_frame": "Extract banking information.",
+    #     "cognitive_context": "BANK_NAME is financial institution. BSB_NUMBER is 6 digits. BANK_ACCOUNT_NUMBER varies. ACCOUNT_HOLDER is account name. Typically on bank statements only.",
+    #     "focus_instruction": "Extract banking details if present. BSB is 6 digits, different from 11-digit ABN."
+    # },
     "document_metadata": {
-        "fields": ["DOCUMENT_TYPE", "RECEIPT_NUMBER", "STORE_LOCATION"],
-        "expertise_frame": "Extract document identifiers and location information.",
-        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement. RECEIPT_NUMBER: transaction/reference number. STORE_LOCATION: Store location/address.",
-        "focus_instruction": "Extract document type, receipt numbers, and store locations. Look for location info that may include city and postcode."
-    }
+        # OLD_COUNT: 3 fields
+        # NEW_COUNT: 1 field (67% reduction)
+        "fields": [
+            "DOCUMENT_TYPE"  # SUBSET: Essential document identification
+            # SUPER_SET: "RECEIPT_NUMBER",             # Removed from boss's reduced schema
+            # SUPER_SET: "STORE_LOCATION"              # Removed from boss's reduced schema
+        ],
+        "expertise_frame": "Extract essential document identifiers.",
+        "cognitive_context": "DOCUMENT_TYPE: invoice, receipt, or statement.",
+        "focus_instruction": "Extract document type only.",
+    },
+    # NEW: Bank statement transaction group for boss's reduced schema
+    "bank_transactions": {
+        # NEW_COUNT: 2 fields (specialized for bank statements)
+        "fields": [
+            "TRANSACTION_DATES",  # SUBSET: Essential transaction dates
+            "TRANSACTION_AMOUNTS_PAID",  # SUBSET: Essential transaction amounts
+        ],
+        "expertise_frame": "Extract bank statement transaction data.",
+        "cognitive_context": "TRANSACTION_DATES are when transactions occurred. TRANSACTION_AMOUNTS_PAID are the amounts.",
+        "focus_instruction": "Extract transaction dates and amounts from bank statements.",
+    },
 }
 
 # Grouping strategies configuration
@@ -1290,5 +1442,10 @@ GROUP_VALIDATION_RULES = {
     "min_fields_per_group": 1,
     "max_fields_per_group": 20,
     "required_groups": ["regulatory_financial", "entity_contacts"],
-    "optional_groups": ["transaction_details", "temporal_data", "banking_payment", "document_metadata"]
+    "optional_groups": [
+        "transaction_details",
+        "temporal_data",
+        "banking_payment",
+        "document_metadata",
+    ],
 }

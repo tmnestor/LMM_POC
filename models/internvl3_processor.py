@@ -93,25 +93,27 @@ class InternVL3Processor:
                 f"💡 Ensure YAML prompt files exist in prompts/ directory\n"
                 f"💡 No fallback to broken V3 system - fix V4 configuration instead"
             )
-        
+
         # Initialize V4 system components
         self.prompt_loader = PromptLoader()
         # DocumentTypeDetector will be initialized after model loading
         self.document_detector = None
-        
+
         # Configure extraction strategy - V4 uses YAML-first prompts only
         self.extraction_mode = extraction_mode or DEFAULT_EXTRACTION_MODE
         self.debug = debug
-        
+
         # Track active field list for filtered parsing (document-aware extraction)
         self.active_fields = None
-        
+
         # Initialize debug OCR capability
         self.debug_ocr_config = None
         if debug:
             try:
                 self.debug_ocr_config = self.prompt_loader.load_debug_ocr_prompts()
-                print("🔧 Debug OCR mode available - use process_debug_ocr() for raw markdown output")
+                print(
+                    "🔧 Debug OCR mode available - use process_debug_ocr() for raw markdown output"
+                )
             except Exception as e:
                 print(f"⚠️ Debug OCR prompts not available: {e}")
                 self.debug_ocr_config = None
@@ -120,8 +122,10 @@ class InternVL3Processor:
             print(f"📊 Total V4 fields: {get_v4_field_count()}")
         self.extraction_strategy = None  # V4 doesn't use legacy extraction strategy
         if debug:
-            print("🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)")
-        
+            print(
+                "🔧 V4 Schema: Using YAML-first prompt system (no legacy extraction strategy)"
+            )
+
         self.generation_config = None
         # Fix 8B detection to use actual model path (after setting default)
         self.is_8b_model = "8B" in str(self.model_path)
@@ -382,7 +386,7 @@ class InternVL3Processor:
         else:
             # Legacy V3 schema fallback - now using unified schema
             from common.unified_schema import get_global_schema
-            
+
             try:
                 schema = get_global_schema()
                 prompt = schema.generate_dynamic_prompt(
@@ -399,26 +403,34 @@ class InternVL3Processor:
                     f"💡 Fix: Ensure schema contains model_prompt_templates.internvl3.single_pass\n"
                     f"💡 Verify: Schema validation and template completeness"
                 ) from e
-    
+
     def _get_integrated_v4_prompt(self, image_path=None):
         """Generate V4 prompt with YAML configuration and document intelligence."""
         try:
             # Get strategy from extraction mode
-            strategy = "single_pass" if self.extraction_mode == "single_pass" else "grouped"
-            
+            strategy = (
+                "single_pass" if self.extraction_mode == "single_pass" else "grouped"
+            )
+
             # Load YAML prompt configuration
             prompt_config = self.prompt_loader.load_prompt_config("internvl3", strategy)
-            
+
             # Determine active fields based on document type
             if image_path and self.document_detector:
                 try:
-                    detection_result = self.document_detector.detect_document_type(image_path)
+                    detection_result = self.document_detector.detect_document_type(
+                        image_path
+                    )
                     detected_type = detection_result.get("type", "invoice")
                     active_fields = get_document_type_fields(detected_type)
                     if self.debug:
                         confidence = detection_result.get("confidence", 0)
-                        print(f"📄 Document type detected: {detected_type} (confidence: {confidence:.1%})")
-                        print(f"🎯 Active fields: {len(active_fields)}/{get_v4_field_count()}")
+                        print(
+                            f"📄 Document type detected: {detected_type} (confidence: {confidence:.1%})"
+                        )
+                        print(
+                            f"🎯 Active fields: {len(active_fields)}/{get_v4_field_count()}"
+                        )
                 except Exception as e:
                     if self.debug:
                         print(f"⚠️ Document detection failed: {e}, using full field set")
@@ -426,13 +438,13 @@ class InternVL3Processor:
             else:
                 # No image path provided or detector unavailable, use all fields
                 active_fields = get_v4_field_list()
-            
+
             # Store active fields for filtered parsing
             self.active_fields = active_fields
-            
+
             # Generate prompt for active fields
             return self._generate_prompt_for_fields(prompt_config, active_fields)
-            
+
         except Exception as e:
             # FAIL FAST - No graceful fallbacks
             raise RuntimeError(
@@ -443,34 +455,60 @@ class InternVL3Processor:
                 f"💡 Verify: V4 schema functions in common/config.py are working\n"
                 f"💡 Fix: Ensure all V4 dependencies are properly configured"
             ) from e
-    
+
     def _generate_prompt_for_fields(self, config, fields):
         """Generate dynamic prompt from YAML config and field list."""
         single_pass = config.get("single_pass", {})
-        
+
         # Build prompt sections
-        prompt = single_pass.get("opening_text", "Extract structured data from this business document image.") + "\n"
-        prompt += single_pass.get("output_instruction", "Output ALL fields below with their exact keys.") + "\n"
-        prompt += single_pass.get("missing_value_instruction", 'Use "NOT_FOUND" if field is not visible or not present.') + "\n\n"
-        
+        prompt = (
+            single_pass.get(
+                "opening_text",
+                "Extract structured data from this business document image.",
+            )
+            + "\n"
+        )
+        prompt += (
+            single_pass.get(
+                "output_instruction", "Output ALL fields below with their exact keys."
+            )
+            + "\n"
+        )
+        prompt += (
+            single_pass.get(
+                "missing_value_instruction",
+                'Use "NOT_FOUND" if field is not visible or not present.',
+            )
+            + "\n\n"
+        )
+
         # Dynamic field count in header
-        header = single_pass.get("output_format_header", "OUTPUT FORMAT (V4 Schema - {field_count} fields):")
+        header = single_pass.get(
+            "output_format_header", "OUTPUT FORMAT (V4 Schema - {field_count} fields):"
+        )
         prompt += header.format(field_count=len(fields)) + "\n"
-        
+
         # Add field instructions
         field_instructions = single_pass.get("field_instructions", {})
         for field in fields:
-            instruction = field_instructions.get(field, f"[{field.lower()} or NOT_FOUND]")
+            instruction = field_instructions.get(
+                field, f"[{field.lower()} or NOT_FOUND]"
+            )
             prompt += f"{field}: {instruction}\n"
-        
+
         # Add closing instruction
-        prompt += "\n" + single_pass.get("closing_instruction", "Provide ONLY the key-value pairs above. Be precise with values.")
-        
+        prompt += "\n" + single_pass.get(
+            "closing_instruction",
+            "Provide ONLY the key-value pairs above. Be precise with values.",
+        )
+
         if self.debug:
             print(f"📝 V4 INTERNVL3 PROMPT: {len(prompt)} chars, {len(fields)} fields")
             if len(fields) < get_v4_field_count():
-                print(f"🎯 Document-specific subset: {len(fields)}/{get_v4_field_count()} fields")
-        
+                print(
+                    f"🎯 Document-specific subset: {len(fields)}/{get_v4_field_count()} fields"
+                )
+
         return prompt
 
     def _get_single_pass_prompt_from_yaml(self):
@@ -805,7 +843,9 @@ INSTRUCTIONS:
             processing_time = time.time() - start_time
 
             # Parse response using filtered fields
-            extracted_data = parse_extraction_response(response, expected_fields=self.active_fields)
+            extracted_data = parse_extraction_response(
+                response, expected_fields=self.active_fields
+            )
 
             if self.debug:
                 print("🔍 RAW MODEL RESPONSE (single-pass):")
@@ -943,7 +983,9 @@ INSTRUCTIONS:
                     )
                 )
             else:
-                raise ValueError(f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}")
+                raise ValueError(
+                    f"Unknown extraction mode: {self.extraction_mode}. Available: {['single_pass', 'field_grouped', 'detailed_grouped', 'adaptive']}"
+                )
 
             # Calculate standard metrics for compatibility - count ALL present fields
             extracted_fields_count = len(
@@ -1079,7 +1121,10 @@ INSTRUCTIONS:
         }
 
         # Add group processing statistics if in grouped mode
-        if self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"] and self.extraction_strategy:
+        if (
+            self.extraction_mode in ["grouped", "field_grouped", "detailed_grouped"]
+            and self.extraction_strategy
+        ):
             batch_statistics["total_groups_processed"] = (
                 self.extraction_strategy.stats.get("total_groups_processed", 0)
             )
@@ -1271,7 +1316,9 @@ INSTRUCTIONS:
                             raise
 
                     # Parse response using filtered fields
-                    extracted_data = parse_extraction_response(response, expected_fields=self.active_fields)
+                    extracted_data = parse_extraction_response(
+                        response, expected_fields=self.active_fields
+                    )
 
                     # Calculate metrics - count ALL fields that are present (including correct NOT_FOUND)
                     extracted_fields_count = len(
@@ -1342,60 +1389,60 @@ INSTRUCTIONS:
     def process_debug_ocr(self, image_path: str) -> Dict[str, Any]:
         """
         Process document using debug OCR prompts for raw markdown output.
-        
+
         This method outputs raw OCR text in markdown format instead of structured
         field extraction. Useful for diagnosing OCR vs document understanding issues.
-        
+
         Args:
             image_path (str): Path to image file
-            
+
         Returns:
             Dict with 'ocr_output', 'processing_time', 'model_used'
         """
         if not self.debug_ocr_config:
             raise ValueError(
                 "❌ DEBUG OCR not available\n"
-                "💡 Ensure debug=True when initializing processor\n"  
+                "💡 Ensure debug=True when initializing processor\n"
                 "💡 Check that prompts/debug_ocr_prompts.yaml exists"
             )
-        
+
         start_time = time.perf_counter()
-        
+
         if self.debug:
             print(f"🔍 DEBUG OCR MODE: Processing {Path(image_path).name}")
             print("🎯 Output: Raw markdown OCR text (not structured extraction)")
-        
+
         try:
-            # Get debug OCR prompt configuration  
+            # Get debug OCR prompt configuration
             debug_prompts = self.debug_ocr_config.get("debug_ocr_prompts", {})
             internvl3_config = debug_prompts.get("internvl3", {})
-            
+
             if not internvl3_config:
                 raise ValueError("No debug OCR prompt configured for InternVL3 model")
-            
+
             # Extract prompt settings
             user_prompt = internvl3_config.get("user_prompt", "")
-            max_tokens = internvl3_config.get("max_tokens", 1500) 
+            max_tokens = internvl3_config.get("max_tokens", 1500)
             temperature = internvl3_config.get("temperature", 0.0)
-            
+
             if self.debug:
                 print(f"📝 Using debug OCR prompt: {len(user_prompt)} chars")
                 print(f"🎛️ Settings: max_tokens={max_tokens}, temperature={temperature}")
-            
+
             # Load and preprocess image using the same method as working code
             pixel_values = self.load_image(image_path)
-            
+
             # Move to appropriate device and dtype (same as working code)
             pixel_values = pixel_values.to(torch.bfloat16).cuda()
-            
+
             # Prepare conversation in proper format (same as working code)
             question = f"<image>\n{user_prompt}"
-            
+
             # Use generation config format (same as working code)
             # Start with base config and override max_new_tokens
             config = self.generation_config.copy()
-            config['max_new_tokens'] = max_tokens
-            
+            config["max_new_tokens"] = max_tokens
+
             # Generate OCR output using exact same pattern as working code
             ocr_output = self.model.chat(
                 self.tokenizer,
@@ -1403,14 +1450,14 @@ INSTRUCTIONS:
                 question,
                 config,
                 history=None,
-                return_history=False
+                return_history=False,
             )
-            
+
             processing_time = time.perf_counter() - start_time
-            
+
             # Clean up OCR output
             ocr_markdown = ocr_output.strip()
-            
+
             if self.debug:
                 print(f"📊 OCR completed in {processing_time:.2f}s")
                 print(f"📄 Output length: {len(ocr_markdown)} characters")
@@ -1418,18 +1465,19 @@ INSTRUCTIONS:
                 print("-" * 50)
                 print(ocr_markdown[:500] + ("..." if len(ocr_markdown) > 500 else ""))
                 print("-" * 50)
-            
+
             # Optional: Save OCR output to file
             debug_config = self.debug_ocr_config.get("debug_config", {})
             if debug_config.get("save_ocr_output", False):
                 output_suffix = debug_config.get("ocr_output_suffix", "_debug_ocr.md")
                 # Use configured output directory instead of image directory
                 from common.config import OUTPUT_DIR
+
                 input_path = Path(image_path)
                 output_dir = Path(OUTPUT_DIR)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_path = output_dir / (input_path.stem + output_suffix)
-                
+
                 with output_path.open("w", encoding="utf-8") as f:
                     f.write(f"# Debug OCR Output for {Path(image_path).name}\n\n")
                     f.write(f"**Processing Time:** {processing_time:.2f}s\n")
@@ -1437,23 +1485,23 @@ INSTRUCTIONS:
                     f.write(f"**Prompt Tokens:** {max_tokens}\n\n")
                     f.write("---\n\n")
                     f.write(ocr_markdown)
-                
+
                 if self.debug:
                     print(f"💾 OCR output saved to: {output_path}")
-            
+
             # Cleanup (same as working code)
             del pixel_values
             clear_model_caches(self.model, self.tokenizer)
-            
+
             return {
                 "ocr_output": ocr_markdown,
                 "processing_time": processing_time,
                 "model_used": "internvl3",
                 "prompt_tokens": max_tokens,
                 "image_path": image_path,
-                "output_length": len(ocr_markdown)
+                "output_length": len(ocr_markdown),
             }
-            
+
         except Exception as e:
             processing_time = time.perf_counter() - start_time
             if self.debug:
