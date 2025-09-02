@@ -262,7 +262,12 @@ class DocumentAwareLlamaProcessor:
 
         # Add field instructions in YAML order (YAML-first architecture)
         field_instructions = yaml_config.get("field_instructions", {})
+        print(f"DEBUG: GST_AMOUNT in field_instructions: {'GST_AMOUNT' in field_instructions}")
+        if 'GST_AMOUNT' in field_instructions:
+            print(f"DEBUG: GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
         for field, instruction in field_instructions.items():
+            if 'GST' in field:
+                print(f"DEBUG: Adding GST field: {field} = {instruction}")
             prompt += f"{field}: {instruction}\n"
 
         # Add format rules section with dynamic field count (CRITICAL for proper parsing)
