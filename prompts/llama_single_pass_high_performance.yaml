@@ -1,5 +1,4 @@
 # Llama Single-Pass High Performance Prompt - BOSS FIELD REDUCTION - YAML-First Version
-# Based on 91.8% accuracy performance from H200 validation
 # BOSS FIELD REDUCTION: Reduced from 49 fields to 15 essential fields for performance
 # Archaeological high-performance structure preserved for essential fields only
 
