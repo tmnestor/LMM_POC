@@ -1,41 +1,34 @@
-# Document Type Metrics Configuration - YAML-First Architecture
+# Document Type Metrics Configuration - BOSS FIELD REDUCTION
 # Defines document-type-specific evaluation metrics and field requirements
-# Part of the V4 document-aware extraction system
+# Updated for BOSS REDUCED SCHEMA - all fields are REQUIRED (no optional fields)
 
 document_metrics:
   invoice:
     document_type: "invoice"
     accuracy_threshold: 0.95  # 95% accuracy required for invoices
     
+    # BOSS FIELD REDUCTION: 12 essential fields for invoices (ALL REQUIRED)
     required_fields:
       - "DOCUMENT_TYPE"
-      - "INVOICE_NUMBER"
       - "INVOICE_DATE"
-      - "DUE_DATE"
       - "SUPPLIER_NAME"
       - "BUSINESS_ABN"
       - "BUSINESS_ADDRESS"
-      - "BUSINESS_PHONE"
-      - "LINE_ITEM_DESCRIPTIONS"
-      - "LINE_ITEM_QUANTITIES"
-      - "LINE_ITEM_PRICES"
-      - "SUBTOTAL_AMOUNT"
-      - "GST_AMOUNT"
-      - "TOTAL_AMOUNT"
-    
-    optional_fields:
       - "PAYER_NAME"
-      - "PAYER_ABN"
       - "PAYER_ADDRESS"
-      - "PAYER_PHONE"
-      - "PAYER_EMAIL"
-      - "SUPPLIER_WEBSITE"
+      - "GST_AMOUNT"
+      - "IS_GST_INCLUDED"
+      - "TOTAL_AMOUNT"
+      - "LINE_ITEM_DESCRIPTIONS"
+      - "LINE_ITEM_TOTAL_PRICES"
+    
+    optional_fields: []  # BOSS REDUCTION: No optional fields - all are required
     
     critical_fields:
       - "BUSINESS_ABN"
       - "GST_AMOUNT"
       - "TOTAL_AMOUNT"
-      - "INVOICE_NUMBER"
+      - "SUPPLIER_NAME"
     
     ato_compliance_fields:
       - "BUSINESS_ABN"
@@ -47,24 +40,19 @@ document_metrics:
     document_type: "bank_statement"
     accuracy_threshold: 0.90  # 90% accuracy for bank statements
     
+    # BOSS FIELD REDUCTION: 5 essential fields for bank statements (ALL REQUIRED)
     required_fields:
       - "DOCUMENT_TYPE"
-      - "BANK_NAME"
-      - "BANK_BSB_NUMBER"
-      - "BANK_ACCOUNT_NUMBER"
-      - "BANK_ACCOUNT_HOLDER"
       - "STATEMENT_DATE_RANGE"
-      - "ACCOUNT_OPENING_BALANCE"
-      - "ACCOUNT_CLOSING_BALANCE"
-    
-    optional_fields:
-      - "TOTAL_CREDITS"
-      - "TOTAL_DEBITS"
+      - "TRANSACTION_DATES"
+      - "TRANSACTION_AMOUNTS_PAID"
       - "LINE_ITEM_DESCRIPTIONS"
     
+    optional_fields: []  # BOSS REDUCTION: No optional fields - all are required
+    
     critical_fields:
-      - "BANK_ACCOUNT_NUMBER"
-      - "ACCOUNT_CLOSING_BALANCE"
+      - "STATEMENT_DATE_RANGE"
+      - "TRANSACTION_AMOUNTS_PAID"
     
     ato_compliance_fields: []  # Not applicable for bank statements
   
@@ -72,28 +60,28 @@ document_metrics:
     document_type: "receipt"
     accuracy_threshold: 0.85  # 85% accuracy for receipts
     
+    # BOSS FIELD REDUCTION: Receipts use SAME 12 fields as invoices (ALL REQUIRED)
     required_fields:
       - "DOCUMENT_TYPE"
+      - "INVOICE_DATE"  # For receipts, this is the transaction date
       - "SUPPLIER_NAME"
       - "BUSINESS_ABN"
-      - "LINE_ITEM_DESCRIPTIONS"
-      - "LINE_ITEM_QUANTITIES"
-      - "LINE_ITEM_PRICES"
-      - "SUBTOTAL_AMOUNT"
-      - "GST_AMOUNT"
-      - "TOTAL_AMOUNT"
-      - "INVOICE_DATE"
-    
-    optional_fields:
       - "BUSINESS_ADDRESS"
-      - "BUSINESS_PHONE"
-      - "SUPPLIER_WEBSITE"
       - "PAYER_NAME"
       - "PAYER_ADDRESS"
+      - "GST_AMOUNT"
+      - "IS_GST_INCLUDED"
+      - "TOTAL_AMOUNT"
+      - "LINE_ITEM_DESCRIPTIONS"
+      - "LINE_ITEM_TOTAL_PRICES"
+    
+    optional_fields: []  # BOSS REDUCTION: No optional fields - all are required
     
     critical_fields:
-      - "TOTAL_AMOUNT"
+      - "BUSINESS_ABN"
       - "GST_AMOUNT"
+      - "TOTAL_AMOUNT"
+      - "SUPPLIER_NAME"
     
     ato_compliance_fields:
       - "BUSINESS_ABN"
