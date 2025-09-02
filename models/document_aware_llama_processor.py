@@ -193,7 +193,6 @@ class DocumentAwareLlamaProcessor:
 
     def generate_dynamic_prompt(self) -> str:
         """Generate prompt for specific field list with v4 field type support."""
-        print("DEBUG: generate_dynamic_prompt() called")
 
         # YAML-FIRST HIGH PERFORMANCE: Use archaeological best performance structure (95.3%)
         # Always use YAML configuration - fail fast if not available
@@ -204,12 +203,10 @@ class DocumentAwareLlamaProcessor:
                 "💡 Expected: prompts/llama_single_pass_high_performance.yaml\n"
                 "💡 This is required for the YAML-first architecture."
             )
-        print("DEBUG: About to call _generate_yaml_prompt()")
         return self._generate_yaml_prompt(yaml_config)
 
     def _load_yaml_config(self) -> dict:
         """Load YAML configuration if available."""
-        print("DEBUG: _load_yaml_config() starting")
         try:
             # Use the high-performance YAML (95.3% accuracy from archaeological investigation)
             yaml_path = (
@@ -217,37 +214,10 @@ class DocumentAwareLlamaProcessor:
                 / "prompts"
                 / "llama_single_pass_high_performance.yaml"
             )
-            print(f"DEBUG: Loading YAML from: {yaml_path}")
-            print(f"DEBUG: Resolved path: {yaml_path.resolve()}")
-            print(f"DEBUG: YAML file exists: {yaml_path.exists()}")
-            print(f"DEBUG: File size: {yaml_path.stat().st_size if yaml_path.exists() else 'N/A'}")
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
-                    raw_content = f.read()
-                    print(f"DEBUG: Raw file length: {len(raw_content)} chars")
-                    print(f"DEBUG: GST_AMOUNT in raw content: {'GST_AMOUNT:' in raw_content}")
-                    
-                    # Parse YAML from string content
-                    yaml_data = yaml.safe_load(raw_content)
-                    print(f"DEBUG: Raw YAML keys: {list(yaml_data.keys())}")
-                    single_pass = yaml_data.get("single_pass", {})
-                    print(f"DEBUG: single_pass keys: {list(single_pass.keys())}")
-                    field_instructions = single_pass.get("field_instructions", {})
-                    print(f"DEBUG: Loaded {len(field_instructions)} field instructions")
-                    keys_list = list(field_instructions.keys())
-                    print(f"DEBUG: Field instruction keys ({len(keys_list)}):")
-                    for i, key in enumerate(keys_list, 1):
-                        print(f"  {i:2d}. {key}")
-                    
-                    # Check specifically for missing keys we expect
-                    expected_keys = ['GST_AMOUNT', 'TOTAL_AMOUNT', 'IS_GST_INCLUDED', 'LINE_ITEM_DESCRIPTIONS', 'LINE_ITEM_TOTAL_PRICES']
-                    for expected_key in expected_keys:
-                        status = "✓" if expected_key in field_instructions else "❌"
-                        print(f"     {status} {expected_key}")
-                    print(f"DEBUG: GST_AMOUNT in loaded config: {'GST_AMOUNT' in field_instructions}")
-                    if 'GST_AMOUNT' in field_instructions:
-                        print(f"DEBUG: Loaded GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
-                    return single_pass
+                    yaml_data = yaml.safe_load(f)
+                    return yaml_data.get("single_pass", {})
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Could not load YAML config: {e}")
@@ -292,12 +262,7 @@ class DocumentAwareLlamaProcessor:
 
         # Add field instructions in YAML order (YAML-first architecture)
         field_instructions = yaml_config.get("field_instructions", {})
-        print(f"DEBUG: GST_AMOUNT in field_instructions: {'GST_AMOUNT' in field_instructions}")
-        if 'GST_AMOUNT' in field_instructions:
-            print(f"DEBUG: GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
         for field, instruction in field_instructions.items():
-            if 'GST' in field:
-                print(f"DEBUG: Adding GST field: {field} = {instruction}")
             prompt += f"{field}: {instruction}\n"
 
         # Add format rules section with dynamic field count (CRITICAL for proper parsing)
