@@ -80,7 +80,7 @@ single_pass:
     
     # FINAL SEQUENCE - Boss's requested order in semantic order
     LINE_ITEM_DESCRIPTIONS: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"  # SUBSET: Essential line items / transaction descriptions
-    LINE_ITEM_TOTAL_PRICES: "[pipe-separated line totals from the right-most column or'Amount' column or NOT_FOUND]"  # SUBSET: Essential line item totals
+    LINE_ITEM_TOTAL_PRICES: "[pipe-separated line totals (not unit prices) from the right-most column or 'Amount' column or NOT_FOUND]"  # SUBSET: Essential line item totals
     IS_GST_INCLUDED: "[if line totals already include GST (GST-inclusive pricing) return true, otherwise they are (GST-exclusive pricing) so return false]"  # SUBSET: Essential tax classification
     GST_AMOUNT: "[total GST amount in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential tax information
     TOTAL_AMOUNT: "[total amount in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential financial total
