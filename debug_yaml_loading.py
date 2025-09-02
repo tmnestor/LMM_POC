@@ -3,6 +3,7 @@
 
 import sys
 from pathlib import Path
+
 import yaml
 
 # Add project root to path
