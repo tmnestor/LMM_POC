@@ -217,12 +217,17 @@ class DocumentAwareLlamaProcessor:
                 / "prompts"
                 / "llama_single_pass_high_performance.yaml"
             )
+            print(f"DEBUG: Loading YAML from: {yaml_path}")
+            print(f"DEBUG: YAML file exists: {yaml_path.exists()}")
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f)
+                    print(f"DEBUG: Raw YAML keys: {list(yaml_data.keys())}")
                     single_pass = yaml_data.get("single_pass", {})
+                    print(f"DEBUG: single_pass keys: {list(single_pass.keys())}")
                     field_instructions = single_pass.get("field_instructions", {})
                     print(f"DEBUG: Loaded {len(field_instructions)} field instructions")
+                    print(f"DEBUG: Field instruction keys: {list(field_instructions.keys())}")
                     print(f"DEBUG: GST_AMOUNT in loaded config: {'GST_AMOUNT' in field_instructions}")
                     if 'GST_AMOUNT' in field_instructions:
                         print(f"DEBUG: Loaded GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
