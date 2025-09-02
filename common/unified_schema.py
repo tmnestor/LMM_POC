@@ -22,20 +22,21 @@ class DocumentTypeFieldSchema:
 
     def __init__(
         self,
-        schema_file: str = "config/fields.yaml",
+        schema_file: str = "config/unified_schema.yaml",
         fallback_file: Optional[str] = None,
     ):
         """
         Initialize the schema loader.
 
         Args:
-            schema_file: Path to schema YAML file relative to project root
+            schema_file: Path to unified schema YAML file relative to project root
             fallback_file: Ignored (for backward compatibility)
         """
         if fallback_file:
-            print("⚠️ Fallback file ignored - using simplified schema")
+            print("⚠️ Fallback file ignored - using unified schema")
         self.schema_file = schema_file
-        self.schema = self._load_schema()
+        self.unified_schema = self._load_schema()
+        self.schema = self._convert_to_legacy_format()
         self._validate_schema()
 
         # Cache for performance
@@ -55,6 +56,25 @@ class DocumentTypeFieldSchema:
 
         with schema_path.open("r", encoding="utf-8") as f:
             return yaml.safe_load(f)
+
+    def _convert_to_legacy_format(self) -> Dict:
+        """Convert unified schema to legacy format for backward compatibility."""
+        # Extract field order from unified schema
+        semantic_order = self.unified_schema.get("semantic_field_order", [])
+        document_types = self.unified_schema.get("document_types", {})
+        
+        # Create legacy format structure
+        legacy_schema = {
+            "total_fields": len(semantic_order),
+            "all_fields": semantic_order,
+            "document_fields": {}
+        }
+        
+        # Convert document type configurations
+        for doc_type, config in document_types.items():
+            legacy_schema["document_fields"][doc_type] = config.get("required_fields", [])
+        
+        return legacy_schema
 
     def _validate_schema(self):
         """Validate basic schema structure."""
