@@ -66,7 +66,7 @@ single_pass:
     
     # Essential transaction details (for bank statements only)
     TRANSACTION_DATES: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"  # SUBSET: Essential bank statement dates
-    TRANSACTION_AMOUNTS_PAID: "[pipe-separated debit/payment amounts from transaction list (negative values or withdrawals) or NOT_FOUND]"  # SUBSET: Essential bank statement amounts
+    TRANSACTION_AMOUNTS_PAID: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"  # SUBSET: Essential bank statement amounts
     # SUPER_SET: TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated credit/deposit amounts from transaction list (positive values or deposits) or NOT_FOUND]"
     # SUPER_SET: TRANSACTION_BALANCES: "[pipe-separated balance after each transaction from rightmost column or NOT_FOUND]"
     # SUPER_SET: TOTAL_CREDITS: "[sum of all credits/deposits shown in statement summary (look for 'Total Credits' or 'Deposits') or NOT_FOUND]"
@@ -102,8 +102,9 @@ single_pass:
     - "BOSS PERFORMANCE: Focus on essential fields only for maximum extraction speed"
     - "For calculated fields: show computed values with proper formatting"
     - "For transaction lists: use pipe separators between transactions"
+    - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
 
-  stop_instruction: "STOP after TOTAL_AMOUNT_PAYABLE line. Do not add explanations or comments."
+  stop_instruction: "STOP after TRANSACTION_AMOUNTS_PAID line. Do not add explanations or comments."
 
 # V4 Complete Schema Performance Notes:
 # - EXPANDED: All 49 V4 fields with comprehensive document coverage
