@@ -275,21 +275,13 @@ class DocumentAwareLlamaProcessor:
         if format_rules:
             prompt += f"\n{format_rules_header}\n"
             for rule in format_rules:
-                # Replace static field counts with dynamic values
-                dynamic_rule = rule.replace(
-                    "ALL 29 keys", f"ALL {self.field_count} keys"
-                )
-                dynamic_rule = dynamic_rule.replace(
-                    "these 29 lines", f"these {self.field_count} lines"
-                )
-                prompt += f"- {dynamic_rule}\n"
+                # YAML-first architecture: use rules as-is from YAML configuration
+                prompt += f"- {rule}\n"
 
-        # Add stop instruction with dynamic last field (document-aware)
-        last_field = self.field_list[-1] if self.field_list else "all fields"
-        stop_instruction = (
-            f"STOP after {last_field} line. Do not add explanations or comments."
-        )
-        prompt += f"\n{stop_instruction}"
+        # Add stop instruction from YAML configuration (YAML-first architecture)
+        if "stop_instruction" in yaml_config:
+            stop_instruction = yaml_config["stop_instruction"]
+            prompt += f"\n{stop_instruction}"
 
         return prompt
 
