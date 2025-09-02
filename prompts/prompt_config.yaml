@@ -5,7 +5,7 @@
 # Prompt file mappings
 prompts:
   llama:
-    single_pass: "llama_single_pass_high_performance.yaml"
+    single_pass: "llama_single_pass_v4.yaml"
     grouped: "llama_grouped_v4.yaml"
   internvl3:
     single_pass: "internvl3_single_pass_v4.yaml" 
