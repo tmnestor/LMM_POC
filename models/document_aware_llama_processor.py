@@ -218,7 +218,9 @@ class DocumentAwareLlamaProcessor:
                 / "llama_single_pass_high_performance.yaml"
             )
             print(f"DEBUG: Loading YAML from: {yaml_path}")
+            print(f"DEBUG: Resolved path: {yaml_path.resolve()}")
             print(f"DEBUG: YAML file exists: {yaml_path.exists()}")
+            print(f"DEBUG: File size: {yaml_path.stat().st_size if yaml_path.exists() else 'N/A'}")
             if yaml_path.exists():
                 with yaml_path.open("r", encoding="utf-8") as f:
                     raw_content = f.read()
