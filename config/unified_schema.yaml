@@ -110,7 +110,7 @@ field_definitions:
     
   IS_GST_INCLUDED:
     order: 11
-    instruction: "[Determines GST pricing method: true if line item prices already include GST (GST-inclusive pricing), false if GST is added separately to line item prices (GST-exclusive pricing), or NOT_FOUND if pricing method cannot be determined]"
+    instruction: "[is the GST amount shown? Answer with (true/false only)]"
     description: "Essential tax classification"
     applicable_documents: [invoice, receipt]
     required: true
@@ -118,7 +118,7 @@ field_definitions:
     
   GST_AMOUNT:
     order: 12
-    instruction: "[is the GST amount shown? Answer with (true/false only)]"
+    instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
     description: "Essential tax information"
     applicable_documents: [invoice, receipt]
     required: true
