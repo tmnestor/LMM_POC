@@ -227,7 +227,16 @@ class DocumentAwareLlamaProcessor:
                     print(f"DEBUG: single_pass keys: {list(single_pass.keys())}")
                     field_instructions = single_pass.get("field_instructions", {})
                     print(f"DEBUG: Loaded {len(field_instructions)} field instructions")
-                    print(f"DEBUG: Field instruction keys: {list(field_instructions.keys())}")
+                    keys_list = list(field_instructions.keys())
+                    print(f"DEBUG: Field instruction keys ({len(keys_list)}):")
+                    for i, key in enumerate(keys_list, 1):
+                        print(f"  {i:2d}. {key}")
+                    
+                    # Check specifically for missing keys we expect
+                    expected_keys = ['GST_AMOUNT', 'TOTAL_AMOUNT', 'IS_GST_INCLUDED', 'LINE_ITEM_DESCRIPTIONS', 'LINE_ITEM_TOTAL_PRICES']
+                    for expected_key in expected_keys:
+                        status = "✓" if expected_key in field_instructions else "❌"
+                        print(f"     {status} {expected_key}")
                     print(f"DEBUG: GST_AMOUNT in loaded config: {'GST_AMOUNT' in field_instructions}")
                     if 'GST_AMOUNT' in field_instructions:
                         print(f"DEBUG: Loaded GST_AMOUNT instruction: {field_instructions['GST_AMOUNT']}")
