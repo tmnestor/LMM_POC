@@ -256,17 +256,13 @@ class DocumentAwareLlamaProcessor:
                 prompt += f"- {instruction}\n"
             prompt += "\n"
 
-        # Add output format with dynamic field count (document-aware)
-        output_format = f"REQUIRED OUTPUT FORMAT - EXACTLY {self.field_count} LINES:"
+        # Add output format from YAML configuration (YAML-first architecture)
+        output_format = yaml_config.get("output_format", "REQUIRED OUTPUT FORMAT:")
         prompt += f"{output_format}\n"
 
-        # Add field instructions using semantic field list order
+        # Add field instructions in YAML order (YAML-first architecture)
         field_instructions = yaml_config.get("field_instructions", {})
-        for field in self.field_list:
-            # Get field instruction from YAML (preserves archaeological structure)
-            instruction = field_instructions.get(field)
-            if not instruction:
-                instruction = "[value or NOT_FOUND]"  # High-performance default
+        for field, instruction in field_instructions.items():
             prompt += f"{field}: {instruction}\n"
 
         # Add format rules section with dynamic field count (CRITICAL for proper parsing)
