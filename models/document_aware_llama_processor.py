@@ -263,9 +263,7 @@ class DocumentAwareLlamaProcessor:
         # Add field instructions in YAML order (YAML-first architecture)
         field_instructions = yaml_config.get("field_instructions", {})
         for field, instruction in field_instructions.items():
-            # Include field only if it's in the document-specific field list
-            if field in self.field_list:
-                prompt += f"{field}: {instruction}\n"
+            prompt += f"{field}: {instruction}\n"
 
         # Add format rules section with dynamic field count (CRITICAL for proper parsing)
         format_rules_header = yaml_config.get("format_rules_header", "OUTPUT RULES:")
