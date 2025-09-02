@@ -83,17 +83,18 @@ document_fields:
     # SUPER_SET: - PAYER_EMAIL
     # SUPER_SET: - SUBTOTAL_AMOUNT
     # SUPER_SET: - TOTAL_DISCOUNT_AMOUNT
-    - GST_AMOUNT                       # SUBSET: Essential tax amount
+    # FINAL SEQUENCE - Boss's requested semantic order
+    - LINE_ITEM_DESCRIPTIONS           # SUBSET: Essential line item data
+    - LINE_ITEM_TOTAL_PRICES           # SUBSET: Essential line item totals
     - IS_GST_INCLUDED                  # SUBSET: Essential tax classification
+    - GST_AMOUNT                       # SUBSET: Essential tax amount
     - TOTAL_AMOUNT                     # SUBSET: Essential financial total
     # SUPER_SET: - TOTAL_AMOUNT_PAID
     # SUPER_SET: - BALANCE_OF_PAYMENT
     # SUPER_SET: - TOTAL_AMOUNT_PAYABLE
     # SUPER_SET: - PAYMENT_METHOD
-    - LINE_ITEM_DESCRIPTIONS           # SUBSET: Essential line item data
     # SUPER_SET: - LINE_ITEM_QUANTITIES
     # SUPER_SET: - LINE_ITEM_PRICES
-    - LINE_ITEM_TOTAL_PRICES           # SUBSET: Essential line item totals
     # SUPER_SET: - LINE_ITEM_GST_AMOUNTS
     
   receipt:
