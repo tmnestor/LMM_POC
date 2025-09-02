@@ -33,7 +33,7 @@ from typing import Any, Dict, List
 
 from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
-from common.extraction_parser import discover_images
+from common.extraction_parser import create_extraction_dataframe, discover_images
 
 # Import unified schema loader (simplified YAML-first)
 from common.unified_schema import DocumentTypeFieldSchema
@@ -493,6 +493,11 @@ def main():
         help="Process only specific document type",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    parser.add_argument(
+        "--debug-ocr",
+        action="store_true", 
+        help="Enable debug OCR mode for raw markdown output (requires --debug)",
+    )
 
     args = parser.parse_args()
 
@@ -731,6 +736,28 @@ def main():
 
             with report_path.open("w") as f:
                 json.dump(evaluation_report, f, indent=2, default=str)
+
+            # Generate CSV exports (ported from keyvalue functionality)
+            print("\n📊 Creating extraction DataFrames...")
+            try:
+                main_df, metadata_df = create_extraction_dataframe(results)
+                
+                # Save main extraction results
+                extraction_csv = output_dir / f"internvl3_document_aware_extraction_{timestamp}.csv"
+                main_df.to_csv(extraction_csv, index=False)
+                print(f"💾 Extraction results saved: {extraction_csv}")
+                
+                # Save processing metadata
+                if not metadata_df.empty:
+                    metadata_csv = output_dir / f"internvl3_document_aware_metadata_{timestamp}.csv"
+                    metadata_df.to_csv(metadata_csv, index=False)
+                    print(f"💾 Extraction metadata saved: {metadata_csv}")
+                    
+            except Exception as e:
+                print(f"⚠️  Error creating CSV exports: {e}")
+                if args.debug:
+                    import traceback
+                    traceback.print_exc()
 
             print(f"\n✅ Detailed report saved to: {report_path}")
             print("\n" + "=" * 80)
