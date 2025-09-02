@@ -193,6 +193,7 @@ class DocumentAwareLlamaProcessor:
 
     def generate_dynamic_prompt(self) -> str:
         """Generate prompt for specific field list with v4 field type support."""
+        print("DEBUG: generate_dynamic_prompt() called")
 
         # YAML-FIRST HIGH PERFORMANCE: Use archaeological best performance structure (95.3%)
         # Always use YAML configuration - fail fast if not available
@@ -203,6 +204,7 @@ class DocumentAwareLlamaProcessor:
                 "💡 Expected: prompts/llama_single_pass_high_performance.yaml\n"
                 "💡 This is required for the YAML-first architecture."
             )
+        print("DEBUG: About to call _generate_yaml_prompt()")
         return self._generate_yaml_prompt(yaml_config)
 
     def _load_yaml_config(self) -> dict:
