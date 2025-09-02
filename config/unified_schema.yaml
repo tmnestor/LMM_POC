@@ -118,7 +118,7 @@ field_definitions:
     
   GST_AMOUNT:
     order: 12
-    instruction: "[total GST amount in dollars with 2 decimals or NOT_FOUND]"
+    instruction: "[is the GST amount shown? Answer with (true/false only)]"
     description: "Essential tax information"
     applicable_documents: [invoice, receipt]
     required: true
