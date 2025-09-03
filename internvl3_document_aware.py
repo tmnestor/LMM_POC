@@ -574,8 +574,75 @@ def main():
 
         print(f"🔧 Model: {args.model_path or 'Default InternVL3 path'}")
         print(f"🐛 Debug mode: {args.debug}")
+        
+        # Handle debug OCR mode
+        if args.debug_ocr:
+            if not args.debug:
+                print("❌ ERROR: --debug-ocr requires --debug flag")
+                print(
+                    "💡 Usage: python internvl3_document_aware.py --image-path IMAGE --debug --debug-ocr"
+                )
+                return
+            
+            print("\n🔍 DEBUG OCR MODE ENABLED")
+            print(
+                "🎯 Processing will output raw text extraction for OCR debugging"
+            )
+            
+            # Create a simple OCR debugging handler
+            print(f"\n📄 Processing {Path(args.image_path).name} in debug OCR mode...")
+            
+            # Initialize processor for OCR mode
+            processor = DocumentAwareInternVL3Handler(
+                model_path=args.model_path, debug=True
+            )
+            
+            # Use a simple OCR prompt to get raw text
+            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+            
+            # Create minimal processor for OCR
+            ocr_fields = ["DOCUMENT_TYPE"]  # Minimal field to trigger model loading
+            ocr_processor = DocumentAwareInternVL3Processor(
+                field_list=ocr_fields,
+                model_path=args.model_path,
+                debug=True
+            )
+            
+            # Simple OCR prompt
+            ocr_prompt = """Read and transcribe ALL text visible in this document image.
 
-        # Single image mode
+Output the complete text content exactly as shown, preserving layout where possible.
+Include all headers, labels, values, numbers, and any other visible text.
+
+COMPLETE TEXT TRANSCRIPTION:"""
+            
+            print("\n📝 Debug OCR Prompt:")
+            print("-" * 60)
+            print(ocr_prompt)
+            print("-" * 60)
+            
+            try:
+                # Get raw OCR output
+                raw_text = ocr_processor._extract_with_prompt(args.image_path, ocr_prompt)
+                
+                print("\n📄 RAW OCR OUTPUT:")
+                print("=" * 80)
+                print(raw_text)
+                print("=" * 80)
+                
+                print("\n✅ Debug OCR complete")
+                print("💡 This shows what text the model can read from the image")
+                print("💡 Compare with expected field values to diagnose extraction issues")
+                
+            except Exception as e:
+                print(f"❌ Error in debug OCR mode: {e}")
+                import traceback
+                if args.debug:
+                    traceback.print_exc()
+            
+            return
+
+        # Single image mode (normal processing)
         processor = DocumentAwareInternVL3Handler(
             model_path=args.model_path, debug=args.debug
         )
