@@ -598,7 +598,9 @@ def main():
             )
             
             # Use a simple OCR prompt to get raw text
-            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+            from models.document_aware_internvl3_processor import (
+                DocumentAwareInternVL3Processor,
+            )
             
             # Create minimal processor for OCR
             ocr_fields = ["DOCUMENT_TYPE"]  # Minimal field to trigger model loading
