@@ -107,10 +107,12 @@ def parse_extraction_response(
             if key in expected_fields:
                 extracted_data_first[key] = value if value else "NOT_FOUND"
 
-    # If first pass got most fields, use it (this preserves Llama's performance)
+    # If first pass got most fields with actual values, use it (this preserves Llama's performance)
+    # Only count fields that actually have values (not "NOT_FOUND")
+    first_pass_valid_fields = sum(1 for v in extracted_data_first.values() if v != "NOT_FOUND")
     if (
-        len(extracted_data_first) >= len(expected_fields) * 0.5
-    ):  # Got at least 50% of fields
+        first_pass_valid_fields >= len(expected_fields) * 0.5
+    ):  # Got at least 50% of fields with actual values
         extracted_data.update(extracted_data_first)
     else:
         # Second pass: Handle multi-line markdown format (fallback for problematic InternVL3 output)
