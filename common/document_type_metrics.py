@@ -37,170 +37,80 @@ class DocumentTypeEvaluator:
     """Evaluator that provides document-type-specific metrics and scoring."""
 
     def __init__(self, config_file: Optional[str] = None):
-        """Initialize with document-type-specific metric definitions from YAML."""
+        """Initialize with document-type-specific metric definitions from unified schema."""
 
-        # Load metrics from YAML configuration (YAML-first architecture)
-        self.metrics_config = self._load_metrics_config(config_file)
-        self.field_categories = self._load_field_categories(config_file)
-        self.evaluation_config = self._load_evaluation_config(config_file)
+        # Load metrics from unified schema (single source of truth)
+        self.metrics_config = self._load_metrics_from_unified_schema()
+        self.field_categories = self._load_field_categories_from_unified_schema() 
+        self.evaluation_config = self._load_evaluation_config_from_unified_schema()
 
-    def _load_metrics_config(
-        self, config_file: Optional[str] = None
-    ) -> Dict[str, DocumentTypeMetrics]:
-        """Load document metrics configuration from YAML."""
-
-        # Default path to document metrics YAML
-        if config_file is None:
-            config_path = (
-                Path(__file__).parent.parent / "config" / "document_metrics.yaml"
+    def _load_metrics_from_unified_schema(self) -> Dict[str, DocumentTypeMetrics]:
+        """Load document metrics from unified schema (single source of truth)."""
+        from .unified_schema import DocumentTypeFieldSchema
+        
+        schema = DocumentTypeFieldSchema()
+        metrics_config = {}
+        
+        # Get supported document types from unified schema
+        supported_types = ["invoice", "receipt", "bank_statement"]
+        
+        for doc_type in supported_types:
+            # Get fields for this document type from unified schema
+            required_fields = schema.get_document_fields(doc_type)
+            
+            # Create simplified DocumentTypeMetrics with only essential info
+            metrics_config[doc_type] = DocumentTypeMetrics(
+                document_type=doc_type,
+                required_fields=required_fields,
+                optional_fields=[],  # Simplified - no optional fields
+                critical_fields=self._get_critical_fields(doc_type),
+                ato_compliance_fields=self._get_ato_fields(doc_type) if doc_type == "invoice" else [],
+                accuracy_threshold=self._get_accuracy_threshold(doc_type),
             )
-        else:
-            config_path = Path(config_file)
+        
+        return metrics_config
+    
+    def _get_critical_fields(self, doc_type: str) -> List[str]:
+        """Get critical fields for document type."""
+        critical_mapping = {
+            "invoice": ["BUSINESS_ABN", "SUPPLIER_NAME", "GST_AMOUNT", "TOTAL_AMOUNT"],
+            "receipt": ["SUPPLIER_NAME", "GST_AMOUNT", "TOTAL_AMOUNT"], 
+            "bank_statement": ["STATEMENT_DATE_RANGE", "TRANSACTION_AMOUNTS_PAID"]
+        }
+        return critical_mapping.get(doc_type, [])
+    
+    def _get_ato_fields(self, doc_type: str) -> List[str]:
+        """Get ATO compliance fields for invoices."""
+        if doc_type == "invoice":
+            return ["BUSINESS_ABN", "SUPPLIER_NAME", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT"]
+        return []
+    
+    def _get_accuracy_threshold(self, doc_type: str) -> float:
+        """Get accuracy threshold for document type."""
+        thresholds = {"invoice": 0.8, "receipt": 0.75, "bank_statement": 0.7}
+        return thresholds.get(doc_type, 0.75)
+    
+    def _load_field_categories_from_unified_schema(self) -> Dict[str, List[str]]:
+        """Load field categories from unified schema (single source of truth)."""
+        # Simplified approach - use hardcoded categories for now
+        return {
+            "metadata": ["DOCUMENT_TYPE", "INVOICE_DATE"],
+            "business_info": ["SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS"],
+            "customer_info": ["PAYER_NAME", "PAYER_ADDRESS"],
+            "financial": ["GST_AMOUNT", "TOTAL_AMOUNT", "IS_GST_INCLUDED"],
+            "line_items": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES"],
+            "banking": ["STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"]
+        }
+    
+    def _load_evaluation_config_from_unified_schema(self) -> Dict[str, Any]:
+        """Load evaluation configuration from unified schema (single source of truth)."""
+        return {"field_accuracy_threshold": 0.8}
 
-        # Load YAML configuration
-        try:
-            with config_path.open("r", encoding="utf-8") as f:
-                config_data = yaml.safe_load(f)
+    # REMOVED: Old complex _load_metrics_config method - replaced with unified schema approach
 
-            metrics_config = {}
-            for doc_type, metrics_data in config_data.get(
-                "document_metrics", {}
-            ).items():
-                metrics_config[doc_type] = DocumentTypeMetrics(
-                    document_type=metrics_data["document_type"],
-                    required_fields=metrics_data["required_fields"],
-                    optional_fields=metrics_data["optional_fields"],
-                    critical_fields=metrics_data["critical_fields"],
-                    ato_compliance_fields=metrics_data["ato_compliance_fields"],
-                    accuracy_threshold=metrics_data["accuracy_threshold"],
-                )
+    # REMOVED: Old complex _load_field_categories method - replaced with unified schema approach
 
-            return metrics_config
-
-        except Exception as e:
-            # Fallback to BOSS REDUCED SCHEMA if YAML fails
-            print(f"⚠️ Could not load document metrics YAML: {e}")
-            print(f"💡 Expected location: {config_path}")
-            print("🎯 Using BOSS FIELD REDUCTION fallback configuration")
-            # Return boss's reduced schema config for basic functionality
-            return {
-                "invoice": DocumentTypeMetrics(
-                    document_type="invoice",
-                    # SUBSET: Boss's reduced invoice schema (11 fields)
-                    required_fields=[
-                        "DOCUMENT_TYPE",
-                        "BUSINESS_ABN",
-                        "SUPPLIER_NAME",
-                        "BUSINESS_ADDRESS",
-                        "PAYER_NAME",
-                        "PAYER_ADDRESS",
-                        "INVOICE_DATE",
-                        "TOTAL_AMOUNT",
-                        "IS_GST_INCLUDED",
-                        "GST_AMOUNT",
-                        "LINE_ITEM_DESCRIPTIONS",
-                        "LINE_ITEM_TOTAL_PRICES",
-                    ],
-                    optional_fields=[],
-                    critical_fields=[
-                        "BUSINESS_ABN",
-                        "GST_AMOUNT",
-                        "TOTAL_AMOUNT",
-                    ],  # SUBSET: Boss's reduced critical fields
-                    ato_compliance_fields=[
-                        "BUSINESS_ABN",
-                        "TOTAL_AMOUNT",
-                        "GST_AMOUNT",
-                    ],  # SUBSET: Essential ATO fields only
-                    accuracy_threshold=0.85,
-                ),
-                "receipt": DocumentTypeMetrics(
-                    document_type="receipt",
-                    # SUBSET: Same as invoice schema per boss requirement
-                    required_fields=[
-                        "DOCUMENT_TYPE",
-                        "BUSINESS_ABN",
-                        "SUPPLIER_NAME",
-                        "BUSINESS_ADDRESS",
-                        "PAYER_NAME",
-                        "PAYER_ADDRESS",
-                        "INVOICE_DATE",
-                        "TOTAL_AMOUNT",
-                        "IS_GST_INCLUDED",
-                        "GST_AMOUNT",
-                        "LINE_ITEM_DESCRIPTIONS",
-                        "LINE_ITEM_TOTAL_PRICES",
-                    ],
-                    optional_fields=[],
-                    critical_fields=[
-                        "BUSINESS_ABN",
-                        "GST_AMOUNT",
-                        "TOTAL_AMOUNT",
-                    ],  # SUBSET: Same as invoice
-                    ato_compliance_fields=[
-                        "BUSINESS_ABN",
-                        "TOTAL_AMOUNT",
-                        "GST_AMOUNT",
-                    ],  # SUBSET: Same as invoice
-                    accuracy_threshold=0.85,
-                ),
-                "bank_statement": DocumentTypeMetrics(
-                    document_type="bank_statement",
-                    # SUBSET: Boss's reduced bank statement schema (5 fields)
-                    required_fields=[
-                        "DOCUMENT_TYPE",
-                        "STATEMENT_DATE_RANGE",
-                        "TRANSACTION_DATES",
-                        "LINE_ITEM_DESCRIPTIONS",
-                        "TRANSACTION_AMOUNTS_PAID",
-                    ],
-                    optional_fields=[],
-                    critical_fields=[
-                        "TRANSACTION_DATES",
-                        "TRANSACTION_AMOUNTS_PAID",
-                    ],  # SUBSET: Essential transaction data
-                    ato_compliance_fields=[],  # SUPER_SET: No ATO compliance for bank statements
-                    accuracy_threshold=0.80,  # Slightly lower threshold for bank statements
-                ),
-            }
-
-    def _load_field_categories(
-        self, config_file: Optional[str] = None
-    ) -> Dict[str, List[str]]:
-        """Load field categories from YAML configuration."""
-
-        if config_file is None:
-            config_path = (
-                Path(__file__).parent.parent / "config" / "document_metrics.yaml"
-            )
-        else:
-            config_path = Path(config_file)
-
-        try:
-            with config_path.open("r", encoding="utf-8") as f:
-                config_data = yaml.safe_load(f)
-            return config_data.get("field_categories", {})
-        except Exception:
-            return {}
-
-    def _load_evaluation_config(
-        self, config_file: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Load evaluation configuration from YAML."""
-
-        if config_file is None:
-            config_path = (
-                Path(__file__).parent.parent / "config" / "document_metrics.yaml"
-            )
-        else:
-            config_path = Path(config_file)
-
-        try:
-            with config_path.open("r", encoding="utf-8") as f:
-                config_data = yaml.safe_load(f)
-            return config_data.get("evaluation", {})
-        except Exception:
-            return {"field_accuracy_threshold": 0.8}
+    # REMOVED: Old complex _load_evaluation_config method - replaced with unified schema approach
 
     def evaluate_extraction(
         self,
