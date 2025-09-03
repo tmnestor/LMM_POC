@@ -609,46 +609,45 @@ class DocumentAwareInternVL3Processor:
         self, image_path: str, field_list: List[str]
     ) -> Dict[str, str]:
         """
-        Extract specific fields using a simple, direct prompt.
+        Extract specific fields using YAML-based unified prompt.
 
-        This bypasses the grouped extraction system and uses the pre-determined field list.
+        Uses the same unified schema templates as Llama for consistency.
         """
         if self.debug:
             print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
 
-        # Create a simple extraction prompt for the specific fields
-        field_lines = []
-        for field in field_list:
-            if field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
-                field_lines.append(
-                    f"{field}: [complete phone number with area code or NOT_FOUND]"
-                )
-            elif field == "BUSINESS_ABN":
-                field_lines.append(f"{field}: [11-digit ABN or NOT_FOUND]")
-            elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
-                field_lines.append(
-                    f"{field}: [dollar amount with $ symbol or NOT_FOUND]"
-                )
-            elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
-                field_lines.append(
-                    f"{field}: [complete address with postcode or NOT_FOUND]"
-                )
-            elif field == "PAYMENT_METHOD":
-                field_lines.append(
-                    f"{field}: [payment type like AMEX, Visa, Cash, etc. or NOT_FOUND]"
-                )
-            elif field in [
-                "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES",
-                "LINE_ITEM_PRICES",
-            ]:
-                field_lines.append(
-                    f"{field}: [pipe-separated values for all items or NOT_FOUND]"
-                )
-            else:
+        # Use YAML-first approach: generate prompt from unified schema like Llama does
+        from common.yaml_template_renderer import PureYAMLRenderer
+        
+        yaml_renderer = PureYAMLRenderer()
+        
+        # Determine document type from field list
+        # If we have STATEMENT_DATE_RANGE, it's a bank_statement
+        # Otherwise default to invoice/receipt
+        if "STATEMENT_DATE_RANGE" in field_list:
+            document_type = "bank_statement"
+        elif "INVOICE_DATE" in field_list:
+            document_type = "invoice"  # Could be invoice or receipt, default to invoice
+        else:
+            document_type = "invoice"  # Default fallback
+            
+        # Generate prompt from unified schema templates (same as Llama)
+        try:
+            prompt = yaml_renderer.render_prompt_for_document_type(
+                document_type=document_type, 
+                field_list=field_list
+            )
+        except Exception as e:
+            # Fallback to simple prompt if YAML rendering fails
+            if self.debug:
+                print(f"⚠️ YAML prompt generation failed: {e}, using fallback")
+            
+            # Simple fallback prompt
+            field_lines = []
+            for field in field_list:
                 field_lines.append(f"{field}: [value as shown or NOT_FOUND]")
-
-        prompt = f"""Extract structured data from this business document image.
+                
+            prompt = f"""Extract structured data from this business document image.
 
 OUTPUT FORMAT - EXACTLY {len(field_list)} LINES:
 {chr(10).join(field_lines)}
@@ -657,8 +656,6 @@ INSTRUCTIONS:
 - Extract values exactly as they appear in the document
 - Use NOT_FOUND if a field is not present or cannot be determined
 - Use colon and space format: FIELD_NAME: value
-- For line items, use pipe-separated format: item1 | item2 | item3
-- Include $ symbol for monetary amounts
 - Output only the {len(field_list)} lines above, nothing else"""
 
         if self.debug:
