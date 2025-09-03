@@ -92,7 +92,7 @@ class DocumentTypeFieldSchema:
             for f in self.schema["all_fields"]
             if not isinstance(f, str) or not f.strip().startswith("#")
         ]
-        expected_active = 15  # NEW_COUNT: Boss's reduced schema has 15 unique fields
+        expected_active = 17  # NEW_COUNT: Boss's reduced schema + LINE_ITEM_QUANTITIES + LINE_ITEM_PRICES = 17 fields
 
         if len(active_fields) != expected_active:
             print(
