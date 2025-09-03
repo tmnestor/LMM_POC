@@ -17,6 +17,8 @@ semantic_field_order:
   - INVOICE_DATE
   - STATEMENT_DATE_RANGE
   - LINE_ITEM_DESCRIPTIONS
+  - LINE_ITEM_QUANTITIES
+  - LINE_ITEM_PRICES
   - LINE_ITEM_TOTAL_PRICES
   - IS_GST_INCLUDED
   - GST_AMOUNT
@@ -100,16 +102,32 @@ field_definitions:
     required: true
     category: "line_items"
     
-  LINE_ITEM_TOTAL_PRICES:
+  LINE_ITEM_QUANTITIES:
     order: 10
-    instruction: "[line totals (not unit prices) or NOT_FOUND]"
-    description: "Essential line item totals"
+    instruction: "[pipe-separated quantities or NOT_FOUND]"
+    description: "Quantities ordered"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "line_items"
+    
+  LINE_ITEM_PRICES:
+    order: 11
+    instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+    description: "Unit prices (price per individual item, NOT total prices)"
+    applicable_documents: [invoice, receipt]
+    required: true
+    category: "line_items"
+    
+  LINE_ITEM_TOTAL_PRICES:
+    order: 12
+    instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+    description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
     applicable_documents: [invoice, receipt]
     required: true
     category: "line_items"
     
   IS_GST_INCLUDED:
-    order: 11
+    order: 13
     instruction: "[is the GST amount shown? Answer with (true/false only)]"
     description: "Essential tax classification"
     applicable_documents: [invoice, receipt]
@@ -117,7 +135,7 @@ field_definitions:
     category: "financial"
     
   GST_AMOUNT:
-    order: 12
+    order: 14
     instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
     description: "Essential tax information"
     applicable_documents: [invoice, receipt]
@@ -126,7 +144,7 @@ field_definitions:
     critical: true
     
   TOTAL_AMOUNT:
-    order: 13
+    order: 15
     instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
     description: "Essential financial total"
     applicable_documents: [invoice, receipt]
@@ -135,7 +153,7 @@ field_definitions:
     critical: true
     
   TRANSACTION_DATES:
-    order: 14
+    order: 16
     instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
     description: "Essential bank statement dates"
     applicable_documents: [bank_statement]
@@ -143,7 +161,7 @@ field_definitions:
     category: "transactions"
     
   TRANSACTION_AMOUNTS_PAID:
-    order: 15
+    order: 17
     instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
     description: "Essential bank statement amounts"
     applicable_documents: [bank_statement]
@@ -155,7 +173,7 @@ document_types:
   invoice:
     document_type: "invoice"
     accuracy_threshold: 0.95
-    field_count: 12
+    field_count: 14
     required_fields:
       - DOCUMENT_TYPE
       - BUSINESS_ABN
@@ -165,6 +183,8 @@ document_types:
       - PAYER_ADDRESS
       - INVOICE_DATE
       - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
       - LINE_ITEM_TOTAL_PRICES
       - IS_GST_INCLUDED
       - GST_AMOUNT
@@ -193,7 +213,7 @@ document_types:
   receipt:
     document_type: "receipt"
     accuracy_threshold: 0.85
-    field_count: 12
+    field_count: 14
     required_fields:
       - DOCUMENT_TYPE
       - BUSINESS_ABN
@@ -203,6 +223,8 @@ document_types:
       - PAYER_ADDRESS
       - INVOICE_DATE  # For receipts, this is the transaction date
       - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
       - LINE_ITEM_TOTAL_PRICES
       - IS_GST_INCLUDED
       - GST_AMOUNT
@@ -300,6 +322,8 @@ field_categories:
     - STATEMENT_DATE_RANGE
   line_items:
     - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_QUANTITIES
+    - LINE_ITEM_PRICES
     - LINE_ITEM_TOTAL_PRICES
   financial:
     - IS_GST_INCLUDED
