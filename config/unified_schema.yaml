@@ -102,7 +102,7 @@ field_definitions:
     
   LINE_ITEM_TOTAL_PRICES:
     order: 10
-    instruction: "[the (Total or Amount) column of line totals (not unit prices) or NOT_FOUND]"
+    instruction: "[line totals (not unit prices) or NOT_FOUND]"
     description: "Essential line item totals"
     applicable_documents: [invoice, receipt]
     required: true
