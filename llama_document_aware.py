@@ -550,16 +550,16 @@ COMPLETE TEXT TRANSCRIPTION:"""
                 # Process the image with OCR prompt
                 import torch
                 from transformers import (
-                    LlavaNextForConditionalGeneration,
-                    LlavaNextProcessor,
+                    AutoProcessor,
+                    MllamaForConditionalGeneration,
                 )
                 
                 # Load model and processor
                 print("🔄 Loading Llama model for OCR...")
-                processor_llm = LlavaNextProcessor.from_pretrained(
+                processor_llm = AutoProcessor.from_pretrained(
                     args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
                 )
-                model = LlavaNextForConditionalGeneration.from_pretrained(
+                model = MllamaForConditionalGeneration.from_pretrained(
                     args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct",
                     torch_dtype=torch.float16,
                     device_map="auto",
