@@ -201,13 +201,15 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
 from pathlib import Path
 import sys
 
-# Test prompt loader
+# Test unified schema (single source of truth)
 try:
-    from common.prompt_loader import PromptLoader
-    loader = PromptLoader()
-    print('✅ YAML prompt loader initialized successfully')
+    from common.unified_schema import DocumentTypeFieldSchema
+    schema = DocumentTypeFieldSchema()
+    detection_config = schema.load_detection_prompts()
+    print('✅ Unified schema with document detection loaded successfully')
+    print(f'   Supported document types: {len(detection_config["supported_types"])}')
 except Exception as e:
-    print(f'⚠️  Prompt loader initialization failed: {e}')
+    print(f'⚠️  Unified schema initialization failed: {e}')
     sys.exit(1)
 
 # Test schema loader

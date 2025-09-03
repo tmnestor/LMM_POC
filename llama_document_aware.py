@@ -56,11 +56,8 @@ class DocumentAwareLlamaHandler:
         self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
 
-        # Initialize YAML-first prompt loader for document detection
-        from common.prompt_loader import PromptLoader
-
-        self.prompt_loader = PromptLoader()
-        self.detection_config = self.prompt_loader.load_detection_prompts()
+        # Load document detection prompts from unified schema (single source of truth)
+        self.detection_config = self.schema_loader.load_detection_prompts()
 
         if self.debug:
             print("📝 YAML-first prompt loader initialized")

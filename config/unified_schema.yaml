@@ -350,6 +350,64 @@ supported_document_types:
   - "receipt" 
   - "bank_statement"
 
+# DOCUMENT TYPE DETECTION CONFIGURATION
+# Consolidated from prompts/document_type_detection.yaml
+document_type_detection:
+  # Detection prompt configurations by model
+  prompts:
+    llama:
+      system_message: "You are a document classifier. Analyze this business document image."
+      user_prompt: |
+        What type of business document is this?
+        
+        Look for document types like:
+        - invoice, tax invoice, bill, estimate, quote, quotation
+        - bank_statement, account statement, credit card statement  
+        - receipt, purchase receipt
+        
+        Answer with the exact document type you see (e.g., 'invoice', 'estimate', 'receipt', 'bank_statement', etc.).
+      max_tokens: 50
+      temperature: 0.0
+      
+    internvl3:
+      user_prompt: |
+        What document type is this?
+        
+        Types: invoice, estimate, quote, receipt, bank_statement, credit card statement
+        
+        Answer with the exact type:
+      max_tokens: 20
+      temperature: 0.0
+
+  # Type mapping for variations
+  type_mappings:
+    # Invoice variations
+    "tax invoice": "invoice"
+    "commercial invoice": "invoice"
+    "proforma invoice": "invoice"
+    "bill": "invoice"
+    "estimate": "invoice"
+    "quote": "invoice"
+    "quotation": "invoice"
+    
+    # Receipt variations
+    "purchase receipt": "receipt"
+    "sales receipt": "receipt"
+    "transaction receipt": "receipt"
+    
+    # Statement variations
+    "account statement": "bank_statement"
+    "credit card statement": "bank_statement"
+    "bank statement": "bank_statement"
+    "financial statement": "bank_statement"
+    "statement": "bank_statement"
+
+  # Detection configuration
+  config:
+    confidence_threshold: 0.85
+    fallback_type: "invoice"
+    enable_debug_output: true
+
 # VERSION HISTORY
 version_history:
   "5.0-unified": "Unified schema eliminating cascade failures - True YAML-first architecture"

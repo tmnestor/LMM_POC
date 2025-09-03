@@ -309,6 +309,26 @@ Extract the exact values as they appear in the document. If a field is not prese
         """Property for backward compatibility."""
         return self.schema["total_fields"]
 
+    def load_detection_prompts(self) -> Dict:
+        """
+        Load document type detection prompts from unified schema.
+        
+        Replaces the need for PromptLoader and prompts/document_type_detection.yaml.
+        
+        Returns:
+            Dict: Detection prompt configuration with same structure as legacy format
+        """
+        # Access the raw unified schema, not the converted legacy format
+        detection_config = self.unified_schema.get("document_type_detection", {})
+        
+        # Return in the format expected by existing code
+        return {
+            "detection_prompts": detection_config.get("prompts", {}),
+            "supported_types": self.unified_schema.get("supported_document_types", []),
+            "type_mappings": detection_config.get("type_mappings", {}),
+            "detection_config": detection_config.get("config", {})
+        }
+
 
 # ============================================================================
 # Singleton Pattern for Backward Compatibility
