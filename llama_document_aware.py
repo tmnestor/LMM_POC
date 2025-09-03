@@ -374,7 +374,7 @@ def main():
     )
     parser.add_argument(
         "--model-path",
-        default="/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+        default="/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct",
         help="Path to Llama model",
     )
     parser.add_argument(
@@ -397,7 +397,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument(
         "--debug-ocr",
-        action="store_true", 
+        action="store_true",
         help="Enable debug OCR mode for raw markdown output (requires --debug)",
     )
 
@@ -423,18 +423,24 @@ def main():
         if args.debug_ocr:
             if not args.debug:
                 print("❌ ERROR: --debug-ocr requires --debug flag")
-                print("💡 Usage: python llama_document_aware.py --image-path IMAGE --debug --debug-ocr")
+                print(
+                    "💡 Usage: python llama_document_aware.py --image-path IMAGE --debug --debug-ocr"
+                )
                 return
-            
+
             print("\n🔍 DEBUG OCR MODE ENABLED")
-            print("🎯 Processing will output raw markdown OCR instead of structured extraction")
+            print(
+                "🎯 Processing will output raw markdown OCR instead of structured extraction"
+            )
             print("💡 This helps diagnose OCR vs document understanding issues")
-            
+
             # Simple OCR processing using basic model interaction
             print(f"\n📄 Processing {Path(args.image_path).name} in debug OCR mode...")
-            
+
             # TODO: Add simple OCR debug functionality here
-            print("⚠️  Debug OCR mode is not yet implemented in document-aware processor")
+            print(
+                "⚠️  Debug OCR mode is not yet implemented in document-aware processor"
+            )
             print("💡 Use llama_keyvalue.py --debug-ocr for full OCR debugging")
             return
 
@@ -611,22 +617,27 @@ def main():
             print("\\n📊 Creating extraction DataFrames...")
             try:
                 main_df, metadata_df = create_extraction_dataframe(results)
-                
+
                 # Save main extraction results
-                extraction_csv = output_dir / f"llama_document_aware_extraction_{timestamp}.csv"
+                extraction_csv = (
+                    output_dir / f"llama_document_aware_extraction_{timestamp}.csv"
+                )
                 main_df.to_csv(extraction_csv, index=False)
                 print(f"💾 Extraction results saved: {extraction_csv}")
-                
+
                 # Save processing metadata
                 if not metadata_df.empty:
-                    metadata_csv = output_dir / f"llama_document_aware_metadata_{timestamp}.csv"
+                    metadata_csv = (
+                        output_dir / f"llama_document_aware_metadata_{timestamp}.csv"
+                    )
                     metadata_df.to_csv(metadata_csv, index=False)
                     print(f"💾 Extraction metadata saved: {metadata_csv}")
-                    
+
             except Exception as e:
                 print(f"⚠️  Error creating CSV exports: {e}")
                 if args.debug:
                     import traceback
+
                     traceback.print_exc()
 
             print(f"\\n✅ Detailed report saved to: {report_path}")
