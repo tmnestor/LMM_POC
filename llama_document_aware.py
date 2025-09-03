@@ -505,18 +505,153 @@ def main():
 
             print("\n🔍 DEBUG OCR MODE ENABLED")
             print(
-                "🎯 Processing will output raw markdown OCR instead of structured extraction"
+                "🎯 Processing will output raw text extraction for OCR debugging"
             )
-            print("💡 This helps diagnose OCR vs document understanding issues")
+            print("💡 This helps diagnose what text the model sees in the document")
 
-            # Simple OCR processing using basic model interaction
+            # Create OCR debugging processor
             print(f"\n📄 Processing {Path(args.image_path).name} in debug OCR mode...")
-
-            # TODO: Add simple OCR debug functionality here
-            print(
-                "⚠️  Debug OCR mode is not yet implemented in document-aware processor"
+            
+            # Import the processor for OCR mode
+            from models.document_aware_llama_processor import (
+                DocumentAwareLlamaProcessor,
             )
-            print("💡 Use llama_keyvalue.py --debug-ocr for full OCR debugging")
+            
+            # Create minimal processor for OCR
+            ocr_fields = ["DOCUMENT_TYPE"]  # Minimal field to trigger model loading
+            ocr_processor = DocumentAwareLlamaProcessor(
+                field_list=ocr_fields,
+                model_path=args.model_path,
+                debug=True
+            )
+            
+            # Simple OCR prompt for Llama
+            ocr_prompt = """Read and transcribe ALL text visible in this document image.
+
+Output the complete text content exactly as shown, preserving the original layout where possible.
+Include all headers, labels, values, numbers, dates, addresses, and any other visible text.
+Transcribe everything you can see, maintaining the document's structure.
+
+COMPLETE TEXT TRANSCRIPTION:"""
+            
+            print("\n📝 Debug OCR Prompt:")
+            print("-" * 60)
+            print(ocr_prompt)
+            print("-" * 60)
+            
+            try:
+                # Load the image
+                from PIL import Image
+                image = Image.open(args.image_path)
+                
+                # Get raw OCR output using the processor's model
+                print("\n⏳ Extracting text from image (this may take a moment)...")
+                
+                # Process the image with OCR prompt
+                import torch
+                from transformers import (
+                    LlavaNextForConditionalGeneration,
+                    LlavaNextProcessor,
+                )
+                
+                # Load model and processor
+                print("🔄 Loading Llama model for OCR...")
+                processor_llm = LlavaNextProcessor.from_pretrained(
+                    args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
+                )
+                model = LlavaNextForConditionalGeneration.from_pretrained(
+                    args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct",
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    load_in_8bit=True  # Use 8-bit for memory efficiency
+                )
+                
+                # Prepare inputs
+                conversation = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": ocr_prompt},
+                            {"type": "image"},
+                        ],
+                    },
+                ]
+                
+                prompt_text = processor_llm.apply_chat_template(
+                    conversation, add_generation_prompt=True
+                )
+                
+                inputs = processor_llm(
+                    images=image,
+                    text=prompt_text,
+                    return_tensors="pt"
+                ).to(model.device)
+                
+                # Generate OCR output
+                with torch.no_grad():
+                    output = model.generate(
+                        **inputs,
+                        max_new_tokens=2000,
+                        do_sample=False,
+                        temperature=0.0
+                    )
+                
+                # Decode the response
+                raw_text = processor_llm.decode(output[0], skip_special_tokens=True)
+                
+                # Extract just the model's response (after the prompt)
+                if "COMPLETE TEXT TRANSCRIPTION:" in raw_text:
+                    raw_text = raw_text.split("COMPLETE TEXT TRANSCRIPTION:")[-1].strip()
+                elif "assistant" in raw_text:
+                    raw_text = raw_text.split("assistant")[-1].strip()
+                
+                print("\n📄 RAW OCR OUTPUT:")
+                print("=" * 80)
+                print(raw_text)
+                print("=" * 80)
+                
+                print("\n✅ Debug OCR complete")
+                print("💡 This shows what text the model can read from the image")
+                print("💡 Compare with expected field values to diagnose extraction issues")
+                
+            except ImportError as e:
+                print(f"❌ Error: Missing required libraries for OCR mode: {e}")
+                print("💡 Install: pip install transformers torch pillow")
+                
+            except Exception as e:
+                print(f"❌ Error in debug OCR mode: {e}")
+                import traceback
+                if args.debug:
+                    traceback.print_exc()
+                    
+                print("\n💡 Alternative: Using simplified OCR approach...")
+                try:
+                    # Fallback to using the document-aware processor's existing methods
+                    processor = DocumentAwareLlamaHandler(args.model_path, debug=True)
+                    
+                    # Create a simple processor to extract raw text
+                    from models.document_aware_llama_processor import (
+                        DocumentAwareLlamaProcessor,
+                    )
+                    
+                    simple_processor = DocumentAwareLlamaProcessor(
+                        field_list=["DOCUMENT_TYPE"],
+                        model_path=args.model_path,
+                        debug=True
+                    )
+                    
+                    # Use the processor's internal methods for OCR
+                    result = simple_processor.process_single_image(args.image_path)
+                    
+                    print("\n📄 FALLBACK OCR OUTPUT (structured extraction):")
+                    print("=" * 80)
+                    for field, value in result.get("extracted_data", {}).items():
+                        print(f"{field}: {value}")
+                    print("=" * 80)
+                    
+                except Exception as fallback_error:
+                    print(f"❌ Fallback also failed: {fallback_error}")
+            
             return
 
         # Single image mode
