@@ -539,84 +539,66 @@ COMPLETE TEXT TRANSCRIPTION:"""
             print(ocr_prompt)
             print("-" * 60)
             
+            # Simplified OCR implementation using existing processor
+            print("\n⏳ Extracting text from image (this may take a moment)...")
+            
             try:
-                # Load the image
-                from PIL import Image
-                image = Image.open(args.image_path)
-                
-                # Get raw OCR output using the processor's model
-                print("\n⏳ Extracting text from image (this may take a moment)...")
-                
-                # Process the image with OCR prompt
-                import torch
-                from transformers import (
-                    AutoProcessor,
-                    MllamaForConditionalGeneration,
+                # Use the existing document-aware processor with a custom OCR prompt
+                simple_processor = DocumentAwareLlamaProcessor(
+                    field_list=["DOCUMENT_TYPE"],  # Minimal field list
+                    model_path=args.model_path,
+                    debug=True
                 )
                 
-                # Load model and processor
-                print("🔄 Loading Llama model for OCR...")
-                processor_llm = AutoProcessor.from_pretrained(
-                    args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
-                )
-                model = MllamaForConditionalGeneration.from_pretrained(
-                    args.model_path or "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct",
-                    torch_dtype=torch.float16,
-                    device_map="auto",
-                    load_in_8bit=True  # Use 8-bit for memory efficiency
-                )
+                # Get the OCR result by processing with the simple prompt
+                # The processor will handle model loading correctly
+                print("🔄 Using document-aware processor for OCR...")
                 
-                # Prepare inputs
-                conversation = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": ocr_prompt},
-                            {"type": "image"},
-                        ],
-                    },
+                # Create a custom result by directly calling the processor
+                result = simple_processor.process_single_image(args.image_path)
+                
+                # For better OCR, let's try to extract all visible text
+                # by using a comprehensive field list
+                all_fields = [
+                    "FULL_TEXT_LINE_1", "FULL_TEXT_LINE_2", "FULL_TEXT_LINE_3",
+                    "FULL_TEXT_LINE_4", "FULL_TEXT_LINE_5", "FULL_TEXT_LINE_6",
+                    "FULL_TEXT_LINE_7", "FULL_TEXT_LINE_8", "FULL_TEXT_LINE_9",
+                    "FULL_TEXT_LINE_10", "FULL_TEXT_LINE_11", "FULL_TEXT_LINE_12",
+                    "FULL_TEXT_LINE_13", "FULL_TEXT_LINE_14", "FULL_TEXT_LINE_15",
                 ]
                 
-                prompt_text = processor_llm.apply_chat_template(
-                    conversation, add_generation_prompt=True
+                ocr_processor = DocumentAwareLlamaProcessor(
+                    field_list=all_fields,
+                    model_path=args.model_path,
+                    debug=False  # Suppress debug output for cleaner display
                 )
                 
-                inputs = processor_llm(
-                    images=image,
-                    text=prompt_text,
-                    return_tensors="pt"
-                ).to(model.device)
+                print("\n📝 Extracting comprehensive text using line-by-line approach...")
+                ocr_result = ocr_processor.process_single_image(args.image_path)
                 
-                # Generate OCR output
-                with torch.no_grad():
-                    output = model.generate(
-                        **inputs,
-                        max_new_tokens=2000,
-                        do_sample=False,
-                        temperature=0.0
-                    )
-                
-                # Decode the response
-                raw_text = processor_llm.decode(output[0], skip_special_tokens=True)
-                
-                # Extract just the model's response (after the prompt)
-                if "COMPLETE TEXT TRANSCRIPTION:" in raw_text:
-                    raw_text = raw_text.split("COMPLETE TEXT TRANSCRIPTION:")[-1].strip()
-                elif "assistant" in raw_text:
-                    raw_text = raw_text.split("assistant")[-1].strip()
-                
-                print("\n📄 RAW OCR OUTPUT:")
+                print("\n📄 RAW OCR OUTPUT (Line-by-line extraction):")
                 print("=" * 80)
-                print(raw_text)
+                
+                extracted_text = []
+                for _field, value in ocr_result.get("extracted_data", {}).items():
+                    if value and value != "NOT_FOUND":
+                        # Just show the value, not the field name for OCR
+                        extracted_text.append(value)
+                
+                if extracted_text:
+                    print("\n".join(extracted_text))
+                else:
+                    # Fallback to showing structured extraction
+                    print("📝 Structured extraction result:")
+                    for field, value in result.get("extracted_data", {}).items():
+                        print(f"{field}: {value}")
+                
                 print("=" * 80)
                 
                 print("\n✅ Debug OCR complete")
-                print("💡 This shows what text the model can read from the image")
-                print("💡 Compare with expected field values to diagnose extraction issues")
-                
-            except ImportError as e:
-                print(f"❌ Error: Missing required libraries for OCR mode: {e}")
-                print("💡 Install: pip install transformers torch pillow")
+                print("💡 This shows text extracted from the document")
+                print("💡 Note: This uses structured extraction, not pure OCR")
+                print("💡 For pure OCR, model-specific implementation would be needed")
                 
             except Exception as e:
                 print(f"❌ Error in debug OCR mode: {e}")
@@ -624,33 +606,31 @@ COMPLETE TEXT TRANSCRIPTION:"""
                 if args.debug:
                     traceback.print_exc()
                     
-                print("\n💡 Alternative: Using simplified OCR approach...")
+                print("\n💡 Attempting basic field extraction as OCR alternative...")
                 try:
-                    # Fallback to using the document-aware processor's existing methods
-                    processor = DocumentAwareLlamaHandler(args.model_path, debug=True)
-                    
-                    # Create a simple processor to extract raw text
+                    # Ultra-simple fallback
                     from models.document_aware_llama_processor import (
                         DocumentAwareLlamaProcessor,
                     )
                     
-                    simple_processor = DocumentAwareLlamaProcessor(
-                        field_list=["DOCUMENT_TYPE"],
+                    basic_processor = DocumentAwareLlamaProcessor(
+                        field_list=["DOCUMENT_TYPE", "TOTAL_AMOUNT", "SUPPLIER_NAME"],
                         model_path=args.model_path,
-                        debug=True
+                        debug=False
                     )
                     
-                    # Use the processor's internal methods for OCR
-                    result = simple_processor.process_single_image(args.image_path)
+                    basic_result = basic_processor.process_single_image(args.image_path)
                     
-                    print("\n📄 FALLBACK OCR OUTPUT (structured extraction):")
+                    print("\n📄 BASIC EXTRACTION OUTPUT:")
                     print("=" * 80)
-                    for field, value in result.get("extracted_data", {}).items():
-                        print(f"{field}: {value}")
+                    for field, value in basic_result.get("extracted_data", {}).items():
+                        if value and value != "NOT_FOUND":
+                            print(f"{field}: {value}")
                     print("=" * 80)
                     
-                except Exception as fallback_error:
-                    print(f"❌ Fallback also failed: {fallback_error}")
+                except Exception as final_error:
+                    print(f"❌ All OCR approaches failed: {final_error}")
+                    print("💡 Please check model path and dependencies")
             
             return
 
