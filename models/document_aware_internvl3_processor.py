@@ -661,6 +661,12 @@ INSTRUCTIONS:
 - Include $ symbol for monetary amounts
 - Output only the {len(field_list)} lines above, nothing else"""
 
+        if self.debug:
+            print("📝 Document-aware extraction prompt:")
+            print("-" * 60)
+            print(prompt)
+            print("-" * 60)
+
         # Extract using the model
         raw_response = self._extract_with_prompt(image_path, prompt)
 
