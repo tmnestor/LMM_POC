@@ -473,7 +473,7 @@ def main():
     parser.add_argument(
         "--debug-ocr",
         action="store_true",
-        help="Enable debug OCR mode for raw markdown output (requires --debug)",
+        help="[NOT SUPPORTED] OCR mode disabled for Llama due to V100 memory constraints",
     )
 
     args = parser.parse_args()
@@ -503,134 +503,21 @@ def main():
                 )
                 return
 
-            print("\n🔍 DEBUG OCR MODE ENABLED")
-            print(
-                "🎯 Processing will output raw text extraction for OCR debugging"
-            )
-            print("💡 This helps diagnose what text the model sees in the document")
-
-            # Create OCR debugging processor
-            print(f"\n📄 Processing {Path(args.image_path).name} in debug OCR mode...")
-            
-            # Import the processor for OCR mode
-            from models.document_aware_llama_processor import (
-                DocumentAwareLlamaProcessor,
-            )
-            
-            # Create minimal processor for OCR
-            ocr_fields = ["DOCUMENT_TYPE"]  # Minimal field to trigger model loading
-            ocr_processor = DocumentAwareLlamaProcessor(
-                field_list=ocr_fields,
-                model_path=args.model_path,
-                debug=True
-            )
-            
-            # Simple OCR prompt for Llama
-            ocr_prompt = """Read and transcribe ALL text visible in this document image.
-
-Output the complete text content exactly as shown, preserving the original layout where possible.
-Include all headers, labels, values, numbers, dates, addresses, and any other visible text.
-Transcribe everything you can see, maintaining the document's structure.
-
-COMPLETE TEXT TRANSCRIPTION:"""
-            
-            print("\n📝 Debug OCR Prompt:")
-            print("-" * 60)
-            print(ocr_prompt)
-            print("-" * 60)
-            
-            # Simplified OCR implementation using existing processor
-            print("\n⏳ Extracting text from image (this may take a moment)...")
-            
-            try:
-                # Use the existing document-aware processor with a custom OCR prompt
-                simple_processor = DocumentAwareLlamaProcessor(
-                    field_list=["DOCUMENT_TYPE"],  # Minimal field list
-                    model_path=args.model_path,
-                    debug=True
-                )
-                
-                # Get the OCR result by processing with the simple prompt
-                # The processor will handle model loading correctly
-                print("🔄 Using document-aware processor for OCR...")
-                
-                # Create a custom result by directly calling the processor
-                result = simple_processor.process_single_image(args.image_path)
-                
-                # For better OCR, let's try to extract all visible text
-                # by using a comprehensive field list
-                all_fields = [
-                    "FULL_TEXT_LINE_1", "FULL_TEXT_LINE_2", "FULL_TEXT_LINE_3",
-                    "FULL_TEXT_LINE_4", "FULL_TEXT_LINE_5", "FULL_TEXT_LINE_6",
-                    "FULL_TEXT_LINE_7", "FULL_TEXT_LINE_8", "FULL_TEXT_LINE_9",
-                    "FULL_TEXT_LINE_10", "FULL_TEXT_LINE_11", "FULL_TEXT_LINE_12",
-                    "FULL_TEXT_LINE_13", "FULL_TEXT_LINE_14", "FULL_TEXT_LINE_15",
-                ]
-                
-                ocr_processor = DocumentAwareLlamaProcessor(
-                    field_list=all_fields,
-                    model_path=args.model_path,
-                    debug=False  # Suppress debug output for cleaner display
-                )
-                
-                print("\n📝 Extracting comprehensive text using line-by-line approach...")
-                ocr_result = ocr_processor.process_single_image(args.image_path)
-                
-                print("\n📄 RAW OCR OUTPUT (Line-by-line extraction):")
-                print("=" * 80)
-                
-                extracted_text = []
-                for _field, value in ocr_result.get("extracted_data", {}).items():
-                    if value and value != "NOT_FOUND":
-                        # Just show the value, not the field name for OCR
-                        extracted_text.append(value)
-                
-                if extracted_text:
-                    print("\n".join(extracted_text))
-                else:
-                    # Fallback to showing structured extraction
-                    print("📝 Structured extraction result:")
-                    for field, value in result.get("extracted_data", {}).items():
-                        print(f"{field}: {value}")
-                
-                print("=" * 80)
-                
-                print("\n✅ Debug OCR complete")
-                print("💡 This shows text extracted from the document")
-                print("💡 Note: This uses structured extraction, not pure OCR")
-                print("💡 For pure OCR, model-specific implementation would be needed")
-                
-            except Exception as e:
-                print(f"❌ Error in debug OCR mode: {e}")
-                import traceback
-                if args.debug:
-                    traceback.print_exc()
-                    
-                print("\n💡 Attempting basic field extraction as OCR alternative...")
-                try:
-                    # Ultra-simple fallback
-                    from models.document_aware_llama_processor import (
-                        DocumentAwareLlamaProcessor,
-                    )
-                    
-                    basic_processor = DocumentAwareLlamaProcessor(
-                        field_list=["DOCUMENT_TYPE", "TOTAL_AMOUNT", "SUPPLIER_NAME"],
-                        model_path=args.model_path,
-                        debug=False
-                    )
-                    
-                    basic_result = basic_processor.process_single_image(args.image_path)
-                    
-                    print("\n📄 BASIC EXTRACTION OUTPUT:")
-                    print("=" * 80)
-                    for field, value in basic_result.get("extracted_data", {}).items():
-                        if value and value != "NOT_FOUND":
-                            print(f"{field}: {value}")
-                    print("=" * 80)
-                    
-                except Exception as final_error:
-                    print(f"❌ All OCR approaches failed: {final_error}")
-                    print("💡 Please check model path and dependencies")
+            print("\n⚠️  DEBUG OCR MODE NOT SUPPORTED FOR LLAMA")
+            print("❌ OCR mode causes out-of-memory errors on V100 GPUs")
+            print("💡 This is due to Llama-3.2-11B-Vision's large memory footprint")
+            print()
+            print("🔧 Alternative options:")
+            print("   1. Use InternVL3 for OCR debugging (smaller model)")
+            print("      python internvl3_document_aware.py --debug --debug-ocr")
+            print("   2. Use structured extraction with --debug flag")
+            print("      python llama_document_aware.py --debug")
+            print("   3. Run on a GPU with more VRAM (A100/H100)")
+            print()
+            print("📝 The --debug flag alone will show:")
+            print("   • Extraction prompts")
+            print("   • Field-by-field results")
+            print("   • Processing details")
             
             return
 
