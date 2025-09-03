@@ -471,7 +471,11 @@ def main():
     parser = argparse.ArgumentParser(
         description="InternVL3 Document-Aware Extraction Pipeline"
     )
-    parser.add_argument("--model-path", default=None, help="Path to InternVL3 model")
+    parser.add_argument(
+        "--model-path",
+        default="/efs/shared/PTM/InternVL3-8B",
+        help="Path to InternVL3 model",
+    )
     parser.add_argument(
         "--data-dir", default="evaluation_data", help="Directory with images"
     )
@@ -492,7 +496,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument(
         "--debug-ocr",
-        action="store_true", 
+        action="store_true",
         help="Enable debug OCR mode for raw markdown output (requires --debug)",
     )
 
@@ -738,22 +742,28 @@ def main():
             print("\n📊 Creating extraction DataFrames...")
             try:
                 main_df, metadata_df = create_extraction_dataframe(results)
-                
+
                 # Save main extraction results
-                extraction_csv = output_dir / f"internvl3_document_aware_extraction_{timestamp}.csv"
+                extraction_csv = (
+                    output_dir / f"internvl3_document_aware_extraction_{timestamp}.csv"
+                )
                 main_df.to_csv(extraction_csv, index=False)
                 print(f"💾 Extraction results saved: {extraction_csv}")
-                
+
                 # Save processing metadata
                 if not metadata_df.empty:
-                    metadata_csv = output_dir / f"internvl3_document_aware_metadata_{timestamp}.csv"
+                    metadata_csv = (
+                        output_dir
+                        / f"internvl3_document_aware_metadata_{timestamp}.csv"
+                    )
                     metadata_df.to_csv(metadata_csv, index=False)
                     print(f"💾 Extraction metadata saved: {metadata_csv}")
-                    
+
             except Exception as e:
                 print(f"⚠️  Error creating CSV exports: {e}")
                 if args.debug:
                     import traceback
+
                     traceback.print_exc()
 
             print(f"\n✅ Detailed report saved to: {report_path}")
