@@ -285,8 +285,86 @@ class DocumentAwareLlamaHandler:
             evaluation["image_file"] = image_file
             evaluation["processing_time"] = result["processing_time"]
             evaluations.append(evaluation)
+            
+            # Display detailed comparison for single image processing
+            if len(results) == 1:
+                self._display_detailed_comparison(result, gt_data, evaluation)
 
         return self._generate_document_aware_report(evaluations)
+    
+    def _display_detailed_comparison(self, result: Dict, ground_truth: Dict, evaluation: Dict):
+        """Display detailed field-by-field comparison like in the notebook."""
+        
+        print("\\n" + "="*120)
+        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")  
+        print("="*120)
+        
+        extracted_data = result["extracted_data"]
+        processing_time = result["processing_time"]
+        
+        # Display extracted data first
+        print("\\n🔍 EXTRACTED DATA:")
+        for field, value in extracted_data.items():
+            if value != "NOT_FOUND":
+                print(f"✅ {field}: {value}")
+            else:
+                print(f"❌ {field}: {value}")
+        
+        # Ground truth comparison table
+        print(f"\\n📊 Ground truth loaded for {result['image_file']}")
+        print("-"*120)
+        
+        field_scores = evaluation.get("field_scores", {})
+        
+        # Table header
+        print(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
+        print("="*120)
+        
+        # Field-by-field comparison
+        fields_found = 0
+        exact_matches = 0
+        total_fields = len(field_scores)
+        
+        for field, score in field_scores.items():
+            extracted_val = extracted_data.get(field, "NOT_FOUND")
+            ground_val = ground_truth.get(field, "NOT_FOUND")
+            
+            # Determine status symbol
+            if score.get("accuracy", 0) == 1.0:
+                status = "✅"
+                exact_matches += 1
+            elif score.get("accuracy", 0) >= 0.8:
+                status = "≈"
+            else:
+                status = "❌"
+            
+            if extracted_val != "NOT_FOUND":
+                fields_found += 1
+                
+            # Truncate long values for display
+            extracted_display = str(extracted_val)[:38] + ("..." if len(str(extracted_val)) > 38 else "")
+            ground_display = str(ground_val)[:38] + ("..." if len(str(ground_val)) > 38 else "")
+            
+            print(f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}")
+        
+        # Summary section
+        overall_accuracy = evaluation["overall_metrics"]["overall_accuracy"]
+        
+        print("\\n📊 EXTRACTION SUMMARY:")
+        print(f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found/total_fields*100:.1f}%)")
+        print(f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches/total_fields*100:.1f}%)")  
+        print(f"📈 Extraction Success Rate: {overall_accuracy*100:.1f}%")
+        print(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
+        print(f"⏰ Processing Time: {processing_time:.3f}s")
+        print(f"🤖 Document Type: {result['document_type']}")
+        print(f"🔧 Model: Llama-3.2-11B-Vision-Instruct")
+        
+        # Additional metrics
+        meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
+        threshold = evaluation["overall_metrics"].get("document_type_threshold", 0.8)
+        print("\\n≈ = Partial match")  
+        print("✗ = No match")
+        print(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
 
     def _generate_document_aware_report(
         self, evaluations: List[Dict]
