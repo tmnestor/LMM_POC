@@ -357,7 +357,7 @@ class DocumentAwareLlamaHandler:
         print(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
         print(f"⏰ Processing Time: {processing_time:.3f}s")
         print(f"🤖 Document Type: {result['document_type']}")
-        print(f"🔧 Model: Llama-3.2-11B-Vision-Instruct")
+        print("🔧 Model: Llama-3.2-11B-Vision-Instruct")
         
         # Additional metrics
         meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
