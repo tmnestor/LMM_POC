@@ -72,27 +72,7 @@ class DocumentAwareInternVL3Handler:
                 f"   Supported types: {len(self.detection_config.get('supported_types', []))}"
             )
 
-        # DEBUG: Test schema loader directly
-        if self.debug:
-            print("🔍 DEBUG: Testing schema loader directly...")
-            receipt_schema = self.schema_loader.get_document_schema("receipt")
-            invoice_schema = self.schema_loader.get_document_schema("invoice")
-            print(
-                f"   Receipt schema fields: {len(receipt_schema['fields'])} (expected: 20)"
-            )
-            print(
-                f"   Invoice schema fields: {len(invoice_schema['fields'])} (expected: 29)"
-            )
-            print(f"   Receipt first 5: {receipt_schema['fields'][:5]}")
-            print(f"   Invoice first 5: {invoice_schema['fields'][:5]}")
-            if len(receipt_schema["fields"]) != 20:
-                print(
-                    f"   ❌ SCHEMA BUG: Receipt has {len(receipt_schema['fields'])} fields, expected 20!"
-                )
-            if len(invoice_schema["fields"]) != 29:
-                print(
-                    f"   ❌ SCHEMA BUG: Invoice has {len(invoice_schema['fields'])} fields, expected 29!"
-                )
+        # Schema loader initialized - ready for document-aware processing
 
         # Note: Document detector will be configured when we need it
         self.document_detector = None

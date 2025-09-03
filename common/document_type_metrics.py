@@ -69,36 +69,42 @@ class DocumentTypeEvaluator:
         return metrics_config
     
     def _get_critical_fields(self, doc_type: str) -> List[str]:
-        """Get critical fields for document type."""
-        critical_mapping = {
-            "invoice": ["BUSINESS_ABN", "SUPPLIER_NAME", "GST_AMOUNT", "TOTAL_AMOUNT"],
-            "receipt": ["SUPPLIER_NAME", "GST_AMOUNT", "TOTAL_AMOUNT"], 
-            "bank_statement": ["STATEMENT_DATE_RANGE", "TRANSACTION_AMOUNTS_PAID"]
-        }
-        return critical_mapping.get(doc_type, [])
+        """Get critical fields for document type from unified schema."""
+        from .unified_schema import DocumentTypeFieldSchema
+        
+        schema = DocumentTypeFieldSchema()
+        # Access document_types configuration from unified schema
+        doc_types_config = schema.unified_schema.get("document_types", {})
+        doc_config = doc_types_config.get(doc_type, {})
+        return doc_config.get("critical_fields", [])
     
     def _get_ato_fields(self, doc_type: str) -> List[str]:
-        """Get ATO compliance fields for invoices."""
-        if doc_type == "invoice":
-            return ["BUSINESS_ABN", "SUPPLIER_NAME", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT"]
-        return []
+        """Get ATO compliance fields from unified schema."""
+        from .unified_schema import DocumentTypeFieldSchema
+        
+        schema = DocumentTypeFieldSchema()
+        # Access document_types configuration from unified schema
+        doc_types_config = schema.unified_schema.get("document_types", {})
+        doc_config = doc_types_config.get(doc_type, {})
+        return doc_config.get("ato_compliance_fields", [])
     
     def _get_accuracy_threshold(self, doc_type: str) -> float:
-        """Get accuracy threshold for document type."""
-        thresholds = {"invoice": 0.8, "receipt": 0.75, "bank_statement": 0.7}
-        return thresholds.get(doc_type, 0.75)
+        """Get accuracy threshold for document type from unified schema."""
+        from .unified_schema import DocumentTypeFieldSchema
+        
+        schema = DocumentTypeFieldSchema()
+        # Access document_types configuration from unified schema
+        doc_types_config = schema.unified_schema.get("document_types", {})
+        doc_config = doc_types_config.get(doc_type, {})
+        return doc_config.get("accuracy_threshold", 0.75)
     
     def _load_field_categories_from_unified_schema(self) -> Dict[str, List[str]]:
         """Load field categories from unified schema (single source of truth)."""
-        # Simplified approach - use hardcoded categories for now
-        return {
-            "metadata": ["DOCUMENT_TYPE", "INVOICE_DATE"],
-            "business_info": ["SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS"],
-            "customer_info": ["PAYER_NAME", "PAYER_ADDRESS"],
-            "financial": ["GST_AMOUNT", "TOTAL_AMOUNT", "IS_GST_INCLUDED"],
-            "line_items": ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES"],
-            "banking": ["STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"]
-        }
+        from .unified_schema import DocumentTypeFieldSchema
+        
+        schema = DocumentTypeFieldSchema()
+        # Access field_categories configuration from unified schema
+        return schema.unified_schema.get("field_categories", {})
     
     def _load_evaluation_config_from_unified_schema(self) -> Dict[str, Any]:
         """Load evaluation configuration from unified schema (single source of truth)."""
