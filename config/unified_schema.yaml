@@ -228,12 +228,12 @@ field_definitions:
       category: "transactions"
   
   # --------------------------------------------------------------------------
-  # INTERNVL3 FIELD DEFINITIONS - Explicit and complete
+  # INTERNVL3 FIELD DEFINITIONS - Enhanced with visual location hints
   # --------------------------------------------------------------------------
   internvl3:
     DOCUMENT_TYPE:
       order: 1
-      instruction: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+      instruction: "[Look for words like INVOICE, RECEIPT, TAX INVOICE, STATEMENT at the top - answer with INVOICE/RECEIPT/STATEMENT or NOT_FOUND]"
       description: "Essential document identifier"
       applicable_documents: [invoice, receipt, bank_statement]
       required: true
@@ -241,7 +241,7 @@ field_definitions:
       
     BUSINESS_ABN:
       order: 2
-      instruction: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
+      instruction: "[Find 'ABN' label followed by 11 digits (e.g. XX XXX XXX XXX) - usually near business name at top or NOT_FOUND]"
       description: "Essential business identifier"
       applicable_documents: [invoice, receipt]
       required: true
@@ -250,7 +250,7 @@ field_definitions:
       
     SUPPLIER_NAME:
       order: 3
-      instruction: "[business name from document header or NOT_FOUND]"
+      instruction: "[Look at the TOP/HEADER of document for the LARGEST business/company name text - this is the supplier name or NOT_FOUND]"
       description: "Essential supplier information"
       applicable_documents: [invoice, receipt]
       required: true
@@ -259,7 +259,7 @@ field_definitions:
       
     BUSINESS_ADDRESS:
       order: 4
-      instruction: "[business address or NOT_FOUND]"
+      instruction: "[Find the street address directly under or near the business name at the TOP of document or NOT_FOUND]"
       description: "Essential supplier location"
       applicable_documents: [invoice, receipt]
       required: true
@@ -267,7 +267,7 @@ field_definitions:
       
     PAYER_NAME:
       order: 5
-      instruction: "[payer name or NOT_FOUND]"
+      instruction: "[Look for 'Bill To:', 'Customer:', 'Sold To:', or 'Payer:' section - extract the person/company name there or NOT_FOUND]"
       description: "Essential payer information"
       applicable_documents: [invoice, receipt]
       required: true
@@ -275,7 +275,7 @@ field_definitions:
       
     PAYER_ADDRESS:
       order: 6
-      instruction: "[payer address or NOT_FOUND]"
+      instruction: "[Find the address in the 'Bill To:', 'Customer:', or 'Payer:' section (usually middle of document) or NOT_FOUND]"
       description: "Essential payer location"
       applicable_documents: [invoice, receipt]
       required: true
@@ -283,7 +283,7 @@ field_definitions:
       
     INVOICE_DATE:
       order: 7
-      instruction: "[invoice date or NOT_FOUND]"
+      instruction: "[Look for 'Date:', 'Invoice Date:', 'Transaction Date:' label - extract the date value next to it or NOT_FOUND]"
       description: "Essential temporal information"
       applicable_documents: [invoice, receipt]
       required: true
@@ -291,7 +291,7 @@ field_definitions:
       
     STATEMENT_DATE_RANGE:
       order: 8
-      instruction: "[statement period or date range or NOT_FOUND]"
+      instruction: "[Find 'Statement Period:', 'Period:', or date range at top of statement (e.g. '1 Jan - 31 Jan') or NOT_FOUND]"
       description: "Essential bank statement temporal"
       applicable_documents: [bank_statement]
       required: true
@@ -299,7 +299,7 @@ field_definitions:
       
     LINE_ITEM_DESCRIPTIONS:
       order: 9
-      instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
+      instruction: "[Find the MAIN TABLE/LIST in middle of document - extract ALL product/service names from the description column, separate with ' | ' or NOT_FOUND]"
       description: "Essential line items / transaction descriptions"
       applicable_documents: [invoice, receipt, bank_statement]
       required: true
@@ -307,7 +307,7 @@ field_definitions:
       
     LINE_ITEM_QUANTITIES:
       order: 10
-      instruction: "[pipe-separated quantities or NOT_FOUND]"
+      instruction: "[In the main table, find 'QTY' or 'Quantity' column - list ALL quantity values separated by ' | ' in same order as items or NOT_FOUND]"
       description: "Quantities ordered"
       applicable_documents: [invoice, receipt]
       required: true
@@ -315,7 +315,7 @@ field_definitions:
       
     LINE_ITEM_PRICES:
       order: 11
-      instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+      instruction: "[Find 'Unit Price', 'Price Each', or 'Rate' column (NOT the total) - list each price per unit separated by ' | ' or NOT_FOUND]"
       description: "Unit prices (price per individual item, NOT total prices)"
       applicable_documents: [invoice, receipt]
       required: true
@@ -323,7 +323,7 @@ field_definitions:
       
     LINE_ITEM_TOTAL_PRICES:
       order: 12
-      instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+      instruction: "[Find 'Amount', 'Total', or 'Line Total' column (rightmost in table) - list the calculated totals separated by ' | ' or NOT_FOUND]"
       description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
       applicable_documents: [invoice, receipt]
       required: true
@@ -331,7 +331,7 @@ field_definitions:
       
     IS_GST_INCLUDED:
       order: 13
-      instruction: "[is the GST amount shown? Answer with (true/false only)]"
+      instruction: "[Check if document shows 'GST' with a dollar amount anywhere - answer 'true' if GST amount exists, 'false' if not]"
       description: "Essential tax classification"
       applicable_documents: [invoice, receipt]
       required: true
@@ -339,7 +339,7 @@ field_definitions:
       
     GST_AMOUNT:
       order: 14
-      instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
+      instruction: "[Look at BOTTOM section for 'GST:', 'Tax:', or 'GST 10%' - extract the dollar amount next to it (e.g. 8.62 or $8.62) or NOT_FOUND]"
       description: "Essential tax information"
       applicable_documents: [invoice, receipt]
       required: true
@@ -348,7 +348,7 @@ field_definitions:
       
     TOTAL_AMOUNT:
       order: 15
-      instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+      instruction: "[Find the LARGEST dollar amount at BOTTOM - look for 'TOTAL:', 'Total Due:', 'Amount Due:' - extract value with 2 decimals or NOT_FOUND]"
       description: "Essential financial total"
       applicable_documents: [invoice, receipt]
       required: true
@@ -357,7 +357,7 @@ field_definitions:
       
     TRANSACTION_DATES:
       order: 16
-      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+      instruction: "[In transaction table, find date column - list ALL dates in order separated by ' | ' or NOT_FOUND]"
       description: "Essential bank statement dates"
       applicable_documents: [bank_statement]
       required: true
@@ -365,7 +365,7 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
+      instruction: "[In transaction table, find amount/debit/credit columns - list ALL amounts as shown separated by ' | ' or NOT_FOUND]"
       description: "Essential bank statement amounts"
       applicable_documents: [bank_statement]
       required: true
@@ -644,35 +644,36 @@ prompt_templates:
     stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
   
   # --------------------------------------------------------------------------
-  # INTERNVL3 PROMPTS - Explicit and complete
+  # INTERNVL3 PROMPTS - Enhanced with explicit visual instructions
   # --------------------------------------------------------------------------
   internvl3:
-    expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
-    critical_instructions_header: "CRITICAL INSTRUCTIONS FOR INTERNVL3 - ESSENTIAL FIELD REDUCTION:"
+    expertise_frame: "STEP 1: Carefully examine the entire document image.\nSTEP 2: Identify the document type and key sections.\nSTEP 3: Extract EXACTLY {field_count} fields as specified below."
+    critical_instructions_header: "VISUAL EXTRACTION INSTRUCTIONS FOR INTERNVL3:"
     critical_instructions:
-      - "Output ONLY the structured data below"
-      - "Do NOT include any conversation text or explanations"
-      - "Do NOT repeat the user's request"
-      - "Do NOT include <image> tokens"
-      - "Be extremely precise with monetary values and ABN formatting"
-      - "Start immediately with DOCUMENT_TYPE"
-      - "Stop immediately after {last_field}"
-    output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
-    format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
+      - "FIRST: Scan the document header/top section for business name and ABN"
+      - "SECOND: Look for customer/payer information (usually in the middle section)"
+      - "THIRD: Find the itemized list or transaction table"
+      - "FOURTH: Locate the totals section (usually at the bottom)"
+      - "Output each field EXACTLY as shown below"
+      - "Start your response with DOCUMENT_TYPE: [value]"
+      - "End your response with {last_field}: [value]"
+    output_format: "EXTRACT THESE {field_count} FIELDS IN THIS EXACT ORDER:"
+    format_rules_header: "CRITICAL EXTRACTION RULES:"
     format_rules:
-      - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
-      - "Plain text only - NO markdown, NO bold, NO italic"
-      - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
-      - "Output ONLY these {field_count} lines, nothing else"
-      - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
-      - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
-      - "Be conservative: use NOT_FOUND if field is truly missing"
-      - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
-      - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
-      - "For calculated fields: show computed values with proper formatting"
-      - "For transaction lists: use pipe separators between transactions"
-      - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
-    stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
+      - "Each line must be: FIELDNAME: value"
+      - "IMPORTANT: For SUPPLIER_NAME, look at the business/company name at the TOP of the document"
+      - "IMPORTANT: For LINE_ITEM_DESCRIPTIONS, list ALL items shown in the itemized section"
+      - "For prices, distinguish between unit price (per item) and total price (quantity × unit)"
+      - "Use 'NOT_FOUND' ONLY when the field truly doesn't exist in the document"
+      - "For lists, separate items with ' | ' (space-pipe-space)"
+      - "Example for items: 'Coffee | Sandwich | Water'"
+      - "Example for prices: '$2.50 | $8.00 | $1.50'"
+      - "For ABN: extract all 11 digits (e.g., '12 345 678 901' or '12345678901')"
+      - "For boolean IS_GST_INCLUDED: answer 'true' if GST amount is shown, 'false' if not"
+      - "Extract monetary values with 2 decimal places (e.g., '$12.50' or '12.50')"
+      - "NO formatting, NO markdown, just plain text"
+      - "Include ALL {field_count} fields even if some are NOT_FOUND"
+    stop_instruction: "OUTPUT EXACTLY {field_count} LINES. Stop after {last_field}."
 
 # ==============================================================================
 # 6. FIELD CATEGORIES - Grouping for evaluation and reporting

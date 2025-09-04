@@ -118,3 +118,4 @@ docs/testing.txt
 backups/
 legacy/
 docs/LLAMA_PROCESSOR_COMPARISON.md
+config/unified_schema.yaml.backup
