@@ -364,11 +364,11 @@ prompt_templates:
     # --------------------------------------------------------------------------
     # INTERNVL3 PROMPTS
     # --------------------------------------------------------------------------
-    # IMPORTANT: Currently IDENTICAL to Llama prompts to maintain accuracy
-    # Will be customized after baseline accuracy is confirmed
+    # Customized for InternVL3's simpler, more direct processing style
     internvl3:
-      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
-      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
+      expertise_frame: "Analyze this document image and extract the exact text values for each field listed below."
+      
+      critical_instructions_header: "EXTRACTION RULES:"
       critical_instructions:
         - "Output ONLY the structured data below"
         - "Do NOT include any conversation text or explanations"
@@ -377,6 +377,10 @@ prompt_templates:
         - "Be extremely precise with monetary values and ABN formatting"
         - "Start immediately with DOCUMENT_TYPE"
         - "Stop immediately after {last_field}"
+      
+      output_format: "EXTRACT THESE {field_count} FIELDS:"
+      
+      stop_instruction: "Output exactly {field_count} lines. Stop after {last_field}."
     
   output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
   
