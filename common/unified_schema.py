@@ -57,21 +57,31 @@ class DocumentTypeFieldSchema:
         with schema_path.open("r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
-    def _convert_to_legacy_format(self) -> Dict:
+    def _convert_to_legacy_format(self, model_name: str = "llama") -> Dict:
         """Convert unified schema to legacy format for backward compatibility."""
-        # Extract field order from unified schema
-        semantic_order = self.unified_schema.get("semantic_field_order", [])
+        # Extract field order from unified schema (model-specific)
+        semantic_field_order = self.unified_schema.get("semantic_field_order", {})
         document_types = self.unified_schema.get("document_types", {})
+        
+        # Default to llama model for backward compatibility
+        if model_name not in semantic_field_order:
+            raise ValueError(f"Model '{model_name}' not found in semantic_field_order. Available models: {list(semantic_field_order.keys())}")
+            
+        if model_name not in document_types:
+            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
+        
+        model_semantic_order = semantic_field_order[model_name]
+        model_document_types = document_types[model_name]
         
         # Create legacy format structure
         legacy_schema = {
-            "total_fields": len(semantic_order),
-            "all_fields": semantic_order,
+            "total_fields": len(model_semantic_order),
+            "all_fields": model_semantic_order,
             "document_fields": {}
         }
         
         # Convert document type configurations
-        for doc_type, config in document_types.items():
+        for doc_type, config in model_document_types.items():
             legacy_schema["document_fields"][doc_type] = config.get("required_fields", [])
         
         return legacy_schema

@@ -62,10 +62,17 @@ class PureYAMLRenderer:
         Returns:
             Complete prompt string generated from YAML templates only
         """
-        if document_type not in self.unified_schema.get("document_types", {}):
-            raise ValueError(f"Unsupported document type: {document_type}")
+        document_types = self.unified_schema.get("document_types", {})
+        
+        # Check model exists
+        if model_name not in document_types:
+            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
+        
+        # Check document type exists for model
+        if document_type not in document_types[model_name]:
+            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}")
 
-        doc_config = self.unified_schema["document_types"][document_type]
+        doc_config = document_types[model_name][document_type]
         prompt_templates = self.unified_schema["prompt_templates"]
         all_field_definitions = self.unified_schema["field_definitions"]
 
@@ -147,20 +154,26 @@ class PureYAMLRenderer:
 
         return rendered
 
-    def get_document_field_list(self, document_type: str) -> List[str]:
+    def get_document_field_list(self, document_type: str, model_name: str = "llama") -> List[str]:
         """
         Get field list for document type from unified schema - no hardcoding.
 
         Args:
             document_type: Document type (invoice, receipt, bank_statement)
+            model_name: Model name for model-specific configuration (llama, internvl3)
 
         Returns:
             List of field names in semantic order
         """
-        if document_type not in self.unified_schema.get("document_types", {}):
-            raise ValueError(f"Unsupported document type: {document_type}")
+        document_types = self.unified_schema.get("document_types", {})
+        
+        if model_name not in document_types:
+            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
+            
+        if document_type not in document_types[model_name]:
+            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}")
 
-        doc_config = self.unified_schema["document_types"][document_type]
+        doc_config = document_types[model_name][document_type]
         return doc_config["required_fields"]
 
     def validate_field_consistency(self) -> bool:
@@ -170,56 +183,89 @@ class PureYAMLRenderer:
         Returns:
             True if schema is consistent, raises ValueError if not
         """
-        semantic_order = self.unified_schema.get("semantic_field_order", [])
+        semantic_field_order = self.unified_schema.get("semantic_field_order", {})
         field_definitions = self.unified_schema.get("field_definitions", {})
         document_types = self.unified_schema.get("document_types", {})
 
-        # Check that all fields in semantic order have definitions
-        missing_definitions = []
-        for field in semantic_order:
-            if field not in field_definitions:
-                missing_definitions.append(field)
+        # Validate each model's consistency
+        for model_name in ["llama", "internvl3"]:
+            # Check semantic field order exists for model
+            if model_name not in semantic_field_order:
+                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in semantic_field_order")
+                
+            # Check field definitions exist for model  
+            if model_name not in field_definitions:
+                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in field_definitions")
+                
+            # Check document types exist for model
+            if model_name not in document_types:
+                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in document_types")
+            
+            model_semantic_order = semantic_field_order[model_name]
+            model_field_definitions = field_definitions[model_name] 
+            model_document_types = document_types[model_name]
 
-        if missing_definitions:
-            raise ValueError(
-                f"❌ FATAL: Fields in semantic order missing definitions: {missing_definitions}\n"
-                "💡 Add field definitions to unified_schema.yaml"
-            )
+            # Check that all fields in semantic order have definitions
+            missing_definitions = []
+            for field in model_semantic_order:
+                if field not in model_field_definitions:
+                    missing_definitions.append(f"{model_name}.{field}")
 
-        # Check that all document type required fields have definitions
-        missing_doc_fields = []
-        for doc_type, doc_config in document_types.items():
-            for field in doc_config.get("required_fields", []):
-                if field not in field_definitions:
-                    missing_doc_fields.append(f"{doc_type}.{field}")
+            if missing_definitions:
+                raise ValueError(
+                    f"❌ FATAL: Fields in semantic order missing definitions: {missing_definitions}\n"
+                    "💡 Add field definitions to unified_schema.yaml"
+                )
 
-        if missing_doc_fields:
-            raise ValueError(
-                f"❌ FATAL: Document type fields missing definitions: {missing_doc_fields}\n"
-                "💡 Add field definitions to unified_schema.yaml"
-            )
+            # Check that all document type required fields have definitions
+            missing_doc_fields = []
+            for doc_type, doc_config in model_document_types.items():
+                for field in doc_config.get("required_fields", []):
+                    if field not in model_field_definitions:
+                        missing_doc_fields.append(f"{model_name}.{doc_type}.{field}")
+
+            if missing_doc_fields:
+                raise ValueError(
+                    f"❌ FATAL: Document type fields missing definitions: {missing_doc_fields}\n"
+                    "💡 Add field definitions to unified_schema.yaml"
+                )
 
         if self.debug:
-            print("✅ Unified schema consistency validation passed")
+            print("✅ Unified schema consistency validation passed for all models")
 
         return True
 
-    def get_supported_document_types(self) -> List[str]:
-        """Get list of supported document types from unified schema."""
-        return list(self.unified_schema.get("document_types", {}).keys())
-
-    def get_field_definition(self, field_name: str) -> Dict[str, Any]:
-        """Get field definition from unified schema."""
-        field_definitions = self.unified_schema.get("field_definitions", {})
-        if field_name not in field_definitions:
-            raise ValueError(f"Field '{field_name}' not found in unified schema")
-        return field_definitions[field_name]
-
-    def get_document_config(self, document_type: str) -> Dict[str, Any]:
-        """Get document type configuration from unified schema."""
+    def get_supported_document_types(self, model_name: str = "llama") -> List[str]:
+        """Get list of supported document types from unified schema for a specific model."""
         document_types = self.unified_schema.get("document_types", {})
-        if document_type not in document_types:
-            raise ValueError(
-                f"Document type '{document_type}' not found in unified schema"
-            )
-        return document_types[document_type]
+        
+        if model_name not in document_types:
+            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
+            
+        return list(document_types[model_name].keys())
+
+    def get_field_definition(self, field_name: str, model_name: str = "llama") -> Dict[str, Any]:
+        """Get field definition from unified schema for a specific model."""
+        field_definitions = self.unified_schema.get("field_definitions", {})
+        
+        if model_name not in field_definitions:
+            raise ValueError(f"Model '{model_name}' not found in field_definitions. Available models: {list(field_definitions.keys())}")
+            
+        model_field_definitions = field_definitions[model_name]
+        if field_name not in model_field_definitions:
+            raise ValueError(f"Field '{field_name}' not found for model '{model_name}' in unified schema")
+            
+        return model_field_definitions[field_name]
+
+    def get_document_config(self, document_type: str, model_name: str = "llama") -> Dict[str, Any]:
+        """Get document type configuration from unified schema for a specific model."""
+        document_types = self.unified_schema.get("document_types", {})
+        
+        if model_name not in document_types:
+            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
+            
+        model_document_types = document_types[model_name]
+        if document_type not in model_document_types:
+            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}' in unified schema")
+            
+        return model_document_types[document_type]

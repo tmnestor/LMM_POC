@@ -27,23 +27,49 @@ description: "Unified schema eliminating cascade failures and Python dynamic ove
 # ==============================================================================
 # Document identifiers → Business → Payer → Temporal → Line Items → Transactions → Financial
 semantic_field_order:
-  - DOCUMENT_TYPE
-  - BUSINESS_ABN
-  - SUPPLIER_NAME
-  - BUSINESS_ADDRESS
-  - PAYER_NAME
-  - PAYER_ADDRESS
-  - INVOICE_DATE
-  - STATEMENT_DATE_RANGE
-  - LINE_ITEM_DESCRIPTIONS
-  - LINE_ITEM_QUANTITIES
-  - LINE_ITEM_PRICES
-  - LINE_ITEM_TOTAL_PRICES
-  - IS_GST_INCLUDED
-  - GST_AMOUNT
-  - TOTAL_AMOUNT
-  - TRANSACTION_DATES
-  - TRANSACTION_AMOUNTS_PAID
+  # --------------------------------------------------------------------------
+  # LLAMA FIELD ORDER - Explicit semantic ordering for field extraction
+  # --------------------------------------------------------------------------
+  llama:
+    - DOCUMENT_TYPE
+    - BUSINESS_ABN
+    - SUPPLIER_NAME
+    - BUSINESS_ADDRESS
+    - PAYER_NAME
+    - PAYER_ADDRESS
+    - INVOICE_DATE
+    - STATEMENT_DATE_RANGE
+    - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_QUANTITIES
+    - LINE_ITEM_PRICES
+    - LINE_ITEM_TOTAL_PRICES
+    - IS_GST_INCLUDED
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+    - TRANSACTION_DATES
+    - TRANSACTION_AMOUNTS_PAID
+  
+  # --------------------------------------------------------------------------
+  # INTERNVL3 FIELD ORDER - Explicit semantic ordering for field extraction
+  # --------------------------------------------------------------------------
+  internvl3:
+    - DOCUMENT_TYPE
+    - BUSINESS_ABN
+    - SUPPLIER_NAME
+    - BUSINESS_ADDRESS
+    - PAYER_NAME
+    - PAYER_ADDRESS
+    - INVOICE_DATE
+    - STATEMENT_DATE_RANGE
+    - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_QUANTITIES
+    - LINE_ITEM_PRICES
+    - LINE_ITEM_TOTAL_PRICES
+    - IS_GST_INCLUDED
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+    - TRANSACTION_DATES
+    - TRANSACTION_AMOUNTS_PAID
 
 # ==============================================================================
 # 3. FIELD DEFINITIONS - Complete specifications for all 17 fields
@@ -356,109 +382,221 @@ field_definitions:
 # - ato_compliance_fields: Australian Tax Office compliance requirements
 # - aliases: Alternative names for document type detection
 document_types:
-  invoice:
-    document_type: "invoice"
-    accuracy_threshold: 0.95
-    field_count: 14
-    required_fields:
-      - DOCUMENT_TYPE
-      - BUSINESS_ABN
-      - SUPPLIER_NAME
-      - BUSINESS_ADDRESS
-      - PAYER_NAME
-      - PAYER_ADDRESS
-      - INVOICE_DATE
-      - LINE_ITEM_DESCRIPTIONS
-      - LINE_ITEM_QUANTITIES
-      - LINE_ITEM_PRICES
-      - LINE_ITEM_TOTAL_PRICES
-      - IS_GST_INCLUDED
-      - GST_AMOUNT
-      - TOTAL_AMOUNT
-    critical_fields:
-      - BUSINESS_ABN
-      - SUPPLIER_NAME
-      - GST_AMOUNT
-      - TOTAL_AMOUNT
-    ato_compliance_fields:
-      - BUSINESS_ABN
-      - GST_AMOUNT
-      - INVOICE_DATE
-      - SUPPLIER_NAME
-    aliases:
-      - "invoice"
-      - "tax invoice"
-      - "tax_invoice"
-      - "bill"
-      - "estimate"
-      - "quote"
-      - "quotation"
-      - "proforma invoice"
-      - "proforma_invoice"
-      
-  receipt:
-    document_type: "receipt"
-    accuracy_threshold: 0.85
-    field_count: 14
-    required_fields:
-      - DOCUMENT_TYPE
-      - BUSINESS_ABN
-      - SUPPLIER_NAME
-      - BUSINESS_ADDRESS
-      - PAYER_NAME
-      - PAYER_ADDRESS
-      - INVOICE_DATE  # For receipts, this is the transaction date
-      - LINE_ITEM_DESCRIPTIONS
-      - LINE_ITEM_QUANTITIES
-      - LINE_ITEM_PRICES
-      - LINE_ITEM_TOTAL_PRICES
-      - IS_GST_INCLUDED
-      - GST_AMOUNT
-      - TOTAL_AMOUNT
-    critical_fields:
-      - BUSINESS_ABN
-      - SUPPLIER_NAME
-      - GST_AMOUNT
-      - TOTAL_AMOUNT
-    ato_compliance_fields:
-      - BUSINESS_ABN
-      - GST_AMOUNT
-    aliases:
-      - "receipt"
-      - "purchase receipt"
-      - "purchase_receipt"
-      - "payment receipt"
-      - "payment_receipt"
-      - "sales receipt"
-      - "sales_receipt"
-      - "store receipt"
-      
-  bank_statement:
-    document_type: "bank_statement"
-    accuracy_threshold: 0.90
-    field_count: 5
-    required_fields:
-      - DOCUMENT_TYPE
-      - STATEMENT_DATE_RANGE
-      - LINE_ITEM_DESCRIPTIONS
-      - TRANSACTION_DATES
-      - TRANSACTION_AMOUNTS_PAID
-    critical_fields:
-      - STATEMENT_DATE_RANGE
-      - TRANSACTION_AMOUNTS_PAID
-    ato_compliance_fields: []
-    aliases:
-      - "bank statement"
-      - "bank_statement"
-      - "bankstatement"
-      - "account statement"
-      - "account_statement"
-      - "credit card statement"
-      - "credit_card_statement"
-      - "creditcard statement"
-      - "statement"
-      - "bank account statement"
-      - "monthly statement"
+  # --------------------------------------------------------------------------
+  # LLAMA DOCUMENT TYPE CONFIGURATIONS - Explicit and complete
+  # --------------------------------------------------------------------------
+  llama:
+    invoice:
+      document_type: "invoice"
+      accuracy_threshold: 0.95
+      field_count: 14
+      required_fields:
+        - DOCUMENT_TYPE
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - BUSINESS_ADDRESS
+        - PAYER_NAME
+        - PAYER_ADDRESS
+        - INVOICE_DATE
+        - LINE_ITEM_DESCRIPTIONS
+        - LINE_ITEM_QUANTITIES
+        - LINE_ITEM_PRICES
+        - LINE_ITEM_TOTAL_PRICES
+        - IS_GST_INCLUDED
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      critical_fields:
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      ato_compliance_fields:
+        - BUSINESS_ABN
+        - GST_AMOUNT
+        - INVOICE_DATE
+        - SUPPLIER_NAME
+      aliases:
+        - "invoice"
+        - "tax invoice"
+        - "tax_invoice"
+        - "bill"
+        - "estimate"
+        - "quote"
+        - "quotation"
+        - "proforma invoice"
+        - "proforma_invoice"
+        
+    receipt:
+      document_type: "receipt"
+      accuracy_threshold: 0.85
+      field_count: 14
+      required_fields:
+        - DOCUMENT_TYPE
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - BUSINESS_ADDRESS
+        - PAYER_NAME
+        - PAYER_ADDRESS
+        - INVOICE_DATE  # For receipts, this is the transaction date
+        - LINE_ITEM_DESCRIPTIONS
+        - LINE_ITEM_QUANTITIES
+        - LINE_ITEM_PRICES
+        - LINE_ITEM_TOTAL_PRICES
+        - IS_GST_INCLUDED
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      critical_fields:
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      ato_compliance_fields:
+        - BUSINESS_ABN
+        - GST_AMOUNT
+      aliases:
+        - "receipt"
+        - "purchase receipt"
+        - "purchase_receipt"
+        - "payment receipt"
+        - "payment_receipt"
+        - "sales receipt"
+        - "sales_receipt"
+        - "store receipt"
+        
+    bank_statement:
+      document_type: "bank_statement"
+      accuracy_threshold: 0.90
+      field_count: 5
+      required_fields:
+        - DOCUMENT_TYPE
+        - STATEMENT_DATE_RANGE
+        - LINE_ITEM_DESCRIPTIONS
+        - TRANSACTION_DATES
+        - TRANSACTION_AMOUNTS_PAID
+      critical_fields:
+        - STATEMENT_DATE_RANGE
+        - TRANSACTION_AMOUNTS_PAID
+      ato_compliance_fields: []
+      aliases:
+        - "bank statement"
+        - "bank_statement"
+        - "bankstatement"
+        - "account statement"
+        - "account_statement"
+        - "credit card statement"
+        - "credit_card_statement"
+        - "creditcard statement"
+        - "statement"
+        - "bank account statement"
+        - "monthly statement"
+  
+  # --------------------------------------------------------------------------
+  # INTERNVL3 DOCUMENT TYPE CONFIGURATIONS - Explicit and complete
+  # --------------------------------------------------------------------------
+  internvl3:
+    invoice:
+      document_type: "invoice"
+      accuracy_threshold: 0.95
+      field_count: 14
+      required_fields:
+        - DOCUMENT_TYPE
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - BUSINESS_ADDRESS
+        - PAYER_NAME
+        - PAYER_ADDRESS
+        - INVOICE_DATE
+        - LINE_ITEM_DESCRIPTIONS
+        - LINE_ITEM_QUANTITIES
+        - LINE_ITEM_PRICES
+        - LINE_ITEM_TOTAL_PRICES
+        - IS_GST_INCLUDED
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      critical_fields:
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      ato_compliance_fields:
+        - BUSINESS_ABN
+        - GST_AMOUNT
+        - INVOICE_DATE
+        - SUPPLIER_NAME
+      aliases:
+        - "invoice"
+        - "tax invoice"
+        - "tax_invoice"
+        - "bill"
+        - "estimate"
+        - "quote"
+        - "quotation"
+        - "proforma invoice"
+        - "proforma_invoice"
+        
+    receipt:
+      document_type: "receipt"
+      accuracy_threshold: 0.85
+      field_count: 14
+      required_fields:
+        - DOCUMENT_TYPE
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - BUSINESS_ADDRESS
+        - PAYER_NAME
+        - PAYER_ADDRESS
+        - INVOICE_DATE  # For receipts, this is the transaction date
+        - LINE_ITEM_DESCRIPTIONS
+        - LINE_ITEM_QUANTITIES
+        - LINE_ITEM_PRICES
+        - LINE_ITEM_TOTAL_PRICES
+        - IS_GST_INCLUDED
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      critical_fields:
+        - BUSINESS_ABN
+        - SUPPLIER_NAME
+        - GST_AMOUNT
+        - TOTAL_AMOUNT
+      ato_compliance_fields:
+        - BUSINESS_ABN
+        - GST_AMOUNT
+      aliases:
+        - "receipt"
+        - "purchase receipt"
+        - "purchase_receipt"
+        - "payment receipt"
+        - "payment_receipt"
+        - "sales receipt"
+        - "sales_receipt"
+        - "store receipt"
+        
+    bank_statement:
+      document_type: "bank_statement"
+      accuracy_threshold: 0.90
+      field_count: 5
+      required_fields:
+        - DOCUMENT_TYPE
+        - STATEMENT_DATE_RANGE
+        - LINE_ITEM_DESCRIPTIONS
+        - TRANSACTION_DATES
+        - TRANSACTION_AMOUNTS_PAID
+      critical_fields:
+        - STATEMENT_DATE_RANGE
+        - TRANSACTION_AMOUNTS_PAID
+      ato_compliance_fields: []
+      aliases:
+        - "bank statement"
+        - "bank_statement"
+        - "bankstatement"
+        - "account statement"
+        - "account_statement"
+        - "credit card statement"
+        - "credit_card_statement"
+        - "creditcard statement"
+        - "statement"
+        - "bank account statement"
+        - "monthly statement"
 
 # ==============================================================================
 # 5. PROMPT TEMPLATES - Model-specific prompt generation

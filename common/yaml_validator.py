@@ -141,55 +141,69 @@ class YAMLConsistencyValidator:
             return False
 
     def _validate_field_definitions(self) -> bool:
-        """Validate field definitions consistency."""
+        """Validate field definitions consistency for all models."""
         try:
             unified_schema = self._load_unified_schema()
             if not unified_schema:
                 return False
 
-            semantic_order = unified_schema.get("semantic_field_order", [])
+            semantic_field_order = unified_schema.get("semantic_field_order", {})
             field_definitions = unified_schema.get("field_definitions", {})
 
-            # Check that all fields in semantic order have definitions
-            missing_definitions = []
-            for field in semantic_order:
-                if field not in field_definitions:
-                    missing_definitions.append(field)
+            # Validate each model's field definitions
+            for model_name in ["llama", "internvl3"]:
+                # Check that model exists in all sections
+                if model_name not in semantic_field_order:
+                    self.errors.append(f"Model '{model_name}' not found in semantic_field_order")
+                    return False
+                    
+                if model_name not in field_definitions:
+                    self.errors.append(f"Model '{model_name}' not found in field_definitions")
+                    return False
 
-            if missing_definitions:
-                self.errors.append(
-                    f"Fields in semantic order missing definitions: {missing_definitions}"
-                )
-                return False
+                model_semantic_order = semantic_field_order[model_name]
+                model_field_definitions = field_definitions[model_name]
 
-            # Check that all field definitions have required properties
-            required_props = [
-                "order",
-                "instruction",
-                "description",
-                "applicable_documents",
-                "required",
-            ]
-            for field, definition in field_definitions.items():
-                missing_props = [
-                    prop for prop in required_props if prop not in definition
-                ]
-                if missing_props:
+                # Check that all fields in semantic order have definitions
+                missing_definitions = []
+                for field in model_semantic_order:
+                    if field not in model_field_definitions:
+                        missing_definitions.append(f"{model_name}.{field}")
+
+                if missing_definitions:
                     self.errors.append(
-                        f"Field '{field}' missing properties: {missing_props}"
+                        f"Fields in semantic order missing definitions: {missing_definitions}"
                     )
                     return False
 
-            # Check order numbering consistency
-            expected_order = 1
-            for field in semantic_order:
-                if field in field_definitions:
-                    actual_order = field_definitions[field].get("order", 0)
-                    if actual_order != expected_order:
-                        self.warnings.append(
-                            f"Field '{field}' has order {actual_order}, expected {expected_order}"
+                # Check that all field definitions have required properties
+                required_props = [
+                    "order",
+                    "instruction",
+                    "description",
+                    "applicable_documents",
+                    "required",
+                ]
+                for field, definition in model_field_definitions.items():
+                    missing_props = [
+                        prop for prop in required_props if prop not in definition
+                    ]
+                    if missing_props:
+                        self.errors.append(
+                            f"Field '{model_name}.{field}' missing properties: {missing_props}"
                         )
-                    expected_order += 1
+                        return False
+
+                # Check order numbering consistency
+                expected_order = 1
+                for field in model_semantic_order:
+                    if field in model_field_definitions:
+                        actual_order = model_field_definitions[field].get("order", 0)
+                        if actual_order != expected_order:
+                            self.warnings.append(
+                                f"Field '{model_name}.{field}' has order {actual_order}, expected {expected_order}"
+                            )
+                        expected_order += 1
 
             return True
 
@@ -198,7 +212,7 @@ class YAMLConsistencyValidator:
             return False
 
     def _validate_document_types(self) -> bool:
-        """Validate document type configurations."""
+        """Validate document type configurations for all models."""
         try:
             unified_schema = self._load_unified_schema()
             if not unified_schema:
@@ -207,34 +221,48 @@ class YAMLConsistencyValidator:
             document_types = unified_schema.get("document_types", {})
             field_definitions = unified_schema.get("field_definitions", {})
 
-            # Check each document type configuration
-            for doc_type, config in document_types.items():
-                required_fields = config.get("required_fields", [])
-
-                # Check that all required fields exist in field definitions
-                missing_fields = []
-                for field in required_fields:
-                    if field not in field_definitions:
-                        missing_fields.append(field)
-
-                if missing_fields:
-                    self.errors.append(
-                        f"Document type '{doc_type}' references undefined fields: {missing_fields}"
-                    )
+            # Validate each model's document type configurations
+            for model_name in ["llama", "internvl3"]:
+                # Check that model exists in all sections
+                if model_name not in document_types:
+                    self.errors.append(f"Model '{model_name}' not found in document_types")
+                    return False
+                    
+                if model_name not in field_definitions:
+                    self.errors.append(f"Model '{model_name}' not found in field_definitions")
                     return False
 
-                # Check that required fields are applicable to this document type
-                invalid_fields = []
-                for field in required_fields:
-                    field_def = field_definitions.get(field, {})
-                    applicable_docs = field_def.get("applicable_documents", [])
-                    if doc_type not in applicable_docs:
-                        invalid_fields.append(field)
+                model_document_types = document_types[model_name]
+                model_field_definitions = field_definitions[model_name]
 
-                if invalid_fields:
-                    self.warnings.append(
-                        f"Document type '{doc_type}' uses fields not marked as applicable: {invalid_fields}"
-                    )
+                # Check each document type configuration for this model
+                for doc_type, config in model_document_types.items():
+                    required_fields = config.get("required_fields", [])
+
+                    # Check that all required fields exist in field definitions
+                    missing_fields = []
+                    for field in required_fields:
+                        if field not in model_field_definitions:
+                            missing_fields.append(f"{model_name}.{doc_type}.{field}")
+
+                    if missing_fields:
+                        self.errors.append(
+                            f"Document type references undefined fields: {missing_fields}"
+                        )
+                        return False
+
+                    # Check that required fields are applicable to this document type
+                    invalid_fields = []
+                    for field in required_fields:
+                        field_def = model_field_definitions.get(field, {})
+                        applicable_docs = field_def.get("applicable_documents", [])
+                        if doc_type not in applicable_docs:
+                            invalid_fields.append(f"{model_name}.{doc_type}.{field}")
+
+                    if invalid_fields:
+                        self.warnings.append(
+                            f"Document type uses fields not marked as applicable: {invalid_fields}"
+                        )
 
             return True
 
@@ -286,31 +314,45 @@ class YAMLConsistencyValidator:
             return False
 
     def _validate_field_order_consistency(self) -> bool:
-        """Validate field order consistency across configurations."""
+        """Validate field order consistency across configurations for all models."""
         try:
             unified_schema = self._load_unified_schema()
             if not unified_schema:
                 return False
 
-            semantic_order = unified_schema.get("semantic_field_order", [])
+            semantic_field_order = unified_schema.get("semantic_field_order", {})
             document_types = unified_schema.get("document_types", {})
 
-            # For each document type, check that required fields follow semantic order
-            for doc_type, config in document_types.items():
-                required_fields = config.get("required_fields", [])
+            # Validate each model's field order consistency
+            for model_name in ["llama", "internvl3"]:
+                # Check that model exists in all sections
+                if model_name not in semantic_field_order:
+                    self.errors.append(f"Model '{model_name}' not found in semantic_field_order")
+                    return False
+                    
+                if model_name not in document_types:
+                    self.errors.append(f"Model '{model_name}' not found in document_types")
+                    return False
 
-                # Extract the subset of semantic order that applies to this document
-                applicable_semantic_order = [
-                    field for field in semantic_order if field in required_fields
-                ]
+                model_semantic_order = semantic_field_order[model_name]
+                model_document_types = document_types[model_name]
 
-                # Check if required fields match semantic order
-                if required_fields != applicable_semantic_order:
-                    self.warnings.append(
-                        f"Document type '{doc_type}' field order doesn't match semantic order.\n"
-                        f"  Expected: {applicable_semantic_order}\n"
-                        f"  Actual: {required_fields}"
-                    )
+                # For each document type, check that required fields follow semantic order
+                for doc_type, config in model_document_types.items():
+                    required_fields = config.get("required_fields", [])
+
+                    # Extract the subset of semantic order that applies to this document
+                    applicable_semantic_order = [
+                        field for field in model_semantic_order if field in required_fields
+                    ]
+
+                    # Check if required fields match semantic order
+                    if required_fields != applicable_semantic_order:
+                        self.warnings.append(
+                            f"Document type '{model_name}.{doc_type}' field order doesn't match semantic order.\n"
+                            f"  Expected: {applicable_semantic_order}\n"
+                            f"  Actual: {required_fields}"
+                        )
 
             return True
 
