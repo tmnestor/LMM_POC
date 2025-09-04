@@ -154,7 +154,7 @@ class PureYAMLRenderer:
 
         return rendered
 
-    def get_document_field_list(self, document_type: str, model_name: str = "llama") -> List[str]:
+    def get_document_field_list(self, document_type: str, model_name: str) -> List[str]:
         """
         Get field list for document type from unified schema - no hardcoding.
 
@@ -235,7 +235,7 @@ class PureYAMLRenderer:
 
         return True
 
-    def get_supported_document_types(self, model_name: str = "llama") -> List[str]:
+    def get_supported_document_types(self, model_name: str) -> List[str]:
         """Get list of supported document types from unified schema for a specific model."""
         document_types = self.unified_schema.get("document_types", {})
         
@@ -244,7 +244,7 @@ class PureYAMLRenderer:
             
         return list(document_types[model_name].keys())
 
-    def get_field_definition(self, field_name: str, model_name: str = "llama") -> Dict[str, Any]:
+    def get_field_definition(self, field_name: str, model_name: str) -> Dict[str, Any]:
         """Get field definition from unified schema for a specific model."""
         field_definitions = self.unified_schema.get("field_definitions", {})
         
@@ -257,7 +257,7 @@ class PureYAMLRenderer:
             
         return model_field_definitions[field_name]
 
-    def get_document_config(self, document_type: str, model_name: str = "llama") -> Dict[str, Any]:
+    def get_document_config(self, document_type: str, model_name: str) -> Dict[str, Any]:
         """Get document type configuration from unified schema for a specific model."""
         document_types = self.unified_schema.get("document_types", {})
         
