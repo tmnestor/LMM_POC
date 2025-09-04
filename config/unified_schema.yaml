@@ -303,32 +303,27 @@ prompt_templates:
         - "Stop immediately after {last_field}"
     
     internvl3:
-      expertise_frame: "Analyze this document image and extract the exact text values for each field listed below."
+      # Keep most templates same as default/Llama for field instructions
+      # Only customize the framing and specific formatting issues
+      expertise_frame: "Extract structured data from this business document image."
       
-      critical_instructions_header: "EXTRACTION RULES:"
-      critical_instructions:
-        - "Output format: FIELD_NAME: value"
-        - "Use exact text from the document - do not paraphrase"
-        - "For addresses, include full multi-line addresses on one line"
-        - "For lists, use pipe separator: item1 | item2 | item3"
-        - "For missing fields, output: FIELD_NAME: NOT_FOUND"
-        - "Do not add explanations or additional text"
-        - "Start with DOCUMENT_TYPE, end with {last_field}"
+      critical_instructions_header: "CRITICAL INSTRUCTIONS:"
       
-      output_format: "EXTRACT THESE {field_count} FIELDS:"
-      
-      format_rules_header: "FIELD FORMAT REQUIREMENTS:"
+      # Additional InternVL3-specific format guidance
       format_rules:
-        - "ABN format: Keep spaces (XX XXX XXX XXX) or no spaces (XXXXXXXXXXX)"
-        - "Monetary values: Include dollar sign and decimals ($X.XX)"
-        - "Dates: Keep original format from document"
-        - "Boolean fields (IS_GST_INCLUDED): Answer only 'true' or 'false'"
-        - "Multi-line addresses: Combine all lines with spaces"
-        - "Line items: Separate with pipe character (|)"
-        - "Empty values: Use NOT_FOUND"
-        - "Do not use markdown formatting (**text**) in values"
-      
-      stop_instruction: "Output exactly {field_count} lines. Stop after {last_field}."
+        - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+        - "Plain text only - NO markdown, NO bold, NO italic"
+        - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
+        - "Output ONLY these {field_count} lines, nothing else"
+        - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+        - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+        - "Be conservative: use NOT_FOUND if field is truly missing"
+        - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+        - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+        - "For calculated fields: show computed values with proper formatting"
+        - "For transaction lists: use pipe separators between transactions"
+        - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
+        - "For multi-line addresses: combine all lines with spaces into one line"
     
   output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
   
