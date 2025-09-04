@@ -456,9 +456,9 @@ class DocumentAwareInternVL3Processor:
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
 
-        # TILE_BOOST: For document analysis, use higher minimum tile count for better OCR
-        if min_num < 6:
-            min_num = 6  # Force at least 6 tiles for document OCR accuracy
+        # TILE_BOOST: Force high minimum for document OCR accuracy testing
+        if min_num < 9:
+            min_num = 9  # Force at least 9 tiles for document OCR accuracy
             if self.debug:
                 print(f"🚀 DOCUMENT_BOOST: Increased min_num to {min_num} for better text coverage")
 
