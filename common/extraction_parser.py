@@ -135,17 +135,25 @@ def parse_extraction_response(
                     else ""
                 )
 
-                # If value is empty and there's a next line, check if it's the value
+                # If value is empty, collect multi-line value from subsequent lines
                 if not value and i + 1 < len(lines):
-                    next_line = lines[i + 1].strip()
-                    # Only treat next line as value if it doesn't look like another key
-                    if (
-                        next_line
-                        and not re.match(r"^\*\*[A-Z_]+:\*\*", next_line)
-                        and ":" not in next_line
-                    ):
-                        value = next_line
-                        i += 2  # Skip both lines
+                    value_lines = []
+                    j = i + 1
+                    # Collect all consecutive non-empty lines that don't look like keys
+                    while j < len(lines):
+                        next_line = lines[j].strip()
+                        # Stop if we hit an empty line or another key
+                        if not next_line or re.match(r"^\*\*[A-Z_]+:\*\*", next_line):
+                            break
+                        # Stop if line contains colon (might be another field)
+                        if ":" in next_line and not any(addr_word in next_line.lower() for addr_word in ['street', 'road', 'avenue', 'drive', 'lane', 'court', 'place', 'way', 'vic', 'nsw', 'qld', 'sa', 'wa', 'tas', 'nt', 'act']):
+                            break
+                        value_lines.append(next_line)
+                        j += 1
+                    
+                    if value_lines:
+                        value = " ".join(value_lines)  # Join multi-line values with space
+                        i = j  # Skip to after the collected lines
                     else:
                         i += 1  # Just skip the key line
                 else:
