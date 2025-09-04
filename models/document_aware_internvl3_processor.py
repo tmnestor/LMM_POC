@@ -522,8 +522,8 @@ class DocumentAwareInternVL3Processor:
                     f"📝 Field list: {self.field_list[:5]}{'...' if len(self.field_list) > 5 else ''}"
                 )
 
-            # Memory cleanup
-            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            # Memory cleanup - V100 optimized threshold (16GB total capacity)
+            handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
             # FIXED: Use direct extraction with the already-determined field list
             # Don't re-detect document type - we already have the correct fields
@@ -678,8 +678,8 @@ class DocumentAwareInternVL3Processor:
         self, image_path: str, prompt: str, generation_config: dict = None
     ) -> str:
         """Core extraction method that handles image processing and model inference."""
-        # Pre-processing cleanup with fragmentation detection
-        handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+        # Pre-processing cleanup with fragmentation detection - V100 optimized
+        handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
         # Load and preprocess image
         pixel_values = self.load_image(image_path)
@@ -706,26 +706,45 @@ class DocumentAwareInternVL3Processor:
                 return_history=False,
             )
         except torch.cuda.OutOfMemoryError as e:
-            print(f"⚠️ InternVL3 OOM: {e}")
-            print("🔄 Attempting emergency cleanup and retry...")
-
-            # Emergency cleanup
-            torch.cuda.empty_cache()
-            clear_model_caches(self.model, self.tokenizer)
-            handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
-
-            # Retry once
-            try:
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values,
-                    question,
-                    config,
-                    history=None,
-                    return_history=False,
-                )
-            except torch.cuda.OutOfMemoryError:
-                print("❌ InternVL3: Even with cleanup, OOM persists")
+            print(f"⚠️ InternVL3 OOM with {pixel_values.shape[0]} tiles: {e}")
+            
+            # Progressive tile fallback strategy for quantized 8B model
+            initial_tiles = pixel_values.shape[0]
+            fallback_tiles = [9, 6, 4] if initial_tiles >= 12 else [6, 4]
+            
+            for tiles in fallback_tiles:
+                if tiles >= initial_tiles:
+                    continue  # Skip if not actually reducing
+                    
+                print(f"🔄 PROGRESSIVE FALLBACK: Trying {tiles} tiles (was {initial_tiles})...")
+                
+                # Emergency cleanup - V100 optimized threshold
+                torch.cuda.empty_cache()
+                clear_model_caches(self.model, self.tokenizer)
+                handle_memory_fragmentation(threshold_gb=1.5, aggressive=True)
+                
+                # Reload image with fewer tiles
+                del pixel_values
+                pixel_values = self.load_image(image_path, max_num=tiles)
+                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+                
+                try:
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        question,
+                        config,
+                        history=None,
+                        return_history=False,
+                    )
+                    print(f"✅ SUCCESS with {tiles} tiles (reduced from {initial_tiles})")
+                    break  # Success - exit the fallback loop
+                except torch.cuda.OutOfMemoryError:
+                    print(f"❌ Still OOM with {tiles} tiles, trying next fallback...")
+                    continue
+            else:
+                # All fallback attempts failed
+                print("❌ InternVL3: OOM persists even with minimum tile count")
                 raise
 
         # Memory cleanup after processing
