@@ -638,25 +638,12 @@ class DocumentAwareInternVL3Processor:
                 field_list=field_list
             )
         except Exception as e:
-            # Fallback to simple prompt if YAML rendering fails
-            if self.debug:
-                print(f"⚠️ YAML prompt generation failed: {e}, using fallback")
-            
-            # Simple fallback prompt
-            field_lines = []
-            for field in field_list:
-                field_lines.append(f"{field}: [value as shown or NOT_FOUND]")
-                
-            prompt = f"""Extract structured data from this business document image.
-
-OUTPUT FORMAT - EXACTLY {len(field_list)} LINES:
-{chr(10).join(field_lines)}
-
-INSTRUCTIONS:
-- Extract values exactly as they appear in the document
-- Use NOT_FOUND if a field is not present or cannot be determined
-- Use colon and space format: FIELD_NAME: value
-- Output only the {len(field_list)} lines above, nothing else"""
+            # Re-raise the error instead of using a fallback
+            raise ValueError(
+                f"❌ FATAL: Could not generate prompt from unified schema: {e}\n"
+                f"💡 Check unified_schema.yaml exists and has valid templates\n"
+                f"💡 Ensure document_type '{document_type}' is supported"
+            ) from e
 
         if self.debug:
             print("📝 Document-aware extraction prompt:")
