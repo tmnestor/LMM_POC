@@ -1,11 +1,30 @@
-# Unified Schema Configuration - True YAML-First Architecture
+################################################################################
+# UNIFIED SCHEMA CONFIGURATION - TRUE YAML-FIRST ARCHITECTURE
+################################################################################
 # Single source of truth for all field definitions, document types, and prompt generation
-# BOSS FIELD REDUCTION: 15 essential fields optimized for high performance
+# BOSS FIELD REDUCTION: 17 fields (15 original + 2 new line item fields)
+#
+# FILE STRUCTURE:
+# 1. METADATA           - Schema version and description
+# 2. FIELD ORDER        - Semantic ordering of all fields
+# 3. FIELD DEFINITIONS  - Complete field specifications
+# 4. DOCUMENT TYPES     - Document-specific configurations
+# 5. PROMPT TEMPLATES   - Model-specific prompt generation
+# 6. FIELD CATEGORIES   - Grouping for evaluation reporting
+# 7. EVALUATION CONFIG  - Evaluation and validation settings
+# 8. CRITICAL FIELDS    - Fields requiring special attention
+# 9. VERSION HISTORY    - Schema evolution tracking
+################################################################################
 
+# ==============================================================================
+# 1. METADATA
+# ==============================================================================
 schema_version: "5.0-unified"
 description: "Unified schema eliminating cascade failures and Python dynamic overrides"
 
-# CORE SEMANTIC FIELD ORDER - Single source of truth
+# ==============================================================================
+# 2. FIELD ORDER - Semantic flow through document
+# ==============================================================================
 # Document identifiers → Business → Payer → Temporal → Line Items → Transactions → Financial
 semantic_field_order:
   - DOCUMENT_TYPE
@@ -26,7 +45,17 @@ semantic_field_order:
   - TRANSACTION_DATES
   - TRANSACTION_AMOUNTS_PAID
 
-# COMPLETE FIELD DEFINITIONS - All 15 essential fields
+# ==============================================================================
+# 3. FIELD DEFINITIONS - Complete specifications for all 17 fields
+# ==============================================================================
+# Each field includes:
+# - order: Position in extraction sequence
+# - instruction: How to extract the field
+# - description: What the field represents
+# - applicable_documents: Which document types use this field
+# - required: Whether field is mandatory
+# - category: Field grouping for reporting
+# - critical: (optional) Whether field needs special validation
 field_definitions:
   DOCUMENT_TYPE:
     order: 1
@@ -168,7 +197,16 @@ field_definitions:
     required: true
     category: "transactions"
 
-# DOCUMENT TYPE CONFIGURATIONS
+# ==============================================================================
+# 4. DOCUMENT TYPE CONFIGURATIONS
+# ==============================================================================
+# Configuration for each supported document type:
+# - accuracy_threshold: Minimum accuracy for deployment
+# - field_count: Number of fields for this document type
+# - required_fields: Fields that must be extracted
+# - critical_fields: Fields requiring highest accuracy
+# - ato_compliance_fields: Australian Tax Office compliance requirements
+# - aliases: Alternative names for document type detection
 document_types:
   invoice:
     document_type: "invoice"
@@ -274,9 +312,23 @@ document_types:
       - "bank account statement"
       - "monthly statement"
 
-# PROMPT TEMPLATES - No Python overrides, pure YAML
+# ==============================================================================
+# 5. PROMPT TEMPLATES - Model-specific prompt generation
+# ==============================================================================
+# Templates used to generate extraction prompts:
+# - Default templates: Used when no model-specific override exists
+# - Model-specific overrides: Customizations for specific models
+#   - llama: Optimized for Llama-3.2-Vision
+#   - internvl3: Optimized for InternVL3 (currently identical to llama)
+#
+# Template variables available:
+# - {field_count}: Number of fields to extract
+# - {last_field}: Name of the last field in the list
+# - {document_type}: Type of document being processed
 prompt_templates:
-  # Default templates (used when no model-specific override exists)
+  # ----------------------------------------------------------------------------
+  # DEFAULT TEMPLATES - Used when no model-specific override exists
+  # ----------------------------------------------------------------------------
   expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
   
   critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
@@ -288,8 +340,15 @@ prompt_templates:
     - "Start immediately with DOCUMENT_TYPE"
     - "Stop immediately after {last_field}"
   
-  # Model-specific overrides (merged with defaults)
+  # ----------------------------------------------------------------------------
+  # MODEL-SPECIFIC OVERRIDES - Merged with defaults for each model
+  # ----------------------------------------------------------------------------
+  # NOTE: Currently both models use identical prompts for consistency
+  # Customizations can be added here when needed without changing code
   model_specific:
+    # --------------------------------------------------------------------------
+    # LLAMA-3.2-VISION PROMPTS
+    # --------------------------------------------------------------------------
     llama:
       expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
       critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
@@ -302,8 +361,12 @@ prompt_templates:
         - "Start immediately with DOCUMENT_TYPE"
         - "Stop immediately after {last_field}"
     
+    # --------------------------------------------------------------------------
+    # INTERNVL3 PROMPTS
+    # --------------------------------------------------------------------------
+    # IMPORTANT: Currently IDENTICAL to Llama prompts to maintain accuracy
+    # Will be customized after baseline accuracy is confirmed
     internvl3:
-      # IDENTICAL to Llama prompts for now - will customize after restoring accuracy
       expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
       critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
       critical_instructions:
@@ -334,7 +397,11 @@ prompt_templates:
     
   stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
 
-# FIELD CATEGORIES for evaluation reporting
+# ==============================================================================
+# 6. FIELD CATEGORIES - Grouping for evaluation and reporting
+# ==============================================================================
+# Fields grouped by business function for analysis and reporting
+# Used by evaluation metrics to calculate category-level accuracy
 field_categories:
   identification:
     - DOCUMENT_TYPE
@@ -361,7 +428,14 @@ field_categories:
     - TRANSACTION_DATES
     - TRANSACTION_AMOUNTS_PAID
 
-# EVALUATION CONFIGURATION
+# ==============================================================================
+# 7. EVALUATION CONFIGURATION
+# ==============================================================================
+# Settings for field extraction evaluation and validation
+# - field_accuracy_threshold: Minimum accuracy per field
+# - detection_config: Document type detection settings
+# - fuzzy_matching: String similarity matching for text fields
+# - field_type_handling: Special handling for different field types
 evaluation:
   field_accuracy_threshold: 0.8
   detection_config:
@@ -389,20 +463,29 @@ evaluation:
       normalize_whitespace: true
       order_sensitive: false
 
-# CRITICAL FIELDS requiring special attention (for validation)
+# ==============================================================================
+# 8. CRITICAL FIELDS - Fields requiring special validation
+# ==============================================================================
+# These fields are essential for business compliance and accuracy
+# Extra validation and accuracy checks are performed on these fields
 critical_fields:
   - BUSINESS_ABN    # Essential business identifier (11-digit ABN)
   - SUPPLIER_NAME   # Essential supplier information
   - GST_AMOUNT      # Essential tax information
   - TOTAL_AMOUNT    # Essential financial total
 
-# SUPPORTED DOCUMENT TYPES for validation
+# ==============================================================================
+# 9. SUPPORTED DOCUMENT TYPES - List for validation
+# ==============================================================================
 supported_document_types:
   - "invoice"
   - "receipt" 
   - "bank_statement"
 
-# DOCUMENT TYPE DETECTION CONFIGURATION
+# ==============================================================================
+# 10. DOCUMENT TYPE DETECTION - Automatic document classification
+# ==============================================================================
+# Configuration for detecting document type from image
 # Consolidated from prompts/document_type_detection.yaml
 document_type_detection:
   # Detection prompt configurations by model
@@ -460,7 +543,9 @@ document_type_detection:
     fallback_type: "invoice"
     enable_debug_output: true
 
-# VERSION HISTORY
+# ==============================================================================
+# 11. VERSION HISTORY - Schema evolution tracking
+# ==============================================================================
 version_history:
   "5.0-unified": "Unified schema eliminating cascade failures - True YAML-first architecture"
   "4.0-reduced": "Boss field reduction - 15 essential fields"
