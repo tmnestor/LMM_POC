@@ -57,145 +57,293 @@ semantic_field_order:
 # - category: Field grouping for reporting
 # - critical: (optional) Whether field needs special validation
 field_definitions:
-  DOCUMENT_TYPE:
-    order: 1
-    instruction: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
-    description: "Essential document identifier"
-    applicable_documents: [invoice, receipt, bank_statement]
-    required: true
-    category: "identification"
-    
-  BUSINESS_ABN:
-    order: 2
-    instruction: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
-    description: "Essential business identifier"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "identification"
-    critical: true
-    
-  SUPPLIER_NAME:
-    order: 3
-    instruction: "[business name from document header or NOT_FOUND]"
-    description: "Essential supplier information"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "business_details"
-    critical: true
-    
-  BUSINESS_ADDRESS:
-    order: 4
-    instruction: "[business address or NOT_FOUND]"
-    description: "Essential supplier location"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "business_details"
-    
-  PAYER_NAME:
-    order: 5
-    instruction: "[payer name or NOT_FOUND]"
-    description: "Essential payer information"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "customer_details"
-    
-  PAYER_ADDRESS:
-    order: 6
-    instruction: "[payer address or NOT_FOUND]"
-    description: "Essential payer location"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "customer_details"
-    
-  INVOICE_DATE:
-    order: 7
-    instruction: "[invoice date or NOT_FOUND]"
-    description: "Essential temporal information"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "temporal"
-    
-  STATEMENT_DATE_RANGE:
-    order: 8
-    instruction: "[statement period or date range or NOT_FOUND]"
-    description: "Essential bank statement temporal"
-    applicable_documents: [bank_statement]
-    required: true
-    category: "temporal"
-    
-  LINE_ITEM_DESCRIPTIONS:
-    order: 9
-    instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
-    description: "Essential line items / transaction descriptions"
-    applicable_documents: [invoice, receipt, bank_statement]
-    required: true
-    category: "line_items"
-    
-  LINE_ITEM_QUANTITIES:
-    order: 10
-    instruction: "[pipe-separated quantities or NOT_FOUND]"
-    description: "Quantities ordered"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "line_items"
-    
-  LINE_ITEM_PRICES:
-    order: 11
-    instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
-    description: "Unit prices (price per individual item, NOT total prices)"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "line_items"
-    
-  LINE_ITEM_TOTAL_PRICES:
-    order: 12
-    instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
-    description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "line_items"
-    
-  IS_GST_INCLUDED:
-    order: 13
-    instruction: "[is the GST amount shown? Answer with (true/false only)]"
-    description: "Essential tax classification"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "financial"
-    
-  GST_AMOUNT:
-    order: 14
-    instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
-    description: "Essential tax information"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "financial"
-    critical: true
-    
-  TOTAL_AMOUNT:
-    order: 15
-    instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
-    description: "Essential financial total"
-    applicable_documents: [invoice, receipt]
-    required: true
-    category: "financial"
-    critical: true
-    
-  TRANSACTION_DATES:
-    order: 16
-    instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
-    description: "Essential bank statement dates"
-    applicable_documents: [bank_statement]
-    required: true
-    category: "transactions"
-    
-  TRANSACTION_AMOUNTS_PAID:
-    order: 17
-    instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
-    description: "Essential bank statement amounts"
-    applicable_documents: [bank_statement]
-    required: true
-    category: "transactions"
+  # --------------------------------------------------------------------------
+  # LLAMA FIELD DEFINITIONS - Explicit and complete
+  # --------------------------------------------------------------------------
+  llama:
+    DOCUMENT_TYPE:
+      order: 1
+      instruction: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+      description: "Essential document identifier"
+      applicable_documents: [invoice, receipt, bank_statement]
+      required: true
+      category: "identification"
+      
+    BUSINESS_ABN:
+      order: 2
+      instruction: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
+      description: "Essential business identifier"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "identification"
+      critical: true
+      
+    SUPPLIER_NAME:
+      order: 3
+      instruction: "[business name from document header or NOT_FOUND]"
+      description: "Essential supplier information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "business_details"
+      critical: true
+      
+    BUSINESS_ADDRESS:
+      order: 4
+      instruction: "[business address or NOT_FOUND]"
+      description: "Essential supplier location"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "business_details"
+      
+    PAYER_NAME:
+      order: 5
+      instruction: "[payer name or NOT_FOUND]"
+      description: "Essential payer information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "customer_details"
+      
+    PAYER_ADDRESS:
+      order: 6
+      instruction: "[payer address or NOT_FOUND]"
+      description: "Essential payer location"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "customer_details"
+      
+    INVOICE_DATE:
+      order: 7
+      instruction: "[invoice date or NOT_FOUND]"
+      description: "Essential temporal information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "temporal"
+      
+    STATEMENT_DATE_RANGE:
+      order: 8
+      instruction: "[statement period or date range or NOT_FOUND]"
+      description: "Essential bank statement temporal"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "temporal"
+      
+    LINE_ITEM_DESCRIPTIONS:
+      order: 9
+      instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
+      description: "Essential line items / transaction descriptions"
+      applicable_documents: [invoice, receipt, bank_statement]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_QUANTITIES:
+      order: 10
+      instruction: "[pipe-separated quantities or NOT_FOUND]"
+      description: "Quantities ordered"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_PRICES:
+      order: 11
+      instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+      description: "Unit prices (price per individual item, NOT total prices)"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_TOTAL_PRICES:
+      order: 12
+      instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+      description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    IS_GST_INCLUDED:
+      order: 13
+      instruction: "[is the GST amount shown? Answer with (true/false only)]"
+      description: "Essential tax classification"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      
+    GST_AMOUNT:
+      order: 14
+      instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
+      description: "Essential tax information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      critical: true
+      
+    TOTAL_AMOUNT:
+      order: 15
+      instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+      description: "Essential financial total"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      critical: true
+      
+    TRANSACTION_DATES:
+      order: 16
+      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+      description: "Essential bank statement dates"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    TRANSACTION_AMOUNTS_PAID:
+      order: 17
+      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
+      description: "Essential bank statement amounts"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+  
+  # --------------------------------------------------------------------------
+  # INTERNVL3 FIELD DEFINITIONS - Explicit and complete
+  # --------------------------------------------------------------------------
+  internvl3:
+    DOCUMENT_TYPE:
+      order: 1
+      instruction: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"
+      description: "Essential document identifier"
+      applicable_documents: [invoice, receipt, bank_statement]
+      required: true
+      category: "identification"
+      
+    BUSINESS_ABN:
+      order: 2
+      instruction: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"
+      description: "Essential business identifier"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "identification"
+      critical: true
+      
+    SUPPLIER_NAME:
+      order: 3
+      instruction: "[business name from document header or NOT_FOUND]"
+      description: "Essential supplier information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "business_details"
+      critical: true
+      
+    BUSINESS_ADDRESS:
+      order: 4
+      instruction: "[business address or NOT_FOUND]"
+      description: "Essential supplier location"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "business_details"
+      
+    PAYER_NAME:
+      order: 5
+      instruction: "[payer name or NOT_FOUND]"
+      description: "Essential payer information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "customer_details"
+      
+    PAYER_ADDRESS:
+      order: 6
+      instruction: "[payer address or NOT_FOUND]"
+      description: "Essential payer location"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "customer_details"
+      
+    INVOICE_DATE:
+      order: 7
+      instruction: "[invoice date or NOT_FOUND]"
+      description: "Essential temporal information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "temporal"
+      
+    STATEMENT_DATE_RANGE:
+      order: 8
+      instruction: "[statement period or date range or NOT_FOUND]"
+      description: "Essential bank statement temporal"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "temporal"
+      
+    LINE_ITEM_DESCRIPTIONS:
+      order: 9
+      instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
+      description: "Essential line items / transaction descriptions"
+      applicable_documents: [invoice, receipt, bank_statement]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_QUANTITIES:
+      order: 10
+      instruction: "[pipe-separated quantities or NOT_FOUND]"
+      description: "Quantities ordered"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_PRICES:
+      order: 11
+      instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+      description: "Unit prices (price per individual item, NOT total prices)"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    LINE_ITEM_TOTAL_PRICES:
+      order: 12
+      instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+      description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "line_items"
+      
+    IS_GST_INCLUDED:
+      order: 13
+      instruction: "[is the GST amount shown? Answer with (true/false only)]"
+      description: "Essential tax classification"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      
+    GST_AMOUNT:
+      order: 14
+      instruction: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"
+      description: "Essential tax information"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      critical: true
+      
+    TOTAL_AMOUNT:
+      order: 15
+      instruction: "[total amount in dollars with 2 decimals or NOT_FOUND]"
+      description: "Essential financial total"
+      applicable_documents: [invoice, receipt]
+      required: true
+      category: "financial"
+      critical: true
+      
+    TRANSACTION_DATES:
+      order: 16
+      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+      description: "Essential bank statement dates"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    TRANSACTION_AMOUNTS_PAID:
+      order: 17
+      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
+      description: "Essential bank statement amounts"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
 
 # ==============================================================================
 # 4. DOCUMENT TYPE CONFIGURATIONS

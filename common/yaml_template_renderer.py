@@ -67,13 +67,19 @@ class PureYAMLRenderer:
 
         doc_config = self.unified_schema["document_types"][document_type]
         prompt_templates = self.unified_schema["prompt_templates"]
-        field_definitions = self.unified_schema["field_definitions"]
+        all_field_definitions = self.unified_schema["field_definitions"]
 
         # Get explicit model templates - no defaults, no overrides
         if model_name and model_name in prompt_templates:
             templates = prompt_templates[model_name]
         else:
             raise ValueError(f"Model '{model_name}' not found in prompt_templates. Available models: {list(prompt_templates.keys())}")
+
+        # Get model-specific field definitions
+        if model_name and model_name in all_field_definitions:
+            field_definitions = all_field_definitions[model_name]
+        else:
+            raise ValueError(f"Model '{model_name}' not found in field_definitions. Available models: {list(all_field_definitions.keys())}")
 
         # Prepare template variables - no dynamic generation, just data substitution
         template_vars = {
