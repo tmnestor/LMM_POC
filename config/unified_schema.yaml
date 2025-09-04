@@ -303,13 +303,10 @@ prompt_templates:
         - "Stop immediately after {last_field}"
     
     internvl3:
-      # Keep most templates same as default/Llama for field instructions
-      # Only customize the framing and specific formatting issues
-      expertise_frame: "Extract structured data from this business document image."
+      # Use same header/footer as Llama, only customize format rules
+      # This ensures consistent extraction while addressing InternVL3-specific formatting
       
-      critical_instructions_header: "CRITICAL INSTRUCTIONS:"
-      
-      # Additional InternVL3-specific format guidance
+      # Additional InternVL3-specific format guidance (overrides default format_rules)
       format_rules:
         - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
         - "Plain text only - NO markdown, NO bold, NO italic"
