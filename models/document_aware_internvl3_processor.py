@@ -410,19 +410,35 @@ class DocumentAwareInternVL3Processor:
     def find_closest_aspect_ratio(
         self, aspect_ratio, target_ratios, width, height, image_size
     ):
-        """Find closest aspect ratio for InternVL3 dynamic preprocessing."""
+        """Find aspect ratio optimized for high tile count and better OCR coverage."""
         best_ratio_diff = float("inf")
         best_ratio = (1, 1)
         area = width * height
 
+        # TILE_BOOST: Bias toward higher tile counts for better OCR accuracy
+        tile_boost_threshold = 0.3  # Allow 30% worse aspect ratio for more tiles
+        
         for ratio in target_ratios:
             target_aspect_ratio = ratio[0] / ratio[1]
             ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+            tile_count = ratio[0] * ratio[1]
+            current_best_tiles = best_ratio[0] * best_ratio[1]
 
+            # NEW LOGIC: Prefer higher tile counts if aspect ratio difference is reasonable
             if ratio_diff < best_ratio_diff:
+                # Always take better aspect ratio match
                 best_ratio_diff = ratio_diff
                 best_ratio = ratio
+            elif ratio_diff <= best_ratio_diff * (1 + tile_boost_threshold):
+                # Accept slightly worse aspect ratio if we get significantly more tiles
+                if tile_count > current_best_tiles:
+                    if self.debug:
+                        print(f"🚀 TILE_BOOST: Preferring {ratio[0]}x{ratio[1]}={tile_count} tiles over {best_ratio[0]}x{best_ratio[1]}={current_best_tiles} tiles")
+                        print(f"   Aspect ratio: {ratio_diff:.3f} vs {best_ratio_diff:.3f} (within {tile_boost_threshold} threshold)")
+                    best_ratio_diff = ratio_diff
+                    best_ratio = ratio
             elif ratio_diff == best_ratio_diff:
+                # Original tie-breaking logic
                 if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
                     best_ratio = ratio
 
@@ -439,6 +455,12 @@ class DocumentAwareInternVL3Processor:
         """InternVL3 dynamic preprocessing algorithm."""
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
+
+        # TILE_BOOST: For document analysis, use higher minimum tile count for better OCR
+        if min_num < 6:
+            min_num = 6  # Force at least 6 tiles for document OCR accuracy
+            if self.debug:
+                print(f"🚀 DOCUMENT_BOOST: Increased min_num to {min_num} for better text coverage")
 
         if self.debug:
             print(f"🔍 DYNAMIC_PREPROCESS: image={orig_width}x{orig_height}, aspect_ratio={aspect_ratio:.2f}")
