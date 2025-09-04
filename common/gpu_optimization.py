@@ -168,13 +168,9 @@ def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = Tr
     if not torch.cuda.is_available():
         return
 
-    # V100 optimization: Use more aggressive threshold for older GPUs
-    gpu_name = torch.cuda.get_device_name(0)
-    is_v100 = "V100" in gpu_name
-    if is_v100 and threshold_gb > 0.3:
-        threshold_gb = min(threshold_gb, 0.3)  # Cap at 300MB for V100
-        print(f"🎯 V100 detected: Using aggressive threshold {threshold_gb:.1f}GB")
-
+    # Removed V100-specific threshold override - let explicit thresholds be respected
+    # V100 with 16GB VRAM can handle normal fragmentation thresholds
+    
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 
     print(
