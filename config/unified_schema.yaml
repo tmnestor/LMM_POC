@@ -644,35 +644,42 @@ prompt_templates:
     stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
   
   # --------------------------------------------------------------------------
-  # INTERNVL3 PROMPTS - Enhanced with explicit visual instructions
+  # INTERNVL3 PROMPTS - Enhanced with digit extraction precision
   # --------------------------------------------------------------------------
   internvl3:
-    expertise_frame: "STEP 1: Carefully examine the entire document image.\nSTEP 2: Identify the document type and key sections.\nSTEP 3: Extract EXACTLY {field_count} fields as specified below."
-    critical_instructions_header: "VISUAL EXTRACTION INSTRUCTIONS FOR INTERNVL3:"
+    expertise_frame: "CRITICAL: Pay extreme attention to EXACT digits and numbers.\nSTEP 1: Carefully examine the entire document image.\nSTEP 2: Identify the document type and key sections.\nSTEP 3: Extract EXACTLY {field_count} fields with PRECISE digit accuracy."
+    critical_instructions_header: "DIGIT PRECISION & VISUAL EXTRACTION INSTRUCTIONS:"
     critical_instructions:
+      - "⚠️ CRITICAL: Extract EVERY digit EXACTLY as shown - do not skip or modify digits"
+      - "⚠️ CRITICAL: For multi-digit numbers, carefully copy ALL digits in the correct sequence"
       - "FIRST: Scan the document header/top section for business name and ABN"
       - "SECOND: Look for customer/payer information (usually in the middle section)"
-      - "THIRD: Find the itemized list or transaction table"
+      - "THIRD: Find the itemized list or transaction table - count ALL rows"
       - "FOURTH: Locate the totals section (usually at the bottom)"
       - "Output each field EXACTLY as shown below"
       - "Start your response with DOCUMENT_TYPE: [value]"
       - "End your response with {last_field}: [value]"
     output_format: "EXTRACT THESE {field_count} FIELDS IN THIS EXACT ORDER:"
-    format_rules_header: "CRITICAL EXTRACTION RULES:"
+    format_rules_header: "CRITICAL EXTRACTION RULES - FOCUS ON DIGIT ACCURACY:"
     format_rules:
       - "Each line must be: FIELDNAME: value"
+      - "🔢 NUMBERS: Copy digits EXACTLY - do not round, truncate, or skip any digits"
+      - "🔢 ABN: Must be EXACTLY 11 digits - count them! (e.g., '12 345 678 901' format)"
+      - "🔢 ADDRESSES: Copy house/building numbers EXACTLY (e.g., '123' not '1123')"
+      - "🔢 PRICES: Include ALL items even if prices repeat (e.g., if two items cost $15.00, list both)"
+      - "🔢 LISTS: Count the rows in tables - your list must match the actual number of rows found"
       - "IMPORTANT: For SUPPLIER_NAME, look at the business/company name at the TOP of the document"
       - "IMPORTANT: For LINE_ITEM_DESCRIPTIONS, list ALL items shown in the itemized section"
       - "For prices, distinguish between unit price (per item) and total price (quantity × unit)"
       - "Use 'NOT_FOUND' ONLY when the field truly doesn't exist in the document"
       - "For lists, separate items with ' | ' (space-pipe-space)"
-      - "Example for items: 'Coffee | Sandwich | Water'"
-      - "Example for prices: '$2.50 | $8.00 | $1.50'"
-      - "For ABN: extract all 11 digits (e.g., '12 345 678 901' or '12345678901')"
+      - "Example format: 'Item1 | Item2 | Item3' (list ALL items found)"
+      - "Include duplicates: if same price appears multiple times, list it each time"
       - "For boolean IS_GST_INCLUDED: answer 'true' if GST amount is shown, 'false' if not"
       - "Extract monetary values with 2 decimal places (e.g., '$12.50' or '12.50')"
       - "NO formatting, NO markdown, just plain text"
       - "Include ALL {field_count} fields even if some are NOT_FOUND"
+      - "FINAL CHECK: Verify all multi-digit numbers are complete and accurate"
     stop_instruction: "OUTPUT EXACTLY {field_count} LINES. Stop after {last_field}."
 
 # ==============================================================================
