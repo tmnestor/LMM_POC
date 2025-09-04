@@ -364,16 +364,16 @@ prompt_templates:
     # --------------------------------------------------------------------------
     # INTERNVL3 PROMPTS
     # --------------------------------------------------------------------------
-    # Minimal approach - use base template defaults for maximum simplicity
+    # Identical to Llama prompts - exact duplication
     internvl3:
-      expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
-      
-      critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
+      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
       critical_instructions:
         - "Output ONLY the structured data below"
-        - "Do NOT include any conversation text"
+        - "Do NOT include any conversation text or explanations"
         - "Do NOT repeat the user's request"
         - "Do NOT include <image> tokens"
+        - "Be extremely precise with monetary values and ABN formatting"
         - "Start immediately with DOCUMENT_TYPE"
         - "Stop immediately after {last_field}"
     
