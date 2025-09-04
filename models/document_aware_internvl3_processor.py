@@ -631,12 +631,12 @@ class DocumentAwareInternVL3Processor:
         else:
             document_type = "invoice"  # Default fallback
             
-        # Generate prompt from unified schema templates (with InternVL3-specific overrides)
+        # Generate prompt from unified schema templates
         try:
             prompt = yaml_renderer.render_prompt_for_document_type(
                 document_type=document_type, 
                 field_list=field_list,
-                model_name="internvl3"  # Use InternVL3-specific templates
+                model_name="internvl3"  # Use internvl3 model name
             )
         except Exception as e:
             # Re-raise the error instead of using a fallback

@@ -303,24 +303,17 @@ prompt_templates:
         - "Stop immediately after {last_field}"
     
     internvl3:
-      # Use same header/footer as Llama, only customize format rules
-      # This ensures consistent extraction while addressing InternVL3-specific formatting
-      
-      # Additional InternVL3-specific format guidance (overrides default format_rules)
-      format_rules:
-        - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
-        - "Plain text only - NO markdown, NO bold, NO italic"
-        - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
-        - "Output ONLY these {field_count} lines, nothing else"
-        - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
-        - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
-        - "Be conservative: use NOT_FOUND if field is truly missing"
-        - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
-        - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
-        - "For calculated fields: show computed values with proper formatting"
-        - "For transaction lists: use pipe separators between transactions"
-        - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
-        - "For multi-line addresses: combine all lines with spaces into one line"
+      # IDENTICAL to Llama prompts for now - will customize after restoring accuracy
+      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
+      critical_instructions:
+        - "Output ONLY the structured data below"
+        - "Do NOT include any conversation text or explanations"
+        - "Do NOT repeat the user's request"
+        - "Do NOT include <image> tokens"
+        - "Be extremely precise with monetary values and ABN formatting"
+        - "Start immediately with DOCUMENT_TYPE"
+        - "Stop immediately after {last_field}"
     
   output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
   
