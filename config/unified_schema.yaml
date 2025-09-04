@@ -377,7 +377,8 @@ prompt_templates:
         - "Be extremely precise with monetary values and ABN formatting"
         - "Look for GST/tax amounts in the document"
         - "Extract complete addresses including postcode"
-        - "For line items, extract ALL items with pipe separators"
+        - "For LINE_ITEM_DESCRIPTIONS: Find the items/products section and list ALL items separated by pipes (|)"
+        - "Include every product, service, or item listed in the document"
         - "Start immediately with DOCUMENT_TYPE"
         - "Stop immediately after {last_field}"
       
