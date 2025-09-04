@@ -24,7 +24,7 @@ class DocumentTypeFieldSchema:
         self,
         schema_file: str = "config/unified_schema.yaml",
         fallback_file: Optional[str] = None,
-        model: Optional[str] = None,
+        model: str = "llama",
     ):
         """
         Initialize the schema loader.
@@ -32,23 +32,13 @@ class DocumentTypeFieldSchema:
         Args:
             schema_file: Path to unified schema YAML file relative to project root
             fallback_file: Ignored (for backward compatibility)
-            model: REQUIRED - Model name for schema conversion (llama, internvl3)
+            model: Model name for schema conversion (default: llama)
         """
         if fallback_file:
             print("⚠️ Fallback file ignored - using unified schema")
             
         self.schema_file = schema_file
         self.unified_schema = self._load_schema()
-        
-        if not model:
-            available_models = list(self.unified_schema.get('semantic_field_order', {}).keys())
-            raise ValueError(
-                "❌ FATAL: model parameter is required for DocumentTypeFieldSchema\n"
-                "💡 Specify model explicitly: DocumentTypeFieldSchema('config/unified_schema.yaml', model='llama')\n" 
-                f"💡 Available models: {available_models}\n"
-                "💡 Recommended: Use PureYAMLRenderer with explicit model_name instead"
-            )
-            
         self.model = model
         self.schema = self._convert_to_legacy_format(model)
         self._validate_schema()
