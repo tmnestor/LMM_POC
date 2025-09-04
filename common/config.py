@@ -1101,9 +1101,11 @@ LLAMA_GENERATION_CONFIG = {
 
 # InternVL3 generation configuration
 INTERNVL3_GENERATION_CONFIG = {
-    "max_new_tokens_base": 1000,  # Base tokens for generation
+    "max_new_tokens_base": 600,  # PHASE 1: Reduced from 1000 to match Llama for focused output
     "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
+    "temperature": 0.0,  # PHASE 1: Explicit deterministic sampling for consistent results  
     "do_sample": False,  # Deterministic for consistent field extraction
+    "use_cache": True,  # PHASE 1: CRITICAL parameter - required for extraction quality (from Llama config)
     "pad_token_id": None,  # Set dynamically from tokenizer
 }
 
