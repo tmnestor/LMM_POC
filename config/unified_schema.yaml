@@ -276,6 +276,7 @@ document_types:
 
 # PROMPT TEMPLATES - No Python overrides, pure YAML
 prompt_templates:
+  # Default templates (used when no model-specific override exists)
   expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
   
   critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
@@ -286,6 +287,48 @@ prompt_templates:
     - "Do NOT include <image> tokens"
     - "Start immediately with DOCUMENT_TYPE"
     - "Stop immediately after {last_field}"
+  
+  # Model-specific overrides (merged with defaults)
+  model_specific:
+    llama:
+      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
+      critical_instructions:
+        - "Output ONLY the structured data below"
+        - "Do NOT include any conversation text or explanations"
+        - "Do NOT repeat the user's request"
+        - "Do NOT include <image> tokens"
+        - "Be extremely precise with monetary values and ABN formatting"
+        - "Start immediately with DOCUMENT_TYPE"
+        - "Stop immediately after {last_field}"
+    
+    internvl3:
+      expertise_frame: "Analyze this document image and extract the exact text values for each field listed below."
+      
+      critical_instructions_header: "EXTRACTION RULES:"
+      critical_instructions:
+        - "Output format: FIELD_NAME: value"
+        - "Use exact text from the document - do not paraphrase"
+        - "For addresses, include full multi-line addresses on one line"
+        - "For lists, use pipe separator: item1 | item2 | item3"
+        - "For missing fields, output: FIELD_NAME: NOT_FOUND"
+        - "Do not add explanations or additional text"
+        - "Start with DOCUMENT_TYPE, end with {last_field}"
+      
+      output_format: "EXTRACT THESE {field_count} FIELDS:"
+      
+      format_rules_header: "FIELD FORMAT REQUIREMENTS:"
+      format_rules:
+        - "ABN format: Keep spaces (XX XXX XXX XXX) or no spaces (XXXXXXXXXXX)"
+        - "Monetary values: Include dollar sign and decimals ($X.XX)"
+        - "Dates: Keep original format from document"
+        - "Boolean fields (IS_GST_INCLUDED): Answer only 'true' or 'false'"
+        - "Multi-line addresses: Combine all lines with spaces"
+        - "Line items: Separate with pipe character (|)"
+        - "Empty values: Use NOT_FOUND"
+        - "Do not use markdown formatting (**text**) in values"
+      
+      stop_instruction: "Output exactly {field_count} lines. Stop after {last_field}."
     
   output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
   

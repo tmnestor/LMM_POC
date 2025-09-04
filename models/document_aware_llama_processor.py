@@ -215,7 +215,9 @@ class DocumentAwareLlamaProcessor:
 
         try:
             return self.yaml_renderer.render_prompt_for_document_type(
-                document_type=document_type, field_list=self.field_list
+                document_type=document_type, 
+                field_list=self.field_list,
+                model_name="llama"  # Use Llama-specific templates
             )
         except Exception as e:
             raise ValueError(
