@@ -66,17 +66,14 @@ class PureYAMLRenderer:
             raise ValueError(f"Unsupported document type: {document_type}")
 
         doc_config = self.unified_schema["document_types"][document_type]
-        base_templates = self.unified_schema["prompt_templates"]
+        prompt_templates = self.unified_schema["prompt_templates"]
         field_definitions = self.unified_schema["field_definitions"]
 
-        # Get model-specific templates if available
-        templates = dict(base_templates)  # Start with defaults
-        if model_name and "model_specific" in base_templates:
-            if model_name in base_templates["model_specific"]:
-                # Merge model-specific overrides with defaults
-                model_overrides = base_templates["model_specific"][model_name]
-                for key, value in model_overrides.items():
-                    templates[key] = value
+        # Get explicit model templates - no defaults, no overrides
+        if model_name and model_name in prompt_templates:
+            templates = prompt_templates[model_name]
+        else:
+            raise ValueError(f"Model '{model_name}' not found in prompt_templates. Available models: {list(prompt_templates.keys())}")
 
         # Prepare template variables - no dynamic generation, just data substitution
         template_vars = {
@@ -89,14 +86,14 @@ class PureYAMLRenderer:
         prompt_parts = []
 
         # Add expertise frame
-        expertise_frame = templates.get("expertise_frame", base_templates["expertise_frame"])
+        expertise_frame = templates["expertise_frame"]
         prompt_parts.append(expertise_frame)
 
         # Add critical instructions with template substitution
-        critical_header = templates.get("critical_instructions_header", base_templates["critical_instructions_header"])
+        critical_header = templates["critical_instructions_header"]
         prompt_parts.append(f"\n{critical_header}")
 
-        for instruction in templates.get("critical_instructions", base_templates["critical_instructions"]):
+        for instruction in templates["critical_instructions"]:
             rendered_instruction = self._render_template_string(
                 instruction, template_vars
             )

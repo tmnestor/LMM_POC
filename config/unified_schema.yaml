@@ -326,75 +326,67 @@ document_types:
 # - {last_field}: Name of the last field in the list
 # - {document_type}: Type of document being processed
 prompt_templates:
-  # ----------------------------------------------------------------------------
-  # DEFAULT TEMPLATES - Used when no model-specific override exists
-  # ----------------------------------------------------------------------------
-  expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+  # --------------------------------------------------------------------------
+  # LLAMA-3.2-VISION PROMPTS - Explicit and complete
+  # --------------------------------------------------------------------------
+  llama:
+    expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+    critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
+    critical_instructions:
+      - "Output ONLY the structured data below"
+      - "Do NOT include any conversation text or explanations"
+      - "Do NOT repeat the user's request"
+      - "Do NOT include <image> tokens"
+      - "Be extremely precise with monetary values and ABN formatting"
+      - "Start immediately with DOCUMENT_TYPE"
+      - "Stop immediately after {last_field}"
+    output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
+    format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
+    format_rules:
+      - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+      - "Plain text only - NO markdown, NO bold, NO italic"
+      - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
+      - "Output ONLY these {field_count} lines, nothing else"
+      - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+      - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+      - "Be conservative: use NOT_FOUND if field is truly missing"
+      - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+      - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+      - "For calculated fields: show computed values with proper formatting"
+      - "For transaction lists: use pipe separators between transactions"
+      - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
+    stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
   
-  critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
-  critical_instructions:
-    - "Output ONLY the structured data below"
-    - "Do NOT include any conversation text"
-    - "Do NOT repeat the user's request"
-    - "Do NOT include <image> tokens"
-    - "Start immediately with DOCUMENT_TYPE"
-    - "Stop immediately after {last_field}"
-  
-  # ----------------------------------------------------------------------------
-  # MODEL-SPECIFIC OVERRIDES - Merged with defaults for each model
-  # ----------------------------------------------------------------------------
-  # NOTE: Currently both models use identical prompts for consistency
-  # Customizations can be added here when needed without changing code
-  model_specific:
-    # --------------------------------------------------------------------------
-    # LLAMA-3.2-VISION PROMPTS
-    # --------------------------------------------------------------------------
-    llama:
-      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
-      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
-      critical_instructions:
-        - "Output ONLY the structured data below"
-        - "Do NOT include any conversation text or explanations"
-        - "Do NOT repeat the user's request"
-        - "Do NOT include <image> tokens"
-        - "Be extremely precise with monetary values and ABN formatting"
-        - "Start immediately with DOCUMENT_TYPE"
-        - "Stop immediately after {last_field}"
-    
-    # --------------------------------------------------------------------------
-    # INTERNVL3 PROMPTS
-    # --------------------------------------------------------------------------
-    # Identical to Llama prompts - exact duplication
-    internvl3:
-      expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
-      critical_instructions_header: "CRITICAL INSTRUCTIONS FOR LLAMA - ESSENTIAL FIELD REDUCTION:"
-      critical_instructions:
-        - "Output ONLY the structured data below"
-        - "Do NOT include any conversation text or explanations"
-        - "Do NOT repeat the user's request"
-        - "Do NOT include <image> tokens"
-        - "Be extremely precise with monetary values and ABN formatting"
-        - "Start immediately with DOCUMENT_TYPE"
-        - "Stop immediately after {last_field}"
-    
-  output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
-  
-  format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
-  format_rules:
-    - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
-    - "Plain text only - NO markdown, NO bold, NO italic"
-    - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
-    - "Output ONLY these {field_count} lines, nothing else"
-    - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
-    - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
-    - "Be conservative: use NOT_FOUND if field is truly missing"
-    - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
-    - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
-    - "For calculated fields: show computed values with proper formatting"
-    - "For transaction lists: use pipe separators between transactions"
-    - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
-    
-  stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
+  # --------------------------------------------------------------------------
+  # INTERNVL3 PROMPTS - Explicit and complete
+  # --------------------------------------------------------------------------
+  internvl3:
+    expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+    critical_instructions_header: "CRITICAL INSTRUCTIONS FOR INTERNVL3 - ESSENTIAL FIELD REDUCTION:"
+    critical_instructions:
+      - "Output ONLY the structured data below"
+      - "Do NOT include any conversation text or explanations"
+      - "Do NOT repeat the user's request"
+      - "Do NOT include <image> tokens"
+      - "Be extremely precise with monetary values and ABN formatting"
+      - "Start immediately with DOCUMENT_TYPE"
+      - "Stop immediately after {last_field}"
+    output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
+    format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
+    format_rules:
+      - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+      - "Plain text only - NO markdown, NO bold, NO italic"
+      - "Include ALL {field_count} ESSENTIAL keys even if value is NOT_FOUND"
+      - "Output ONLY these {field_count} lines, nothing else"
+      - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+      - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+      - "Be conservative: use NOT_FOUND if field is truly missing"
+      - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+      - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+      - "For calculated fields: show computed values with proper formatting"
+      - "For transaction lists: use pipe separators between transactions"
+      - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
+    stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
 
 # ==============================================================================
 # 6. FIELD CATEGORIES - Grouping for evaluation and reporting
