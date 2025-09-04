@@ -483,9 +483,10 @@ class DocumentAwareInternVL3Processor:
 
     def load_image(self, image_file, input_size=DEFAULT_IMAGE_SIZE, max_num=None):
         """Complete InternVL3 image loading and preprocessing pipeline."""
-        # For 8B model, use fewer tiles to reduce memory
+        # PHASE 2: Increase tiles for 8B model to match 2B model accuracy
+        # 8B model now uses quantization on V100, so memory impact is reduced
         if max_num is None:
-            max_num = 6 if self.is_8b_model else 12
+            max_num = 12  # Both 2B and 8B models now use same tile count for better text coverage
 
         # Load image if path provided
         if isinstance(image_file, str):
@@ -694,6 +695,8 @@ class DocumentAwareInternVL3Processor:
 
         # Use the same generation logic for both 2B and 8B models
         try:
+            if self.debug and self.is_8b_model:
+                print(f"🔍 PHASE 2: Using {pixel_values.shape[0]} tiles for quantized 8B model")
             response = self.model.chat(
                 self.tokenizer,
                 pixel_values,
