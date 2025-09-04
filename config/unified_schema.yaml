@@ -364,23 +364,26 @@ prompt_templates:
     # --------------------------------------------------------------------------
     # INTERNVL3 PROMPTS
     # --------------------------------------------------------------------------
-    # Customized for InternVL3's simpler, more direct processing style
+    # Balanced approach: Direct style but with complete instructions
     internvl3:
-      expertise_frame: "Analyze this document image and extract the exact text values for each field listed below."
+      expertise_frame: "Extract structured data from this business document image. Read the entire document carefully and extract all requested fields."
       
-      critical_instructions_header: "EXTRACTION RULES:"
+      critical_instructions_header: "CRITICAL EXTRACTION INSTRUCTIONS:"
       critical_instructions:
         - "Output ONLY the structured data below"
         - "Do NOT include any conversation text or explanations"
         - "Do NOT repeat the user's request"
         - "Do NOT include <image> tokens"
         - "Be extremely precise with monetary values and ABN formatting"
+        - "Look for GST/tax amounts in the document"
+        - "Extract complete addresses including postcode"
+        - "For line items, extract ALL items with pipe separators"
         - "Start immediately with DOCUMENT_TYPE"
         - "Stop immediately after {last_field}"
       
-      output_format: "EXTRACT THESE {field_count} FIELDS:"
+      output_format: "REQUIRED OUTPUT - EXTRACT ALL {field_count} FIELDS BELOW:"
       
-      stop_instruction: "Output exactly {field_count} lines. Stop after {last_field}."
+      stop_instruction: "Extract every field. Output exactly {field_count} lines. Stop after {last_field}."
     
   output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA ({field_count} ESSENTIAL FIELDS):"
   
