@@ -34,6 +34,7 @@ from common.gpu_optimization import (
     clear_model_caches,
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
+    detect_memory_fragmentation,
     get_available_gpu_memory,
     handle_memory_fragmentation,
     optimize_model_for_v100,
@@ -439,6 +440,10 @@ class DocumentAwareInternVL3Processor:
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
 
+        if self.debug:
+            print(f"🔍 DYNAMIC_PREPROCESS: image={orig_width}x{orig_height}, aspect_ratio={aspect_ratio:.2f}")
+            print(f"🔍 PARAMS: min_num={min_num}, max_num={max_num}, image_size={image_size}")
+
         # Calculate target ratios
         target_ratios = set(
             (i, j)
@@ -449,14 +454,26 @@ class DocumentAwareInternVL3Processor:
         )
         target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
+        if self.debug:
+            print(f"🎯 TARGET_RATIOS: {len(target_ratios)} options, max tiles per ratio:")
+            for ratio in target_ratios[-5:]:  # Show top 5 largest ratios
+                print(f"   {ratio[0]}x{ratio[1]} = {ratio[0]*ratio[1]} tiles")
+
         # Find closest aspect ratio
         target_aspect_ratio = self.find_closest_aspect_ratio(
             aspect_ratio, target_ratios, orig_width, orig_height, image_size
         )
 
+        if self.debug:
+            tiles_count = target_aspect_ratio[0] * target_aspect_ratio[1]
+            print(f"✅ CHOSEN_RATIO: {target_aspect_ratio[0]}x{target_aspect_ratio[1]} = {tiles_count} tiles (max allowed: {max_num})")
+
         # Calculate target dimensions
         target_width = image_size * target_aspect_ratio[0]
         target_height = image_size * target_aspect_ratio[1]
+
+        if self.debug:
+            print(f"📏 TARGET_DIMS: {target_width}x{target_height} → resize from {orig_width}x{orig_height}")
 
         # Resize image
         resized_img = image.resize((target_width, target_height))
@@ -478,6 +495,11 @@ class DocumentAwareInternVL3Processor:
         if use_thumbnail and len(processed_images) != 1:
             thumbnail_img = image.resize((image_size, image_size))
             processed_images.append(thumbnail_img)
+            if self.debug:
+                print(f"📎 THUMBNAIL_ADDED: {len(processed_images)} total tiles (includes thumbnail)")
+
+        if self.debug:
+            print(f"🏁 PREPROCESS_RESULT: {len(processed_images)} tiles created")
 
         return processed_images
 
@@ -488,19 +510,36 @@ class DocumentAwareInternVL3Processor:
         if max_num is None:
             max_num = 12  # Both 2B and 8B models now use same tile count for better text coverage
 
+        if self.debug:
+            print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
+            allocated, reserved, fragmentation = detect_memory_fragmentation()
+            print(f"📊 MEMORY_BEFORE_LOAD: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
+
         # Load image if path provided
         if isinstance(image_file, str):
             image = Image.open(image_file).convert("RGB")
+            if self.debug:
+                print(f"🖼️  IMAGE_LOADED: {image.size[0]}x{image.size[1]} pixels")
         else:
             image = image_file.convert("RGB")
+            if self.debug:
+                print(f"🖼️  IMAGE_LOADED: {image.size[0]}x{image.size[1]} pixels")
 
         # Apply dynamic preprocessing
         images = self.dynamic_preprocess(image, image_size=input_size, max_num=max_num)
+
+        if self.debug:
+            print(f"🎯 TILES_CREATED: {len(images)} tiles from dynamic_preprocess (requested max_num={max_num})")
 
         # Apply transforms
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]
         pixel_values = torch.stack(pixel_values)
+
+        if self.debug:
+            print(f"📐 TENSOR_SHAPE: {pixel_values.shape} (batch_size={pixel_values.shape[0]} tiles)")
+            allocated, reserved, fragmentation = detect_memory_fragmentation()
+            print(f"📊 MEMORY_AFTER_LOAD: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
 
         return pixel_values
 
@@ -695,8 +734,13 @@ class DocumentAwareInternVL3Processor:
 
         # Use the same generation logic for both 2B and 8B models
         try:
-            if self.debug and self.is_8b_model:
-                print(f"🔍 PHASE 2: Using {pixel_values.shape[0]} tiles for quantized 8B model")
+            if self.debug:
+                allocated, reserved, fragmentation = detect_memory_fragmentation()
+                print(f"🚀 MODEL_INFERENCE_START: {pixel_values.shape[0]} tiles tensor ready")
+                print(f"📊 MEMORY_BEFORE_CHAT: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
+                if self.is_8b_model:
+                    print("⚡ QUANTIZED_8B: Using quantization to reduce memory footprint")
+            
             response = self.model.chat(
                 self.tokenizer,
                 pixel_values,
@@ -705,28 +749,52 @@ class DocumentAwareInternVL3Processor:
                 history=None,
                 return_history=False,
             )
+            
+            if self.debug:
+                allocated, reserved, fragmentation = detect_memory_fragmentation()
+                print("✅ MODEL_INFERENCE_SUCCESS: Response generated")
+                print(f"📊 MEMORY_AFTER_CHAT: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
         except torch.cuda.OutOfMemoryError as e:
-            print(f"⚠️ InternVL3 OOM with {pixel_values.shape[0]} tiles: {e}")
+            if self.debug:
+                allocated, reserved, fragmentation = detect_memory_fragmentation()
+                print(f"💥 OOM_TRIGGERED: {pixel_values.shape[0]} tiles failed during model.chat()")
+                print(f"📊 MEMORY_AT_OOM: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
+                print(f"🔍 OOM_DETAILS: {str(e)[:100]}...")
             
             # Progressive tile fallback strategy for quantized 8B model
             initial_tiles = pixel_values.shape[0]
             fallback_tiles = [9, 6, 4] if initial_tiles >= 12 else [6, 4]
             
-            for tiles in fallback_tiles:
+            if self.debug:
+                print(f"🎯 FALLBACK_STRATEGY: {initial_tiles} → {fallback_tiles}")
+            
+            for attempt, tiles in enumerate(fallback_tiles, 1):
                 if tiles >= initial_tiles:
                     continue  # Skip if not actually reducing
                     
-                print(f"🔄 PROGRESSIVE FALLBACK: Trying {tiles} tiles (was {initial_tiles})...")
+                if self.debug:
+                    print(f"🔄 FALLBACK_ATTEMPT_{attempt}: Reducing to {tiles} tiles (from {initial_tiles})")
+                    allocated, reserved, fragmentation = detect_memory_fragmentation()
+                    print(f"📊 MEMORY_BEFORE_CLEANUP: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
                 
                 # Emergency cleanup - V100 optimized threshold
                 torch.cuda.empty_cache()
                 clear_model_caches(self.model, self.tokenizer)
                 handle_memory_fragmentation(threshold_gb=1.5, aggressive=True)
                 
+                if self.debug:
+                    allocated, reserved, fragmentation = detect_memory_fragmentation()
+                    print(f"📊 MEMORY_AFTER_CLEANUP: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
+                
                 # Reload image with fewer tiles
                 del pixel_values
+                if self.debug:
+                    print(f"🔄 RELOADING: Creating {tiles} tiles...")
                 pixel_values = self.load_image(image_path, max_num=tiles)
                 pixel_values = pixel_values.to(torch.bfloat16).cuda()
+                
+                if self.debug:
+                    print(f"🎯 RETRY_ATTEMPT: Trying model.chat() with {pixel_values.shape[0]} tiles")
                 
                 try:
                     response = self.model.chat(
@@ -737,14 +805,23 @@ class DocumentAwareInternVL3Processor:
                         history=None,
                         return_history=False,
                     )
-                    print(f"✅ SUCCESS with {tiles} tiles (reduced from {initial_tiles})")
+                    if self.debug:
+                        allocated, reserved, fragmentation = detect_memory_fragmentation()
+                        print(f"✅ FALLBACK_SUCCESS: {tiles} tiles worked (reduced from {initial_tiles})")
+                        print(f"📊 FINAL_MEMORY: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
                     break  # Success - exit the fallback loop
-                except torch.cuda.OutOfMemoryError:
-                    print(f"❌ Still OOM with {tiles} tiles, trying next fallback...")
+                except torch.cuda.OutOfMemoryError as e2:
+                    if self.debug:
+                        print(f"❌ FALLBACK_FAILED: {tiles} tiles still caused OOM")
+                        print(f"🔍 OOM_DETAILS: {str(e2)[:50]}...")
                     continue
             else:
                 # All fallback attempts failed
                 print("❌ InternVL3: OOM persists even with minimum tile count")
+                if self.debug:
+                    allocated, reserved, fragmentation = detect_memory_fragmentation()
+                    print("💀 FINAL_FAILURE: All fallback attempts exhausted")
+                    print(f"📊 FINAL_STATE: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Free={16-reserved:.2f}GB")
                 raise
 
         # Memory cleanup after processing
