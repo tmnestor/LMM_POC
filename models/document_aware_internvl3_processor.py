@@ -729,6 +729,24 @@ class DocumentAwareInternVL3Processor:
             raw_response, expected_fields=field_list
         )
 
+        # Apply ExtractionCleaner for consistent formatting (matching Llama behavior)
+        if self.debug:
+            print("🧹 Applying ExtractionCleaner to normalize field values...")
+            
+        cleaned_extracted_data = {}
+        for field_name, value in extracted_data.items():
+            # Apply same cleaning logic as Llama processor
+            if value and value.lower().strip() not in [
+                "not found", "not_found", "notfound", "n/a", "na", "none", "null", ""
+            ]:
+                cleaned_value = self.cleaner.clean_field_value(field_name, value)
+            else:
+                cleaned_value = "NOT_FOUND"
+            cleaned_extracted_data[field_name] = cleaned_value
+
+        # Replace extracted_data with cleaned version
+        extracted_data = cleaned_extracted_data
+
         if self.debug:
             found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
             print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
