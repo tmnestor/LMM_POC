@@ -213,7 +213,7 @@ field_definitions:
       
     TRANSACTION_DATES:
       order: 16
-      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND] MANDATORY ROW COUNT MATCHING: Count total table rows. Your list MUST have exactly the same number of elements. For each row position: if date cell has value, include it; if empty/blank, write NOT_FOUND in that position. DO NOT skip empty rows or compress the list."
+      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if date cell has value include it, if empty write NOT_FOUND. Row 2 - if date cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
       description: "Essential bank statement dates"
       applicable_documents: [bank_statement]
       required: true
@@ -221,7 +221,7 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND] MANDATORY ROW COUNT MATCHING: Count total table rows. Your list MUST have exactly the same number of elements. For each row position: if amount cell has value, include it; if empty/blank, write NOT_FOUND in that position. DO NOT skip empty rows or compress the list."
+      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has value include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
       description: "Essential bank statement amounts"
       applicable_documents: [bank_statement]
       required: true
@@ -357,7 +357,7 @@ field_definitions:
       
     TRANSACTION_DATES:
       order: 16
-      instruction: "[In transaction table, find date column - list ALL dates in order separated by ' | ' or NOT_FOUND] MANDATORY ROW COUNT MATCHING: Count total table rows. Your list MUST have exactly the same number of elements. For each row position: if date cell has value, include it; if empty/blank, write NOT_FOUND in that position. DO NOT skip empty rows or compress the list."
+      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if date cell has value include it, if empty write NOT_FOUND. Row 2 - if date cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
       description: "Essential bank statement dates"
       applicable_documents: [bank_statement]
       required: true
@@ -365,7 +365,7 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "[In transaction table, find amount/debit/credit columns - list ALL amounts as shown separated by ' | ' or NOT_FOUND] MANDATORY ROW COUNT MATCHING: Count total table rows. Your list MUST have exactly the same number of elements. For each row position: if amount cell has value, include it; if empty/blank, write NOT_FOUND in that position. DO NOT skip empty rows or compress the list."
+      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has value include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
       description: "Essential bank statement amounts"
       applicable_documents: [bank_statement]
       required: true
