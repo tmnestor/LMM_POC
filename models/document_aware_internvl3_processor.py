@@ -540,14 +540,12 @@ class DocumentAwareInternVL3Processor:
     def load_image(self, image_file, input_size=DEFAULT_IMAGE_SIZE, max_num=None):
         """Complete InternVL3 image loading and preprocessing pipeline."""
         
-        print(f"🔥 DEBUG_MARKER_040: load_image() ENTRY - max_num={max_num}")
         
         # PHASE 2: Increase tiles for 8B model to match 2B model accuracy
         # 8B model now uses quantization on V100, so memory impact is reduced
         if max_num is None:
             max_num = 12  # Both 2B and 8B models now use same tile count for better text coverage
 
-        print(f"🔥 DEBUG_MARKER_041: load_image() max_num set to {max_num}")
 
         if self.debug:
             print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
@@ -585,7 +583,6 @@ class DocumentAwareInternVL3Processor:
     def process_single_image(self, image_path: str) -> dict:
         """Process single image with universal single-pass extraction."""
 
-        print("🔥 DEBUG_MARKER_001: process_single_image() ENTRY POINT")
 
         try:
             start_time = time.time()
@@ -598,7 +595,6 @@ class DocumentAwareInternVL3Processor:
                 "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
             ]
 
-            print("🔥 DEBUG_MARKER_002: Universal fields defined")
 
             if self.debug:
                 print(
@@ -615,17 +611,13 @@ class DocumentAwareInternVL3Processor:
             # Memory cleanup - V100 optimized threshold (16GB total capacity)
             handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
-            print("🔥 DEBUG_MARKER_003: About to call _extract_fields_universally()")
             
             # SINGLE-PASS: Extract all 15 fields universally, no document detection
             extracted_data = self._extract_fields_universally(image_path, universal_fields)
 
-            print("🔥 DEBUG_MARKER_004: _extract_fields_universally() completed")
 
             # Post-processing: Infer document type from extraction results
-            print("🔥 DEBUG_MARKER_005: About to infer document type")
             inferred_type = self._infer_document_type_from_extraction(extracted_data)
-            print(f"🔥 DEBUG_MARKER_006: Document type inferred as: {inferred_type}")
 
             # Create metadata with inferred type
             metadata = {
@@ -713,7 +705,6 @@ class DocumentAwareInternVL3Processor:
 
         Uses the same unified schema templates as Llama for consistency.
         """
-        print("🔥 DEBUG_MARKER_100: ⚠️  _extract_fields_directly() CALLED - THIS IS OLD METHOD!")
         
         if self.debug:
             print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
@@ -801,9 +792,7 @@ class DocumentAwareInternVL3Processor:
         
         Replaces document-type-specific extraction with universal approach.
         """
-        print("🔥 DEBUG_MARKER_010: _extract_fields_universally() ENTRY POINT")
         import time
-        print(f"🔥 DEBUG_MARKER_010B: Timestamp: {time.time()}")
         
         if self.debug:
             print(f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass")
@@ -841,14 +830,12 @@ class DocumentAwareInternVL3Processor:
         if self.debug:
             print(f"📝 Generated universal prompt for all {len(field_list)} fields")
 
-        print("🔥 DEBUG_MARKER_011: About to call _extract_with_prompt() - FIRST IMAGE LOAD POINT")
         
         # Execute universal extraction
         raw_response = self._extract_with_prompt(
             image_path, prompt, generation_config=None
         )
         
-        print("🔥 DEBUG_MARKER_012: _extract_with_prompt() completed")
 
         if self.debug:
             print("📥 Raw universal response received")
@@ -933,7 +920,6 @@ class DocumentAwareInternVL3Processor:
     ) -> str:
         """Core extraction method that handles image processing and model inference."""
         
-        print("🔥 DEBUG_MARKER_020: _extract_with_prompt() ENTRY POINT")
         import traceback
         print("📍 CALL STACK:")
         for line in traceback.format_stack()[-3:-1]:  # Show last 2 callers
@@ -942,12 +928,10 @@ class DocumentAwareInternVL3Processor:
         # Pre-processing cleanup with fragmentation detection - V100 optimized
         handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
-        print("🔥 DEBUG_MARKER_021: About to call load_image() - IMAGE LOAD POINT")
         
         # Load and preprocess image
         pixel_values = self.load_image(image_path)
         
-        print(f"🔥 DEBUG_MARKER_022: load_image() completed - {pixel_values.shape[0]} tiles loaded")
 
         # Move to appropriate device and dtype
         pixel_values = pixel_values.to(torch.bfloat16).cuda()
@@ -1014,12 +998,10 @@ class DocumentAwareInternVL3Processor:
                 
                 # Reload image with fewer tiles
                 del pixel_values
-                print(f"🔥 DEBUG_MARKER_030: FALLBACK RELOAD - About to reload with {tiles} tiles")
                 if self.debug:
                     print(f"🔄 RELOADING: Creating {tiles} tiles...")
                 pixel_values = self.load_image(image_path, max_num=tiles)
                 pixel_values = pixel_values.to(torch.bfloat16).cuda()
-                print(f"🔥 DEBUG_MARKER_031: FALLBACK RELOAD completed - {pixel_values.shape[0]} tiles")
                 
                 if self.debug:
                     print(f"🎯 RETRY_ATTEMPT: Trying model.chat() with {pixel_values.shape[0]} tiles")
