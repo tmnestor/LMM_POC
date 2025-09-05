@@ -566,35 +566,45 @@ class DocumentAwareInternVL3Processor:
         return pixel_values
 
     def process_single_image(self, image_path: str) -> dict:
-        """Process single image with document-aware field extraction."""
+        """Process single image with universal single-pass extraction."""
 
         try:
             start_time = time.time()
 
+            # Universal 15-field list (eliminates document type detection)
+            universal_fields = [
+                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES", 
+                "GST_AMOUNT", "IS_GST_INCLUDED", "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+            ]
+
             if self.debug:
                 print(
-                    f"🚀 Starting document-aware extraction for {Path(image_path).name}"
+                    f"🚀 Starting universal single-pass extraction for {Path(image_path).name}"
                 )
-                print(f"📊 Target fields: {self.field_count} fields")
+                print(f"📊 Target fields: 15 universal fields (eliminates double tiling)")
                 print(
-                    "🎯 Strategy: Direct field extraction (document type already detected)"
+                    "🎯 Strategy: Universal extraction with post-processing type inference"
                 )
                 print(
-                    f"📝 Field list: {self.field_list[:5]}{'...' if len(self.field_list) > 5 else ''}"
+                    f"📝 Fields: {universal_fields[:5]}{'...' if len(universal_fields) > 5 else ''}"
                 )
 
             # Memory cleanup - V100 optimized threshold (16GB total capacity)
             handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
-            # FIXED: Use direct extraction with the already-determined field list
-            # Don't re-detect document type - we already have the correct fields
-            extracted_data = self._extract_fields_directly(image_path, self.field_list)
+            # SINGLE-PASS: Extract all 15 fields universally, no document detection
+            extracted_data = self._extract_fields_universally(image_path, universal_fields)
 
-            # Create metadata for compatibility
+            # Post-processing: Infer document type from extraction results
+            inferred_type = self._infer_document_type_from_extraction(extracted_data)
+
+            # Create metadata with inferred type
             metadata = {
-                "document_type": "pre_detected",
-                "extraction_strategy": "document_aware_direct",
-                "total_fields": len(self.field_list),
+                "document_type": inferred_type,
+                "extraction_strategy": "universal_single_pass",
+                "total_fields": len(universal_fields),
                 "extraction_method": "single_pass_with_predefined_fields",
             }
 
@@ -752,6 +762,134 @@ class DocumentAwareInternVL3Processor:
             print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
 
         return extracted_data
+
+    def _extract_fields_universally(
+        self, image_path: str, field_list: List[str]
+    ) -> Dict[str, str]:
+        """
+        Extract all 15 universal fields using single-pass universal template.
+        
+        Replaces document-type-specific extraction with universal approach.
+        """
+        if self.debug:
+            print(f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass")
+
+        # Use YAML universal extraction template
+        from common.yaml_template_renderer import PureYAMLRenderer
+        
+        yaml_renderer = PureYAMLRenderer()
+        
+        # Generate universal prompt from unified schema
+        try:
+            # Access the universal extraction template we just added
+            unified_schema = yaml_renderer.unified_schema.unified_schema
+            universal_config = unified_schema.get("universal_extraction", {})
+            internvl3_config = universal_config.get("internvl3", {})
+            
+            if not internvl3_config:
+                raise ValueError("Universal extraction template not found in unified schema")
+            
+            # Build universal prompt
+            system_prompt = internvl3_config.get("system_prompt", "")
+            field_instructions = internvl3_config.get("field_instructions", "")
+            
+            prompt = f"{system_prompt}\n\n{field_instructions}"
+            
+            if self.debug:
+                print("🔨 Using universal extraction template")
+                print(f"📝 Prompt length: {len(prompt)} characters")
+                
+        except Exception as e:
+            raise ValueError(
+                f"❌ FATAL: Could not generate universal prompt: {e}\n"
+                f"💡 Check unified_schema.yaml contains universal_extraction section"
+            ) from e
+
+        if self.debug:
+            print(f"📝 Generated universal prompt for all {len(field_list)} fields")
+
+        # Execute universal extraction
+        raw_response = self._extract_with_prompt(
+            image_path, prompt, generation_config=None
+        )
+
+        if self.debug:
+            print("📥 Raw universal response received")
+            print(f"📊 Response length: {len(raw_response)} characters")
+            print("=" * 60)
+            print(raw_response[:500] + "..." if len(raw_response) > 500 else raw_response)
+            print("=" * 60)
+
+        # Parse the response using the extraction parser
+        from common.extraction_parser import parse_extraction_response
+
+        extracted_data = parse_extraction_response(
+            raw_response, expected_fields=field_list
+        )
+
+        # Apply ExtractionCleaner for consistent formatting (matching Llama behavior)
+        if self.debug:
+            print("🧹 Applying ExtractionCleaner to normalize field values...")
+            
+        cleaned_extracted_data = {}
+        for field_name, value in extracted_data.items():
+            # Apply same cleaning logic as Llama processor
+            if value and value.lower().strip() not in [
+                "not found", "not_found", "notfound", "n/a", "na", "none", "null", ""
+            ]:
+                cleaned_value = self.cleaner.clean_field_value(field_name, value)
+            else:
+                cleaned_value = "NOT_FOUND"
+            cleaned_extracted_data[field_name] = cleaned_value
+
+        # Replace extracted_data with cleaned version
+        extracted_data = cleaned_extracted_data
+
+        if self.debug:
+            found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+            print(f"✅ Universal extraction: {found_count}/{len(field_list)} fields found")
+
+        return extracted_data
+
+    def _infer_document_type_from_extraction(self, extracted_data: Dict[str, str]) -> str:
+        """
+        Infer document type from extraction results.
+        
+        Post-processing logic to determine document type based on which fields were found.
+        """
+        if self.debug:
+            print("🔍 Inferring document type from extraction results...")
+        
+        # Count non-empty fields for each document type category
+        bank_statement_indicators = [
+            "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+        ]
+        
+        invoice_receipt_indicators = [
+            "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", 
+            "IS_GST_INCLUDED", "TOTAL_AMOUNT", "INVOICE_DATE"
+        ]
+        
+        # Count found indicators for each type
+        bank_found = sum(1 for field in bank_statement_indicators 
+                        if extracted_data.get(field, "NOT_FOUND") != "NOT_FOUND")
+        
+        invoice_found = sum(1 for field in invoice_receipt_indicators
+                           if extracted_data.get(field, "NOT_FOUND") != "NOT_FOUND")
+        
+        # Inference logic
+        if bank_found >= 1:  # Any bank statement indicator
+            inferred_type = "bank_statement"
+        elif invoice_found >= 2:  # Multiple invoice/receipt indicators
+            inferred_type = "invoice"  # Default to invoice (could be receipt)
+        else:
+            inferred_type = "unknown"  # Unclear document type
+        
+        if self.debug:
+            print(f"🎯 Type inference: bank_indicators={bank_found}, invoice_indicators={invoice_found}")
+            print(f"📋 Inferred document type: {inferred_type}")
+            
+        return inferred_type
 
     def _extract_with_prompt(
         self, image_path: str, prompt: str, generation_config: dict = None

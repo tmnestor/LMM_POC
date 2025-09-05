@@ -323,6 +323,75 @@ class DocumentAwareInternVL3Handler:
             "raw_response": extraction_result.get("raw_response", ""),
         }
 
+    def process_universal_single_pass(self, image_path: str) -> Dict[str, Any]:
+        """Process single document with universal single-pass extraction."""
+        
+        start_time = time.perf_counter()
+
+        if self.debug:
+            print("🚀 Starting universal single-pass extraction (eliminates double tiling)")
+            
+        # Create universal processor (no document-specific field list needed)
+        from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+        
+        # Use empty field list - processor will use universal fields internally
+        universal_fields = []  # Processor will ignore this and use universal 15-field list
+        
+        # Create processor, skip model loading if we can reuse  
+        skip_loading = self.base_processor and hasattr(self.base_processor, "model")
+        
+        document_processor = DocumentAwareInternVL3Processor(
+            field_list=universal_fields,
+            model_path=None,  # Uses default from config
+            debug=self.debug,
+            skip_model_loading=skip_loading,
+        )
+
+        # Copy model references if reusing to avoid reloading
+        if skip_loading:
+            document_processor.model = self.base_processor.model
+            document_processor.tokenizer = self.base_processor.tokenizer
+            document_processor.generation_config = self.base_processor.generation_config
+            if self.debug:
+                print("   ♻️ Reusing loaded model (skip model loading)")
+
+        if self.debug:
+            print(
+                f"   🎯 Processor ready for universal extraction (15 fields)"
+            )
+
+        # Execute universal single-pass extraction
+        extraction_result = document_processor.process_single_image(image_path)
+
+        processing_time = time.perf_counter() - start_time
+
+        # Format result for compatibility with existing evaluation pipeline
+        extracted_data = extraction_result.get("extracted_data", {})
+        metadata = extraction_result.get("metadata", {})
+        
+        detected_fields = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+        
+        result = {
+            "image_path": str(image_path),
+            "document_type": metadata.get("document_type", "unknown"),
+            "extraction_strategy": metadata.get("extraction_strategy", "universal_single_pass"),
+            "total_fields": 15,  # Universal field count
+            "detected_fields": detected_fields,
+            "extraction_results": extracted_data,
+            "metadata": metadata,
+            "processing_time": processing_time,
+        }
+
+        if self.debug:
+            print(f"   ✅ Universal extraction complete: {detected_fields}/15 fields")
+            print(f"   📋 Inferred type: {metadata.get('document_type', 'unknown')}")
+            print(f"   ⏱️ Processing time: {processing_time:.2f}s")
+
+        # Store processor reference for model reuse
+        self.base_processor = document_processor
+        
+        return result
+
     def evaluate_document_aware(
         self, results: List[Dict[str, Any]], ground_truth: Dict
     ) -> Dict[str, Any]:
@@ -754,35 +823,29 @@ COMPLETE TEXT TRANSCRIPTION:"""
             print(f"\n[{idx}/{len(image_files)}] Processing: {Path(image_path).name}")
 
             try:
-                # Phase 1: Document Type Detection & Schema Routing
-                classification_info = processor.detect_and_classify_document(image_path)
+                # SINGLE-PASS: Universal extraction with post-processing type inference
+                result = processor.process_universal_single_pass(image_path)
+                
+                # Extract results for display
+                detected = result["detected_fields"]  
+                total = result["total_fields"]
+                time_taken = result["processing_time"]
+                inferred_type = result.get("document_type", "unknown")
+                
                 print(
-                    f"  📋 Document Type: {classification_info['document_type']} ({classification_info['field_count']} fields)"
+                    f"  📋 Inferred Type: {inferred_type} (universal extraction: {detected}/{total} fields)"
                 )
 
-                # Optional: Filter by document type
-                if (
-                    args.document_type
-                    and classification_info["document_type"] != args.document_type
-                ):
+                # Optional: Filter by document type (using inferred type)
+                if args.document_type and inferred_type != args.document_type:
                     print(f"  ⏭️ Skipping - looking for {args.document_type} documents")
                     continue
 
-                # Phase 2: Document-Aware Extraction
-                result = processor.process_document_aware(
-                    image_path, classification_info
-                )
                 results.append(result)
                 processed_count += 1
 
-                # Display results
-
-                detected = result["detected_fields"]
-                total = result["total_fields"]
-                time_taken = result["processing_time"]
-
                 print(
-                    f"  ✅ {classification_info['document_type']}: {detected}/{total} fields"
+                    f"  ✅ {inferred_type}: {detected}/{total} fields (single-pass)"
                 )
                 print(f"  ⏱️ Processing time: {time_taken:.2f}s")
 
