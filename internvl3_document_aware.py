@@ -39,6 +39,14 @@ from common.extraction_parser import create_extraction_dataframe, discover_image
 from common.unified_schema import DocumentTypeFieldSchema
 from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
 
+# Universal extraction field list - eliminates document type detection
+UNIVERSAL_FIELDS = [
+    "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
+    "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES", 
+    "GST_AMOUNT", "IS_GST_INCLUDED", "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE",
+    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+]
+
 
 class DocumentAwareInternVL3Handler:
     """V4 Document-Aware InternVL3 Vision Processor with comprehensive field coverage."""
@@ -338,8 +346,8 @@ class DocumentAwareInternVL3Handler:
             DocumentAwareInternVL3Processor,
         )
         
-        # Use empty field list - processor will use universal fields internally
-        universal_fields = []  # Processor will ignore this and use universal 15-field list
+        # Use explicit universal field list for proper token configuration
+        universal_fields = UNIVERSAL_FIELDS  # All 15 universal fields for single-pass extraction
         
         # Create processor, skip model loading if we can reuse  
         skip_loading = self.base_processor and hasattr(self.base_processor, "model")
@@ -361,7 +369,7 @@ class DocumentAwareInternVL3Handler:
 
         if self.debug:
             print(
-                "   🎯 Processor ready for universal extraction (15 fields)"
+                f"   🎯 Processor ready for universal extraction ({len(universal_fields)} explicit fields)"
             )
 
         print("🔥 DEBUG_MARKER_201: About to call document_processor.process_single_image()")
@@ -383,7 +391,7 @@ class DocumentAwareInternVL3Handler:
             "image_path": str(image_path),
             "document_type": metadata.get("document_type", "unknown"),
             "extraction_strategy": metadata.get("extraction_strategy", "universal_single_pass"),
-            "total_fields": 15,  # Universal field count
+            "total_fields": len(universal_fields),  # Explicit universal field count
             "detected_fields": detected_fields,
             "extraction_results": extracted_data,
             "metadata": metadata,
@@ -391,7 +399,7 @@ class DocumentAwareInternVL3Handler:
         }
 
         if self.debug:
-            print(f"   ✅ Universal extraction complete: {detected_fields}/15 fields")
+            print(f"   ✅ Universal extraction complete: {detected_fields}/{len(universal_fields)} fields")
             print(f"   📋 Inferred type: {metadata.get('document_type', 'unknown')}")
             print(f"   ⏱️ Processing time: {processing_time:.2f}s")
 

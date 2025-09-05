@@ -1122,7 +1122,7 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     Returns:
         int: Calculated max_new_tokens value
     """
-    field_count = field_count or FIELD_COUNT
+    field_count = field_count or FIELD_COUNT or 15  # Default to 15 for universal extraction
 
     model_name_lower = model_name.lower()
 
