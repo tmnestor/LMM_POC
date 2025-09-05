@@ -845,7 +845,7 @@ universal_extraction:
       • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
       • FOR BANK STATEMENTS: Extract statement period, transaction dates/amounts, descriptions only
       • WRONG DOCUMENT TYPE = Return "NOT_FOUND" for non-applicable fields
-      • MANDATORY ROW COUNT MATCHING: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID - count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. DO NOT skip or compress blank rows.
+      • BANK STATEMENT ROW COUNT MATCHING: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID on bank statements only - count total transaction table rows and create lists with exactly that many elements. For invoices/receipts, extract visible line items normally.
       
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -862,8 +862,8 @@ universal_extraction:
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
-      TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement. MANDATORY ROW COUNT MATCHING: Count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. For each row position: if the date cell has a value, include it; if the date cell is empty/blank, write "NOT_FOUND" in that exact position. DO NOT skip empty rows or compress the list.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. MANDATORY ROW COUNT MATCHING: Count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. For each row position: if the amount cell has a value, include it; if the amount cell is empty/blank, write "NOT_FOUND" in that exact position. DO NOT skip empty rows or compress the list.
+      TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 amount (or NOT_FOUND if empty), Position 2 = Row 2 amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
 
     output_format: |
       ANSWER EXACTLY IN THIS FORMAT (replace [values] with extracted data):
@@ -915,7 +915,7 @@ universal_extraction:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
       • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
       • If field doesn't apply to document type, return "NOT_FOUND"
-      • MANDATORY ROW COUNT MATCHING: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID - count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. DO NOT skip or compress blank rows.
+      • BANK STATEMENT ROW COUNT MATCHING: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID on bank statements only - count total transaction table rows and create lists with exactly that many elements. For invoices/receipts, extract visible line items normally.
       
       DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
       INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -932,8 +932,8 @@ universal_extraction:
       IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
-      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. MANDATORY ROW COUNT MATCHING: Count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. For each row position: if the date cell has a value, include it; if the date cell is empty/blank, write "NOT_FOUND" in that exact position. DO NOT skip empty rows or compress the list.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. MANDATORY ROW COUNT MATCHING: Count the total number of rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. For each row position: if the amount cell has a value, include it; if the amount cell is empty/blank, write "NOT_FOUND" in that exact position. DO NOT skip empty rows or compress the list.
+      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 amount (or NOT_FOUND if empty), Position 2 = Row 2 amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
 
     output_format: |
       OUTPUT EXACTLY IN THIS FORMAT (replace [values] with actual extracted data):
