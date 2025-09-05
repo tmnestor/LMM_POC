@@ -156,6 +156,12 @@ class DocumentAwareInternVL3Processor:
 
         base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
         self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
+        
+        # V100 memory optimization: Use more conservative generation settings
+        if self.is_8b_model and torch.cuda.get_device_properties(0).total_memory < 17 * 1024**3:  # V100 has 16GB
+            self.generation_config["num_beams"] = 1  # Disable beam search to save memory
+            if self.debug:
+                print("🔧 V100 detected: Using memory-efficient generation (num_beams=1)")
 
         # Ensure deterministic generation (matches original internvl3_processor)
         if self.generation_config.get("do_sample", True):

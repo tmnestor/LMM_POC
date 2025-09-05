@@ -1011,9 +1011,9 @@ BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 # ============================================================================
 
 # InternVL3 tile counts - higher = better OCR but more memory
-# With single-pass extraction we have more memory headroom
-INTERNVL3_MAX_TILES_8B = 20  # V100 with 8-bit quantization: ~8.5GB used, 7.5GB headroom
-INTERNVL3_MAX_TILES_2B = 24  # 2B model can use more tiles with lower memory footprint
+# V100 testing shows OOM issues above 12-14 tiles during generation phase
+INTERNVL3_MAX_TILES_8B = 14  # Optimized for V100: Balance between OCR quality and memory
+INTERNVL3_MAX_TILES_2B = 18  # 2B model can use more tiles with lower memory footprint
 
 
 def get_model_name_with_size(
