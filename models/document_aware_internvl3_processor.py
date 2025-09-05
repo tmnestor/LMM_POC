@@ -782,8 +782,7 @@ class DocumentAwareInternVL3Processor:
         # Generate universal prompt from unified schema
         try:
             # Access the universal extraction template we just added
-            unified_schema = yaml_renderer.unified_schema.unified_schema
-            universal_config = unified_schema.get("universal_extraction", {})
+            universal_config = yaml_renderer.unified_schema.get("universal_extraction", {})
             internvl3_config = universal_config.get("internvl3", {})
             
             if not internvl3_config:
