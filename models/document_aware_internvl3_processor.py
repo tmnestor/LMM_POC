@@ -583,7 +583,7 @@ class DocumentAwareInternVL3Processor:
                 print(
                     f"🚀 Starting universal single-pass extraction for {Path(image_path).name}"
                 )
-                print(f"📊 Target fields: 15 universal fields (eliminates double tiling)")
+                print("📊 Target fields: 15 universal fields (eliminates double tiling)")
                 print(
                     "🎯 Strategy: Universal extraction with post-processing type inference"
                 )

@@ -332,7 +332,9 @@ class DocumentAwareInternVL3Handler:
             print("🚀 Starting universal single-pass extraction (eliminates double tiling)")
             
         # Create universal processor (no document-specific field list needed)
-        from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+        from models.document_aware_internvl3_processor import (
+            DocumentAwareInternVL3Processor,
+        )
         
         # Use empty field list - processor will use universal fields internally
         universal_fields = []  # Processor will ignore this and use universal 15-field list
@@ -357,7 +359,7 @@ class DocumentAwareInternVL3Handler:
 
         if self.debug:
             print(
-                f"   🎯 Processor ready for universal extraction (15 fields)"
+                "   🎯 Processor ready for universal extraction (15 fields)"
             )
 
         # Execute universal single-pass extraction
