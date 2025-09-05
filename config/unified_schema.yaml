@@ -854,10 +854,10 @@ universal_extraction:
       BUSINESS_ADDRESS: Complete supplier business address - return "NOT_FOUND" if not visible
       PAYER_NAME: Customer/payer name - return "NOT_FOUND" if not visible
       PAYER_ADDRESS: Customer/payer address - return "NOT_FOUND" if not visible
-      LINE_ITEM_DESCRIPTIONS: Item names/descriptions (pipe-separated) - return "NOT_FOUND" if not visible
-      LINE_ITEM_QUANTITIES: Item quantities (pipe-separated) - return "NOT_FOUND" if not visible
-      LINE_ITEM_PRICES: Individual item unit prices (pipe-separated with $) - return "NOT_FOUND" if not visible
-      LINE_ITEM_TOTAL_PRICES: Item total prices (pipe-separated with $) - return "NOT_FOUND" if not visible
+      LINE_ITEM_DESCRIPTIONS: Item names/descriptions (separate with " | ") - return "NOT_FOUND" if not visible. Example: "Widget A | Service B | Product C"
+      LINE_ITEM_QUANTITIES: Item quantities (separate with " | ") - return "NOT_FOUND" if not visible. Example: "1 | 2 | 5"
+      LINE_ITEM_PRICES: Individual item unit prices (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $25.50 | $8.99"
+      LINE_ITEM_TOTAL_PRICES: Item total prices (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $51.00 | $44.95"
       GST_AMOUNT: GST/tax amount (with $ symbol) - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
