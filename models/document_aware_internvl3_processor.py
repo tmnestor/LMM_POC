@@ -23,9 +23,9 @@ from common.config import (
     DEFAULT_IMAGE_SIZE,
     IMAGENET_MEAN,
     IMAGENET_STD,
-    INTERNVL3_MODEL_PATH,
-    INTERNVL3_MAX_TILES_8B,
     INTERNVL3_MAX_TILES_2B,
+    INTERNVL3_MAX_TILES_8B,
+    INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
 )
