@@ -896,42 +896,66 @@ universal_extraction:
       TRANSACTION_AMOUNTS_PAID: NOT_FOUND
 
   # --------------------------------------------------------------------------
-  # LLAMA UNIVERSAL TEMPLATE - Single-pass all fields (future use)
+  # LLAMA UNIVERSAL TEMPLATE - Single-pass all fields (ACTIVE)
   # --------------------------------------------------------------------------
   llama:
     system_prompt: |
-      You are an expert document analyzer. Extract structured data from this business document image.
+      You are an expert document analyzer specializing in business document extraction.
+      Extract structured data from this document image using precise field-by-field analysis.
       
-      🚨 CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
-      🚨 DO NOT GUESS or INFER missing information
-      🚨 Only extract what is explicitly visible in the image
+      🚨 CRITICAL EXTRACTION RULES:
+      - If ANY field is not clearly visible in the document, return "NOT_FOUND" for that field
+      - Do NOT guess, estimate, or infer missing information
+      - Only extract what is EXPLICITLY shown in the image
+      - Use exact text from document (preserve original formatting/capitalization)
+      - Be conservative: when in doubt, use "NOT_FOUND"
       
-      FORMATTING REQUIREMENTS:
-      1. Fields not visible/applicable: Return "NOT_FOUND"
-      2. Monetary values: Include currency symbols ($8.62, not 8.62)
-      3. Addresses: Extract complete multi-line addresses
-      4. Dates: Use DD/MM/YYYY format
-      5. Lists: Use pipe separation (Item1 | Item2 | Item3)
-      6. Boolean values: true/false (lowercase)
+      🔍 CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:" 
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT repeat the user's request or add explanations
+      - Output ONLY the structured extraction data below
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
 
     field_instructions: |
-      Extract the following 15 fields from this document:
+      Extract the following 17 fields from this document in this exact order:
       
-      DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
-      INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
-      SUPPLIER_NAME: Company/business name providing goods/services - return "NOT_FOUND" if not visible
-      BUSINESS_ABN: 11-digit Australian Business Number - return "NOT_FOUND" if not visible
-      BUSINESS_ADDRESS: Complete supplier business address - return "NOT_FOUND" if not visible
-      PAYER_NAME: Customer/payer name - return "NOT_FOUND" if not visible
-      PAYER_ADDRESS: Customer/payer address - return "NOT_FOUND" if not visible
-      LINE_ITEM_DESCRIPTIONS: Item names/descriptions (pipe-separated) - return "NOT_FOUND" if not visible
-      LINE_ITEM_TOTAL_PRICES: Item prices (pipe-separated with $) - return "NOT_FOUND" if not visible
-      GST_AMOUNT: GST/tax amount (with $ symbol) - return "NOT_FOUND" if not visible
-      IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
-      TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
-      STATEMENT_DATE_RANGE: Date range for statements (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not visible
-      TRANSACTION_DATES: Transaction dates (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not visible
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts (pipe-separated with $) - return "NOT_FOUND" if not visible
+      DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
+      INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
+      SUPPLIER_NAME: Company/business name providing goods/services (from document header) - return "NOT_FOUND" if not visible
+      BUSINESS_ABN: 11-digit Australian Business Number (format: XX XXX XXX XXX) - return "NOT_FOUND" if not visible
+      BUSINESS_ADDRESS: Complete supplier business address (multi-line acceptable) - return "NOT_FOUND" if not visible
+      PAYER_NAME: Customer/payer name (from Bill To/Customer section) - return "NOT_FOUND" if not visible
+      PAYER_ADDRESS: Customer/payer address (from Bill To/Customer section) - return "NOT_FOUND" if not visible
+      LINE_ITEM_DESCRIPTIONS: Item/service names from itemized list (separate with " | ") - return "NOT_FOUND" if not visible
+      LINE_ITEM_QUANTITIES: Quantities for each item (separate with " | ", match description order) - return "NOT_FOUND" if not visible
+      LINE_ITEM_PRICES: Unit price for each item (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
+      LINE_ITEM_TOTAL_PRICES: Total price per line item (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
+      GST_AMOUNT: GST/tax amount (include $ symbol, e.g., "$8.62") - return "NOT_FOUND" if not visible
+      IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
+      TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
+      STATEMENT_DATE_RANGE: Date range for statements (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not visible
+      TRANSACTION_DATES: Transaction dates from statement (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not visible
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts from statement (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
+
+    output_format: |
+      DOCUMENT_TYPE: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
 
 # ==============================================================================
 # 11. VERSION HISTORY - Schema evolution tracking

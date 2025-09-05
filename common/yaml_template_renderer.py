@@ -141,6 +141,111 @@ class PureYAMLRenderer:
 
         return "\n".join(prompt_parts)
 
+    def render_universal_prompt(self, model_name: str = "llama") -> str:
+        """
+        Render universal extraction prompt using universal_extraction templates.
+        
+        This method generates single-pass extraction prompts that process all 17 fields
+        in one call, eliminating the need for document type detection.
+        
+        Args:
+            model_name: Model name for model-specific templates (llama, internvl3)
+            
+        Returns:
+            Complete universal prompt string for single-pass extraction
+        """
+        universal_extraction = self.unified_schema.get("universal_extraction", {})
+        semantic_field_order = self.unified_schema.get("semantic_field_order", {})
+        
+        # Validate model exists in universal_extraction
+        if model_name not in universal_extraction:
+            raise ValueError(f"Model '{model_name}' not found in universal_extraction. Available models: {list(universal_extraction.keys())}")
+        
+        # Get model-specific universal template
+        universal_template = universal_extraction[model_name]
+        
+        # Get semantic field order for this model (used for consistent ordering)
+        if model_name in semantic_field_order:
+            field_list = semantic_field_order[model_name]
+        else:
+            # Fallback to a default 17-field list if semantic order not available
+            field_list = [
+                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", "IS_GST_INCLUDED",
+                "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+            ]
+            
+        # Prepare template variables for universal extraction
+        template_vars = {
+            "field_count": len(field_list),
+            "last_field": field_list[-1] if field_list else "TRANSACTION_AMOUNTS_PAID",
+            "model_name": model_name,
+        }
+        
+        if self.debug:
+            print(f"🌍 Rendering universal prompt for {model_name} with {len(field_list)} fields")
+            print(f"   Last field: {template_vars['last_field']}")
+        
+        # Build universal prompt using template sections
+        prompt_parts = []
+        
+        # Add system prompt
+        if "system_prompt" in universal_template:
+            system_prompt = self._render_template_string(
+                universal_template["system_prompt"], template_vars
+            )
+            prompt_parts.append(system_prompt)
+        
+        # Add field instructions
+        if "field_instructions" in universal_template:
+            field_instructions = self._render_template_string(
+                universal_template["field_instructions"], template_vars
+            )
+            prompt_parts.append(f"\n{field_instructions}")
+            
+        # Add output format if available
+        if "output_format" in universal_template:
+            output_format = self._render_template_string(
+                universal_template["output_format"], template_vars
+            )
+            prompt_parts.append(f"\nEXPECTED OUTPUT FORMAT:\n{output_format}")
+        
+        universal_prompt = "\n".join(prompt_parts)
+        
+        if self.debug:
+            print(f"✅ Generated universal prompt ({len(universal_prompt)} chars)")
+            
+        return universal_prompt
+
+    def get_universal_field_list(self, model_name: str = "llama") -> List[str]:
+        """
+        Get universal field list in semantic order for the specified model.
+        
+        Args:
+            model_name: Model name (llama, internvl3)
+            
+        Returns:
+            List of all 17 universal fields in semantic order
+        """
+        semantic_field_order = self.unified_schema.get("semantic_field_order", {})
+        
+        if model_name in semantic_field_order:
+            field_list = semantic_field_order[model_name]
+        else:
+            # Fallback universal field list
+            field_list = [
+                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", 
+                "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", "IS_GST_INCLUDED",
+                "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+            ]
+            
+        if self.debug:
+            print(f"🌍 Universal field list for {model_name}: {len(field_list)} fields")
+            
+        return field_list
+
     def _render_template_string(self, template: str, variables: Dict[str, Any]) -> str:
         """
         Render template string with variable substitution.

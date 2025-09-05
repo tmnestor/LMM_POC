@@ -543,6 +543,202 @@ class DocumentAwareLlamaProcessor:
                 print(f"❌ Error in custom prompt extraction: {e}")
             return f"Error: {str(e)}"
 
+    def process_universal_single_pass(self, image_path: str) -> dict:
+        """
+        Process image using universal single-pass extraction with all 17 fields.
+        
+        This method eliminates the document detection stage by extracting all possible
+        fields in a single call, then inferring document type from the results.
+        Provides significant performance improvement (~50% faster) by eliminating
+        double image loading.
+        
+        Args:
+            image_path (str): Path to document image
+            
+        Returns:
+            dict: Extraction results with same format as document-aware processing
+        """
+        try:
+            start_time = time.time()
+            
+            if self.debug:
+                print(f"🌍 Starting universal single-pass extraction for: {Path(image_path).name}")
+                print("   Eliminating document detection stage - processing all 17 fields")
+            
+            # Memory cleanup before processing
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            
+            # Load image once (vs twice in document-aware mode)
+            image = self.load_document_image(image_path)
+            
+            # Get universal field list and generate universal prompt
+            universal_fields = self.yaml_renderer.get_universal_field_list(model_name="llama")
+            universal_prompt = self.yaml_renderer.render_universal_prompt(model_name="llama")
+            
+            if self.debug:
+                print(f"🌍 Universal field list: {len(universal_fields)} fields")
+                print(f"   Fields: {universal_fields[:3]}...{universal_fields[-2:]}")
+                print(f"🔍 UNIVERSAL PROMPT ({len(universal_prompt)} chars):")
+                print("=" * 80)
+                print(universal_prompt)
+                print("=" * 80)
+            
+            # Create multimodal conversation with universal prompt
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": universal_prompt},
+                    ],
+                }
+            ]
+            
+            # Apply chat template
+            input_text = self.processor.apply_chat_template(
+                messages, add_generation_prompt=True
+            )
+            
+            # Process inputs
+            inputs = self.processor(image, input_text, return_tensors="pt").to(
+                self.device
+            )
+            
+            # Configure generation for universal extraction (all 17 fields)
+            universal_generation_config = self.generation_config.copy()
+            universal_generation_config["max_new_tokens"] = get_max_new_tokens(
+                "llama", len(universal_fields)
+            )
+            
+            if self.debug:
+                print(f"🖼️  Input tensor shape: {inputs['input_ids'].shape}")
+                print(f"💭 Generating with max_new_tokens={universal_generation_config['max_new_tokens']}")
+            
+            # Generate response using resilient generation
+            output = self._resilient_generate(inputs, **universal_generation_config)
+            
+            # Decode response
+            full_response = self.processor.decode(output[0], skip_special_tokens=True)
+            
+            # Extract assistant's response (handle Llama chat template)
+            if "<|start_header_id|>assistant<|end_header_id|>" in full_response:
+                response = full_response.split(
+                    "<|start_header_id|>assistant<|end_header_id|>"
+                )[1]
+                response = response.split("<|eot_id|>")[0].strip()
+            elif "\nassistant\n\n" in full_response:
+                response = full_response.split("\nassistant\n\n")[1].strip()
+            elif "\nassistant\n" in full_response:
+                response = full_response.split("\nassistant\n")[1].strip()
+            elif "assistant" in full_response:
+                parts = full_response.split("assistant")
+                response = parts[-1].strip()
+            else:
+                response = full_response.strip()
+            
+            if self.debug:
+                print(f"📄 RAW UNIVERSAL RESPONSE ({len(response)} chars):")
+                print("=" * 80)
+                print(response)
+                print("=" * 80)
+            
+            # Parse response using robust extraction parser
+            from common.extraction_parser import parse_extraction_response
+            
+            extracted_data = parse_extraction_response(
+                response, expected_fields=universal_fields
+            )
+            
+            # Apply ExtractionCleaner for value normalization (matching InternVL3 behavior)
+            cleaned_data = {}
+            for field in universal_fields:
+                raw_value = extracted_data.get(field, "NOT_FOUND")
+                if raw_value != "NOT_FOUND":
+                    cleaned_value = self.cleaner.clean_field_value(field, raw_value)
+                    cleaned_data[field] = cleaned_value
+                else:
+                    cleaned_data[field] = "NOT_FOUND"
+            
+            # Infer document type from extracted DOCUMENT_TYPE field
+            detected_doc_type = cleaned_data.get("DOCUMENT_TYPE", "unknown").lower()
+            
+            # Normalize document type using simple heuristics
+            if "statement" in detected_doc_type or "bank" in detected_doc_type:
+                inferred_doc_type = "bank_statement"
+            elif "receipt" in detected_doc_type:
+                inferred_doc_type = "receipt"  
+            elif "invoice" in detected_doc_type or "tax" in detected_doc_type:
+                inferred_doc_type = "invoice"
+            else:
+                # Fallback: infer from field presence
+                if cleaned_data.get("STATEMENT_DATE_RANGE", "NOT_FOUND") != "NOT_FOUND":
+                    inferred_doc_type = "bank_statement"
+                elif cleaned_data.get("GST_AMOUNT", "NOT_FOUND") != "NOT_FOUND":
+                    inferred_doc_type = "invoice"
+                else:
+                    inferred_doc_type = "receipt"  # Default fallback
+            
+            if self.debug:
+                print("📊 UNIVERSAL EXTRACTION RESULTS:")
+                print("=" * 80)
+                for field in universal_fields:
+                    value = cleaned_data.get(field, "NOT_FOUND")
+                    status = "✅" if value != "NOT_FOUND" else "❌"
+                    print(f'  {status} {field}: "{value}"')
+                print("=" * 80)
+                
+                found_fields = [k for k, v in cleaned_data.items() if v != "NOT_FOUND"]
+                print(f"✅ Universal extraction: {len(found_fields)}/{len(universal_fields)} fields found")
+                print(f"📄 Inferred document type: {inferred_doc_type}")
+                if found_fields:
+                    print(f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
+            
+            # Calculate metrics
+            extracted_fields_count = len([k for k, v in cleaned_data.items() if v != "NOT_FOUND"])
+            response_completeness = extracted_fields_count / len(universal_fields)
+            content_coverage = extracted_fields_count / len(universal_fields)
+            
+            # Memory cleanup with V100 optimizations
+            del inputs, output, image
+            comprehensive_memory_cleanup(self.model, self.processor)
+            
+            processing_time = time.time() - start_time
+            
+            # Return results in same format as document-aware processing for compatibility
+            return {
+                "image_name": Path(image_path).name,
+                "extracted_data": cleaned_data,
+                "raw_response": response,
+                "processing_time": processing_time,
+                "response_completeness": response_completeness,
+                "content_coverage": content_coverage,
+                "extracted_fields_count": extracted_fields_count,
+                "field_count": len(universal_fields),
+                "document_type": inferred_doc_type,  # Inferred from extraction
+                "extraction_mode": "universal_single_pass"  # Mark as universal
+            }
+            
+        except Exception as e:
+            if self.debug:
+                print(f"❌ Error in universal single-pass extraction: {e}")
+                import traceback
+                traceback.print_exc()
+                
+            # Return error result with universal fields
+            universal_fields = self.yaml_renderer.get_universal_field_list(model_name="llama")
+            return {
+                "image_name": Path(image_path).name,
+                "extracted_data": {field: "NOT_FOUND" for field in universal_fields},
+                "raw_response": f"Error: {str(e)}",
+                "processing_time": 0,
+                "response_completeness": 0,
+                "content_coverage": 0,
+                "extracted_fields_count": 0,
+                "field_count": len(universal_fields),
+                "document_type": "unknown",
+                "extraction_mode": "universal_single_pass"
+            }
+
     def _parse_document_aware_response(self, response_text: str) -> dict:
         """Parse extraction response for document-specific field list."""
         import re
