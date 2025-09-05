@@ -93,7 +93,7 @@ class DocumentAwareInternVL3Processor:
             if field_list:
                 print(f"   Fields: {field_list[0]} → {field_list[-1]}")
             else:
-                print(f"   🌟 Universal extraction mode: Uses internal 15-field list")
+                print("   🌟 Universal extraction mode: Uses internal 15-field list")
             print(f"   Model variant: {'8B' if self.is_8b_model else '2B'}")
 
         # Configure CUDA memory allocation
