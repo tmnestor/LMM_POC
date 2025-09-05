@@ -856,7 +856,7 @@ universal_extraction:
       6. Boolean values: true/false (lowercase)
 
     field_instructions: |
-      Extract the following 15 fields from this document:
+      Extract the following 17 fields from this document:
       
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -866,7 +866,9 @@ universal_extraction:
       PAYER_NAME: Customer/payer name - return "NOT_FOUND" if not visible
       PAYER_ADDRESS: Customer/payer address - return "NOT_FOUND" if not visible
       LINE_ITEM_DESCRIPTIONS: Item names/descriptions (pipe-separated) - return "NOT_FOUND" if not visible
-      LINE_ITEM_TOTAL_PRICES: Item prices (pipe-separated with $) - return "NOT_FOUND" if not visible
+      LINE_ITEM_QUANTITIES: Item quantities (pipe-separated) - return "NOT_FOUND" if not visible
+      LINE_ITEM_PRICES: Individual item unit prices (pipe-separated with $) - return "NOT_FOUND" if not visible
+      LINE_ITEM_TOTAL_PRICES: Item total prices (pipe-separated with $) - return "NOT_FOUND" if not visible
       GST_AMOUNT: GST/tax amount (with $ symbol) - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
@@ -883,6 +885,8 @@ universal_extraction:
       PAYER_NAME: NOT_FOUND
       PAYER_ADDRESS: NOT_FOUND
       LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
       LINE_ITEM_TOTAL_PRICES: NOT_FOUND
       GST_AMOUNT: NOT_FOUND
       IS_GST_INCLUDED: NOT_FOUND

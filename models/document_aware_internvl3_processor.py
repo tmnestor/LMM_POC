@@ -828,6 +828,11 @@ class DocumentAwareInternVL3Processor:
             if self.debug:
                 print("🔨 Using universal extraction template")
                 print(f"📝 Prompt length: {len(prompt)} characters")
+                print("\n" + "="*80)
+                print("📋 UNIVERSAL PROMPT:")
+                print("="*80)
+                print(prompt)
+                print("="*80 + "\n")
                 
         except Exception as e:
             raise ValueError(
