@@ -213,7 +213,7 @@ field_definitions:
       
     TRANSACTION_DATES:
       order: 16
-      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"
+      instruction: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND] CRITICAL: Include ALL rows from the transaction table - if a date cell is blank/empty, use NOT_FOUND as the value in that position of the pipe-separated list. DO NOT skip blank rows."
       description: "Essential bank statement dates"
       applicable_documents: [bank_statement]
       required: true
@@ -221,7 +221,7 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"
+      instruction: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND] CRITICAL: Include ALL rows from the transaction table - if an amount cell is blank/empty, use NOT_FOUND as the value in that position of the pipe-separated list. DO NOT skip blank rows."
       description: "Essential bank statement amounts"
       applicable_documents: [bank_statement]
       required: true
@@ -357,7 +357,7 @@ field_definitions:
       
     TRANSACTION_DATES:
       order: 16
-      instruction: "[In transaction table, find date column - list ALL dates in order separated by ' | ' or NOT_FOUND]"
+      instruction: "[In transaction table, find date column - list ALL dates in order separated by ' | ' or NOT_FOUND] CRITICAL: Include ALL rows from the transaction table - if a date cell is blank/empty, use NOT_FOUND as the value in that position of the pipe-separated list. DO NOT skip blank rows."
       description: "Essential bank statement dates"
       applicable_documents: [bank_statement]
       required: true
@@ -365,7 +365,7 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "[In transaction table, find amount/debit/credit columns - list ALL amounts as shown separated by ' | ' or NOT_FOUND]"
+      instruction: "[In transaction table, find amount/debit/credit columns - list ALL amounts as shown separated by ' | ' or NOT_FOUND] CRITICAL: Include ALL rows from the transaction table - if an amount cell is blank/empty, use NOT_FOUND as the value in that position of the pipe-separated list. DO NOT skip blank rows."
       description: "Essential bank statement amounts"
       applicable_documents: [bank_statement]
       required: true
