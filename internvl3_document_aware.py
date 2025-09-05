@@ -716,9 +716,6 @@ COMPLETE TEXT TRANSCRIPTION:"""
                 
             except Exception as e:
                 print(f"❌ Error in debug OCR mode: {e}")
-                import traceback
-                if args.debug:
-                    traceback.print_exc()
             
             return
 
@@ -777,10 +774,6 @@ COMPLETE TEXT TRANSCRIPTION:"""
 
         except Exception as e:
             print(f"❌ Error processing {args.image_path}: {e}")
-            if args.debug:
-                import traceback
-
-                traceback.print_exc()
             return
 
     else:
@@ -860,10 +853,6 @@ COMPLETE TEXT TRANSCRIPTION:"""
 
             except Exception as e:
                 print(f"  ❌ Error processing {Path(image_path).name}: {e}")
-                if args.debug:
-                    import traceback
-
-                    traceback.print_exc()
                 continue
 
         total_time = time.perf_counter() - start_time
@@ -953,10 +942,6 @@ COMPLETE TEXT TRANSCRIPTION:"""
 
             except Exception as e:
                 print(f"⚠️  Error creating CSV exports: {e}")
-                if args.debug:
-                    import traceback
-
-                    traceback.print_exc()
 
             print(f"\n✅ Detailed report saved to: {report_path}")
             print("\n" + "=" * 80)

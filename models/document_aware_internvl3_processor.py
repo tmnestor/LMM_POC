@@ -691,9 +691,6 @@ class DocumentAwareInternVL3Processor:
         except Exception as e:
             if self.debug:
                 print(f"❌ Document-aware extraction error for {image_path}: {e}")
-                import traceback
-
-                traceback.print_exc()
 
             # Return error result with dynamic fields
             return {
@@ -930,12 +927,6 @@ class DocumentAwareInternVL3Processor:
         self, image_path: str, prompt: str, generation_config: dict = None
     ) -> str:
         """Core extraction method that handles image processing and model inference."""
-        
-        import traceback
-        print("📍 CALL STACK:")
-        for line in traceback.format_stack()[-3:-1]:  # Show last 2 callers
-            print(f"  {line.strip()}")
-        
         # Pre-processing cleanup with fragmentation detection - V100 optimized
         handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
