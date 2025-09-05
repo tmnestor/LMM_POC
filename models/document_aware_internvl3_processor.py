@@ -247,6 +247,10 @@ class DocumentAwareInternVL3Processor:
                         model_kwargs["load_in_8bit"] = True
 
                 model_kwargs["device_map"] = "auto"
+                
+                # Fix model path format for transformers compatibility
+                model_kwargs["local_files_only"] = True  # Force local loading for custom paths
+                model_kwargs["use_auth_token"] = False   # Disable auth for local models
 
                 try:
                     self.model = AutoModel.from_pretrained(
@@ -285,6 +289,8 @@ class DocumentAwareInternVL3Processor:
                                 "device_map": {"": 0},  # Force GPU 0
                                 "low_cpu_mem_usage": True,
                                 "trust_remote_code": True,
+                                "local_files_only": True,  # Force local loading
+                                "use_auth_token": False,   # Disable auth
                             }
 
                             self.model = AutoModel.from_pretrained(
@@ -330,6 +336,8 @@ class DocumentAwareInternVL3Processor:
 
                 # Configuration for 2B model - use model's native bfloat16
                 model_kwargs["device_map"] = "auto"
+                model_kwargs["local_files_only"] = True  # Force local loading
+                model_kwargs["use_auth_token"] = False   # Disable auth
 
                 self.model = AutoModel.from_pretrained(
                     self.model_path, **model_kwargs
