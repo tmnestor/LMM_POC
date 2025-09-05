@@ -866,7 +866,7 @@ universal_extraction:
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
       SUPPLIER_NAME: Company/business name providing goods/services - return "NOT_FOUND" if not visible
-      BUSINESS_ABN: 11-digit Australian Business Number - return "NOT_FOUND" if not visible
+      BUSINESS_ABN: 11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX)- return "NOT_FOUND" if not visible
       BUSINESS_ADDRESS: Complete supplier business address - return "NOT_FOUND" if not visible
       PAYER_NAME: Customer/payer name - return "NOT_FOUND" if not visible
       PAYER_ADDRESS: Customer/payer address - return "NOT_FOUND" if not visible
