@@ -729,15 +729,8 @@ COMPLETE TEXT TRANSCRIPTION:"""
         print(f"\\n📄 Processing single image: {Path(args.image_path).name}...")
 
         try:
-            # Step 1: Detect document type and get schema
-            classification_info = processor.detect_and_classify_document(
-                args.image_path
-            )
-
-            # Step 2: Extract with document-specific schema
-            result = processor.process_document_aware(
-                args.image_path, classification_info
-            )
+            # SINGLE-PASS: Universal extraction with post-processing type inference  
+            result = processor.process_universal_single_pass(args.image_path)
 
             # Display results
             print("\\n📋 RESULTS:")
