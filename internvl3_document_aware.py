@@ -388,12 +388,12 @@ class DocumentAwareInternVL3Handler:
         detected_fields = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
         
         result = {
-            "image_path": str(image_path),
+            "image_file": Path(image_path).name,
             "document_type": metadata.get("document_type", "unknown"),
             "extraction_strategy": metadata.get("extraction_strategy", "universal_single_pass"),
             "total_fields": len(universal_fields),  # Explicit universal field count
             "detected_fields": detected_fields,
-            "extraction_results": extracted_data,
+            "extracted_data": extracted_data,
             "metadata": metadata,
             "processing_time": processing_time,
         }
