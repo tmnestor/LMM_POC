@@ -862,7 +862,7 @@ universal_extraction:
       • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
       • FOR BANK STATEMENTS: Extract statement period, transaction dates/amounts, descriptions only
       • WRONG DOCUMENT TYPE = Return "NOT_FOUND" for non-applicable fields
-      • BLANK CELLS IN LISTS: Include ALL rows from tables - for missing/blank cells in pipe-separated lists, use "NOT_FOUND" as a value in that position. DO NOT skip blank rows.
+      • BLANK CELLS IN TRANSACTION LISTS: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID only - include ALL rows from tables, use "NOT_FOUND" for missing/blank cells. DO NOT skip blank rows.
       
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -932,7 +932,7 @@ universal_extraction:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
       • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
       • If field doesn't apply to document type, return "NOT_FOUND"
-      • BLANK CELLS IN LISTS: Include ALL rows from tables - for missing/blank cells in pipe-separated lists, use "NOT_FOUND" as a value in that position. DO NOT skip blank rows.
+      • BLANK CELLS IN TRANSACTION LISTS: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID only - include ALL rows from tables, use "NOT_FOUND" for missing/blank cells. DO NOT skip blank rows.
       
       DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
       INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
