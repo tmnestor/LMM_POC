@@ -639,7 +639,7 @@ def main():
                 efficiency_improvement = result.get("efficiency_improvement", "Unknown")
                 print(f"   Extraction Mode: {extraction_mode}")
                 print(f"   Efficiency Gain: {efficiency_improvement}")
-                print(f"   Memory Benefit: Single image load (no double tiling)")
+                print("   Memory Benefit: Single image load (no double tiling)")
             else:
                 # Document-aware mode specific metrics
                 efficiency = (
@@ -648,7 +648,7 @@ def main():
                 print(
                     f"   Field Reduction: {efficiency:.0f}% fewer fields than universal approach"
                 )
-                print(f"   Extraction Mode: document_aware")
+                print("   Extraction Mode: document_aware")
 
             print("\\n📊 EXTRACTED DATA:")
             extracted_data = result["extracted_data"]
