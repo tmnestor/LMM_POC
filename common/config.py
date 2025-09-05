@@ -1006,6 +1006,15 @@ GPU_MEMORY_THRESHOLDS = {
 ENABLE_BATCH_SIZE_FALLBACK = True
 BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 
+# ============================================================================
+# TILE CONFIGURATION - For OCR Quality Optimization
+# ============================================================================
+
+# InternVL3 tile counts - higher = better OCR but more memory
+# With single-pass extraction we have more memory headroom
+INTERNVL3_MAX_TILES_8B = 20  # V100 with 8-bit quantization: ~8.5GB used, 7.5GB headroom
+INTERNVL3_MAX_TILES_2B = 24  # 2B model can use more tiles with lower memory footprint
+
 
 def get_model_name_with_size(
     base_model_name: str, model_path: str = None, is_8b_model: bool = None

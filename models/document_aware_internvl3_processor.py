@@ -24,6 +24,8 @@ from common.config import (
     IMAGENET_MEAN,
     IMAGENET_STD,
     INTERNVL3_MODEL_PATH,
+    INTERNVL3_MAX_TILES_8B,
+    INTERNVL3_MAX_TILES_2B,
     get_auto_batch_size,
     get_max_new_tokens,
 )
@@ -460,7 +462,7 @@ class DocumentAwareInternVL3Processor:
         self,
         image,
         min_num=1,
-        max_num=12,
+        max_num=20,  # Increased default for better OCR quality
         image_size=DEFAULT_IMAGE_SIZE,
         use_thumbnail=False,
     ):
@@ -541,10 +543,14 @@ class DocumentAwareInternVL3Processor:
         """Complete InternVL3 image loading and preprocessing pipeline."""
         
         
-        # PHASE 2: Increase tiles for 8B model to match 2B model accuracy
-        # 8B model now uses quantization on V100, so memory impact is reduced
+        # PHASE 3: Optimize tile count based on available memory
+        # With single-pass extraction we have more memory headroom
+        # V100 shows only 8.42GB/16GB used, so we can increase tiles for better OCR
         if max_num is None:
-            max_num = 12  # Both 2B and 8B models now use same tile count for better text coverage
+            if self.is_8b_model:
+                max_num = INTERNVL3_MAX_TILES_8B  # Configurable: default 20 tiles
+            else:
+                max_num = INTERNVL3_MAX_TILES_2B  # Configurable: default 24 tiles
 
 
         if self.debug:
