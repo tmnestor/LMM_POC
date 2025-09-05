@@ -862,7 +862,7 @@ universal_extraction:
       • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
       • FOR BANK STATEMENTS: Extract statement period, transaction dates/amounts, descriptions only
       • WRONG DOCUMENT TYPE = Return "NOT_FOUND" for non-applicable fields
-      • BLANK CELLS IN LISTS: For missing cells in pipe-separated lists, use "NOT_FOUND" as a value in the list
+      • BLANK CELLS IN LISTS: Include ALL rows from tables - for missing/blank cells in pipe-separated lists, use "NOT_FOUND" as a value in that position. DO NOT skip blank rows.
       
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -879,8 +879,8 @@ universal_extraction:
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
-      TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement. For blank/empty date cells, use "NOT_FOUND" in the pipe-separated list.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. For blank/empty amount cells, use "NOT_FOUND" in the pipe-separated list.
+      TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement. CRITICAL: Include ALL rows from the transaction table - if a date cell is blank/empty, use "NOT_FOUND" as the value in that position of the pipe-separated list.
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. CRITICAL: Include ALL rows from the transaction table - if an amount cell is blank/empty, use "NOT_FOUND" as the value in that position of the pipe-separated list.
 
     output_format: |
       ANSWER EXACTLY IN THIS FORMAT (replace [values] with extracted data):
@@ -932,7 +932,7 @@ universal_extraction:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
       • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
       • If field doesn't apply to document type, return "NOT_FOUND"
-      • BLANK CELLS IN LISTS: For missing cells in pipe-separated lists, use "NOT_FOUND" as a value in the list
+      • BLANK CELLS IN LISTS: Include ALL rows from tables - for missing/blank cells in pipe-separated lists, use "NOT_FOUND" as a value in that position. DO NOT skip blank rows.
       
       DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
       INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -949,8 +949,8 @@ universal_extraction:
       IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
-      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. For blank/empty date cells, use "NOT_FOUND" in the pipe-separated list.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. For blank/empty amount cells, use "NOT_FOUND" in the pipe-separated list.
+      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. CRITICAL: Include ALL rows from the transaction table - if a date cell is blank/empty, use "NOT_FOUND" as the value in that position of the pipe-separated list.
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. CRITICAL: Include ALL rows from the transaction table - if an amount cell is blank/empty, use "NOT_FOUND" as the value in that position of the pipe-separated list.
 
     output_format: |
       OUTPUT EXACTLY IN THIS FORMAT (replace [values] with actual extracted data):
