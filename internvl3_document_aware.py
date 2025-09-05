@@ -326,6 +326,8 @@ class DocumentAwareInternVL3Handler:
     def process_universal_single_pass(self, image_path: str) -> Dict[str, Any]:
         """Process single document with universal single-pass extraction."""
         
+        print("🔥 DEBUG_MARKER_200: process_universal_single_pass() ENTRY POINT")
+        
         start_time = time.perf_counter()
 
         if self.debug:
@@ -362,8 +364,12 @@ class DocumentAwareInternVL3Handler:
                 "   🎯 Processor ready for universal extraction (15 fields)"
             )
 
+        print("🔥 DEBUG_MARKER_201: About to call document_processor.process_single_image()")
+        
         # Execute universal single-pass extraction
         extraction_result = document_processor.process_single_image(image_path)
+        
+        print("🔥 DEBUG_MARKER_202: document_processor.process_single_image() completed")
 
         processing_time = time.perf_counter() - start_time
 
