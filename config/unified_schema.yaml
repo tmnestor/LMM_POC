@@ -858,6 +858,11 @@ universal_extraction:
     field_instructions: |
       Extract the following 17 fields from this document:
       
+      🚨 CRITICAL: Document-specific field rules:
+      • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
+      • FOR BANK STATEMENTS: Extract statement period, transaction dates/amounts, descriptions only
+      • WRONG DOCUMENT TYPE = Return "NOT_FOUND" for non-applicable fields
+      
       DOCUMENT_TYPE: NOT_FOUND (will be auto-determined from your extraction results)
       INVOICE_DATE: Date of invoice/receipt (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
       SUPPLIER_NAME: Company/business name providing goods/services - return "NOT_FOUND" if not visible
@@ -872,9 +877,9 @@ universal_extraction:
       GST_AMOUNT: GST/tax amount (with $ symbol) - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
-      STATEMENT_DATE_RANGE: Date range for statements (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not visible
-      TRANSACTION_DATES: Transaction dates (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not visible
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts (pipe-separated with $) - return "NOT_FOUND" if not visible
+      STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
+      TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement
 
     output_format: |
       DOCUMENT_TYPE: NOT_FOUND
@@ -920,6 +925,11 @@ universal_extraction:
     field_instructions: |
       Extract the following 17 fields from this document in this exact order:
       
+      ⚠️ IMPORTANT: Some fields only apply to specific document types:
+      • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
+      • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
+      • If field doesn't apply to document type, return "NOT_FOUND"
+      
       DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
       INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
       SUPPLIER_NAME: Company/business name providing goods/services (from document header) - return "NOT_FOUND" if not visible
@@ -934,9 +944,9 @@ universal_extraction:
       GST_AMOUNT: GST/tax amount (include $ symbol, e.g., "$8.62") - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
-      STATEMENT_DATE_RANGE: Date range for statements (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not visible
-      TRANSACTION_DATES: Transaction dates from statement (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not visible
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts from statement (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
+      STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
+      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement  
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement
 
     output_format: |
       DOCUMENT_TYPE: NOT_FOUND
