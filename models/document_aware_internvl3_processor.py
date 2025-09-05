@@ -792,7 +792,6 @@ class DocumentAwareInternVL3Processor:
         
         Replaces document-type-specific extraction with universal approach.
         """
-        import time
         
         if self.debug:
             print(f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass")
