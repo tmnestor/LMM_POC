@@ -253,7 +253,7 @@ def switch_environment(environment: str):
 BASE_PATHS = {"AISandbox": "/home/jovyan/nfs_share", "efs": "/efs/shared"}
 
 # Current deployment (change this to switch environments)
-CURRENT_DEPLOYMENT = "AISandbox"
+CURRENT_DEPLOYMENT = "efs"
 
 # ============================================================================
 # DYNAMIC PATH GENERATION - MODEL-DRIVEN INTERPOLATION

@@ -354,7 +354,7 @@ class DocumentAwareInternVL3Handler:
         
         document_processor = DocumentAwareInternVL3Processor(
             field_list=universal_fields,
-            model_path=None,  # Uses default from config
+            model_path=self.model_path,  # Uses correct path from args
             debug=self.debug,
             skip_model_loading=skip_loading,
         )
