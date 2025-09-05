@@ -790,6 +790,8 @@ class DocumentAwareInternVL3Processor:
         Replaces document-type-specific extraction with universal approach.
         """
         print("🔥 DEBUG_MARKER_010: _extract_fields_universally() ENTRY POINT")
+        import time
+        print(f"🔥 DEBUG_MARKER_010B: Timestamp: {time.time()}")
         
         if self.debug:
             print(f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass")
@@ -920,6 +922,10 @@ class DocumentAwareInternVL3Processor:
         """Core extraction method that handles image processing and model inference."""
         
         print("🔥 DEBUG_MARKER_020: _extract_with_prompt() ENTRY POINT")
+        import traceback
+        print("📍 CALL STACK:")
+        for line in traceback.format_stack()[-3:-1]:  # Show last 2 callers
+            print(f"  {line.strip()}")
         
         # Pre-processing cleanup with fragmentation detection - V100 optimized
         handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
