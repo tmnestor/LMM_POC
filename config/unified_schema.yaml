@@ -616,7 +616,7 @@ prompt_templates:
   # LLAMA-3.2-VISION PROMPTS - Explicit and complete
   # --------------------------------------------------------------------------
   llama:
-    expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+    expertise_frame: "You are an expert document analyzer. Extract structured data from this business document image."
     critical_instructions_header: "CRITICAL INSTRUCTIONS:"
     critical_instructions:
       - "Output ONLY the structured data below"
