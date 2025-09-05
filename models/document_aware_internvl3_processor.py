@@ -695,13 +695,13 @@ class DocumentAwareInternVL3Processor:
     def _extract_fields_directly(
         self, image_path: str, field_list: List[str]
     ) -> Dict[str, str]:
+        raise RuntimeError("❌ FATAL: _extract_fields_directly() called - This method should not be used! Use universal extraction instead.")
         """
         Extract specific fields using YAML-based unified prompt.
 
         Uses the same unified schema templates as Llama for consistency.
         """
         print("🔥 DEBUG_MARKER_100: ⚠️  _extract_fields_directly() CALLED - THIS IS OLD METHOD!")
-        raise RuntimeError("❌ FATAL: Old _extract_fields_directly() method called - should use universal extraction")
         
         if self.debug:
             print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
