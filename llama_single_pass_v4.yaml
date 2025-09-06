@@ -1,0 +1,116 @@
+# Llama Single-Pass High Performance Prompt - ESSENTIAL FIELD REDUCTION - YAML-First Version
+# ESSENTIAL FIELD REDUCTION: Reduced from 48 fields to 15 essential fields for performance
+
+single_pass:
+  expertise_frame: "Extract structured data from this business document image using ESSENTIAL REDUCED FIELD SCHEMA."
+  
+  critical_instructions_header: "CRITICAL INSTRUCTIONS - ESSENTIAL FIELD REDUCTION:"
+  critical_instructions:
+    - "Output ONLY the structured data below"
+    - "Do NOT include any conversation text"
+    - "Do NOT repeat the user's request"
+    - "Do NOT include <image> tokens"
+    - "Start immediately with DOCUMENT_TYPE"
+    - "Stop immediately after TOTAL_AMOUNT"  # SUBSET: New final field in reduced schema
+  
+  output_format: "REQUIRED OUTPUT FORMAT - ESSENTIAL REDUCED SCHEMA (15 ESSENTIAL FIELDS):"
+  
+  # ESSENTIAL FIELD REDUCTION: HIGH-PERFORMANCE SEMANTIC FIELD ORDERING (15 ESSENTIAL FIELDS)
+  # Document identifiers → Essential Business → Essential Payer → Essential Dates → Essential Line Items → Essential Transactions → Essential Financial
+  field_instructions:
+    # Document identifiers - start with most universal fields
+    DOCUMENT_TYPE: "[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]"  # SUBSET: Essential document identification
+    BUSINESS_ABN: "[11-digit Australian Business Number (e.g. XX XXX XXX XXX or XXXXXXXXXXX) or NOT_FOUND]"  # SUBSET: Essential business identifier
+    SUPPLIER_NAME: "[business name from document header or NOT_FOUND]"  # SUBSET: Essential supplier information
+    
+    # Essential business entity details
+    BUSINESS_ADDRESS: "[business address or NOT_FOUND]"  # SUBSET: Essential supplier location
+    # SUPER_SET: BUSINESS_PHONE: "[business phone number (not customer phone) (e.g. (XX) XXXX XXXX) or NOT_FOUND]"
+    # SUPER_SET: SUPPLIER_EMAIL: "[supplier email address or NOT_FOUND]"
+    # SUPER_SET: SUPPLIER_WEBSITE: "[supplier website or NOT_FOUND]"
+    
+    # Essential payer/customer information
+    PAYER_NAME: "[payer name or NOT_FOUND]"  # SUBSET: Essential payer information
+    # SUPER_SET: PAYER_ABN: "[11-digit customer ABN or NOT_FOUND]"
+    PAYER_ADDRESS: "[payer address or NOT_FOUND]"  # SUBSET: Essential payer location
+    # SUPER_SET: PAYER_PHONE: "[payer phone number or NOT_FOUND]"
+    # SUPER_SET: PAYER_EMAIL: "[payer email address or NOT_FOUND]"
+    
+    # SUPER_SET: Document-specific identifiers (removed from boss's reduced schema)
+    # SUPER_SET: INVOICE_NUMBER: "[invoice number/reference or NOT_FOUND]"
+    # SUPER_SET: RECEIPT_NUMBER: "[receipt/reference number or NOT_FOUND]"
+    
+    # Essential temporal data
+    INVOICE_DATE: "[invoice date or NOT_FOUND]"  # SUBSET: Essential temporal information
+    # SUPER_SET: DUE_DATE: "[payment due date or NOT_FOUND]"
+    # SUPER_SET: TRANSACTION_DATE: "[transaction date for receipts or NOT_FOUND]"
+    STATEMENT_DATE_RANGE: "[statement period or date range or NOT_FOUND]"  # SUBSET: Essential bank statement temporal
+    
+    # Essential line item details (will be moved to final position)
+    # SUPER_SET: LINE_ITEM_QUANTITIES: "[pipe-separated quantities matching each item or NOT_FOUND]"
+    # SUPER_SET: LINE_ITEM_PRICES: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+    # SUPER_SET: LINE_ITEM_GST_AMOUNTS: "[pipe-separated GST amounts per line or NOT_FOUND]"
+    # SUPER_SET: LINE_ITEM_DISCOUNT_AMOUNTS: "[pipe-separated discount amounts per line or NOT_FOUND]"
+    
+    # SUPER_SET: Banking information (removed from boss's reduced schema)
+    # SUPER_SET: BANK_NAME: "[bank name (NOT supplier name) or NOT_FOUND]"
+    # SUPER_SET: BANK_BSB_NUMBER: "[6-digit BSB (NOT ABN) or NOT_FOUND]"
+    # SUPER_SET: BANK_ACCOUNT_NUMBER: "[account number or NOT_FOUND]"
+    # SUPER_SET: BANK_ACCOUNT_HOLDER: "[account holder name or NOT_FOUND]"
+    # SUPER_SET: ACCOUNT_OPENING_BALANCE: "[first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]"
+    # SUPER_SET: ACCOUNT_CLOSING_BALANCE: "[ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]"
+    
+    # Essential transaction details (for bank statements only)
+    TRANSACTION_DATES: "[pipe-separated dates from transaction list in chronological order or NOT_FOUND]"  # SUBSET: Essential bank statement dates
+    TRANSACTION_AMOUNTS_PAID: "[pipe-separated transaction amounts as shown on document (extract exact amounts displayed, do not add negative signs) or NOT_FOUND]"  # SUBSET: Essential bank statement amounts
+    # SUPER_SET: TRANSACTION_AMOUNTS_RECEIVED: "[pipe-separated credit/deposit amounts from transaction list (positive values or deposits) or NOT_FOUND]"
+    # SUPER_SET: TRANSACTION_BALANCES: "[pipe-separated balance after each transaction from rightmost column or NOT_FOUND]"
+    # SUPER_SET: TOTAL_CREDITS: "[sum of all credits/deposits shown in statement summary (look for 'Total Credits' or 'Deposits') or NOT_FOUND]"
+    # SUPER_SET: TOTAL_DEBITS: "[sum of all debits/withdrawals shown in statement summary (look for 'Total Debits' or 'Withdrawals') or NOT_FOUND]"
+    # SUPER_SET: CREDIT_CARD_DUE_DATE: "[credit card payment due date or NOT_FOUND]"
+    
+    # SUPER_SET: Store/location and payment information (removed from boss's reduced schema)
+    # SUPER_SET: STORE_LOCATION: "[store location or NOT_FOUND]"
+    # SUPER_SET: PAYMENT_METHOD: "[payment method (cash/card/transfer) or NOT_FOUND]"
+    
+    # Essential financial totals and calculations (reordered to end with line items)
+    # SUPER_SET: SUBTOTAL_AMOUNT: "[subtotal amount in dollars with 2 decimals or NOT_FOUND]"
+    # SUPER_SET: TOTAL_DISCOUNT_AMOUNT: "[total discount amount in dollars or NOT_FOUND]"
+    
+    # FINAL SEQUENCE - Boss's requested order in semantic order
+    LINE_ITEM_DESCRIPTIONS: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"  # SUBSET: Essential line items / transaction descriptions
+    LINE_ITEM_TOTAL_PRICES: "[right most (or Amount) column of line totals (not unit prices) or NOT_FOUND]"  # SUBSET: Essential line item totals
+    IS_GST_INCLUDED: "[is the GST amount shown? Answer with (true/false only)]"  # SUBSET: Essential tax classification
+    GST_AMOUNT: "[how much GST is charged in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential tax information
+    TOTAL_AMOUNT: "[total amount in dollars with 2 decimals or NOT_FOUND]"  # SUBSET: Essential financial total
+    
+    # SUPER_SET: Payment status tracking (removed from boss's reduced schema)
+    # SUPER_SET: TOTAL_AMOUNT_PAID: "[amount paid in dollars or NOT_FOUND]"
+    # SUPER_SET: BALANCE_OF_PAYMENT: "[balance remaining in dollars or NOT_FOUND]"
+    # SUPER_SET: TOTAL_AMOUNT_PAYABLE: "[total payable amount in dollars or NOT_FOUND]"
+
+  format_rules_header: "OUTPUT RULES - ESSENTIAL REDUCED SCHEMA:"
+  format_rules:
+    - "NEVER use: **KEY:** or **KEY** or *KEY* or any formatting"
+    - "Plain text only - NO markdown, NO bold, NO italic"
+    - "Include ALL 15 ESSENTIAL keys even if value is NOT_FOUND"  # SUBSET: Boss's reduced field count
+    - "Output ONLY these 15 lines, nothing else"  # SUBSET: Boss's reduced schema
+    - "Use exact text from document (e.g., \"TAX INVOICE\" not \"Invoice\")"
+    - "Use pipe separators for lists (e.g., \"item1 | item2 | item3\")"
+    - "Be conservative: use NOT_FOUND if field is truly missing"
+    - "For boolean fields: use \"true\" or \"false\" (not \"yes\"/\"no\")"
+    - "ESSENTIAL PERFORMANCE: Focus on essential fields only for maximum extraction speed"
+    - "For calculated fields: show computed values with proper formatting"
+    - "For transaction lists: use pipe separators between transactions"
+    - "For amounts: extract exactly as shown, do NOT add negative signs or modify values"
+
+  stop_instruction: "STOP AFTER the TOTAL_AMOUNT. Do not add explanations or comments."
+
+# V4 Complete Schema Performance Notes:
+# - EXPANDED: All 49 V4 fields with comprehensive document coverage
+# - SEMANTIC ORDERING: Document ID → Business → Payer → References → Dates → Line Items → Banking → Transactions → Financial
+# - H200 VALIDATED: 91.8% accuracy on invoice extraction (archaeological structure preserved)
+# - DOCUMENT-AWARE: Dynamic filtering to document-specific subsets (29 invoice, 20 receipt, 16 bank statement)
+# - YAML-FIRST: Maintainable configuration with high-performance structure
+# - V4 ENHANCEMENTS: Transaction lists, payment tracking, enhanced line item details
+# - PLAIN TEXT: No markdown formatting to prevent parsing conflicts
