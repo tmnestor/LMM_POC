@@ -1,0 +1,93 @@
+[
+  {
+    "date":"Thu 04 Sep 2025",
+    "description":"Direct Debit DOMINO'S PTY LTD",
+    "debit":"$117.57",
+    "credit":null,
+    "balance":"$8586.28 CR"
+  },
+  {
+    "date":"Mon 01 Sep 2025",
+    "description":"Monthly Service Fee",
+    "debit":null,
+    "credit":"$17.89",
+    "balance":"$8703.85 CR"
+  },
+  {
+    "date":"Sun 31 Aug 2025",
+    "description":"Monthly Service Fee",
+    "debit":null,
+    "credit":"$18.87",
+    "balance":"$8721.74 CR"
+  },
+  {
+    "date":"Fri 29 Aug 2025",
+    "description":"Wdi ATM WBC WESTPAC GLEN WAVE",
+    "debit":"$241.14",
+    "credit":null,
+    "balance":"$8740.61 CR"
+  },
+  {
+    "date":"Wed 27 Aug 2025",
+    "description":"Direct Debit 94924P40133289 MHF 75969 Cash Withdrawal ATM SYDNEY NSW",
+    "debit":"$251.33",
+    "credit":null,
+    "balance":"$9080.28 CR"
+  },
+  {
+    "date":"Sat 23 Aug 2025",
+    "description":"Home Loan Payment LN REPAY 56052P41700670",
+    "debit":null,
+    "credit":"$1918.75",
+    "balance":"$9331.81 CR"
+  },
+  {
+    "date":"Thu 21 Aug 2025",
+    "description":"Salary - ATO PAYROLL 89278P11488578 Direct Debit COLES PTY LTD",
+    "debit":"$7836.75",
+    "credit":null,
+    "balance":"$11526.67 CR"
+  },
+  {
+    "date":"Tue 19 Aug 2025",
+    "description":"Cash Withdrawal ATM HOBART TAS",
+    "debit":"$61.68",
+    "credit":null,
+    "balance":"$3689.92 CR"
+  },
+  {
+    "date":"Sun 17 Aug 2025",
+    "description":"Transfer To Vicks Account NetBank From Tod",
+    "debit":null,
+    "credit":"$3775.28",
+    "balance":"$3751.80 CR"
+  },
+  {
+    "date":"Sat 16 Aug 2025",
+    "description":"Salary Payment ATO 65208P39971825",
+    "debit":null,
+    "credit":"$5778.51",
+    "balance":"$7526.88 CR"
+  },
+  {
+    "date":"Fri 15 Aug 2025",
+    "description":"Direct Debit MYER PTY LTD",
+    "debit":"$245.00",
+    "credit":null,
+    "balance":"$1748.37 CR"
+  },
+  {
+    "date":"Wed 13 Aug 2025",
+    "description":"ATM Withdrawal SYDNEY NSW Direct Debit 55452P29227883 MHF 11016",
+    "debit":null,
+    "credit":"$51.36",
+    "balance":"$2221.48 CR"
+  },
+  {
+    "date":"Mon 11 Aug 2025",
+    "description":"Transfer To Western Port Marina NetBank Direct Debit 82572P66018423 MHF 62020",
+    "debit":null,
+    "credit":"$4374.15",
+    "balance":"$4814.35 CR"
+  }
+]
