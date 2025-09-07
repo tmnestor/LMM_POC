@@ -119,3 +119,4 @@ backups/
 legacy/
 docs/LLAMA_PROCESSOR_COMPARISON.md
 config/unified_schema.yaml.backup
+llama_bank_statement_extraction_bkp.ipynb
