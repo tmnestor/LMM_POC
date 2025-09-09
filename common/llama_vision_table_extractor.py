@@ -359,7 +359,9 @@ class LlamaVisionTableExtractor:
             'BANK_ACCOUNT_NUMBER': 'NOT_FOUND',
             'BANK_ACCOUNT_HOLDER': 'NOT_FOUND',
             'ACCOUNT_OPENING_BALANCE': 'NOT_FOUND',
-            'ACCOUNT_CLOSING_BALANCE': 'NOT_FOUND'
+            'ACCOUNT_CLOSING_BALANCE': 'NOT_FOUND',
+            'EARLIEST_TRANSACTION_DATE': 'NOT_FOUND',
+            'LATEST_TRANSACTION_DATE': 'NOT_FOUND'
         }
         
         lines = response.split('\n')

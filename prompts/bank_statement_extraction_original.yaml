@@ -18,7 +18,9 @@ prompts:
       BANK_ACCOUNT_HOLDER: [account holder name or NOT_FOUND]
       ACCOUNT_OPENING_BALANCE: [first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]
       ACCOUNT_CLOSING_BALANCE: [ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]
-
+      EARLIEST_TRANSACTION_DATE: [first transaction date in Date column of transaction table or NOT_FOUND]
+      LATEST_TRANSACTION_DATE: [last transaction date in Date column of transaction table or NOT_FOUND]
+      
       ## PART 2: TRANSACTION TABLE
       Create a SINGLE markdown table with ALL transactions.
 
