@@ -3,8 +3,8 @@
 # Preserved for reference and compatibility with bank-specific workflows
 
 prompts:
-  minimal:
-    name: "Minimal Bank Statement Extraction"
+  flat:
+    name: "Flat Bank Statement Extraction"
     description: "Single transaction table - best for simple flat statements like commbank_flat_simple.png"
     prompt: |
       Extract bank account details and the transaction table from this bank statement.
