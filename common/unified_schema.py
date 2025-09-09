@@ -36,7 +36,7 @@ class DocumentTypeFieldSchema:
         """
         if fallback_file:
             print("⚠️ Fallback file ignored - using unified schema")
-            
+
         self.schema_file = schema_file
         self.unified_schema = self._load_schema()
         self.model = model
@@ -66,28 +66,34 @@ class DocumentTypeFieldSchema:
         # Extract field order from unified schema (model-specific)
         semantic_field_order = self.unified_schema.get("semantic_field_order", {})
         document_types = self.unified_schema.get("document_types", {})
-        
+
         # Default to llama model for backward compatibility
         if model_name not in semantic_field_order:
-            raise ValueError(f"Model '{model_name}' not found in semantic_field_order. Available models: {list(semantic_field_order.keys())}")
-            
+            raise ValueError(
+                f"Model '{model_name}' not found in semantic_field_order. Available models: {list(semantic_field_order.keys())}"
+            )
+
         if model_name not in document_types:
-            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
-        
+            raise ValueError(
+                f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}"
+            )
+
         model_semantic_order = semantic_field_order[model_name]
         model_document_types = document_types[model_name]
-        
+
         # Create legacy format structure
         legacy_schema = {
             "total_fields": len(model_semantic_order),
             "all_fields": model_semantic_order,
-            "document_fields": {}
+            "document_fields": {},
         }
-        
+
         # Convert document type configurations
         for doc_type, config in model_document_types.items():
-            legacy_schema["document_fields"][doc_type] = config.get("required_fields", [])
-        
+            legacy_schema["document_fields"][doc_type] = config.get(
+                "required_fields", []
+            )
+
         return legacy_schema
 
     def _validate_schema(self):
@@ -326,21 +332,21 @@ Extract the exact values as they appear in the document. If a field is not prese
     def load_detection_prompts(self) -> Dict:
         """
         Load document type detection prompts from unified schema.
-        
+
         Replaces the need for PromptLoader and prompts/document_type_detection.yaml.
-        
+
         Returns:
             Dict: Detection prompt configuration with same structure as legacy format
         """
         # Access the raw unified schema, not the converted legacy format
         detection_config = self.unified_schema.get("document_type_detection", {})
-        
+
         # Return in the format expected by existing code
         return {
             "detection_prompts": detection_config.get("prompts", {}),
             "supported_types": self.unified_schema.get("supported_document_types", []),
             "type_mappings": detection_config.get("type_mappings", {}),
-            "detection_config": detection_config.get("config", {})
+            "detection_config": detection_config.get("config", {}),
         }
 
 

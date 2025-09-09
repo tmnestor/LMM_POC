@@ -63,14 +63,18 @@ class PureYAMLRenderer:
             Complete prompt string generated from YAML templates only
         """
         document_types = self.unified_schema.get("document_types", {})
-        
+
         # Check model exists
         if model_name not in document_types:
-            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
-        
+            raise ValueError(
+                f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}"
+            )
+
         # Check document type exists for model
         if document_type not in document_types[model_name]:
-            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}")
+            raise ValueError(
+                f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}"
+            )
 
         doc_config = document_types[model_name][document_type]
         prompt_templates = self.unified_schema["prompt_templates"]
@@ -80,13 +84,17 @@ class PureYAMLRenderer:
         if model_name and model_name in prompt_templates:
             templates = prompt_templates[model_name]
         else:
-            raise ValueError(f"Model '{model_name}' not found in prompt_templates. Available models: {list(prompt_templates.keys())}")
+            raise ValueError(
+                f"Model '{model_name}' not found in prompt_templates. Available models: {list(prompt_templates.keys())}"
+            )
 
         # Get model-specific field definitions
         if model_name and model_name in all_field_definitions:
             field_definitions = all_field_definitions[model_name]
         else:
-            raise ValueError(f"Model '{model_name}' not found in field_definitions. Available models: {list(all_field_definitions.keys())}")
+            raise ValueError(
+                f"Model '{model_name}' not found in field_definitions. Available models: {list(all_field_definitions.keys())}"
+            )
 
         # Prepare template variables - no dynamic generation, just data substitution
         template_vars = {
@@ -144,106 +152,136 @@ class PureYAMLRenderer:
     def render_universal_prompt(self, model_name: str = "llama") -> str:
         """
         Render universal extraction prompt using universal_extraction templates.
-        
+
         This method generates single-pass extraction prompts that process all 17 fields
         in one call, eliminating the need for document type detection.
-        
+
         Args:
             model_name: Model name for model-specific templates (llama, internvl3)
-            
+
         Returns:
             Complete universal prompt string for single-pass extraction
         """
         universal_extraction = self.unified_schema.get("universal_extraction", {})
         semantic_field_order = self.unified_schema.get("semantic_field_order", {})
-        
+
         # Validate model exists in universal_extraction
         if model_name not in universal_extraction:
-            raise ValueError(f"Model '{model_name}' not found in universal_extraction. Available models: {list(universal_extraction.keys())}")
-        
+            raise ValueError(
+                f"Model '{model_name}' not found in universal_extraction. Available models: {list(universal_extraction.keys())}"
+            )
+
         # Get model-specific universal template
         universal_template = universal_extraction[model_name]
-        
+
         # Get semantic field order for this model (used for consistent ordering)
         if model_name in semantic_field_order:
             field_list = semantic_field_order[model_name]
         else:
             # Fallback to a default 17-field list if semantic order not available
             field_list = [
-                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES",
-                "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", "IS_GST_INCLUDED",
-                "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                "DOCUMENT_TYPE",
+                "INVOICE_DATE",
+                "SUPPLIER_NAME",
+                "BUSINESS_ABN",
+                "BUSINESS_ADDRESS",
+                "PAYER_NAME",
+                "PAYER_ADDRESS",
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES",
+                "GST_AMOUNT",
+                "IS_GST_INCLUDED",
+                "TOTAL_AMOUNT",
+                "STATEMENT_DATE_RANGE",
+                "TRANSACTION_DATES",
+                "TRANSACTION_AMOUNTS_PAID",
             ]
-            
+
         # Prepare template variables for universal extraction
         template_vars = {
             "field_count": len(field_list),
             "last_field": field_list[-1] if field_list else "TRANSACTION_AMOUNTS_PAID",
             "model_name": model_name,
         }
-        
+
         if self.debug:
-            print(f"🌍 Rendering universal prompt for {model_name} with {len(field_list)} fields")
+            print(
+                f"🌍 Rendering universal prompt for {model_name} with {len(field_list)} fields"
+            )
             print(f"   Last field: {template_vars['last_field']}")
-        
+
         # Build universal prompt using template sections
         prompt_parts = []
-        
+
         # Add system prompt
         if "system_prompt" in universal_template:
             system_prompt = self._render_template_string(
                 universal_template["system_prompt"], template_vars
             )
             prompt_parts.append(system_prompt)
-        
+
         # Add field instructions
         if "field_instructions" in universal_template:
             field_instructions = self._render_template_string(
                 universal_template["field_instructions"], template_vars
             )
             prompt_parts.append(f"\n{field_instructions}")
-            
+
         # Add output format if available
         if "output_format" in universal_template:
             output_format = self._render_template_string(
                 universal_template["output_format"], template_vars
             )
             prompt_parts.append(f"\nEXPECTED OUTPUT FORMAT:\n{output_format}")
-        
+
         universal_prompt = "\n".join(prompt_parts)
-        
+
         if self.debug:
             print(f"✅ Generated universal prompt ({len(universal_prompt)} chars)")
-            
+
         return universal_prompt
 
     def get_universal_field_list(self, model_name: str = "llama") -> List[str]:
         """
         Get universal field list in semantic order for the specified model.
-        
+
         Args:
             model_name: Model name (llama, internvl3)
-            
+
         Returns:
             List of all 17 universal fields in semantic order
         """
         semantic_field_order = self.unified_schema.get("semantic_field_order", {})
-        
+
         if model_name in semantic_field_order:
             field_list = semantic_field_order[model_name]
         else:
             # Fallback universal field list
             field_list = [
-                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", 
-                "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", "IS_GST_INCLUDED",
-                "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                "DOCUMENT_TYPE",
+                "INVOICE_DATE",
+                "SUPPLIER_NAME",
+                "BUSINESS_ABN",
+                "BUSINESS_ADDRESS",
+                "PAYER_NAME",
+                "PAYER_ADDRESS",
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES",
+                "GST_AMOUNT",
+                "IS_GST_INCLUDED",
+                "TOTAL_AMOUNT",
+                "STATEMENT_DATE_RANGE",
+                "TRANSACTION_DATES",
+                "TRANSACTION_AMOUNTS_PAID",
             ]
-            
+
         if self.debug:
             print(f"🌍 Universal field list for {model_name}: {len(field_list)} fields")
-            
+
         return field_list
 
     def _render_template_string(self, template: str, variables: Dict[str, Any]) -> str:
@@ -259,7 +297,9 @@ class PureYAMLRenderer:
 
         return rendered
 
-    def get_document_field_list(self, document_type: str, model_name: str = "llama") -> List[str]:
+    def get_document_field_list(
+        self, document_type: str, model_name: str = "llama"
+    ) -> List[str]:
         """
         Get field list for document type from unified schema - no hardcoding.
 
@@ -271,12 +311,16 @@ class PureYAMLRenderer:
             List of field names in semantic order
         """
         document_types = self.unified_schema.get("document_types", {})
-        
+
         if model_name not in document_types:
-            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
-            
+            raise ValueError(
+                f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}"
+            )
+
         if document_type not in document_types[model_name]:
-            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}")
+            raise ValueError(
+                f"Document type '{document_type}' not found for model '{model_name}'. Available types: {list(document_types[model_name].keys())}"
+            )
 
         doc_config = document_types[model_name][document_type]
         return doc_config["required_fields"]
@@ -296,18 +340,24 @@ class PureYAMLRenderer:
         for model_name in ["llama", "internvl3"]:
             # Check semantic field order exists for model
             if model_name not in semantic_field_order:
-                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in semantic_field_order")
-                
-            # Check field definitions exist for model  
+                raise ValueError(
+                    f"❌ FATAL: Model '{model_name}' not found in semantic_field_order"
+                )
+
+            # Check field definitions exist for model
             if model_name not in field_definitions:
-                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in field_definitions")
-                
+                raise ValueError(
+                    f"❌ FATAL: Model '{model_name}' not found in field_definitions"
+                )
+
             # Check document types exist for model
             if model_name not in document_types:
-                raise ValueError(f"❌ FATAL: Model '{model_name}' not found in document_types")
-            
+                raise ValueError(
+                    f"❌ FATAL: Model '{model_name}' not found in document_types"
+                )
+
             model_semantic_order = semantic_field_order[model_name]
-            model_field_definitions = field_definitions[model_name] 
+            model_field_definitions = field_definitions[model_name]
             model_document_types = document_types[model_name]
 
             # Check that all fields in semantic order have definitions
@@ -343,34 +393,48 @@ class PureYAMLRenderer:
     def get_supported_document_types(self, model_name: str = "llama") -> List[str]:
         """Get list of supported document types from unified schema for a specific model."""
         document_types = self.unified_schema.get("document_types", {})
-        
+
         if model_name not in document_types:
-            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
-            
+            raise ValueError(
+                f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}"
+            )
+
         return list(document_types[model_name].keys())
 
-    def get_field_definition(self, field_name: str, model_name: str = "llama") -> Dict[str, Any]:
+    def get_field_definition(
+        self, field_name: str, model_name: str = "llama"
+    ) -> Dict[str, Any]:
         """Get field definition from unified schema for a specific model."""
         field_definitions = self.unified_schema.get("field_definitions", {})
-        
+
         if model_name not in field_definitions:
-            raise ValueError(f"Model '{model_name}' not found in field_definitions. Available models: {list(field_definitions.keys())}")
-            
+            raise ValueError(
+                f"Model '{model_name}' not found in field_definitions. Available models: {list(field_definitions.keys())}"
+            )
+
         model_field_definitions = field_definitions[model_name]
         if field_name not in model_field_definitions:
-            raise ValueError(f"Field '{field_name}' not found for model '{model_name}' in unified schema")
-            
+            raise ValueError(
+                f"Field '{field_name}' not found for model '{model_name}' in unified schema"
+            )
+
         return model_field_definitions[field_name]
 
-    def get_document_config(self, document_type: str, model_name: str = "llama") -> Dict[str, Any]:
+    def get_document_config(
+        self, document_type: str, model_name: str = "llama"
+    ) -> Dict[str, Any]:
         """Get document type configuration from unified schema for a specific model."""
         document_types = self.unified_schema.get("document_types", {})
-        
+
         if model_name not in document_types:
-            raise ValueError(f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}")
-            
+            raise ValueError(
+                f"Model '{model_name}' not found in document_types. Available models: {list(document_types.keys())}"
+            )
+
         model_document_types = document_types[model_name]
         if document_type not in model_document_types:
-            raise ValueError(f"Document type '{document_type}' not found for model '{model_name}' in unified schema")
-            
+            raise ValueError(
+                f"Document type '{document_type}' not found for model '{model_name}' in unified schema"
+            )
+
         return model_document_types[document_type]

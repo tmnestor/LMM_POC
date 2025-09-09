@@ -770,7 +770,9 @@ def generate_group_performance_report(group_analysis, model_name):
 
     critical_group = group_analysis["group_accuracies"].get("critical", {})
     if critical_group and critical_group.get("accuracy", 1.0) < 0.9:
-        report += f"- Critical group accuracy: {critical_group.get('accuracy', 0):.1%}\n"
+        report += (
+            f"- Critical group accuracy: {critical_group.get('accuracy', 0):.1%}\n"
+        )
 
     return report
 

@@ -39,73 +39,75 @@ class DocumentTypeEvaluator:
 
         # Load metrics from unified schema (single source of truth)
         self.metrics_config = self._load_metrics_from_unified_schema()
-        self.field_categories = self._load_field_categories_from_unified_schema() 
+        self.field_categories = self._load_field_categories_from_unified_schema()
         self.evaluation_config = self._load_evaluation_config_from_unified_schema()
 
     def _load_metrics_from_unified_schema(self) -> Dict[str, DocumentTypeMetrics]:
         """Load document metrics from unified schema (single source of truth)."""
         from .unified_schema import DocumentTypeFieldSchema
-        
+
         schema = DocumentTypeFieldSchema()
         metrics_config = {}
-        
+
         # Get supported document types from unified schema
         supported_types = ["invoice", "receipt", "bank_statement"]
-        
+
         for doc_type in supported_types:
             # Get fields for this document type from unified schema
             required_fields = schema.get_document_fields(doc_type)
-            
+
             # Create simplified DocumentTypeMetrics with only essential info
             metrics_config[doc_type] = DocumentTypeMetrics(
                 document_type=doc_type,
                 required_fields=required_fields,
                 optional_fields=[],  # Simplified - no optional fields
                 critical_fields=self._get_critical_fields(doc_type),
-                ato_compliance_fields=self._get_ato_fields(doc_type) if doc_type == "invoice" else [],
+                ato_compliance_fields=self._get_ato_fields(doc_type)
+                if doc_type == "invoice"
+                else [],
                 accuracy_threshold=self._get_accuracy_threshold(doc_type),
             )
-        
+
         return metrics_config
-    
+
     def _get_critical_fields(self, doc_type: str) -> List[str]:
         """Get critical fields for document type from unified schema."""
         from .unified_schema import DocumentTypeFieldSchema
-        
+
         schema = DocumentTypeFieldSchema()
         # Access document_types configuration from unified schema
         doc_types_config = schema.unified_schema.get("document_types", {})
         doc_config = doc_types_config.get(doc_type, {})
         return doc_config.get("critical_fields", [])
-    
+
     def _get_ato_fields(self, doc_type: str) -> List[str]:
         """Get ATO compliance fields from unified schema."""
         from .unified_schema import DocumentTypeFieldSchema
-        
+
         schema = DocumentTypeFieldSchema()
         # Access document_types configuration from unified schema
         doc_types_config = schema.unified_schema.get("document_types", {})
         doc_config = doc_types_config.get(doc_type, {})
         return doc_config.get("ato_compliance_fields", [])
-    
+
     def _get_accuracy_threshold(self, doc_type: str) -> float:
         """Get accuracy threshold for document type from unified schema."""
         from .unified_schema import DocumentTypeFieldSchema
-        
+
         schema = DocumentTypeFieldSchema()
         # Access document_types configuration from unified schema
         doc_types_config = schema.unified_schema.get("document_types", {})
         doc_config = doc_types_config.get(doc_type, {})
         return doc_config.get("accuracy_threshold", 0.75)
-    
+
     def _load_field_categories_from_unified_schema(self) -> Dict[str, List[str]]:
         """Load field categories from unified schema (single source of truth)."""
         from .unified_schema import DocumentTypeFieldSchema
-        
+
         schema = DocumentTypeFieldSchema()
         # Access field_categories configuration from unified schema
         return schema.unified_schema.get("field_categories", {})
-    
+
     def _load_evaluation_config_from_unified_schema(self) -> Dict[str, Any]:
         """Load evaluation configuration from unified schema (single source of truth)."""
         return {"field_accuracy_threshold": 0.8}

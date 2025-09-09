@@ -154,11 +154,15 @@ class YAMLConsistencyValidator:
             for model_name in ["llama", "internvl3"]:
                 # Check that model exists in all sections
                 if model_name not in semantic_field_order:
-                    self.errors.append(f"Model '{model_name}' not found in semantic_field_order")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in semantic_field_order"
+                    )
                     return False
-                    
+
                 if model_name not in field_definitions:
-                    self.errors.append(f"Model '{model_name}' not found in field_definitions")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in field_definitions"
+                    )
                     return False
 
                 model_semantic_order = semantic_field_order[model_name]
@@ -225,11 +229,15 @@ class YAMLConsistencyValidator:
             for model_name in ["llama", "internvl3"]:
                 # Check that model exists in all sections
                 if model_name not in document_types:
-                    self.errors.append(f"Model '{model_name}' not found in document_types")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in document_types"
+                    )
                     return False
-                    
+
                 if model_name not in field_definitions:
-                    self.errors.append(f"Model '{model_name}' not found in field_definitions")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in field_definitions"
+                    )
                     return False
 
                 model_document_types = document_types[model_name]
@@ -327,11 +335,15 @@ class YAMLConsistencyValidator:
             for model_name in ["llama", "internvl3"]:
                 # Check that model exists in all sections
                 if model_name not in semantic_field_order:
-                    self.errors.append(f"Model '{model_name}' not found in semantic_field_order")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in semantic_field_order"
+                    )
                     return False
-                    
+
                 if model_name not in document_types:
-                    self.errors.append(f"Model '{model_name}' not found in document_types")
+                    self.errors.append(
+                        f"Model '{model_name}' not found in document_types"
+                    )
                     return False
 
                 model_semantic_order = semantic_field_order[model_name]
@@ -343,7 +355,9 @@ class YAMLConsistencyValidator:
 
                     # Extract the subset of semantic order that applies to this document
                     applicable_semantic_order = [
-                        field for field in model_semantic_order if field in required_fields
+                        field
+                        for field in model_semantic_order
+                        if field in required_fields
                     ]
 
                     # Check if required fields match semantic order

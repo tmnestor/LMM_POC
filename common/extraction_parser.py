@@ -109,7 +109,9 @@ def parse_extraction_response(
 
     # If first pass got most fields with actual values, use it (this preserves Llama's performance)
     # Only count fields that actually have values (not "NOT_FOUND")
-    first_pass_valid_fields = sum(1 for v in extracted_data_first.values() if v != "NOT_FOUND")
+    first_pass_valid_fields = sum(
+        1 for v in extracted_data_first.values() if v != "NOT_FOUND"
+    )
     if (
         first_pass_valid_fields >= len(expected_fields) * 0.5
     ):  # Got at least 50% of fields with actual values
@@ -146,13 +148,35 @@ def parse_extraction_response(
                         if not next_line or re.match(r"^\*\*[A-Z_]+:\*\*", next_line):
                             break
                         # Stop if line contains colon (might be another field)
-                        if ":" in next_line and not any(addr_word in next_line.lower() for addr_word in ['street', 'road', 'avenue', 'drive', 'lane', 'court', 'place', 'way', 'vic', 'nsw', 'qld', 'sa', 'wa', 'tas', 'nt', 'act']):
+                        if ":" in next_line and not any(
+                            addr_word in next_line.lower()
+                            for addr_word in [
+                                "street",
+                                "road",
+                                "avenue",
+                                "drive",
+                                "lane",
+                                "court",
+                                "place",
+                                "way",
+                                "vic",
+                                "nsw",
+                                "qld",
+                                "sa",
+                                "wa",
+                                "tas",
+                                "nt",
+                                "act",
+                            ]
+                        ):
                             break
                         value_lines.append(next_line)
                         j += 1
-                    
+
                     if value_lines:
-                        value = " ".join(value_lines)  # Join multi-line values with space
+                        value = " ".join(
+                            value_lines
+                        )  # Join multi-line values with space
                         i = j  # Skip to after the collected lines
                     else:
                         i += 1  # Just skip the key line

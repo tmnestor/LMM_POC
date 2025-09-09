@@ -1,0 +1,90 @@
+# Bank Statement Extraction Prompts Configuration
+# This file contains prompts for extracting transaction data from bank statements
+
+prompts:
+  minimal:
+    name: "Minimal Bank Statement Extraction"
+    description: "Single transaction table - best for simple flat statements like commbank_flat_simple.png"
+    prompt: |
+      Extract ALL data from this bank statement and output in the following format:
+
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [ALL transaction dates separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | ", use NOT_FOUND for credit transactions]
+
+      Extract from the transaction table:
+      - Look at each row in the transaction table
+      - For TRANSACTION_DATES: Extract the date from each row
+      - For LINE_ITEM_DESCRIPTIONS: Extract the description from each row
+      - For TRANSACTION_AMOUNTS_PAID: Extract amount from Debit column (or NOT_FOUND if it's a credit)
+      - Use " | " to separate multiple values
+
+  structured:
+    name: "Structured Extraction"
+    description: "For complex statements with multiple date sections"
+    prompt: |
+      Extract ALL data from this bank statement and output in the following format:
+
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from all dates, separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [ALL transaction dates from all sections, separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [ALL debit amounts separated by " | ", use NOT_FOUND for credit transactions]
+
+      Process ALL transaction sections chronologically.
+      Use " | " to separate multiple values.
+
+  simple:
+    name: "Simple Extraction"
+    description: "Simplified prompt for basic extraction"
+    prompt: |
+      Extract data from this bank statement.
+      
+      Output format:
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [transaction descriptions separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [date range]
+      TRANSACTION_DATES: [dates separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | "]
+
+# Configuration settings
+settings:
+  default_prompt: "minimal"

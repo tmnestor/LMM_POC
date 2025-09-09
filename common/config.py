@@ -1012,7 +1012,9 @@ BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 
 # InternVL3 tile counts - higher = better OCR but more memory
 # V100 testing shows OOM issues above 12-14 tiles during generation phase
-INTERNVL3_MAX_TILES_8B = 14  # Optimized for V100: Balance between OCR quality and memory
+INTERNVL3_MAX_TILES_8B = (
+    14  # Optimized for V100: Balance between OCR quality and memory
+)
 INTERNVL3_MAX_TILES_2B = 18  # 2B model can use more tiles with lower memory footprint
 
 
@@ -1112,7 +1114,7 @@ LLAMA_GENERATION_CONFIG = {
 INTERNVL3_GENERATION_CONFIG = {
     "max_new_tokens_base": 600,  # PHASE 1: Reduced from 1000 to match Llama for focused output
     "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
-    "temperature": 0.0,  # PHASE 1: Explicit deterministic sampling for consistent results  
+    "temperature": 0.0,  # PHASE 1: Explicit deterministic sampling for consistent results
     "do_sample": False,  # Deterministic for consistent field extraction
     "use_cache": True,  # PHASE 1: CRITICAL parameter - required for extraction quality (from Llama config)
     "pad_token_id": None,  # Set dynamically from tokenizer
@@ -1131,7 +1133,9 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     Returns:
         int: Calculated max_new_tokens value
     """
-    field_count = field_count or FIELD_COUNT or 15  # Default to 15 for universal extraction
+    field_count = (
+        field_count or FIELD_COUNT or 15
+    )  # Default to 15 for universal extraction
 
     model_name_lower = model_name.lower()
 

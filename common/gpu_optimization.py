@@ -170,7 +170,7 @@ def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = Tr
 
     # Removed V100-specific threshold override - let explicit thresholds be respected
     # V100 with 16GB VRAM can handle normal fragmentation thresholds
-    
+
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 
     print(
