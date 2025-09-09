@@ -1,0 +1,84 @@
+# Document Type Detection Prompts Configuration
+# This file contains prompts for detecting document types (invoice/receipt/bank_statement)
+# Used by the document-aware extraction pipeline to route to appropriate extraction prompts
+
+prompts:
+  detection:
+    name: "Document Type Detection"
+    description: "Identify the type of business document from the image"
+    prompt: |
+      Analyze this business document image and identify its type.
+      
+      Look for key indicators:
+      - INVOICE/BILL: Has invoice number, billing details, itemized list with prices, total amount
+      - RECEIPT: Shows completed transaction, payment confirmation, store/merchant details
+      - BANK STATEMENT: Shows account transactions, running balance, bank account details
+      
+      Common document type variations:
+      - Invoice types: invoice, tax invoice, bill, estimate, quote, quotation, proforma invoice
+      - Receipt types: receipt, purchase receipt, payment receipt, sales receipt
+      - Statement types: bank statement, account statement, credit card statement
+      
+      Respond with ONLY the document type in one of these exact formats:
+      - INVOICE (for any type of invoice, bill, quote, or estimate)
+      - RECEIPT (for any type of receipt or payment confirmation)
+      - BANK_STATEMENT (for any type of bank or credit card statement)
+      
+      If unclear, respond with: INVOICE
+
+  detection_simple:
+    name: "Simple Document Type Detection"
+    description: "Minimal prompt for document type detection"
+    prompt: |
+      What type of business document is this?
+      
+      Answer with one of:
+      - INVOICE (includes bills, quotes, estimates)
+      - RECEIPT (includes purchase receipts)
+      - BANK_STATEMENT (includes credit card statements)
+
+# Type mappings for response normalization
+type_mappings:
+  # Invoice variations
+  "invoice": "INVOICE"
+  "tax invoice": "INVOICE"
+  "commercial invoice": "INVOICE"
+  "proforma invoice": "INVOICE"
+  "bill": "INVOICE"
+  "estimate": "INVOICE"
+  "quote": "INVOICE"
+  "quotation": "INVOICE"
+  
+  # Receipt variations
+  "receipt": "RECEIPT"
+  "purchase receipt": "RECEIPT"
+  "payment receipt": "RECEIPT"
+  "sales receipt": "RECEIPT"
+  "transaction receipt": "RECEIPT"
+  "store receipt": "RECEIPT"
+  
+  # Bank statement variations
+  "bank statement": "BANK_STATEMENT"
+  "bank_statement": "BANK_STATEMENT"
+  "bankstatement": "BANK_STATEMENT"
+  "account statement": "BANK_STATEMENT"
+  "credit card statement": "BANK_STATEMENT"
+  "creditcard statement": "BANK_STATEMENT"
+  "statement": "BANK_STATEMENT"
+  "monthly statement": "BANK_STATEMENT"
+
+# Configuration settings
+settings:
+  default_prompt: "detection"
+  max_new_tokens: 50
+  temperature: 0.1
+  fallback_type: "INVOICE"
+  
+# Model-specific configurations
+models:
+  llama:
+    recommended_prompt: "detection"
+    notes: "Llama-3.2-Vision works well with structured detection prompts"
+  internvl3:
+    recommended_prompt: "detection_simple"
+    notes: "InternVL3 may work better with simpler prompts"

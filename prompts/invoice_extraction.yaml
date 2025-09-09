@@ -1,0 +1,138 @@
+# Invoice Extraction Prompts Configuration
+# This file contains prompts for extracting data from invoices, bills, quotes, and estimates
+
+prompts:
+  standard:
+    name: "Standard Invoice Extraction"
+    description: "Extract all relevant fields from invoices"
+    prompt: |
+      Extract structured data from this invoice/bill document.
+      
+      ## CRITICAL INSTRUCTIONS:
+      - Extract ONLY what is visible in the document
+      - Use "NOT_FOUND" for any field that is not present
+      - Do not guess or infer missing information
+      
+      ## INVOICE FIELDS TO EXTRACT:
+      
+      DOCUMENT_TYPE: [Type of document - INVOICE/BILL/QUOTE/ESTIMATE or NOT_FOUND]
+      BUSINESS_ABN: [11-digit Australian Business Number (XX XXX XXX XXX format) or NOT_FOUND]
+      SUPPLIER_NAME: [Business/company name at top of invoice or NOT_FOUND]
+      BUSINESS_ADDRESS: [Complete supplier address or NOT_FOUND]
+      PAYER_NAME: [Customer/Bill To name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer/Bill To address or NOT_FOUND]
+      INVOICE_DATE: [Invoice date in DD/MM/YYYY format or NOT_FOUND]
+      
+      ## LINE ITEMS:
+      Extract all items/services from the itemized section:
+      
+      LINE_ITEM_DESCRIPTIONS: [List all item/service descriptions separated by " | " or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [List quantities for each item separated by " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [List unit prices separated by " | " with $ symbol or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [List total prices per item separated by " | " with $ symbol or NOT_FOUND]
+      
+      ## FINANCIAL TOTALS:
+      
+      IS_GST_INCLUDED: [true if GST/tax amount is shown, false if not, or NOT_FOUND]
+      GST_AMOUNT: [GST/tax amount with $ symbol (e.g., $12.50) or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total amount with $ symbol (e.g., $137.50) or NOT_FOUND]
+
+  detailed:
+    name: "Detailed Invoice Extraction"
+    description: "Extract fields with additional validation instructions"
+    prompt: |
+      You are an expert document analyzer. Extract structured data from this invoice document.
+      
+      ## STEP-BY-STEP EXTRACTION:
+      
+      ### STEP 1: Document Identification
+      DOCUMENT_TYPE: [Look at the header - is it an INVOICE, BILL, QUOTE, or ESTIMATE? or NOT_FOUND]
+      
+      ### STEP 2: Business Information (Usually at the top)
+      BUSINESS_ABN: [Find the ABN number - must be exactly 11 digits (e.g., 12 345 678 901) or NOT_FOUND]
+      SUPPLIER_NAME: [Company name providing the goods/services (from document header) or NOT_FOUND]
+      BUSINESS_ADDRESS: [Complete business address (can be multi-line) or NOT_FOUND]
+      
+      ### STEP 3: Customer Information (Look for "Bill To" or "Customer" section)
+      PAYER_NAME: [Customer/client name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer/client address or NOT_FOUND]
+      
+      ### STEP 4: Date Information
+      INVOICE_DATE: [Date of invoice/bill in DD/MM/YYYY format or NOT_FOUND]
+      
+      ### STEP 5: Line Items (From the itemized table/list)
+      Count the number of line items and extract each one:
+      
+      LINE_ITEM_DESCRIPTIONS: [Item 1 description | Item 2 description | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (match description order) or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Unit price 1 | $Unit price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+      
+      ### STEP 6: Tax and Totals (Usually at the bottom)
+      IS_GST_INCLUDED: [Look for GST/tax line - answer "true" if present, "false" if not shown, or NOT_FOUND]
+      GST_AMOUNT: [Extract the GST/tax amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Extract the final total/amount due with $ symbol or NOT_FOUND]
+      
+      ## IMPORTANT NOTES:
+      - For quotes/estimates, treat them like invoices
+      - Preserve original formatting and capitalization
+      - Include currency symbols ($) for all monetary values
+      - Use pipe separator (|) for multiple items
+      - Be conservative - use NOT_FOUND if unsure
+
+  simple:
+    name: "Simple Invoice Extraction"
+    description: "Minimal prompt for basic invoice extraction"
+    prompt: |
+      Extract invoice details from this document.
+      
+      Provide:
+      DOCUMENT_TYPE: [value or NOT_FOUND]
+      BUSINESS_ABN: [value or NOT_FOUND]
+      SUPPLIER_NAME: [value or NOT_FOUND]
+      BUSINESS_ADDRESS: [value or NOT_FOUND]
+      PAYER_NAME: [value or NOT_FOUND]
+      PAYER_ADDRESS: [value or NOT_FOUND]
+      INVOICE_DATE: [value or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [item1 | item2 | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [qty1 | qty2 | etc. or NOT_FOUND]
+      LINE_ITEM_PRICES: [$price1 | $price2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$total1 | $total2 | etc. or NOT_FOUND]
+      IS_GST_INCLUDED: [true/false or NOT_FOUND]
+      GST_AMOUNT: [$amount or NOT_FOUND]
+      TOTAL_AMOUNT: [$amount or NOT_FOUND]
+
+# Configuration settings
+settings:
+  default_prompt: "standard"
+  max_new_tokens: 3000
+  temperature: 0.1
+  
+# Model-specific configurations
+models:
+  llama:
+    recommended_prompt: "standard"
+    notes: "Llama-3.2-Vision performs well with structured field extraction"
+  internvl3:
+    recommended_prompt: "detailed"
+    notes: "InternVL3 may benefit from step-by-step instructions"
+
+# Field validation rules
+validation:
+  BUSINESS_ABN:
+    pattern: "^\\d{2}\\s?\\d{3}\\s?\\d{3}\\s?\\d{3}$"
+    length: 11
+    description: "Must be 11 digits"
+  INVOICE_DATE:
+    format: "DD/MM/YYYY"
+    type: "date"
+  monetary_fields:
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+    - LINE_ITEM_PRICES
+    - LINE_ITEM_TOTAL_PRICES
+  list_fields:
+    - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_QUANTITIES
+    - LINE_ITEM_PRICES
+    - LINE_ITEM_TOTAL_PRICES

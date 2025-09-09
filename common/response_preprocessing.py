@@ -1,7 +1,8 @@
-"""Response preprocessing utilities for bank statement extraction.
+"""Response preprocessing utilities for document extraction.
 
 This module contains functions for cleaning, parsing, and mapping
-model responses from bank statement extraction to universal field formats.
+model responses from document extraction (invoices, receipts, bank statements)
+to universal field formats for evaluation.
 """
 
 import re
@@ -197,3 +198,114 @@ def map_bank_fields_to_universal(bank_response: str) -> str:
     mapped_response = "\n".join(universal_additions) + "\n\n" + mapped_response
 
     return mapped_response
+
+
+def map_invoice_fields_to_universal(invoice_response: str) -> str:
+    """Map invoice/bill field names to universal field names for evaluation.
+
+    Most invoice fields already use universal names, but this ensures
+    consistency and adds any missing fields needed for evaluation.
+
+    Args:
+        invoice_response: Raw response from invoice extraction
+
+    Returns:
+        Response with universal field names
+    """
+    # Clean markdown formatting first
+    cleaned_response = clean_markdown_response(invoice_response)
+
+    # Invoice fields are mostly already universal, just ensure DOCUMENT_TYPE is set correctly
+    if "DOCUMENT_TYPE:" not in cleaned_response:
+        cleaned_response = "DOCUMENT_TYPE: INVOICE\n" + cleaned_response
+
+    # Add fields that aren't applicable to invoices
+    lines = cleaned_response.split("\n")
+    fields_present = {line.split(":")[0].strip() for line in lines if ":" in line}
+
+    # Fields specific to bank statements that need to be added as NOT_FOUND
+    bank_statement_fields = {
+        "STATEMENT_DATE_RANGE": "NOT_FOUND",
+        "TRANSACTION_DATES": "NOT_FOUND",
+        "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND",
+    }
+
+    additions = []
+    for field, default_value in bank_statement_fields.items():
+        if field not in fields_present:
+            additions.append(f"{field}: {default_value}")
+
+    if additions:
+        cleaned_response = cleaned_response + "\n" + "\n".join(additions)
+
+    return cleaned_response
+
+
+def map_receipt_fields_to_universal(receipt_response: str) -> str:
+    """Map receipt field names to universal field names for evaluation.
+
+    Receipt fields use the same structure as invoices but may have
+    fewer populated fields.
+
+    Args:
+        receipt_response: Raw response from receipt extraction
+
+    Returns:
+        Response with universal field names
+    """
+    # Clean markdown formatting first
+    cleaned_response = clean_markdown_response(receipt_response)
+
+    # Ensure DOCUMENT_TYPE is set correctly
+    if "DOCUMENT_TYPE:" not in cleaned_response:
+        cleaned_response = "DOCUMENT_TYPE: RECEIPT\n" + cleaned_response
+
+    # Add fields that aren't applicable to receipts
+    lines = cleaned_response.split("\n")
+    fields_present = {line.split(":")[0].strip() for line in lines if ":" in line}
+
+    # Fields specific to bank statements that need to be added as NOT_FOUND
+    bank_statement_fields = {
+        "STATEMENT_DATE_RANGE": "NOT_FOUND",
+        "TRANSACTION_DATES": "NOT_FOUND",
+        "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND",
+    }
+
+    additions = []
+    for field, default_value in bank_statement_fields.items():
+        if field not in fields_present:
+            additions.append(f"{field}: {default_value}")
+
+    if additions:
+        cleaned_response = cleaned_response + "\n" + "\n".join(additions)
+
+    return cleaned_response
+
+
+def map_fields_to_universal(response: str, document_type: str) -> str:
+    """Map document-specific field names to universal field names.
+
+    Routes to the appropriate mapping function based on document type.
+
+    Args:
+        response: Raw response from extraction
+        document_type: Type of document (INVOICE, RECEIPT, BANK_STATEMENT, or STATEMENT)
+
+    Returns:
+        Response with universal field names for evaluation
+    """
+    # Normalize document type
+    doc_type_upper = document_type.upper()
+
+    if doc_type_upper in ["BANK_STATEMENT", "STATEMENT"]:
+        return map_bank_fields_to_universal(response)
+    elif doc_type_upper == "INVOICE":
+        return map_invoice_fields_to_universal(response)
+    elif doc_type_upper == "RECEIPT":
+        return map_receipt_fields_to_universal(response)
+    else:
+        # Default to invoice mapping if unknown
+        rprint(
+            f"[yellow]Warning: Unknown document type '{document_type}', using invoice mapping[/yellow]"
+        )
+        return map_invoice_fields_to_universal(response)
