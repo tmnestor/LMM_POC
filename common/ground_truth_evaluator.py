@@ -345,7 +345,7 @@ class GroundTruthEvaluator:
         summary_table.add_row(
             "Partial Matches (≥0.8)",
             str(partial_matches),
-            f"{(partial_matches / total_fields * 100):.1f%}"
+            f"{(partial_matches / total_fields * 100):.1f}%"
             if total_fields > 0
             else "0%",
         )
