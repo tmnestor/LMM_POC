@@ -3,65 +3,32 @@
 
 prompts:
   minimal:
-    name: "Minimal Bank Statement Extraction - Universal Fields"
+    name: "Minimal Bank Statement Extraction"
     description: "Single transaction table - best for simple flat statements like commbank_flat_simple.png"
     prompt: |
-      Extract structured data from this bank statement using universal field format.
-      
-      🚨 CRITICAL: Extract transaction table data and convert to universal fields
-      
-      First, identify that this is a STATEMENT document type.
-      Then extract the transaction table and convert to pipe-separated universal format.
+      Extract ALL transactions from this bank statement image.
 
-      ## OUTPUT FORMAT - EXACT FORMAT REQUIRED:
+      Look at the transaction table and extract each row's data.
+      
+      Output the following fields:
       
       DOCUMENT_TYPE: STATEMENT
       INVOICE_DATE: NOT_FOUND
-      SUPPLIER_NAME: NOT_FOUND  
+      SUPPLIER_NAME: NOT_FOUND
       BUSINESS_ABN: NOT_FOUND
       BUSINESS_ADDRESS: NOT_FOUND
       PAYER_NAME: NOT_FOUND
       PAYER_ADDRESS: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from the Description column, separated by " | "]
+      LINE_ITEM_DESCRIPTIONS: [extract all transaction descriptions, separated by " | "]
       LINE_ITEM_QUANTITIES: NOT_FOUND
       LINE_ITEM_PRICES: NOT_FOUND
       LINE_ITEM_TOTAL_PRICES: NOT_FOUND
       GST_AMOUNT: NOT_FOUND
       IS_GST_INCLUDED: NOT_FOUND
       TOTAL_AMOUNT: NOT_FOUND
-      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
-      TRANSACTION_DATES: [ALL transaction dates from Date column, separated by " | " (pipe character), format: DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [amounts from DEBIT column only, separated by " | " (pipe character). Use NOT_FOUND for credit transactions]
-      
-      CRITICAL: Use EXACTLY this format - FIELD_NAME: value (no asterisks, no markdown formatting)
-
-      ## TRANSACTION TABLE PARSING RULES:
-      
-      IMPORTANT: Look at the ACTUAL COLUMNS in the bank statement image:
-      - Column 1: Date → extract to TRANSACTION_DATES
-      - Column 2: Description → extract to LINE_ITEM_DESCRIPTIONS  
-      - Column 3: Debit (money OUT) → extract to TRANSACTION_AMOUNTS_PAID
-      - Column 4: Credit (money IN) → extract to TRANSACTION_AMOUNTS_RECEIVED
-      - Column 5: Balance → ignore for universal fields
-
-      EXTRACTION LOGIC:
-      - Go through each table row sequentially
-      - TRANSACTION_DATES: Include date from each row (or NOT_FOUND if empty date cell) - separate with " | "
-      - LINE_ITEM_DESCRIPTIONS: Include description from each row - separate with " | "
-      - TRANSACTION_AMOUNTS_PAID: Include debit amount or NOT_FOUND (for credit transactions) - separate with " | "
-      - TRANSACTION_AMOUNTS_RECEIVED: Include credit amount or NOT_FOUND (for debit transactions) - separate with " | "
-      
-      CRITICAL: All pipe-separated lists must have the SAME number of elements (one per table row).
-      
-      Example conversion:
-      Table: | 03/05/2025 | ONLINE PURCHASE AMAZON AU | $288.03 | NOT_FOUND | $2,500.00 |
-      
-      Output format (NO asterisks or markdown, use " | " for separation):
-      DOCUMENT_TYPE: STATEMENT
-      STATEMENT_DATE_RANGE: 07/07/2025 to 06/08/2025
-      TRANSACTION_DATES: 03/05/2025 | 04/05/2025 | 05/05/2025 | 06/05/2025
-      LINE_ITEM_DESCRIPTIONS: ONLINE PURCHASE AMAZON AU | EFTPOS PURCHASE COLES EXP | EFTPOS PURCHASE COLES EXP | DIRECT CREDIT SALARY
-      TRANSACTION_AMOUNTS_PAID: $288.03 | $22.50 | $114.66 | NOT_FOUND
+      STATEMENT_DATE_RANGE: [extract statement period from header]
+      TRANSACTION_DATES: [extract all transaction dates, separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [extract debit amounts, use NOT_FOUND for credits, separated by " | "]
 
   structured:
     name: "Structured Extraction - Universal Fields (Complex Statements)"
