@@ -335,14 +335,14 @@ class LlamaVisionTableExtractor:
                 cells = [cell.strip() for cell in line.split('|')[1:-1]]
                 if len(cells) >= 4:  # Ensure minimum columns
                     row_data = {
-                        'date': cells[0] if cells[0] != 'NOT_FOUND' else None,
-                        'description': cells[1] if cells[1] != 'NOT_FOUND' else None,
-                        'debit': cells[2] if cells[2] != 'NOT_FOUND' else None,
-                        'credit': cells[3] if cells[3] != 'NOT_FOUND' else None,
-                        'balance': cells[4] if len(cells) > 4 and cells[4] != 'NOT_FOUND' else None
+                        'date': cells[0],
+                        'description': cells[1],
+                        'debit': cells[2],
+                        'credit': cells[3],
+                        'balance': cells[4] if len(cells) > 4 else 'NOT_FOUND'
                     }
-                    # Only add if at least one field has data
-                    if any(value is not None for value in row_data.values()):
+                    # Only add if at least one field has data (not empty and not just NOT_FOUND)
+                    if any(value and value != 'NOT_FOUND' for value in row_data.values()):
                         table_rows.append(row_data)
         
         return table_rows
