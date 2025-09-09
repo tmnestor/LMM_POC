@@ -6,12 +6,8 @@ prompts:
     name: "Minimal Bank Statement Extraction"
     description: "Single transaction table - best for simple flat statements like commbank_flat_simple.png"
     prompt: |
-      Extract ALL transactions from this bank statement image.
+      Extract ALL data from this bank statement and output in the following format:
 
-      Look at the transaction table and extract each row's data.
-      
-      Output the following fields:
-      
       DOCUMENT_TYPE: STATEMENT
       INVOICE_DATE: NOT_FOUND
       SUPPLIER_NAME: NOT_FOUND
@@ -19,37 +15,7 @@ prompts:
       BUSINESS_ADDRESS: NOT_FOUND
       PAYER_NAME: NOT_FOUND
       PAYER_ADDRESS: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: [extract all transaction descriptions, separated by " | "]
-      LINE_ITEM_QUANTITIES: NOT_FOUND
-      LINE_ITEM_PRICES: NOT_FOUND
-      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
-      GST_AMOUNT: NOT_FOUND
-      IS_GST_INCLUDED: NOT_FOUND
-      TOTAL_AMOUNT: NOT_FOUND
-      STATEMENT_DATE_RANGE: [extract statement period from header]
-      TRANSACTION_DATES: [extract all transaction dates, separated by " | "]
-      TRANSACTION_AMOUNTS_PAID: [extract debit amounts, use NOT_FOUND for credits, separated by " | "]
-
-  structured:
-    name: "Structured Extraction - Universal Fields (Complex Statements)"
-    description: "Separate table for each date - best for complex statements like commbank_statement_001.png"
-    prompt: |
-      Extract structured data from this complex bank statement using universal field format.
-      
-      🚨 CRITICAL: Extract ALL transactions from all dates and convert to universal fields
-      
-      This prompt handles complex statements with multiple dates and transactions.
-
-      ## UNIVERSAL FIELD EXTRACTION
-      
-      DOCUMENT_TYPE: STATEMENT
-      INVOICE_DATE: NOT_FOUND
-      SUPPLIER_NAME: NOT_FOUND  
-      BUSINESS_ABN: NOT_FOUND
-      BUSINESS_ADDRESS: NOT_FOUND
-      PAYER_NAME: NOT_FOUND
-      PAYER_ADDRESS: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from ALL dates, separated by " | "]
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions separated by " | "]
       LINE_ITEM_QUANTITIES: NOT_FOUND
       LINE_ITEM_PRICES: NOT_FOUND
       LINE_ITEM_TOTAL_PRICES: NOT_FOUND
@@ -57,51 +23,53 @@ prompts:
       IS_GST_INCLUDED: NOT_FOUND
       TOTAL_AMOUNT: NOT_FOUND
       STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
-      TRANSACTION_DATES: [ALL transaction dates from ALL date sections, separated by " | ", format: DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [amounts from DEBIT column for ALL transactions, separated by " | ". Use NOT_FOUND for credit transactions]
-      TRANSACTION_AMOUNTS_RECEIVED: [amounts from CREDIT column for ALL transactions, separated by " | ". Use NOT_FOUND for debit transactions]
+      TRANSACTION_DATES: [ALL transaction dates separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | ", use NOT_FOUND for credit transactions]
 
-      ## COMPLEX STATEMENT PARSING RULES:
-      
-      STEP 1: Scan the entire statement for ALL transaction sections
-      - Look for date headings (e.g., "15/05/2024", "16/05/2024")
-      - Find all transaction tables under each date
-      
-      STEP 2: Process ALL transactions chronologically:
-      - Combine transactions from all dates into single pipe-separated lists
-      - Maintain sequential order (earliest to latest)
-      
-      STEP 3: Extract to universal format:
-      - TRANSACTION_DATES: All dates in order
-      - LINE_ITEM_DESCRIPTIONS: All descriptions in order
-      - TRANSACTION_AMOUNTS_PAID: All debit amounts in order (NOT_FOUND for credits)
-      - TRANSACTION_AMOUNTS_RECEIVED: All credit amounts in order (NOT_FOUND for debits)
-      
-      CRITICAL: All pipe-separated lists must have the SAME number of elements.
-      
-      Example complex extraction:
-      Date Section 1: 15/05/2024
-      | 15/05/2024 | EFTPOS Purchase | 97.95 | NOT_FOUND | 4902.05 |
-      
-      Date Section 2: 16/05/2024  
-      | 16/05/2024 | Direct Credit | NOT_FOUND | 500.00 | 5402.05 |
-      | 16/05/2024 | ATM Withdrawal | 50.00 | NOT_FOUND | 5352.05 |
-      
-      Combined Universal Output:
-      TRANSACTION_DATES: 15/05/2024 | 16/05/2024 | 16/05/2024
-      LINE_ITEM_DESCRIPTIONS: EFTPOS Purchase | Direct Credit | ATM Withdrawal
-      TRANSACTION_AMOUNTS_PAID: 97.95 | NOT_FOUND | 50.00
-      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | 500.00 | NOT_FOUND
+      Extract from the transaction table:
+      - Look at each row in the transaction table
+      - For TRANSACTION_DATES: Extract the date from each row
+      - For LINE_ITEM_DESCRIPTIONS: Extract the description from each row
+      - For TRANSACTION_AMOUNTS_PAID: Extract amount from Debit column (or NOT_FOUND if it's a credit)
+      - Use " | " to separate multiple values
 
-  simple:
-    name: "Simple Extraction - Universal Fields"
-    description: "Simplified prompt for basic extraction using universal fields"
+  structured:
+    name: "Structured Extraction"
+    description: "For complex statements with multiple date sections"
     prompt: |
-      Extract structured data from this bank statement using universal field format.
-      
+      Extract ALL data from this bank statement and output in the following format:
+
       DOCUMENT_TYPE: STATEMENT
       INVOICE_DATE: NOT_FOUND
-      SUPPLIER_NAME: NOT_FOUND  
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from all dates, separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [ALL transaction dates from all sections, separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [ALL debit amounts separated by " | ", use NOT_FOUND for credit transactions]
+
+      Process ALL transaction sections chronologically.
+      Use " | " to separate multiple values.
+
+  simple:
+    name: "Simple Extraction"
+    description: "Simplified prompt for basic extraction"
+    prompt: |
+      Extract data from this bank statement.
+      
+      Output format:
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
       BUSINESS_ABN: NOT_FOUND
       BUSINESS_ADDRESS: NOT_FOUND
       PAYER_NAME: NOT_FOUND
@@ -113,22 +81,10 @@ prompts:
       GST_AMOUNT: NOT_FOUND
       IS_GST_INCLUDED: NOT_FOUND
       TOTAL_AMOUNT: NOT_FOUND
-      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
-      TRANSACTION_DATES: [transaction dates separated by " | "]
-      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | ", NOT_FOUND for credits]
-      TRANSACTION_AMOUNTS_RECEIVED: [credit amounts separated by " | ", NOT_FOUND for debits]
+      STATEMENT_DATE_RANGE: [date range]
+      TRANSACTION_DATES: [dates separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | "]
 
 # Configuration settings
 settings:
   default_prompt: "minimal"
-  max_new_tokens: 4000
-  temperature: 0.1
-  
-# Model-specific configurations
-models:
-  llama:
-    recommended_prompt: "minimal"
-    notes: "Llama-3.2-Vision works best with the minimal prompt approach"
-  internvl3:
-    recommended_prompt: "structured"
-    notes: "InternVL3 may work better with more structured prompts"
