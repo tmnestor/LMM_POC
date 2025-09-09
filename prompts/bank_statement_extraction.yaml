@@ -3,109 +3,149 @@
 
 prompts:
   minimal:
-    name: "Minimal Bank Statement Extraction"
+    name: "Minimal Bank Statement Extraction - Universal Fields"
     description: "Single transaction table - best for simple flat statements like commbank_flat_simple.png"
     prompt: |
-      Extract bank account details and the transaction table from this bank statement.
-
-      ## PART 1: BANK ACCOUNT DETAILS
-      Extract the following information from the statement header/summary:
+      Extract structured data from this bank statement using universal field format.
       
-      BANK_NAME: [bank name (NOT supplier name) or NOT_FOUND]
-      BANK_BSB_NUMBER: [6-digit BSB (NOT ABN) or NOT_FOUND]
-      BANK_ACCOUNT_NUMBER: [account number or NOT_FOUND]
-      BANK_ACCOUNT_HOLDER: [account holder name or NOT_FOUND]
-      ACCOUNT_OPENING_BALANCE: [first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]
-      ACCOUNT_CLOSING_BALANCE: [ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]
+      🚨 CRITICAL: Extract transaction table data and convert to universal fields
+      
+      First, identify that this is a STATEMENT document type.
+      Then extract the transaction table and convert to pipe-separated universal format.
 
-      ## PART 2: TRANSACTION TABLE
-      Create a SINGLE markdown table with ALL transactions.
+      ## UNIVERSAL FIELD EXTRACTION
+      
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND  
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from the Description column, separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [ALL transaction dates from Date column, separated by " | ", format: DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [amounts from DEBIT column only, separated by " | ". Use NOT_FOUND for credit transactions]
+      TRANSACTION_AMOUNTS_RECEIVED: [amounts from CREDIT column only, separated by " | ". Use NOT_FOUND for debit transactions]
 
+      ## TRANSACTION TABLE PARSING RULES:
+      
       IMPORTANT: Look at the ACTUAL COLUMNS in the bank statement image:
-      - Column 1: Date
-      - Column 2: Transaction (description)
-      - Column 3: Debit (amount only appears here if money LEAVES account)
-      - Column 4: Credit (amount only appears here if money ENTERS account)
-      - Column 5: Balance (running balance after transaction)
+      - Column 1: Date → extract to TRANSACTION_DATES
+      - Column 2: Description → extract to LINE_ITEM_DESCRIPTIONS  
+      - Column 3: Debit (money OUT) → extract to TRANSACTION_AMOUNTS_PAID
+      - Column 4: Credit (money IN) → extract to TRANSACTION_AMOUNTS_RECEIVED
+      - Column 5: Balance → ignore for universal fields
 
-      READ THE VISUAL TABLE CAREFULLY:
-      - If you see an amount in the DEBIT column → put it in Debit, Credit = NOT_FOUND
-      - If you see an amount in the CREDIT column → put it in Credit, Debit = NOT_FOUND
-      - ALWAYS copy the balance value exactly as shown
-
-      Example:
-      | Date | Description | Debit | Credit | Balance |
-      |------|-------------|-------|--------|---------|
-      | 15/05 | Opening Balance | NOT_FOUND | NOT_FOUND | 5000.00 |
-      | 16/05 | EFTPOS Purchase | 97.95 | NOT_FOUND | 4902.05 |
-      | 17/05 | Direct Credit | NOT_FOUND | 500.00 | 5402.05 |
-
-      Use NOT_FOUND only for empty debit/credit cells.
-      DO NOT classify based on transaction description - use the ACTUAL column position from the image.
+      EXTRACTION LOGIC:
+      - Go through each table row sequentially
+      - TRANSACTION_DATES: Include date from each row (or NOT_FOUND if empty date cell)
+      - LINE_ITEM_DESCRIPTIONS: Include description from each row
+      - TRANSACTION_AMOUNTS_PAID: Include debit amount or NOT_FOUND (for credit transactions)
+      - TRANSACTION_AMOUNTS_RECEIVED: Include credit amount or NOT_FOUND (for debit transactions)
+      
+      CRITICAL: All pipe-separated lists must have the SAME number of elements (one per table row).
+      
+      Example conversion:
+      Table: | 03/05/2025 | ONLINE PURCHASE AMAZON AU | $288.03 | NOT_FOUND | $2,500.00 |
+      TRANSACTION_DATES: 03/05/2025
+      LINE_ITEM_DESCRIPTIONS: ONLINE PURCHASE AMAZON AU  
+      TRANSACTION_AMOUNTS_PAID: $288.03
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND
 
   structured:
-    name: "Structured Extraction - Separate Tables per Date"
+    name: "Structured Extraction - Universal Fields (Complex Statements)"
     description: "Separate table for each date - best for complex statements like commbank_statement_001.png"
     prompt: |
-      Extract bank account details and ALL transactions from this bank statement.
+      Extract structured data from this complex bank statement using universal field format.
       
-      ## ACCOUNT DETAILS:
-      Provide the following information:
-      - BANK_NAME: [bank name (NOT supplier name) or NOT_FOUND]
-      - BANK_BSB_NUMBER: [6-digit BSB (NOT ABN) or NOT_FOUND]
-      - BANK_ACCOUNT_NUMBER: [account number or NOT_FOUND]
-      - BANK_ACCOUNT_HOLDER: [account holder name or NOT_FOUND]
-      - ACCOUNT_OPENING_BALANCE: [first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]
-      - ACCOUNT_CLOSING_BALANCE: [ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]
+      🚨 CRITICAL: Extract ALL transactions from all dates and convert to universal fields
       
-      ## TRANSACTIONS:
-      # CRITICAL: Create a SEPARATE markdown table for EACH DISTINCT DATE.
+      This prompt handles complex statements with multiple dates and transactions.
+
+      ## UNIVERSAL FIELD EXTRACTION
       
-      Look at the ACTUAL COLUMNS in the bank statement:
-      - Date column
-      - Description column
-      - Debit column (money OUT)
-      - Credit column (money IN)
-      - Balance column (running total)
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND  
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [ALL transaction descriptions from ALL dates, separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [ALL transaction dates from ALL date sections, separated by " | ", format: DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [amounts from DEBIT column for ALL transactions, separated by " | ". Use NOT_FOUND for credit transactions]
+      TRANSACTION_AMOUNTS_RECEIVED: [amounts from CREDIT column for ALL transactions, separated by " | ". Use NOT_FOUND for debit transactions]
+
+      ## COMPLEX STATEMENT PARSING RULES:
       
-      For each unique date in the statement:
-      1. Create a heading with the date
-      2. Create a new table for all transactions on that date
-      3. If multiple transactions occur on the same date, include all in that date's table
+      STEP 1: Scan the entire statement for ALL transaction sections
+      - Look for date headings (e.g., "15/05/2024", "16/05/2024")
+      - Find all transaction tables under each date
       
-      Example format:
-      ### Date: 15/05/2024
-      | Date | Description | Debit | Credit | Balance |
-      |------|-------------|-------|--------|---------|
-      | 15/05/2024 | Opening Balance | NOT_FOUND | NOT_FOUND | 5000.00 |
+      STEP 2: Process ALL transactions chronologically:
+      - Combine transactions from all dates into single pipe-separated lists
+      - Maintain sequential order (earliest to latest)
+      
+      STEP 3: Extract to universal format:
+      - TRANSACTION_DATES: All dates in order
+      - LINE_ITEM_DESCRIPTIONS: All descriptions in order
+      - TRANSACTION_AMOUNTS_PAID: All debit amounts in order (NOT_FOUND for credits)
+      - TRANSACTION_AMOUNTS_RECEIVED: All credit amounts in order (NOT_FOUND for debits)
+      
+      CRITICAL: All pipe-separated lists must have the SAME number of elements.
+      
+      Example complex extraction:
+      Date Section 1: 15/05/2024
       | 15/05/2024 | EFTPOS Purchase | 97.95 | NOT_FOUND | 4902.05 |
       
-      ### Date: 16/05/2024
-      | Date | Description | Debit | Credit | Balance |
-      |------|-------------|-------|--------|---------|
+      Date Section 2: 16/05/2024  
       | 16/05/2024 | Direct Credit | NOT_FOUND | 500.00 | 5402.05 |
+      | 16/05/2024 | ATM Withdrawal | 50.00 | NOT_FOUND | 5352.05 |
       
-      Important:
-      - Extract EVERY transaction visible
-      - Use NOT_FOUND for empty debit/credit cells
-      - Copy amounts EXACTLY as shown in their columns
+      Combined Universal Output:
+      TRANSACTION_DATES: 15/05/2024 | 16/05/2024 | 16/05/2024
+      LINE_ITEM_DESCRIPTIONS: EFTPOS Purchase | Direct Credit | ATM Withdrawal
+      TRANSACTION_AMOUNTS_PAID: 97.95 | NOT_FOUND | 50.00
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | 500.00 | NOT_FOUND
 
   simple:
-    name: "Simple Extraction"
-    description: "Simplified prompt for basic extraction"
+    name: "Simple Extraction - Universal Fields"
+    description: "Simplified prompt for basic extraction using universal fields"
     prompt: |
-      Extract bank account details and all transactions from this bank statement image.
+      Extract structured data from this bank statement using universal field format.
       
-      First provide:
-      BANK_NAME: [value or NOT_FOUND]
-      BANK_BSB_NUMBER: [value or NOT_FOUND]
-      BANK_ACCOUNT_NUMBER: [value or NOT_FOUND]
-      BANK_ACCOUNT_HOLDER: [value or NOT_FOUND]
-      ACCOUNT_OPENING_BALANCE: [value or NOT_FOUND]
-      ACCOUNT_CLOSING_BALANCE: [value or NOT_FOUND]
-      
-      Then return transactions as a markdown table with columns: Date, Description, Debit, Credit, Balance.
-      Use NOT_FOUND for empty cells.
+      DOCUMENT_TYPE: STATEMENT
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND  
+      BUSINESS_ABN: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: [transaction descriptions separated by " | "]
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
+      TRANSACTION_DATES: [transaction dates separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [debit amounts separated by " | ", NOT_FOUND for credits]
+      TRANSACTION_AMOUNTS_RECEIVED: [credit amounts separated by " | ", NOT_FOUND for debits]
 
 # Configuration settings
 settings:
