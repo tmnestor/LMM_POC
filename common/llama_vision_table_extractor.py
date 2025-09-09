@@ -311,11 +311,13 @@ class LlamaVisionTableExtractor:
     def _parse_response(self, response: str, image_path: str, prompt: str, temperature: float, max_new_tokens: int) -> Dict[str, Any]:
         """Parse model response into structured format."""
         parsed_data = self._extract_table_data(response)
+        bank_details = self._extract_bank_details(response)
         return {
             "raw_response": response,
             "image_path": image_path,
             "extraction_time": datetime.now().isoformat(),
             "parsed_data": parsed_data,
+            "bank_details": bank_details,
             "transaction_count": len(parsed_data),
             "prompt_used": prompt[:100] + "..." if len(prompt) > 100 else prompt,
             "temperature": temperature,
@@ -346,6 +348,36 @@ class LlamaVisionTableExtractor:
                         table_rows.append(row_data)
         
         return table_rows
+    
+    def _extract_bank_details(self, response: str) -> Dict[str, str]:
+        """Extract bank account details from response, removing markdown asterisks."""
+        import re
+        
+        bank_fields = {
+            'BANK_NAME': 'NOT_FOUND',
+            'BANK_BSB_NUMBER': 'NOT_FOUND', 
+            'BANK_ACCOUNT_NUMBER': 'NOT_FOUND',
+            'BANK_ACCOUNT_HOLDER': 'NOT_FOUND',
+            'ACCOUNT_OPENING_BALANCE': 'NOT_FOUND',
+            'ACCOUNT_CLOSING_BALANCE': 'NOT_FOUND'
+        }
+        
+        lines = response.split('\n')
+        for line in lines:
+            # Remove markdown asterisks from the line
+            clean_line = re.sub(r'\*+', '', line).strip()
+            
+            # Look for field: value patterns
+            for field_name in bank_fields.keys():
+                if field_name in clean_line and ':' in clean_line:
+                    parts = clean_line.split(':', 1)
+                    if len(parts) == 2 and parts[0].strip() == field_name:
+                        value = parts[1].strip()
+                        if value:  # Only update if we found a non-empty value
+                            bank_fields[field_name] = value
+                        break
+        
+        return bank_fields
     
     def test_extraction(self, image_path: str, prompt: str = None, max_new_tokens: int = None) -> Dict[str, Any]:
         """
