@@ -38,7 +38,7 @@ prompts:
       | Date | Description | Debit | Credit | Balance |
       |------|-------------|-------|--------|---------|
       | 15/05 | Opening Balance | NOT_FOUND | NOT_FOUND | 5000.00 |
-      | 16/05 | EFTPOS Purchase | 97.95 | NOT_FOUND | 4902.05 |
+      | 16/05 | Online Purchase | 97.95 | NOT_FOUND | 4902.05 |
       | 17/05 | Direct Credit | NOT_FOUND | 500.00 | 5402.05 |
 
       Use NOT_FOUND only for empty debit/credit cells.
