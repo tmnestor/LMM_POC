@@ -132,11 +132,8 @@ class PromptLoader:
         if prompt_description:
             rprint(f"[dim]{prompt_description}[/dim]")
 
-        # Show truncated prompt with syntax highlighting
-        prompt_preview = (
-            prompt_text[:500] + "..." if len(prompt_text) > 500 else prompt_text
-        )
-        syntax = Syntax(prompt_preview, "markdown", theme="monokai", line_numbers=True)
+        # Show full prompt with syntax highlighting
+        syntax = Syntax(prompt_text, "markdown", theme="monokai", line_numbers=True)
         self.console.print(syntax)
 
         # Display prompt statistics
