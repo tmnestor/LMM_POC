@@ -49,8 +49,29 @@ class GroundTruthEvaluator:
         # Get the raw response from the test
         raw_response = test_result["raw_result"]["raw_response"]
 
+        # Debug: Show markdown cleaning process
+        rprint(f"[dim]DEBUG: Raw response length: {len(raw_response)} chars[/dim]")
+        if "**" in raw_response:
+            rprint("[dim]DEBUG: Markdown artifacts detected, applying cleaning...[/dim]")
+            
         # Clean the response before parsing
         cleaned_response = clean_markdown_response(raw_response)
+        
+        # Debug: Verify cleaning effectiveness
+        if raw_response != cleaned_response:
+            asterisk_count_before = raw_response.count("**")
+            asterisk_count_after = cleaned_response.count("**")
+            rprint(f"[dim]DEBUG: Cleaning applied - asterisks reduced from {asterisk_count_before} to {asterisk_count_after}[/dim]")
+            
+            # Show first few lines with changes for verification
+            raw_lines = raw_response.split('\n')[:5]
+            cleaned_lines = cleaned_response.split('\n')[:5]
+            for _i, (raw_line, clean_line) in enumerate(zip(raw_lines, cleaned_lines, strict=False)):
+                if raw_line != clean_line and any(c in raw_line for c in ['*', ':']):
+                    rprint(f"[dim]  Before: {raw_line[:60]}{'...' if len(raw_line) > 60 else ''}[/dim]")
+                    rprint(f"[dim]  After:  {clean_line[:60]}{'...' if len(clean_line) > 60 else ''}[/dim]")
+        else:
+            rprint("[dim]DEBUG: No cleaning changes needed[/dim]")
 
         # Map document-specific fields to universal field names for evaluation
         mapped_response = map_fields_to_universal(cleaned_response, document_type)

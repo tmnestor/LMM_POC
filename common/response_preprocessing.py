@@ -14,6 +14,7 @@ def clean_markdown_response(response: str) -> str:
     """Clean markdown formatting from model response before parsing.
 
     Removes asterisks from field names while preserving the field structure.
+    Enhanced to handle various markdown patterns that cause evaluation failures.
 
     Args:
         response: Raw response string from model
@@ -21,12 +22,40 @@ def clean_markdown_response(response: str) -> str:
     Returns:
         Cleaned response string with markdown formatting removed
     """
-    # Remove asterisks from field names (e.g., **FIELD_NAME:** -> FIELD_NAME:)
-    cleaned = re.sub(r"\*+([A-Z_]+):\*+", r"\1:", response)
-
-    # Also handle case where there might be spaces
+    if not response:
+        return response
+    
+    cleaned = response
+    
+    # Pattern 1: **FIELD_NAME:** -> FIELD_NAME: (exact match)
+    cleaned = re.sub(r"\*\*([A-Z_]+):\*\*", r"\1:", cleaned)
+    
+    # Pattern 2: **FIELD_NAME:** value -> FIELD_NAME: value (with value on same line)
+    cleaned = re.sub(r"\*\*([A-Z_]+):\*\*\s*", r"\1: ", cleaned)
+    
+    # Pattern 3: Handle generic asterisk wrapping around field names
+    cleaned = re.sub(r"\*+([A-Z_]+):\*+", r"\1:", cleaned)
+    
+    # Pattern 4: Handle spaces around field names and asterisks
     cleaned = re.sub(r"\*+\s*([A-Z_]+)\s*:\s*\*+", r"\1:", cleaned)
-
+    
+    # Pattern 5: Clean up any remaining double asterisks around words
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)
+    
+    # Pattern 6: Handle cases where asterisks appear at start of line with field names
+    cleaned = re.sub(r"^\*+\s*([A-Z_]+):", r"\1:", cleaned, flags=re.MULTILINE)
+    
+    # Pattern 7: Clean up any remaining single or multiple asterisks around field patterns
+    cleaned = re.sub(r"\*+\s*([A-Z_][A-Z0-9_]*)\s*:\s*\*+", r"\1:", cleaned)
+    
+    # Pattern 8: Handle bold markdown at the beginning of field names only
+    cleaned = re.sub(r"^(\s*)\*\*([A-Z_]+):\*\*(.*)$", r"\1\2:\3", cleaned, flags=re.MULTILINE)
+    
+    # Final cleanup: Remove any stray asterisks that might be left around colons
+    cleaned = re.sub(r"\*+:\*+", ":", cleaned)
+    cleaned = re.sub(r"\*+:", ":", cleaned)
+    cleaned = re.sub(r":\*+", ":", cleaned)
+    
     return cleaned
 
 
