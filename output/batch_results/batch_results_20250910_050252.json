@@ -1,0 +1,200 @@
+{
+  "metadata": {
+    "batch_id": "20250910_050252",
+    "timestamp": "2025-09-10T05:17:45.240870",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 13,
+    "successful_extractions": 13,
+    "average_accuracy": 41.510989010989015,
+    "total_processing_time": 881.4773721694946,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 13.0,
+    "Successful Extractions": 13.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 41.510989010989015,
+    "Median Accuracy (%)": 38.21428571428571,
+    "Min Accuracy (%)": 0.0,
+    "Max Accuracy (%)": 85.71428571428571,
+    "Average Processing Time (s)": 67.80595170534573,
+    "Total Processing Time (s)": 881.4773721694946,
+    "Throughput (images/min)": 0.8848780747261406
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 7,
+    "RECEIPT": 3,
+    "INVOICE": 3
+  },
+  "results": [
+    {
+      "image_name": "anz_statement_001.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 69.5810968875885,
+      "evaluation_summary": {
+        "overall_accuracy": 0.14285714285714285,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "commbank_flat_complex.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 185.79274225234985,
+      "evaluation_summary": {
+        "overall_accuracy": 0.3821428571428571,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "commbank_flat_complex_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 186.86590123176575,
+      "evaluation_summary": {
+        "overall_accuracy": 0,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 0
+      }
+    },
+    {
+      "image_name": "commbank_flat_simple.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 46.2212119102478,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 5
+      }
+    },
+    {
+      "image_name": "commbank_statement_001.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 78.84891176223755,
+      "evaluation_summary": {
+        "overall_accuracy": 0.14285714285714285,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "Standard Receipt Extraction",
+      "processing_time": 26.739562034606934,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "Standard Receipt Extraction",
+      "processing_time": 28.642139196395874,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "Standard Receipt Extraction",
+      "processing_time": 23.122457265853882,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 27.66334581375122,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8571428571428571,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 34.31359505653381,
+      "evaluation_summary": {
+        "overall_accuracy": 0.0,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 27.894833087921143,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6428571428571429,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "nab_statement_001.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 76.86459827423096,
+      "evaluation_summary": {
+        "overall_accuracy": 0.14285714285714285,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "westpac_statement_001.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 68.92697739601135,
+      "evaluation_summary": {
+        "overall_accuracy": 0.14285714285714285,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    }
+  ]
+}
