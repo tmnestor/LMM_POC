@@ -34,7 +34,7 @@ def extract_transaction_data_from_table(response: str) -> dict:
     """Extract transaction data from markdown table in response.
 
     Parses markdown table rows to extract transaction dates, descriptions,
-    and debit amounts for universal field mapping.
+    and debit amounts for universal field mapping. Enhanced for complex documents.
 
     Args:
         response: Response string containing markdown table
@@ -48,36 +48,74 @@ def extract_transaction_data_from_table(response: str) -> dict:
     transaction_amounts_paid = []
 
     lines = response.split("\n")
+    
+    # Debug: Count potential table lines
+    table_lines = [line for line in lines if "|" in line]
+    print(f"DEBUG: Found {len(table_lines)} lines with '|' in response")
 
-    # Parse markdown table rows
-    for line in lines:
-        if (
-            "|" in line
-            and not line.strip().startswith("|---")
-            and "Date" not in line
-            and "Description" not in line
-        ):
-            # Parse table row
-            cells = [
-                cell.strip() for cell in line.split("|")[1:-1]
-            ]  # Remove first/last empty cells
-            if len(cells) >= 4:  # Date, Description, Debit, Credit, Balance
-                date = cells[0].strip()
-                description = cells[1].strip()
-                debit = cells[2].strip()
+    # Parse markdown table rows with enhanced detection
+    for _line_num, line in enumerate(lines):
+        # More flexible table row detection
+        if "|" in line and line.strip():
+            # Skip header separators and header rows
+            if (line.strip().startswith("|---") or 
+                "-" in line and "|" in line and len(line.replace("-", "").replace("|", "").strip()) < 5):
+                continue
+                
+            # Skip obvious header rows (but be flexible about case and spacing)
+            line_lower = line.lower()
+            if ("date" in line_lower and "description" in line_lower) or \
+               ("date" in line_lower and "debit" in line_lower) or \
+               ("description" in line_lower and "credit" in line_lower):
+                continue
 
-                if date and date != "NOT_FOUND":
-                    transaction_dates.append(date)
-
-                if description and description != "NOT_FOUND":
-                    transaction_descriptions.append(description)
-
-                # Only include debit amounts (money OUT), use NOT_FOUND for credits
-                if debit and debit != "NOT_FOUND":
-                    transaction_amounts_paid.append(debit)
+            # Parse table row - handle different cell counts gracefully
+            cells = [cell.strip() for cell in line.split("|")]
+            # Remove empty cells from start/end
+            while cells and not cells[0]:
+                cells.pop(0)
+            while cells and not cells[-1]:
+                cells.pop()
+                
+            if len(cells) >= 3:  # Minimum: Date, Description, Amount
+                date = cells[0].strip() if len(cells) > 0 else ""
+                description = cells[1].strip() if len(cells) > 1 else ""
+                
+                # For amount, try debit column first, then credit if debit is empty
+                amount = ""
+                if len(cells) >= 4:  # Has separate debit/credit columns
+                    debit = cells[2].strip() if len(cells) > 2 else ""
+                    credit = cells[3].strip() if len(cells) > 3 else ""
+                    
+                    # Prefer debit, fall back to credit, then NOT_FOUND
+                    if debit and debit != "NOT_FOUND" and debit != "":
+                        amount = debit
+                    elif credit and credit != "NOT_FOUND" and credit != "":
+                        amount = credit
+                    else:
+                        amount = "NOT_FOUND"
                 else:
-                    transaction_amounts_paid.append("NOT_FOUND")
+                    # Single amount column
+                    amount = cells[2].strip() if len(cells) > 2 else "NOT_FOUND"
 
+                # Add data if we have meaningful values
+                if date and date != "NOT_FOUND" and date != "":
+                    transaction_dates.append(date)
+                    
+                    # Always add description and amount for each date
+                    if description and description != "NOT_FOUND":
+                        transaction_descriptions.append(description)
+                    else:
+                        transaction_descriptions.append("NOT_FOUND")
+                        
+                    transaction_amounts_paid.append(amount)
+                    
+                    # Debug output for complex documents
+                    if len(transaction_dates) <= 5 or len(transaction_dates) % 10 == 0:
+                        print(f"DEBUG: Row {len(transaction_dates)}: {date} | {description[:30]}... | {amount}")
+
+    print(f"DEBUG: Extracted {len(transaction_dates)} transactions from table")
+    
     return {
         "transaction_dates": " | ".join(transaction_dates)
         if transaction_dates
