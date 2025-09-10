@@ -1,0 +1,159 @@
+# Generated prompt for receipt using internvl3
+# Generated at: 2025-09-11T07:45:32.394124
+# Source: unified_schema.yaml 5.0-unified
+# Field count: 14
+
+metadata:
+  document_type: receipt
+  model: internvl3
+  field_count: 14
+  generated_at: '2025-09-11T07:45:32.394124'
+  source: unified_schema.yaml 5.0-unified
+field_list:
+- DOCUMENT_TYPE
+- BUSINESS_ABN
+- SUPPLIER_NAME
+- BUSINESS_ADDRESS
+- PAYER_NAME
+- PAYER_ADDRESS
+- INVOICE_DATE
+- LINE_ITEM_DESCRIPTIONS
+- LINE_ITEM_QUANTITIES
+- LINE_ITEM_PRICES
+- LINE_ITEM_TOTAL_PRICES
+- IS_GST_INCLUDED
+- GST_AMOUNT
+- TOTAL_AMOUNT
+complete_prompt: 'CRITICAL: Pay extreme attention to EXACT digits and numbers.
+
+  STEP 1: Carefully examine the entire document image.
+
+  STEP 2: Identify the document type and key sections.
+
+  STEP 3: Extract EXACTLY {field_count} fields with PRECISE digit accuracy.
+
+
+  DIGIT PRECISION & VISUAL EXTRACTION INSTRUCTIONS:
+
+  - ⚠️ CRITICAL: Extract EVERY digit EXACTLY as shown - do not skip or modify digits
+
+  - ⚠️ CRITICAL: For multi-digit numbers, carefully copy ALL digits in the correct sequence
+
+  - FIRST: Scan the document header/top section for business name and ABN
+
+  - SECOND: Look for customer/payer information (usually in the middle section)
+
+  - THIRD: Find the itemized list or transaction table - count ALL rows
+
+  - FOURTH: Locate the totals section (usually at the bottom)
+
+  - Output each field EXACTLY as shown below
+
+  - Start your response with DOCUMENT_TYPE: [value]
+
+  - End your response with TOTAL_AMOUNT: [value]
+
+
+  EXTRACT THESE 14 FIELDS IN THIS EXACT ORDER:
+
+
+  DOCUMENT_TYPE: [Look for words like INVOICE, RECEIPT, TAX INVOICE, STATEMENT at the top - answer with INVOICE/RECEIPT/STATEMENT
+  or NOT_FOUND]
+
+  BUSINESS_ABN: [Find ''ABN'' label followed by 11 digits (e.g. XX XXX XXX XXX) - usually near business name at top or NOT_FOUND]
+
+  SUPPLIER_NAME: [Look at the TOP/HEADER of document for the LARGEST business/company name text - this is the supplier name
+  or NOT_FOUND]
+
+  BUSINESS_ADDRESS: [Find the street address directly under or near the business name at the TOP of document or NOT_FOUND]
+
+  PAYER_NAME: [Look for ''Bill To:'', ''Customer:'', ''Sold To:'', or ''Payer:'' section - extract the person/company name
+  there or NOT_FOUND]
+
+  PAYER_ADDRESS: [Find the address in the ''Bill To:'', ''Customer:'', or ''Payer:'' section (usually middle of document)
+  or NOT_FOUND]
+
+  INVOICE_DATE: [Look for ''Date:'', ''Invoice Date:'', ''Transaction Date:'' label - extract the date value next to it or
+  NOT_FOUND]
+
+  LINE_ITEM_DESCRIPTIONS: [Find the MAIN TABLE/LIST in middle of document - extract ALL product/service names using | character
+  ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]
+
+  LINE_ITEM_QUANTITIES: [In the main table, find ''QTY'' or ''Quantity'' column - list ALL quantity values separated by ''
+  | '' in same order as items or NOT_FOUND]
+
+  LINE_ITEM_PRICES: [Find ''Unit Price'', ''Price Each'', or ''Rate'' column (NOT the total) - list each price per unit separated
+  by '' | '' or NOT_FOUND]
+
+  LINE_ITEM_TOTAL_PRICES: [Find ''Amount'', ''Total'', or ''Line Total'' column (rightmost in table) - list the calculated
+  totals separated by '' | '' or NOT_FOUND]
+
+  IS_GST_INCLUDED: [Check if document shows ''GST'' with a dollar amount anywhere - answer ''true'' if GST amount exists,
+  ''false'' if not]
+
+  GST_AMOUNT: [Look at BOTTOM section for ''GST:'', ''Tax:'', or ''GST 10%'' - extract the dollar amount next to it (e.g.
+  8.62 or $8.62) or NOT_FOUND]
+
+  TOTAL_AMOUNT: [Find the LARGEST dollar amount at BOTTOM - look for ''TOTAL:'', ''Total Due:'', ''Amount Due:'' - extract
+  value with 2 decimals or NOT_FOUND]
+
+
+  CRITICAL EXTRACTION RULES - FOCUS ON DIGIT ACCURACY:
+
+  - Each line must be: FIELDNAME: value
+
+  - 🔢 NUMBERS: Copy digits EXACTLY - do not round, truncate, or skip any digits
+
+  - 🔢 ABN: Must be EXACTLY 11 digits - count them! (e.g., ''12 345 678 901'' format)
+
+  - 🔢 ADDRESSES: Copy house/building numbers EXACTLY (e.g., ''123'' not ''1123'')
+
+  - 🔢 PRICES: Include ALL items even if prices repeat (e.g., if two items cost $15.00, list both)
+
+  - 🔢 TRANSACTION LISTS: Count the rows in tables - your list must match the actual number of rows found
+
+  - IMPORTANT: For SUPPLIER_NAME, look at the business/company name at the TOP of the document
+
+  - IMPORTANT: For LINE_ITEM_DESCRIPTIONS, list ALL items shown in the itemized section
+
+  - For prices, distinguish between unit price (per item) and total price (quantity × unit)
+
+  - Use ''NOT_FOUND'' ONLY when the field truly doesn''t exist in the document
+
+  - For transaction lists: go through each table row - if cell has value include it, if empty write NOT_FOUND
+
+  - Example transaction format: ''Value1 | NOT_FOUND | Value3'' (one element per table row)
+
+  - For boolean IS_GST_INCLUDED: answer ''true'' if GST amount is shown, ''false'' if not
+
+  - Extract monetary values with 2 decimal places (e.g., ''$12.50'' or ''12.50'')
+
+
+  OUTPUT EXACTLY 14 LINES. Stop after TOTAL_AMOUNT.'
+field_instructions:
+  DOCUMENT_TYPE: '[Look for words like INVOICE, RECEIPT, TAX INVOICE, STATEMENT at the top - answer with INVOICE/RECEIPT/STATEMENT
+    or NOT_FOUND]'
+  BUSINESS_ABN: '[Find ''ABN'' label followed by 11 digits (e.g. XX XXX XXX XXX) - usually near business name at top or NOT_FOUND]'
+  SUPPLIER_NAME: '[Look at the TOP/HEADER of document for the LARGEST business/company name text - this is the supplier name
+    or NOT_FOUND]'
+  BUSINESS_ADDRESS: '[Find the street address directly under or near the business name at the TOP of document or NOT_FOUND]'
+  PAYER_NAME: '[Look for ''Bill To:'', ''Customer:'', ''Sold To:'', or ''Payer:'' section - extract the person/company name
+    there or NOT_FOUND]'
+  PAYER_ADDRESS: '[Find the address in the ''Bill To:'', ''Customer:'', or ''Payer:'' section (usually middle of document)
+    or NOT_FOUND]'
+  INVOICE_DATE: '[Look for ''Date:'', ''Invoice Date:'', ''Transaction Date:'' label - extract the date value next to it or
+    NOT_FOUND]'
+  LINE_ITEM_DESCRIPTIONS: '[Find the MAIN TABLE/LIST in middle of document - extract ALL product/service names using | character
+    ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]'
+  LINE_ITEM_QUANTITIES: '[In the main table, find ''QTY'' or ''Quantity'' column - list ALL quantity values separated by ''
+    | '' in same order as items or NOT_FOUND]'
+  LINE_ITEM_PRICES: '[Find ''Unit Price'', ''Price Each'', or ''Rate'' column (NOT the total) - list each price per unit separated
+    by '' | '' or NOT_FOUND]'
+  LINE_ITEM_TOTAL_PRICES: '[Find ''Amount'', ''Total'', or ''Line Total'' column (rightmost in table) - list the calculated
+    totals separated by '' | '' or NOT_FOUND]'
+  IS_GST_INCLUDED: '[Check if document shows ''GST'' with a dollar amount anywhere - answer ''true'' if GST amount exists,
+    ''false'' if not]'
+  GST_AMOUNT: '[Look at BOTTOM section for ''GST:'', ''Tax:'', or ''GST 10%'' - extract the dollar amount next to it (e.g.
+    8.62 or $8.62) or NOT_FOUND]'
+  TOTAL_AMOUNT: '[Find the LARGEST dollar amount at BOTTOM - look for ''TOTAL:'', ''Total Due:'', ''Amount Due:'' - extract
+    value with 2 decimals or NOT_FOUND]'

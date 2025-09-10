@@ -30,13 +30,14 @@ from .config import (
 )
 
 
-def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dict]:
+def load_ground_truth(csv_path: str, show_sample: bool = False, verbose: bool = True) -> Dict[str, Dict]:
     """
     Load ground truth data from CSV file.
 
     Args:
         csv_path (str): Path to the ground truth CSV file
         show_sample (bool): Whether to display a sample of the data
+        verbose (bool): Whether to print loading messages
 
     Returns:
         dict: Dictionary mapping image filenames to ground truth data
@@ -51,10 +52,11 @@ def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dic
 
     try:
         ground_truth_df = pd.read_csv(csv_path)
-        print(
-            f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns"
-        )
-        print(f"📋 Available columns: {list(ground_truth_df.columns)}")
+        if verbose:
+            print(
+                f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns"
+            )
+            print(f"📋 Available columns: {list(ground_truth_df.columns)}")
 
     except Exception as e:
         raise ValueError(f"Error reading CSV file: {e}") from e
@@ -72,9 +74,10 @@ def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dic
             f"No image identifier column found. Expected one of: {possible_names}"
         )
 
-    print(f"✅ Using '{image_col}' as image identifier column")
+    if verbose:
+        print(f"✅ Using '{image_col}' as image identifier column")
 
-    if show_sample and len(ground_truth_df) > 0:
+    if show_sample and len(ground_truth_df) > 0 and verbose:
         print("📄 Sample ground truth data:")
         print(ground_truth_df.head(2).to_string(index=False))
 
@@ -86,7 +89,8 @@ def load_ground_truth(csv_path: str, show_sample: bool = False) -> Dict[str, Dic
             continue
         ground_truth_map[str(image_name)] = row.to_dict()
 
-    print(f"✅ Ground truth mapping created for {len(ground_truth_map)} images")
+    if verbose:
+        print(f"✅ Ground truth mapping created for {len(ground_truth_map)} images")
     return ground_truth_map
 
 

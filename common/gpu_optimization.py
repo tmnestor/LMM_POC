@@ -24,11 +24,14 @@ from typing import Any, Dict, Optional
 import torch
 
 
-def configure_cuda_memory_allocation():
+def configure_cuda_memory_allocation(verbose: bool = True):
     """
     Configure CUDA memory allocation to reduce fragmentation (PyTorch forums insights).
 
     Based on: https://discuss.pytorch.org/t/keep-getting-cuda-oom-error-with-pytorch-failing-to-allocate-all-free-memory/133896
+
+    Args:
+        verbose: Whether to print configuration messages
 
     Returns:
         bool: True if configuration was applied, False if running on CPU
@@ -40,7 +43,8 @@ def configure_cuda_memory_allocation():
     if "PYTORCH_CUDA_ALLOC_CONF" in os.environ:
         current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
         if "expandable_segments" in current:
-            print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
+            if verbose:
+                print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
             del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
 
     # Detect GPU type and configure accordingly
@@ -52,7 +56,8 @@ def configure_cuda_memory_allocation():
         # V100: Ultra-aggressive fragmentation prevention
         # 32MB blocks for maximum fragmentation resistance on older architecture
         cuda_alloc_config = "max_split_size_mb:32"
-        print("🎯 V100 detected: Using ultra-aggressive memory settings")
+        if verbose:
+            print("🎯 V100 detected: Using ultra-aggressive memory settings")
     else:
         # Modern GPUs: Standard aggressive settings
         # 64MB blocks for good fragmentation handling
@@ -60,8 +65,9 @@ def configure_cuda_memory_allocation():
 
     # Apply the safe configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
-    print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
-    print("💡 Using 64MB memory blocks to reduce fragmentation")
+    if verbose:
+        print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
+        print("💡 Using 64MB memory blocks to reduce fragmentation")
 
     # Also set cudnn benchmarking for better performance
     torch.backends.cudnn.benchmark = True
@@ -79,33 +85,38 @@ def configure_cuda_memory_allocation():
     return True
 
 
-def clear_model_caches(model: Any, processor: Optional[Any] = None):
+def clear_model_caches(model: Any, processor: Optional[Any] = None, verbose: bool = True):
     """
     Phase 1: Enhanced cache clearing for transformer models.
 
     Args:
         model: The model to clear caches from
         processor: Optional processor/tokenizer to clear caches from
+        verbose: Whether to print cleanup messages
     """
     try:
-        print("🧹 Clearing model caches...")
+        if verbose:
+            print("🧹 Clearing model caches...")
 
         # Clear KV cache if it exists
         if hasattr(model, "past_key_values"):
             model.past_key_values = None
-            print("  - Cleared past_key_values")
+            if verbose:
+                print("  - Cleared past_key_values")
 
         # Clear generation cache
         if hasattr(model, "_past_key_values"):
             model._past_key_values = None
-            print("  - Cleared _past_key_values")
+            if verbose:
+                print("  - Cleared _past_key_values")
 
         # Clear language model caches (for models with separate language model)
         if hasattr(model, "language_model"):
             lang_model = model.language_model
             if hasattr(lang_model, "past_key_values"):
                 lang_model.past_key_values = None
-                print("  - Cleared language_model cache")
+                if verbose:
+                    print("  - Cleared language_model cache")
 
         # Clear vision model caches (for multimodal models)
         if hasattr(model, "vision_model"):
@@ -118,7 +129,8 @@ def clear_model_caches(model: Any, processor: Optional[Any] = None):
         # Clear processor caches if they exist
         if processor and hasattr(processor, "past_key_values"):
             processor.past_key_values = None
-            print("  - Cleared processor cache")
+            if verbose:
+                print("  - Cleared processor cache")
 
         # Clear any cached attention masks or position IDs
         for module in model.modules():
@@ -130,10 +142,12 @@ def clear_model_caches(model: Any, processor: Optional[Any] = None):
                 if hasattr(module.attention_mask, "data"):
                     module.attention_mask = None
 
-        print("✅ Model caches cleared")
+        if verbose:
+            print("✅ Model caches cleared")
 
     except Exception as e:
-        print(f"⚠️ Error clearing caches: {e}")
+        if verbose:
+            print(f"⚠️ Error clearing caches: {e}")
         # Continue anyway - don't fail the entire process
 
 
@@ -157,13 +171,14 @@ def detect_memory_fragmentation() -> tuple[float, float, float]:
         return 0.0, 0.0, 0.0
 
 
-def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = True):
+def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = True, verbose: bool = True):
     """
     Handle GPU memory fragmentation with various strategies.
 
     Args:
         threshold_gb: Fragmentation threshold in GB to trigger cleanup
         aggressive: Whether to use aggressive cleanup strategies
+        verbose: Whether to print fragmentation messages
     """
     if not torch.cuda.is_available():
         return
@@ -173,15 +188,17 @@ def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = Tr
 
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 
-    print(
-        f"🧹 Memory state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB"
-    )
+    if verbose:
+        print(
+            f"🧹 Memory state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB"
+        )
 
     if fragmentation > threshold_gb:
-        print(
-            f"⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap (allocated vs reserved)"
-        )
-        print("🔄 Attempting memory pool reset...")
+        if verbose:
+            print(
+                f"⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap (allocated vs reserved)"
+            )
+            print("🔄 Attempting memory pool reset...")
 
         # Force memory pool cleanup (aggressive strategy)
         torch.cuda.empty_cache()
@@ -252,7 +269,7 @@ def aggressive_defragmentation():
 
 
 def comprehensive_memory_cleanup(
-    model: Optional[Any] = None, processor: Optional[Any] = None
+    model: Optional[Any] = None, processor: Optional[Any] = None, verbose: bool = True
 ):
     """
     Perform comprehensive memory cleanup including cache clearing and defragmentation.
@@ -260,10 +277,11 @@ def comprehensive_memory_cleanup(
     Args:
         model: Optional model to clear caches from
         processor: Optional processor to clear caches from
+        verbose: Whether to print cleanup messages
     """
     # Phase 1: Clear model caches if provided
     if model is not None:
-        clear_model_caches(model, processor)
+        clear_model_caches(model, processor, verbose=verbose)
 
     # Phase 2: Multi-pass garbage collection
     for _ in range(3):
@@ -283,7 +301,7 @@ def comprehensive_memory_cleanup(
         torch.cuda.reset_accumulated_memory_stats()
 
         # Check and handle fragmentation
-        handle_memory_fragmentation(threshold_gb=0.5, aggressive=True)
+        handle_memory_fragmentation(threshold_gb=0.5, aggressive=True, verbose=verbose)
 
 
 class ResilientGenerator:
@@ -504,12 +522,13 @@ def get_available_gpu_memory(device: str = "cuda") -> float:
         return 16.0  # Assume 16GB as default for V100
 
 
-def optimize_model_for_v100(model: Any):
+def optimize_model_for_v100(model: Any, verbose: bool = True):
     """
     Apply V100-specific optimizations to a model.
 
     Args:
         model: The model to optimize
+        verbose: Whether to print optimization messages
     """
     if not torch.cuda.is_available():
         return
@@ -520,4 +539,5 @@ def optimize_model_for_v100(model: Any):
     # Set model to evaluation mode
     model.eval()
 
-    print("🚀 V100 optimizations applied")
+    if verbose:
+        print("🚀 V100 optimizations applied")
