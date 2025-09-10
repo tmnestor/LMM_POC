@@ -155,7 +155,7 @@ field_definitions:
       
     LINE_ITEM_DESCRIPTIONS:
       order: 9
-      instruction: "[pipe-separated list of ALL items or transaction descriptions or NOT_FOUND]"
+      instruction: "[pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]"
       description: "Essential line items / transaction descriptions"
       applicable_documents: [invoice, receipt, bank_statement]
       required: true
@@ -163,7 +163,7 @@ field_definitions:
       
     LINE_ITEM_QUANTITIES:
       order: 10
-      instruction: "[pipe-separated quantities or NOT_FOUND]"
+      instruction: "[pipe-separated quantities using | character ONLY - format: 1 | 2 | 3 - do NOT use commas or NOT_FOUND]"
       description: "Quantities ordered"
       applicable_documents: [invoice, receipt]
       required: true
@@ -171,7 +171,7 @@ field_definitions:
       
     LINE_ITEM_PRICES:
       order: 11
-      instruction: "[pipe-separated unit prices (per item, not totals) or NOT_FOUND]"
+      instruction: "[pipe-separated unit prices using | character ONLY - format: $10.00 | $25.50 | $8.99 - do NOT use commas or NOT_FOUND]"
       description: "Unit prices (price per individual item, NOT total prices)"
       applicable_documents: [invoice, receipt]
       required: true
@@ -179,7 +179,7 @@ field_definitions:
       
     LINE_ITEM_TOTAL_PRICES:
       order: 12
-      instruction: "[pipe-separated line totals from 'Amount' column or NOT_FOUND]"
+      instruction: "[pipe-separated line totals using | character ONLY - format: $10.00 | $51.00 | $44.95 - do NOT use commas or NOT_FOUND]"
       description: "Total price per line item (quantity × unit price), often labeled 'Amount' in documents"
       applicable_documents: [invoice, receipt]
       required: true
@@ -299,7 +299,7 @@ field_definitions:
       
     LINE_ITEM_DESCRIPTIONS:
       order: 9
-      instruction: "[Find the MAIN TABLE/LIST in middle of document - extract ALL product/service names from the description column, separate with ' | ' or NOT_FOUND]"
+      instruction: "[Find the MAIN TABLE/LIST in middle of document - extract ALL product/service names using | character ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]"
       description: "Essential line items / transaction descriptions"
       applicable_documents: [invoice, receipt, bank_statement]
       required: true
@@ -626,7 +626,7 @@ prompt_templates:
     format_rules_header: "RULES:"
     format_rules:
       - "Use exact text from document"
-      - "Use pipe separators for lists"
+      - "CRITICAL: Use ONLY pipe separators (|) for lists - NEVER use commas for LINE_ITEM fields"
       - "Be conservative: use NOT_FOUND if field is truly missing"
     stop_instruction: "STOP AFTER the {last_field}. Do not add explanations or comments."
   
@@ -854,10 +854,10 @@ universal_extraction:
       BUSINESS_ADDRESS: Complete supplier business address - return "NOT_FOUND" if not visible
       PAYER_NAME: Customer/payer name - return "NOT_FOUND" if not visible
       PAYER_ADDRESS: Customer/payer address - return "NOT_FOUND" if not visible
-      LINE_ITEM_DESCRIPTIONS: Item names/descriptions (separate with " | ") - return "NOT_FOUND" if not visible. Example: "Widget A | Service B | Product C"
-      LINE_ITEM_QUANTITIES: Item quantities (separate with " | ") - return "NOT_FOUND" if not visible. Example: "1 | 2 | 5"
-      LINE_ITEM_PRICES: Individual item unit prices (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $25.50 | $8.99"
-      LINE_ITEM_TOTAL_PRICES: Item total prices (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $51.00 | $44.95"
+      LINE_ITEM_DESCRIPTIONS: Item names/descriptions (separate with " | " ONLY - NEVER use commas) - return "NOT_FOUND" if not visible. Example: "Widget A | Service B | Product C"
+      LINE_ITEM_QUANTITIES: Item quantities (separate with " | " ONLY - NEVER use commas) - return "NOT_FOUND" if not visible. Example: "1 | 2 | 5"
+      LINE_ITEM_PRICES: Individual item unit prices (separate with " | " ONLY - NEVER use commas, include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $25.50 | $8.99"
+      LINE_ITEM_TOTAL_PRICES: Item total prices (separate with " | " ONLY - NEVER use commas, include $ symbol) - return "NOT_FOUND" if not visible. Example: "$10.00 | $51.00 | $44.95"
       GST_AMOUNT: GST/tax amount (with $ symbol) - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: true/false - whether GST is included in total - return "NOT_FOUND" if not visible
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
@@ -924,10 +924,10 @@ universal_extraction:
       BUSINESS_ADDRESS: Complete supplier business address (multi-line acceptable) - return "NOT_FOUND" if not visible
       PAYER_NAME: Customer/payer name (from Bill To/Customer section) - return "NOT_FOUND" if not visible
       PAYER_ADDRESS: Customer/payer address (from Bill To/Customer section) - return "NOT_FOUND" if not visible
-      LINE_ITEM_DESCRIPTIONS: Item/service names from itemized list (separate with " | ") - return "NOT_FOUND" if not visible
-      LINE_ITEM_QUANTITIES: Quantities for each item (separate with " | ", match description order) - return "NOT_FOUND" if not visible
-      LINE_ITEM_PRICES: Unit price for each item (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
-      LINE_ITEM_TOTAL_PRICES: Total price per line item (separate with " | ", include $ symbol) - return "NOT_FOUND" if not visible
+      LINE_ITEM_DESCRIPTIONS: Item/service names from itemized list (separate with " | " ONLY - NEVER use commas) - return "NOT_FOUND" if not visible
+      LINE_ITEM_QUANTITIES: Quantities for each item (separate with " | " ONLY - NEVER use commas, match description order) - return "NOT_FOUND" if not visible
+      LINE_ITEM_PRICES: Unit price for each item (separate with " | " ONLY - NEVER use commas, include $ symbol) - return "NOT_FOUND" if not visible
+      LINE_ITEM_TOTAL_PRICES: Total price per line item (separate with " | " ONLY - NEVER use commas, include $ symbol) - return "NOT_FOUND" if not visible
       GST_AMOUNT: GST/tax amount (include $ symbol, e.g., "$8.62") - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
