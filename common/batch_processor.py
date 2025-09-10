@@ -82,8 +82,7 @@ class BatchDocumentProcessor:
                     extractor=self.extractor,
                     detection_prompt_file=self.prompt_config['detection_file'],
                     prompt_files=self.prompt_config['extraction_files'],
-                    detection_prompt_key=self.prompt_config['detection_key'],
-                    verbose=False
+                    detection_prompt_key=self.prompt_config['detection_key']
                 )
                 
                 # Track document types
@@ -93,23 +92,20 @@ class BatchDocumentProcessor:
                 extraction_prompt, prompt_name, _ = load_document_prompt(
                     prompt_files=self.prompt_config['extraction_files'],
                     prompt_keys=self.prompt_config['extraction_keys'],
-                    document_type=document_type,
-                    verbose=False
+                    document_type=document_type
                 )
                 
                 # Step 3: Extract fields
                 extraction_result = self.extractor.test_extraction(
                     image_path,
-                    extraction_prompt,
-                    verbose=False
+                    extraction_prompt
                 )
                 
                 # Step 4: Evaluate against ground truth
                 evaluation = self.evaluator.evaluate_extraction(
                     test_result=extraction_result,
                     document_type=document_type,
-                    image_path=image_path,
-                    verbose=False
+                    image_path=image_path
                 )
                 
                 # Record processing time
