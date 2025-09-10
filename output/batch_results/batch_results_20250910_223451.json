@@ -1,12 +1,12 @@
 {
   "metadata": {
-    "batch_id": "20250910_050252",
-    "timestamp": "2025-09-10T05:17:45.240870",
+    "batch_id": "20250910_223451",
+    "timestamp": "2025-09-10T22:50:01.015154",
     "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
-    "total_images": 13,
-    "successful_extractions": 13,
-    "average_accuracy": 41.510989010989015,
-    "total_processing_time": 881.4773721694946,
+    "total_images": 12,
+    "successful_extractions": 12,
+    "average_accuracy": 45.734126984126995,
+    "total_processing_time": 876.2332677841187,
     "deployment_status": "Needs Improvement"
   },
   "configuration": {
@@ -23,19 +23,19 @@
     }
   },
   "summary_statistics": {
-    "Total Images": 13.0,
-    "Successful Extractions": 13.0,
+    "Total Images": 12.0,
+    "Successful Extractions": 12.0,
     "Failed Extractions": 0.0,
-    "Average Accuracy (%)": 41.510989010989015,
-    "Median Accuracy (%)": 38.21428571428571,
+    "Average Accuracy (%)": 45.734126984126995,
+    "Median Accuracy (%)": 48.6904761904762,
     "Min Accuracy (%)": 0.0,
-    "Max Accuracy (%)": 85.71428571428571,
-    "Average Processing Time (s)": 67.80595170534573,
-    "Total Processing Time (s)": 881.4773721694946,
-    "Throughput (images/min)": 0.8848780747261406
+    "Max Accuracy (%)": 92.85714285714286,
+    "Average Processing Time (s)": 73.01943898200989,
+    "Total Processing Time (s)": 876.2332677841187,
+    "Throughput (images/min)": 0.8216990001084842
   },
   "document_type_distribution": {
-    "BANK_STATEMENT": 7,
+    "BANK_STATEMENT": 6,
     "RECEIPT": 3,
     "INVOICE": 3
   },
@@ -44,7 +44,7 @@
       "image_name": "anz_statement_001.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 69.5810968875885,
+      "processing_time": 92.51561045646667,
       "evaluation_summary": {
         "overall_accuracy": 0.14285714285714285,
         "fields_extracted": 0,
@@ -56,31 +56,19 @@
       "image_name": "commbank_flat_complex.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 185.79274225234985,
+      "processing_time": 232.18821120262146,
       "evaluation_summary": {
-        "overall_accuracy": 0.3821428571428571,
+        "overall_accuracy": 0.35000000000000003,
         "fields_extracted": 0,
         "fields_matched": 0,
         "total_fields": 7
       }
     },
     {
-      "image_name": "commbank_flat_complex_debit_credit.png",
-      "document_type": "BANK_STATEMENT",
-      "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 186.86590123176575,
-      "evaluation_summary": {
-        "overall_accuracy": 0,
-        "fields_extracted": 0,
-        "fields_matched": 0,
-        "total_fields": 0
-      }
-    },
-    {
       "image_name": "commbank_flat_simple.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 46.2212119102478,
+      "processing_time": 61.29265284538269,
       "evaluation_summary": {
         "overall_accuracy": 0.8,
         "fields_extracted": 0,
@@ -92,7 +80,7 @@
       "image_name": "commbank_statement_001.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 78.84891176223755,
+      "processing_time": 92.87852668762207,
       "evaluation_summary": {
         "overall_accuracy": 0.14285714285714285,
         "fields_extracted": 0,
@@ -104,9 +92,9 @@
       "image_name": "image_001.png",
       "document_type": "RECEIPT",
       "prompt_used": "Standard Receipt Extraction",
-      "processing_time": 26.739562034606934,
+      "processing_time": 34.499414682388306,
       "evaluation_summary": {
-        "overall_accuracy": 0.7142857142857143,
+        "overall_accuracy": 0.7857142857142857,
         "fields_extracted": 0,
         "fields_matched": 0,
         "total_fields": 14
@@ -116,9 +104,9 @@
       "image_name": "image_002.png",
       "document_type": "RECEIPT",
       "prompt_used": "Standard Receipt Extraction",
-      "processing_time": 28.642139196395874,
+      "processing_time": 34.09664344787598,
       "evaluation_summary": {
-        "overall_accuracy": 0.7142857142857143,
+        "overall_accuracy": 0.6238095238095239,
         "fields_extracted": 0,
         "fields_matched": 0,
         "total_fields": 14
@@ -128,9 +116,9 @@
       "image_name": "image_004.png",
       "document_type": "RECEIPT",
       "prompt_used": "Standard Receipt Extraction",
-      "processing_time": 23.122457265853882,
+      "processing_time": 29.64012622833252,
       "evaluation_summary": {
-        "overall_accuracy": 0.7142857142857143,
+        "overall_accuracy": 0.7857142857142857,
         "fields_extracted": 0,
         "fields_matched": 0,
         "total_fields": 14
@@ -140,9 +128,9 @@
       "image_name": "image_005.png",
       "document_type": "INVOICE",
       "prompt_used": "Standard Invoice Extraction",
-      "processing_time": 27.66334581375122,
+      "processing_time": 35.289634466171265,
       "evaluation_summary": {
-        "overall_accuracy": 0.8571428571428571,
+        "overall_accuracy": 0.9285714285714286,
         "fields_extracted": 0,
         "fields_matched": 0,
         "total_fields": 14
@@ -152,7 +140,7 @@
       "image_name": "image_006.png",
       "document_type": "INVOICE",
       "prompt_used": "Standard Invoice Extraction",
-      "processing_time": 34.31359505653381,
+      "processing_time": 45.32453203201294,
       "evaluation_summary": {
         "overall_accuracy": 0.0,
         "fields_extracted": 0,
@@ -164,7 +152,7 @@
       "image_name": "image_007.png",
       "document_type": "INVOICE",
       "prompt_used": "Standard Invoice Extraction",
-      "processing_time": 27.894833087921143,
+      "processing_time": 35.77212333679199,
       "evaluation_summary": {
         "overall_accuracy": 0.6428571428571429,
         "fields_extracted": 0,
@@ -176,7 +164,7 @@
       "image_name": "nab_statement_001.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 76.86459827423096,
+      "processing_time": 95.08061623573303,
       "evaluation_summary": {
         "overall_accuracy": 0.14285714285714285,
         "fields_extracted": 0,
@@ -188,7 +176,7 @@
       "image_name": "westpac_statement_001.png",
       "document_type": "BANK_STATEMENT",
       "prompt_used": "Flat Bank Statement Extraction",
-      "processing_time": 68.92697739601135,
+      "processing_time": 87.65517616271973,
       "evaluation_summary": {
         "overall_accuracy": 0.14285714285714285,
         "fields_extracted": 0,
