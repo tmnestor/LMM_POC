@@ -21,7 +21,7 @@ class PromptLoader:
         self.console = Console()
 
     def load_prompt(
-        self, prompt_file: str, prompt_key: str, document_type: str
+        self, prompt_file: str, prompt_key: str, document_type: str, verbose: bool = True
     ) -> tuple[str, str, str]:
         """Load a specific prompt from a YAML file.
 
@@ -38,9 +38,10 @@ class PromptLoader:
             KeyError: If the prompt key is not found
             yaml.YAMLError: If the YAML is invalid
         """
-        rprint(f"[cyan]📁 Document type: {document_type}[/cyan]")
-        rprint(f"[cyan]📁 Prompt file: {prompt_file}[/cyan]")
-        rprint(f"[cyan]🔑 Selected prompt: {prompt_key}[/cyan]")
+        if verbose:
+            rprint(f"[cyan]📁 Document type: {document_type}[/cyan]")
+            rprint(f"[cyan]📁 Prompt file: {prompt_file}[/cyan]")
+            rprint(f"[cyan]🔑 Selected prompt: {prompt_key}[/cyan]")
 
         try:
             prompt_path = Path(prompt_file)
@@ -65,9 +66,10 @@ class PromptLoader:
                 prompt_name = prompt_data.get("name", prompt_key)
                 prompt_description = prompt_data.get("description", "")
 
-                rprint(f"[green]✅ Loaded prompt: {prompt_name}[/green]")
-                if prompt_description:
-                    rprint(f"[dim]{prompt_description}[/dim]")
+                if verbose:
+                    rprint(f"[green]✅ Loaded prompt: {prompt_name}[/green]")
+                    if prompt_description:
+                        rprint(f"[dim]{prompt_description}[/dim]")
             else:
                 available_keys = list(prompt_config.get("prompts", {}).keys())
                 rprint(
@@ -82,7 +84,7 @@ class PromptLoader:
 
             # Load settings if available
             settings = prompt_config.get("settings", {})
-            if settings:
+            if settings and verbose:
                 rprint("[dim]📊 Loaded settings from YAML:[/dim]")
                 for key, value in settings.items():
                     rprint(f"[dim]  • {key}: {value}[/dim]")
@@ -173,7 +175,7 @@ class PromptLoader:
 
 
 def load_document_prompt(
-    prompt_files: dict, prompt_keys: dict, document_type: str
+    prompt_files: dict, prompt_keys: dict, document_type: str, verbose: bool = True
 ) -> tuple[str, str, str]:
     """Convenience function to load a document-specific prompt.
 
@@ -181,6 +183,7 @@ def load_document_prompt(
         prompt_files: Dictionary mapping document types to prompt files
         prompt_keys: Dictionary mapping document types to prompt keys
         document_type: Type of document to load prompt for
+        verbose: Whether to display loading information
 
     Returns:
         Tuple of (prompt_text, prompt_name, prompt_description)
@@ -190,17 +193,18 @@ def load_document_prompt(
 
     loader = PromptLoader()
     prompt_text, prompt_name, prompt_description = loader.load_prompt(
-        prompt_file, prompt_key, document_type
+        prompt_file, prompt_key, document_type, verbose=verbose
     )
 
-    # Display the prompt information
-    loader.display_prompt_info(
-        prompt_text,
-        prompt_name,
-        prompt_description,
-        document_type,
-        prompt_file,
-        prompt_key,
-    )
+    # Display the prompt information only if verbose
+    if verbose:
+        loader.display_prompt_info(
+            prompt_text,
+            prompt_name,
+            prompt_description,
+            document_type,
+            prompt_file,
+            prompt_key,
+        )
 
     return prompt_text, prompt_name, prompt_description

@@ -136,7 +136,8 @@ class BatchDocumentProcessor:
                 extraction_prompt, prompt_name, _ = load_document_prompt(
                     prompt_files=self.prompt_config['extraction_files'],
                     prompt_keys=self.prompt_config['extraction_keys'],
-                    document_type=document_type
+                    document_type=document_type,
+                    verbose=verbose
                 )
                 
                 # Step 3: Extract fields using DocumentAwareLlamaProcessor directly
