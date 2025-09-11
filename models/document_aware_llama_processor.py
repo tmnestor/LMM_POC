@@ -329,14 +329,15 @@ class DocumentAwareLlamaProcessor:
             prompt = self.generate_dynamic_prompt(document_type=document_type)
 
             if self.debug:
-                print(f"📝 Generated prompt for {self.field_count} fields")
-                print(
-                    f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}"
-                )
-                print(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):")
-                print("=" * 80)
-                print(prompt)
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write(f"📝 Generated prompt for {self.field_count} fields\n")
+                sys.stdout.write(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n")
+                sys.stdout.write(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(prompt + "\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
 
             # Create multimodal conversation
             messages = [
@@ -393,10 +394,13 @@ class DocumentAwareLlamaProcessor:
                 response = full_response.strip()
 
             if self.debug:
-                print(f"📄 RAW MODEL RESPONSE ({len(response)} chars):")
-                print("=" * 80)
-                print(response)
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write(f"📄 RAW MODEL RESPONSE ({len(response)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(response + "\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
 
             # Parse response using robust extraction parser with field filtering
             from common.extraction_parser import parse_extraction_response
@@ -406,13 +410,16 @@ class DocumentAwareLlamaProcessor:
             )
 
             if self.debug:
-                print("📊 PARSED EXTRACTION RESULTS:")
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write("📊 PARSED EXTRACTION RESULTS:\n")
+                sys.stdout.write("=" * 80 + "\n")
                 for field in self.field_list:
                     value = extracted_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
-                    print(f'  {status} {field}: "{value}"')
-                print("=" * 80)
+                    sys.stdout.write(f'  {status} {field}: "{value}"\n')
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
 
                 found_fields = [
                     k for k, v in extracted_data.items() if v != "NOT_FOUND"
@@ -576,12 +583,15 @@ class DocumentAwareLlamaProcessor:
             universal_prompt = self.yaml_renderer.render_universal_prompt(model_name="llama")
             
             if self.debug:
-                print(f"🌍 Universal field list: {len(universal_fields)} fields")
-                print(f"   Fields: {universal_fields[:3]}...{universal_fields[-2:]}")
-                print(f"🔍 UNIVERSAL PROMPT ({len(universal_prompt)} chars):")
-                print("=" * 80)
-                print(universal_prompt)
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write(f"🌍 Universal field list: {len(universal_fields)} fields\n")
+                sys.stdout.write(f"   Fields: {universal_fields[:3]}...{universal_fields[-2:]}\n")
+                sys.stdout.write(f"🔍 UNIVERSAL PROMPT ({len(universal_prompt)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(universal_prompt + "\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
             
             # Create multimodal conversation with universal prompt
             messages = [
@@ -637,10 +647,13 @@ class DocumentAwareLlamaProcessor:
                 response = full_response.strip()
             
             if self.debug:
-                print(f"📄 RAW UNIVERSAL RESPONSE ({len(response)} chars):")
-                print("=" * 80)
-                print(response)
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write(f"📄 RAW UNIVERSAL RESPONSE ({len(response)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(response + "\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
             
             # Parse response using robust extraction parser
             from common.extraction_parser import parse_extraction_response
@@ -679,13 +692,16 @@ class DocumentAwareLlamaProcessor:
                     inferred_doc_type = "receipt"  # Default fallback
             
             if self.debug:
-                print("📊 UNIVERSAL EXTRACTION RESULTS:")
-                print("=" * 80)
+                # Use direct stdout to bypass Rich console completely
+                import sys
+                sys.stdout.write("📊 UNIVERSAL EXTRACTION RESULTS:\n")
+                sys.stdout.write("=" * 80 + "\n")
                 for field in universal_fields:
                     value = cleaned_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
-                    print(f'  {status} {field}: "{value}"')
-                print("=" * 80)
+                    sys.stdout.write(f'  {status} {field}: "{value}"\n')
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
                 
                 found_fields = [k for k, v in cleaned_data.items() if v != "NOT_FOUND"]
                 print(f"✅ Universal extraction: {len(found_fields)}/{len(universal_fields)} fields found")
