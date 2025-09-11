@@ -159,6 +159,7 @@ class DocumentTypeEvaluator:
                 extracted_data.get(field, "NOT_FOUND"),
                 ground_truth.get(field, "NOT_FOUND"),
                 field in metrics.critical_fields,
+                field_name=field
             )
             results["field_scores"][field] = score
             required_scores.append(score["accuracy"])
@@ -171,6 +172,7 @@ class DocumentTypeEvaluator:
                     extracted_data.get(field, "NOT_FOUND"),
                     ground_truth.get(field, "NOT_FOUND"),
                     False,  # Optional fields are not critical
+                    field_name=field
                 )
                 results["field_scores"][field] = score
                 optional_scores.append(score["accuracy"])
@@ -211,7 +213,7 @@ class DocumentTypeEvaluator:
         return results
 
     def _calculate_field_score(
-        self, extracted: Any, truth: Any, is_critical: bool
+        self, extracted: Any, truth: Any, is_critical: bool, field_name: str = None
     ) -> Dict[str, Any]:
         """Calculate score for a single field."""
 
@@ -233,6 +235,21 @@ class DocumentTypeEvaluator:
                 "is_critical": is_critical,
             }
 
+        # Check if this is a currency/numeric field
+        currency_fields = [
+            "TOTAL_AMOUNT", "GST_AMOUNT", "SUBTOTAL_AMOUNT",
+            "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+            "ACCOUNT_CLOSING_BALANCE", "ACCOUNT_OPENING_BALANCE"
+        ]
+        
+        if field_name and field_name in currency_fields:
+            # Normalize currency values for comparison
+            extracted_normalized = self._normalize_currency(extracted_str)
+            truth_normalized = self._normalize_currency(truth_str)
+            
+            if extracted_normalized == truth_normalized:
+                return {"accuracy": 1.0, "match_type": "exact"}
+
         # Exact match
         if extracted_str.lower() == truth_str.lower():
             return {"accuracy": 1.0, "match_type": "exact"}
@@ -242,6 +259,27 @@ class DocumentTypeEvaluator:
             return {"accuracy": 0.8, "match_type": "fuzzy"}
 
         return {"accuracy": 0.0, "match_type": "mismatch", "is_critical": is_critical}
+
+    def _normalize_currency(self, value: str) -> str:
+        """Normalize currency values for comparison."""
+        import re
+        
+        # Remove currency symbols, whitespace, and commas
+        normalized = re.sub(r'[$,\s]', '', value)
+        
+        # Handle negative values in parentheses
+        if '(' in normalized and ')' in normalized:
+            normalized = '-' + re.sub(r'[()]', '', normalized)
+        
+        # Ensure it's a valid number format
+        try:
+            # Convert to float and back to string to normalize decimal places
+            float_val = float(normalized)
+            # Format to 2 decimal places for currency
+            return f"{float_val:.2f}"
+        except (ValueError, TypeError):
+            # If not a valid number, return the cleaned string
+            return normalized
 
     def _fuzzy_match(self, str1: str, str2: str, threshold: float = 0.8) -> bool:
         """Simple fuzzy matching for text fields."""
