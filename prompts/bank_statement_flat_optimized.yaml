@@ -52,18 +52,18 @@ prompts:
       
       4. **Date Format**: Use dates exactly as shown in the Date column
       
-      Example Output:
-      BANK_NAME: Commonwealth Bank
-      BANK_BSB_NUMBER: 063 140
-      BANK_ACCOUNT_NUMBER: 4577691
-      BANK_ACCOUNT_HOLDER: Sophie Martin
-      ACCOUNT_OPENING_BALANCE: $13387.44
-      ACCOUNT_CLOSING_BALANCE: $16288.08
-      STATEMENT_DATE_RANGE: 03/05/2025 to 10/05/2025
+      Example Format:
+      BANK_NAME: [Extract bank name from header]
+      BANK_BSB_NUMBER: [Extract 6-digit BSB number]
+      BANK_ACCOUNT_NUMBER: [Extract account number]
+      BANK_ACCOUNT_HOLDER: [Extract account holder name]
+      ACCOUNT_OPENING_BALANCE: [Extract opening balance]
+      ACCOUNT_CLOSING_BALANCE: [Extract closing balance]
+      STATEMENT_DATE_RANGE: [Extract statement period]
       DOCUMENT_TYPE: STATEMENT
-      LINE_ITEM_DESCRIPTIONS: ONLINE PURCHASE AMAZON AU | EFTPOS PURCHASE COLES EXP | DIRECT CREDIT SALARY
-      TRANSACTION_DATES: 03/05/2025 | 04/05/2025 | 06/05/2025
-      TRANSACTION_AMOUNTS_PAID: $288.03 | $22.50 | $3497.47
+      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      TRANSACTION_DATES: [date1 | date2 | date3]
+      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
 
   legacy_compatible:
     name: "Legacy Compatible Flat Extraction"

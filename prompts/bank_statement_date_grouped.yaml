@@ -70,14 +70,14 @@ prompts:
       - Include amounts from both debit and credit transactions
       - Maintain consistent ordering across all fields
       
-      ## EXAMPLE OUTPUT FORMAT:
-      BANK_NAME: Commonwealth Bank of Australia
-      BANK_ACCOUNT_HOLDER: DAVID ROBERT BROWN
-      STATEMENT_DATE_RANGE: 07 Aug 2025 to 06 Sep 2025
+      ## EXPECTED OUTPUT FORMAT:
+      BANK_NAME: [Extract bank name from header]
+      BANK_ACCOUNT_HOLDER: [Extract account holder name]
+      STATEMENT_DATE_RANGE: [Extract statement period]
       DOCUMENT_TYPE: STATEMENT
-      LINE_ITEM_DESCRIPTIONS: Direct Debit DOMINO'S PTY LTD | Monthly Service Fee | Home Loan Payment LN REPAY
-      TRANSACTION_DATES: 04/09/2025 | 01/09/2025 | 23/08/2025
-      TRANSACTION_AMOUNTS_PAID: $117.57 | $17.60 | $1918.75
+      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
 
   simplified_grouped:
     name: "Simplified Date-Grouped Extraction"  
