@@ -112,42 +112,43 @@ class BatchDocumentProcessor:
                     document_type=document_type
                 )
                 
-                # Step 3: Extract fields
-                extraction_result = self.extractor.test_extraction(
-                    image_path,
-                    extraction_prompt
+                # Step 3: Extract fields using document-aware processor
+                # Use the working DocumentAwareLlamaProcessor approach instead of bank-specific extractor
+                from common.unified_schema import DocumentTypeFieldSchema
+                from models.document_aware_llama_processor import (
+                    DocumentAwareLlamaProcessor,
                 )
+                
+                # Get document-specific fields for this document type
+                schema_loader = DocumentTypeFieldSchema()
+                field_list = schema_loader.get_field_list_for_document_type(document_type)
+                
+                # Create document-aware processor with the model/processor from extractor
+                doc_processor = DocumentAwareLlamaProcessor(
+                    field_list=field_list,
+                    skip_model_loading=True,  # Reuse existing model
+                    debug=verbose
+                )
+                # Inject the existing model and processor
+                doc_processor.model = self.extractor.model
+                doc_processor.processor = self.extractor.processor
+                
+                # Use the working extraction method
+                extraction_result = doc_processor.process_single_image(image_path)
                 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name
                 ground_truth = self.ground_truth_data.get(image_name, {}) if self.ground_truth_data else {}
                 
                 if ground_truth:
-                    # Extract the actual extracted_data from the result (working approach)
-                    # Debug: Show extraction_result structure
+                    # Extract data using working DocumentAwareLlamaProcessor format
+                    # DocumentAwareLlamaProcessor returns extracted_data at top level
+                    extracted_data = extraction_result.get("extracted_data", {})
+                    
                     if verbose:
                         rprint(f"[dim]DEBUG: extraction_result keys: {list(extraction_result.keys())}[/dim]")
-                        if "raw_result" in extraction_result:
-                            rprint(f"[dim]DEBUG: raw_result keys: {list(extraction_result['raw_result'].keys())}[/dim]")
-                    
-                    extracted_data = extraction_result.get("raw_result", {}).get("extracted_data", {})
-                    if not extracted_data:
-                        # Fallback: try to get from top level (different extractor formats)
-                        extracted_data = extraction_result.get("extracted_data", {})
-                    
-                    if not extracted_data:
-                        # Last resort: try to parse the raw response like the document-aware system does
-                        raw_response = extraction_result.get("raw_result", {}).get("raw_response", "")
-                        if raw_response:
-                            # Import the same parsing logic used by document-aware system
-                            from .extraction_parser import parse_extraction_response
-                            from .response_preprocessing import clean_markdown_response
-                            
-                            cleaned_response = clean_markdown_response(raw_response)
-                            extracted_data = parse_extraction_response(cleaned_response)
-                            
-                            if verbose:
-                                rprint(f"[dim]DEBUG: Parsed {len([k for k, v in extracted_data.items() if v != 'NOT_FOUND'])} fields from raw response[/dim]")
+                        found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+                        rprint(f"[dim]DEBUG: Found {len(found_fields)} fields from DocumentAwareLlamaProcessor[/dim]")
                     
                     # Use the working DocumentTypeEvaluator approach that succeeds
                     evaluation = self.document_evaluator.evaluate_extraction(
