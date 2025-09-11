@@ -84,8 +84,8 @@ class BatchDocumentProcessor:
             rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
             self.console.rule("[bold green]Batch Extraction[/bold green]")
         
-        # Process each image
-        iterator = track(image_paths, description="Processing images...") if verbose else image_paths
+        # Process each image - always show progress bar, even when not verbose
+        iterator = track(image_paths, description="Processing images...")
         
         for idx, image_path in enumerate(iterator, 1):
             image_name = Path(image_path).name

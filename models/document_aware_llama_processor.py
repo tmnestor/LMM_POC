@@ -448,7 +448,7 @@ class DocumentAwareLlamaProcessor:
 
             # Cleanup with V100 optimizations
             del inputs, output, image
-            comprehensive_memory_cleanup(self.model, self.processor)
+            comprehensive_memory_cleanup(self.model, self.processor, verbose=self.debug)
 
             return {
                 "image_name": Path(image_path).name,
@@ -550,7 +550,7 @@ class DocumentAwareLlamaProcessor:
 
             # Cleanup with V100 optimizations
             del inputs, output, image
-            comprehensive_memory_cleanup(self.model, self.processor)
+            comprehensive_memory_cleanup(self.model, self.processor, verbose=self.debug)
 
             return response
 
@@ -725,7 +725,7 @@ class DocumentAwareLlamaProcessor:
             
             # Memory cleanup with V100 optimizations
             del inputs, output, image
-            comprehensive_memory_cleanup(self.model, self.processor)
+            comprehensive_memory_cleanup(self.model, self.processor, verbose=self.debug)
             
             processing_time = time.time() - start_time
             

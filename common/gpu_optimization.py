@@ -76,11 +76,13 @@ def configure_cuda_memory_allocation(verbose: bool = True):
     try:
         allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
         reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
-        print(
-            f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
-        )
+        if verbose:
+            print(
+                f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
+            )
     except Exception as e:
-        print(f"⚠️ Could not check initial CUDA state: {e}")
+        if verbose:
+            print(f"⚠️ Could not check initial CUDA state: {e}")
 
     return True
 
