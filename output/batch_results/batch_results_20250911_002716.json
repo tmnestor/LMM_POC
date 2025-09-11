@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "batch_id": "20250911_002716",
+    "timestamp": "2025-09-11T00:28:12.270264",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 1,
+    "successful_extractions": 1,
+    "average_accuracy": 28.57142857142857,
+    "total_processing_time": 45.958353996276855,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 1.0,
+    "Successful Extractions": 1.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 28.57142857142857,
+    "Median Accuracy (%)": 28.57142857142857,
+    "Min Accuracy (%)": 28.57142857142857,
+    "Max Accuracy (%)": 28.57142857142857,
+    "Average Processing Time (s)": 45.958353996276855,
+    "Total Processing Time (s)": 45.958353996276855,
+    "Throughput (images/min)": 1.3055297847451341
+  },
+  "document_type_distribution": {
+    "INVOICE": 1
+  },
+  "results": [
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 45.958353996276855,
+      "evaluation_summary": {
+        "overall_accuracy": 0.2857142857142857,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 14
+      }
+    }
+  ]
+}
