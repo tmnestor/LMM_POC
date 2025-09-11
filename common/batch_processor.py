@@ -104,10 +104,10 @@ class BatchDocumentProcessor:
                 with detection_path.open('r') as f:
                     detection_config = yaml.safe_load(f)
                 
-                # Get Llama-specific prompt
-                llama_config = detection_config["detection_prompts"]["llama"]
-                doc_type_prompt = llama_config["user_prompt"]
-                max_tokens = llama_config.get("max_tokens", 50)
+                # Get detection prompt and settings
+                detection_prompt_key = detection_config.get("settings", {}).get("default_prompt", "detection")
+                doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
+                max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
                 
                 # Create simple processor for detection only
                 from models.document_aware_llama_processor import (
@@ -248,36 +248,25 @@ class BatchDocumentProcessor:
     def _parse_document_type_response(self, response: str, detection_config: dict) -> str:
         """Parse document type response using YAML-configured type mappings."""
         if not response:
-            return detection_config["detection_config"].get(
-                "fallback_type", "invoice"
-            )
+            return detection_config.get("settings", {}).get("fallback_type", "INVOICE")
 
         response_lower = response.lower().strip()
 
-        # First try to extract any document type mentioned in response
-        raw_type = None
-        supported_types = detection_config.get("supported_types", [])
+        # First try direct match for standard types
+        standard_types = ["INVOICE", "RECEIPT", "BANK_STATEMENT"]
+        for doc_type in standard_types:
+            if doc_type.lower() in response_lower:
+                return doc_type
 
-        for doc_type in supported_types:
-            if doc_type in response_lower:
-                raw_type = doc_type
-                break
-
-        # If no direct match, look in type mappings
-        if not raw_type:
-            type_mappings = detection_config.get("type_mappings", {})
-            for variant, canonical in type_mappings.items():
-                if variant.lower() in response_lower:
-                    raw_type = canonical
-                    break
+        # Look in type mappings for variations
+        type_mappings = detection_config.get("type_mappings", {})
+        for variant, canonical in type_mappings.items():
+            if variant.lower() in response_lower:
+                return canonical
 
         # Final fallback
-        if not raw_type:
-            raw_type = detection_config["detection_config"].get(
-                "fallback_type", "invoice"
-            )
-
-        return raw_type.upper()
+        fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
+        return fallback
     
     def _display_detailed_field_comparison(
         self, image_name: str, extracted_data: dict, ground_truth: dict, 
