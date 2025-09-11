@@ -88,7 +88,7 @@ class DocumentDetector:
             prompt_files: Dictionary mapping document types to prompt files
 
         Returns:
-            Detected document type (INVOICE, RECEIPT, or BANK_STATEMENT)
+            Detected document type (INVOICE, RECEIPT, BANK_STATEMENT, or ESTIMATE)
         """
         if not image_path:
             rprint("[red]❌ No image path available for detection[/red]")
@@ -152,10 +152,12 @@ class DocumentDetector:
                 break
 
         # Ensure we have a valid document type
-        if detected_type not in ["INVOICE", "RECEIPT", "BANK_STATEMENT", "STATEMENT"]:
+        if detected_type not in ["INVOICE", "RECEIPT", "BANK_STATEMENT", "STATEMENT", "ESTIMATE"]:
             # Try to extract from response
             if "INVOICE" in detected_type or "BILL" in detected_type:
                 detected_type = "INVOICE"
+            elif "ESTIMATE" in detected_type or "QUOTE" in detected_type:
+                detected_type = "ESTIMATE"
             elif "RECEIPT" in detected_type:
                 detected_type = "RECEIPT"
             elif "STATEMENT" in detected_type or "BANK" in detected_type:
@@ -214,7 +216,7 @@ def detect_document_type(
         detection_prompt_key: Key of the prompt to use from the YAML file
 
     Returns:
-        Detected document type (INVOICE, RECEIPT, or BANK_STATEMENT)
+        Detected document type (INVOICE, RECEIPT, BANK_STATEMENT, or ESTIMATE)
     """
     detector = DocumentDetector(detection_prompt_file, detection_prompt_key)
     return detector.detect_document_type(image_path, extractor, prompt_files)
