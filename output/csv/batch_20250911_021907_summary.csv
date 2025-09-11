@@ -1,0 +1,11 @@
+,Value
+Total Images,4.0
+Successful Extractions,4.0
+Failed Extractions,0.0
+Average Accuracy (%),89.64285714285714
+Median Accuracy (%),90.71428571428572
+Min Accuracy (%),80.0
+Max Accuracy (%),97.14285714285714
+Average Processing Time (s),37.12027955055237
+Total Processing Time (s),148.48111820220947
+Throughput (images/min),1.6163671374912145

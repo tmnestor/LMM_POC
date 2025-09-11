@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "batch_id": "20250911_025948",
+    "timestamp": "2025-09-11T03:02:22.187689",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 4,
+    "successful_extractions": 4,
+    "average_accuracy": 89.64285714285714,
+    "total_processing_time": 142.46173071861267,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 4.0,
+    "Successful Extractions": 4.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 89.64285714285714,
+    "Median Accuracy (%)": 90.71428571428572,
+    "Min Accuracy (%)": 80.0,
+    "Max Accuracy (%)": 97.14285714285714,
+    "Average Processing Time (s)": 35.61543267965317,
+    "Total Processing Time (s)": 142.46173071861267,
+    "Throughput (images/min)": 1.6846629532673782
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 1,
+    "RECEIPT": 1,
+    "INVOICE": 2
+  },
+  "results": [
+    {
+      "image_name": "commbank_flat_simple.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Flat Bank Statement Extraction",
+      "processing_time": 32.917465925216675,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8,
+        "fields_extracted": 5,
+        "fields_matched": 4,
+        "total_fields": 5
+      }
+    },
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "Standard Receipt Extraction",
+      "processing_time": 32.093539237976074,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9714285714285714,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 32.22445011138916,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9714285714285714,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 45.22627544403076,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8428571428571429,
+        "fields_extracted": 14,
+        "fields_matched": 12,
+        "total_fields": 14
+      }
+    }
+  ]
+}
