@@ -85,7 +85,20 @@ class GroundTruthEvaluator:
         )
 
         # Parse the mapped extraction response to get field-level data
+        rprint(f"[dim]DEBUG: About to parse mapped response ({len(mapped_response)} chars)[/dim]")
+        rprint("[dim]DEBUG: First 3 lines of mapped response:[/dim]")
+        for i, line in enumerate(mapped_response.split('\n')[:3]):
+            rprint(f"[dim]  {i+1}: {line}[/dim]")
+            
         extracted_fields = parse_extraction_response(mapped_response)
+        
+        # Debug: Show what was actually parsed
+        found_fields = {k: v for k, v in extracted_fields.items() if v != "NOT_FOUND"}
+        rprint(f"[dim]DEBUG: Parser found {len(found_fields)} fields with values[/dim]")
+        if found_fields:
+            rprint("[dim]DEBUG: Sample parsed fields:[/dim]")
+            for _i, (field, value) in enumerate(list(found_fields.items())[:3]):
+                rprint(f"[dim]  {field}: {value[:40]}{'...' if len(value) > 40 else ''}[/dim]")
 
         # Load ground truth for this specific image
         try:
