@@ -49,29 +49,8 @@ class GroundTruthEvaluator:
         # Get the raw response from the test
         raw_response = test_result["raw_result"]["raw_response"]
 
-        # Debug: Show markdown cleaning process
-        rprint(f"[dim]DEBUG: Raw response length: {len(raw_response)} chars[/dim]")
-        if "**" in raw_response:
-            rprint("[dim]DEBUG: Markdown artifacts detected, applying cleaning...[/dim]")
-            
         # Clean the response before parsing
         cleaned_response = clean_markdown_response(raw_response)
-        
-        # Debug: Verify cleaning effectiveness
-        if raw_response != cleaned_response:
-            asterisk_count_before = raw_response.count("**")
-            asterisk_count_after = cleaned_response.count("**")
-            rprint(f"[dim]DEBUG: Cleaning applied - asterisks reduced from {asterisk_count_before} to {asterisk_count_after}[/dim]")
-            
-            # Show first few lines with changes for verification
-            raw_lines = raw_response.split('\n')[:5]
-            cleaned_lines = cleaned_response.split('\n')[:5]
-            for _i, (raw_line, clean_line) in enumerate(zip(raw_lines, cleaned_lines, strict=False)):
-                if raw_line != clean_line and any(c in raw_line for c in ['*', ':']):
-                    rprint(f"[dim]  Before: {raw_line[:60]}{'...' if len(raw_line) > 60 else ''}[/dim]")
-                    rprint(f"[dim]  After:  {clean_line[:60]}{'...' if len(clean_line) > 60 else ''}[/dim]")
-        else:
-            rprint("[dim]DEBUG: No cleaning changes needed[/dim]")
 
         # Map document-specific fields to universal field names for evaluation
         mapped_response = map_fields_to_universal(cleaned_response, document_type)
@@ -85,20 +64,7 @@ class GroundTruthEvaluator:
         )
 
         # Parse the mapped extraction response to get field-level data
-        rprint(f"[dim]DEBUG: About to parse mapped response ({len(mapped_response)} chars)[/dim]")
-        rprint("[dim]DEBUG: First 3 lines of mapped response:[/dim]")
-        for i, line in enumerate(mapped_response.split('\n')[:3]):
-            rprint(f"[dim]  {i+1}: {line}[/dim]")
-            
         extracted_fields = parse_extraction_response(mapped_response)
-        
-        # Debug: Show what was actually parsed
-        found_fields = {k: v for k, v in extracted_fields.items() if v != "NOT_FOUND"}
-        rprint(f"[dim]DEBUG: Parser found {len(found_fields)} fields with values[/dim]")
-        if found_fields:
-            rprint("[dim]DEBUG: Sample parsed fields:[/dim]")
-            for _i, (field, value) in enumerate(list(found_fields.items())[:3]):
-                rprint(f"[dim]  {field}: {value[:40]}{'...' if len(value) > 40 else ''}[/dim]")
 
         # Load ground truth for this specific image
         try:
@@ -238,10 +204,6 @@ class GroundTruthEvaluator:
             ground_value = ground_truth.get(field_name, "NOT_FOUND")
             extracted_value = extracted_fields.get(field_name, "NOT_FOUND")
             
-            # Debug: Show field name mismatches
-            if extracted_value == "NOT_FOUND" and field_name in ["GST_AMOUNT", "IS_GST_INCLUDED", "BUSINESS_ABN"]:
-                rprint(f"[dim]DEBUG: Field '{field_name}' not found in extracted_fields[/dim]")
-                rprint(f"[dim]Available extracted fields: {list(extracted_fields.keys())[:5]}[/dim]")
 
             # Convert pandas NaN to NOT_FOUND
             if pd.isna(ground_value):

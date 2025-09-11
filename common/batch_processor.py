@@ -15,6 +15,8 @@ from rich.progress import track
 
 from .document_detector import detect_document_type
 from .prompt_loader import load_document_prompt
+from .document_type_metrics import DocumentTypeEvaluator
+from .evaluation_metrics import load_ground_truth
 
 
 class BatchDocumentProcessor:
@@ -32,14 +34,18 @@ class BatchDocumentProcessor:
         
         Args:
             extractor: LlamaVisionTableExtractor instance
-            evaluator: GroundTruthEvaluator instance
+            evaluator: GroundTruthEvaluator instance (legacy - will be replaced with DocumentTypeEvaluator)
             prompt_config: Dictionary with prompt file paths and keys
             console: Rich console for output
         """
         self.extractor = extractor
-        self.evaluator = evaluator
+        self.evaluator = evaluator  # Keep for backward compatibility but will use DocumentTypeEvaluator
         self.prompt_config = prompt_config
         self.console = console or Console()
+        
+        # Use the working evaluation approach from document-aware system
+        self.document_evaluator = DocumentTypeEvaluator()
+        self.ground_truth_data = None
         
     def process_batch(
         self,
@@ -61,6 +67,17 @@ class BatchDocumentProcessor:
         batch_results = []
         processing_times = []
         document_types_found = {}
+        
+        # Load ground truth data once for the batch (working approach from document-aware system)
+        if hasattr(self.evaluator, 'ground_truth_csv'):
+            try:
+                self.ground_truth_data = load_ground_truth(self.evaluator.ground_truth_csv)
+                if verbose:
+                    rprint(f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]")
+            except Exception as e:
+                if verbose:
+                    rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
+                self.ground_truth_data = {}
         
         if verbose:
             rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
@@ -101,12 +118,49 @@ class BatchDocumentProcessor:
                     extraction_prompt
                 )
                 
-                # Step 4: Evaluate against ground truth
-                evaluation = self.evaluator.evaluate_extraction(
-                    test_result=extraction_result,
-                    document_type=document_type,
-                    image_path=image_path
-                )
+                # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
+                image_name = Path(image_path).name
+                ground_truth = self.ground_truth_data.get(image_name, {}) if self.ground_truth_data else {}
+                
+                if ground_truth:
+                    # Extract the actual extracted_data from the result (working approach)
+                    # Debug: Show extraction_result structure
+                    if verbose:
+                        rprint(f"[dim]DEBUG: extraction_result keys: {list(extraction_result.keys())}[/dim]")
+                        if "raw_result" in extraction_result:
+                            rprint(f"[dim]DEBUG: raw_result keys: {list(extraction_result['raw_result'].keys())}[/dim]")
+                    
+                    extracted_data = extraction_result.get("raw_result", {}).get("extracted_data", {})
+                    if not extracted_data:
+                        # Fallback: try to get from top level (different extractor formats)
+                        extracted_data = extraction_result.get("extracted_data", {})
+                    
+                    if not extracted_data:
+                        # Last resort: try to parse the raw response like the document-aware system does
+                        raw_response = extraction_result.get("raw_result", {}).get("raw_response", "")
+                        if raw_response:
+                            # Import the same parsing logic used by document-aware system
+                            from .extraction_parser import parse_extraction_response
+                            from .response_preprocessing import clean_markdown_response
+                            
+                            cleaned_response = clean_markdown_response(raw_response)
+                            extracted_data = parse_extraction_response(cleaned_response)
+                            
+                            if verbose:
+                                rprint(f"[dim]DEBUG: Parsed {len([k for k, v in extracted_data.items() if v != 'NOT_FOUND'])} fields from raw response[/dim]")
+                    
+                    # Use the working DocumentTypeEvaluator approach that succeeds
+                    evaluation = self.document_evaluator.evaluate_extraction(
+                        extracted_data, ground_truth, document_type
+                    )
+                    
+                    # Add detailed debug output like document-aware system
+                    if verbose and evaluation and "field_scores" in evaluation:
+                        self._display_detailed_field_comparison(
+                            image_name, extracted_data, ground_truth, evaluation, document_type
+                        )
+                else:
+                    evaluation = {"error": f"No ground truth for {image_name}", "overall_accuracy": 0}
                 
                 # Record processing time
                 processing_time = time.time() - start_time
@@ -149,3 +203,77 @@ class BatchDocumentProcessor:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
             
         return batch_results, processing_times, document_types_found
+    
+    def _display_detailed_field_comparison(
+        self, image_name: str, extracted_data: dict, ground_truth: dict, 
+        evaluation: dict, document_type: str
+    ):
+        """Display detailed field-by-field comparison like in document-aware system."""
+        
+        rprint(f"\n{'='*120}")
+        rprint("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")  
+        rprint("="*120)
+        
+        # Display extracted data first
+        rprint("\n🔍 EXTRACTED DATA:")
+        for field, value in extracted_data.items():
+            if value != "NOT_FOUND":
+                rprint(f"✅ {field}: {value}")
+            else:
+                rprint(f"❌ {field}: {value}")
+        
+        # Ground truth comparison table
+        rprint(f"\n📊 Ground truth loaded for {image_name}")
+        rprint("-"*120)
+        
+        field_scores = evaluation.get("field_scores", {})
+        
+        # Table header with consistent spacing like document-aware system
+        rprint(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
+        rprint("="*120)
+        
+        # Field-by-field comparison
+        fields_found = 0
+        exact_matches = 0
+        total_fields = len(field_scores)
+        
+        for field, score in field_scores.items():
+            extracted_val = extracted_data.get(field, "NOT_FOUND")
+            ground_val = ground_truth.get(field, "NOT_FOUND")
+            
+            # Determine status symbol (same logic as document-aware system)
+            if score.get("accuracy", 0) == 1.0:
+                status = "✅"
+                exact_matches += 1
+            elif score.get("accuracy", 0) >= 0.8:
+                status = "≈"
+            else:
+                status = "❌"
+            
+            if extracted_val != "NOT_FOUND":
+                fields_found += 1
+                
+            # Truncate long values for display (same as document-aware system)
+            extracted_display = str(extracted_val)[:38] + ("..." if len(str(extracted_val)) > 38 else "")
+            ground_display = str(ground_val)[:38] + ("..." if len(str(ground_val)) > 38 else "")
+            
+            rprint(f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}")
+        
+        # Summary section (same format as document-aware system)
+        overall_accuracy = evaluation.get("overall_metrics", {}).get("overall_accuracy", 0)
+        
+        rprint("\n📊 EXTRACTION SUMMARY:")
+        rprint(f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found/total_fields*100:.1f}%)")
+        rprint(f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches/total_fields*100:.1f}%)")  
+        rprint(f"📈 Extraction Success Rate: {overall_accuracy*100:.1f}%")
+        rprint(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
+        rprint(f"🤖 Document Type: {document_type}")
+        rprint("🔧 Model: Llama-3.2-11B-Vision-Instruct")
+        
+        # Additional metrics (same as document-aware system)
+        meets_threshold = evaluation.get("overall_metrics", {}).get("meets_threshold", False)
+        threshold = evaluation.get("overall_metrics", {}).get("document_type_threshold", 0.8)
+        rprint("\n≈ = Partial match")  
+        rprint("✗ = No match")
+        rprint(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
+        rprint("="*120)
