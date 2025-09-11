@@ -1,11 +1,11 @@
 """
-Evaluation and accuracy assessment utilities for model outputs - BOSS FIELD REDUCTION.
+Evaluation and accuracy assessment utilities for model outputs - DOCUMENT AWARE REDUCTION.
 
 This module handles ground truth comparison, accuracy calculations, and evaluation
 reporting. It provides comprehensive metrics for assessing model performance
 against known correct answers.
 
-BOSS FIELD REDUCTION COMPATIBILITY:
+DOCUMENT AWARE REDUCTION COMPATIBILITY:
 - Works with reduced field schemas (11 invoice/receipt, 5 bank statement)
 - Dynamic evaluation based on field types from config.py (already updated)
 - Ground truth loading automatically adapts to available fields

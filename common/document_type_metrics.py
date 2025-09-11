@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Document Type Specific Evaluation Metrics Module - BOSS FIELD REDUCTION
+Document Type Specific Evaluation Metrics Module - DOCUMENT AWARE REDUCTION
 
 Provides targeted evaluation metrics for each document type (invoice, bank_statement, receipt)
 with appropriate thresholds and validation rules for Phase 4 integration.
 
-BOSS FIELD REDUCTION UPDATES:
+DOCUMENT AWARE REDUCTION UPDATES:
 - Updated ATO compliance checking for invoice basic fields only
 - Hardcoded fallbacks use reduced field schema (11 invoice, 5 bank statement)
 - Metrics calculations work with reduced field counts

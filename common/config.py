@@ -472,7 +472,7 @@ def _get_config():
     """
     Get schema configuration with deferred initialization.
 
-    BOSS FIELD REDUCTION: Updated to support reduced field schema.
+    DOCUMENT AWARE REDUCTION: Updated to support reduced field schema.
     """
     global _config
     if _config is None:
@@ -491,7 +491,7 @@ def _get_config():
                 self.field_count = schema.get_field_count()  # Keep for compatibility
                 self.active_field_count = 15  # NEW_COUNT: Boss's reduced schema
 
-                # BOSS FIELD REDUCTION: Only classify fields that are in the reduced schema
+                # DOCUMENT AWARE REDUCTION: Only classify fields that are in the reduced schema
                 # All active fields from reduced schema (no complex classification needed)
                 active_fields = [
                     "DOCUMENT_TYPE",
@@ -514,7 +514,7 @@ def _get_config():
                 # Simplified field types - focus on essential fields only
                 self.field_types = {field: "text" for field in active_fields}
 
-                # BOSS FIELD REDUCTION: Classify only the essential fields
+                # DOCUMENT AWARE REDUCTION: Classify only the essential fields
                 # SUPER_SET: Most field type lists now empty due to reduction
                 self.phone_fields = []  # SUPER_SET: No phone fields in reduced schema
                 self.list_fields = [
@@ -1354,7 +1354,7 @@ VIZ_OUTPUT_PATTERNS = {
 # ============================================================================
 
 # Field group definitions for grouped extraction strategy
-# BOSS FIELD REDUCTION: Drastically reduced field groups for performance
+# DOCUMENT AWARE REDUCTION: Drastically reduced field groups for performance
 FIELD_GROUPS = {
     "regulatory_financial": {
         # OLD_COUNT: 6 fields

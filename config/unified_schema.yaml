@@ -2,7 +2,7 @@
 # UNIFIED SCHEMA CONFIGURATION - TRUE YAML-FIRST ARCHITECTURE
 ################################################################################
 # Single source of truth for all field definitions, document types, and prompt generation
-# BOSS FIELD REDUCTION: 17 fields (15 original + 2 new line item fields)
+# DOCUMENT AWARE REDUCTION: 19 total fields (14 invoice/receipt + 7 bank statement with 2 overlaps)
 #
 # FILE STRUCTURE:
 # 1. METADATA           - Schema version and description
@@ -76,7 +76,7 @@ semantic_field_order:
     - ACCOUNT_BALANCE
 
 # ==============================================================================
-# 3. FIELD DEFINITIONS - Complete specifications for all 17 fields
+# 3. FIELD DEFINITIONS - Complete specifications for all 19 fields
 # ==============================================================================
 # Each field includes:
 # - order: Position in extraction sequence
@@ -881,7 +881,7 @@ universal_extraction:
       6. Boolean values: true/false (lowercase)
 
     field_instructions: |
-      Extract the following 17 fields from this document:
+      Extract the following 19 fields from this document:
       
       🚨 CRITICAL: Document-specific field rules:
       • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
@@ -955,7 +955,7 @@ universal_extraction:
       - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
 
     field_instructions: |
-      Extract the following 17 fields from this document in this exact order:
+      Extract the following 19 fields from this document in this exact order:
       
       ⚠️ IMPORTANT: Some fields only apply to specific document types:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT

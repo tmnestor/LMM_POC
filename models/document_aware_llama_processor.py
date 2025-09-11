@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Document-Aware Llama Processor - BOSS FIELD REDUCTION - Standalone Implementation
+Document-Aware Llama Processor - DOCUMENT AWARE REDUCTION - Standalone Implementation
 
 A complete rewrite of Llama processor designed from the ground up for
 document-aware extraction with dynamic field lists. NO INHERITANCE.
 
-BOSS FIELD REDUCTION OPTIMIZED:
+DOCUMENT AWARE REDUCTION OPTIMIZED:
 - Invoice/Receipt: 11 fields (62-67% reduction) → ~50% faster processing
 - Bank Statement: 5 fields (75% reduction) → ~75% faster processing
 - Dynamic max_new_tokens automatically scales with reduced field counts
@@ -58,7 +58,7 @@ class DocumentAwareLlamaProcessor:
         """
         Initialize document-aware processor with specific field list.
 
-        BOSS FIELD REDUCTION OPTIMIZED: Works efficiently with reduced field counts.
+        DOCUMENT AWARE REDUCTION OPTIMIZED: Works efficiently with reduced field counts.
 
         Args:
             field_list (List[str]): Fields to extract
@@ -127,14 +127,14 @@ class DocumentAwareLlamaProcessor:
         """
         Configure generation parameters for dynamic field count.
 
-        BOSS FIELD REDUCTION: Automatically calculates optimal max_new_tokens
+        DOCUMENT AWARE REDUCTION: Automatically calculates optimal max_new_tokens
         for reduced field counts, providing significant performance gains.
         """
         # Initialize generation config
         self.generation_config = LLAMA_GENERATION_CONFIG.copy()
 
         # Calculate dynamic max_new_tokens based on actual field count
-        # BOSS FIELD REDUCTION: This now calculates much smaller token counts
+        # DOCUMENT AWARE REDUCTION: This now calculates much smaller token counts
         # OLD_COUNT: ~1200-1450 tokens for 29 invoice fields
         # NEW_COUNT: ~530-650 tokens for 11 invoice/receipt fields
         # NEW_COUNT: ~350-450 tokens for 5 bank statement fields
@@ -147,7 +147,7 @@ class DocumentAwareLlamaProcessor:
                 0, (29 - self.field_count) / 29 * 100
             )  # vs old invoice max
             print(
-                f"🎯 BOSS FIELD REDUCTION: {self.field_count} fields (~{performance_gain:.0f}% fewer than original 29)"
+                f"🎯 DOCUMENT AWARE REDUCTION: {self.field_count} fields (~{performance_gain:.0f}% fewer than original 29)"
             )
 
         if self.debug:

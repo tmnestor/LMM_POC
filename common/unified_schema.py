@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Unified Schema Loader - BOSS FIELD REDUCTION - Simplified YAML-First Architecture
+Unified Schema Loader - DOCUMENT AWARE REDUCTION - Simplified YAML-First Architecture
 
 Single, simple schema loader that replaces both document_schema_loader.py
 and schema_loader.py with a clean, maintainable implementation.
 
-BOSS FIELD REDUCTION IMPLEMENTED:
+DOCUMENT AWARE REDUCTION IMPLEMENTED:
 - Invoice: 11 fields (62% reduction from 29)
 - Receipt: 11 fields (same as invoice schema per boss requirement)
 - Bank Statement: 5 fields (75% reduction from 16)
@@ -104,7 +104,7 @@ class DocumentTypeFieldSchema:
         if missing:
             raise ValueError(f"❌ Missing required sections: {missing}")
 
-        # BOSS FIELD REDUCTION: Only count active (uncommented) fields in validation
+        # DOCUMENT AWARE REDUCTION: Only count active (uncommented) fields in validation
         # OLD_COUNT: Validated against total_fields (48)
         # NEW_COUNT: Only validate active fields (15 unique fields)
         active_fields = [
@@ -112,11 +112,11 @@ class DocumentTypeFieldSchema:
             for f in self.schema["all_fields"]
             if not isinstance(f, str) or not f.strip().startswith("#")
         ]
-        expected_active = 17  # NEW_COUNT: Boss's reduced schema + LINE_ITEM_QUANTITIES + LINE_ITEM_PRICES = 17 fields
+        expected_active = 19  # UNIFIED SCHEMA: 19 total fields (14 invoice/receipt + 7 bank statement - 2 overlaps)
 
         if len(active_fields) != expected_active:
             print(
-                f"⚠️ BOSS FIELD REDUCTION: Active field count is {len(active_fields)}, expected {expected_active}"
+                f"⚠️ DOCUMENT AWARE REDUCTION: Active field count is {len(active_fields)}, expected {expected_active}"
             )
             print(
                 "   This is normal during implementation - commented fields don't count"
@@ -133,14 +133,14 @@ class DocumentTypeFieldSchema:
         """
         Get all fields from YAML (includes commented SUPER_SET fields).
 
-        BOSS FIELD REDUCTION: Returns all 48 fields including commented ones
+        DOCUMENT AWARE REDUCTION: Returns all 48 fields including commented ones
         for backward compatibility. Active fields are 15 unique fields.
         """
         return self.schema["all_fields"]
 
     def get_document_fields(self, document_type: str) -> List[str]:
         """
-        Get fields for specific document type with BOSS FIELD REDUCTION.
+        Get fields for specific document type with DOCUMENT AWARE REDUCTION.
 
         Args:
             document_type: 'invoice', 'receipt', or 'bank_statement'
@@ -148,7 +148,7 @@ class DocumentTypeFieldSchema:
         Returns:
             List of field names for that document type
 
-        BOSS FIELD REDUCTION MAPPING:
+        DOCUMENT AWARE REDUCTION MAPPING:
         - Invoice: 11 fields (62% reduction)
         - Receipt: 11 fields (SAME AS INVOICE per boss requirement)
         - Bank Statement: 5 fields (75% reduction)
@@ -240,10 +240,10 @@ class DocumentTypeFieldSchema:
         """
         Backward compatibility: generate dynamic prompt.
 
-        BOSS FIELD REDUCTION: Uses reduced field schema for faster processing.
+        DOCUMENT AWARE REDUCTION: Uses reduced field schema for faster processing.
         Real prompt generation should use the prompt_loader system.
         """
-        # BOSS FIELD REDUCTION: Use active fields only for prompt generation
+        # DOCUMENT AWARE REDUCTION: Use active fields only for prompt generation
         # OLD_COUNT: Used all 48 fields
         # NEW_COUNT: Use only active (uncommented) fields for better performance
         all_fields = self.get_all_fields()
@@ -262,7 +262,7 @@ class DocumentTypeFieldSchema:
 
         return f"""Extract structured data from this business document image.
 
-BOSS FIELD REDUCTION - REDUCED SCHEMA FOR PERFORMANCE:
+DOCUMENT AWARE REDUCTION - REDUCED SCHEMA FOR PERFORMANCE:
 REQUIRED OUTPUT FORMAT - EXACTLY {len(active_fields)} LINES:
 {field_list}
 
@@ -274,7 +274,7 @@ Extract the exact values as they appear in the document. If a field is not prese
 
     def compare_document_types(self) -> Dict:
         """
-        Compare field counts across document types with BOSS FIELD REDUCTION.
+        Compare field counts across document types with DOCUMENT AWARE REDUCTION.
 
         Shows dramatic reductions from original 48-field schema.
         """
