@@ -282,7 +282,8 @@ def map_invoice_fields_to_universal(invoice_response: str) -> str:
     # Clean markdown formatting first
     cleaned_response = clean_markdown_response(invoice_response)
 
-    # Invoice fields are mostly already universal, just ensure DOCUMENT_TYPE is set correctly
+    # Invoice fields are mostly already universal, just ensure DOCUMENT_TYPE is set if missing
+    # Don't override existing DOCUMENT_TYPE - preserve ESTIMATE, INVOICE, etc.
     if "DOCUMENT_TYPE:" not in cleaned_response:
         cleaned_response = "DOCUMENT_TYPE: INVOICE\n" + cleaned_response
 
@@ -366,7 +367,7 @@ def map_fields_to_universal(response: str, document_type: str) -> str:
 
     if doc_type_upper in ["BANK_STATEMENT", "STATEMENT"]:
         return map_bank_fields_to_universal(response)
-    elif doc_type_upper == "INVOICE":
+    elif doc_type_upper in ["INVOICE", "ESTIMATE"]:
         return map_invoice_fields_to_universal(response)
     elif doc_type_upper == "RECEIPT":
         return map_receipt_fields_to_universal(response)
