@@ -165,6 +165,12 @@ class BatchDocumentProcessor:
                         evaluation["total_fields"] = evaluation["overall_metrics"].get("total_fields_evaluated", 0)
                     
                     # Add detailed debug output like document-aware system
+                    if verbose:
+                        rprint(f"[dim]DEBUG: verbose={verbose}, evaluation exists={evaluation is not None}[/dim]")
+                        if evaluation:
+                            rprint(f"[dim]DEBUG: evaluation keys={list(evaluation.keys())}[/dim]")
+                            rprint(f"[dim]DEBUG: field_scores exists={'field_scores' in evaluation}[/dim]")
+                    
                     if verbose and evaluation and "field_scores" in evaluation:
                         self._display_detailed_field_comparison(
                             image_name, extracted_data, ground_truth, evaluation, document_type
