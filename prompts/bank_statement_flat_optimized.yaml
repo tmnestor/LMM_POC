@@ -46,35 +46,35 @@ prompts:
       
       ## CRITICAL INSTRUCTIONS FOR FLAT STATEMENTS:
       
-      **UNDERSTANDING BANK STATEMENT COLUMNS:**
+      UNDERSTANDING BANK STATEMENT COLUMNS:
       Each transaction row typically has these dollar amounts:
       - DEBIT/WITHDRAWAL column: Money OUT of account (use for TRANSACTION_AMOUNTS_PAID)
       - CREDIT/DEPOSIT column: Money IN to account (use for TRANSACTION_AMOUNTS_RECEIVED)  
       - BALANCE column: Running account balance AFTER each transaction (use for ACCOUNT_BALANCE)
       
-      **CRITICAL BALANCE VALIDATION:**
+      CRITICAL BALANCE VALIDATION:
       The BALANCE column is the most reliable field (nearly 100% accuracy).
       Use balance direction to validate transaction classification:
       - If balance INCREASES → Money came IN (CREDIT/DEPOSIT) → TRANSACTION_AMOUNTS_RECEIVED
       - If balance DECREASES → Money went OUT (DEBIT/WITHDRAWAL) → TRANSACTION_AMOUNTS_PAID
       
-      1. **Column Recognition**: Look at the actual column headers in the image:
+      1. Column Recognition: Look at the actual column headers in the image:
          - Common patterns: "Date | Description | Withdrawal | Deposit | Balance"
          - Alternative patterns: "Date | Description | Debit | Credit | Balance"
          - Some have additional columns like "Transaction Type" or "Reference"
 
-      2. **Amount Classification - CRITICAL**: 
+      2. Amount Classification - CRITICAL: 
          - TRANSACTION_AMOUNTS_PAID: Extract from WITHDRAWAL/DEBIT columns (money out)
          - TRANSACTION_AMOUNTS_RECEIVED: Extract from DEPOSIT/CREDIT columns (money in)
          - ACCOUNT_BALANCE: Extract from BALANCE columns (running account total after transaction)
-         - **VALIDATION**: Compare consecutive balance amounts to confirm transaction direction
-         - **CRITICAL**: Each transaction row has ONLY a debit OR credit, never both
+         - VALIDATION: Compare consecutive balance amounts to confirm transaction direction
+         - CRITICAL: Each transaction row has ONLY a debit OR credit, never both
 
-      3. **Row Order**: Process transactions in the order they appear in the table
+      3. Row Order: Process transactions in the order they appear in the table
 
-      4. **Date Format**: Use dates exactly as shown in the Date column
+      4. Date Format: Use dates exactly as shown in the Date column
       
-      5. **Pipe Separation**: Ensure PAID, RECEIVED, and BALANCE lists have same number of entries as descriptions
+      5. Pipe Separation: Ensure PAID, RECEIVED, and BALANCE lists have same number of entries as descriptions
       
       Example Format:
       BANK_NAME: [Extract bank name from header]

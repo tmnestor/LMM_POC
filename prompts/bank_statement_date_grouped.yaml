@@ -29,20 +29,20 @@ prompts:
       
       ## SIMPLIFIED PARSING STEPS:
       
-      1. **Find date headers** like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
-      2. **Extract ALL transactions** from under each date header  
-      3. **Combine with pipe separators** in chronological order
-      4. **Use balance direction** to validate transaction types:
+      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      2. Extract ALL transactions from under each date header  
+      3. Combine with pipe separators in chronological order
+      4. Use balance direction to validate transaction types:
          - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
          - Balance DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
       
       ## FIELD EXTRACTION RULES:
       
-      **LINE_ITEM_DESCRIPTIONS**: All transaction descriptions combined with " | "
-      **TRANSACTION_DATES**: Convert date headers to DD/MM/YYYY format
-      **TRANSACTION_AMOUNTS_PAID**: DEBIT/WITHDRAWAL amounts (money OUT)
-      **TRANSACTION_AMOUNTS_RECEIVED**: CREDIT/DEPOSIT amounts (money IN)  
-      **ACCOUNT_BALANCE**: Running balance after each transaction
+      LINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with " | "
+      TRANSACTION_DATES: Convert date headers to DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts (money OUT)
+      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts (money IN)  
+      ACCOUNT_BALANCE: Running balance after each transaction
       
       Use NOT_FOUND for any missing values. Maintain same count across all lists.
       
