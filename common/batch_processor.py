@@ -184,8 +184,24 @@ class BatchDocumentProcessor:
                 doc_processor.model = self.model
                 doc_processor.processor = self.processor
                 
-                # Extract data using document-aware approach with loaded YAML prompt
-                extraction_result = doc_processor.process_single_image(image_path, custom_prompt=extraction_prompt)
+                # Load max_tokens from YAML settings
+                prompt_file = extraction_files.get(document_type, "prompts/invoice_extraction.yaml")
+                try:
+                    with Path(prompt_file).open('r') as f:
+                        yaml_config = yaml.safe_load(f)
+                        max_tokens = yaml_config.get("settings", {}).get("max_new_tokens", 600)
+                except Exception:
+                    max_tokens = 600  # fallback
+                
+                if verbose:
+                    rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} from {prompt_file}[/cyan]")
+                
+                # Extract data using document-aware approach with loaded YAML prompt and tokens
+                extraction_result = doc_processor.process_single_image(
+                    image_path, 
+                    custom_prompt=extraction_prompt,
+                    custom_max_tokens=max_tokens
+                )
                 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name

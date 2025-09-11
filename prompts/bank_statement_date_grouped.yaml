@@ -48,8 +48,14 @@ prompts:
       Format: 04/09/2025 | 04/09/2025 | 01/09/2025 | 27/08/2025
       (Convert date headers to DD/MM/YYYY format)
       
-      TRANSACTION_AMOUNTS_PAID: [Extract amounts from ALL transactions across ALL date sections]
-      Format: amount1 | amount2 | amount3 | amount4
+      TRANSACTION_AMOUNTS_PAID: [Extract DEBIT/WITHDRAWAL amounts from ALL date sections - money OUT]
+      Format: debit1 | debit2 | debit3 | NOT_FOUND (if no debits in that position)
+      
+      TRANSACTION_AMOUNTS_RECEIVED: [Extract CREDIT/DEPOSIT amounts from ALL date sections - money IN]
+      Format: credit1 | NOT_FOUND | credit3 | credit4 (if no credits in that position)
+      
+      ACCOUNT_BALANCE: [Extract BALANCE amounts from ALL date sections - running account balance]
+      Format: balance1 | balance2 | balance3 | balance4 (balance after each transaction)
       
       ## DETAILED EXTRACTION STEPS:
       
@@ -64,11 +70,25 @@ prompts:
       
       **Step 4**: Ensure all three lists (descriptions, dates, amounts) have the same number of elements
       
-      ## AMOUNT HANDLING:
-      - Look for debit amounts (money out)
-      - Look for credit amounts (money in) 
-      - Include amounts from both debit and credit transactions
-      - Maintain consistent ordering across all fields
+      ## AMOUNT HANDLING - CRITICAL:
+      **Understanding Transaction Amounts:**
+      - DEBIT amounts: Money OUT (withdrawals, payments, fees) → TRANSACTION_AMOUNTS_PAID
+      - CREDIT amounts: Money IN (deposits, salary, refunds) → TRANSACTION_AMOUNTS_RECEIVED
+      - Balance amounts: Running account totals AFTER each transaction → ACCOUNT_BALANCE
+      
+      **BALANCE DIRECTION VALIDATION (MOST RELIABLE):**
+      The BALANCE field is nearly 100% accurate. Use it to validate transaction direction:
+      - Balance UP from previous row → Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
+      - Balance DOWN from previous row → Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+      
+      **Extraction Strategy:**
+      - For each transaction under each date header, identify debits, credits, and balances
+      - **VALIDATE with balance direction**: Compare each balance to previous balance
+      - Group all debits together for TRANSACTION_AMOUNTS_PAID
+      - Group all credits together for TRANSACTION_AMOUNTS_RECEIVED
+      - Group all balances together for ACCOUNT_BALANCE
+      - Use NOT_FOUND if a transaction has no debit, no credit, or no balance amount
+      - Maintain consistent ordering across descriptions, dates, paid, received, and balance lists
       
       ## EXPECTED OUTPUT FORMAT:
       BANK_NAME: [Extract bank name from header]
@@ -77,7 +97,9 @@ prompts:
       DOCUMENT_TYPE: STATEMENT
       LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
       TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]
+      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]
+      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
 
   simplified_grouped:
     name: "Simplified Date-Grouped Extraction"  

@@ -48,6 +48,8 @@ semantic_field_order:
     - TOTAL_AMOUNT
     - TRANSACTION_DATES
     - TRANSACTION_AMOUNTS_PAID
+    - TRANSACTION_AMOUNTS_RECEIVED
+    - ACCOUNT_BALANCE
   
   # --------------------------------------------------------------------------
   # INTERNVL3 FIELD ORDER - Explicit semantic ordering for field extraction
@@ -70,6 +72,8 @@ semantic_field_order:
     - TOTAL_AMOUNT
     - TRANSACTION_DATES
     - TRANSACTION_AMOUNTS_PAID
+    - TRANSACTION_AMOUNTS_RECEIVED
+    - ACCOUNT_BALANCE
 
 # ==============================================================================
 # 3. FIELD DEFINITIONS - Complete specifications for all 17 fields
@@ -221,8 +225,24 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has value include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
-      description: "Essential bank statement amounts"
+      instruction: "MANDATORY ROW COUNT MATCHING for DEBIT/WITHDRAWAL amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if DEBIT/WITHDRAWAL cell has value include it, if empty write NOT_FOUND. Row 2 - if DEBIT/WITHDRAWAL cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement debit/withdrawal amounts (money OUT)"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    TRANSACTION_AMOUNTS_RECEIVED:
+      order: 18
+      instruction: "MANDATORY ROW COUNT MATCHING for CREDIT/DEPOSIT amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if CREDIT/DEPOSIT cell has value include it, if empty write NOT_FOUND. Row 2 - if CREDIT/DEPOSIT cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement credit/deposit amounts (money IN)"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    ACCOUNT_BALANCE:
+      order: 19
+      instruction: "MANDATORY ROW COUNT MATCHING for BALANCE amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - extract BALANCE cell value (running total after transaction), Row 2 - extract BALANCE cell value, etc. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement running balance after each transaction"
       applicable_documents: [bank_statement]
       required: true
       category: "transactions"
@@ -365,8 +385,24 @@ field_definitions:
       
     TRANSACTION_AMOUNTS_PAID:
       order: 17
-      instruction: "MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has value include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
-      description: "Essential bank statement amounts"
+      instruction: "MANDATORY ROW COUNT MATCHING for DEBIT/WITHDRAWAL amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if DEBIT/WITHDRAWAL cell has value include it, if empty write NOT_FOUND. Row 2 - if DEBIT/WITHDRAWAL cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement debit/withdrawal amounts (money OUT)"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    TRANSACTION_AMOUNTS_RECEIVED:
+      order: 18
+      instruction: "MANDATORY ROW COUNT MATCHING for CREDIT/DEPOSIT amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if CREDIT/DEPOSIT cell has value include it, if empty write NOT_FOUND. Row 2 - if CREDIT/DEPOSIT cell has value include it, if empty write NOT_FOUND. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement credit/deposit amounts (money IN)"
+      applicable_documents: [bank_statement]
+      required: true
+      category: "transactions"
+      
+    ACCOUNT_BALANCE:
+      order: 19
+      instruction: "MANDATORY ROW COUNT MATCHING for BALANCE amounts: Count total table rows in the transaction table. Your pipe-separated list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - extract BALANCE cell value (running total after transaction), Row 2 - extract BALANCE cell value, etc. Continue for all rows. DO NOT skip empty rows or compress the list."
+      description: "Bank statement running balance after each transaction"
       applicable_documents: [bank_statement]
       required: true
       category: "transactions"
@@ -466,13 +502,15 @@ document_types:
     bank_statement:
       document_type: "bank_statement"
       accuracy_threshold: 0.90
-      field_count: 5
+      field_count: 7
       required_fields:
         - DOCUMENT_TYPE
         - STATEMENT_DATE_RANGE
         - LINE_ITEM_DESCRIPTIONS
         - TRANSACTION_DATES
         - TRANSACTION_AMOUNTS_PAID
+        - TRANSACTION_AMOUNTS_RECEIVED
+        - ACCOUNT_BALANCE
       critical_fields:
         - STATEMENT_DATE_RANGE
         - TRANSACTION_AMOUNTS_PAID
@@ -574,13 +612,15 @@ document_types:
     bank_statement:
       document_type: "bank_statement"
       accuracy_threshold: 0.90
-      field_count: 5
+      field_count: 7
       required_fields:
         - DOCUMENT_TYPE
         - STATEMENT_DATE_RANGE
         - LINE_ITEM_DESCRIPTIONS
         - TRANSACTION_DATES
         - TRANSACTION_AMOUNTS_PAID
+        - TRANSACTION_AMOUNTS_RECEIVED
+        - ACCOUNT_BALANCE
       critical_fields:
         - STATEMENT_DATE_RANGE
         - TRANSACTION_AMOUNTS_PAID
@@ -695,6 +735,8 @@ field_categories:
   transactions:
     - TRANSACTION_DATES
     - TRANSACTION_AMOUNTS_PAID
+    - TRANSACTION_AMOUNTS_RECEIVED
+    - ACCOUNT_BALANCE
 
 # ==============================================================================
 # 7. EVALUATION CONFIGURATION
@@ -863,7 +905,9 @@ universal_extraction:
       TOTAL_AMOUNT: Final total amount (with $ symbol) - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
       TRANSACTION_DATES: Transaction dates for BANK STATEMENTS ONLY (pipe-separated, DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 amount (or NOT_FOUND if empty), Position 2 = Row 2 amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 DEBIT amount (or NOT_FOUND if empty), Position 2 = Row 2 DEBIT amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 CREDIT amount (or NOT_FOUND if empty), Position 2 = Row 2 CREDIT amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      ACCOUNT_BALANCE: BALANCE amounts for BANK STATEMENTS ONLY (pipe-separated with $) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 BALANCE amount, Position 2 = Row 2 BALANCE amount, etc. CRITICAL: List must have same number of elements as table rows.
 
     output_format: |
       ANSWER EXACTLY IN THIS FORMAT (replace [values] with extracted data):
@@ -885,6 +929,8 @@ universal_extraction:
       STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
       TRANSACTION_DATES: [date1 | date2 | NOT_FOUND | date4 or NOT_FOUND]
       TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | NOT_FOUND | $amount4 or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | $credit2 | $credit3 | NOT_FOUND or NOT_FOUND]
+      ACCOUNT_BALANCE: [$balance1 | $balance2 | $balance3 | $balance4 or NOT_FOUND]
 
   # --------------------------------------------------------------------------
   # LLAMA UNIVERSAL TEMPLATE - Single-pass all fields (ACTIVE)
@@ -933,7 +979,9 @@ universal_extraction:
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
       TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 amount (or NOT_FOUND if empty), Position 2 = Row 2 amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 DEBIT amount (or NOT_FOUND if empty), Position 2 = Row 2 DEBIT amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 CREDIT amount (or NOT_FOUND if empty), Position 2 = Row 2 CREDIT amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      ACCOUNT_BALANCE: BALANCE amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 BALANCE amount, Position 2 = Row 2 BALANCE amount, etc. CRITICAL: List must have same number of elements as table rows.
 
     output_format: |
       OUTPUT EXACTLY IN THIS FORMAT (replace [values] with actual extracted data):
@@ -955,6 +1003,8 @@ universal_extraction:
       STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
       TRANSACTION_DATES: [date1 | date2 | NOT_FOUND | date4 or NOT_FOUND]
       TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | NOT_FOUND | $amount4 or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | $credit2 | $credit3 | NOT_FOUND or NOT_FOUND]
+      ACCOUNT_BALANCE: [$balance1 | $balance2 | $balance3 | $balance4 or NOT_FOUND]
 
 # ==============================================================================
 # 11. VERSION HISTORY - Schema evolution tracking

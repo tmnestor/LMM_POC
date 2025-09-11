@@ -321,7 +321,7 @@ class DocumentAwareLlamaProcessor:
                 self.model = self.model.to(self.device)
                 return output
 
-    def process_single_image(self, image_path: str, custom_prompt: Optional[str] = None) -> dict:
+    def process_single_image(self, image_path: str, custom_prompt: Optional[str] = None, custom_max_tokens: Optional[int] = None) -> dict:
         """Process single image with document-aware extraction."""
 
         try:
@@ -378,14 +378,19 @@ class DocumentAwareLlamaProcessor:
                 self.device
             )
 
+            # Use custom max_tokens if provided (for YAML prompts)
+            generation_config = self.generation_config.copy()
+            if custom_max_tokens:
+                generation_config["max_new_tokens"] = custom_max_tokens
+
             if self.debug:
                 print(f"🖼️  Input tensor shape: {inputs['input_ids'].shape}")
                 print(
-                    f"💭 Generating with max_new_tokens={self.generation_config['max_new_tokens']}"
+                    f"💭 Generating with max_new_tokens={generation_config['max_new_tokens']}"
                 )
 
             # Generate response
-            output = self._resilient_generate(inputs, **self.generation_config)
+            output = self._resilient_generate(inputs, **generation_config)
 
             # Decode response
             full_response = self.processor.decode(output[0], skip_special_tokens=True)

@@ -29,28 +29,52 @@ prompts:
       
       TRANSACTION_DATES: [pipe-separated dates in same order as descriptions - format: date1 | date2 | date3]
       
-      TRANSACTION_AMOUNTS_PAID: [pipe-separated amounts - READ CAREFULLY:
-      - If transaction has amount in WITHDRAWAL column: use that amount
-      - If transaction has amount in DEPOSIT column: use that amount  
-      - If transaction has amount in DEBIT column: use that amount
-      - If transaction has amount in CREDIT column: use that amount
-      - Format: amount1 | amount2 | amount3]
+      TRANSACTION_AMOUNTS_PAID: [pipe-separated DEBIT/WITHDRAWAL amounts - money OUT:
+      - Extract amounts from WITHDRAWAL/DEBIT columns only
+      - These are payments, withdrawals, fees, purchases (money leaving account)
+      - Format: amount1 | amount2 | amount3 | NOT_FOUND (if no debits)]
+      
+      TRANSACTION_AMOUNTS_RECEIVED: [pipe-separated CREDIT/DEPOSIT amounts - money IN:
+      - Extract amounts from DEPOSIT/CREDIT columns only  
+      - These are deposits, salary, refunds, transfers in (money entering account)
+      - Format: amount1 | amount2 | amount3 | NOT_FOUND (if no credits)]
+      
+      ACCOUNT_BALANCE: [pipe-separated BALANCE amounts - running account balance:
+      - Extract amounts from BALANCE columns for each transaction row
+      - These show the account balance AFTER each transaction
+      - Format: balance1 | balance2 | balance3 | balance4]
       
       ## CRITICAL INSTRUCTIONS FOR FLAT STATEMENTS:
       
+      **UNDERSTANDING BANK STATEMENT COLUMNS:**
+      Each transaction row typically has these dollar amounts:
+      - DEBIT/WITHDRAWAL column: Money OUT of account (use for TRANSACTION_AMOUNTS_PAID)
+      - CREDIT/DEPOSIT column: Money IN to account (use for TRANSACTION_AMOUNTS_RECEIVED)  
+      - BALANCE column: Running account balance AFTER each transaction (use for ACCOUNT_BALANCE)
+      
+      **CRITICAL BALANCE VALIDATION:**
+      The BALANCE column is the most reliable field (nearly 100% accuracy).
+      Use balance direction to validate transaction classification:
+      - If balance INCREASES → Money came IN (CREDIT/DEPOSIT) → TRANSACTION_AMOUNTS_RECEIVED
+      - If balance DECREASES → Money went OUT (DEBIT/WITHDRAWAL) → TRANSACTION_AMOUNTS_PAID
+      
       1. **Column Recognition**: Look at the actual column headers in the image:
-         - Some statements use "Withdrawal" and "Deposit" 
-         - Others use "Debit" and "Credit"
-         - Use the EXACT column names you see
-      
-      2. **Amount Extraction**: 
-         - Extract amounts exactly as they appear in their columns
-         - Include amounts from BOTH withdrawal/debit AND deposit/credit columns
-         - Maintain the same order as transaction descriptions
-      
+         - Common patterns: "Date | Description | Withdrawal | Deposit | Balance"
+         - Alternative patterns: "Date | Description | Debit | Credit | Balance"
+         - Some have additional columns like "Transaction Type" or "Reference"
+
+      2. **Amount Classification - CRITICAL**: 
+         - TRANSACTION_AMOUNTS_PAID: Extract from WITHDRAWAL/DEBIT columns (money out)
+         - TRANSACTION_AMOUNTS_RECEIVED: Extract from DEPOSIT/CREDIT columns (money in)
+         - ACCOUNT_BALANCE: Extract from BALANCE columns (running account total after transaction)
+         - **VALIDATION**: Compare consecutive balance amounts to confirm transaction direction
+         - If a row has both debit AND credit, extract both amounts separately
+
       3. **Row Order**: Process transactions in the order they appear in the table
-      
+
       4. **Date Format**: Use dates exactly as shown in the Date column
+      
+      5. **Pipe Separation**: Ensure PAID, RECEIVED, and BALANCE lists have same number of entries as descriptions
       
       Example Format:
       BANK_NAME: [Extract bank name from header]
@@ -63,7 +87,9 @@ prompts:
       DOCUMENT_TYPE: STATEMENT
       LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
       TRANSACTION_DATES: [date1 | date2 | date3]
-      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [credit1 | NOT_FOUND | credit3]
+      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
 
   legacy_compatible:
     name: "Legacy Compatible Flat Extraction"
