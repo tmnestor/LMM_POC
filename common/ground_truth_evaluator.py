@@ -237,6 +237,11 @@ class GroundTruthEvaluator:
 
             ground_value = ground_truth.get(field_name, "NOT_FOUND")
             extracted_value = extracted_fields.get(field_name, "NOT_FOUND")
+            
+            # Debug: Show field name mismatches
+            if extracted_value == "NOT_FOUND" and field_name in ["GST_AMOUNT", "IS_GST_INCLUDED", "BUSINESS_ABN"]:
+                rprint(f"[dim]DEBUG: Field '{field_name}' not found in extracted_fields[/dim]")
+                rprint(f"[dim]Available extracted fields: {list(extracted_fields.keys())[:5]}[/dim]")
 
             # Convert pandas NaN to NOT_FOUND
             if pd.isna(ground_value):
