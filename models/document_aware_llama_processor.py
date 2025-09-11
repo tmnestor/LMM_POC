@@ -838,6 +838,11 @@ class DocumentAwareLlamaProcessor:
             if len(parts) == 2:
                 key = parts[0].strip().upper()
                 value = parts[1].strip()
+                
+                # Additional markdown cleanup for values that start with markdown
+                # Handle cases like "** STATEMENT" or "**STATEMENT"
+                value = re.sub(r'^\*+\s*', '', value)  # Remove leading asterisks and spaces
+                value = value.strip()  # Clean up any remaining whitespace
 
                 # Normalize field name: convert spaces to underscores for matching
                 normalized_key = key.replace(" ", "_")

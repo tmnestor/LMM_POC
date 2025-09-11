@@ -44,6 +44,9 @@ class ExtractionCleaner:
             "DESCRIPTIONS",
             "QUANTITIES",
             "PRICES",
+            "TRANSACTION_DATES",  # Bank statement transaction dates
+            "TRANSACTION_AMOUNTS",  # Bank statement amounts (paid/received)
+            "ACCOUNT_BALANCE",  # Bank statement running balances
         ]
         self.date_patterns = ["DATE", "TIME", "PERIOD", "RANGE"]
         self.id_patterns = ["NUMBER", "ID", "ABN", "BSB", "ACCOUNT"]
@@ -169,6 +172,7 @@ class ExtractionCleaner:
         Clean monetary values (AMOUNT, PRICE fields).
 
         Handles:
+        - Remove markdown artifacts
         - Remove "each", "per item", etc. suffixes
         - Standardize currency symbols
         - Clean up spacing and formatting
@@ -177,6 +181,10 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value
+        
+        # Remove markdown artifacts first
+        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
+        cleaned = cleaned.replace('**', '')  # Remove any double asterisks
 
         # Remove common price suffixes
         for pattern in self.price_suffix_patterns:
@@ -200,6 +208,7 @@ class ExtractionCleaner:
         Clean list fields (LINE_ITEM_*) and convert to pipe-separated format.
 
         Handles:
+        - Remove markdown artifacts from the whole value and each item
         - Split by comma or pipe, clean each item
         - Remove price suffixes from price lists
         - Convert to standard pipe-separated format
@@ -207,6 +216,10 @@ class ExtractionCleaner:
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
+        
+        # Remove markdown artifacts from the whole value first
+        value = re.sub(r'^\*+\s*', '', value)  # Remove leading asterisks
+        value = value.replace('**', '')  # Remove any double asterisks
 
         # Split by comma or pipe and clean each item
         if "|" in value:
@@ -240,6 +253,7 @@ class ExtractionCleaner:
         Standardize date formats.
 
         Handles:
+        - Remove markdown artifacts
         - Normalize common date separators
         - Trim whitespace
         - Standardize format consistency
@@ -248,6 +262,10 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value.strip()
+        
+        # Remove markdown artifacts
+        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
+        cleaned = cleaned.replace('**', '')  # Remove any double asterisks
 
         # Normalize date separators (keep original format but clean spacing)
         cleaned = re.sub(r"\s*[-/\.]\s*", lambda m: m.group(0).strip(), cleaned)
@@ -290,6 +308,7 @@ class ExtractionCleaner:
         Clean general text fields.
 
         Handles:
+        - Remove markdown artifacts (**, *, etc.)
         - Normalize whitespace
         - Trim leading/trailing spaces
         - Remove redundant punctuation
@@ -298,6 +317,12 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value.strip()
+        
+        # Remove markdown artifacts that models sometimes generate
+        # Handle "** STATEMENT", "**STATEMENT", "* value", etc.
+        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
+        cleaned = re.sub(r'\*+$', '', cleaned)  # Remove trailing asterisks
+        cleaned = cleaned.replace('**', '')  # Remove any remaining double asterisks
 
         # Normalize whitespace
         cleaned = re.sub(r"\s+", " ", cleaned)
