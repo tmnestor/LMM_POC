@@ -112,14 +112,16 @@ class DocumentAwareLlamaProcessor:
         """Configure batch processing parameters."""
         if batch_size is not None:
             self.batch_size = max(1, batch_size)
-            print(f"🎯 Using manual batch size: {self.batch_size}")
+            if self.debug:
+                print(f"🎯 Using manual batch size: {self.batch_size}")
         else:
             # Auto-detect batch size based on available memory
             available_memory = get_available_gpu_memory(self.device)
             self.batch_size = get_auto_batch_size("llama", available_memory)
-            print(
-                f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
-            )
+            if self.debug:
+                print(
+                    f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
+                )
 
     def _configure_generation(self):
         """
@@ -148,15 +150,17 @@ class DocumentAwareLlamaProcessor:
                 f"🎯 BOSS FIELD REDUCTION: {self.field_count} fields (~{performance_gain:.0f}% fewer than original 29)"
             )
 
-        print(
-            f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-            f"temperature={self.generation_config['temperature']}, "
-            f"do_sample={self.generation_config['do_sample']}"
-        )
+        if self.debug:
+            print(
+                f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+                f"temperature={self.generation_config['temperature']}, "
+                f"do_sample={self.generation_config['do_sample']}"
+            )
 
     def _load_model(self):
         """Load Llama Vision model and processor with optimal configuration."""
-        print(f"🔄 Loading Llama Vision model from: {self.model_path}")
+        if self.debug:
+            print(f"🔄 Loading Llama Vision model from: {self.model_path}")
 
         try:
             # Configure 8-bit quantization for V100 compatibility
@@ -181,20 +185,24 @@ class DocumentAwareLlamaProcessor:
             # Call tie_weights() after loading
             try:
                 self.model.tie_weights()
-                print("✅ Llama Vision model loaded successfully (tie_weights called)")
+                if self.debug:
+                    print("✅ Llama Vision model loaded successfully (tie_weights called)")
             except Exception as e:
-                print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
+                if self.debug:
+                    print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
 
-            print(f"🔧 Device: {self.model.device}")
-            print(
-                f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
-            )
+            if self.debug:
+                print(f"🔧 Device: {self.model.device}")
+                print(
+                    f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
+                )
 
             # Apply V100 optimizations
             optimize_model_for_v100(self.model)
 
         except Exception as e:
-            print(f"❌ Error loading Llama model: {e}")
+            if self.debug:
+                print(f"❌ Error loading Llama model: {e}")
             raise
 
     def generate_dynamic_prompt(self, document_type: str = "invoice") -> str:
@@ -259,7 +267,8 @@ class DocumentAwareLlamaProcessor:
         try:
             return Image.open(image_path)
         except Exception as e:
-            print(f"❌ Error loading image {image_path}: {e}")
+            if self.debug:
+                print(f"❌ Error loading image {image_path}: {e}")
             raise
 
     def _resilient_generate(self, inputs, **generation_kwargs):
