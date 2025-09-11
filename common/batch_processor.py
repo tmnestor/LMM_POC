@@ -14,9 +14,9 @@ from rich.console import Console
 from rich.progress import track
 
 from .document_detector import detect_document_type
-from .prompt_loader import load_document_prompt
 from .document_type_metrics import DocumentTypeEvaluator
 from .evaluation_metrics import load_ground_truth
+from .prompt_loader import load_document_prompt
 
 
 class BatchDocumentProcessor:
