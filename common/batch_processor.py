@@ -13,7 +13,6 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
 
-from .document_detector import detect_document_type
 from .document_type_metrics import DocumentTypeEvaluator
 from .evaluation_metrics import load_ground_truth
 from .prompt_loader import load_document_prompt
@@ -95,14 +94,40 @@ class BatchDocumentProcessor:
                 # Record start time
                 start_time = time.time()
                 
-                # Step 1: Detect document type
-                document_type = detect_document_type(
-                    image_path=image_path,
-                    extractor=self.extractor,
-                    detection_prompt_file=self.prompt_config['detection_file'],
-                    prompt_files=self.prompt_config['extraction_files'],
-                    detection_prompt_key=self.prompt_config['detection_key']
+                # Step 1: Detect document type using YAML-first approach (like llama_document_aware.py)
+                import yaml
+
+                from common.unified_schema import DocumentTypeFieldSchema
+                
+                # Load detection config from YAML
+                detection_path = Path(self.prompt_config['detection_file'])
+                with detection_path.open('r') as f:
+                    detection_config = yaml.safe_load(f)
+                
+                # Get Llama-specific prompt
+                llama_config = detection_config["detection_prompts"]["llama"]
+                doc_type_prompt = llama_config["user_prompt"]
+                max_tokens = llama_config.get("max_tokens", 50)
+                
+                # Create simple processor for detection only
+                from models.document_aware_llama_processor import (
+                    DocumentAwareLlamaProcessor,
                 )
+                detection_processor = DocumentAwareLlamaProcessor(
+                    field_list=["DOCUMENT_TYPE"],  # Single field for detection
+                    skip_model_loading=True,
+                    debug=verbose
+                )
+                detection_processor.model = self.model
+                detection_processor.processor = self.processor
+                
+                # Extract document type using YAML prompt
+                response = detection_processor._extract_with_custom_prompt(
+                    image_path, doc_type_prompt, max_new_tokens=max_tokens
+                )
+                
+                # Parse document type from response
+                document_type = self._parse_document_type_response(response, detection_config)
                 
                 # Track document types
                 document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
@@ -115,7 +140,6 @@ class BatchDocumentProcessor:
                 )
                 
                 # Step 3: Extract fields using DocumentAwareLlamaProcessor directly
-                from common.unified_schema import DocumentTypeFieldSchema
                 from models.document_aware_llama_processor import (
                     DocumentAwareLlamaProcessor,
                 )
@@ -220,6 +244,40 @@ class BatchDocumentProcessor:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
             
         return batch_results, processing_times, document_types_found
+    
+    def _parse_document_type_response(self, response: str, detection_config: dict) -> str:
+        """Parse document type response using YAML-configured type mappings."""
+        if not response:
+            return detection_config["detection_config"].get(
+                "fallback_type", "invoice"
+            )
+
+        response_lower = response.lower().strip()
+
+        # First try to extract any document type mentioned in response
+        raw_type = None
+        supported_types = detection_config.get("supported_types", [])
+
+        for doc_type in supported_types:
+            if doc_type in response_lower:
+                raw_type = doc_type
+                break
+
+        # If no direct match, look in type mappings
+        if not raw_type:
+            type_mappings = detection_config.get("type_mappings", {})
+            for variant, canonical in type_mappings.items():
+                if variant.lower() in response_lower:
+                    raw_type = canonical
+                    break
+
+        # Final fallback
+        if not raw_type:
+            raw_type = detection_config["detection_config"].get(
+                "fallback_type", "invoice"
+            )
+
+        return raw_type.upper()
     
     def _display_detailed_field_comparison(
         self, image_name: str, extracted_data: dict, ground_truth: dict, 
