@@ -90,6 +90,9 @@ class BatchDocumentProcessor:
         for idx, image_path in enumerate(iterator, 1):
             image_name = Path(image_path).name
             
+            if verbose:
+                rprint(f"\n[bold blue]Processing [{idx}/{len(image_paths)}]: {image_name}[/bold blue]")
+            
             try:
                 # Record start time
                 start_time = time.time()
@@ -181,8 +184,8 @@ class BatchDocumentProcessor:
                 doc_processor.model = self.model
                 doc_processor.processor = self.processor
                 
-                # Extract data using document-aware approach
-                extraction_result = doc_processor.process_single_image(image_path)
+                # Extract data using document-aware approach with loaded YAML prompt
+                extraction_result = doc_processor.process_single_image(image_path, custom_prompt=extraction_prompt)
                 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name

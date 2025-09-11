@@ -321,7 +321,7 @@ class DocumentAwareLlamaProcessor:
                 self.model = self.model.to(self.device)
                 return output
 
-    def process_single_image(self, image_path: str) -> dict:
+    def process_single_image(self, image_path: str, custom_prompt: Optional[str] = None) -> dict:
         """Process single image with document-aware extraction."""
 
         try:
@@ -333,16 +333,25 @@ class DocumentAwareLlamaProcessor:
             # Load image
             image = self.load_document_image(image_path)
 
-            # Generate prompt for specific field list using unified schema
-            document_type = self.detect_document_type()
-            prompt = self.generate_dynamic_prompt(document_type=document_type)
+            # Use custom prompt if provided, otherwise generate from schema
+            if custom_prompt:
+                prompt = custom_prompt
+                document_type = "CUSTOM"  # Indicate custom prompt usage
+            else:
+                # Generate prompt for specific field list using unified schema
+                document_type = self.detect_document_type()
+                prompt = self.generate_dynamic_prompt(document_type=document_type)
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
-                sys.stdout.write(f"📝 Generated prompt for {self.field_count} fields\n")
-                sys.stdout.write(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n")
-                sys.stdout.write(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n")
+                if custom_prompt:
+                    sys.stdout.write("📝 Using custom YAML prompt\n")
+                    sys.stdout.write(f"🔍 CUSTOM YAML PROMPT ({len(prompt)} chars):\n")
+                else:
+                    sys.stdout.write(f"📝 Generated prompt for {self.field_count} fields\n")
+                    sys.stdout.write(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n")
+                    sys.stdout.write(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n")
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.write(prompt + "\n")
                 sys.stdout.write("=" * 80 + "\n")
