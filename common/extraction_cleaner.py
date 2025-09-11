@@ -183,7 +183,7 @@ class ExtractionCleaner:
         cleaned = value
         
         # Remove markdown artifacts first
-        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
+        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
         cleaned = cleaned.replace('**', '')  # Remove any double asterisks
 
         # Remove common price suffixes
@@ -218,7 +218,7 @@ class ExtractionCleaner:
             return "NOT_FOUND"
         
         # Remove markdown artifacts from the whole value first
-        value = re.sub(r'^\*+\s*', '', value)  # Remove leading asterisks
+        value = re.sub(r'^\s*\*+\s*', '', value)  # Remove leading whitespace + asterisks + spaces
         value = value.replace('**', '')  # Remove any double asterisks
 
         # Split by comma or pipe and clean each item
@@ -264,7 +264,7 @@ class ExtractionCleaner:
         cleaned = value.strip()
         
         # Remove markdown artifacts
-        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
+        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
         cleaned = cleaned.replace('**', '')  # Remove any double asterisks
 
         # Normalize date separators (keep original format but clean spacing)
@@ -317,12 +317,17 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value.strip()
+        original_cleaned = cleaned
         
         # Remove markdown artifacts that models sometimes generate
-        # Handle "** STATEMENT", "**STATEMENT", "* value", etc.
-        cleaned = re.sub(r'^\*+\s*', '', cleaned)  # Remove leading asterisks
-        cleaned = re.sub(r'\*+$', '', cleaned)  # Remove trailing asterisks
+        # Handle " ** STATEMENT", "**STATEMENT", "* value", etc.
+        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
+        cleaned = re.sub(r'\s*\*+\s*$', '', cleaned)  # Remove trailing whitespace + asterisks
         cleaned = cleaned.replace('**', '')  # Remove any remaining double asterisks
+        
+        # Debug logging for markdown cleaning
+        if self.debug and original_cleaned != cleaned and '*' in original_cleaned:
+            print(f"🧹 CLEANER DEBUG: '{original_cleaned}' → '{cleaned}'" )
 
         # Normalize whitespace
         cleaned = re.sub(r"\s+", " ", cleaned)
