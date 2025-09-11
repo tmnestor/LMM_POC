@@ -24,26 +24,29 @@ class BatchDocumentProcessor:
     
     def __init__(
         self,
-        extractor,
-        evaluator,
+        model,
+        processor,
         prompt_config: Dict,
+        ground_truth_csv: str,
         console: Optional[Console] = None
     ):
         """
-        Initialize batch processor.
+        Initialize batch processor with clean, direct architecture.
         
         Args:
-            extractor: LlamaVisionTableExtractor instance
-            evaluator: GroundTruthEvaluator instance (legacy - will be replaced with DocumentTypeEvaluator)
+            model: Loaded Llama model instance
+            processor: Loaded Llama processor instance
             prompt_config: Dictionary with prompt file paths and keys
+            ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
         """
-        self.extractor = extractor
-        self.evaluator = evaluator  # Keep for backward compatibility but will use DocumentTypeEvaluator
+        self.model = model
+        self.processor = processor
         self.prompt_config = prompt_config
+        self.ground_truth_csv = ground_truth_csv
         self.console = console or Console()
         
-        # Use the working evaluation approach from document-aware system
+        # Use DocumentTypeEvaluator for all evaluation
         self.document_evaluator = DocumentTypeEvaluator()
         self.ground_truth_data = None
         
@@ -68,16 +71,15 @@ class BatchDocumentProcessor:
         processing_times = []
         document_types_found = {}
         
-        # Load ground truth data once for the batch (working approach from document-aware system)
-        if hasattr(self.evaluator, 'ground_truth_csv'):
-            try:
-                self.ground_truth_data = load_ground_truth(self.evaluator.ground_truth_csv)
-                if verbose:
-                    rprint(f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]")
-            except Exception as e:
-                if verbose:
-                    rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
-                self.ground_truth_data = {}
+        # Load ground truth data once for the batch
+        try:
+            self.ground_truth_data = load_ground_truth(self.ground_truth_csv)
+            if verbose:
+                rprint(f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]")
+        except Exception as e:
+            if verbose:
+                rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
+            self.ground_truth_data = {}
         
         if verbose:
             rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
@@ -112,8 +114,7 @@ class BatchDocumentProcessor:
                     document_type=document_type
                 )
                 
-                # Step 3: Extract fields using document-aware processor
-                # Use the working DocumentAwareLlamaProcessor approach instead of bank-specific extractor
+                # Step 3: Extract fields using DocumentAwareLlamaProcessor directly
                 from common.unified_schema import DocumentTypeFieldSchema
                 from models.document_aware_llama_processor import (
                     DocumentAwareLlamaProcessor,
@@ -123,17 +124,17 @@ class BatchDocumentProcessor:
                 schema_loader = DocumentTypeFieldSchema()
                 field_list = schema_loader.get_field_names_for_type(document_type)
                 
-                # Create document-aware processor with the model/processor from extractor
+                # Create document-aware processor with loaded model/processor
                 doc_processor = DocumentAwareLlamaProcessor(
                     field_list=field_list,
-                    skip_model_loading=True,  # Reuse existing model
+                    skip_model_loading=True,  # Use existing model
                     debug=verbose
                 )
-                # Inject the existing model and processor
-                doc_processor.model = self.extractor.model
-                doc_processor.processor = self.extractor.processor
+                # Use the loaded model and processor directly
+                doc_processor.model = self.model
+                doc_processor.processor = self.processor
                 
-                # Use the working extraction method
+                # Extract data using document-aware approach
                 extraction_result = doc_processor.process_single_image(image_path)
                 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
