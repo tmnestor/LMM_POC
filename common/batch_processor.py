@@ -155,6 +155,15 @@ class BatchDocumentProcessor:
                         extracted_data, ground_truth, document_type
                     )
                     
+                    # Fix structure mismatch: BatchAnalytics expects overall_accuracy at top level
+                    # but DocumentTypeEvaluator puts it in overall_metrics
+                    if evaluation and "overall_metrics" in evaluation:
+                        # Flatten the structure for BatchAnalytics compatibility
+                        evaluation["overall_accuracy"] = evaluation["overall_metrics"].get("overall_accuracy", 0)
+                        evaluation["fields_extracted"] = evaluation["overall_metrics"].get("total_fields_evaluated", 0)
+                        evaluation["fields_matched"] = evaluation["overall_metrics"].get("fields_correct", 0)
+                        evaluation["total_fields"] = evaluation["overall_metrics"].get("total_fields_evaluated", 0)
+                    
                     # Add detailed debug output like document-aware system
                     if verbose and evaluation and "field_scores" in evaluation:
                         self._display_detailed_field_comparison(
