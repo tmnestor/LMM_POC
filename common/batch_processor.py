@@ -132,10 +132,32 @@ class BatchDocumentProcessor:
                 # Track document types
                 document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
                 
+                # Special handling for bank statements: classify structure type
+                if document_type == "BANK_STATEMENT":
+                    bank_structure = self._classify_bank_statement_structure(image_path, verbose)
+                    
+                    # Update prompt configuration for bank statement structure
+                    extraction_files = self.prompt_config['extraction_files'].copy()
+                    extraction_keys = self.prompt_config['extraction_keys'].copy()
+                    
+                    if bank_structure == "flat":
+                        extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_flat_optimized.yaml'
+                        extraction_keys['BANK_STATEMENT'] = 'flat_optimized'
+                    else:  # date_grouped
+                        extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_date_grouped.yaml' 
+                        extraction_keys['BANK_STATEMENT'] = 'date_grouped'
+                    
+                    if verbose:
+                        rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
+                        rprint(f"[cyan]📁 Using prompt: {extraction_files['BANK_STATEMENT']}[/cyan]")
+                else:
+                    extraction_files = self.prompt_config['extraction_files']
+                    extraction_keys = self.prompt_config['extraction_keys']
+                
                 # Step 2: Load document-specific prompt
                 extraction_prompt, prompt_name, _ = load_document_prompt(
-                    prompt_files=self.prompt_config['extraction_files'],
-                    prompt_keys=self.prompt_config['extraction_keys'],
+                    prompt_files=extraction_files,
+                    prompt_keys=extraction_keys,
                     document_type=document_type,
                     verbose=verbose
                 )
@@ -268,6 +290,12 @@ class BatchDocumentProcessor:
         # Final fallback
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
         return fallback
+    
+    def _classify_bank_statement_structure(self, image_path: str, verbose: bool = False):
+        """Classify bank statement structure for optimal prompt selection."""
+        from .bank_statement_classifier import classify_bank_statement_structure
+        
+        return classify_bank_statement_structure(image_path, verbose)
     
     def _display_detailed_field_comparison(
         self, image_name: str, extracted_data: dict, ground_truth: dict, 
