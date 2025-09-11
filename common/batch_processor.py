@@ -121,7 +121,7 @@ class BatchDocumentProcessor:
                 
                 # Get document-specific fields for this document type
                 schema_loader = DocumentTypeFieldSchema()
-                field_list = schema_loader.get_field_list_for_document_type(document_type)
+                field_list = schema_loader.get_field_names_for_type(document_type)
                 
                 # Create document-aware processor with the model/processor from extractor
                 doc_processor = DocumentAwareLlamaProcessor(
