@@ -68,7 +68,7 @@ prompts:
          - TRANSACTION_AMOUNTS_RECEIVED: Extract from DEPOSIT/CREDIT columns (money in)
          - ACCOUNT_BALANCE: Extract from BALANCE columns (running account total after transaction)
          - **VALIDATION**: Compare consecutive balance amounts to confirm transaction direction
-         - If a row has both debit AND credit, extract both amounts separately
+         - **CRITICAL**: Each transaction row has ONLY a debit OR credit, never both
 
       3. **Row Order**: Process transactions in the order they appear in the table
 
