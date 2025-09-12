@@ -51,10 +51,11 @@ UNIVERSAL_FIELDS = [
 class DocumentAwareInternVL3Handler:
     """V4 Document-Aware InternVL3 Vision Processor with comprehensive field coverage."""
 
-    def __init__(self, model_path: str, debug: bool = False):
+    def __init__(self, model_path: str, device: str = "cuda", debug: bool = False):
         """Initialize document-aware processor."""
         self.debug = debug
         self.model_path = model_path
+        self.device = device
 
         print(
             "🚀 Initializing InternVL3 Vision processor for V4 document-aware extraction..."
@@ -102,6 +103,7 @@ class DocumentAwareInternVL3Handler:
             self.base_processor = DocumentAwareInternVL3Processor(
                 field_list=detection_fields,
                 model_path=self.model_path,
+                device=self.device,
                 debug=self.debug,
             )
 
@@ -287,6 +289,7 @@ class DocumentAwareInternVL3Handler:
         document_processor = DocumentAwareInternVL3Processor(
             field_list=field_names,
             model_path=self.model_path,
+            device=self.device,
             debug=self.debug,
             skip_model_loading=skip_loading,
         )
@@ -352,6 +355,7 @@ class DocumentAwareInternVL3Handler:
         document_processor = DocumentAwareInternVL3Processor(
             field_list=universal_fields,
             model_path=self.model_path,  # Uses correct path from args
+            device=self.device,
             debug=self.debug,
             skip_model_loading=skip_loading,
         )
@@ -685,6 +689,7 @@ def main():
             ocr_processor = DocumentAwareInternVL3Processor(
                 field_list=ocr_fields,
                 model_path=args.model_path,
+                device=args.device if hasattr(args, 'device') else "cuda",
                 debug=True
             )
             

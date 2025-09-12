@@ -71,7 +71,13 @@ class DocumentAwareInternVL3Processor:
         self.field_list = field_list
         self.field_count = len(field_list)
         self.model_path = model_path or INTERNVL3_MODEL_PATH
+        
+        # Simple device assignment - no MPS support
         self.device = device
+        if device == "cuda" and not torch.cuda.is_available():
+            self.device = "cpu"
+            print("💻 CUDA not available, using CPU")
+            
         self.debug = debug
 
         # Initialize components
@@ -86,6 +92,13 @@ class DocumentAwareInternVL3Processor:
 
         # Fix 8B detection using actual model path
         self.is_8b_model = "8B" in str(self.model_path)
+        
+        # Initialize torch_dtype here for when model is reused
+        if self.device == "cpu":
+            self.torch_dtype = torch.float32
+        else:
+            # CUDA devices support bfloat16
+            self.torch_dtype = torch.bfloat16
 
         if self.debug:
             print(
@@ -183,9 +196,22 @@ class DocumentAwareInternVL3Processor:
             print("🎯 InternVL3-2B detected - using standard optimizations")
 
         try:
+            # Determine appropriate dtype based on device
+            if self.device == "cpu":
+                # CPU works better with float32
+                torch_dtype = torch.float32
+                print("💻 CPU device - using float32")
+            else:
+                # CUDA devices support bfloat16
+                torch_dtype = torch.bfloat16
+                print("🔥 CUDA device - using bfloat16")
+            
+            # Store dtype for later use in inference
+            self.torch_dtype = torch_dtype
+            
             # Base model configuration
             model_kwargs = {
-                "torch_dtype": torch.bfloat16,
+                "torch_dtype": torch_dtype,
                 "low_cpu_mem_usage": True,
                 "use_flash_attn": False,  # Disabled for compatibility
                 "trust_remote_code": True,
@@ -242,7 +268,7 @@ class DocumentAwareInternVL3Processor:
                         print("   Status: Using modern API (recommended)")
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
-                            bnb_8bit_compute_dtype=torch.bfloat16,
+                            bnb_8bit_compute_dtype=torch_dtype,
                         )
                         model_kwargs["quantization_config"] = quantization_config
                         print("   ✅ BitsAndBytesConfig created successfully")
@@ -292,7 +318,7 @@ class DocumentAwareInternVL3Processor:
                             )
 
                             legacy_kwargs = {
-                                "torch_dtype": torch.bfloat16,
+                                "torch_dtype": torch_dtype,
                                 "load_in_8bit": True,
                                 "device_map": {"": 0},  # Force GPU 0
                                 "low_cpu_mem_usage": True,
@@ -337,12 +363,13 @@ class DocumentAwareInternVL3Processor:
 
             else:
                 # InternVL3-2B: Direct loading without quantization
-                print("\n📦 LOADING APPROACH: Direct bfloat16 (No Quantization Needed)")
+                dtype_name = "bfloat16" if torch_dtype == torch.bfloat16 else "float32"
+                print(f"\n📦 LOADING APPROACH: Direct {dtype_name} (No Quantization Needed)")
                 print("   Model: InternVL3-2B")
-                print("   Reason: 2B model fits comfortably in V100 16GB VRAM")
-                print("   Precision: bfloat16 (model requires this precision)")
+                print("   Reason: 2B model fits comfortably in GPU memory")
+                print(f"   Precision: {dtype_name}")
 
-                # Configuration for 2B model - use model's native bfloat16
+                # Configuration for 2B model - always use auto device mapping
                 model_kwargs["device_map"] = "auto"
                 model_kwargs["local_files_only"] = True  # Force local loading
                 model_kwargs["use_auth_token"] = False   # Disable auth
@@ -351,7 +378,7 @@ class DocumentAwareInternVL3Processor:
                     self.model_path, **model_kwargs
                 ).eval()
 
-                print("✅ SUCCESS: InternVL3-2B loaded in bfloat16")
+                print(f"✅ SUCCESS: InternVL3-2B loaded in {dtype_name}")
                 print("   Approach: Direct loading without quantization")
                 print("   VRAM Usage: ~4-6GB (plenty of headroom on 16GB V100)")
 
@@ -379,13 +406,13 @@ class DocumentAwareInternVL3Processor:
                     print("Status: ⚠️ Loaded but quantization method unclear")
             else:
                 print("Model: InternVL3-2B")
-                print("Status: ✅ Successfully loaded in bfloat16")
+                print(f"Status: ✅ Successfully loaded in {dtype_name}")
                 print("Method: Direct loading (no quantization needed)")
                 print("VRAM: ~4-6GB")
             print("Hardware: V100 GPU (16GB VRAM)")
             print("=" * 60 + "\n")
 
-            # Apply V100 optimizations
+            # Apply GPU optimizations
             optimize_model_for_v100(self.model)
 
             # Configure warm-up based on model type and precision
@@ -398,7 +425,7 @@ class DocumentAwareInternVL3Processor:
                 print("ℹ️ 8B model loaded - warm-up enabled to verify stability")
             else:
                 print(
-                    "✅ InternVL3-2B bfloat16 model loaded - enabling warm-up for verification"
+                    f"✅ InternVL3-2B {dtype_name} model loaded - enabling warm-up for verification"
                 )
                 print("   V100 optimizations active")
 
@@ -593,50 +620,43 @@ class DocumentAwareInternVL3Processor:
         return pixel_values
 
     def process_single_image(self, image_path: str) -> dict:
-        """Process single image with universal single-pass extraction."""
-
+        """Process single image with document-aware field extraction."""
 
         try:
             start_time = time.time()
 
-            # Universal 15-field list (eliminates document type detection)
-            universal_fields = [
-                "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_TOTAL_PRICES", 
-                "GST_AMOUNT", "IS_GST_INCLUDED", "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
-            ]
-
+            # Use the field list passed to constructor (document-aware)
+            target_fields = self.field_list
 
             if self.debug:
                 print(
-                    f"🚀 Starting universal single-pass extraction for {Path(image_path).name}"
+                    f"🚀 Starting document-aware extraction for {Path(image_path).name}"
                 )
-                print("📊 Target fields: 15 universal fields (eliminates double tiling)")
+                print(f"📊 Target fields: {len(target_fields)} document-specific fields")
                 print(
-                    "🎯 Strategy: Universal extraction with post-processing type inference"
+                    "🎯 Strategy: Document-aware extraction with type-specific prompts"
                 )
                 print(
-                    f"📝 Fields: {universal_fields[:5]}{'...' if len(universal_fields) > 5 else ''}"
+                    f"📝 Fields: {target_fields[:5]}{'...' if len(target_fields) > 5 else ''}"
                 )
 
             # Memory cleanup - V100 optimized threshold (16GB total capacity)
             handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
             
-            # SINGLE-PASS: Extract all 15 fields universally, no document detection
-            extracted_data = self._extract_fields_universally(image_path, universal_fields)
+            # DOCUMENT-AWARE: Extract using the document-specific field list
+            extracted_data = self._extract_fields_directly(image_path, target_fields)
 
 
             # Post-processing: Infer document type from extraction results
             inferred_type = self._infer_document_type_from_extraction(extracted_data)
 
-            # Create metadata with inferred type
+            # Create metadata with document-aware info
             metadata = {
                 "document_type": inferred_type,
-                "extraction_strategy": "universal_single_pass",
-                "total_fields": len(universal_fields),
-                "extraction_method": "single_pass_with_predefined_fields",
+                "extraction_strategy": "document_aware",
+                "total_fields": len(target_fields),
+                "extraction_method": "document_specific_field_extraction",
             }
 
             processing_time = time.time() - start_time
@@ -708,7 +728,76 @@ class DocumentAwareInternVL3Processor:
     def _extract_fields_directly(
         self, image_path: str, field_list: List[str]
     ) -> Dict[str, str]:
-        raise RuntimeError("❌ FATAL: _extract_fields_directly() called - This method should not be used! Use universal extraction instead.")
+        """
+        Extract document-specific fields using document-aware prompts.
+        
+        Uses the specific field list provided to create targeted extraction prompts.
+        """
+        
+        if self.debug:
+            print(f"🎯 Document-aware extraction: processing {len(field_list)} specific fields")
+
+        # Create document-specific prompt based on field list
+        field_lines = []
+        for field in field_list:
+            if field in ["BUSINESS_PHONE", "PAYER_PHONE"]:
+                field_lines.append(f"{field}: [complete phone number with area code or NOT_FOUND]")
+            elif field == "BUSINESS_ABN":
+                field_lines.append(f"{field}: [11-digit ABN or NOT_FOUND]")
+            elif field in ["TOTAL_AMOUNT", "SUBTOTAL_AMOUNT", "GST_AMOUNT"]:
+                field_lines.append(f"{field}: [dollar amount with $ symbol or NOT_FOUND]")
+            elif field in ["PAYER_ADDRESS", "BUSINESS_ADDRESS"]:
+                field_lines.append(f"{field}: [complete address with postcode or NOT_FOUND]")
+            elif field == "PAYMENT_METHOD":
+                field_lines.append(f"{field}: [payment type like AMEX, Visa, Cash, etc. or NOT_FOUND]")
+            elif field in ["LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES"]:
+                field_lines.append(f"{field}: [pipe-separated values for all items or NOT_FOUND]")
+            else:
+                field_lines.append(f"{field}: [value as shown or NOT_FOUND]")
+
+        prompt = f"""Extract structured data from this business document image.
+
+OUTPUT FORMAT - EXACTLY {len(field_list)} LINES:
+{chr(10).join(field_lines)}
+
+INSTRUCTIONS:
+-- Extract values exactly as they appear in the document
+-- Use NOT_FOUND if a field is not present or cannot be determined
+-- Use colon and space format: FIELD_NAME: value
+-- For line items, use pipe-separated format: item1 | item2 | item3
+-- Include $ symbol for monetary amounts
+-- Output only the {len(field_list)} lines above, nothing else"""
+        
+        if self.debug:
+            print("🔨 Using document-aware extraction template")
+            print(f"📝 Prompt length: {len(prompt)} characters")
+
+        # Process the image with the document-aware prompt
+        try:
+            response = self._generate_response(image_path, prompt)
+            
+            if self.debug:
+                print("✅ Document-aware extraction completed")
+                
+            # Parse the response
+            from common.extraction_parser import parse_extraction_response
+            extracted_data = parse_extraction_response(response, expected_fields=field_list)
+            
+            return extracted_data
+            
+        except Exception as e:
+            if self.debug:
+                print(f"❌ Document-aware extraction failed: {e}")
+            # Return empty results with NOT_FOUND for all fields
+            return {field: "NOT_FOUND" for field in field_list}
+
+    def _generate_response(self, image_path: str, prompt: str) -> str:
+        """Generate response using the model's inference method."""
+        return self._extract_with_prompt(image_path, prompt, generation_config=None)
+
+    def _extract_fields_using_yaml(
+        self, image_path: str, field_list: List[str]
+    ) -> Dict[str, str]:
         """
         Extract specific fields using YAML-based unified prompt.
 
@@ -716,7 +805,7 @@ class DocumentAwareInternVL3Processor:
         """
         
         if self.debug:
-            print(f"🎯 Extracting {len(field_list)} document-specific fields directly")
+            print(f"🎯 Extracting {len(field_list)} document-specific fields using YAML")
 
         # Use YAML-first approach: generate prompt from unified schema like Llama does
         from common.yaml_template_renderer import PureYAMLRenderer
@@ -941,7 +1030,10 @@ class DocumentAwareInternVL3Processor:
         
 
         # Move to appropriate device and dtype
-        pixel_values = pixel_values.to(torch.bfloat16).cuda()
+        if self.device == "cpu":
+            pixel_values = pixel_values.to(self.torch_dtype)
+        else:
+            pixel_values = pixel_values.to(self.torch_dtype).cuda()
 
         # Prepare conversation
         question = f"<image>\n{prompt}"
@@ -1008,7 +1100,10 @@ class DocumentAwareInternVL3Processor:
                 if self.debug:
                     print(f"🔄 RELOADING: Creating {tiles} tiles...")
                 pixel_values = self.load_image(image_path, max_num=tiles)
-                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+                if self.device == "cpu":
+                    pixel_values = pixel_values.to(self.torch_dtype)
+                else:
+                    pixel_values = pixel_values.to(self.torch_dtype).cuda()
                 
                 if self.debug:
                     print(f"🎯 RETRY_ATTEMPT: Trying model.chat() with {pixel_values.shape[0]} tiles")
