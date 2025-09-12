@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "batch_id": "20250911_061829",
+    "timestamp": "2025-09-11T06:24:58.537936",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 3,
+    "successful_extractions": 3,
+    "average_accuracy": 59.99999999999999,
+    "total_processing_time": 377.9542932510376,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 3.0,
+    "Successful Extractions": 3.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 59.99999999999999,
+    "Median Accuracy (%)": 62.85714285714285,
+    "Min Accuracy (%)": 37.142857142857146,
+    "Max Accuracy (%)": 80.0,
+    "Average Processing Time (s)": 125.98476441701253,
+    "Total Processing Time (s)": 377.9542932510376,
+    "Throughput (images/min)": 0.47624806283241194
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 3
+  },
+  "results": [
+    {
+      "image_name": "commbank_flat_complex.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 245.39324235916138,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6285714285714284,
+        "fields_extracted": 7,
+        "fields_matched": 5,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "commbank_flat_simple.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 61.09803509712219,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7999999999999999,
+        "fields_extracted": 7,
+        "fields_matched": 6,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "commbank_statement_001.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Date-Grouped Bank Statement Extraction",
+      "processing_time": 71.46301579475403,
+      "evaluation_summary": {
+        "overall_accuracy": 0.37142857142857144,
+        "fields_extracted": 7,
+        "fields_matched": 3,
+        "total_fields": 7
+      }
+    }
+  ]
+}
