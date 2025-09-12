@@ -1,0 +1,3 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+image_006.png,invoice,87.14285714285715,14,13,14,15.70590353012085,internvl3_invoice
+image_007.png,invoice,58.57142857142856,14,9,14,9.40616512298584,internvl3_invoice
