@@ -54,7 +54,15 @@ class BatchVisualizer:
             
         # Create 2x2 dashboard
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle(f'Llama Vision Batch Processing Dashboard - {timestamp}', 
+        
+        # Extract model name from timestamp for dynamic title
+        model_name = "Vision Model"  # Default fallback
+        if timestamp.startswith('internvl3_'):
+            model_name = "InternVL3"
+        elif timestamp.startswith('llama_') or 'llama' in timestamp.lower():
+            model_name = "Llama Vision"
+        
+        fig.suptitle(f'{model_name} Batch Processing Dashboard - {timestamp}', 
                     fontsize=16, fontweight='bold')
         
         # 1. Accuracy Distribution Histogram

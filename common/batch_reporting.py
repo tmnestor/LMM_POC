@@ -71,12 +71,23 @@ class BatchReporter:
         else:
             readiness = "🔴 **Needs Improvement**"
         
+        # Extract model info from timestamp for dynamic title and model name
+        model_name = "Vision Model"
+        model_version = "Unknown Version"
+        
+        if self.timestamp.startswith('internvl3_'):
+            model_name = "InternVL3"
+            model_version = "InternVL3-8B"  # Default to 8B, could be enhanced to detect 2B
+        elif self.timestamp.startswith('llama_') or 'llama' in self.timestamp.lower():
+            model_name = "Llama Vision"
+            model_version = "Llama-3.2-11B-Vision-Instruct"
+        
         # Build report
-        report = f"""# Llama Vision Batch Processing Report
+        report = f"""# {model_name} Batch Processing Report
 
 **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
 **Batch ID:** {self.timestamp}  
-**Model:** Llama-3.2-11B-Vision-Instruct  
+**Model:** {model_version}  
 
 ## Executive Summary
 
