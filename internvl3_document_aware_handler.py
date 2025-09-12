@@ -37,6 +37,12 @@ class DocumentAwareInternVL3Handler:
         self.model_path = model_path
         self.device = device
 
+        # Recursion protection
+        self._recursion_depth = 0
+        self._max_recursion_depth = 5
+        self._evaluation_calls = 0
+        self._max_evaluation_calls = 10
+
         print("🚀 Initializing InternVL3 processor for document-aware extraction...")
 
         # Initialize components (same pattern as Llama)
@@ -144,6 +150,8 @@ class DocumentAwareInternVL3Handler:
         Returns:
             Dict with document type, schema, and field information
         """
+        print(f"🔍 TRACE: detect_and_classify_document called for {image_path}")
+        
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
             print("   Using YAML-first detection approach")
@@ -182,6 +190,8 @@ class DocumentAwareInternVL3Handler:
         self, image_path: str, classification_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process single document with type-aware extraction."""
+        print(f"🔍 TRACE: process_document_aware called for {image_path}, doc_type={classification_info.get('document_type', 'unknown')}")
+        
         start_time = time.perf_counter()
 
         # Extract using document-specific fields
@@ -245,33 +255,54 @@ class DocumentAwareInternVL3Handler:
         self, results: List[Dict], ground_truth: Dict
     ) -> Dict[str, Any]:
         """Evaluate results with document-type-specific metrics."""
-        print("\\n📊 Evaluating with document-type-specific metrics...")
+        # Recursion protection
+        self._evaluation_calls += 1
+        if self._evaluation_calls > self._max_evaluation_calls:
+            print("🚨 RECURSION PROTECTION: Too many evaluation calls, aborting to prevent infinite loop")
+            return {"error": "recursion_protection_triggered", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
+        
+        self._recursion_depth += 1
+        if self._recursion_depth > self._max_recursion_depth:
+            self._recursion_depth -= 1
+            print("🚨 RECURSION PROTECTION: Maximum recursion depth exceeded")
+            return {"error": "max_recursion_depth_exceeded", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
 
-        evaluations = []
+        try:
+            import traceback
+            print(f"🔍 TRACE: evaluate_document_aware called with {len(results)} results, recursion_depth={self._recursion_depth}, eval_calls={self._evaluation_calls}")
+            print(f"🔍 TRACE: Call stack:")
+            for line in traceback.format_stack()[-3:-1]:  # Show last 2 stack frames (excluding current)
+                print(f"   {line.strip()}")
+            print("\\n📊 Evaluating with document-type-specific metrics...")
 
-        for result in results:
-            image_file = result["image_file"]
-            gt_data = ground_truth.get(image_file, {})
+            evaluations = []
 
-            if not gt_data:
-                print(f"⚠️  No ground truth for {image_file}")
-                continue
+            for result in results:
+                image_file = result["image_file"]
+                gt_data = ground_truth.get(image_file, {})
 
-            # Use document-type-specific evaluator
-            evaluation = self.evaluator.evaluate_extraction(
-                result["extracted_data"], gt_data, result["document_type"]
-            )
+                if not gt_data:
+                    print(f"⚠️  No ground truth for {image_file}")
+                    continue
 
-            evaluation["image_file"] = image_file
-            evaluation["processing_time"] = result["processing_time"]
-            evaluations.append(evaluation)
+                # Use document-type-specific evaluator
+                evaluation = self.evaluator.evaluate_extraction(
+                    result["extracted_data"], gt_data, result["document_type"]
+                )
 
-            # Display detailed comparison for single image processing
-            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
-            # if len(results) == 1:
-            #     self._display_detailed_comparison(result, gt_data, evaluation)
+                evaluation["image_file"] = image_file
+                evaluation["processing_time"] = result["processing_time"]
+                evaluations.append(evaluation)
 
-        return self._generate_document_aware_report(evaluations)
+                # Display detailed comparison for single image processing
+                # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
+                # if len(results) == 1:
+                #     self._display_detailed_comparison(result, gt_data, evaluation)
+
+            return self._generate_document_aware_report(evaluations)
+        finally:
+            # Always decrement recursion depth
+            self._recursion_depth -= 1
 
     def _display_detailed_comparison(self, result: Dict, ground_truth: Dict, evaluation: Dict):
         """Display detailed field-by-field comparison like in the notebook."""
@@ -350,106 +381,120 @@ class DocumentAwareInternVL3Handler:
         self, evaluations: List[Dict]
     ) -> Dict[str, Any]:
         """Generate comprehensive document-aware evaluation report."""
-        # Group by document type
-        by_type = {}
-        for eval_result in evaluations:
-            doc_type = eval_result["document_type"]
-            if doc_type not in by_type:
-                by_type[doc_type] = []
-            by_type[doc_type].append(eval_result)
-
-        # Calculate overall metrics across all documents
-        all_accuracies = []
-        total_meets_threshold = 0
-        total_critical_perfect = 0
-        total_ato_compliant = 0
-        invoice_count = 0
+        # Recursion protection
+        self._recursion_depth += 1
+        if self._recursion_depth > self._max_recursion_depth:
+            self._recursion_depth -= 1
+            print("🚨 RECURSION PROTECTION: Maximum recursion depth exceeded in _generate_document_aware_report")
+            return {"error": "max_recursion_depth_exceeded", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
         
-        document_type_breakdown = {}
-
-        print("\\n" + "=" * 80)
-        print("📊 DOCUMENT-AWARE EVALUATION RESULTS")
-        print("=" * 80)
-
-        for doc_type, type_evaluations in by_type.items():
-            # Calculate type-specific metrics
-            accuracies = [
-                e["overall_metrics"]["overall_accuracy"] for e in type_evaluations
-            ]
-            all_accuracies.extend(accuracies)
+        try:
+            print(f"🔍 TRACE: _generate_document_aware_report called with {len(evaluations)} evaluations, recursion_depth={self._recursion_depth}")
             
-            meets_threshold = sum(
-                1
-                for e in type_evaluations
-                if e["overall_metrics"].get("meets_threshold", False)
-            )
-            total_meets_threshold += meets_threshold
-            
-            critical_perfect = sum(
-                1
-                for e in type_evaluations
-                if e["overall_metrics"].get("critical_fields_perfect", False)
-            )
-            total_critical_perfect += critical_perfect
+            # Group by document type
+            by_type = {}
+            for eval_result in evaluations:
+                doc_type = eval_result["document_type"]
+                if doc_type not in by_type:
+                    by_type[doc_type] = []
+                by_type[doc_type].append(eval_result)
 
-            # ATO compliance for invoices
-            ato_compliant = 0
-            if doc_type == "invoice":
-                invoice_count += len(type_evaluations)
-                ato_compliant = sum(
+            # Calculate overall metrics across all documents
+            all_accuracies = []
+            total_meets_threshold = 0
+            total_critical_perfect = 0
+            total_ato_compliant = 0
+            invoice_count = 0
+            
+            document_type_breakdown = {}
+
+            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
+            # print("\\n" + "=" * 80)
+            # print("📊 DOCUMENT-AWARE EVALUATION RESULTS")
+            # print("=" * 80)
+
+            for doc_type, type_evaluations in by_type.items():
+                # Calculate type-specific metrics
+                accuracies = [
+                    e["overall_metrics"]["overall_accuracy"] for e in type_evaluations
+                ]
+                all_accuracies.extend(accuracies)
+                
+                meets_threshold = sum(
                     1
                     for e in type_evaluations
-                    if e["overall_metrics"].get("ato_compliant", False)
+                    if e["overall_metrics"].get("meets_threshold", False)
                 )
-                total_ato_compliant += ato_compliant
+                total_meets_threshold += meets_threshold
+                
+                critical_perfect = sum(
+                    1
+                    for e in type_evaluations
+                    if e["overall_metrics"].get("critical_fields_perfect", False)
+                )
+                total_critical_perfect += critical_perfect
 
-            type_metrics = {
-                "documents": len(type_evaluations),
-                "accuracy": sum(accuracies) / len(accuracies) if accuracies else 0,
-                "accuracy_percentage": f"{(sum(accuracies) / len(accuracies) * 100 if accuracies else 0):.1f}%",
-                "meets_threshold": meets_threshold,
-                "critical_perfect": critical_perfect,
-            }
-            
-            if doc_type == "invoice":
-                type_metrics["ato_compliance"] = {
-                    "compliant": ato_compliant,
-                    "total": len(type_evaluations),
-                    "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%"
+                # ATO compliance for invoices
+                ato_compliant = 0
+                if doc_type == "invoice":
+                    invoice_count += len(type_evaluations)
+                    ato_compliant = sum(
+                        1
+                        for e in type_evaluations
+                        if e["overall_metrics"].get("ato_compliant", False)
+                    )
+                    total_ato_compliant += ato_compliant
+
+                type_metrics = {
+                    "documents": len(type_evaluations),
+                    "accuracy": sum(accuracies) / len(accuracies) if accuracies else 0,
+                    "accuracy_percentage": f"{(sum(accuracies) / len(accuracies) * 100 if accuracies else 0):.1f}%",
+                    "meets_threshold": meets_threshold,
+                    "critical_perfect": critical_perfect,
                 }
+                
+                if doc_type == "invoice":
+                    type_metrics["ato_compliance"] = {
+                        "compliant": ato_compliant,
+                        "total": len(type_evaluations),
+                        "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%"
+                    }
 
-            document_type_breakdown[doc_type] = type_metrics
+                document_type_breakdown[doc_type] = type_metrics
 
-            # Print results
-            print(f"\\n📋 {doc_type.upper()}:")
-            print(f"   Documents: {type_metrics['documents']}")
-            print(f"   Avg Accuracy: {type_metrics['accuracy'] * 100:.1f}%")
-            print(f"   Meeting Threshold: {meets_threshold}/{len(type_evaluations)}")
-            print(
-                f"   Critical Fields Perfect: {critical_perfect}/{len(type_evaluations)}"
-            )
+            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
+            # print(f"\\n📋 {doc_type.upper()}:")
+            # print(f"   Documents: {type_metrics['documents']}")
+            # print(f"   Avg Accuracy: {type_metrics['accuracy'] * 100:.1f}%")
+            # print(f"   Meeting Threshold: {meets_threshold}/{len(type_evaluations)}")
+            # print(
+            #     f"   Critical Fields Perfect: {critical_perfect}/{len(type_evaluations)}"
+            # )
 
-            if doc_type == "invoice" and 'ato_compliance' in type_metrics:
-                ato_info = type_metrics['ato_compliance']
-                print(
-                    f"   ATO Compliant: {ato_info['compliant']}/{ato_info['total']} ({ato_info['compliance_rate']})"
-                )
+            # if doc_type == "invoice" and 'ato_compliance' in type_metrics:
+            #     ato_info = type_metrics['ato_compliance']
+            #     print(
+            #         f"   ATO Compliant: {ato_info['compliant']}/{ato_info['total']} ({ato_info['compliance_rate']})"
+            #     )
 
-        # Build the report with the expected 'summary' structure
-        report = {
-            "timestamp": datetime.now().isoformat(),
-            "total_documents": len(evaluations),
-            "evaluation_mode": "internvl3_document_aware",
-            "summary": {
-                "overall_metrics": {
-                    "average_accuracy": sum(all_accuracies) / len(all_accuracies) if all_accuracies else 0,
-                    "total_documents": len(evaluations),
-                    "meets_threshold_count": total_meets_threshold,
-                    "critical_perfect_count": total_critical_perfect,
-                    "ato_compliant_count": total_ato_compliant if invoice_count > 0 else None,
-                },
-                "document_type_breakdown": document_type_breakdown
+            # Build the report with the expected 'summary' structure
+            report = {
+                "timestamp": datetime.now().isoformat(),
+                "total_documents": len(evaluations),
+                "evaluation_mode": "internvl3_document_aware",
+                "summary": {
+                    "overall_metrics": {
+                        "average_accuracy": sum(all_accuracies) / len(all_accuracies) if all_accuracies else 0,
+                        "total_documents": len(evaluations),
+                        "meets_threshold_count": total_meets_threshold,
+                        "critical_perfect_count": total_critical_perfect,
+                        "ato_compliant_count": total_ato_compliant if invoice_count > 0 else None,
+                    },
+                    "document_type_breakdown": document_type_breakdown
+                }
             }
-        }
 
-        return report
+            return report
+        finally:
+            # Always decrement recursion depth
+            self._recursion_depth -= 1

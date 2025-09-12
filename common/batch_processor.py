@@ -129,11 +129,17 @@ class BatchDocumentProcessor:
                 
                 # Route processing based on model type
                 if self.model_type == "internvl3":
+                    if verbose:
+                        rprint(f"[dim]🔍 TRACE: Processing InternVL3 image {idx}/{len(image_paths)}: {image_name}[/dim]")
+                    
                     # InternVL3 processing path
                     document_type, extraction_result, prompt_name = self._process_internvl3_image(
                         image_path, verbose
                     )
                     document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
+                    
+                    if verbose:
+                        rprint(f"[dim]🔍 TRACE: InternVL3 processing complete for {image_name}, doc_type={document_type}[/dim]")
                     
                 else:
                     # Llama processing path (original logic)
