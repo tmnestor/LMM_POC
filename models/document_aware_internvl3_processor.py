@@ -349,7 +349,7 @@ class DocumentAwareInternVL3Processor:
                         gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
                         
                         if gpu_memory_gb >= 40:  # H100/H200 have 80GB, A100 has 40GB+
-                            print(f"\n🔄 QUANTIZATION FALLBACK: Attempting direct loading without quantization")
+                            print("\n🔄 QUANTIZATION FALLBACK: Attempting direct loading without quantization")
                             print(f"   GPU: {gpu_memory_gb:.0f}GB VRAM detected (sufficient for InternVL3-8B)")
                             print("   Strategy: Direct bfloat16 loading (no quantization needed)")
                             
