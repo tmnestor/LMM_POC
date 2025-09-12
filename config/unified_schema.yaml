@@ -677,8 +677,8 @@ prompt_templates:
     expertise_frame: "CRITICAL: Pay extreme attention to EXACT digits and numbers.\nSTEP 1: Carefully examine the entire document image.\nSTEP 2: Identify the document type and key sections.\nSTEP 3: Extract EXACTLY {field_count} fields with PRECISE digit accuracy."
     critical_instructions_header: "DIGIT PRECISION & VISUAL EXTRACTION INSTRUCTIONS:"
     critical_instructions:
-      - "⚠️ CRITICAL: Extract EVERY digit EXACTLY as shown - do not skip or modify digits"
-      - "⚠️ CRITICAL: For multi-digit numbers, carefully copy ALL digits in the correct sequence"
+      - "CRITICAL: Extract EVERY digit EXACTLY as shown - do not skip or modify digits"
+      - "CRITICAL: For multi-digit numbers, carefully copy ALL digits in the correct sequence"
       - "FIRST: Scan the document header/top section for business name and ABN"
       - "SECOND: Look for customer/payer information (usually in the middle section)"
       - "THIRD: Find the itemized list or transaction table - count ALL rows"
@@ -690,11 +690,11 @@ prompt_templates:
     format_rules_header: "CRITICAL EXTRACTION RULES - FOCUS ON DIGIT ACCURACY:"
     format_rules:
       - "Each line must be: FIELDNAME: value"
-      - "🔢 NUMBERS: Copy digits EXACTLY - do not round, truncate, or skip any digits"
-      - "🔢 ABN: Must be EXACTLY 11 digits - count them! (e.g., '12 345 678 901' format)"
-      - "🔢 ADDRESSES: Copy house/building numbers EXACTLY (e.g., '123' not '1123')"
-      - "🔢 PRICES: Include ALL items even if prices repeat (e.g., if two items cost $15.00, list both)"
-      - "🔢 TRANSACTION LISTS: Count the rows in tables - your list must match the actual number of rows found"
+      - "NUMBERS: Copy digits EXACTLY - do not round, truncate, or skip any digits"
+      - "ABN: Must be EXACTLY 11 digits - count them! (e.g., '12 345 678 901' format)"
+      - "ADDRESSES: Copy house/building numbers EXACTLY (e.g., '123' not '1123')"
+      - "PRICES: Include ALL items even if prices repeat (e.g., if two items cost $15.00, list both)"
+      - "TRANSACTION LISTS: Count the rows in tables - your list must match the actual number of rows found"
       - "IMPORTANT: For SUPPLIER_NAME, look at the business/company name at the TOP of the document"
       - "IMPORTANT: For LINE_ITEM_DESCRIPTIONS, list ALL items shown in the itemized section"
       - "For prices, distinguish between unit price (per item) and total price (quantity × unit)"
@@ -868,9 +868,9 @@ universal_extraction:
     system_prompt: |
       You are a document analysis expert. Extract information from this business document.
       
-      🚨 CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
-      🚨 DO NOT GUESS or INFER missing information
-      🚨 Only extract what is explicitly visible in the image
+      CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
+      DO NOT GUESS or INFER missing information
+      Only extract what is explicitly visible in the image
       
       FORMATTING REQUIREMENTS:
       1. Fields not visible/applicable: Return "NOT_FOUND"
@@ -883,7 +883,7 @@ universal_extraction:
     field_instructions: |
       Extract the following 19 fields from this document:
       
-      🚨 CRITICAL: Document-specific field rules:
+      CRITICAL: Document-specific field rules:
       • FOR INVOICES/RECEIPTS: Extract all business fields (ABN, addresses, GST, totals, line items with quantities/prices)
       • FOR BANK STATEMENTS: Extract statement period, transaction dates/amounts, descriptions only
       • WRONG DOCUMENT TYPE = Return "NOT_FOUND" for non-applicable fields
@@ -940,7 +940,7 @@ universal_extraction:
       You are an expert document analyzer specializing in business document extraction.
       Extract structured data from this document image using precise field-by-field analysis.
       
-      🚨 CRITICAL EXTRACTION RULES:
+      CRITICAL EXTRACTION RULES:
       - If ANY field is not clearly visible in the document, return "NOT_FOUND" for that field
       - Do NOT guess, estimate, or infer missing information
       - Only extract what is EXPLICITLY shown in the image
@@ -957,7 +957,7 @@ universal_extraction:
     field_instructions: |
       Extract the following 19 fields from this document in this exact order:
       
-      ⚠️ IMPORTANT: Some fields only apply to specific document types:
+      IMPORTANT: Some fields only apply to specific document types:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
       • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
       • If field doesn't apply to document type, return "NOT_FOUND"
