@@ -594,6 +594,7 @@ class DocumentAwareInternVL3Processor:
 
     def process_single_image(self, image_path: str) -> dict:
         """Process single image with document-aware field extraction."""
+        print(f"🔍 PROCESSOR-TRACE: process_single_image ENTRY - {image_path}, {len(self.field_list)} fields")
 
         try:
             start_time = time.time()
@@ -668,6 +669,8 @@ class DocumentAwareInternVL3Processor:
             # Cleanup with V100 optimizations
             comprehensive_memory_cleanup(self.model, self.tokenizer)
 
+            print(f"🔍 PROCESSOR-TRACE: process_single_image EXIT - {extracted_fields_count}/{len(self.field_list)} fields, {processing_time:.3f}s")
+            
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": extracted_data,
@@ -1131,6 +1134,8 @@ INSTRUCTIONS:
         Returns:
             str: Raw model response
         """
+        print(f"🔍 PROCESSOR-TRACE: _extract_with_custom_prompt ENTRY - {image_path}, prompt_length={len(prompt)}")
+        
         try:
             # Create generation config - allow custom overrides
             custom_generation_config = self.generation_config.copy()
@@ -1156,6 +1161,7 @@ INSTRUCTIONS:
                 custom_generation_config.pop("top_p", None)
 
             # Use shared extraction method
+            print(f"🔍 PROCESSOR-TRACE: _extract_with_custom_prompt EXIT - calling _extract_with_prompt")
             return self._extract_with_prompt(
                 image_path, prompt, custom_generation_config
             )

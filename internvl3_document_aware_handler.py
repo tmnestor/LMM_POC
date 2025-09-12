@@ -42,7 +42,14 @@ class DocumentAwareInternVL3Handler:
         self._max_recursion_depth = 5
         self._evaluation_calls = 0
         self._max_evaluation_calls = 10
+        
+        # Comprehensive tracing
+        self._trace_counter = 0
+        self._method_calls = {}
+        import time
+        self._start_time = time.time()
 
+        print(f"🔍 TRACE-000: __init__ ENTRY at {time.time():.3f}")
         print("🚀 Initializing InternVL3 processor for document-aware extraction...")
 
         # Initialize components (same pattern as Llama)
@@ -64,10 +71,37 @@ class DocumentAwareInternVL3Handler:
         # CRITICAL: Lazy loading pattern - processor created only when needed
         self.processor = None
 
+        print(f"🔍 TRACE-001: __init__ EXIT at {time.time():.3f}")
         print("✅ Document-aware InternVL3 handler initialized (model will load on first use)")
+
+    def _trace_method(self, method_name: str, action: str, **kwargs):
+        """Helper method for comprehensive tracing."""
+        import time
+        self._trace_counter += 1
+        trace_id = f"TRACE-{self._trace_counter:03d}"
+        timestamp = time.time()
+        elapsed = timestamp - self._start_time
+        
+        if action == "ENTRY":
+            if method_name not in self._method_calls:
+                self._method_calls[method_name] = 0
+            self._method_calls[method_name] += 1
+            call_count = self._method_calls[method_name]
+            
+            print(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]")
+            if kwargs:
+                print(f"   Args: {kwargs}")
+            if call_count > 10:
+                print(f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!")
+        else:
+            print(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)")
+            
+        return trace_id
 
     def _detect_document_type_yaml(self, image_path: str) -> str:
         """YAML-first document type detection using configurable prompts."""
+        self._trace_method("_detect_document_type_yaml", "ENTRY", image_path=image_path)
+        
         if self.debug:
             print("📝 Using YAML-first document detection approach")
 
@@ -104,10 +138,13 @@ class DocumentAwareInternVL3Handler:
             print(f"   Raw response: '{response.strip()}'")
             print(f"   Parsed type: '{doc_type}'")
 
+        self._trace_method("_detect_document_type_yaml", "EXIT", doc_type=doc_type)
         return doc_type
 
     def _parse_document_type_response_yaml(self, response: str) -> str:
         """Parse document type response using YAML-configured type mappings."""
+        self._trace_method("_parse_document_type_response_yaml", "ENTRY", response_length=len(response) if response else 0)
+        
         if not response:
             return self.detection_config["detection_config"].get(
                 "fallback_type", "invoice"
@@ -138,6 +175,7 @@ class DocumentAwareInternVL3Handler:
                 "fallback_type", "invoice"
             )
 
+        self._trace_method("_parse_document_type_response_yaml", "EXIT", raw_type=raw_type)
         return raw_type
 
     def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
@@ -150,7 +188,7 @@ class DocumentAwareInternVL3Handler:
         Returns:
             Dict with document type, schema, and field information
         """
-        print(f"🔍 TRACE: detect_and_classify_document called for {image_path}")
+        self._trace_method("detect_and_classify_document", "ENTRY", image_path=image_path)
         
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
@@ -177,7 +215,7 @@ class DocumentAwareInternVL3Handler:
             print(f"   Schema Fields: {len(schema['fields'])} fields")
             print(f"   Extraction Mode: {schema['extraction_mode']}")
 
-        return {
+        result = {
             "document_type": doc_type,
             "schema": schema,
             "field_count": len(schema["fields"]),
@@ -185,12 +223,18 @@ class DocumentAwareInternVL3Handler:
             if isinstance(schema["fields"][0], str)
             else [f["name"] for f in schema["fields"]],
         }
+        
+        self._trace_method("detect_and_classify_document", "EXIT", 
+                          doc_type=doc_type, field_count=result["field_count"])
+        return result
 
     def process_document_aware(
         self, image_path: str, classification_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process single document with type-aware extraction."""
-        print(f"🔍 TRACE: process_document_aware called for {image_path}, doc_type={classification_info.get('document_type', 'unknown')}")
+        self._trace_method("process_document_aware", "ENTRY", 
+                          image_path=image_path, 
+                          doc_type=classification_info.get('document_type', 'unknown'))
         
         start_time = time.perf_counter()
 
@@ -240,7 +284,7 @@ class DocumentAwareInternVL3Handler:
 
         processing_time = time.perf_counter() - start_time
 
-        return {
+        result = {
             "image_file": Path(image_path).name,
             "document_type": doc_type,
             "detected_fields": len(
@@ -250,6 +294,12 @@ class DocumentAwareInternVL3Handler:
             "processing_time": processing_time,
             "extracted_data": extracted_data,
         }
+        
+        self._trace_method("process_document_aware", "EXIT", 
+                          doc_type=doc_type, 
+                          detected_fields=result["detected_fields"],
+                          processing_time=processing_time)
+        return result
 
     def evaluate_document_aware(
         self, results: List[Dict], ground_truth: Dict

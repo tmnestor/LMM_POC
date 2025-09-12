@@ -96,6 +96,10 @@ class BatchDocumentProcessor:
         Returns:
             Tuple of (batch_results, processing_times, document_types_found)
         """
+        import time
+        start_time = time.time()
+        print(f"🔍 BATCH-TRACE: process_batch ENTRY at {start_time:.3f} - {len(image_paths)} images, model_type={self.model_type}")
+        
         batch_results = []
         processing_times = []
         document_types_found = {}
@@ -230,6 +234,9 @@ class BatchDocumentProcessor:
         
         if verbose:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+        
+        end_time = time.time()
+        print(f"🔍 BATCH-TRACE: process_batch EXIT at {end_time:.3f} - processed {len(batch_results)} images in {end_time - start_time:.3f}s")
             
         return batch_results, processing_times, document_types_found
     
@@ -347,6 +354,8 @@ class BatchDocumentProcessor:
         Returns:
             Tuple of (document_type, extraction_result, prompt_name)
         """
+        print(f"🔍 BATCH-TRACE: _process_internvl3_image ENTRY - {image_path}")
+        
         # Step 1: Detect and classify document
         classification_info = self.internvl3_handler.detect_and_classify_document(image_path)
         document_type = classification_info['document_type']
@@ -370,6 +379,8 @@ class BatchDocumentProcessor:
         
         # Prompt name for InternVL3
         prompt_name = f"internvl3_{document_type.lower()}"
+        
+        print(f"🔍 BATCH-TRACE: _process_internvl3_image EXIT - {document_type}, {formatted_result.get('detected_fields', 0)} fields")
         
         return document_type, formatted_result, prompt_name
     
