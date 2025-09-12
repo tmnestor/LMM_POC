@@ -119,12 +119,39 @@ class DocumentAwareInternVL3Handler:
 
         # Ensure processor exists for detection (lazy loading)
         if not self.processor:
-            self.processor = DocumentAwareInternVL3Processor(
-                field_list=["DOCUMENT_TYPE"],  # Single field for detection
-                model_path=self.model_path,
-                device=self.device,
-                debug=self.debug,
-            )
+            print("🔍 TRACE: Creating processor for document detection...")
+            import signal
+            import time
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Processor creation timed out after 60 seconds")
+            
+            try:
+                # Set a timeout for processor creation
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(60)  # 60 second timeout
+                
+                start_time = time.time()
+                print(f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}")
+                
+                self.processor = DocumentAwareInternVL3Processor(
+                    field_list=["DOCUMENT_TYPE"],  # Single field for detection
+                    model_path=self.model_path,
+                    device=self.device,
+                    debug=self.debug,
+                    skip_model_loading=False,  # Load model normally
+                )
+                
+                signal.alarm(0)  # Cancel timeout
+                elapsed = time.time() - start_time
+                print(f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s")
+                
+            except (Exception, TimeoutError) as e:
+                signal.alarm(0)  # Cancel timeout
+                print(f"🚨 TRACE: Processor creation failed: {e}")
+                # Fallback: return a default document type to prevent infinite loop
+                self._trace_method("_detect_document_type_yaml", "EXIT", doc_type="invoice_fallback_due_to_processor_error")
+                return self.detection_config["detection_config"].get("fallback_type", "invoice")
 
         # Use the processor to extract with YAML prompt
         response = self.processor._extract_with_custom_prompt(
