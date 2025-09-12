@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "batch_id": "internvl3_20250912_235302",
+    "timestamp": "2025-09-12T23:53:37.870296",
+    "model": "/home/jovyan/nfs_share/models/InternVL3-8B",
+    "total_images": 9,
+    "successful_extractions": 0,
+    "average_accuracy": 0,
+    "total_processing_time": 0,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "model_type": "InternVL3-8B",
+      "use_v100_optimizations": true,
+      "device_map": "auto",
+      "max_new_tokens": 700,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true,
+      "memory_efficient": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 9,
+    "Successful Extractions": 0,
+    "Failed Extractions": 9,
+    "Average Accuracy (%)": 0,
+    "Median Accuracy (%)": 0,
+    "Min Accuracy (%)": 0,
+    "Max Accuracy (%)": 0,
+    "Average Processing Time (s)": 0,
+    "Total Processing Time (s)": 0,
+    "Throughput (images/min)": 0
+  },
+  "document_type_distribution": {},
+  "results": []
+}
