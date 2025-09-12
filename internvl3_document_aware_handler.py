@@ -357,12 +357,14 @@ class DocumentAwareInternVL3Handler:
                 by_type[doc_type] = []
             by_type[doc_type].append(eval_result)
 
-        report = {
-            "timestamp": datetime.now().isoformat(),
-            "total_documents": len(evaluations),
-            "evaluation_mode": "internvl3_document_aware",
-            "by_document_type": {},
-        }
+        # Calculate overall metrics across all documents
+        all_accuracies = []
+        total_meets_threshold = 0
+        total_critical_perfect = 0
+        total_ato_compliant = 0
+        invoice_count = 0
+        
+        document_type_breakdown = {}
 
         print("\\n" + "=" * 80)
         print("📊 DOCUMENT-AWARE EVALUATION RESULTS")
@@ -373,48 +375,80 @@ class DocumentAwareInternVL3Handler:
             accuracies = [
                 e["overall_metrics"]["overall_accuracy"] for e in type_evaluations
             ]
+            all_accuracies.extend(accuracies)
+            
             meets_threshold = sum(
                 1
                 for e in type_evaluations
                 if e["overall_metrics"].get("meets_threshold", False)
             )
+            total_meets_threshold += meets_threshold
+            
             critical_perfect = sum(
                 1
                 for e in type_evaluations
                 if e["overall_metrics"].get("critical_fields_perfect", False)
             )
+            total_critical_perfect += critical_perfect
 
             # ATO compliance for invoices
             ato_compliant = 0
             if doc_type == "invoice":
+                invoice_count += len(type_evaluations)
                 ato_compliant = sum(
                     1
                     for e in type_evaluations
                     if e["overall_metrics"].get("ato_compliant", False)
                 )
+                total_ato_compliant += ato_compliant
 
             type_metrics = {
-                "count": len(type_evaluations),
-                "avg_accuracy": sum(accuracies) / len(accuracies) if accuracies else 0,
+                "documents": len(type_evaluations),
+                "accuracy": sum(accuracies) / len(accuracies) if accuracies else 0,
+                "accuracy_percentage": f"{(sum(accuracies) / len(accuracies) * 100 if accuracies else 0):.1f}%",
                 "meets_threshold": meets_threshold,
                 "critical_perfect": critical_perfect,
-                "ato_compliant": ato_compliant if doc_type == "invoice" else None,
             }
+            
+            if doc_type == "invoice":
+                type_metrics["ato_compliance"] = {
+                    "compliant": ato_compliant,
+                    "total": len(type_evaluations),
+                    "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%"
+                }
 
-            report["by_document_type"][doc_type] = type_metrics
+            document_type_breakdown[doc_type] = type_metrics
 
             # Print results
             print(f"\\n📋 {doc_type.upper()}:")
-            print(f"   Documents: {type_metrics['count']}")
-            print(f"   Avg Accuracy: {type_metrics['avg_accuracy'] * 100:.1f}%")
+            print(f"   Documents: {type_metrics['documents']}")
+            print(f"   Avg Accuracy: {type_metrics['accuracy'] * 100:.1f}%")
             print(f"   Meeting Threshold: {meets_threshold}/{len(type_evaluations)}")
             print(
                 f"   Critical Fields Perfect: {critical_perfect}/{len(type_evaluations)}"
             )
 
-            if doc_type == "invoice" and ato_compliant is not None:
+            if doc_type == "invoice" and 'ato_compliance' in type_metrics:
+                ato_info = type_metrics['ato_compliance']
                 print(
-                    f"   ATO Compliant: {ato_compliant}/{len(type_evaluations)} ({ato_compliant / len(type_evaluations) * 100:.0f}%)"
+                    f"   ATO Compliant: {ato_info['compliant']}/{ato_info['total']} ({ato_info['compliance_rate']})"
                 )
+
+        # Build the report with the expected 'summary' structure
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "total_documents": len(evaluations),
+            "evaluation_mode": "internvl3_document_aware",
+            "summary": {
+                "overall_metrics": {
+                    "average_accuracy": sum(all_accuracies) / len(all_accuracies) if all_accuracies else 0,
+                    "total_documents": len(evaluations),
+                    "meets_threshold_count": total_meets_threshold,
+                    "critical_perfect_count": total_critical_perfect,
+                    "ato_compliant_count": total_ato_compliant if invoice_count > 0 else None,
+                },
+                "document_type_breakdown": document_type_breakdown
+            }
+        }
 
         return report
