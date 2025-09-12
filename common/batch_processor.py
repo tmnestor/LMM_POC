@@ -177,7 +177,8 @@ class BatchDocumentProcessor:
                             rprint(f"[dim]DEBUG: evaluation keys={list(evaluation.keys())}[/dim]")
                             rprint(f"[dim]DEBUG: field_scores exists={'field_scores' in evaluation}[/dim]")
                     
-                    if verbose and evaluation and "field_scores" in evaluation:
+                    # Only show detailed comparison for Llama - InternVL3 has its own display logic
+                    if verbose and evaluation and "field_scores" in evaluation and self.model_type == "llama":
                         self._display_detailed_field_comparison(
                             image_name, extracted_data, ground_truth, evaluation, document_type
                         )
