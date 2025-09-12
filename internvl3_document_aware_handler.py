@@ -267,8 +267,9 @@ class DocumentAwareInternVL3Handler:
             evaluations.append(evaluation)
 
             # Display detailed comparison for single image processing
-            if len(results) == 1:
-                self._display_detailed_comparison(result, gt_data, evaluation)
+            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
+            # if len(results) == 1:
+            #     self._display_detailed_comparison(result, gt_data, evaluation)
 
         return self._generate_document_aware_report(evaluations)
 
