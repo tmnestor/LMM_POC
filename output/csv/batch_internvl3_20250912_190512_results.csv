@@ -1,0 +1,5 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+commbank_flat_complex.png,bank_statement,42.857142857142854,3,3,7,21.613605950959027,internvl3_document_aware_bank_statement
+commbank_flat_simple.png,bank_statement,85.71428571428571,6,6,7,8.566640688106418,internvl3_document_aware_bank_statement
+commbank_statement_001.png,bank_statement,42.857142857142854,3,3,7,15.371885003522038,internvl3_document_aware_bank_statement
+image_001.png,receipt,92.85714285714286,13,13,14,7.187422969378531,internvl3_document_aware_receipt
