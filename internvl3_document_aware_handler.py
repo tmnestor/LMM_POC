@@ -270,7 +270,7 @@ class DocumentAwareInternVL3Handler:
         try:
             import traceback
             print(f"🔍 TRACE: evaluate_document_aware called with {len(results)} results, recursion_depth={self._recursion_depth}, eval_calls={self._evaluation_calls}")
-            print(f"🔍 TRACE: Call stack:")
+            print("🔍 TRACE: Call stack:")
             for line in traceback.format_stack()[-3:-1]:  # Show last 2 stack frames (excluding current)
                 print(f"   {line.strip()}")
             print("\\n📊 Evaluating with document-type-specific metrics...")
