@@ -343,22 +343,46 @@ class DocumentAwareInternVL3Processor:
                         except Exception as legacy_error:
                             print(f"   ❌ Legacy fallback failed: {legacy_error}")
 
-                    # If all approaches fail, provide clear guidance
+                    # If all approaches fail, try loading without quantization for high-end GPUs
+                    if not success and torch.cuda.is_available():
+                        # Check GPU memory capacity
+                        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                        
+                        if gpu_memory_gb >= 40:  # H100/H200 have 80GB, A100 has 40GB+
+                            print(f"\n🔄 QUANTIZATION FALLBACK: Attempting direct loading without quantization")
+                            print(f"   GPU: {gpu_memory_gb:.0f}GB VRAM detected (sufficient for InternVL3-8B)")
+                            print("   Strategy: Direct bfloat16 loading (no quantization needed)")
+                            
+                            try:
+                                # Remove quantization from model_kwargs
+                                fallback_kwargs = {k: v for k, v in model_kwargs.items() 
+                                                 if k not in ['quantization_config', 'load_in_8bit']}
+                                
+                                self.model = AutoModel.from_pretrained(
+                                    self.model_path, **fallback_kwargs
+                                ).eval()
+                                
+                                print("✅ SUCCESS: InternVL3-8B loaded without quantization")
+                                print(f"   Approach: Direct bfloat16 loading on {gpu_memory_gb:.0f}GB GPU")
+                                print("   VRAM Usage: ~16GB (well within capacity)")
+                                success = True
+                                quantization_success = False  # Not using quantization
+                                
+                            except Exception as direct_error:
+                                print(f"   ❌ Direct loading also failed: {direct_error}")
+                    
+                    # Final error if nothing worked
                     if not success:
-                        print("\n❌ FATAL: Cannot load InternVL3-8B on V100")
-                        print("🔍 ISSUE: bitsandbytes 0.47.0 compatibility problem")
-                        print(
-                            "💾 V100 limitation: 16GB VRAM insufficient for FP16 (needs ~22GB)"
-                        )
+                        gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
+                        print(f"\n❌ FATAL: Cannot load InternVL3-8B on {gpu_name}")
+                        print("🔍 ISSUE: Both quantization and direct loading failed")
                         print("\n🛠️ SOLUTIONS:")
-                        print(
-                            "   1. Use InternVL3-2B instead: MODEL_PATH = '.../InternVL3-2B'"
-                        )
-                        print("   2. Try: pip install bitsandbytes==0.41.1")
-                        print("   3. Use Llama-3.2-Vision-11B with 8-bit quantization")
-                        print("   4. Upgrade to A100/H100 with >20GB VRAM")
+                        print("   1. Use InternVL3-2B instead (more compatible)")
+                        print("   2. Check bitsandbytes version: pip install bitsandbytes>=0.41.0")
+                        print("   3. Try different PyTorch/CUDA versions")
+                        print("   4. Use Llama-3.2-Vision-11B as alternative")
                         raise RuntimeError(
-                            "InternVL3-8B incompatible with V100 due to bitsandbytes issues"
+                            f"InternVL3-8B loading failed on {gpu_name}"
                         ) from None
 
             else:
