@@ -220,170 +220,119 @@ class DocumentAwareInternVL3Processor:
             # Initialize quantization tracking for proper warm-up logic
             quantization_success = False
 
-            # Configure 8-bit quantization for 8B model on V100
+            # Simple, reliable model loading - H200 direct, V100 quantized if available
             if self.is_8b_model:
-                print("🔧 Loading InternVL3-8B with 8-bit quantization for V100")
-                print("   Essential for fitting model in 16GB VRAM")
-
-                # Check bitsandbytes version and use appropriate API
-                try:
-                    import bitsandbytes as bnb
-
-                    bnb_version = getattr(bnb, "__version__", "unknown")
-                    print(f"   bitsandbytes version: {bnb_version}")
-                except ImportError:
-                    bnb_version = None
-                    print("   ⚠️ bitsandbytes not found, will try without quantization")
-
-                # Determine which API to use based on bitsandbytes version
-                use_old_api = False
-                if bnb_version and bnb_version != "unknown":
-                    try:
-                        version_parts = bnb_version.split(".")
-                        major = int(version_parts[0])
-                        minor = int(version_parts[1]) if len(version_parts) > 1 else 0
-                        use_old_api = major == 0 and minor < 44
-                        if self.debug:
-                            print(
-                                f"   Version check: major={major}, minor={minor}, use_old_api={use_old_api}"
-                            )
-                    except (ValueError, IndexError):
-                        if self.debug:
-                            print(
-                                f"   ⚠️ Could not parse version {bnb_version}, will try new API"
-                            )
-                        use_old_api = False
-
-                if use_old_api:
-                    print("📦 QUANTIZATION APPROACH: Legacy load_in_8bit=True")
-                    print(f"   Reason: bitsandbytes {bnb_version} < 0.44.0")
-                    print("   Status: Using legacy API for compatibility")
-                    model_kwargs["load_in_8bit"] = True
+                # Check GPU memory to determine best loading strategy
+                gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3) if torch.cuda.is_available() else 0
+                gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+                
+                print(f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)")
+                
+                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Direct loading
+                if gpu_memory_gb >= 40:
+                    print("📦 STRATEGY: Direct bfloat16 loading (optimal for high-end GPUs)")
+                    print(f"   Expected usage: ~16GB ({16/gpu_memory_gb*100:.0f}% of {gpu_memory_gb:.0f}GB)")
+                    
+                    model_kwargs["device_map"] = "auto"
+                    model_kwargs["local_files_only"] = True
+                    model_kwargs["use_auth_token"] = False
+                    
+                    self.model = AutoModel.from_pretrained(
+                        self.model_path, **model_kwargs
+                    ).eval()
+                    
+                    print(f"✅ SUCCESS: InternVL3-8B loaded directly on {gpu_name}")
+                    print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
+                    quantization_success = False  # Direct loading
+                
                 else:
+                    # Strategy 2: V100 and memory-constrained GPUs - MUST use quantization
+                    print("📦 STRATEGY: 8-bit quantization (ESSENTIAL for V100/memory-constrained GPUs)")
+                    if gpu_memory_gb <= 16:
+                        print(f"   V100 ({gpu_memory_gb:.0f}GB): Quantization REQUIRED for InternVL3-8B")
+                    print(f"   Target usage: ~8GB (safe for {gpu_memory_gb:.0f}GB GPU)")
+                    
+                    # CRITICAL: V100 must have working quantization
+                    quantization_loaded = False
+                    
+                    # Try modern BitsAndBytesConfig first
                     try:
                         from transformers import BitsAndBytesConfig
-
-                        print("📦 QUANTIZATION APPROACH: Modern BitsAndBytesConfig")
-                        print(f"   Reason: bitsandbytes {bnb_version} >= 0.44.0")
-                        print("   Status: Using modern API (recommended)")
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
                             bnb_8bit_compute_dtype=torch_dtype,
                         )
                         model_kwargs["quantization_config"] = quantization_config
-                        print("   ✅ BitsAndBytesConfig created successfully")
-                    except ImportError as e:
-                        print(
-                            "📦 QUANTIZATION APPROACH: Fallback to Legacy load_in_8bit=True"
-                        )
-                        print(f"   Reason: BitsAndBytesConfig import failed: {e}")
-                        print("   Status: Using legacy API as fallback")
-                        model_kwargs["load_in_8bit"] = True
-
-                model_kwargs["device_map"] = "auto"
-                
-                # Fix model path format for transformers compatibility
-                model_kwargs["local_files_only"] = True  # Force local loading for custom paths
-                model_kwargs["use_auth_token"] = False   # Disable auth for local models
-
-                try:
-                    self.model = AutoModel.from_pretrained(
-                        self.model_path, **model_kwargs
-                    ).eval()
-
-                    print("✅ InternVL3-8B loaded with 8-bit quantization")
-                    print("   Memory footprint reduced by ~50%")
-                    quantization_success = True
-
-                except Exception as quant_error:
-                    print(f"❌ 8-bit quantization failed: {quant_error}")
-                    print(
-                        "💾 V100 has only 16GB VRAM - InternVL3-8B REQUIRES 8-bit quantization"
-                    )
-
-                    # Try alternative quantization approaches before giving up
-                    success = False
-
-                    # Try legacy API with specific device mapping
-                    if not success:
+                        model_kwargs["device_map"] = "auto"
+                        model_kwargs["local_files_only"] = True
+                        model_kwargs["use_auth_token"] = False
+                        
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **model_kwargs
+                        ).eval()
+                        
+                        print(f"✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
+                        print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
+                        quantization_success = True
+                        quantization_loaded = True
+                        
+                    except Exception as modern_quant_error:
+                        print(f"⚠️ Modern quantization failed: {modern_quant_error}")
+                        print("🔄 Trying legacy load_in_8bit approach...")
+                    
+                    # Try legacy load_in_8bit if modern approach failed
+                    if not quantization_loaded:
                         try:
-                            print(
-                                "\n📦 QUANTIZATION FALLBACK: Attempting Legacy load_in_8bit=True"
-                            )
-                            print(
-                                "   Reason: Primary approach failed, trying alternative"
-                            )
-                            print(
-                                "   Strategy: Using explicit device mapping for V100 compatibility"
-                            )
-
                             legacy_kwargs = {
                                 "torch_dtype": torch_dtype,
                                 "load_in_8bit": True,
-                                "device_map": {"": 0},  # Force GPU 0
+                                "device_map": "auto",
                                 "low_cpu_mem_usage": True,
                                 "trust_remote_code": True,
-                                "local_files_only": True,  # Force local loading
-                                "use_auth_token": False,   # Disable auth
+                                "local_files_only": True,
+                                "use_auth_token": False,
                             }
-
+                            
                             self.model = AutoModel.from_pretrained(
                                 self.model_path, **legacy_kwargs
                             ).eval()
-
-                            print(
-                                "✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization"
-                            )
-                            print(
-                                "   Approach: Legacy load_in_8bit=True with explicit device mapping"
-                            )
-                            success = True
+                            
+                            print(f"✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
+                            print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
                             quantization_success = True
-
-                        except Exception as legacy_error:
-                            print(f"   ❌ Legacy fallback failed: {legacy_error}")
-
-                    # If all approaches fail, try loading without quantization for high-end GPUs
-                    if not success and torch.cuda.is_available():
-                        # Check GPU memory capacity
-                        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                        
-                        if gpu_memory_gb >= 40:  # H100/H200 have 80GB, A100 has 40GB+
-                            print("\n🔄 QUANTIZATION FALLBACK: Attempting direct loading without quantization")
-                            print(f"   GPU: {gpu_memory_gb:.0f}GB VRAM detected (sufficient for InternVL3-8B)")
-                            print("   Strategy: Direct bfloat16 loading (no quantization needed)")
+                            quantization_loaded = True
+                            
+                        except Exception as legacy_quant_error:
+                            print(f"⚠️ Legacy quantization also failed: {legacy_quant_error}")
+                    
+                    # LAST RESORT: Direct loading only for GPUs with sufficient memory
+                    if not quantization_loaded:
+                        if gpu_memory_gb >= 20:  # Only try direct loading if 20GB+
+                            print(f"🔄 Quantization unavailable, trying direct loading on {gpu_memory_gb:.0f}GB GPU...")
+                            
+                            direct_kwargs = {k: v for k, v in model_kwargs.items() 
+                                           if k not in ['quantization_config', 'load_in_8bit']}
+                            direct_kwargs["device_map"] = "auto"
+                            direct_kwargs["local_files_only"] = True
+                            direct_kwargs["use_auth_token"] = False
                             
                             try:
-                                # Remove quantization from model_kwargs
-                                fallback_kwargs = {k: v for k, v in model_kwargs.items() 
-                                                 if k not in ['quantization_config', 'load_in_8bit']}
-                                
                                 self.model = AutoModel.from_pretrained(
-                                    self.model_path, **fallback_kwargs
+                                    self.model_path, **direct_kwargs
                                 ).eval()
                                 
-                                print("✅ SUCCESS: InternVL3-8B loaded without quantization")
-                                print(f"   Approach: Direct bfloat16 loading on {gpu_memory_gb:.0f}GB GPU")
-                                print("   VRAM Usage: ~16GB (well within capacity)")
-                                success = True
-                                quantization_success = False  # Not using quantization
+                                print(f"✅ SUCCESS: InternVL3-8B loaded directly (risky)")
+                                print(f"⚠️ WARNING: Using ~16GB on {gpu_memory_gb:.0f}GB - monitor for OOM")
+                                quantization_success = False
                                 
                             except Exception as direct_error:
-                                print(f"   ❌ Direct loading also failed: {direct_error}")
-                    
-                    # Final error if nothing worked
-                    if not success:
-                        gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
-                        print(f"\n❌ FATAL: Cannot load InternVL3-8B on {gpu_name}")
-                        print("🔍 ISSUE: Both quantization and direct loading failed")
-                        print("\n🛠️ SOLUTIONS:")
-                        print("   1. Use InternVL3-2B instead (more compatible)")
-                        print("   2. Check bitsandbytes version: pip install bitsandbytes>=0.41.0")
-                        print("   3. Try different PyTorch/CUDA versions")
-                        print("   4. Use Llama-3.2-Vision-11B as alternative")
-                        raise RuntimeError(
-                            f"InternVL3-8B loading failed on {gpu_name}"
-                        ) from None
+                                print(f"❌ Direct loading failed: {direct_error}")
+                                self._handle_final_loading_failure(gpu_name, gpu_memory_gb)
+                        else:
+                            # V100 with failed quantization - cannot proceed
+                            print(f"\n❌ CRITICAL: V100 ({gpu_memory_gb:.0f}GB) requires quantization for InternVL3-8B")
+                            print("❌ Quantization failed and direct loading would cause OOM")
+                            self._handle_final_loading_failure(gpu_name, gpu_memory_gb)
 
             else:
                 # InternVL3-2B: Direct loading without quantization
@@ -1215,6 +1164,23 @@ INSTRUCTIONS:
             if self.debug:
                 print(f"❌ Error in InternVL3 custom prompt extraction: {e}")
             return f"Error: {str(e)}"
+
+    def _handle_final_loading_failure(self, gpu_name: str, gpu_memory_gb: float):
+        """Handle final loading failure with appropriate error message and solutions."""
+        print(f"\n❌ FATAL: InternVL3-8B loading failed on {gpu_name} ({gpu_memory_gb:.0f}GB)")
+        print("🔍 All loading strategies exhausted")
+        print(f"\n🛠️ SOLUTIONS:")
+        if gpu_memory_gb <= 16:
+            print(f"   1. 🎯 RECOMMENDED: Use InternVL3-2B (perfect for {gpu_memory_gb:.0f}GB V100)")
+            print(f"   2. Install quantization: pip install bitsandbytes>=0.41.0")
+            print(f"   3. Update PyTorch/CUDA: pip install torch --upgrade")
+        else:
+            print(f"   1. Use InternVL3-2B (works on any GPU)")
+            print(f"   2. Install quantization libraries")
+        print(f"   4. Alternative: Use Llama-3.2-Vision-11B (proven stable)")
+        raise RuntimeError(
+            f"InternVL3-8B loading failed on {gpu_name} ({gpu_memory_gb:.0f}GB)"
+        ) from None
 
     # OLD SINGLE-PASS PARSING REMOVED - NOW USING HYBRID GROUPED EXTRACTION
     # Each group handles its own parsing with proven 90.6% accuracy format
