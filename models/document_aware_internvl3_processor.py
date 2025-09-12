@@ -1161,7 +1161,7 @@ INSTRUCTIONS:
                 custom_generation_config.pop("top_p", None)
 
             # Use shared extraction method
-            print(f"🔍 PROCESSOR-TRACE: _extract_with_custom_prompt EXIT - calling _extract_with_prompt")
+            print("🔍 PROCESSOR-TRACE: _extract_with_custom_prompt EXIT - calling _extract_with_prompt")
             return self._extract_with_prompt(
                 image_path, prompt, custom_generation_config
             )

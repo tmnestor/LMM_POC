@@ -96,7 +96,6 @@ class BatchDocumentProcessor:
         Returns:
             Tuple of (batch_results, processing_times, document_types_found)
         """
-        import time
         start_time = time.time()
         print(f"🔍 BATCH-TRACE: process_batch ENTRY at {start_time:.3f} - {len(image_paths)} images, model_type={self.model_type}")
         
