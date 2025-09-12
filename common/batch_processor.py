@@ -379,6 +379,7 @@ class BatchDocumentProcessor:
         """
         # Step 1: Detect document type using YAML-first approach
         import yaml
+
         from common.unified_schema import DocumentTypeFieldSchema
         
         # Load detection config from YAML
