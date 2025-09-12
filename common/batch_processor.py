@@ -30,17 +30,29 @@ class BatchDocumentProcessor:
         console: Optional[Console] = None
     ):
         """
-        Initialize batch processor with clean, direct architecture.
+        Initialize batch processor with support for both Llama and InternVL3 models.
         
         Args:
-            model: Loaded Llama model instance
-            processor: Loaded Llama processor instance
+            model: Loaded model instance (Llama model or InternVL3 handler)
+            processor: Loaded processor instance (Llama processor or None for InternVL3)
             prompt_config: Dictionary with prompt file paths and keys
             ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
         """
-        self.model = model
-        self.processor = processor
+        # Detect model type and store components appropriately
+        self.model_type = self._detect_model_type(model, processor)
+        
+        if self.model_type == "internvl3":
+            # For InternVL3, model param is actually the handler
+            self.internvl3_handler = model
+            self.model = None
+            self.processor = None
+        else:
+            # For Llama, use traditional model/processor
+            self.model = model
+            self.processor = processor
+            self.internvl3_handler = None
+            
         self.prompt_config = prompt_config
         self.ground_truth_csv = ground_truth_csv
         self.console = console or Console()
@@ -48,6 +60,24 @@ class BatchDocumentProcessor:
         # Use DocumentTypeEvaluator for all evaluation
         self.document_evaluator = DocumentTypeEvaluator()
         self.ground_truth_data = None
+        
+    def _detect_model_type(self, model, processor) -> str:
+        """
+        Detect whether we're working with Llama or InternVL3 components.
+        
+        Args:
+            model: Model or handler object
+            processor: Processor object (None for InternVL3)
+            
+        Returns:
+            String indicating model type: 'llama' or 'internvl3'
+        """
+        # InternVL3 handler has these specific methods
+        if (hasattr(model, 'detect_and_classify_document') and 
+            hasattr(model, 'process_document_aware')):
+            return "internvl3"
+        else:
+            return "llama"
         
     def process_batch(
         self,
@@ -97,111 +127,20 @@ class BatchDocumentProcessor:
                 # Record start time
                 start_time = time.time()
                 
-                # Step 1: Detect document type using YAML-first approach (like llama_document_aware.py)
-                import yaml
-
-                from common.unified_schema import DocumentTypeFieldSchema
-                
-                # Load detection config from YAML
-                detection_path = Path(self.prompt_config['detection_file'])
-                with detection_path.open('r') as f:
-                    detection_config = yaml.safe_load(f)
-                
-                # Get detection prompt and settings
-                detection_prompt_key = detection_config.get("settings", {}).get("default_prompt", "detection")
-                doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
-                max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
-                
-                # Create simple processor for detection only
-                from models.document_aware_llama_processor import (
-                    DocumentAwareLlamaProcessor,
-                )
-                detection_processor = DocumentAwareLlamaProcessor(
-                    field_list=["DOCUMENT_TYPE"],  # Single field for detection
-                    skip_model_loading=True,
-                    debug=verbose
-                )
-                detection_processor.model = self.model
-                detection_processor.processor = self.processor
-                
-                # Extract document type using YAML prompt
-                response = detection_processor._extract_with_custom_prompt(
-                    image_path, doc_type_prompt, max_new_tokens=max_tokens
-                )
-                
-                # Parse document type from response
-                document_type = self._parse_document_type_response(response, detection_config)
-                
-                # Track document types
-                document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
-                
-                # Special handling for bank statements: classify structure type
-                if document_type == "BANK_STATEMENT":
-                    bank_structure = self._classify_bank_statement_structure(image_path, verbose)
+                # Route processing based on model type
+                if self.model_type == "internvl3":
+                    # InternVL3 processing path
+                    document_type, extraction_result, prompt_name = self._process_internvl3_image(
+                        image_path, verbose
+                    )
+                    document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
                     
-                    # Update prompt configuration for bank statement structure
-                    extraction_files = self.prompt_config['extraction_files'].copy()
-                    extraction_keys = self.prompt_config['extraction_keys'].copy()
-                    
-                    if bank_structure == "flat":
-                        extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_flat_optimized.yaml'
-                        extraction_keys['BANK_STATEMENT'] = 'flat_optimized'
-                    else:  # date_grouped
-                        extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_date_grouped.yaml' 
-                        extraction_keys['BANK_STATEMENT'] = 'date_grouped'
-                    
-                    if verbose:
-                        rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
-                        rprint(f"[cyan]📁 Using prompt: {extraction_files['BANK_STATEMENT']}[/cyan]")
                 else:
-                    extraction_files = self.prompt_config['extraction_files']
-                    extraction_keys = self.prompt_config['extraction_keys']
-                
-                # Step 2: Load document-specific prompt
-                extraction_prompt, prompt_name, _ = load_document_prompt(
-                    prompt_files=extraction_files,
-                    prompt_keys=extraction_keys,
-                    document_type=document_type,
-                    verbose=verbose
-                )
-                
-                # Step 3: Extract fields using DocumentAwareLlamaProcessor directly
-                from models.document_aware_llama_processor import (
-                    DocumentAwareLlamaProcessor,
-                )
-                
-                # Get document-specific fields for this document type
-                schema_loader = DocumentTypeFieldSchema()
-                field_list = schema_loader.get_field_names_for_type(document_type)
-                
-                # Create document-aware processor with loaded model/processor
-                doc_processor = DocumentAwareLlamaProcessor(
-                    field_list=field_list,
-                    skip_model_loading=True,  # Use existing model
-                    debug=verbose
-                )
-                # Use the loaded model and processor directly
-                doc_processor.model = self.model
-                doc_processor.processor = self.processor
-                
-                # Load max_tokens from YAML settings
-                prompt_file = extraction_files.get(document_type, "prompts/invoice_extraction.yaml")
-                try:
-                    with Path(prompt_file).open('r') as f:
-                        yaml_config = yaml.safe_load(f)
-                        max_tokens = yaml_config.get("settings", {}).get("max_new_tokens", 600)
-                except Exception:
-                    max_tokens = 600  # fallback
-                
-                if verbose:
-                    rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} from {prompt_file}[/cyan]")
-                
-                # Extract data using document-aware approach with loaded YAML prompt and tokens
-                extraction_result = doc_processor.process_single_image(
-                    image_path, 
-                    custom_prompt=extraction_prompt,
-                    custom_max_tokens=max_tokens
-                )
+                    # Llama processing path (original logic)
+                    document_type, extraction_result, prompt_name = self._process_llama_image(
+                        image_path, verbose
+                    )
+                    document_types_found[document_type] = document_types_found.get(document_type, 0) + 1
                 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name
@@ -389,3 +328,148 @@ class BatchDocumentProcessor:
         rprint("✗ = No match")
         rprint(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
         rprint("="*120)
+    
+    def _process_internvl3_image(self, image_path: str, verbose: bool) -> Tuple[str, Dict, str]:
+        """
+        Process single image using InternVL3 handler.
+        
+        Args:
+            image_path: Path to image
+            verbose: Whether to show verbose output
+            
+        Returns:
+            Tuple of (document_type, extraction_result, prompt_name)
+        """
+        # Step 1: Detect and classify document
+        classification_info = self.internvl3_handler.detect_and_classify_document(image_path)
+        document_type = classification_info['document_type']
+        
+        if verbose:
+            rprint(f"[cyan]📄 Document type detected: {document_type}[/cyan]")
+        
+        # Step 2: Process with document-aware extraction
+        extraction_result = self.internvl3_handler.process_document_aware(image_path, classification_info)
+        
+        # Extract the actual extracted_data for evaluation
+        extracted_data = extraction_result.get('extracted_data', {})
+        
+        # Create extraction_result in the format expected by batch processor
+        formatted_result = {
+            'extracted_data': extracted_data,
+            'document_type': document_type,
+            'image_file': Path(image_path).name,
+            'processing_time': extraction_result.get('processing_time', 0)
+        }
+        
+        # Prompt name for InternVL3
+        prompt_name = f"internvl3_{document_type.lower()}"
+        
+        return document_type, formatted_result, prompt_name
+    
+    def _process_llama_image(self, image_path: str, verbose: bool) -> Tuple[str, Dict, str]:
+        """
+        Process single image using Llama model (original logic).
+        
+        Args:
+            image_path: Path to image
+            verbose: Whether to show verbose output
+            
+        Returns:
+            Tuple of (document_type, extraction_result, prompt_name)
+        """
+        # Step 1: Detect document type using YAML-first approach
+        import yaml
+        from common.unified_schema import DocumentTypeFieldSchema
+        
+        # Load detection config from YAML
+        detection_path = Path(self.prompt_config['detection_file'])
+        with detection_path.open('r') as f:
+            detection_config = yaml.safe_load(f)
+        
+        # Get detection prompt and settings
+        detection_prompt_key = detection_config.get("settings", {}).get("default_prompt", "detection")
+        doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
+        max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
+        
+        # Create simple processor for detection only
+        from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
+        
+        detection_processor = DocumentAwareLlamaProcessor(
+            field_list=["DOCUMENT_TYPE"],  # Single field for detection
+            skip_model_loading=True,
+            debug=verbose
+        )
+        detection_processor.model = self.model
+        detection_processor.processor = self.processor
+        
+        # Extract document type using YAML prompt
+        response = detection_processor._extract_with_custom_prompt(
+            image_path, doc_type_prompt, max_new_tokens=max_tokens
+        )
+        
+        # Parse document type from response
+        document_type = self._parse_document_type_response(response, detection_config)
+        
+        # Special handling for bank statements: classify structure type
+        if document_type == "BANK_STATEMENT":
+            bank_structure = self._classify_bank_statement_structure(image_path, verbose)
+            
+            # Update prompt configuration for bank statement structure
+            extraction_files = self.prompt_config['extraction_files'].copy()
+            extraction_keys = self.prompt_config['extraction_keys'].copy()
+            
+            if bank_structure == "flat":
+                extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_flat_optimized.yaml'
+                extraction_keys['BANK_STATEMENT'] = 'flat_optimized'
+            else:  # date_grouped
+                extraction_files['BANK_STATEMENT'] = 'prompts/bank_statement_date_grouped.yaml' 
+                extraction_keys['BANK_STATEMENT'] = 'date_grouped'
+            
+            if verbose:
+                rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
+                rprint(f"[cyan]📁 Using prompt: {extraction_files['BANK_STATEMENT']}[/cyan]")
+        else:
+            extraction_files = self.prompt_config['extraction_files']
+            extraction_keys = self.prompt_config['extraction_keys']
+        
+        # Step 2: Load document-specific prompt
+        extraction_prompt, prompt_name, _ = load_document_prompt(
+            prompt_files=extraction_files,
+            prompt_keys=extraction_keys,
+            document_type=document_type,
+            verbose=verbose
+        )
+        
+        # Step 3: Extract fields using DocumentAwareLlamaProcessor
+        schema_loader = DocumentTypeFieldSchema()
+        field_list = schema_loader.get_field_names_for_type(document_type)
+        
+        # Create document-aware processor with loaded model/processor
+        doc_processor = DocumentAwareLlamaProcessor(
+            field_list=field_list,
+            skip_model_loading=True,  # Use existing model
+            debug=verbose
+        )
+        doc_processor.model = self.model
+        doc_processor.processor = self.processor
+        
+        # Load max_tokens from YAML settings
+        prompt_file = extraction_files.get(document_type, "prompts/invoice_extraction.yaml")
+        try:
+            with Path(prompt_file).open('r') as f:
+                yaml_config = yaml.safe_load(f)
+                max_tokens = yaml_config.get("settings", {}).get("max_new_tokens", 600)
+        except Exception:
+            max_tokens = 600  # fallback
+        
+        if verbose:
+            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} from {prompt_file}[/cyan]")
+        
+        # Extract data using document-aware approach with loaded YAML prompt and tokens
+        extraction_result = doc_processor.process_single_image(
+            image_path, 
+            custom_prompt=extraction_prompt,
+            custom_max_tokens=max_tokens
+        )
+        
+        return document_type, extraction_result, prompt_name
