@@ -271,7 +271,7 @@ class DocumentAwareInternVL3Processor:
                             self.model_path, **model_kwargs
                         ).eval()
                         
-                        print(f"✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
+                        print("✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
                         print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
                         quantization_success = True
                         quantization_loaded = True
@@ -297,7 +297,7 @@ class DocumentAwareInternVL3Processor:
                                 self.model_path, **legacy_kwargs
                             ).eval()
                             
-                            print(f"✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
+                            print("✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
                             print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
                             quantization_success = True
                             quantization_loaded = True
@@ -321,7 +321,7 @@ class DocumentAwareInternVL3Processor:
                                     self.model_path, **direct_kwargs
                                 ).eval()
                                 
-                                print(f"✅ SUCCESS: InternVL3-8B loaded directly (risky)")
+                                print("✅ SUCCESS: InternVL3-8B loaded directly (risky)")
                                 print(f"⚠️ WARNING: Using ~16GB on {gpu_memory_gb:.0f}GB - monitor for OOM")
                                 quantization_success = False
                                 
@@ -1169,15 +1169,15 @@ INSTRUCTIONS:
         """Handle final loading failure with appropriate error message and solutions."""
         print(f"\n❌ FATAL: InternVL3-8B loading failed on {gpu_name} ({gpu_memory_gb:.0f}GB)")
         print("🔍 All loading strategies exhausted")
-        print(f"\n🛠️ SOLUTIONS:")
+        print("\n🛠️ SOLUTIONS:")
         if gpu_memory_gb <= 16:
             print(f"   1. 🎯 RECOMMENDED: Use InternVL3-2B (perfect for {gpu_memory_gb:.0f}GB V100)")
-            print(f"   2. Install quantization: pip install bitsandbytes>=0.41.0")
-            print(f"   3. Update PyTorch/CUDA: pip install torch --upgrade")
+            print("   2. Install quantization: pip install bitsandbytes>=0.41.0")
+            print("   3. Update PyTorch/CUDA: pip install torch --upgrade")
         else:
-            print(f"   1. Use InternVL3-2B (works on any GPU)")
-            print(f"   2. Install quantization libraries")
-        print(f"   4. Alternative: Use Llama-3.2-Vision-11B (proven stable)")
+            print("   1. Use InternVL3-2B (works on any GPU)")
+            print("   2. Install quantization libraries")
+        print("   4. Alternative: Use Llama-3.2-Vision-11B (proven stable)")
         raise RuntimeError(
             f"InternVL3-8B loading failed on {gpu_name} ({gpu_memory_gb:.0f}GB)"
         ) from None
