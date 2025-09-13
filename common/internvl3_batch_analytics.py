@@ -5,13 +5,11 @@ Simple analytics and dashboard generation for InternVL3 batch processing.
 Provides summary dashboard (Feature 5) without complex dependencies.
 """
 
-import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
@@ -226,7 +224,7 @@ class InternVL3BatchAnalytics:
             ax4.set_ylim(0, 100)
             
             # Add value labels on bars
-            for bar, acc in zip(bars, accuracies):
+            for bar, acc in zip(bars, accuracies, strict=False):
                 height = bar.get_height()
                 ax4.text(bar.get_x() + bar.get_width()/2., height,
                         f'{acc:.1f}%', ha='center', va='bottom')

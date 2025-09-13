@@ -5,13 +5,12 @@ Lightweight display functions for InternVL3 batch processing notebooks.
 Provides the 5 key debugging/analysis features without causing notebook bloat.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from rich import print as rprint
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 
 class InternVL3BatchDisplay:
