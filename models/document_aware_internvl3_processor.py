@@ -895,11 +895,19 @@ class DocumentAwareInternVL3Processor:
             # Memory cleanup - V100 optimized threshold (16GB total capacity)
             handle_memory_fragmentation(threshold_gb=2.0, aggressive=True)
 
-            # DOCUMENT-AWARE: Extract using the document-specific field list
-            # Now capture both extracted data AND raw response + prompt info
-            extracted_data, raw_response, prompt_info = (
-                self._extract_fields_directly_with_details(image_path, target_fields)
-            )
+            # DOCUMENT-AWARE: Extract using YAML-based document-specific prompts
+            # Use sophisticated YAML prompt templates instead of basic dynamic prompts
+            detected_doc_type = getattr(self, 'detected_document_type', None)
+            extracted_data = self._extract_fields_using_yaml(image_path, target_fields, detected_doc_type)
+
+            # For compatibility, create mock raw_response and prompt_info
+            raw_response = "YAML-based extraction (raw response not captured in this method)"
+            prompt_info = {
+                "prompt": "YAML-based document-aware prompt template",
+                "source": "unified_schema_yaml_template",
+                "field_count": len(target_fields),
+                "template_type": "yaml_document_aware",
+            }
 
             # Post-processing: Infer document type from extraction results
             inferred_type = self._infer_document_type_from_extraction(extracted_data)
@@ -1093,7 +1101,7 @@ INSTRUCTIONS:
         return self._extract_with_prompt(image_path, prompt, generation_config=None)
 
     def _extract_fields_using_yaml(
-        self, image_path: str, field_list: List[str]
+        self, image_path: str, field_list: List[str], document_type: str = None
     ) -> Dict[str, str]:
         """
         Extract specific fields using YAML-based unified prompt.
@@ -1111,15 +1119,18 @@ INSTRUCTIONS:
 
         yaml_renderer = PureYAMLRenderer()
 
-        # Determine document type from field list
-        # If we have STATEMENT_DATE_RANGE, it's a bank_statement
-        # Otherwise default to invoice/receipt
-        if "STATEMENT_DATE_RANGE" in field_list:
-            document_type = "bank_statement"
-        elif "INVOICE_DATE" in field_list:
-            document_type = "invoice"  # Could be invoice or receipt, default to invoice
-        else:
-            document_type = "invoice"  # Default fallback
+        # Use provided document type or infer from field list as fallback
+        if document_type is None:
+            # Fallback: Determine document type from field list
+            if "STATEMENT_DATE_RANGE" in field_list:
+                document_type = "bank_statement"
+            elif "INVOICE_DATE" in field_list:
+                document_type = "invoice"  # Could be invoice or receipt, default to invoice
+            else:
+                document_type = "invoice"  # Default fallback
+
+        if self.debug:
+            print(f"📋 Using document type: {document_type} for YAML prompt generation")
 
         # Generate prompt from unified schema templates
         try:

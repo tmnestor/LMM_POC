@@ -19,7 +19,6 @@ from .gpu_optimization import cleanup_model_handler, clear_gpu_cache
 from .internvl3_batch_display import (
     display_field_comparison,
     display_image,
-    display_prompt_info,
     display_raw_and_cleaned,
 )
 
@@ -64,15 +63,116 @@ class EnhancedBatchProcessor:
         rprint("[green]✅ Model loaded successfully![/green]")
         return processor
 
-    def detect_document_type(self, image_path: Path) -> str:
-        """Simple document type detection based on filename."""
-        image_name = image_path.name.lower()
-        if "statement" in image_name or "bank" in image_name:
-            return "bank_statement"
-        elif "receipt" in image_name:
-            return "receipt"
-        else:
-            return "invoice"  # Default
+    def detect_document_type(self, image_path: Path, processor: Any = None, schema_loader: Any = None) -> tuple[str, dict]:
+        """
+        YAML-first document type detection using unified schema configuration.
+
+        Uses the existing document_type_detection prompts from unified_schema.yaml
+        to properly classify documents with model-specific optimized prompts.
+
+        Returns:
+            Tuple of (document_type, classification_prompt_info)
+        """
+        if processor is None or schema_loader is None:
+            # Fallback to filename-based detection only if no processor/schema available
+            image_name = image_path.name.lower()
+            fallback_prompt_info = {
+                "prompt": "Filename-based detection (no AI classification)",
+                "source": "filename_pattern_matching",
+                "field_count": 0,
+                "template_type": "fallback_detection",
+                "prompt_file": "N/A",
+                "prompt_key": "filename_fallback"
+            }
+
+            if "statement" in image_name or "bank" in image_name:
+                return "bank_statement", fallback_prompt_info
+            elif "receipt" in image_name:
+                return "receipt", fallback_prompt_info
+            else:
+                return "invoice", fallback_prompt_info  # Default
+
+        try:
+            # Load YAML-first document type detection configuration
+            detection_config = schema_loader.load_detection_prompts()
+            internvl3_prompts = detection_config.get("detection_prompts", {}).get("internvl3", {})
+            type_mappings = detection_config.get("type_mappings", {})
+
+            if not internvl3_prompts:
+                raise Exception("No InternVL3 detection prompts found in unified schema")
+
+            # Use the YAML-configured InternVL3 detection prompt
+            classification_prompt = internvl3_prompts.get("user_prompt", "")
+            max_tokens = internvl3_prompts.get("max_tokens", 20)
+            temperature = internvl3_prompts.get("temperature", 0.0)
+
+            # Create prompt info for display
+            classification_prompt_info = {
+                "prompt": classification_prompt,
+                "source": "unified_schema_yaml",
+                "field_count": 0,  # Classification doesn't extract fields
+                "template_type": "document_type_detection",
+                "prompt_file": "config/unified_schema.yaml",
+                "prompt_key": "document_type_detection.prompts.internvl3",
+                "max_tokens": max_tokens,
+                "temperature": temperature
+            }
+
+            # Use the processor to classify with YAML prompt
+            response = processor._generate_with_resilient_generator(
+                str(image_path),
+                classification_prompt,
+                max_new_tokens=max_tokens,
+                temperature=temperature
+            )
+
+            if response:
+                # Clean and normalize the response
+                doc_type = response.strip().lower()
+
+                # Apply YAML-configured type mappings
+                if doc_type in type_mappings:
+                    doc_type = type_mappings[doc_type]
+
+                # Validate against supported types
+                supported_types = detection_config.get("supported_types", ["invoice", "receipt", "bank_statement"])
+                if doc_type in supported_types:
+                    return doc_type, classification_prompt_info
+                else:
+                    # Try partial matching for common variations
+                    if "receipt" in doc_type:
+                        return "receipt", classification_prompt_info
+                    elif "statement" in doc_type or "bank" in doc_type:
+                        return "bank_statement", classification_prompt_info
+                    elif "invoice" in doc_type:
+                        return "invoice", classification_prompt_info
+                    else:
+                        # Final fallback
+                        return "invoice", classification_prompt_info  # Default
+            else:
+                raise Exception("No response from processor")
+
+        except Exception as e:
+            rprint(f"[yellow]⚠️ YAML document type detection failed: {e}[/yellow]")
+            rprint("[yellow]   Falling back to filename-based detection[/yellow]")
+
+            # Fallback to filename-based detection
+            image_name = image_path.name.lower()
+            error_prompt_info = {
+                "prompt": f"Filename-based detection (YAML failed: {str(e)})",
+                "source": "filename_pattern_matching_fallback",
+                "field_count": 0,
+                "template_type": "error_fallback_detection",
+                "prompt_file": "N/A",
+                "prompt_key": "error_fallback"
+            }
+
+            if "statement" in image_name or "bank" in image_name:
+                return "bank_statement", error_prompt_info
+            elif "receipt" in image_name:
+                return "receipt", error_prompt_info
+            else:
+                return "invoice", error_prompt_info  # Default
 
     def process_single_image_enhanced(
         self,
@@ -98,16 +198,17 @@ class EnhancedBatchProcessor:
         try:
             # Step A: Document Type Detection
             rprint("   🔍 Step A: Detecting document type...")
-            doc_type = self.detect_document_type(image_path)
+            doc_type, classification_prompt_info = self.detect_document_type(image_path, processor, schema_loader)
 
             # Get document-specific fields
             field_list = schema_loader.get_document_fields(doc_type)
             rprint(f"   📋 Document type: {doc_type} ({len(field_list)} fields)")
 
-            # Step B: Update processor field list (no model reloading)
-            rprint("   🔄 Step B: Updating field list (no model reload)...")
+            # Step B: Update processor field list and document type (no model reloading)
+            rprint("   🔄 Step B: Updating field list and document type (no model reload)...")
             processor.field_list = field_list
             processor.field_count = len(field_list)
+            processor.detected_document_type = doc_type  # Store detected document type for YAML prompts
 
             # Step C: Process image with shared model
             rprint("   ⚡ Step C: Processing image with shared model...")
@@ -126,6 +227,7 @@ class EnhancedBatchProcessor:
                 "processing_time": processing_time,
                 "prompt_used": f"internvl3_{doc_type.lower()}",
                 "timestamp": datetime.now().isoformat(),
+                "classification_prompt_info": classification_prompt_info,
             }
 
             # Add original result data
@@ -169,6 +271,14 @@ class EnhancedBatchProcessor:
             # Enhanced display features (like Llama version)
             if show_enhanced_display:
                 rprint("[bold blue]📋 ENHANCED DETAILED DISPLAY (No Truncation):[/bold blue]")
+
+                # Display document classification prompt first
+                from common.internvl3_batch_display import display_prompt_info
+                rprint("[bold cyan]🔍 STEP 1: DOCUMENT TYPE CLASSIFICATION[/bold cyan]")
+                display_prompt_info({"prompt_info": classification_prompt_info}, "classification", show_full=True)
+
+                # Display extraction prompt second
+                rprint("[bold cyan]⚡ STEP 2: DOCUMENT-AWARE FIELD EXTRACTION[/bold cyan]")
                 display_prompt_info(result, doc_type, show_full=True)
                 display_raw_and_cleaned(result, show_full=True)
                 display_field_comparison(result, ground_truth, doc_type, show_full=True)
