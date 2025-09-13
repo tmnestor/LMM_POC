@@ -809,7 +809,8 @@ class DocumentAwareInternVL3Processor:
 
             
             # DOCUMENT-AWARE: Extract using the document-specific field list
-            extracted_data = self._extract_fields_directly(image_path, target_fields)
+            # Now capture both extracted data AND raw response + prompt info
+            extracted_data, raw_response, prompt_info = self._extract_fields_directly_with_details(image_path, target_fields)
 
 
             # Post-processing: Infer document type from extraction results
@@ -864,7 +865,8 @@ class DocumentAwareInternVL3Processor:
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": extracted_data,
-                "raw_response": f"DOCUMENT-AWARE: {len(self.field_list)} document-specific fields",
+                "raw_response": raw_response,  # Now contains actual model response
+                "prompt_info": prompt_info,    # New: Contains prompt details
                 "processing_time": processing_time,
                 "response_completeness": response_completeness,
                 "content_coverage": content_coverage,
@@ -891,13 +893,14 @@ class DocumentAwareInternVL3Processor:
                 "extraction_strategy": "document_aware_direct_error",
             }
 
-    def _extract_fields_directly(
+    def _extract_fields_directly_with_details(
         self, image_path: str, field_list: List[str]
-    ) -> Dict[str, str]:
+    ) -> tuple[Dict[str, str], str, Dict[str, str]]:
         """
-        Extract document-specific fields using document-aware prompts.
+        Extract document-specific fields and return extracted data, raw response, and prompt info.
         
-        Uses the specific field list provided to create targeted extraction prompts.
+        Returns:
+            Tuple of (extracted_data, raw_response, prompt_info)
         """
         
         if self.debug:
@@ -934,28 +937,49 @@ INSTRUCTIONS:
 -- Include $ symbol for monetary amounts
 -- Output only the {len(field_list)} lines above, nothing else"""
         
+        # Create prompt info for display
+        prompt_info = {
+            "prompt": prompt,
+            "source": "document_aware_template",
+            "field_count": len(field_list),
+            "template_type": "targeted_extraction"
+        }
+        
         if self.debug:
             print("🔨 Using document-aware extraction template")
             print(f"📝 Prompt length: {len(prompt)} characters")
 
         # Process the image with the document-aware prompt
         try:
-            response = self._generate_response(image_path, prompt)
+            raw_response = self._generate_response(image_path, prompt)
             
             if self.debug:
                 print("✅ Document-aware extraction completed")
+                print(f"📝 Raw response length: {len(raw_response)} characters")
                 
             # Parse the response
             from common.extraction_parser import parse_extraction_response
-            extracted_data = parse_extraction_response(response, expected_fields=field_list)
+            extracted_data = parse_extraction_response(raw_response, expected_fields=field_list)
             
-            return extracted_data
+            return extracted_data, raw_response, prompt_info
             
         except Exception as e:
             if self.debug:
                 print(f"❌ Document-aware extraction failed: {e}")
             # Return empty results with NOT_FOUND for all fields
-            return {field: "NOT_FOUND" for field in field_list}
+            error_response = f"Document-aware extraction error: {str(e)}"
+            empty_data = {field: "NOT_FOUND" for field in field_list}
+            return empty_data, error_response, prompt_info
+
+    def _extract_fields_directly(
+        self, image_path: str, field_list: List[str]
+    ) -> Dict[str, str]:
+        """
+        Extract document-specific fields using document-aware prompts.
+        Legacy method for backwards compatibility.
+        """
+        extracted_data, _, _ = self._extract_fields_directly_with_details(image_path, field_list)
+        return extracted_data
 
     def _generate_response(self, image_path: str, prompt: str) -> str:
         """Generate response using the model's inference method."""
