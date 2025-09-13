@@ -898,16 +898,7 @@ class DocumentAwareInternVL3Processor:
             # DOCUMENT-AWARE: Extract using YAML-based document-specific prompts
             # Use sophisticated YAML prompt templates instead of basic dynamic prompts
             detected_doc_type = getattr(self, 'detected_document_type', None)
-            extracted_data = self._extract_fields_using_yaml(image_path, target_fields, detected_doc_type)
-
-            # For compatibility, create mock raw_response and prompt_info
-            raw_response = "YAML-based extraction (raw response not captured in this method)"
-            prompt_info = {
-                "prompt": "YAML-based document-aware prompt template",
-                "source": "unified_schema_yaml_template",
-                "field_count": len(target_fields),
-                "template_type": "yaml_document_aware",
-            }
+            extracted_data, raw_response, prompt_info = self._extract_fields_using_yaml(image_path, target_fields, detected_doc_type)
 
             # Post-processing: Infer document type from extraction results
             inferred_type = self._infer_document_type_from_extraction(extracted_data)
@@ -1102,11 +1093,14 @@ INSTRUCTIONS:
 
     def _extract_fields_using_yaml(
         self, image_path: str, field_list: List[str], document_type: str = None
-    ) -> Dict[str, str]:
+    ) -> tuple[Dict[str, str], str, Dict[str, str]]:
         """
         Extract specific fields using YAML-based unified prompt.
 
         Uses the same unified schema templates as Llama for consistency.
+
+        Returns:
+            Tuple of (extracted_data, raw_response, prompt_info)
         """
 
         if self.debug:
@@ -1193,11 +1187,22 @@ INSTRUCTIONS:
         # Replace extracted_data with cleaned version
         extracted_data = cleaned_extracted_data
 
+        # Create prompt info for display
+        prompt_info = {
+            "prompt": prompt,
+            "source": "unified_schema_yaml_template",
+            "field_count": len(field_list),
+            "template_type": "yaml_document_aware_extraction",
+            "prompt_file": "config/unified_schema.yaml",
+            "prompt_key": f"prompt_templates.internvl3.{document_type}",
+            "document_type": document_type
+        }
+
         if self.debug:
             found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
             print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
 
-        return extracted_data
+        return extracted_data, raw_response, prompt_info
 
     def _extract_fields_universally(
         self, image_path: str, field_list: List[str]
