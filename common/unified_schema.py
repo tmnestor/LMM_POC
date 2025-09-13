@@ -156,9 +156,8 @@ class DocumentTypeFieldSchema:
         # Normalize document type
         doc_type = self._normalize_document_type(document_type)
 
-        # BOSS REQUIREMENT: Receipts use the same field schema as invoices
-        if doc_type == "receipt":
-            doc_type = "invoice"  # SUBSET: Map receipts to invoice schema
+        # FIXED: Allow receipts to use their own schema from YAML instead of mapping to invoice
+        # The YAML schema properly defines receipts with their own field configuration
 
         if doc_type not in self.schema["document_fields"]:
             # Fall back to all fields if unknown type
