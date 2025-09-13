@@ -339,6 +339,7 @@ class DocumentAwareInternVL3Processor:
 
             # Initialize quantization tracking for proper warm-up logic
             quantization_success = False
+            quantization_method = "none"  # Track which method was actually used
 
             # Simple, reliable model loading - H200 direct, V100 quantized if available
             if self.is_8b_model:
@@ -396,6 +397,7 @@ class DocumentAwareInternVL3Processor:
                         print("🎯 This confirms quantization approach is viable for V100")
                         quantization_success = True
                         quantization_viable = True
+                        quantization_method = "modern_bitsandbytes"  # Track modern method success
                         
                     except Exception as quant_error:
                         print(f"❌ ISOLATED BitsAndBytesConfig failed: {quant_error}")
@@ -483,6 +485,7 @@ class DocumentAwareInternVL3Processor:
                             print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
                             quantization_success = True
                             quantization_loaded = True
+                            quantization_method = "modern_bitsandbytes_v100"  # Track V100 modern method
                             
                         except Exception as v100_quant_error:
                             print(f"❌ V100 quantization failed despite H200 success: {v100_quant_error}")
@@ -513,6 +516,7 @@ class DocumentAwareInternVL3Processor:
                                 print("✅ SUCCESS: InternVL3-8B loaded directly")
                                 print(f"⚠️ WARNING: Using ~16GB on {gpu_memory_gb:.0f}GB")
                                 quantization_success = False
+                                quantization_method = "direct_full_precision"  # Track H200 direct loading
                                 
                             except Exception as direct_error:
                                 print(f"❌ Direct loading failed: {direct_error}")
@@ -544,6 +548,7 @@ class DocumentAwareInternVL3Processor:
                 print(f"✅ SUCCESS: InternVL3-2B loaded in {dtype_name}")
                 print("   Approach: Direct loading without quantization")
                 print("   VRAM Usage: ~4-6GB (plenty of headroom on 16GB V100)")
+                quantization_method = "direct_2b_no_quantization"  # Track 2B direct loading
 
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -562,15 +567,34 @@ class DocumentAwareInternVL3Processor:
                 if quantization_success:
                     print("Model: InternVL3-8B")
                     print("Status: ✅ Successfully loaded with 8-bit quantization")
-                    print("Method: Modern BitsAndBytesConfig or Legacy load_in_8bit")
+                    
+                    # Show the actual method used
+                    if quantization_method == "modern_bitsandbytes":
+                        print("Method: ✅ MODERN BitsAndBytesConfig (isolated test successful)")
+                    elif quantization_method == "modern_bitsandbytes_v100":
+                        print("Method: ✅ MODERN BitsAndBytesConfig (V100 optimized)")
+                    elif quantization_method == "legacy_load_in_8bit":
+                        print("Method: ⚠️ LEGACY load_in_8bit (fallback)")
+                    else:
+                        print(f"Method: ❓ UNKNOWN ({quantization_method})")
+                    
                     print("VRAM: ~8GB (50% reduction from fp16)")
                 else:
                     print("Model: InternVL3-8B")
-                    print("Status: ⚠️ Loaded but quantization method unclear")
+                    if quantization_method == "direct_full_precision":
+                        print("Status: ✅ Successfully loaded without quantization")
+                        print("Method: 🚀 DIRECT FULL PRECISION (H200+ GPU)")
+                        print("VRAM: ~16GB (full precision)")
+                    else:
+                        print("Status: ⚠️ Loaded but quantization method unclear")
+                        print(f"Method: ❌ NO QUANTIZATION ({quantization_method})")
             else:
                 print("Model: InternVL3-2B")
                 print(f"Status: ✅ Successfully loaded in {dtype_name}")
-                print("Method: Direct loading (no quantization needed)")
+                if quantization_method == "direct_2b_no_quantization":
+                    print("Method: 📦 DIRECT LOADING (2B model, no quantization needed)")
+                else:
+                    print("Method: Direct loading (no quantization needed)")
                 print("VRAM: ~4-6GB")
             print("Hardware: V100 GPU (16GB VRAM)")
             print("=" * 60 + "\n")
