@@ -175,6 +175,7 @@ class ExtractionCleaner:
         - Remove markdown artifacts
         - Remove "each", "per item", etc. suffixes
         - Standardize currency symbols
+        - Remove commas from large amounts to match ground truth format
         - Clean up spacing and formatting
         """
         if not value or value == "NOT_FOUND":
@@ -195,6 +196,10 @@ class ExtractionCleaner:
         # Standardize currency symbols
         for pattern, replacement in self.currency_patterns.items():
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+
+        # CRITICAL: Remove commas from monetary values to match ground truth format
+        # Examples: "$4,834.03" -> "$4834.03", "$1,234.56" -> "$1234.56"
+        cleaned = cleaned.replace(",", "")
 
         # Clean up multiple spaces and trim
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
@@ -349,11 +354,12 @@ class ExtractionCleaner:
 
     def _clean_address_field(self, value: str) -> str:
         """
-        Clean address fields by removing embedded contact information.
+        Clean address fields by removing embedded contact information and commas.
 
         Business Knowledge:
         - Addresses often contain embedded phone numbers, emails, or other contact info
         - These should be cleaned to extract pure address only
+        - Remove commas to match ground truth format (e.g., "123 Main St, City" -> "123 Main St City")
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
@@ -378,10 +384,14 @@ class ExtractionCleaner:
         # Pattern: phone numbers with common formats
         cleaned = re.sub(r"\s*-?\s*\(?[0-9]{2,4}\)?\s*[0-9\s\-]{6,}$", "", cleaned)
 
-        # Clean up any trailing punctuation left after removals
-        cleaned = re.sub(r"\s*[,;\-]\s*$", "", cleaned)
+        # CRITICAL: Remove commas from addresses to match ground truth format
+        # Examples: "1/92 Watt Road, Mornington, VIC 3931" -> "1/92 Watt Road Mornington VIC 3931"
+        cleaned = cleaned.replace(",", "")
 
-        # Normalize whitespace
+        # Clean up any trailing punctuation left after removals
+        cleaned = re.sub(r"\s*[;\-]\s*$", "", cleaned)
+
+        # Normalize whitespace (multiple spaces to single space)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
         if self.debug and cleaned != value.strip():
