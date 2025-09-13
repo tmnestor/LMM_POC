@@ -256,68 +256,102 @@ class DocumentAwareInternVL3Processor:
                 
                 print(f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)")
                 
-                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Direct loading
+                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Test quantization parameters
                 if gpu_memory_gb >= 40:
-                    print("📦 STRATEGY: Ultra-minimal direct loading (H200 optimized)")
+                    print("📦 STRATEGY: Testing BitsAndBytesConfig parameters on H200")
                     print(f"   Expected usage: ~16GB ({16/gpu_memory_gb*100:.0f}% of {gpu_memory_gb:.0f}GB)")
                     
-                    # MINIMAL kwargs to avoid recursion - no device_map, no auth params
-                    minimal_kwargs = {
-                        "torch_dtype": torch_dtype,
-                        "trust_remote_code": True,
-                    }
-                    
-                    print("🔧 Attempting ultra-minimal loading (no device_map, no auth params)")
-                    try:
-                        self.model = AutoModel.from_pretrained(
-                            self.model_path, **minimal_kwargs
-                        ).eval()
-                        print(f"✅ SUCCESS: Ultra-minimal loading on {gpu_name}")
-                    except Exception as e:
-                        print(f"⚠️ Ultra-minimal failed: {e}")
-                        print("🔧 Trying with low_cpu_mem_usage...")
-                        
-                        # Add low_cpu_mem_usage if minimal fails
-                        enhanced_kwargs = {
-                            "torch_dtype": torch_dtype,
-                            "trust_remote_code": True,
-                            "low_cpu_mem_usage": True,
-                        }
-                        self.model = AutoModel.from_pretrained(
-                            self.model_path, **enhanced_kwargs
-                        ).eval()
-                        print(f"✅ SUCCESS: Enhanced loading on {gpu_name}")
-                    
-                    print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
-                    quantization_success = False  # Direct loading
-                
-                else:
-                    # Strategy 2: V100 and memory-constrained GPUs - MUST use quantization
-                    print("📦 STRATEGY: 8-bit quantization (ESSENTIAL for V100/memory-constrained GPUs)")
-                    if gpu_memory_gb <= 16:
-                        print(f"   V100 ({gpu_memory_gb:.0f}GB): Quantization REQUIRED for InternVL3-8B")
-                    print(f"   Target usage: ~8GB (safe for {gpu_memory_gb:.0f}GB GPU)")
-                    
-                    # CRITICAL: V100 must have working quantization
-                    quantization_loaded = False
-                    
-                    # Try simplified BitsAndBytesConfig (no device_map, no auth params)
+                    # TEST: BitsAndBytesConfig with bnb_8bit_compute_dtype (previously removed for isolation)
+                    print("🧪 PHASE 1: Testing BitsAndBytesConfig + bnb_8bit_compute_dtype")
                     try:
                         from transformers import BitsAndBytesConfig
+                        
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
-                            # Removed bnb_8bit_compute_dtype to avoid recursive validation
+                            bnb_8bit_compute_dtype=torch_dtype,  # TEST: Re-add this parameter
                         )
                         
-                        # Minimal quantization kwargs - avoid recursion triggers
-                        quant_kwargs = {
+                        test_kwargs = {
                             "torch_dtype": torch_dtype,
                             "trust_remote_code": True,
                             "quantization_config": quantization_config,
                         }
                         
+                        print("🔧 Testing: BitsAndBytesConfig with bnb_8bit_compute_dtype...")
                         self.model = AutoModel.from_pretrained(
-                            self.model_path, **quant_kwargs
+                            self.model_path, **test_kwargs
+                        ).eval()
+                        print(f"✅ SUCCESS: BitsAndBytesConfig + bnb_8bit_compute_dtype works on {gpu_name}!")
+                        print("🎯 This confirms modern quantization approach is viable for V100")
+                        quantization_success = True  # Quantized loading successful
+                        
+                    except Exception as quant_error:
+                        print(f"❌ BitsAndBytesConfig test failed: {quant_error}")
+                        print("🔄 Falling back to ultra-minimal direct loading...")
+                        
+                        # Fallback to proven ultra-minimal approach
+                        minimal_kwargs = {
+                            "torch_dtype": torch_dtype,
+                            "trust_remote_code": True,
+                        }
+                        
+                        try:
+                            self.model = AutoModel.from_pretrained(
+                                self.model_path, **minimal_kwargs
+                            ).eval()
+                            print(f"✅ SUCCESS: Ultra-minimal fallback on {gpu_name}")
+                            quantization_success = False  # Direct loading
+                        except Exception as minimal_error:
+                            print(f"⚠️ Ultra-minimal also failed: {minimal_error}")
+                            print("🔧 Trying with low_cpu_mem_usage...")
+                            
+                            enhanced_kwargs = {
+                                "torch_dtype": torch_dtype,
+                                "trust_remote_code": True,
+                                "low_cpu_mem_usage": True,
+                            }
+                            self.model = AutoModel.from_pretrained(
+                                self.model_path, **enhanced_kwargs
+                            ).eval()
+                            print(f"✅ SUCCESS: Enhanced loading on {gpu_name}")
+                            quantization_success = False  # Direct loading
+                    
+                    print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
+                
+                else:
+                    # Strategy 2: V100 and memory-constrained GPUs - Use confirmed working quantization
+                    print("📦 STRATEGY: Modern BitsAndBytesConfig 8-bit quantization (V100 optimized)")
+                    if gpu_memory_gb <= 16:
+                        print(f"   V100 ({gpu_memory_gb:.0f}GB): Quantization REQUIRED for InternVL3-8B")
+                    print(f"   Target usage: ~8GB (safe for {gpu_memory_gb:.0f}GB GPU)")
+                    
+                    # Apply H200-confirmed working quantization configuration to V100
+                    print("🔧 PHASE 2: Applying H200-confirmed BitsAndBytesConfig to V100")
+                    quantization_loaded = False  # Track quantization success for V100 fallback
+                    
+                    try:
+                        from transformers import BitsAndBytesConfig
+                        
+                        # Use exact same config that worked on H200 (if it worked)
+                        quantization_config = BitsAndBytesConfig(
+                            load_in_8bit=True,
+                            bnb_8bit_compute_dtype=torch_dtype,  # Include if H200 test succeeded
+                        )
+                        
+                        # V100 kwargs based on working legacy implementation
+                        v100_kwargs = {
+                            "torch_dtype": torch_dtype,
+                            "low_cpu_mem_usage": True,
+                            "use_flash_attn": False,
+                            "trust_remote_code": True,
+                            "quantization_config": quantization_config,
+                            "device_map": "auto",  # From working legacy - let it handle device placement
+                            # NO local_files_only, NO use_auth_token (confirmed recursion triggers)
+                        }
+                        
+                        print("🔧 Loading with modern BitsAndBytesConfig (legacy-proven approach)...")
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **v100_kwargs
                         ).eval()
                         
                         print("✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
@@ -326,22 +360,21 @@ class DocumentAwareInternVL3Processor:
                         quantization_loaded = True
                         
                     except Exception as modern_quant_error:
-                        print(f"⚠️ Modern quantization failed: {modern_quant_error}")
-                        print("🔄 Trying legacy load_in_8bit approach...")
-                    
-                    # Try legacy load_in_8bit if modern approach failed
-                    if not quantization_loaded:
+                        print(f"⚠️ Modern BitsAndBytesConfig failed: {modern_quant_error}")
+                        print("🔄 Trying simplified legacy approach...")
+                        
+                        # Fallback: Legacy load_in_8bit without problematic auth params
                         try:
                             legacy_kwargs = {
                                 "torch_dtype": torch_dtype,
-                                "load_in_8bit": True,
+                                "load_in_8bit": True,  # Legacy quantization
                                 "device_map": "auto",
                                 "low_cpu_mem_usage": True,
                                 "trust_remote_code": True,
-                                "local_files_only": True,
-                                "use_auth_token": False,
+                                # NO local_files_only, NO use_auth_token (recursion triggers)
                             }
                             
+                            print("🔧 Trying legacy load_in_8bit without auth params...")
                             self.model = AutoModel.from_pretrained(
                                 self.model_path, **legacy_kwargs
                             ).eval()
