@@ -1,0 +1,31 @@
+InternVL3 Document-Aware Batch Processing Summary
+==================================================
+Timestamp: 2025-09-13 03:01:07
+Model: InternVL3-8B
+Strategy: Direct loading (no recursion protection)
+Architecture: Clean batch processing based on working single-image pattern
+
+Processing Results:
+--------------------
+Total images: 9
+Successful: 9
+Errors: 0
+Success rate: 100.0%
+
+Performance Metrics:
+--------------------
+Total processing time: 340.70s
+Average time per image: 29.12s
+Throughput: 1.6 images/minute
+Field extraction rate: 0.3 fields/second
+
+Field Coverage:
+--------------------
+Total fields processed: 105
+Total fields found: 85
+Overall coverage: 81.0%
+
+Document Type Breakdown:
+--------------------
+bank_statement: 3 docs, 52.4% field coverage
+invoice: 6 docs, 88.1% field coverage
