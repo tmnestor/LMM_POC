@@ -371,8 +371,9 @@ Words: {len(raw_response.split())}[/dim]"""
             return
 
         try:
-            from IPython.display import Image, display
             from pathlib import Path
+
+            from IPython.display import Image, display
 
             image_file = Path(image_path)
             if image_file.exists():
