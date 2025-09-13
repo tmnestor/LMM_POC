@@ -57,9 +57,21 @@ class BatchDocumentProcessor:
         self.ground_truth_csv = ground_truth_csv
         self.console = console or Console()
         
+        # Initialize file-based trace logging
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._trace_file = f"batch_processor_trace_{timestamp}.log"
+        self._trace_log(f"🔍 BATCH-TRACE: BatchDocumentProcessor initialized at {timestamp}")
+        self._trace_log(f"🔍 BATCH-TRACE: Model type detected: {self.model_type}")
+        
         # Use DocumentTypeEvaluator for all evaluation
         self.document_evaluator = DocumentTypeEvaluator()
         self.ground_truth_data = None
+        
+    def _trace_log(self, message: str):
+        """Log message to both console and file"""
+        print(message)
+        with Path(self._trace_file).open("a", encoding="utf-8") as f:
+            f.write(f"{message}\n")
         
     def _detect_model_type(self, model, processor) -> str:
         """
@@ -97,7 +109,7 @@ class BatchDocumentProcessor:
             Tuple of (batch_results, processing_times, document_types_found)
         """
         start_time = time.time()
-        print(f"🔍 BATCH-TRACE: process_batch ENTRY at {start_time:.3f} - {len(image_paths)} images, model_type={self.model_type}")
+        self._trace_log(f"🔍 BATCH-TRACE: process_batch ENTRY at {start_time:.3f} - {len(image_paths)} images, model_type={self.model_type}")
         
         batch_results = []
         processing_times = []

@@ -46,11 +46,16 @@ class DocumentAwareInternVL3Handler:
         # Comprehensive tracing
         self._trace_counter = 0
         self._method_calls = {}
-        import time
         self._start_time = time.time()
-
-        print(f"🔍 TRACE-000: __init__ ENTRY at {time.time():.3f}")
-        print("🚀 Initializing InternVL3 processor for document-aware extraction...")
+        
+        # Initialize trace log file
+        from pathlib import Path
+        self._trace_file = Path("internvl3_handler_trace.log")
+        if self._trace_file.exists():
+            self._trace_file.unlink()  # Clear previous trace
+        
+        self._trace_log(f"🔍 TRACE-000: __init__ ENTRY at {time.time():.3f}")
+        self._trace_log("🚀 Initializing InternVL3 processor for document-aware extraction...")
 
         # Initialize components (same pattern as Llama)
         self.schema_loader = DocumentTypeFieldSchema()
@@ -71,12 +76,17 @@ class DocumentAwareInternVL3Handler:
         # CRITICAL: Lazy loading pattern - processor created only when needed
         self.processor = None
 
-        print(f"🔍 TRACE-001: __init__ EXIT at {time.time():.3f}")
-        print("✅ Document-aware InternVL3 handler initialized (model will load on first use)")
+        self._trace_log(f"🔍 TRACE-001: __init__ EXIT at {time.time():.3f}")
+        self._trace_log("✅ Document-aware InternVL3 handler initialized (model will load on first use)")
+
+    def _trace_log(self, message: str):
+        """Log message to both console and file"""
+        print(message)
+        with Path(self._trace_file).open("a", encoding="utf-8") as f:
+            f.write(f"{message}\n")
 
     def _trace_method(self, method_name: str, action: str, **kwargs):
         """Helper method for comprehensive tracing."""
-        import time
         self._trace_counter += 1
         trace_id = f"TRACE-{self._trace_counter:03d}"
         timestamp = time.time()
@@ -88,13 +98,13 @@ class DocumentAwareInternVL3Handler:
             self._method_calls[method_name] += 1
             call_count = self._method_calls[method_name]
             
-            print(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]")
+            self._trace_log(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]")
             if kwargs:
-                print(f"   Args: {kwargs}")
+                self._trace_log(f"   Args: {kwargs}")
             if call_count > 10:
-                print(f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!")
+                self._trace_log(f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!")
         else:
-            print(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)")
+            self._trace_log(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)")
             
         return trace_id
 
@@ -119,7 +129,7 @@ class DocumentAwareInternVL3Handler:
 
         # Ensure processor exists for detection (lazy loading)
         if not self.processor:
-            print("🔍 TRACE: Creating processor for document detection...")
+            self._trace_log("🔍 TRACE: Creating processor for document detection...")
             import signal
             import time
             
@@ -132,7 +142,7 @@ class DocumentAwareInternVL3Handler:
                 signal.alarm(60)  # 60 second timeout
                 
                 start_time = time.time()
-                print(f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}")
+                self._trace_log(f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}")
                 
                 self.processor = DocumentAwareInternVL3Processor(
                     field_list=["DOCUMENT_TYPE"],  # Single field for detection
@@ -144,7 +154,7 @@ class DocumentAwareInternVL3Handler:
                 
                 signal.alarm(0)  # Cancel timeout
                 elapsed = time.time() - start_time
-                print(f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s")
+                self._trace_log(f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s")
                 
             except (Exception, TimeoutError) as e:
                 signal.alarm(0)  # Cancel timeout
@@ -259,6 +269,8 @@ class DocumentAwareInternVL3Handler:
         self, image_path: str, classification_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process single document with type-aware extraction."""
+        import time
+        
         self._trace_method("process_document_aware", "ENTRY", 
                           image_path=image_path, 
                           doc_type=classification_info.get('document_type', 'unknown'))
@@ -270,8 +282,8 @@ class DocumentAwareInternVL3Handler:
         doc_type = classification_info["document_type"]
 
         if self.debug:
-            print(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
-            print(
+            self._trace_log(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
+            self._trace_log(
                 f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}"
             )
 
@@ -284,25 +296,69 @@ class DocumentAwareInternVL3Handler:
             self.processor._configure_generation()
 
             if self.debug:
-                print(
+                self._trace_log(
                     f"   🔄 Reconfigured processor for {len(field_names)} {doc_type}-specific fields"
                 )
         else:
             # Create processor if it doesn't exist yet
-            self.processor = DocumentAwareInternVL3Processor(
-                field_list=field_names,
-                model_path=self.model_path,
-                device=self.device,
-                debug=self.debug,
-            )
+            self._trace_log("🔍 TRACE: Creating processor for document-aware extraction...")
+            import signal
+            import time
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Document-aware processor creation timed out after 60 seconds")
+            
+            try:
+                # Set a timeout for processor creation
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(60)  # 60 second timeout
+                
+                start_time = time.time()
+                self._trace_log(f"🔍 TRACE: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields")
+                
+                self.processor = DocumentAwareInternVL3Processor(
+                    field_list=field_names,
+                    model_path=self.model_path,
+                    device=self.device,
+                    debug=self.debug,
+                )
+                
+                signal.alarm(0)  # Cancel timeout
+                elapsed = time.time() - start_time
+                self._trace_log(f"🔍 TRACE: Document-aware processor creation completed successfully in {elapsed:.3f}s")
+                
+            except (Exception, TimeoutError) as e:
+                signal.alarm(0)  # Cancel timeout
+                self._trace_log(f"🚨 TRACE: Document-aware processor creation failed: {e}")
+                # Return error instead of hanging
+                self._trace_method("process_document_aware", "EXIT", error="processor_creation_failed")
+                return {
+                    "image_file": Path(image_path).name,
+                    "document_type": doc_type,
+                    "detected_fields": 0,
+                    "total_fields": len(field_names),
+                    "processing_time": 0.0,
+                    "extracted_data": {field: "NOT_FOUND" for field in field_names},
+                    "error": str(e)
+                }
 
         # Extract with reconfigured processor
-        extraction_result = self.processor.process_single_image(image_path)
+        self._trace_log(f"🔍 TRACE: About to call processor.process_single_image for {image_path}")
+        self._trace_log(f"🔍 TRACE: Processor field_list has {len(self.processor.field_list)} fields")
+        
+        try:
+            extraction_result = self.processor.process_single_image(image_path)
+            self._trace_log("🔍 TRACE: processor.process_single_image completed successfully")
+        except Exception as e:
+            self._trace_log(f"🚨 TRACE: processor.process_single_image failed: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
         if self.debug:
             extracted_data = extraction_result.get("extracted_data", {})
             found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-            print(
+            self._trace_log(
                 f"   ✅ Found {len(found_fields)} fields: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
             )
 
