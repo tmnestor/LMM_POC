@@ -90,8 +90,14 @@ class DocumentAwareInternVL3Processor:
 
         # Note: Previously used DocumentAwareGroupedExtraction but now using direct field extraction
 
-        # Fix 8B detection using actual model path
-        self.is_8b_model = "8B" in str(self.model_path)
+        # Fix 8B detection using actual model path (defensive string conversion)
+        try:
+            model_path_str = str(self.model_path) if self.model_path else ""
+            self.is_8b_model = "8B" in model_path_str
+        except RecursionError:
+            # Fallback if string conversion causes recursion
+            self.is_8b_model = False
+            print("⚠️ Warning: Could not detect model size, defaulting to 2B")
         
         # Initialize torch_dtype here for when model is reused
         if self.device == "cpu":
@@ -171,10 +177,16 @@ class DocumentAwareInternVL3Processor:
         self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
         
         # V100 memory optimization: Use more conservative generation settings
-        if self.is_8b_model and torch.cuda.get_device_properties(0).total_memory < 17 * 1024**3:  # V100 has 16GB
-            self.generation_config["num_beams"] = 1  # Disable beam search to save memory
-            if self.debug:
-                print("🔧 V100 detected: Using memory-efficient generation (num_beams=1)")
+        if self.is_8b_model and torch.cuda.is_available():
+            try:
+                if torch.cuda.get_device_properties(0).total_memory < 17 * 1024**3:  # V100 has 16GB
+                    self.generation_config["num_beams"] = 1  # Disable beam search to save memory
+                    if self.debug:
+                        print("🔧 V100 detected: Using memory-efficient generation (num_beams=1)")
+            except (RuntimeError, AssertionError):
+                # Handle CUDA not available or other CUDA errors gracefully
+                if self.debug:
+                    print("💻 CUDA not available - skipping GPU memory optimization")
 
         # Ensure deterministic generation (matches original internvl3_processor)
         if self.generation_config.get("do_sample", True):
@@ -189,6 +201,13 @@ class DocumentAwareInternVL3Processor:
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
         print(f"🔄 Loading InternVL3 model from: {self.model_path}")
+        
+        # Recursion protection for entire model loading process
+        import sys
+        recursion_limit = sys.getrecursionlimit()
+        if recursion_limit < 1500:
+            sys.setrecursionlimit(1500)
+            print(f"🔧 Increased recursion limit from {recursion_limit} to 1500 for model loading")
 
         if self.is_8b_model:
             print("🎯 InternVL3-8B detected - applying aggressive V100 optimizations")
@@ -222,9 +241,18 @@ class DocumentAwareInternVL3Processor:
 
             # Simple, reliable model loading - H200 direct, V100 quantized if available
             if self.is_8b_model:
-                # Check GPU memory to determine best loading strategy
-                gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3) if torch.cuda.is_available() else 0
-                gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+                # Check GPU memory to determine best loading strategy (with recursion protection)
+                try:
+                    if torch.cuda.is_available():
+                        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                        gpu_name = torch.cuda.get_device_name(0)
+                    else:
+                        gpu_memory_gb = 0
+                        gpu_name = "CPU"
+                except (RecursionError, RuntimeError) as e:
+                    print(f"⚠️ Warning: GPU detection failed ({e}), using conservative defaults")
+                    gpu_memory_gb = 0
+                    gpu_name = "Unknown"
                 
                 print(f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)")
                 
@@ -237,9 +265,21 @@ class DocumentAwareInternVL3Processor:
                     model_kwargs["local_files_only"] = True
                     model_kwargs["use_auth_token"] = False
                     
-                    self.model = AutoModel.from_pretrained(
-                        self.model_path, **model_kwargs
-                    ).eval()
+                    try:
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **model_kwargs
+                        ).eval()
+                    except RecursionError as e:
+                        print(f"🚨 RecursionError during model loading: {e}")
+                        print("🔧 Trying fallback model loading strategy...")
+                        # Clear problematic kwargs that might cause recursion
+                        safe_kwargs = {
+                            "torch_dtype": torch_dtype,
+                            "trust_remote_code": True,
+                        }
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **safe_kwargs
+                        ).eval()
                     
                     print(f"✅ SUCCESS: InternVL3-8B loaded directly on {gpu_name}")
                     print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
@@ -267,9 +307,13 @@ class DocumentAwareInternVL3Processor:
                         model_kwargs["local_files_only"] = True
                         model_kwargs["use_auth_token"] = False
                         
-                        self.model = AutoModel.from_pretrained(
-                            self.model_path, **model_kwargs
-                        ).eval()
+                        try:
+                            self.model = AutoModel.from_pretrained(
+                                self.model_path, **model_kwargs
+                            ).eval()
+                        except RecursionError as e:
+                            print(f"🚨 RecursionError in quantized loading: {e}")
+                            raise  # Re-raise to trigger legacy fallback
                         
                         print("✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
                         print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
