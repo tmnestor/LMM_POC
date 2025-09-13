@@ -260,10 +260,20 @@ Words: {len(raw_response.split())}[/dim]"""
         exact_matches = 0
         total_fields = 0
 
-        # Process all fields that exist in either extracted data or ground truth
-        all_fields = set(extracted_data.keys()) | set(ground_truth.keys())
+        # DOCUMENT-AWARE: Only process fields relevant to the detected document type
+        from .unified_schema import DocumentTypeFieldSchema
+        schema = DocumentTypeFieldSchema(model="internvl3")
 
-        for field in sorted(all_fields):
+        # Get the fields for this document type (14 for invoice/receipt, 7 for bank_statement)
+        doc_type_normalized = document_type.lower().replace(" ", "_")
+        if doc_type_normalized in ["invoice", "receipt", "bank_statement"]:
+            document_fields = schema.get_document_fields(doc_type_normalized)
+        else:
+            # Fallback to all fields if document type is unknown
+            document_fields = list(set(extracted_data.keys()) | set(ground_truth.keys()))
+
+        # Only process document-aware fields
+        for field in document_fields:
             extracted_value = extracted_data.get(field, "NOT_FOUND")
             gt_value = ground_truth.get(field, "NOT_AVAILABLE")
 
