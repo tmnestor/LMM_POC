@@ -560,8 +560,8 @@ class DocumentAwareInternVL3Handler:
         
         try:
             # Import required modules
-            from transformers import AutoModel, AutoTokenizer
             import torch
+            from transformers import AutoModel, AutoTokenizer
             
             # Determine device and dtype safely
             if self.device == "cpu" or not torch.cuda.is_available():
