@@ -119,11 +119,9 @@ class EnhancedBatchProcessor:
             }
 
             # Use the processor to classify with YAML prompt
-            response = processor._generate_with_resilient_generator(
+            response = processor._generate_response(
                 str(image_path),
-                classification_prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature
+                classification_prompt
             )
 
             if response:
