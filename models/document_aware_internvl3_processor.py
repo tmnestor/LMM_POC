@@ -68,70 +68,110 @@ class DocumentAwareInternVL3Processor:
             batch_size (int): Batch size (auto-detected if None)
             skip_model_loading (bool): Skip loading model (for reusing existing model)
         """
-        self.field_list = field_list
-        self.field_count = len(field_list)
-        self.model_path = model_path or INTERNVL3_MODEL_PATH
+        print("🔍 INIT-TRACE-001: __init__ ENTRY - starting basic field assignment")
         
-        # Simple device assignment - no MPS support
-        self.device = device
-        if device == "cuda" and not torch.cuda.is_available():
-            self.device = "cpu"
-            print("💻 CUDA not available, using CPU")
-            
-        self.debug = debug
-
-        # Initialize components
-        self.model = None
-        self.tokenizer = None
-        self.generation_config = None
-
-        # Initialize extraction cleaner for value normalization
-        self.cleaner = ExtractionCleaner(debug=debug)
-
-        # Note: Previously used DocumentAwareGroupedExtraction but now using direct field extraction
-
-        # Fix 8B detection using actual model path (defensive string conversion)
         try:
-            model_path_str = str(self.model_path) if self.model_path else ""
-            self.is_8b_model = "8B" in model_path_str
-        except RecursionError:
-            # Fallback if string conversion causes recursion
-            self.is_8b_model = False
-            print("⚠️ Warning: Could not detect model size, defaulting to 2B")
-        
-        # Initialize torch_dtype here for when model is reused
-        if self.device == "cpu":
-            self.torch_dtype = torch.float32
-        else:
-            # CUDA devices support bfloat16
-            self.torch_dtype = torch.bfloat16
+            self.field_list = field_list
+            self.field_count = len(field_list)
+            print(f"🔍 INIT-TRACE-002: Basic fields assigned - {len(field_list)} fields")
+            
+            self.model_path = model_path or INTERNVL3_MODEL_PATH
+            print(f"🔍 INIT-TRACE-003: Model path assigned - {self.model_path}")
+            
+            # Simple device assignment - no MPS support
+            self.device = device
+            if device == "cuda" and not torch.cuda.is_available():
+                self.device = "cpu"
+                print("💻 CUDA not available, using CPU")
+            print(f"🔍 INIT-TRACE-004: Device assigned - {self.device}")
+                
+            self.debug = debug
+            print(f"🔍 INIT-TRACE-005: Debug flag set - {debug}")
 
-        if self.debug:
-            print(
-                f"🎯 Document-aware InternVL3 processor initialized for {self.field_count} fields"
-            )
-            # Handle empty field list for universal extraction mode
-            if field_list:
-                print(f"   Fields: {field_list[0]} → {field_list[-1]}")
+            # Initialize components
+            self.model = None
+            self.tokenizer = None
+            self.generation_config = None
+            print("🔍 INIT-TRACE-006: Component placeholders initialized")
+
+            # Initialize extraction cleaner for value normalization
+            print("🔍 INIT-TRACE-007: About to initialize ExtractionCleaner")
+            self.cleaner = ExtractionCleaner(debug=debug)
+            print("🔍 INIT-TRACE-008: ExtractionCleaner initialized successfully")
+
+            # Note: Previously used DocumentAwareGroupedExtraction but now using direct field extraction
+
+            # Fix 8B detection using actual model path (defensive string conversion)
+            print("🔍 INIT-TRACE-009: About to detect model size (8B vs 2B)")
+            try:
+                model_path_str = str(self.model_path) if self.model_path else ""
+                self.is_8b_model = "8B" in model_path_str
+                print(f"🔍 INIT-TRACE-010: Model size detected - 8B={self.is_8b_model}")
+            except RecursionError:
+                # Fallback if string conversion causes recursion
+                self.is_8b_model = False
+                print("🔍 INIT-TRACE-011: RecursionError during model size detection, defaulting to 2B")
+                print("⚠️ Warning: Could not detect model size, defaulting to 2B")
+            
+            # Initialize torch_dtype here for when model is reused
+            print("🔍 INIT-TRACE-012: Setting torch_dtype based on device")
+            if self.device == "cpu":
+                self.torch_dtype = torch.float32
             else:
-                print("   🌟 Universal extraction mode: Uses internal 15-field list")
-            print(f"   Model variant: {'8B' if self.is_8b_model else '2B'}")
+                # CUDA devices support bfloat16
+                self.torch_dtype = torch.bfloat16
+            print(f"🔍 INIT-TRACE-013: torch_dtype set to {self.torch_dtype}")
 
-        # Configure CUDA memory allocation
-        configure_cuda_memory_allocation()
+            if self.debug:
+                print(
+                    f"🎯 Document-aware InternVL3 processor initialized for {self.field_count} fields"
+                )
+                # Handle empty field list for universal extraction mode
+                if field_list:
+                    print(f"   Fields: {field_list[0]} → {field_list[-1]}")
+                else:
+                    print("   🌟 Universal extraction mode: Uses internal 15-field list")
+                print(f"   Model variant: {'8B' if self.is_8b_model else '2B'}")
 
-        # Set seeds for reproducibility
-        self._set_random_seeds(42)
+            # Configure CUDA memory allocation
+            print("🔍 INIT-TRACE-014: About to call configure_cuda_memory_allocation()")
+            configure_cuda_memory_allocation()
+            print("🔍 INIT-TRACE-015: configure_cuda_memory_allocation() completed")
 
-        # Configure batch processing
-        self._configure_batch_processing(batch_size)
+            # Set seeds for reproducibility
+            print("🔍 INIT-TRACE-016: About to call _set_random_seeds(42)")
+            self._set_random_seeds(42)
+            print("🔍 INIT-TRACE-017: _set_random_seeds(42) completed")
 
-        # Configure generation parameters for dynamic field count
-        self._configure_generation()
+            # Configure batch processing
+            print("🔍 INIT-TRACE-018: About to call _configure_batch_processing()")
+            self._configure_batch_processing(batch_size)
+            print("🔍 INIT-TRACE-019: _configure_batch_processing() completed")
 
-        # Load model and tokenizer (unless skipping for reuse)
-        if not skip_model_loading:
-            self._load_model()
+            # Configure generation parameters for dynamic field count
+            print("🔍 INIT-TRACE-020: About to call _configure_generation()")
+            self._configure_generation()
+            print("🔍 INIT-TRACE-021: _configure_generation() completed")
+
+            # Load model and tokenizer (unless skipping for reuse)
+            if not skip_model_loading:
+                print("🔍 INIT-TRACE-022: About to call _load_model()")
+                self._load_model()
+                print("🔍 INIT-TRACE-023: _load_model() completed")
+            else:
+                print("🔍 INIT-TRACE-022: Skipping model loading as requested")
+            
+            print("🔍 INIT-TRACE-024: __init__ EXIT - initialization completed successfully")
+            
+        except RecursionError as e:
+            print(f"🚨 RECURSION ERROR in __init__: {e}")
+            print("🔍 This indicates infinite recursion during processor initialization")
+            raise
+        except Exception as e:
+            print(f"🚨 GENERAL ERROR in __init__: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _set_random_seeds(self, seed: int = 42):
         """Set all random seeds for reproducibility."""
@@ -153,50 +193,111 @@ class DocumentAwareInternVL3Processor:
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
-        if batch_size is not None:
-            self.batch_size = max(1, batch_size)
-            print(f"🎯 Using manual batch size: {self.batch_size}")
-        else:
-            # Auto-detect batch size based on available memory and model variant
-            available_memory = get_available_gpu_memory(self.device)
-            model_key = "internvl3-8b" if self.is_8b_model else "internvl3-2b"
-            self.batch_size = get_auto_batch_size(model_key, available_memory)
-            print(
-                f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {model_key})"
-            )
+        print("🔍 BATCH-TRACE-001: _configure_batch_processing ENTRY")
+        
+        try:
+            if batch_size is not None:
+                print(f"🔍 BATCH-TRACE-002: Using manual batch_size={batch_size}")
+                self.batch_size = max(1, batch_size)
+                print(f"🎯 Using manual batch size: {self.batch_size}")
+            else:
+                print("🔍 BATCH-TRACE-003: Auto-detecting batch size")
+                
+                # Auto-detect batch size based on available memory and model variant
+                print("🔍 BATCH-TRACE-004: About to call get_available_gpu_memory()")
+                available_memory = get_available_gpu_memory(self.device)
+                print(f"🔍 BATCH-TRACE-005: get_available_gpu_memory() returned {available_memory}")
+                
+                model_key = "internvl3-8b" if self.is_8b_model else "internvl3-2b"
+                print(f"🔍 BATCH-TRACE-006: model_key={model_key}")
+                
+                print("🔍 BATCH-TRACE-007: About to call get_auto_batch_size()")
+                self.batch_size = get_auto_batch_size(model_key, available_memory)
+                print(f"🔍 BATCH-TRACE-008: get_auto_batch_size() returned {self.batch_size}")
+                
+                print(
+                    f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB, Model: {model_key})"
+                )
+            
+            print("🔍 BATCH-TRACE-009: _configure_batch_processing EXIT")
+            
+        except RecursionError as e:
+            print(f"🚨 RECURSION ERROR in _configure_batch_processing: {e}")
+            raise
+        except Exception as e:
+            print(f"🚨 ERROR in _configure_batch_processing: {e}")
+            raise
 
     def _configure_generation(self):
         """Configure generation parameters for dynamic field count."""
-        # Calculate dynamic max_new_tokens based on actual field count
-        max_tokens = get_max_new_tokens("internvl3", self.field_count)
-
-        # Get generation config from centralized config (matches original internvl3_processor)
-        from common.config import GENERATION_CONFIGS
-
-        base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
-        self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
+        print("🔍 GEN-TRACE-001: _configure_generation ENTRY")
         
-        # V100 memory optimization: Use more conservative generation settings
-        if self.is_8b_model and torch.cuda.is_available():
-            try:
-                if torch.cuda.get_device_properties(0).total_memory < 17 * 1024**3:  # V100 has 16GB
-                    self.generation_config["num_beams"] = 1  # Disable beam search to save memory
+        try:
+            # Calculate dynamic max_new_tokens based on actual field count
+            print(f"🔍 GEN-TRACE-002: About to call get_max_new_tokens() for {self.field_count} fields")
+            max_tokens = get_max_new_tokens("internvl3", self.field_count)
+            print(f"🔍 GEN-TRACE-003: get_max_new_tokens() returned {max_tokens}")
+
+            # Get generation config from centralized config (matches original internvl3_processor)
+            print("🔍 GEN-TRACE-004: About to import GENERATION_CONFIGS")
+            from common.config import GENERATION_CONFIGS
+            print("🔍 GEN-TRACE-005: GENERATION_CONFIGS imported successfully")
+
+            print("🔍 GEN-TRACE-006: Retrieving base config for internvl3")
+            base_gen_config = GENERATION_CONFIGS.get("internvl3", {})
+            print(f"🔍 GEN-TRACE-007: Base config retrieved: {base_gen_config}")
+            
+            self.generation_config = {"max_new_tokens": max_tokens, **base_gen_config}
+            print(f"🔍 GEN-TRACE-008: Generation config created: {self.generation_config}")
+            
+            # V100 memory optimization: Use more conservative generation settings
+            print("🔍 GEN-TRACE-009: Checking V100 memory optimization")
+            if self.is_8b_model and torch.cuda.is_available():
+                print("🔍 GEN-TRACE-010: 8B model + CUDA available, checking V100")
+                try:
+                    device_props = torch.cuda.get_device_properties(0)
+                    total_memory = device_props.total_memory
+                    print(f"🔍 GEN-TRACE-011: GPU total memory: {total_memory / (1024**3):.1f}GB")
+                    
+                    if total_memory < 17 * 1024**3:  # V100 has 16GB
+                        print("🔍 GEN-TRACE-012: V100 detected, optimizing generation config")
+                        self.generation_config["num_beams"] = 1  # Disable beam search to save memory
+                        if self.debug:
+                            print("🔧 V100 detected: Using memory-efficient generation (num_beams=1)")
+                    else:
+                        print("🔍 GEN-TRACE-013: High-memory GPU detected, using default settings")
+                except (RuntimeError, AssertionError) as e:
+                    print(f"🔍 GEN-TRACE-014: Error getting device properties: {e}")
+                    # Handle CUDA not available or other CUDA errors gracefully
                     if self.debug:
-                        print("🔧 V100 detected: Using memory-efficient generation (num_beams=1)")
-            except (RuntimeError, AssertionError):
-                # Handle CUDA not available or other CUDA errors gracefully
-                if self.debug:
-                    print("💻 CUDA not available - skipping GPU memory optimization")
+                        print("💻 CUDA not available - skipping GPU memory optimization")
+            else:
+                print("🔍 GEN-TRACE-015: Not 8B model or CUDA not available, skipping V100 optimization")
 
-        # Ensure deterministic generation (matches original internvl3_processor)
-        if self.generation_config.get("do_sample", True):
-            print("⚠️ WARNING: do_sample was True, forcing to False for determinism")
-            self.generation_config["do_sample"] = False
+            # Ensure deterministic generation (matches original internvl3_processor)
+            print("🔍 GEN-TRACE-016: Checking do_sample setting")
+            if self.generation_config.get("do_sample", True):
+                print("🔍 GEN-TRACE-017: do_sample was True, forcing to False")
+                print("⚠️ WARNING: do_sample was True, forcing to False for determinism")
+                self.generation_config["do_sample"] = False
+            else:
+                print("🔍 GEN-TRACE-018: do_sample already False, no change needed")
 
-        print(
-            f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-            f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
-        )
+            print(
+                f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
+                f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
+            )
+            
+            print("🔍 GEN-TRACE-019: _configure_generation EXIT")
+            
+        except RecursionError as e:
+            print(f"🚨 RECURSION ERROR in _configure_generation: {e}")
+            raise
+        except Exception as e:
+            print(f"🚨 ERROR in _configure_generation: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
@@ -256,40 +357,61 @@ class DocumentAwareInternVL3Processor:
                 
                 print(f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)")
                 
-                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Test quantization parameters
+                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - ISOLATED quantization testing
                 if gpu_memory_gb >= 40:
-                    print("📦 STRATEGY: Testing BitsAndBytesConfig parameters on H200")
+                    print("📦 STRATEGY: ISOLATED BitsAndBytesConfig testing on H200")
                     print(f"   Expected usage: ~16GB ({16/gpu_memory_gb*100:.0f}% of {gpu_memory_gb:.0f}GB)")
                     
-                    # TEST: BitsAndBytesConfig with bnb_8bit_compute_dtype (previously removed for isolation)
-                    print("🧪 PHASE 1: Testing BitsAndBytesConfig + bnb_8bit_compute_dtype")
+                    # CRITICAL: Test BitsAndBytesConfig creation in complete isolation to prevent recursion
+                    print("🧪 PHASE 1: ISOLATED BitsAndBytesConfig creation test")
+                    quantization_config = None
+                    quantization_viable = False
+                    
                     try:
+                        print("🔧 Step 1: Importing BitsAndBytesConfig...")
                         from transformers import BitsAndBytesConfig
+                        print("✅ Step 1: Import successful")
                         
+                        print("🔧 Step 2: Creating BitsAndBytesConfig object...")
+                        # Test with reduced parameters to avoid recursion triggers
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
-                            bnb_8bit_compute_dtype=torch_dtype,  # TEST: Re-add this parameter
+                            # REMOVED: bnb_8bit_compute_dtype - this may cause recursion
                         )
+                        print("✅ Step 2: BitsAndBytesConfig creation successful")
                         
+                        print("🔧 Step 3: Testing model loading with BitsAndBytesConfig...")
+                        # Ultra-minimal kwargs to avoid any recursion triggers
                         test_kwargs = {
                             "torch_dtype": torch_dtype,
                             "trust_remote_code": True,
                             "quantization_config": quantization_config,
+                            # NO device_map, NO low_cpu_mem_usage, NO auth params
                         }
                         
-                        print("🔧 Testing: BitsAndBytesConfig with bnb_8bit_compute_dtype...")
                         self.model = AutoModel.from_pretrained(
                             self.model_path, **test_kwargs
                         ).eval()
-                        print(f"✅ SUCCESS: BitsAndBytesConfig + bnb_8bit_compute_dtype works on {gpu_name}!")
-                        print("🎯 This confirms modern quantization approach is viable for V100")
-                        quantization_success = True  # Quantized loading successful
+                        print(f"✅ SUCCESS: ISOLATED BitsAndBytesConfig works on {gpu_name}!")
+                        print("🎯 This confirms quantization approach is viable for V100")
+                        quantization_success = True
+                        quantization_viable = True
                         
                     except Exception as quant_error:
-                        print(f"❌ BitsAndBytesConfig test failed: {quant_error}")
-                        print("🔄 Falling back to ultra-minimal direct loading...")
+                        print(f"❌ ISOLATED BitsAndBytesConfig failed: {quant_error}")
+                        print("🔍 Checking if this is a recursion error...")
                         
-                        # Fallback to proven ultra-minimal approach
+                        if "recursion" in str(quant_error).lower() or "RecursionError" in str(type(quant_error)):
+                            print("🚨 RECURSION DETECTED: BitsAndBytesConfig causes infinite recursion")
+                            print("🚫 Quantization PERMANENTLY DISABLED for this session")
+                            quantization_viable = False
+                        else:
+                            print(f"💡 Non-recursion error: {str(quant_error)[:100]}...")
+                            quantization_viable = False
+                        
+                        print("🔄 Falling back to direct loading without quantization...")
+                        
+                        # Ultra-minimal direct loading
                         minimal_kwargs = {
                             "torch_dtype": torch_dtype,
                             "trust_remote_code": True,
@@ -299,12 +421,12 @@ class DocumentAwareInternVL3Processor:
                             self.model = AutoModel.from_pretrained(
                                 self.model_path, **minimal_kwargs
                             ).eval()
-                            print(f"✅ SUCCESS: Ultra-minimal fallback on {gpu_name}")
-                            quantization_success = False  # Direct loading
-                        except Exception as minimal_error:
-                            print(f"⚠️ Ultra-minimal also failed: {minimal_error}")
-                            print("🔧 Trying with low_cpu_mem_usage...")
+                            print(f"✅ SUCCESS: Direct loading fallback on {gpu_name}")
+                            quantization_success = False
+                        except Exception as direct_error:
+                            print(f"❌ Direct loading also failed: {direct_error}")
                             
+                            # Last resort with low_cpu_mem_usage
                             enhanced_kwargs = {
                                 "torch_dtype": torch_dtype,
                                 "trust_remote_code": True,
@@ -313,98 +435,83 @@ class DocumentAwareInternVL3Processor:
                             self.model = AutoModel.from_pretrained(
                                 self.model_path, **enhanced_kwargs
                             ).eval()
-                            print(f"✅ SUCCESS: Enhanced loading on {gpu_name}")
-                            quantization_success = False  # Direct loading
+                            print(f"✅ SUCCESS: Enhanced direct loading on {gpu_name}")
+                            quantization_success = False
                     
-                    print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
+                    # Store quantization viability for V100 strategy
+                    self._quantization_viable = quantization_viable
+                    print(f"   VRAM Usage: ~{16 if not quantization_success else 8}GB ({(16 if not quantization_success else 8)/gpu_memory_gb*100:.0f}% of {gpu_memory_gb:.0f}GB)")
                 
                 else:
-                    # Strategy 2: V100 and memory-constrained GPUs - Use confirmed working quantization
-                    print("📦 STRATEGY: Modern BitsAndBytesConfig 8-bit quantization (V100 optimized)")
+                    # Strategy 2: V100 and memory-constrained GPUs - Use H200-confirmed approach ONLY if viable
+                    print("📦 STRATEGY: V100 quantization using H200-confirmed approach")
                     if gpu_memory_gb <= 16:
                         print(f"   V100 ({gpu_memory_gb:.0f}GB): Quantization REQUIRED for InternVL3-8B")
                     print(f"   Target usage: ~8GB (safe for {gpu_memory_gb:.0f}GB GPU)")
                     
-                    # Apply H200-confirmed working quantization configuration to V100
-                    print("🔧 PHASE 2: Applying H200-confirmed BitsAndBytesConfig to V100")
-                    quantization_loaded = False  # Track quantization success for V100 fallback
+                    # Check if H200 confirmed quantization is viable
+                    quantization_viable = getattr(self, '_quantization_viable', False)
+                    quantization_loaded = False
                     
-                    try:
-                        from transformers import BitsAndBytesConfig
+                    if quantization_viable:
+                        print("🔧 PHASE 2: Applying H200-confirmed BitsAndBytesConfig to V100")
+                        print("✅ H200 testing confirmed quantization is viable")
                         
-                        # Use exact same config that worked on H200 (if it worked)
-                        quantization_config = BitsAndBytesConfig(
-                            load_in_8bit=True,
-                            bnb_8bit_compute_dtype=torch_dtype,  # Include if H200 test succeeded
-                        )
-                        
-                        # V100 kwargs based on working legacy implementation
-                        v100_kwargs = {
-                            "torch_dtype": torch_dtype,
-                            "low_cpu_mem_usage": True,
-                            "use_flash_attn": False,
-                            "trust_remote_code": True,
-                            "quantization_config": quantization_config,
-                            "device_map": "auto",  # From working legacy - let it handle device placement
-                            # NO local_files_only, NO use_auth_token (confirmed recursion triggers)
-                        }
-                        
-                        print("🔧 Loading with modern BitsAndBytesConfig (legacy-proven approach)...")
-                        self.model = AutoModel.from_pretrained(
-                            self.model_path, **v100_kwargs
-                        ).eval()
-                        
-                        print("✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
-                        print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
-                        quantization_success = True
-                        quantization_loaded = True
-                        
-                    except Exception as modern_quant_error:
-                        print(f"⚠️ Modern BitsAndBytesConfig failed: {modern_quant_error}")
-                        print("🔄 Trying simplified legacy approach...")
-                        
-                        # Fallback: Legacy load_in_8bit without problematic auth params
                         try:
-                            legacy_kwargs = {
+                            from transformers import BitsAndBytesConfig
+                            
+                            # Use EXACT same minimal config that worked on H200
+                            quantization_config = BitsAndBytesConfig(
+                                load_in_8bit=True,
+                                # NO bnb_8bit_compute_dtype - confirmed to avoid recursion
+                            )
+                            
+                            # Minimal V100 kwargs
+                            v100_kwargs = {
                                 "torch_dtype": torch_dtype,
-                                "load_in_8bit": True,  # Legacy quantization
-                                "device_map": "auto",
-                                "low_cpu_mem_usage": True,
                                 "trust_remote_code": True,
-                                # NO local_files_only, NO use_auth_token (recursion triggers)
+                                "quantization_config": quantization_config,
+                                # NO device_map, NO low_cpu_mem_usage initially
                             }
                             
-                            print("🔧 Trying legacy load_in_8bit without auth params...")
+                            print("🔧 Loading with H200-confirmed BitsAndBytesConfig...")
                             self.model = AutoModel.from_pretrained(
-                                self.model_path, **legacy_kwargs
+                                self.model_path, **v100_kwargs
                             ).eval()
                             
-                            print("✅ SUCCESS: InternVL3-8B loaded with legacy 8-bit quantization")
+                            print("✅ SUCCESS: V100 quantization using H200-confirmed approach")
                             print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
                             quantization_success = True
                             quantization_loaded = True
                             
-                        except Exception as legacy_quant_error:
-                            print(f"⚠️ Legacy quantization also failed: {legacy_quant_error}")
+                        except Exception as v100_quant_error:
+                            print(f"❌ V100 quantization failed despite H200 success: {v100_quant_error}")
+                            if "recursion" in str(v100_quant_error).lower():
+                                print("🚨 V100 RECURSION: Different behavior than H200")
+                            quantization_loaded = False
+                    else:
+                        print("🚫 PHASE 2: Skipping quantization - H200 testing failed or caused recursion")
+                        print("🔄 Going directly to fallback strategies")
+                        quantization_loaded = False
                     
-                    # LAST RESORT: Direct loading only for GPUs with sufficient memory
+                    # FALLBACK: Direct loading for sufficient memory or emergency
                     if not quantization_loaded:
-                        if gpu_memory_gb >= 20:  # Only try direct loading if 20GB+
-                            print(f"🔄 Quantization unavailable, trying direct loading on {gpu_memory_gb:.0f}GB GPU...")
+                        if gpu_memory_gb >= 20:
+                            print(f"🔄 Trying direct loading on {gpu_memory_gb:.0f}GB GPU...")
                             
-                            direct_kwargs = {k: v for k, v in model_kwargs.items() 
-                                           if k not in ['quantization_config', 'load_in_8bit']}
-                            direct_kwargs["device_map"] = "auto"
-                            direct_kwargs["local_files_only"] = True
-                            direct_kwargs["use_auth_token"] = False
+                            direct_kwargs = {
+                                "torch_dtype": torch_dtype,
+                                "trust_remote_code": True,
+                                "low_cpu_mem_usage": True,
+                            }
                             
                             try:
                                 self.model = AutoModel.from_pretrained(
                                     self.model_path, **direct_kwargs
                                 ).eval()
                                 
-                                print("✅ SUCCESS: InternVL3-8B loaded directly (risky)")
-                                print(f"⚠️ WARNING: Using ~16GB on {gpu_memory_gb:.0f}GB - monitor for OOM")
+                                print("✅ SUCCESS: InternVL3-8B loaded directly")
+                                print(f"⚠️ WARNING: Using ~16GB on {gpu_memory_gb:.0f}GB")
                                 quantization_success = False
                                 
                             except Exception as direct_error:
@@ -412,8 +519,9 @@ class DocumentAwareInternVL3Processor:
                                 self._handle_final_loading_failure(gpu_name, gpu_memory_gb)
                         else:
                             # V100 with failed quantization - cannot proceed
-                            print(f"\n❌ CRITICAL: V100 ({gpu_memory_gb:.0f}GB) requires quantization for InternVL3-8B")
-                            print("❌ Quantization failed and direct loading would cause OOM")
+                            print(f"\n❌ CRITICAL: V100 ({gpu_memory_gb:.0f}GB) requires quantization")
+                            print("❌ All quantization approaches failed")
+                            print("💡 SOLUTION: Use InternVL3-2B instead (fits easily on V100)")
                             self._handle_final_loading_failure(gpu_name, gpu_memory_gb)
 
             else:

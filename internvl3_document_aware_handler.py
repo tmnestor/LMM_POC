@@ -346,16 +346,28 @@ class DocumentAwareInternVL3Handler:
                 self._trace_log(f"🚨 TRACE: Document-aware processor creation failed: {e}")
                 self._trace_log("🔧 EMERGENCY: Trying processor with skip_model_loading=True")
                 
-                # EMERGENCY FALLBACK: Try creating processor without model loading
+                # EMERGENCY FALLBACK: Create processor without recursion-prone model loading
                 try:
+                    self._trace_log("🚨 EMERGENCY: Creating processor with skip_model_loading=True")
                     self.processor = DocumentAwareInternVL3Processor(
                         field_list=field_names,
                         model_path=self.model_path,
                         device=self.device,
                         debug=self.debug,
-                        skip_model_loading=True  # Skip model loading to avoid recursion
+                        skip_model_loading=True  # Skip recursion-prone model loading
                     )
                     self._trace_log("✅ EMERGENCY: Processor created with skip_model_loading=True")
+                    
+                    # Now try to load model with safe approach
+                    self._trace_log("🔧 EMERGENCY: Attempting safe model loading...")
+                    try:
+                        # Try ultra-safe model loading without quantization
+                        self._load_model_safely_for_processor()
+                        self._trace_log("✅ EMERGENCY: Model loaded safely for processor")
+                    except Exception as model_load_error:
+                        self._trace_log(f"⚠️ EMERGENCY: Model loading failed: {model_load_error}")
+                        self._trace_log("📋 EMERGENCY: Proceeding with processor but model may not work properly")
+                        
                 except Exception as fallback_error:
                     self._trace_log(f"🚨 EMERGENCY FAILED: {fallback_error}")
                     # Return error instead of hanging
@@ -537,6 +549,57 @@ class DocumentAwareInternVL3Handler:
         print("\\n≈ = Partial match")  
         print("✗ = No match")
         print(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
+
+    def _load_model_safely_for_processor(self):
+        """
+        Load model safely for emergency processor that was created with skip_model_loading=True.
+        
+        This method tries ultra-conservative model loading approaches to avoid recursion.
+        """
+        self._trace_log("🔧 SAFE_LOAD: Starting safe model loading for emergency processor")
+        
+        try:
+            # Import required modules
+            from transformers import AutoModel, AutoTokenizer
+            import torch
+            
+            # Determine device and dtype safely
+            if self.device == "cpu" or not torch.cuda.is_available():
+                device = "cpu"
+                torch_dtype = torch.float32
+                self._trace_log("🔧 SAFE_LOAD: Using CPU device with float32")
+            else:
+                device = self.device
+                torch_dtype = torch.bfloat16
+                self._trace_log(f"🔧 SAFE_LOAD: Using {device} device with bfloat16")
+            
+            # Ultra-minimal model loading kwargs (no quantization, no device_map, no auth)
+            safe_kwargs = {
+                "torch_dtype": torch_dtype,
+                "trust_remote_code": True,
+                # Absolutely NO BitsAndBytesConfig, device_map, or auth parameters
+            }
+            
+            self._trace_log("🔧 SAFE_LOAD: Loading model with ultra-minimal configuration...")
+            model = AutoModel.from_pretrained(self.model_path, **safe_kwargs).eval()
+            
+            self._trace_log("🔧 SAFE_LOAD: Loading tokenizer...")
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_path,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            
+            # Assign to processor manually
+            self.processor.model = model
+            self.processor.tokenizer = tokenizer
+            self.processor.torch_dtype = torch_dtype
+            
+            self._trace_log("✅ SAFE_LOAD: Model and tokenizer loaded and assigned to processor")
+            
+        except Exception as e:
+            self._trace_log(f"❌ SAFE_LOAD: Safe model loading failed: {e}")
+            raise
 
     def _generate_document_aware_report(
         self, evaluations: List[Dict]
