@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+commbank_flat_complex.png,bank_statement,37.142857142857146,7,3,7,58.21319127082825,internvl3_bank_statement
+commbank_flat_simple.png,bank_statement,54.285714285714285,7,4,7,34.17642879486084,internvl3_bank_statement
+commbank_statement_001.png,bank_statement,40.0,7,3,7,41.523781299591064,internvl3_bank_statement
+image_001.png,receipt,81.42857142857143,14,12,14,21.04614520072937,internvl3_receipt
+image_002.png,receipt,91.42857142857143,14,14,14,23.440450429916382,internvl3_receipt
+image_004.png,receipt,95.71428571428572,14,14,14,17.69184637069702,internvl3_receipt
+image_005.png,invoice,90.00000000000001,14,14,14,23.896544218063354,internvl3_invoice
+image_006.png,invoice,65.71428571428572,14,10,14,28.382681369781494,internvl3_invoice
+image_007.png,invoice,70.0,14,11,14,20.646921157836914,internvl3_invoice
