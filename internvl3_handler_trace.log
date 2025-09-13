@@ -1,0 +1,121 @@
+🔍 TRACE-000: __init__ ENTRY at 1757722666.616
+🚀 Initializing InternVL3 processor for document-aware extraction...
+🔍 TRACE-001: __init__ EXIT at 1757722666.984
+✅ Document-aware InternVL3 handler initialized (model will load on first use)
+🔍 TRACE-001: detect_and_classify_document ENTRY at 1757722667.414s (elapsed: 0.800s) [call #1]
+   Args: {'image_path': 'evaluation_data/commbank_flat_complex.png'}
+🔍 TRACE-002: _detect_document_type_yaml ENTRY at 1757722667.421s (elapsed: 0.807s) [call #1]
+   Args: {'image_path': 'evaluation_data/commbank_flat_complex.png'}
+🔍 TRACE-003: detect_and_classify_document EXIT at 1757722667.563s (elapsed: 0.949s)
+🔍 TRACE-004: process_document_aware ENTRY at 1757722667.567s (elapsed: 0.952s) [call #1]
+   Args: {'image_path': 'evaluation_data/commbank_flat_complex.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-005: process_document_aware EXIT at 1757722671.494s (elapsed: 4.880s)
+🔍 TRACE-006: detect_and_classify_document ENTRY at 1757722671.513s (elapsed: 4.898s) [call #2]
+   Args: {'image_path': 'evaluation_data/commbank_flat_simple.png'}
+🔍 TRACE-007: _detect_document_type_yaml ENTRY at 1757722671.519s (elapsed: 4.905s) [call #2]
+   Args: {'image_path': 'evaluation_data/commbank_flat_simple.png'}
+🔍 TRACE-008: detect_and_classify_document EXIT at 1757722671.651s (elapsed: 5.037s)
+🔍 TRACE-009: process_document_aware ENTRY at 1757722671.655s (elapsed: 5.040s) [call #2]
+   Args: {'image_path': 'evaluation_data/commbank_flat_simple.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-010: process_document_aware EXIT at 1757722675.243s (elapsed: 8.629s)
+🔍 TRACE-011: detect_and_classify_document ENTRY at 1757722675.260s (elapsed: 8.646s) [call #3]
+   Args: {'image_path': 'evaluation_data/commbank_statement_001.png'}
+🔍 TRACE-012: _detect_document_type_yaml ENTRY at 1757722675.267s (elapsed: 8.652s) [call #3]
+   Args: {'image_path': 'evaluation_data/commbank_statement_001.png'}
+🔍 TRACE-013: detect_and_classify_document EXIT at 1757722675.405s (elapsed: 8.791s)
+🔍 TRACE-014: process_document_aware ENTRY at 1757722675.409s (elapsed: 8.795s) [call #3]
+   Args: {'image_path': 'evaluation_data/commbank_statement_001.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-015: process_document_aware EXIT at 1757722678.812s (elapsed: 12.197s)
+🔍 TRACE-016: detect_and_classify_document ENTRY at 1757722678.829s (elapsed: 12.215s) [call #4]
+   Args: {'image_path': 'evaluation_data/image_001.png'}
+🔍 TRACE-017: _detect_document_type_yaml ENTRY at 1757722678.836s (elapsed: 12.222s) [call #4]
+   Args: {'image_path': 'evaluation_data/image_001.png'}
+🔍 TRACE-018: detect_and_classify_document EXIT at 1757722678.978s (elapsed: 12.363s)
+🔍 TRACE-019: process_document_aware ENTRY at 1757722678.982s (elapsed: 12.367s) [call #4]
+   Args: {'image_path': 'evaluation_data/image_001.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-020: process_document_aware EXIT at 1757722682.400s (elapsed: 15.786s)
+🔍 TRACE-021: detect_and_classify_document ENTRY at 1757722682.419s (elapsed: 15.805s) [call #5]
+   Args: {'image_path': 'evaluation_data/image_002.png'}
+🔍 TRACE-022: _detect_document_type_yaml ENTRY at 1757722682.425s (elapsed: 15.811s) [call #5]
+   Args: {'image_path': 'evaluation_data/image_002.png'}
+🔍 TRACE-023: detect_and_classify_document EXIT at 1757722682.562s (elapsed: 15.947s)
+🔍 TRACE-024: process_document_aware ENTRY at 1757722682.565s (elapsed: 15.951s) [call #5]
+   Args: {'image_path': 'evaluation_data/image_002.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-025: process_document_aware EXIT at 1757722685.940s (elapsed: 19.326s)
+🔍 TRACE-026: detect_and_classify_document ENTRY at 1757722685.958s (elapsed: 19.344s) [call #6]
+   Args: {'image_path': 'evaluation_data/image_004.png'}
+🔍 TRACE-027: _detect_document_type_yaml ENTRY at 1757722685.965s (elapsed: 19.350s) [call #6]
+   Args: {'image_path': 'evaluation_data/image_004.png'}
+🔍 TRACE-028: detect_and_classify_document EXIT at 1757722686.109s (elapsed: 19.495s)
+🔍 TRACE-029: process_document_aware ENTRY at 1757722686.113s (elapsed: 19.498s) [call #6]
+   Args: {'image_path': 'evaluation_data/image_004.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-030: process_document_aware EXIT at 1757722689.733s (elapsed: 23.119s)
+🔍 TRACE-031: detect_and_classify_document ENTRY at 1757722689.751s (elapsed: 23.136s) [call #7]
+   Args: {'image_path': 'evaluation_data/image_005.png'}
+🔍 TRACE-032: _detect_document_type_yaml ENTRY at 1757722689.758s (elapsed: 23.143s) [call #7]
+   Args: {'image_path': 'evaluation_data/image_005.png'}
+🔍 TRACE-033: detect_and_classify_document EXIT at 1757722689.892s (elapsed: 23.277s)
+🔍 TRACE-034: process_document_aware ENTRY at 1757722689.895s (elapsed: 23.281s) [call #7]
+   Args: {'image_path': 'evaluation_data/image_005.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded
+🔍 TRACE-035: process_document_aware EXIT at 1757722693.246s (elapsed: 26.631s)
+🔍 TRACE-036: detect_and_classify_document ENTRY at 1757722693.265s (elapsed: 26.651s) [call #8]
+   Args: {'image_path': 'evaluation_data/image_006.png'}
+🔍 TRACE-037: _detect_document_type_yaml ENTRY at 1757722693.272s (elapsed: 26.658s) [call #8]
+   Args: {'image_path': 'evaluation_data/image_006.png'}
+🔍 TRACE-038: detect_and_classify_document EXIT at 1757722693.406s (elapsed: 26.792s)
+🔍 TRACE-039: process_document_aware ENTRY at 1757722693.410s (elapsed: 26.795s) [call #8]
+   Args: {'image_path': 'evaluation_data/image_006.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded in comparison
+🔍 TRACE-040: process_document_aware EXIT at 1757722696.749s (elapsed: 30.134s)
+🔍 TRACE-041: detect_and_classify_document ENTRY at 1757722696.765s (elapsed: 30.151s) [call #9]
+   Args: {'image_path': 'evaluation_data/image_007.png'}
+🔍 TRACE-042: _detect_document_type_yaml ENTRY at 1757722696.772s (elapsed: 30.157s) [call #9]
+   Args: {'image_path': 'evaluation_data/image_007.png'}
+🔍 TRACE-043: detect_and_classify_document EXIT at 1757722696.904s (elapsed: 30.290s)
+🔍 TRACE-044: process_document_aware ENTRY at 1757722696.908s (elapsed: 30.293s) [call #9]
+   Args: {'image_path': 'evaluation_data/image_007.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+🔍 TRACE: Creating processor for document-aware extraction...
+🔍 TRACE: Creating DocumentAwareInternVL3Processor with 14 fields
+🚨 TRACE: Document-aware processor creation failed: maximum recursion depth exceeded in comparison
+🔍 TRACE-045: process_document_aware EXIT at 1757722700.461s (elapsed: 33.846s)

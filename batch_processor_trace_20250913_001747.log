@@ -1,0 +1,3 @@
+🔍 BATCH-TRACE: BatchDocumentProcessor initialized at 20250913_001747
+🔍 BATCH-TRACE: Model type detected: internvl3
+🔍 BATCH-TRACE: process_batch ENTRY at 1757722667.400 - 9 images, model_type=internvl3
