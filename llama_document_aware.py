@@ -285,23 +285,25 @@ class DocumentAwareLlamaHandler:
             evaluation["image_file"] = image_file
             evaluation["processing_time"] = result["processing_time"]
             evaluations.append(evaluation)
-            
+
             # Display detailed comparison for single image processing
             if len(results) == 1:
                 self._display_detailed_comparison(result, gt_data, evaluation)
 
         return self._generate_document_aware_report(evaluations)
-    
-    def _display_detailed_comparison(self, result: Dict, ground_truth: Dict, evaluation: Dict):
+
+    def _display_detailed_comparison(
+        self, result: Dict, ground_truth: Dict, evaluation: Dict
+    ):
         """Display detailed field-by-field comparison like in the notebook."""
-        
-        print("\\n" + "="*120)
-        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")  
-        print("="*120)
-        
+
+        print("\\n" + "=" * 120)
+        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")
+        print("=" * 120)
+
         extracted_data = result["extracted_data"]
         processing_time = result["processing_time"]
-        
+
         # Display extracted data first
         print("\\n🔍 EXTRACTED DATA:")
         for field, value in extracted_data.items():
@@ -309,26 +311,26 @@ class DocumentAwareLlamaHandler:
                 print(f"✅ {field}: {value}")
             else:
                 print(f"❌ {field}: {value}")
-        
+
         # Ground truth comparison table
         print(f"\\n📊 Ground truth loaded for {result['image_file']}")
-        print("-"*120)
-        
+        print("-" * 120)
+
         field_scores = evaluation.get("field_scores", {})
-        
+
         # Table header
         print(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
-        print("="*120)
-        
+        print("=" * 120)
+
         # Field-by-field comparison
         fields_found = 0
         exact_matches = 0
         total_fields = len(field_scores)
-        
+
         for field, score in field_scores.items():
             extracted_val = extracted_data.get(field, "NOT_FOUND")
             ground_val = ground_truth.get(field, "NOT_FOUND")
-            
+
             # Determine status symbol
             if score.get("accuracy", 0) == 1.0:
                 status = "✅"
@@ -337,34 +339,46 @@ class DocumentAwareLlamaHandler:
                 status = "≈"
             else:
                 status = "❌"
-            
+
             if extracted_val != "NOT_FOUND":
                 fields_found += 1
-                
+
             # Truncate long values for display
-            extracted_display = str(extracted_val)[:38] + ("..." if len(str(extracted_val)) > 38 else "")
-            ground_display = str(ground_val)[:38] + ("..." if len(str(ground_val)) > 38 else "")
-            
-            print(f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}")
-        
+            extracted_display = str(extracted_val)[:38] + (
+                "..." if len(str(extracted_val)) > 38 else ""
+            )
+            ground_display = str(ground_val)[:38] + (
+                "..." if len(str(ground_val)) > 38 else ""
+            )
+
+            print(
+                f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
+            )
+
         # Summary section
         overall_accuracy = evaluation["overall_metrics"]["overall_accuracy"]
-        
+
         print("\\n📊 EXTRACTION SUMMARY:")
-        print(f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found/total_fields*100:.1f}%)")
-        print(f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches/total_fields*100:.1f}%)")  
-        print(f"📈 Extraction Success Rate: {overall_accuracy*100:.1f}%")
-        print(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
+        print(
+            f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found / total_fields * 100:.1f}%)"
+        )
+        print(
+            f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
+        )
+        print(f"📈 Extraction Success Rate: {overall_accuracy * 100:.1f}%")
+        print(f"⏱️ Accuracy (matches/total): {overall_accuracy * 100:.1f}%")
         print(f"⏰ Processing Time: {processing_time:.3f}s")
         print(f"🤖 Document Type: {result['document_type']}")
         print("🔧 Model: Llama-3.2-11B-Vision-Instruct")
-        
+
         # Additional metrics
         meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
         threshold = evaluation["overall_metrics"].get("document_type_threshold", 0.8)
-        print("\\n≈ = Partial match")  
+        print("\\n≈ = Partial match")
         print("✗ = No match")
-        print(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
+        print(
+            f"Note: Meets accuracy threshold ({threshold * 100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}"
+        )
 
     def _generate_document_aware_report(
         self, evaluations: List[Dict]
@@ -444,68 +458,77 @@ class DocumentAwareLlamaHandler:
     def process_universal_single_pass(self, image_path: str) -> Dict[str, Any]:
         """
         Process single image using universal single-pass extraction with all 17 fields.
-        
+
         This method eliminates the document detection stage by extracting all fields
         in a single call, providing ~50% performance improvement through elimination
         of double image loading.
-        
+
         Args:
             image_path: Path to document image
-            
+
         Returns:
             Dict with universal extraction results
         """
         start_time = time.perf_counter()
-        
+
         if self.debug:
             print(f"🌍 Universal single-pass processing: {Path(image_path).name}")
             print("   Skipping document detection - extracting all 17 fields directly")
-        
+
         # Ensure processor exists for universal extraction
         if not self.processor:
             # Initialize with universal field list for consistent configuration
             from common.yaml_template_renderer import PureYAMLRenderer
+
             yaml_renderer = PureYAMLRenderer(debug=self.debug)
-            universal_fields = yaml_renderer.get_universal_field_list(model_name="llama")
-            
+            universal_fields = yaml_renderer.get_universal_field_list(
+                model_name="llama"
+            )
+
             self.processor = DocumentAwareLlamaProcessor(
                 field_list=universal_fields,
                 model_path=self.model_path,
                 debug=self.debug,
             )
-            
+
             if self.debug:
-                print(f"🌍 Created universal processor with {len(universal_fields)} fields")
-        
+                print(
+                    f"🌍 Created universal processor with {len(universal_fields)} fields"
+                )
+
         # Use the processor's universal method
         universal_result = self.processor.process_universal_single_pass(image_path)
-        
+
         # Extract necessary data from processor result
         extracted_data = universal_result.get("extracted_data", {})
         processing_time = time.perf_counter() - start_time
         inferred_doc_type = universal_result.get("document_type", "unknown")
-        
+
         if self.debug:
             found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
             print(f"🌍 Universal result: {len(found_fields)}/17 fields found")
             print(f"📄 Document type inferred: {inferred_doc_type}")
             print(f"⏱️  Processing time: {processing_time:.3f}s")
-        
+
         # Calculate efficiency vs traditional document-aware approach
         # Traditional: detection (5-14 fields) + extraction (5-14 fields) = 10-28 field extractions
         # Universal: 17 fields in one pass
         traditional_field_estimate = 22  # Average of 5+17 for typical document
-        efficiency_improvement = max(0, (traditional_field_estimate - 17) / traditional_field_estimate * 100)
-        
+        efficiency_improvement = max(
+            0, (traditional_field_estimate - 17) / traditional_field_estimate * 100
+        )
+
         return {
             "image_file": Path(image_path).name,
             "document_type": inferred_doc_type,
-            "detected_fields": len([v for v in extracted_data.values() if v != "NOT_FOUND"]),
+            "detected_fields": len(
+                [v for v in extracted_data.values() if v != "NOT_FOUND"]
+            ),
             "total_fields": 17,  # Universal always processes all 17 fields
             "processing_time": processing_time,
             "extracted_data": extracted_data,
             "extraction_mode": "universal_single_pass",
-            "efficiency_improvement": f"{efficiency_improvement:.0f}% fewer field extractions vs document-aware"
+            "efficiency_improvement": f"{efficiency_improvement:.0f}% fewer field extractions vs document-aware",
         }
 
 
@@ -538,9 +561,9 @@ def main():
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument(
-        "--universal", 
-        action="store_true", 
-        help="Use universal single-pass extraction (all 17 fields) instead of document-aware extraction"
+        "--universal",
+        action="store_true",
+        help="Use universal single-pass extraction (all 17 fields) instead of document-aware extraction",
     )
     parser.add_argument(
         "--debug-ocr",
@@ -591,7 +614,7 @@ def main():
             print("   • Extraction prompts")
             print("   • Field-by-field results")
             print("   • Processing details")
-            
+
             return
 
         # Single image mode
@@ -606,7 +629,7 @@ def main():
                     print("🌍 Using UNIVERSAL SINGLE-PASS extraction mode")
                     print("   Eliminating document detection stage")
                     print("   Processing all 17 fields in one extraction call")
-                
+
                 result = processor.process_universal_single_pass(args.image_path)
             else:
                 # Traditional document-aware mode: Detection + targeted extraction
@@ -614,7 +637,7 @@ def main():
                     print("📋 Using traditional DOCUMENT-AWARE extraction mode")
                     print("   Step 1: Document type detection")
                     print("   Step 2: Targeted field extraction")
-                
+
                 # Step 1: Detect document type and get schema (YAML-first approach)
                 classification_info = processor.detect_and_classify_document(
                     args.image_path
@@ -758,24 +781,28 @@ def main():
                 else:
                     # Traditional document-aware mode: Detection + targeted extraction
                     # Step 1: Detect document type and get schema (YAML-first approach)
-                    classification_info = processor.detect_and_classify_document(image_path)
+                    classification_info = processor.detect_and_classify_document(
+                        image_path
+                    )
 
                     # Step 2: Extract with document-specific schema
                     result = processor.process_document_aware(
                         image_path, classification_info
                     )
-                
+
                 results.append(result)
 
                 # Show progress with mode-specific info
-                extraction_mode = result.get('extraction_mode', 'document_aware')
-                mode_indicator = "🌍" if extraction_mode.startswith("universal") else "📋"
+                extraction_mode = result.get("extraction_mode", "document_aware")
+                mode_indicator = (
+                    "🌍" if extraction_mode.startswith("universal") else "📋"
+                )
                 print(
                     f"   ✅ {mode_indicator} {result['document_type']}: {result['detected_fields']}/{result['total_fields']} fields"
                 )
                 print(f"   ⏱️  Processing time: {result['processing_time']:.3f}s")
-                
-                if args.universal and 'efficiency_improvement' in result:
+
+                if args.universal and "efficiency_improvement" in result:
                     print(f"   💡 {result['efficiency_improvement']}")
 
             except Exception as e:

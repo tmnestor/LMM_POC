@@ -7,7 +7,7 @@ following the exact same pattern as the successful DocumentAwareLlamaHandler.
 
 Key Features:
 - Handler pattern with lazy model loading
-- Simple constructor without immediate model loading  
+- Simple constructor without immediate model loading
 - Processor lifecycle management
 - H200/high-end GPU direct loading support
 - V100 quantization fallback
@@ -42,20 +42,23 @@ class DocumentAwareInternVL3Handler:
         self._max_recursion_depth = 5
         self._evaluation_calls = 0
         self._max_evaluation_calls = 10
-        
+
         # Comprehensive tracing
         self._trace_counter = 0
         self._method_calls = {}
         self._start_time = time.time()
-        
+
         # Initialize trace log file
         from pathlib import Path
+
         self._trace_file = Path("internvl3_handler_trace.log")
         if self._trace_file.exists():
             self._trace_file.unlink()  # Clear previous trace
-        
+
         self._trace_log(f"🔍 TRACE-000: __init__ ENTRY at {time.time():.3f}")
-        self._trace_log("🚀 Initializing InternVL3 processor for document-aware extraction...")
+        self._trace_log(
+            "🚀 Initializing InternVL3 processor for document-aware extraction..."
+        )
 
         # Initialize components (same pattern as Llama)
         self.schema_loader = DocumentTypeFieldSchema()
@@ -77,7 +80,9 @@ class DocumentAwareInternVL3Handler:
         self.processor = None
 
         self._trace_log(f"🔍 TRACE-001: __init__ EXIT at {time.time():.3f}")
-        self._trace_log("✅ Document-aware InternVL3 handler initialized (model will load on first use)")
+        self._trace_log(
+            "✅ Document-aware InternVL3 handler initialized (model will load on first use)"
+        )
 
     def _trace_log(self, message: str):
         """Log message to both console and file"""
@@ -91,27 +96,33 @@ class DocumentAwareInternVL3Handler:
         trace_id = f"TRACE-{self._trace_counter:03d}"
         timestamp = time.time()
         elapsed = timestamp - self._start_time
-        
+
         if action == "ENTRY":
             if method_name not in self._method_calls:
                 self._method_calls[method_name] = 0
             self._method_calls[method_name] += 1
             call_count = self._method_calls[method_name]
-            
-            self._trace_log(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]")
+
+            self._trace_log(
+                f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]"
+            )
             if kwargs:
                 self._trace_log(f"   Args: {kwargs}")
             if call_count > 10:
-                self._trace_log(f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!")
+                self._trace_log(
+                    f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!"
+                )
         else:
-            self._trace_log(f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)")
-            
+            self._trace_log(
+                f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)"
+            )
+
         return trace_id
 
     def _detect_document_type_yaml(self, image_path: str) -> str:
         """YAML-first document type detection using configurable prompts."""
         self._trace_method("_detect_document_type_yaml", "ENTRY", image_path=image_path)
-        
+
         if self.debug:
             print("📝 Using YAML-first document detection approach")
 
@@ -132,18 +143,20 @@ class DocumentAwareInternVL3Handler:
             self._trace_log("🔍 TRACE: Creating processor for document detection...")
             import signal
             import time
-            
+
             def timeout_handler(signum, frame):
                 raise TimeoutError("Processor creation timed out after 60 seconds")
-            
+
             try:
                 # Set a timeout for processor creation
                 signal.signal(signal.SIGALRM, timeout_handler)
                 signal.alarm(60)  # 60 second timeout
-                
+
                 start_time = time.time()
-                self._trace_log(f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}")
-                
+                self._trace_log(
+                    f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}"
+                )
+
                 self.processor = DocumentAwareInternVL3Processor(
                     field_list=["DOCUMENT_TYPE"],  # Single field for detection
                     model_path=self.model_path,
@@ -151,17 +164,25 @@ class DocumentAwareInternVL3Handler:
                     debug=self.debug,
                     skip_model_loading=False,  # Load model normally
                 )
-                
+
                 signal.alarm(0)  # Cancel timeout
                 elapsed = time.time() - start_time
-                self._trace_log(f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s")
-                
+                self._trace_log(
+                    f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s"
+                )
+
             except (Exception, TimeoutError) as e:
                 signal.alarm(0)  # Cancel timeout
                 print(f"🚨 TRACE: Processor creation failed: {e}")
                 # Fallback: return a default document type to prevent infinite loop
-                self._trace_method("_detect_document_type_yaml", "EXIT", doc_type="invoice_fallback_due_to_processor_error")
-                return self.detection_config["detection_config"].get("fallback_type", "invoice")
+                self._trace_method(
+                    "_detect_document_type_yaml",
+                    "EXIT",
+                    doc_type="invoice_fallback_due_to_processor_error",
+                )
+                return self.detection_config["detection_config"].get(
+                    "fallback_type", "invoice"
+                )
 
         # Use the processor to extract with YAML prompt
         response = self.processor._extract_with_custom_prompt(
@@ -180,8 +201,12 @@ class DocumentAwareInternVL3Handler:
 
     def _parse_document_type_response_yaml(self, response: str) -> str:
         """Parse document type response using YAML-configured type mappings."""
-        self._trace_method("_parse_document_type_response_yaml", "ENTRY", response_length=len(response) if response else 0)
-        
+        self._trace_method(
+            "_parse_document_type_response_yaml",
+            "ENTRY",
+            response_length=len(response) if response else 0,
+        )
+
         if not response:
             return self.detection_config["detection_config"].get(
                 "fallback_type", "invoice"
@@ -212,7 +237,9 @@ class DocumentAwareInternVL3Handler:
                 "fallback_type", "invoice"
             )
 
-        self._trace_method("_parse_document_type_response_yaml", "EXIT", raw_type=raw_type)
+        self._trace_method(
+            "_parse_document_type_response_yaml", "EXIT", raw_type=raw_type
+        )
         return raw_type
 
     def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
@@ -225,8 +252,10 @@ class DocumentAwareInternVL3Handler:
         Returns:
             Dict with document type, schema, and field information
         """
-        self._trace_method("detect_and_classify_document", "ENTRY", image_path=image_path)
-        
+        self._trace_method(
+            "detect_and_classify_document", "ENTRY", image_path=image_path
+        )
+
         if self.debug:
             print(f"📋 Detecting document type for: {image_path}")
             print("   Using YAML-first detection approach")
@@ -260,9 +289,13 @@ class DocumentAwareInternVL3Handler:
             if isinstance(schema["fields"][0], str)
             else [f["name"] for f in schema["fields"]],
         }
-        
-        self._trace_method("detect_and_classify_document", "EXIT", 
-                          doc_type=doc_type, field_count=result["field_count"])
+
+        self._trace_method(
+            "detect_and_classify_document",
+            "EXIT",
+            doc_type=doc_type,
+            field_count=result["field_count"],
+        )
         return result
 
     def process_document_aware(
@@ -270,11 +303,14 @@ class DocumentAwareInternVL3Handler:
     ) -> Dict[str, Any]:
         """Process single document with type-aware extraction."""
         import time
-        
-        self._trace_method("process_document_aware", "ENTRY", 
-                          image_path=image_path, 
-                          doc_type=classification_info.get('document_type', 'unknown'))
-        
+
+        self._trace_method(
+            "process_document_aware",
+            "ENTRY",
+            image_path=image_path,
+            doc_type=classification_info.get("document_type", "unknown"),
+        )
+
         start_time = time.perf_counter()
 
         # Extract using document-specific fields
@@ -301,27 +337,36 @@ class DocumentAwareInternVL3Handler:
                 )
         else:
             # Create processor if it doesn't exist yet
-            self._trace_log("🔍 TRACE: Creating processor for document-aware extraction...")
+            self._trace_log(
+                "🔍 TRACE: Creating processor for document-aware extraction..."
+            )
             import signal
             import time
-            
+
             def timeout_handler(signum, frame):
-                raise TimeoutError("Document-aware processor creation timed out after 60 seconds")
-            
+                raise TimeoutError(
+                    "Document-aware processor creation timed out after 60 seconds"
+                )
+
             try:
                 # EMERGENCY: Maximum recursion protection
                 import sys
+
                 original_limit = sys.getrecursionlimit()
                 sys.setrecursionlimit(300)  # Very low limit to catch recursion early
-                self._trace_log(f"🚨 EMERGENCY: Set recursion limit to 300 (was {original_limit})")
-                
+                self._trace_log(
+                    f"🚨 EMERGENCY: Set recursion limit to 300 (was {original_limit})"
+                )
+
                 # Set a timeout for processor creation
                 signal.signal(signal.SIGALRM, timeout_handler)
                 signal.alarm(30)  # Reduced to 30 second timeout
-                
+
                 start_time = time.time()
-                self._trace_log(f"🔍 TRACE: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields")
-                
+                self._trace_log(
+                    f"🔍 TRACE: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields"
+                )
+
                 try:
                     self.processor = DocumentAwareInternVL3Processor(
                         field_list=field_names,
@@ -331,47 +376,71 @@ class DocumentAwareInternVL3Handler:
                     )
                     # Restore original recursion limit after successful creation
                     sys.setrecursionlimit(original_limit)
-                    self._trace_log(f"✅ TRACE: Processor created successfully, recursion limit restored to {original_limit}")
+                    self._trace_log(
+                        f"✅ TRACE: Processor created successfully, recursion limit restored to {original_limit}"
+                    )
                 except RecursionError as rec_err:
                     sys.setrecursionlimit(original_limit)
                     self._trace_log(f"🚨 RECURSION ERROR CAUGHT: {rec_err}")
-                    raise TimeoutError(f"Processor creation failed due to infinite recursion: {rec_err}") from rec_err
-                
+                    raise TimeoutError(
+                        f"Processor creation failed due to infinite recursion: {rec_err}"
+                    ) from rec_err
+
                 signal.alarm(0)  # Cancel timeout
                 elapsed = time.time() - start_time
-                self._trace_log(f"🔍 TRACE: Document-aware processor creation completed successfully in {elapsed:.3f}s")
-                
+                self._trace_log(
+                    f"🔍 TRACE: Document-aware processor creation completed successfully in {elapsed:.3f}s"
+                )
+
             except (Exception, TimeoutError, RecursionError) as e:
                 signal.alarm(0)  # Cancel timeout
-                self._trace_log(f"🚨 TRACE: Document-aware processor creation failed: {e}")
-                self._trace_log("🔧 EMERGENCY: Trying processor with skip_model_loading=True")
-                
+                self._trace_log(
+                    f"🚨 TRACE: Document-aware processor creation failed: {e}"
+                )
+                self._trace_log(
+                    "🔧 EMERGENCY: Trying processor with skip_model_loading=True"
+                )
+
                 # EMERGENCY FALLBACK: Create processor without recursion-prone model loading
                 try:
-                    self._trace_log("🚨 EMERGENCY: Creating processor with skip_model_loading=True")
+                    self._trace_log(
+                        "🚨 EMERGENCY: Creating processor with skip_model_loading=True"
+                    )
                     self.processor = DocumentAwareInternVL3Processor(
                         field_list=field_names,
                         model_path=self.model_path,
                         device=self.device,
                         debug=self.debug,
-                        skip_model_loading=True  # Skip recursion-prone model loading
+                        skip_model_loading=True,  # Skip recursion-prone model loading
                     )
-                    self._trace_log("✅ EMERGENCY: Processor created with skip_model_loading=True")
-                    
+                    self._trace_log(
+                        "✅ EMERGENCY: Processor created with skip_model_loading=True"
+                    )
+
                     # Now try to load model with safe approach
                     self._trace_log("🔧 EMERGENCY: Attempting safe model loading...")
                     try:
                         # Try ultra-safe model loading without quantization
                         self._load_model_safely_for_processor()
-                        self._trace_log("✅ EMERGENCY: Model loaded safely for processor")
+                        self._trace_log(
+                            "✅ EMERGENCY: Model loaded safely for processor"
+                        )
                     except Exception as model_load_error:
-                        self._trace_log(f"⚠️ EMERGENCY: Model loading failed: {model_load_error}")
-                        self._trace_log("📋 EMERGENCY: Proceeding with processor but model may not work properly")
-                        
+                        self._trace_log(
+                            f"⚠️ EMERGENCY: Model loading failed: {model_load_error}"
+                        )
+                        self._trace_log(
+                            "📋 EMERGENCY: Proceeding with processor but model may not work properly"
+                        )
+
                 except Exception as fallback_error:
                     self._trace_log(f"🚨 EMERGENCY FAILED: {fallback_error}")
                     # Return error instead of hanging
-                    self._trace_method("process_document_aware", "EXIT", error="processor_creation_failed")
+                    self._trace_method(
+                        "process_document_aware",
+                        "EXIT",
+                        error="processor_creation_failed",
+                    )
                     return {
                         "image_file": Path(image_path).name,
                         "document_type": doc_type,
@@ -379,19 +448,26 @@ class DocumentAwareInternVL3Handler:
                         "total_fields": len(field_names),
                         "processing_time": 0.0,
                         "extracted_data": {field: "NOT_FOUND" for field in field_names},
-                        "error": f"All processor creation attempts failed: {e} | {fallback_error}"
+                        "error": f"All processor creation attempts failed: {e} | {fallback_error}",
                     }
 
         # Extract with reconfigured processor
-        self._trace_log(f"🔍 TRACE: About to call processor.process_single_image for {image_path}")
-        self._trace_log(f"🔍 TRACE: Processor field_list has {len(self.processor.field_list)} fields")
-        
+        self._trace_log(
+            f"🔍 TRACE: About to call processor.process_single_image for {image_path}"
+        )
+        self._trace_log(
+            f"🔍 TRACE: Processor field_list has {len(self.processor.field_list)} fields"
+        )
+
         try:
             extraction_result = self.processor.process_single_image(image_path)
-            self._trace_log("🔍 TRACE: processor.process_single_image completed successfully")
+            self._trace_log(
+                "🔍 TRACE: processor.process_single_image completed successfully"
+            )
         except Exception as e:
             self._trace_log(f"🚨 TRACE: processor.process_single_image failed: {e}")
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -417,11 +493,14 @@ class DocumentAwareInternVL3Handler:
             "processing_time": processing_time,
             "extracted_data": extracted_data,
         }
-        
-        self._trace_method("process_document_aware", "EXIT", 
-                          doc_type=doc_type, 
-                          detected_fields=result["detected_fields"],
-                          processing_time=processing_time)
+
+        self._trace_method(
+            "process_document_aware",
+            "EXIT",
+            doc_type=doc_type,
+            detected_fields=result["detected_fields"],
+            processing_time=processing_time,
+        )
         return result
 
     def evaluate_document_aware(
@@ -431,20 +510,33 @@ class DocumentAwareInternVL3Handler:
         # Recursion protection
         self._evaluation_calls += 1
         if self._evaluation_calls > self._max_evaluation_calls:
-            print("🚨 RECURSION PROTECTION: Too many evaluation calls, aborting to prevent infinite loop")
-            return {"error": "recursion_protection_triggered", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
-        
+            print(
+                "🚨 RECURSION PROTECTION: Too many evaluation calls, aborting to prevent infinite loop"
+            )
+            return {
+                "error": "recursion_protection_triggered",
+                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
+            }
+
         self._recursion_depth += 1
         if self._recursion_depth > self._max_recursion_depth:
             self._recursion_depth -= 1
             print("🚨 RECURSION PROTECTION: Maximum recursion depth exceeded")
-            return {"error": "max_recursion_depth_exceeded", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
+            return {
+                "error": "max_recursion_depth_exceeded",
+                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
+            }
 
         try:
             import traceback
-            print(f"🔍 TRACE: evaluate_document_aware called with {len(results)} results, recursion_depth={self._recursion_depth}, eval_calls={self._evaluation_calls}")
+
+            print(
+                f"🔍 TRACE: evaluate_document_aware called with {len(results)} results, recursion_depth={self._recursion_depth}, eval_calls={self._evaluation_calls}"
+            )
             print("🔍 TRACE: Call stack:")
-            for line in traceback.format_stack()[-3:-1]:  # Show last 2 stack frames (excluding current)
+            for line in traceback.format_stack()[
+                -3:-1
+            ]:  # Show last 2 stack frames (excluding current)
                 print(f"   {line.strip()}")
             print("\\n📊 Evaluating with document-type-specific metrics...")
 
@@ -477,15 +569,17 @@ class DocumentAwareInternVL3Handler:
             # Always decrement recursion depth
             self._recursion_depth -= 1
 
-    def _display_detailed_comparison(self, result: Dict, ground_truth: Dict, evaluation: Dict):
+    def _display_detailed_comparison(
+        self, result: Dict, ground_truth: Dict, evaluation: Dict
+    ):
         """Display detailed field-by-field comparison like in the notebook."""
-        print("\\n" + "="*120)
-        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")  
-        print("="*120)
-        
+        print("\\n" + "=" * 120)
+        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")
+        print("=" * 120)
+
         extracted_data = result["extracted_data"]
         processing_time = result["processing_time"]
-        
+
         # Display extracted data first
         print("\\n🔍 EXTRACTED DATA:")
         for field, value in extracted_data.items():
@@ -493,26 +587,26 @@ class DocumentAwareInternVL3Handler:
                 print(f"✅ {field}: {value}")
             else:
                 print(f"❌ {field}: {value}")
-        
+
         # Ground truth comparison table
         print(f"\\n📊 Ground truth loaded for {result['image_file']}")
-        print("-"*120)
-        
+        print("-" * 120)
+
         field_scores = evaluation.get("field_scores", {})
-        
+
         # Table header
         print(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
-        print("="*120)
-        
+        print("=" * 120)
+
         # Field-by-field comparison
         fields_found = 0
         exact_matches = 0
         total_fields = len(field_scores)
-        
+
         for field, score in field_scores.items():
             extracted_val = extracted_data.get(field, "NOT_FOUND")
             ground_val = ground_truth.get(field, "NOT_FOUND")
-            
+
             # Determine status symbol
             if score.get("accuracy", 0) == 1.0:
                 status = "✅"
@@ -521,48 +615,62 @@ class DocumentAwareInternVL3Handler:
                 status = "≈"
             else:
                 status = "❌"
-            
+
             if extracted_val != "NOT_FOUND":
                 fields_found += 1
-                
+
             # Truncate long values for display
-            extracted_display = str(extracted_val)[:38] + ("..." if len(str(extracted_val)) > 38 else "")
-            ground_display = str(ground_val)[:38] + ("..." if len(str(ground_val)) > 38 else "")
-            
-            print(f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}")
-        
+            extracted_display = str(extracted_val)[:38] + (
+                "..." if len(str(extracted_val)) > 38 else ""
+            )
+            ground_display = str(ground_val)[:38] + (
+                "..." if len(str(ground_val)) > 38 else ""
+            )
+
+            print(
+                f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
+            )
+
         # Summary section
         overall_accuracy = evaluation["overall_metrics"]["overall_accuracy"]
-        
+
         print("\\n📊 EXTRACTION SUMMARY:")
-        print(f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found/total_fields*100:.1f}%)")
-        print(f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches/total_fields*100:.1f}%)")  
-        print(f"📈 Extraction Success Rate: {overall_accuracy*100:.1f}%")
-        print(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
+        print(
+            f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found / total_fields * 100:.1f}%)"
+        )
+        print(
+            f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
+        )
+        print(f"📈 Extraction Success Rate: {overall_accuracy * 100:.1f}%")
+        print(f"⏱️ Accuracy (matches/total): {overall_accuracy * 100:.1f}%")
         print(f"⏰ Processing Time: {processing_time:.3f}s")
         print(f"🤖 Document Type: {result['document_type']}")
         print("🔧 Model: InternVL3 (2B/8B)")
-        
+
         # Additional metrics
         meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
         threshold = evaluation["overall_metrics"].get("document_type_threshold", 0.8)
-        print("\\n≈ = Partial match")  
+        print("\\n≈ = Partial match")
         print("✗ = No match")
-        print(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
+        print(
+            f"Note: Meets accuracy threshold ({threshold * 100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}"
+        )
 
     def _load_model_safely_for_processor(self):
         """
         Load model safely for emergency processor that was created with skip_model_loading=True.
-        
+
         This method tries ultra-conservative model loading approaches to avoid recursion.
         """
-        self._trace_log("🔧 SAFE_LOAD: Starting safe model loading for emergency processor")
-        
+        self._trace_log(
+            "🔧 SAFE_LOAD: Starting safe model loading for emergency processor"
+        )
+
         try:
             # Import required modules
             import torch
             from transformers import AutoModel, AutoTokenizer
-            
+
             # Determine device and dtype safely
             if self.device == "cpu" or not torch.cuda.is_available():
                 device = "cpu"
@@ -572,31 +680,35 @@ class DocumentAwareInternVL3Handler:
                 device = self.device
                 torch_dtype = torch.bfloat16
                 self._trace_log(f"🔧 SAFE_LOAD: Using {device} device with bfloat16")
-            
+
             # Ultra-minimal model loading kwargs (no quantization, no device_map, no auth)
             safe_kwargs = {
                 "torch_dtype": torch_dtype,
                 "trust_remote_code": True,
                 # Absolutely NO BitsAndBytesConfig, device_map, or auth parameters
             }
-            
-            self._trace_log("🔧 SAFE_LOAD: Loading model with ultra-minimal configuration...")
+
+            self._trace_log(
+                "🔧 SAFE_LOAD: Loading model with ultra-minimal configuration..."
+            )
             model = AutoModel.from_pretrained(self.model_path, **safe_kwargs).eval()
-            
+
             self._trace_log("🔧 SAFE_LOAD: Loading tokenizer...")
             tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,
                 trust_remote_code=True,
                 use_fast=False,
             )
-            
+
             # Assign to processor manually
             self.processor.model = model
             self.processor.tokenizer = tokenizer
             self.processor.torch_dtype = torch_dtype
-            
-            self._trace_log("✅ SAFE_LOAD: Model and tokenizer loaded and assigned to processor")
-            
+
+            self._trace_log(
+                "✅ SAFE_LOAD: Model and tokenizer loaded and assigned to processor"
+            )
+
         except Exception as e:
             self._trace_log(f"❌ SAFE_LOAD: Safe model loading failed: {e}")
             raise
@@ -609,12 +721,19 @@ class DocumentAwareInternVL3Handler:
         self._recursion_depth += 1
         if self._recursion_depth > self._max_recursion_depth:
             self._recursion_depth -= 1
-            print("🚨 RECURSION PROTECTION: Maximum recursion depth exceeded in _generate_document_aware_report")
-            return {"error": "max_recursion_depth_exceeded", "summary": {"overall_metrics": {}, "document_type_breakdown": {}}}
-        
+            print(
+                "🚨 RECURSION PROTECTION: Maximum recursion depth exceeded in _generate_document_aware_report"
+            )
+            return {
+                "error": "max_recursion_depth_exceeded",
+                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
+            }
+
         try:
-            print(f"🔍 TRACE: _generate_document_aware_report called with {len(evaluations)} evaluations, recursion_depth={self._recursion_depth}")
-            
+            print(
+                f"🔍 TRACE: _generate_document_aware_report called with {len(evaluations)} evaluations, recursion_depth={self._recursion_depth}"
+            )
+
             # Group by document type
             by_type = {}
             for eval_result in evaluations:
@@ -629,7 +748,7 @@ class DocumentAwareInternVL3Handler:
             total_critical_perfect = 0
             total_ato_compliant = 0
             invoice_count = 0
-            
+
             document_type_breakdown = {}
 
             # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
@@ -643,14 +762,14 @@ class DocumentAwareInternVL3Handler:
                     e["overall_metrics"]["overall_accuracy"] for e in type_evaluations
                 ]
                 all_accuracies.extend(accuracies)
-                
+
                 meets_threshold = sum(
                     1
                     for e in type_evaluations
                     if e["overall_metrics"].get("meets_threshold", False)
                 )
                 total_meets_threshold += meets_threshold
-                
+
                 critical_perfect = sum(
                     1
                     for e in type_evaluations
@@ -676,12 +795,12 @@ class DocumentAwareInternVL3Handler:
                     "meets_threshold": meets_threshold,
                     "critical_perfect": critical_perfect,
                 }
-                
+
                 if doc_type == "invoice":
                     type_metrics["ato_compliance"] = {
                         "compliant": ato_compliant,
                         "total": len(type_evaluations),
-                        "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%"
+                        "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%",
                     }
 
                 document_type_breakdown[doc_type] = type_metrics
@@ -708,14 +827,18 @@ class DocumentAwareInternVL3Handler:
                 "evaluation_mode": "internvl3_document_aware",
                 "summary": {
                     "overall_metrics": {
-                        "average_accuracy": sum(all_accuracies) / len(all_accuracies) if all_accuracies else 0,
+                        "average_accuracy": sum(all_accuracies) / len(all_accuracies)
+                        if all_accuracies
+                        else 0,
                         "total_documents": len(evaluations),
                         "meets_threshold_count": total_meets_threshold,
                         "critical_perfect_count": total_critical_perfect,
-                        "ato_compliant_count": total_ato_compliant if invoice_count > 0 else None,
+                        "ato_compliant_count": total_ato_compliant
+                        if invoice_count > 0
+                        else None,
                     },
-                    "document_type_breakdown": document_type_breakdown
-                }
+                    "document_type_breakdown": document_type_breakdown,
+                },
             }
 
             return report

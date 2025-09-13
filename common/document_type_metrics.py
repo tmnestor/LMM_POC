@@ -159,7 +159,7 @@ class DocumentTypeEvaluator:
                 extracted_data.get(field, "NOT_FOUND"),
                 ground_truth.get(field, "NOT_FOUND"),
                 field in metrics.critical_fields,
-                field_name=field
+                field_name=field,
             )
             results["field_scores"][field] = score
             required_scores.append(score["accuracy"])
@@ -172,7 +172,7 @@ class DocumentTypeEvaluator:
                     extracted_data.get(field, "NOT_FOUND"),
                     ground_truth.get(field, "NOT_FOUND"),
                     False,  # Optional fields are not critical
-                    field_name=field
+                    field_name=field,
                 )
                 results["field_scores"][field] = score
                 optional_scores.append(score["accuracy"])
@@ -237,16 +237,20 @@ class DocumentTypeEvaluator:
 
         # Check if this is a currency/numeric field
         currency_fields = [
-            "TOTAL_AMOUNT", "GST_AMOUNT", "SUBTOTAL_AMOUNT",
-            "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-            "ACCOUNT_CLOSING_BALANCE", "ACCOUNT_OPENING_BALANCE"
+            "TOTAL_AMOUNT",
+            "GST_AMOUNT",
+            "SUBTOTAL_AMOUNT",
+            "LINE_ITEM_PRICES",
+            "LINE_ITEM_TOTAL_PRICES",
+            "ACCOUNT_CLOSING_BALANCE",
+            "ACCOUNT_OPENING_BALANCE",
         ]
-        
+
         if field_name and field_name in currency_fields:
             # Normalize currency values for comparison
             extracted_normalized = self._normalize_currency(extracted_str)
             truth_normalized = self._normalize_currency(truth_str)
-            
+
             if extracted_normalized == truth_normalized:
                 return {"accuracy": 1.0, "match_type": "exact"}
 
@@ -263,14 +267,14 @@ class DocumentTypeEvaluator:
     def _normalize_currency(self, value: str) -> str:
         """Normalize currency values for comparison."""
         import re
-        
+
         # Remove currency symbols, whitespace, and commas
-        normalized = re.sub(r'[$,\s]', '', value)
-        
+        normalized = re.sub(r"[$,\s]", "", value)
+
         # Handle negative values in parentheses
-        if '(' in normalized and ')' in normalized:
-            normalized = '-' + re.sub(r'[()]', '', normalized)
-        
+        if "(" in normalized and ")" in normalized:
+            normalized = "-" + re.sub(r"[()]", "", normalized)
+
         # Ensure it's a valid number format
         try:
             # Convert to float and back to string to normalize decimal places

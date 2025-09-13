@@ -186,10 +186,14 @@ class DocumentAwareLlamaProcessor:
             try:
                 self.model.tie_weights()
                 if self.debug:
-                    print("✅ Llama Vision model loaded successfully (tie_weights called)")
+                    print(
+                        "✅ Llama Vision model loaded successfully (tie_weights called)"
+                    )
             except Exception as e:
                 if self.debug:
-                    print(f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}")
+                    print(
+                        f"⚠️ Llama Vision model loaded (tie_weights warning ignored): {e}"
+                    )
 
             if self.debug:
                 print(f"🔧 Device: {self.model.device}")
@@ -223,9 +227,9 @@ class DocumentAwareLlamaProcessor:
 
         try:
             return self.yaml_renderer.render_prompt_for_document_type(
-                document_type=document_type, 
+                document_type=document_type,
                 field_list=self.field_list,
-                model_name="llama"  # Use llama model name
+                model_name="llama",  # Use llama model name
             )
         except Exception as e:
             raise ValueError(
@@ -321,7 +325,12 @@ class DocumentAwareLlamaProcessor:
                 self.model = self.model.to(self.device)
                 return output
 
-    def process_single_image(self, image_path: str, custom_prompt: Optional[str] = None, custom_max_tokens: Optional[int] = None) -> dict:
+    def process_single_image(
+        self,
+        image_path: str,
+        custom_prompt: Optional[str] = None,
+        custom_max_tokens: Optional[int] = None,
+    ) -> dict:
         """Process single image with document-aware extraction."""
 
         try:
@@ -345,13 +354,20 @@ class DocumentAwareLlamaProcessor:
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
+
                 if custom_prompt:
                     sys.stdout.write("📝 Using custom YAML prompt\n")
                     sys.stdout.write(f"🔍 CUSTOM YAML PROMPT ({len(prompt)} chars):\n")
                 else:
-                    sys.stdout.write(f"📝 Generated prompt for {self.field_count} fields\n")
-                    sys.stdout.write(f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n")
-                    sys.stdout.write(f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n")
+                    sys.stdout.write(
+                        f"📝 Generated prompt for {self.field_count} fields\n"
+                    )
+                    sys.stdout.write(
+                        f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n"
+                    )
+                    sys.stdout.write(
+                        f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n"
+                    )
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.write(prompt + "\n")
                 sys.stdout.write("=" * 80 + "\n")
@@ -419,6 +435,7 @@ class DocumentAwareLlamaProcessor:
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
+
                 sys.stdout.write(f"📄 RAW MODEL RESPONSE ({len(response)} chars):\n")
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.write(response + "\n")
@@ -435,6 +452,7 @@ class DocumentAwareLlamaProcessor:
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
+
                 sys.stdout.write("📊 PARSED EXTRACTION RESULTS:\n")
                 sys.stdout.write("=" * 80 + "\n")
                 for field in self.field_list:
@@ -576,46 +594,61 @@ class DocumentAwareLlamaProcessor:
     def process_universal_single_pass(self, image_path: str) -> dict:
         """
         Process image using universal single-pass extraction with all 17 fields.
-        
+
         This method eliminates the document detection stage by extracting all possible
         fields in a single call, then inferring document type from the results.
         Provides significant performance improvement (~50% faster) by eliminating
         double image loading.
-        
+
         Args:
             image_path (str): Path to document image
-            
+
         Returns:
             dict: Extraction results with same format as document-aware processing
         """
         try:
             start_time = time.time()
-            
+
             if self.debug:
-                print(f"🌍 Starting universal single-pass extraction for: {Path(image_path).name}")
-                print("   Eliminating document detection stage - processing all 17 fields")
-            
+                print(
+                    f"🌍 Starting universal single-pass extraction for: {Path(image_path).name}"
+                )
+                print(
+                    "   Eliminating document detection stage - processing all 17 fields"
+                )
+
             # Memory cleanup before processing
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
-            
+
             # Load image once (vs twice in document-aware mode)
             image = self.load_document_image(image_path)
-            
+
             # Get universal field list and generate universal prompt
-            universal_fields = self.yaml_renderer.get_universal_field_list(model_name="llama")
-            universal_prompt = self.yaml_renderer.render_universal_prompt(model_name="llama")
-            
+            universal_fields = self.yaml_renderer.get_universal_field_list(
+                model_name="llama"
+            )
+            universal_prompt = self.yaml_renderer.render_universal_prompt(
+                model_name="llama"
+            )
+
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
-                sys.stdout.write(f"🌍 Universal field list: {len(universal_fields)} fields\n")
-                sys.stdout.write(f"   Fields: {universal_fields[:3]}...{universal_fields[-2:]}\n")
-                sys.stdout.write(f"🔍 UNIVERSAL PROMPT ({len(universal_prompt)} chars):\n")
+
+                sys.stdout.write(
+                    f"🌍 Universal field list: {len(universal_fields)} fields\n"
+                )
+                sys.stdout.write(
+                    f"   Fields: {universal_fields[:3]}...{universal_fields[-2:]}\n"
+                )
+                sys.stdout.write(
+                    f"🔍 UNIVERSAL PROMPT ({len(universal_prompt)} chars):\n"
+                )
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.write(universal_prompt + "\n")
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
-            
+
             # Create multimodal conversation with universal prompt
             messages = [
                 {
@@ -626,33 +659,35 @@ class DocumentAwareLlamaProcessor:
                     ],
                 }
             ]
-            
+
             # Apply chat template
             input_text = self.processor.apply_chat_template(
                 messages, add_generation_prompt=True
             )
-            
+
             # Process inputs
             inputs = self.processor(image, input_text, return_tensors="pt").to(
                 self.device
             )
-            
+
             # Configure generation for universal extraction (all 17 fields)
             universal_generation_config = self.generation_config.copy()
             universal_generation_config["max_new_tokens"] = get_max_new_tokens(
                 "llama", len(universal_fields)
             )
-            
+
             if self.debug:
                 print(f"🖼️  Input tensor shape: {inputs['input_ids'].shape}")
-                print(f"💭 Generating with max_new_tokens={universal_generation_config['max_new_tokens']}")
-            
+                print(
+                    f"💭 Generating with max_new_tokens={universal_generation_config['max_new_tokens']}"
+                )
+
             # Generate response using resilient generation
             output = self._resilient_generate(inputs, **universal_generation_config)
-            
+
             # Decode response
             full_response = self.processor.decode(output[0], skip_special_tokens=True)
-            
+
             # Extract assistant's response (handle Llama chat template)
             if "<|start_header_id|>assistant<|end_header_id|>" in full_response:
                 response = full_response.split(
@@ -668,23 +703,26 @@ class DocumentAwareLlamaProcessor:
                 response = parts[-1].strip()
             else:
                 response = full_response.strip()
-            
+
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
-                sys.stdout.write(f"📄 RAW UNIVERSAL RESPONSE ({len(response)} chars):\n")
+
+                sys.stdout.write(
+                    f"📄 RAW UNIVERSAL RESPONSE ({len(response)} chars):\n"
+                )
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.write(response + "\n")
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
-            
+
             # Parse response using robust extraction parser
             from common.extraction_parser import parse_extraction_response
-            
+
             extracted_data = parse_extraction_response(
                 response, expected_fields=universal_fields
             )
-            
+
             # Apply ExtractionCleaner for value normalization (matching InternVL3 behavior)
             cleaned_data = {}
             for field in universal_fields:
@@ -694,15 +732,15 @@ class DocumentAwareLlamaProcessor:
                     cleaned_data[field] = cleaned_value
                 else:
                     cleaned_data[field] = "NOT_FOUND"
-            
+
             # Infer document type from extracted DOCUMENT_TYPE field
             detected_doc_type = cleaned_data.get("DOCUMENT_TYPE", "unknown").lower()
-            
+
             # Normalize document type using simple heuristics
             if "statement" in detected_doc_type or "bank" in detected_doc_type:
                 inferred_doc_type = "bank_statement"
             elif "receipt" in detected_doc_type:
-                inferred_doc_type = "receipt"  
+                inferred_doc_type = "receipt"
             elif "invoice" in detected_doc_type or "tax" in detected_doc_type:
                 inferred_doc_type = "invoice"
             else:
@@ -713,10 +751,11 @@ class DocumentAwareLlamaProcessor:
                     inferred_doc_type = "invoice"
                 else:
                     inferred_doc_type = "receipt"  # Default fallback
-            
+
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
+
                 sys.stdout.write("📊 UNIVERSAL EXTRACTION RESULTS:\n")
                 sys.stdout.write("=" * 80 + "\n")
                 for field in universal_fields:
@@ -725,24 +764,30 @@ class DocumentAwareLlamaProcessor:
                     sys.stdout.write(f'  {status} {field}: "{value}"\n')
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
-                
+
                 found_fields = [k for k, v in cleaned_data.items() if v != "NOT_FOUND"]
-                print(f"✅ Universal extraction: {len(found_fields)}/{len(universal_fields)} fields found")
+                print(
+                    f"✅ Universal extraction: {len(found_fields)}/{len(universal_fields)} fields found"
+                )
                 print(f"📄 Inferred document type: {inferred_doc_type}")
                 if found_fields:
-                    print(f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}")
-            
+                    print(
+                        f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
+                    )
+
             # Calculate metrics
-            extracted_fields_count = len([k for k, v in cleaned_data.items() if v != "NOT_FOUND"])
+            extracted_fields_count = len(
+                [k for k, v in cleaned_data.items() if v != "NOT_FOUND"]
+            )
             response_completeness = extracted_fields_count / len(universal_fields)
             content_coverage = extracted_fields_count / len(universal_fields)
-            
+
             # Memory cleanup with V100 optimizations
             del inputs, output, image
             comprehensive_memory_cleanup(self.model, self.processor, verbose=self.debug)
-            
+
             processing_time = time.time() - start_time
-            
+
             # Return results in same format as document-aware processing for compatibility
             return {
                 "image_name": Path(image_path).name,
@@ -754,17 +799,20 @@ class DocumentAwareLlamaProcessor:
                 "extracted_fields_count": extracted_fields_count,
                 "field_count": len(universal_fields),
                 "document_type": inferred_doc_type,  # Inferred from extraction
-                "extraction_mode": "universal_single_pass"  # Mark as universal
+                "extraction_mode": "universal_single_pass",  # Mark as universal
             }
-            
+
         except Exception as e:
             if self.debug:
                 print(f"❌ Error in universal single-pass extraction: {e}")
                 import traceback
+
                 traceback.print_exc()
-                
+
             # Return error result with universal fields
-            universal_fields = self.yaml_renderer.get_universal_field_list(model_name="llama")
+            universal_fields = self.yaml_renderer.get_universal_field_list(
+                model_name="llama"
+            )
             return {
                 "image_name": Path(image_path).name,
                 "extracted_data": {field: "NOT_FOUND" for field in universal_fields},
@@ -775,7 +823,7 @@ class DocumentAwareLlamaProcessor:
                 "extracted_fields_count": 0,
                 "field_count": len(universal_fields),
                 "document_type": "unknown",
-                "extraction_mode": "universal_single_pass"
+                "extraction_mode": "universal_single_pass",
             }
 
     def _parse_document_aware_response(self, response_text: str) -> dict:
@@ -838,16 +886,18 @@ class DocumentAwareLlamaProcessor:
             if len(parts) == 2:
                 key = parts[0].strip().upper()
                 raw_value = parts[1].strip()
-                
+
                 # Debug logging for markdown cleaning
-                if self.debug and ('*' in raw_value):
+                if self.debug and ("*" in raw_value):
                     print(f"🔍 DEBUG: Raw value before cleaning: '{raw_value}'")
-                
-                # Additional markdown cleanup for values that start with markdown  
+
+                # Additional markdown cleanup for values that start with markdown
                 # Handle cases like " ** STATEMENT", "**STATEMENT", " **STATEMENT" etc.
-                value = re.sub(r'^\s*\*+\s*', '', raw_value)  # Remove leading whitespace + asterisks + trailing spaces
+                value = re.sub(
+                    r"^\s*\*+\s*", "", raw_value
+                )  # Remove leading whitespace + asterisks + trailing spaces
                 value = value.strip()  # Clean up any remaining whitespace
-                
+
                 # Debug logging for markdown cleaning
                 if self.debug and raw_value != value:
                     print(f"🧹 DEBUG: Cleaned value: '{raw_value}' → '{value}'")

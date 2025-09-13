@@ -41,10 +41,23 @@ from models.document_aware_internvl3_processor import DocumentAwareInternVL3Proc
 
 # Universal extraction field list - eliminates document type detection
 UNIVERSAL_FIELDS = [
-    "DOCUMENT_TYPE", "INVOICE_DATE", "SUPPLIER_NAME", "BUSINESS_ABN", "BUSINESS_ADDRESS",
-    "PAYER_NAME", "PAYER_ADDRESS", "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES",
-    "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES", "GST_AMOUNT", "IS_GST_INCLUDED", 
-    "TOTAL_AMOUNT", "STATEMENT_DATE_RANGE", "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+    "DOCUMENT_TYPE",
+    "INVOICE_DATE",
+    "SUPPLIER_NAME",
+    "BUSINESS_ABN",
+    "BUSINESS_ADDRESS",
+    "PAYER_NAME",
+    "PAYER_ADDRESS",
+    "LINE_ITEM_DESCRIPTIONS",
+    "LINE_ITEM_QUANTITIES",
+    "LINE_ITEM_PRICES",
+    "LINE_ITEM_TOTAL_PRICES",
+    "GST_AMOUNT",
+    "IS_GST_INCLUDED",
+    "TOTAL_AMOUNT",
+    "STATEMENT_DATE_RANGE",
+    "TRANSACTION_DATES",
+    "TRANSACTION_AMOUNTS_PAID",
 ]
 
 
@@ -339,19 +352,23 @@ class DocumentAwareInternVL3Handler:
         start_time = time.perf_counter()
 
         if self.debug:
-            print("🚀 Starting universal single-pass extraction (eliminates double tiling)")
-            
+            print(
+                "🚀 Starting universal single-pass extraction (eliminates double tiling)"
+            )
+
         # Create universal processor (no document-specific field list needed)
         from models.document_aware_internvl3_processor import (
             DocumentAwareInternVL3Processor,
         )
-        
+
         # Use explicit universal field list for proper token configuration
-        universal_fields = UNIVERSAL_FIELDS  # All 15 universal fields for single-pass extraction
-        
-        # Create processor, skip model loading if we can reuse  
+        universal_fields = (
+            UNIVERSAL_FIELDS  # All 15 universal fields for single-pass extraction
+        )
+
+        # Create processor, skip model loading if we can reuse
         skip_loading = self.base_processor and hasattr(self.base_processor, "model")
-        
+
         document_processor = DocumentAwareInternVL3Processor(
             field_list=universal_fields,
             model_path=self.model_path,  # Uses correct path from args
@@ -375,19 +392,21 @@ class DocumentAwareInternVL3Handler:
 
         # Execute universal single-pass extraction
         extraction_result = document_processor.process_single_image(image_path)
-        
+
         processing_time = time.perf_counter() - start_time
 
         # Format result for compatibility with existing evaluation pipeline
         extracted_data = extraction_result.get("extracted_data", {})
         metadata = extraction_result.get("metadata", {})
-        
+
         detected_fields = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-        
+
         result = {
             "image_file": Path(image_path).name,
             "document_type": metadata.get("document_type", "unknown"),
-            "extraction_strategy": metadata.get("extraction_strategy", "universal_single_pass"),
+            "extraction_strategy": metadata.get(
+                "extraction_strategy", "universal_single_pass"
+            ),
             "total_fields": len(universal_fields),  # Explicit universal field count
             "detected_fields": detected_fields,
             "extracted_data": extracted_data,
@@ -396,13 +415,15 @@ class DocumentAwareInternVL3Handler:
         }
 
         if self.debug:
-            print(f"   ✅ Universal extraction complete: {detected_fields}/{len(universal_fields)} fields")
+            print(
+                f"   ✅ Universal extraction complete: {detected_fields}/{len(universal_fields)} fields"
+            )
             print(f"   📋 Inferred type: {metadata.get('document_type', 'unknown')}")
             print(f"   ⏱️ Processing time: {processing_time:.2f}s")
 
         # Store processor reference for model reuse
         self.base_processor = document_processor
-        
+
         return result
 
     def evaluate_document_aware(
@@ -451,7 +472,7 @@ class DocumentAwareInternVL3Handler:
                 evaluation["processing_time"] = result["processing_time"]
 
                 evaluation_results.append(evaluation)
-                
+
                 # Display detailed comparison for single image processing
                 if len(results) == 1:
                     self._display_detailed_comparison(result, image_truth, evaluation)
@@ -530,17 +551,19 @@ class DocumentAwareInternVL3Handler:
                 }
 
         return {"summary": summary_report, "detailed_results": evaluation_results}
-    
-    def _display_detailed_comparison(self, result: Dict, ground_truth: Dict, evaluation: Dict):
+
+    def _display_detailed_comparison(
+        self, result: Dict, ground_truth: Dict, evaluation: Dict
+    ):
         """Display detailed field-by-field comparison like in the notebook."""
-        
-        print("\\n" + "="*120)
-        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")  
-        print("="*120)
-        
+
+        print("\\n" + "=" * 120)
+        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")
+        print("=" * 120)
+
         extracted_data = result["extracted_data"]
         processing_time = result["processing_time"]
-        
+
         # Display extracted data first
         print("\\n🔍 EXTRACTED DATA:")
         for field, value in extracted_data.items():
@@ -548,26 +571,26 @@ class DocumentAwareInternVL3Handler:
                 print(f"✅ {field}: {value}")
             else:
                 print(f"❌ {field}: {value}")
-        
+
         # Ground truth comparison table
         print(f"\\n📊 Ground truth loaded for {result['image_file']}")
-        print("-"*120)
-        
+        print("-" * 120)
+
         field_scores = evaluation.get("field_scores", {})
-        
+
         # Table header
         print(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
-        print("="*120)
-        
+        print("=" * 120)
+
         # Field-by-field comparison
         fields_found = 0
         exact_matches = 0
         total_fields = len(field_scores)
-        
+
         for field, score in field_scores.items():
             extracted_val = extracted_data.get(field, "NOT_FOUND")
             ground_val = ground_truth.get(field, "NOT_FOUND")
-            
+
             # Determine status symbol
             if score.get("accuracy", 0) == 1.0:
                 status = "✅"
@@ -576,34 +599,46 @@ class DocumentAwareInternVL3Handler:
                 status = "≈"
             else:
                 status = "❌"
-            
+
             if extracted_val != "NOT_FOUND":
                 fields_found += 1
-                
+
             # Truncate long values for display
-            extracted_display = str(extracted_val)[:38] + ("..." if len(str(extracted_val)) > 38 else "")
-            ground_display = str(ground_val)[:38] + ("..." if len(str(ground_val)) > 38 else "")
-            
-            print(f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}")
-        
+            extracted_display = str(extracted_val)[:38] + (
+                "..." if len(str(extracted_val)) > 38 else ""
+            )
+            ground_display = str(ground_val)[:38] + (
+                "..." if len(str(ground_val)) > 38 else ""
+            )
+
+            print(
+                f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
+            )
+
         # Summary section
         overall_accuracy = evaluation["overall_metrics"]["overall_accuracy"]
-        
+
         print("\\n📊 EXTRACTION SUMMARY:")
-        print(f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found/total_fields*100:.1f}%)")
-        print(f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches/total_fields*100:.1f}%)")  
-        print(f"📈 Extraction Success Rate: {overall_accuracy*100:.1f}%")
-        print(f"⏱️ Accuracy (matches/total): {overall_accuracy*100:.1f}%")
+        print(
+            f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found / total_fields * 100:.1f}%)"
+        )
+        print(
+            f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
+        )
+        print(f"📈 Extraction Success Rate: {overall_accuracy * 100:.1f}%")
+        print(f"⏱️ Accuracy (matches/total): {overall_accuracy * 100:.1f}%")
         print(f"⏰ Processing Time: {processing_time:.3f}s")
         print(f"🤖 Document Type: {result['document_type']}")
         print("🔧 Model: InternVL3-8B")
-        
+
         # Additional metrics
         meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
         threshold = evaluation["overall_metrics"].get("document_type_threshold", 0.8)
-        print("\\n≈ = Partial match")  
+        print("\\n≈ = Partial match")
         print("✗ = No match")
-        print(f"Note: Meets accuracy threshold ({threshold*100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}")
+        print(
+            f"Note: Meets accuracy threshold ({threshold * 100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}"
+        )
 
 
 def main():
@@ -656,7 +691,7 @@ def main():
 
         print(f"🔧 Model: {args.model_path or 'Default InternVL3 path'}")
         print(f"🐛 Debug mode: {args.debug}")
-        
+
         # Handle debug OCR mode
         if args.debug_ocr:
             if not args.debug:
@@ -665,34 +700,32 @@ def main():
                     "💡 Usage: python internvl3_document_aware.py --image-path IMAGE --debug --debug-ocr"
                 )
                 return
-            
+
             print("\n🔍 DEBUG OCR MODE ENABLED")
-            print(
-                "🎯 Processing will output raw text extraction for OCR debugging"
-            )
-            
+            print("🎯 Processing will output raw text extraction for OCR debugging")
+
             # Create a simple OCR debugging handler
             print(f"\n📄 Processing {Path(args.image_path).name} in debug OCR mode...")
-            
+
             # Initialize processor for OCR mode
             processor = DocumentAwareInternVL3Handler(
                 model_path=args.model_path, debug=True
             )
-            
+
             # Use a simple OCR prompt to get raw text
             from models.document_aware_internvl3_processor import (
                 DocumentAwareInternVL3Processor,
             )
-            
+
             # Create minimal processor for OCR
             ocr_fields = ["DOCUMENT_TYPE"]  # Minimal field to trigger model loading
             ocr_processor = DocumentAwareInternVL3Processor(
                 field_list=ocr_fields,
                 model_path=args.model_path,
-                device=args.device if hasattr(args, 'device') else "cuda",
-                debug=True
+                device=args.device if hasattr(args, "device") else "cuda",
+                debug=True,
             )
-            
+
             # Simple OCR prompt
             ocr_prompt = """Read and transcribe ALL text visible in this document image.
 
@@ -700,28 +733,32 @@ Output the complete text content exactly as shown, preserving layout where possi
 Include all headers, labels, values, numbers, and any other visible text.
 
 COMPLETE TEXT TRANSCRIPTION:"""
-            
+
             print("\n📝 Debug OCR Prompt:")
             print("-" * 60)
             print(ocr_prompt)
             print("-" * 60)
-            
+
             try:
                 # Get raw OCR output
-                raw_text = ocr_processor._extract_with_prompt(args.image_path, ocr_prompt)
-                
+                raw_text = ocr_processor._extract_with_prompt(
+                    args.image_path, ocr_prompt
+                )
+
                 print("\n📄 RAW OCR OUTPUT:")
                 print("=" * 80)
                 print(raw_text)
                 print("=" * 80)
-                
+
                 print("\n✅ Debug OCR complete")
                 print("💡 This shows what text the model can read from the image")
-                print("💡 Compare with expected field values to diagnose extraction issues")
-                
+                print(
+                    "💡 Compare with expected field values to diagnose extraction issues"
+                )
+
             except Exception as e:
                 print(f"❌ Error in debug OCR mode: {e}")
-            
+
             return
 
         # Single image mode (normal processing)
@@ -732,7 +769,7 @@ COMPLETE TEXT TRANSCRIPTION:"""
         print(f"\\n📄 Processing single image: {Path(args.image_path).name}...")
 
         try:
-            # SINGLE-PASS: Universal extraction with post-processing type inference  
+            # SINGLE-PASS: Universal extraction with post-processing type inference
             result = processor.process_universal_single_pass(args.image_path)
 
             # Display results
@@ -825,13 +862,13 @@ COMPLETE TEXT TRANSCRIPTION:"""
             try:
                 # SINGLE-PASS: Universal extraction with post-processing type inference
                 result = processor.process_universal_single_pass(image_path)
-                
+
                 # Extract results for display
-                detected = result["detected_fields"]  
+                detected = result["detected_fields"]
                 total = result["total_fields"]
                 time_taken = result["processing_time"]
                 inferred_type = result.get("document_type", "unknown")
-                
+
                 print(
                     f"  📋 Inferred Type: {inferred_type} (universal extraction: {detected}/{total} fields)"
                 )
@@ -844,9 +881,7 @@ COMPLETE TEXT TRANSCRIPTION:"""
                 results.append(result)
                 processed_count += 1
 
-                print(
-                    f"  ✅ {inferred_type}: {detected}/{total} fields (single-pass)"
-                )
+                print(f"  ✅ {inferred_type}: {detected}/{total} fields (single-pass)")
                 print(f"  ⏱️ Processing time: {time_taken:.2f}s")
 
                 # Check if we've processed enough documents of the target type

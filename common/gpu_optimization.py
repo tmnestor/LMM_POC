@@ -87,7 +87,9 @@ def configure_cuda_memory_allocation(verbose: bool = True):
     return True
 
 
-def clear_model_caches(model: Any, processor: Optional[Any] = None, verbose: bool = True):
+def clear_model_caches(
+    model: Any, processor: Optional[Any] = None, verbose: bool = True
+):
     """
     Phase 1: Enhanced cache clearing for transformer models.
 
@@ -173,7 +175,9 @@ def detect_memory_fragmentation() -> tuple[float, float, float]:
         return 0.0, 0.0, 0.0
 
 
-def handle_memory_fragmentation(threshold_gb: float = 1.0, aggressive: bool = True, verbose: bool = True):
+def handle_memory_fragmentation(
+    threshold_gb: float = 1.0, aggressive: bool = True, verbose: bool = True
+):
     """
     Handle GPU memory fragmentation with various strategies.
 
@@ -548,50 +552,54 @@ def optimize_model_for_v100(model: Any, verbose: bool = True):
 def clear_gpu_cache(verbose: bool = True):
     """
     V100-optimized GPU memory cache clearing.
-    
+
     Provides comprehensive GPU memory cleanup with detailed reporting of memory
     states before and after clearing. Includes fragmentation detection based on
     V100_MEMORY_STRATEGIES.md best practices.
-    
+
     Args:
         verbose: Whether to print detailed cleanup messages
     """
     if verbose:
         print("🧹 Starting V100-optimized GPU memory cleanup...")
-    
+
     # Clear Python garbage collection
     gc.collect()
-    
+
     # Clear PyTorch CUDA cache if available
     if torch.cuda.is_available():
         # Get initial memory stats
         initial_memory = torch.cuda.memory_allocated() / 1024**3
         initial_reserved = torch.cuda.memory_reserved() / 1024**3
-        
+
         if verbose:
-            print(f"   📊 Initial GPU memory: {initial_memory:.2f}GB allocated, {initial_reserved:.2f}GB reserved")
-        
+            print(
+                f"   📊 Initial GPU memory: {initial_memory:.2f}GB allocated, {initial_reserved:.2f}GB reserved"
+            )
+
         # Empty all caches
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-        
+
         # Force garbage collection again
         gc.collect()
-        
+
         # Clear any cached allocator stats
-        if hasattr(torch.cuda, 'reset_peak_memory_stats'):
+        if hasattr(torch.cuda, "reset_peak_memory_stats"):
             torch.cuda.reset_peak_memory_stats()
-        if hasattr(torch.cuda, 'reset_accumulated_memory_stats'):
+        if hasattr(torch.cuda, "reset_accumulated_memory_stats"):
             torch.cuda.reset_accumulated_memory_stats()
-        
+
         # Get final memory stats
         final_memory = torch.cuda.memory_allocated() / 1024**3
         final_reserved = torch.cuda.memory_reserved() / 1024**3
-        
+
         if verbose:
-            print(f"   ✅ Final GPU memory: {final_memory:.2f}GB allocated, {final_reserved:.2f}GB reserved")
+            print(
+                f"   ✅ Final GPU memory: {final_memory:.2f}GB allocated, {final_reserved:.2f}GB reserved"
+            )
             print(f"   💾 Memory freed: {initial_memory - final_memory:.2f}GB")
-        
+
         # Memory fragmentation detection (from V100_MEMORY_STRATEGIES.md)
         fragmentation = final_reserved - final_memory
         if fragmentation > 0.5:  # 0.5GB threshold from document
@@ -600,7 +608,7 @@ def clear_gpu_cache(verbose: bool = True):
     else:
         if verbose:
             print("   ℹ️  No CUDA device available, skipping GPU cache clearing")
-    
+
     if verbose:
         print("✅ V100-optimized memory cleanup complete")
 
@@ -608,55 +616,58 @@ def clear_gpu_cache(verbose: bool = True):
 def emergency_cleanup(verbose: bool = True):
     """
     Emergency cleanup based on V100_MEMORY_STRATEGIES.md.
-    
+
     Performs aggressive memory cleanup including module reference clearing,
     multi-pass garbage collection, and multiple cache clearing iterations.
     This is designed for critical OOM recovery scenarios.
-    
+
     Args:
         verbose: Whether to print cleanup messages
     """
     if verbose:
         print("🚨 Running V100 emergency GPU cleanup...")
-    
+
     # Try to delete any global model references
     import sys
+
     for name in list(sys.modules.keys()):
-        if 'transformers' in name or 'torch' in name:
-            if hasattr(sys.modules[name], '_model'):
-                delattr(sys.modules[name], '_model')
-    
+        if "transformers" in name or "torch" in name:
+            if hasattr(sys.modules[name], "_model"):
+                delattr(sys.modules[name], "_model")
+
     # Multi-pass cleanup (from document: 3x GC + 2x cache clearing)
     for _ in range(3):
         gc.collect()
-    
+
     for _ in range(2):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    
+
     # Final comprehensive cleanup
     clear_gpu_cache(verbose=verbose)
-    
+
     if verbose:
         print("✅ V100 emergency cleanup complete")
 
 
-def cleanup_model_handler(handler_name: str = 'handler', globals_dict: dict = None, verbose: bool = True):
+def cleanup_model_handler(
+    handler_name: str = "handler", globals_dict: dict = None, verbose: bool = True
+):
     """
     Clean up an existing model handler and free GPU memory.
-    
+
     This function safely removes a model handler from memory, cleaning up all
     associated resources including the model, tokenizer/processor, and GPU cache.
     Commonly used in notebooks before reinitializing models.
-    
+
     Args:
         handler_name: Name of the handler variable in globals (default: 'handler')
         globals_dict: Dictionary of global variables (default: None, will use caller's globals)
         verbose: Whether to print cleanup messages
-    
+
     Returns:
         bool: True if cleanup was performed, False if handler didn't exist
-    
+
     Example:
         >>> # In a notebook:
         >>> from common.gpu_optimization import cleanup_model_handler
@@ -666,10 +677,11 @@ def cleanup_model_handler(handler_name: str = 'handler', globals_dict: dict = No
     """
     if verbose:
         print("🧹 Cleaning up any existing model instances...")
-    
+
     # Get globals dict if not provided
     if globals_dict is None:
         import inspect
+
         frame = inspect.currentframe()
         if frame and frame.f_back:
             globals_dict = frame.f_back.f_globals
@@ -677,29 +689,29 @@ def cleanup_model_handler(handler_name: str = 'handler', globals_dict: dict = No
             if verbose:
                 print("   ⚠️ Could not access globals, skipping cleanup")
             return False
-    
+
     # Check if handler exists
     if handler_name in globals_dict:
         handler = globals_dict[handler_name]
-        
+
         # Clean up existing handler
-        if hasattr(handler, 'processor') and handler.processor:
-            if hasattr(handler.processor, 'model'):
+        if hasattr(handler, "processor") and handler.processor:
+            if hasattr(handler.processor, "model"):
                 del handler.processor.model
-            if hasattr(handler.processor, 'tokenizer'):
+            if hasattr(handler.processor, "tokenizer"):
                 del handler.processor.tokenizer
             del handler.processor
-        
+
         # Delete the handler itself
         del globals_dict[handler_name]
-        
+
         # Force garbage collection
         gc.collect()
-        
+
         # Clear GPU cache if available
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
+
         if verbose:
             print("   ✅ Previous model cleaned up")
         return True

@@ -21,7 +21,11 @@ class PromptLoader:
         self.console = Console()
 
     def load_prompt(
-        self, prompt_file: str, prompt_key: str, document_type: str, verbose: bool = True
+        self,
+        prompt_file: str,
+        prompt_key: str,
+        document_type: str,
+        verbose: bool = True,
     ) -> tuple[str, str, str]:
         """Load a specific prompt from a YAML file.
 

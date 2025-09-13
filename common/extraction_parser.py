@@ -90,11 +90,11 @@ def parse_extraction_response(
         clean_line = line
         # Remove markdown formatting - handle bullet points and inline formatting
         # First remove bullet point asterisks at start: "*   **FIELD:**" -> "   **FIELD:**"
-        clean_line = re.sub(r'^\s*\*+\s*', '', clean_line)
+        clean_line = re.sub(r"^\s*\*+\s*", "", clean_line)
         # Then remove inline markdown: "**text**" -> "text"
         clean_line = re.sub(r"\*+([^*]+)\*+", r"\1", clean_line)
         # Finally remove any remaining asterisks
-        clean_line = clean_line.replace('**', '').replace('*', '')
+        clean_line = clean_line.replace("**", "").replace("*", "")
         # Fix InternVL3 "KEY:" prefix issues
         clean_line = re.sub(r"^KEY:\s*([A-Z_]+):", r"\1:", clean_line)
         clean_line = re.sub(r"^KEY\s+([A-Z_]+):", r"\1:", clean_line)

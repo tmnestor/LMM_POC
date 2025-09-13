@@ -71,14 +71,18 @@ class V100ModelLoader:
                 rprint(
                     "[blue]🔧 Configuring V100-optimized CUDA memory allocation...[/blue]"
                 )
-            configure_cuda_memory_allocation(verbose=verbose)  # Sets 32MB blocks for V100
+            configure_cuda_memory_allocation(
+                verbose=verbose
+            )  # Sets 32MB blocks for V100
 
             # Validate model path first
             if not Path(model_path).exists():
                 raise FileNotFoundError(f"Model path does not exist: {model_path}")
 
             # PHASE 2: Configure V100-optimized quantization
-            quantization_config = self._configure_quantization(use_quantization, verbose=verbose)
+            quantization_config = self._configure_quantization(
+                use_quantization, verbose=verbose
+            )
 
             # PHASE 3: Load model with V100-optimized configuration
             if verbose:
@@ -119,7 +123,9 @@ class V100ModelLoader:
 
             # PHASE 7: Display configuration
             if verbose:
-                self._display_configuration(model_path, use_quantization, max_new_tokens)
+                self._display_configuration(
+                    model_path, use_quantization, max_new_tokens
+                )
 
             # PHASE 8: Model functionality test
             if verbose:

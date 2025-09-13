@@ -181,10 +181,12 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value
-        
+
         # Remove markdown artifacts first
-        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
-        cleaned = cleaned.replace('**', '')  # Remove any double asterisks
+        cleaned = re.sub(
+            r"^\s*\*+\s*", "", cleaned
+        )  # Remove leading whitespace + asterisks + spaces
+        cleaned = cleaned.replace("**", "")  # Remove any double asterisks
 
         # Remove common price suffixes
         for pattern in self.price_suffix_patterns:
@@ -216,10 +218,12 @@ class ExtractionCleaner:
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
-        
+
         # Remove markdown artifacts from the whole value first
-        value = re.sub(r'^\s*\*+\s*', '', value)  # Remove leading whitespace + asterisks + spaces
-        value = value.replace('**', '')  # Remove any double asterisks
+        value = re.sub(
+            r"^\s*\*+\s*", "", value
+        )  # Remove leading whitespace + asterisks + spaces
+        value = value.replace("**", "")  # Remove any double asterisks
 
         # Split by comma or pipe and clean each item
         if "|" in value:
@@ -262,10 +266,12 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         cleaned = value.strip()
-        
+
         # Remove markdown artifacts
-        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
-        cleaned = cleaned.replace('**', '')  # Remove any double asterisks
+        cleaned = re.sub(
+            r"^\s*\*+\s*", "", cleaned
+        )  # Remove leading whitespace + asterisks + spaces
+        cleaned = cleaned.replace("**", "")  # Remove any double asterisks
 
         # Normalize date separators (keep original format but clean spacing)
         cleaned = re.sub(r"\s*[-/\.]\s*", lambda m: m.group(0).strip(), cleaned)
@@ -318,16 +324,20 @@ class ExtractionCleaner:
 
         cleaned = value.strip()
         original_cleaned = cleaned
-        
+
         # Remove markdown artifacts that models sometimes generate
         # Handle " ** STATEMENT", "**STATEMENT", "* value", etc.
-        cleaned = re.sub(r'^\s*\*+\s*', '', cleaned)  # Remove leading whitespace + asterisks + spaces
-        cleaned = re.sub(r'\s*\*+\s*$', '', cleaned)  # Remove trailing whitespace + asterisks
-        cleaned = cleaned.replace('**', '')  # Remove any remaining double asterisks
-        
+        cleaned = re.sub(
+            r"^\s*\*+\s*", "", cleaned
+        )  # Remove leading whitespace + asterisks + spaces
+        cleaned = re.sub(
+            r"\s*\*+\s*$", "", cleaned
+        )  # Remove trailing whitespace + asterisks
+        cleaned = cleaned.replace("**", "")  # Remove any remaining double asterisks
+
         # Debug logging for markdown cleaning
-        if self.debug and original_cleaned != cleaned and '*' in original_cleaned:
-            print(f"🧹 CLEANER DEBUG: '{original_cleaned}' → '{cleaned}'" )
+        if self.debug and original_cleaned != cleaned and "*" in original_cleaned:
+            print(f"🧹 CLEANER DEBUG: '{original_cleaned}' → '{cleaned}'")
 
         # Normalize whitespace
         cleaned = re.sub(r"\s+", " ", cleaned)

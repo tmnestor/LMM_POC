@@ -30,7 +30,9 @@ from .config import (
 )
 
 
-def load_ground_truth(csv_path: str, show_sample: bool = False, verbose: bool = True) -> Dict[str, Dict]:
+def load_ground_truth(
+    csv_path: str, show_sample: bool = False, verbose: bool = True
+) -> Dict[str, Dict]:
     """
     Load ground truth data from CSV file.
 
