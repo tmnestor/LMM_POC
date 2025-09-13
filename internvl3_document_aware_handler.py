@@ -309,38 +309,66 @@ class DocumentAwareInternVL3Handler:
                 raise TimeoutError("Document-aware processor creation timed out after 60 seconds")
             
             try:
+                # EMERGENCY: Maximum recursion protection
+                import sys
+                original_limit = sys.getrecursionlimit()
+                sys.setrecursionlimit(300)  # Very low limit to catch recursion early
+                self._trace_log(f"🚨 EMERGENCY: Set recursion limit to 300 (was {original_limit})")
+                
                 # Set a timeout for processor creation
                 signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(60)  # 60 second timeout
+                signal.alarm(30)  # Reduced to 30 second timeout
                 
                 start_time = time.time()
                 self._trace_log(f"🔍 TRACE: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields")
                 
-                self.processor = DocumentAwareInternVL3Processor(
-                    field_list=field_names,
-                    model_path=self.model_path,
-                    device=self.device,
-                    debug=self.debug,
-                )
+                try:
+                    self.processor = DocumentAwareInternVL3Processor(
+                        field_list=field_names,
+                        model_path=self.model_path,
+                        device=self.device,
+                        debug=self.debug,
+                    )
+                    # Restore original recursion limit after successful creation
+                    sys.setrecursionlimit(original_limit)
+                    self._trace_log(f"✅ TRACE: Processor created successfully, recursion limit restored to {original_limit}")
+                except RecursionError as rec_err:
+                    sys.setrecursionlimit(original_limit)
+                    self._trace_log(f"🚨 RECURSION ERROR CAUGHT: {rec_err}")
+                    raise TimeoutError(f"Processor creation failed due to infinite recursion: {rec_err}") from rec_err
                 
                 signal.alarm(0)  # Cancel timeout
                 elapsed = time.time() - start_time
                 self._trace_log(f"🔍 TRACE: Document-aware processor creation completed successfully in {elapsed:.3f}s")
                 
-            except (Exception, TimeoutError) as e:
+            except (Exception, TimeoutError, RecursionError) as e:
                 signal.alarm(0)  # Cancel timeout
                 self._trace_log(f"🚨 TRACE: Document-aware processor creation failed: {e}")
-                # Return error instead of hanging
-                self._trace_method("process_document_aware", "EXIT", error="processor_creation_failed")
-                return {
-                    "image_file": Path(image_path).name,
-                    "document_type": doc_type,
-                    "detected_fields": 0,
-                    "total_fields": len(field_names),
-                    "processing_time": 0.0,
-                    "extracted_data": {field: "NOT_FOUND" for field in field_names},
-                    "error": str(e)
-                }
+                self._trace_log("🔧 EMERGENCY: Trying processor with skip_model_loading=True")
+                
+                # EMERGENCY FALLBACK: Try creating processor without model loading
+                try:
+                    self.processor = DocumentAwareInternVL3Processor(
+                        field_list=field_names,
+                        model_path=self.model_path,
+                        device=self.device,
+                        debug=self.debug,
+                        skip_model_loading=True  # Skip model loading to avoid recursion
+                    )
+                    self._trace_log("✅ EMERGENCY: Processor created with skip_model_loading=True")
+                except Exception as fallback_error:
+                    self._trace_log(f"🚨 EMERGENCY FAILED: {fallback_error}")
+                    # Return error instead of hanging
+                    self._trace_method("process_document_aware", "EXIT", error="processor_creation_failed")
+                    return {
+                        "image_file": Path(image_path).name,
+                        "document_type": doc_type,
+                        "detected_fields": 0,
+                        "total_fields": len(field_names),
+                        "processing_time": 0.0,
+                        "extracted_data": {field: "NOT_FOUND" for field in field_names},
+                        "error": f"All processor creation attempts failed: {e} | {fallback_error}"
+                    }
 
         # Extract with reconfigured processor
         self._trace_log(f"🔍 TRACE: About to call processor.process_single_image for {image_path}")
