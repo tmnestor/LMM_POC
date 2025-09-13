@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+commbank_flat_complex.png,BANK_STATEMENT,62.85714285714285,7,5,7,192.25260424613953,Optimized Flat Bank Statement Extraction
+commbank_flat_simple.png,BANK_STATEMENT,80.0,7,6,7,48.321205139160156,Optimized Flat Bank Statement Extraction
+commbank_statement_001.png,BANK_STATEMENT,37.142857142857146,7,3,7,57.379515171051025,Date-Grouped Bank Statement Extraction
+image_001.png,RECEIPT,88.57142857142856,14,13,14,29.64147424697876,Standard Receipt Extraction
+image_002.png,RECEIPT,92.85714285714286,14,14,14,31.283114194869995,Standard Receipt Extraction
+image_004.png,RECEIPT,81.42857142857142,14,12,14,25.105093955993652,Standard Receipt Extraction
+image_005.png,INVOICE,90.0,14,13,14,26.967445611953735,Standard Invoice Extraction
+image_006.png,INVOICE,21.428571428571427,14,3,14,35.337921142578125,Standard Invoice Extraction
+image_007.png,INVOICE,17.142857142857146,14,3,14,32.51741003990173,Standard Invoice Extraction
