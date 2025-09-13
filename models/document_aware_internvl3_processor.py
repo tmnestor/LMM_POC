@@ -258,30 +258,36 @@ class DocumentAwareInternVL3Processor:
                 
                 # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Direct loading
                 if gpu_memory_gb >= 40:
-                    print("📦 STRATEGY: Direct bfloat16 loading (optimal for high-end GPUs)")
+                    print("📦 STRATEGY: Ultra-minimal direct loading (H200 optimized)")
                     print(f"   Expected usage: ~16GB ({16/gpu_memory_gb*100:.0f}% of {gpu_memory_gb:.0f}GB)")
                     
-                    model_kwargs["device_map"] = "auto"
-                    model_kwargs["local_files_only"] = True
-                    model_kwargs["use_auth_token"] = False
+                    # MINIMAL kwargs to avoid recursion - no device_map, no auth params
+                    minimal_kwargs = {
+                        "torch_dtype": torch_dtype,
+                        "trust_remote_code": True,
+                    }
                     
+                    print("🔧 Attempting ultra-minimal loading (no device_map, no auth params)")
                     try:
                         self.model = AutoModel.from_pretrained(
-                            self.model_path, **model_kwargs
+                            self.model_path, **minimal_kwargs
                         ).eval()
-                    except RecursionError as e:
-                        print(f"🚨 RecursionError during model loading: {e}")
-                        print("🔧 Trying fallback model loading strategy...")
-                        # Clear problematic kwargs that might cause recursion
-                        safe_kwargs = {
+                        print(f"✅ SUCCESS: Ultra-minimal loading on {gpu_name}")
+                    except Exception as e:
+                        print(f"⚠️ Ultra-minimal failed: {e}")
+                        print("🔧 Trying with low_cpu_mem_usage...")
+                        
+                        # Add low_cpu_mem_usage if minimal fails
+                        enhanced_kwargs = {
                             "torch_dtype": torch_dtype,
                             "trust_remote_code": True,
+                            "low_cpu_mem_usage": True,
                         }
                         self.model = AutoModel.from_pretrained(
-                            self.model_path, **safe_kwargs
+                            self.model_path, **enhanced_kwargs
                         ).eval()
+                        print(f"✅ SUCCESS: Enhanced loading on {gpu_name}")
                     
-                    print(f"✅ SUCCESS: InternVL3-8B loaded directly on {gpu_name}")
                     print(f"   Using {16/gpu_memory_gb*100:.0f}% of available VRAM")
                     quantization_success = False  # Direct loading
                 
@@ -295,25 +301,24 @@ class DocumentAwareInternVL3Processor:
                     # CRITICAL: V100 must have working quantization
                     quantization_loaded = False
                     
-                    # Try modern BitsAndBytesConfig first
+                    # Try simplified BitsAndBytesConfig (no device_map, no auth params)
                     try:
                         from transformers import BitsAndBytesConfig
                         quantization_config = BitsAndBytesConfig(
                             load_in_8bit=True,
-                            bnb_8bit_compute_dtype=torch_dtype,
+                            # Removed bnb_8bit_compute_dtype to avoid recursive validation
                         )
-                        model_kwargs["quantization_config"] = quantization_config
-                        model_kwargs["device_map"] = "auto"
-                        model_kwargs["local_files_only"] = True
-                        model_kwargs["use_auth_token"] = False
                         
-                        try:
-                            self.model = AutoModel.from_pretrained(
-                                self.model_path, **model_kwargs
-                            ).eval()
-                        except RecursionError as e:
-                            print(f"🚨 RecursionError in quantized loading: {e}")
-                            raise  # Re-raise to trigger legacy fallback
+                        # Minimal quantization kwargs - avoid recursion triggers
+                        quant_kwargs = {
+                            "torch_dtype": torch_dtype,
+                            "trust_remote_code": True,
+                            "quantization_config": quantization_config,
+                        }
+                        
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **quant_kwargs
+                        ).eval()
                         
                         print("✅ SUCCESS: InternVL3-8B loaded with modern 8-bit quantization")
                         print(f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)")
