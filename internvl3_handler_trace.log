@@ -1,0 +1,26 @@
+🔍 TRACE-000: __init__ ENTRY at 1757801850.015
+🚀 Initializing InternVL3 processor for document-aware extraction...
+🔍 TRACE-001: __init__ EXIT at 1757801850.462
+✅ Document-aware InternVL3 handler initialized (model will load on first use)
+🔍 TRACE-001: detect_and_classify_document ENTRY at 1757801850.538s (elapsed: 0.523s) [call #1]
+   Args: {'image_path': '/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/image_006.png'}
+🔍 TRACE-002: _detect_document_type_yaml ENTRY at 1757801850.543s (elapsed: 0.528s) [call #1]
+   Args: {'image_path': '/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/image_006.png'}
+🔍 TRACE: Creating processor for document detection...
+🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path=/home/jovyan/nfs_share/models/InternVL3-8B
+🔍 TRACE: Processor creation completed successfully in 10.219s
+🔍 TRACE-003: _parse_document_type_response_yaml ENTRY at 1757801862.049s (elapsed: 12.034s) [call #1]
+   Args: {'response_length': 8}
+🔍 TRACE-004: _parse_document_type_response_yaml EXIT at 1757801862.054s (elapsed: 12.040s)
+🔍 TRACE-005: _detect_document_type_yaml EXIT at 1757801862.057s (elapsed: 12.042s)
+🔍 TRACE-006: detect_and_classify_document EXIT at 1757801862.059s (elapsed: 12.045s)
+🔍 TRACE-007: process_document_aware ENTRY at 1757801862.144s (elapsed: 12.129s) [call #1]
+   Args: {'image_path': '/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/image_006.png', 'doc_type': 'invoice'}
+🔍 Extracting 14 invoice fields...
+   Target fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME', 'BUSINESS_ADDRESS', 'PAYER_NAME']...
+   🔄 Reconfigured processor for 14 invoice-specific fields
+🔍 TRACE: About to call processor.process_single_image for /home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/image_006.png
+🔍 TRACE: Processor field_list has 14 fields
+🔍 TRACE: processor.process_single_image completed successfully
+   ✅ Found 13 fields: ['DOCUMENT_TYPE', 'BUSINESS_ABN', 'SUPPLIER_NAME']...
+🔍 TRACE-008: process_document_aware EXIT at 1757801889.548s (elapsed: 39.533s)
