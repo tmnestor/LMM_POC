@@ -54,8 +54,8 @@ class ExtractionCleaner:
 
         # Common cleaning patterns
         self.price_suffix_patterns = [
-            r"\s+(each|per\s+item|per\s+unit|per\s+piece)",
-            r"\s+(ea\.?|@|apiece)",
+            r"\s+(each|per\s+item|per\s+unit|per\s+piece)$",
+            r"\s+(ea\.?|@|apiece)$",
         ]
 
         # Currency symbol standardization
