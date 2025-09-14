@@ -149,6 +149,10 @@ def parse_extraction_response(
                 value = markdown_key_match.group(2) or markdown_key_match.group(4) or ""
                 value = value.strip()
 
+                # Debug output for LINE_ITEM fields
+                if "LINE_ITEM" in key:
+                    print(f"DEBUG: Initial value for {key}: '{value}' (empty={not value})")
+
                 # If value is empty, collect multi-line value from subsequent lines
                 if not value and i + 1 < len(lines):
                     value_lines = []
@@ -246,6 +250,12 @@ def parse_extraction_response(
                     # Don't overwrite if we already have a non-NOT_FOUND value
                     if extracted_data[key] == "NOT_FOUND" or not extracted_data[key]:
                         extracted_data[key] = value if value else "NOT_FOUND"
+                        if "LINE_ITEM" in key:
+                            print(f"DEBUG: Stored {key} = '{value[:50]}...' (truncated)")
+                else:
+                    # Debug unexpected keys
+                    if "LINE_ITEM" in key:
+                        print(f"DEBUG: Key '{key}' not in expected_fields: {list(extracted_data.keys())}")
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data
