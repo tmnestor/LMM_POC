@@ -363,6 +363,7 @@ class ExtractionCleaner:
 
         Handles:
         - STATEMENT → BANK_STATEMENT (common model output vs ground truth mismatch)
+        - BILL → INVOICE (models sometimes classify invoices as bills)
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
@@ -373,6 +374,7 @@ class ExtractionCleaner:
         # Map model outputs to ground truth format
         document_type_mappings = {
             "STATEMENT": "BANK_STATEMENT",
+            "BILL": "INVOICE",
         }
 
         return document_type_mappings.get(normalized, normalized)
