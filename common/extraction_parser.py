@@ -101,6 +101,8 @@ def parse_extraction_response(
         # Fix field name variations
         clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
         clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
+        # Fix LINE_ITEM_DESCRIPTION -> LINE_ITEM_DESCRIPTIONS mismatch
+        clean_line = re.sub(r"^LINE_ITEM_DESCRIPTION:", "LINE_ITEM_DESCRIPTIONS:", clean_line)
 
         # Extract key and value
         parts = clean_line.split(":", 1)
