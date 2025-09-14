@@ -95,11 +95,8 @@ class ExtractionCleaner:
         if not value:
             return "NOT_FOUND"
 
-        # ALWAYS show cleaning activity for debugging
-        print(f"🧹 CLEANER CALLED: {field_name}: '{raw_value}' -> ", end="")
-
         if self.debug:
-            print("(debug mode) ", end="")
+            print(f"🧹 CLEANER CALLED: {field_name}: '{raw_value}' -> ", end="")
 
         # Pre-process lists: convert comma-separated to pipe-separated format
         if self._is_list_field(field_name) and "," in value and "|" not in value:
@@ -124,10 +121,12 @@ class ExtractionCleaner:
             case _:
                 cleaned_value = self._clean_text_field(value)
 
-        print(f"'{cleaned_value}'")
+        # Special field-specific post-processing
+        if field_name == "DOCUMENT_TYPE":
+            cleaned_value = self._normalize_document_type(cleaned_value)
 
         if self.debug:
-            print("  (debug details shown above)")
+            print(f"'{cleaned_value}'")
 
         return cleaned_value
 
@@ -328,6 +327,7 @@ class ExtractionCleaner:
         - Normalize whitespace
         - Trim leading/trailing spaces
         - Remove redundant punctuation
+        - Document type normalization (STATEMENT → BANK_STATEMENT)
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
@@ -356,6 +356,26 @@ class ExtractionCleaner:
         cleaned = re.sub(r"\s*[,;]\s*$", "", cleaned)
 
         return cleaned if cleaned else "NOT_FOUND"
+
+    def _normalize_document_type(self, value: str) -> str:
+        """
+        Normalize document type values to match ground truth expectations.
+
+        Handles:
+        - STATEMENT → BANK_STATEMENT (common model output vs ground truth mismatch)
+        """
+        if not value or value == "NOT_FOUND":
+            return "NOT_FOUND"
+
+        # Normalize document type to match ground truth format
+        normalized = value.strip().upper()
+
+        # Map model outputs to ground truth format
+        document_type_mappings = {
+            "STATEMENT": "BANK_STATEMENT",
+        }
+
+        return document_type_mappings.get(normalized, normalized)
 
     def _clean_address_field(self, value: str) -> str:
         """
