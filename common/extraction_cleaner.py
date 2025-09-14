@@ -95,8 +95,11 @@ class ExtractionCleaner:
         if not value:
             return "NOT_FOUND"
 
+        # ALWAYS show cleaning activity for debugging
+        print(f"🧹 CLEANER CALLED: {field_name}: '{raw_value}' -> ", end="")
+
         if self.debug:
-            print(f"🧹 Cleaning {field_name}: '{raw_value}' -> ", end="")
+            print("(debug mode) ", end="")
 
         # Pre-process lists: convert comma-separated to pipe-separated format
         if self._is_list_field(field_name) and "," in value and "|" not in value:
@@ -121,8 +124,10 @@ class ExtractionCleaner:
             case _:
                 cleaned_value = self._clean_text_field(value)
 
+        print(f"'{cleaned_value}'")
+
         if self.debug:
-            print(f"'{cleaned_value}'")
+            print("  (debug details shown above)")
 
         return cleaned_value
 
