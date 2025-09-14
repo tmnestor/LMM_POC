@@ -114,7 +114,8 @@ class EnhancedBatchResults:
         self,
         batch_results: List[Dict],
         output_path: Path,
-        timestamp: str
+        timestamp: str,
+        config: Dict = None
     ) -> Path:
         """
         Export batch results to comprehensive CSV format.
@@ -123,14 +124,18 @@ class EnhancedBatchResults:
             batch_results: List of processing result dictionaries
             output_path: Directory to save CSV file
             timestamp: Timestamp for filename
+            config: Configuration dictionary with model info
 
         Returns:
             Path to saved CSV file
         """
         rprint("[bold blue]📊 ENHANCED CSV EXPORT[/bold blue]")
 
-        # Create comprehensive CSV export path
-        csv_path = output_path / f"internvl3_batch_results_{timestamp}.csv"
+        # Create comprehensive CSV export path (dynamic based on model)
+        if config is None:
+            config = {}
+        model_suffix = config.get('model_suffix', 'internvl3')
+        csv_path = output_path / f"{model_suffix}_batch_results_{timestamp}.csv"
 
         # Prepare enhanced data for CSV export
         csv_data = []
@@ -138,6 +143,7 @@ class EnhancedBatchResults:
             if "error" not in result:
                 # Create a row with comprehensive metadata + all extracted fields
                 row = {
+                    "model": config.get('model_name', 'InternVL3'),
                     "image_file": result.get("image_file", result.get("image_name", "")),
                     "image_name": result.get("image_name", ""),
                     "document_type": result.get("document_type", ""),
@@ -278,7 +284,7 @@ def analyze_and_export_results(
     analysis = analyzer.analyze_batch_results(batch_results)
 
     # Export to CSV
-    csv_path = analyzer.export_to_csv(batch_results, output_dirs['csv'], timestamp)
+    csv_path = analyzer.export_to_csv(batch_results, output_dirs['csv'], timestamp, config)
 
     # Generate comprehensive analytics
     analytics_tuple = analyzer.generate_analytics_dataframes(
