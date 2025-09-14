@@ -158,10 +158,10 @@ class ExtractionCleaner:
             str: Field type category for routing to appropriate cleaning method
         """
         match field_name.upper():
-            case name if any(pattern in name for pattern in self.monetary_patterns):
-                return "monetary"
             case name if any(pattern in name for pattern in self.list_patterns):
                 return "list"
+            case name if any(pattern in name for pattern in self.monetary_patterns):
+                return "monetary"
             case name if any(pattern in name for pattern in self.date_patterns):
                 return "date"
             case name if any(pattern in name for pattern in self.id_patterns):
