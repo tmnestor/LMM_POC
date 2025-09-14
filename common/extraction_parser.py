@@ -142,16 +142,10 @@ def parse_extraction_response(
                 key = markdown_key_match.group(1) or markdown_key_match.group(3)
                 key = key.replace(" ", "_")  # Normalize spaces to underscores
 
-                # Debug output for LINE_ITEM fields
-                if "LINE_ITEM" in key:
-                    print(f"DEBUG: Matched markdown key: '{key}' from line: '{line}'")
                 # Extract value from whichever pattern matched (group 2 or 4)
                 value = markdown_key_match.group(2) or markdown_key_match.group(4) or ""
                 value = value.strip()
 
-                # Debug output for LINE_ITEM fields
-                if "LINE_ITEM" in key:
-                    print(f"DEBUG: Initial value for {key}: '{value}' (empty={not value})")
 
                 # If value is empty, collect multi-line value from subsequent lines
                 if not value and i + 1 < len(lines):
@@ -192,19 +186,13 @@ def parse_extraction_response(
                     if value_lines:
                         # Handle list fields specially (LINE_ITEM_* fields)
                         if key.startswith("LINE_ITEM_"):
-                            # Debug output
-                            print(f"DEBUG: Found LINE_ITEM field: {key}")
-                            print(f"DEBUG: Value lines: {value_lines}")
-
                             if all(line.strip().startswith("*") for line in value_lines):
                                 # Remove bullet points and join with pipes for list fields
                                 cleaned_items = [line.strip().lstrip("* ").strip() for line in value_lines if line.strip()]
                                 value = " | ".join(cleaned_items)
-                                print(f"DEBUG: Cleaned to: {value}")
                             else:
                                 # Join with pipes even if no bullet points
                                 value = " | ".join([line.strip() for line in value_lines if line.strip()])
-                                print(f"DEBUG: No bullets, joined to: {value}")
                         else:
                             # Join multi-line values with space for regular fields
                             value = " ".join(value_lines)
@@ -250,12 +238,6 @@ def parse_extraction_response(
                     # Don't overwrite if we already have a non-NOT_FOUND value
                     if extracted_data[key] == "NOT_FOUND" or not extracted_data[key]:
                         extracted_data[key] = value if value else "NOT_FOUND"
-                        if "LINE_ITEM" in key:
-                            print(f"DEBUG: Stored {key} = '{value[:50]}...' (truncated)")
-                else:
-                    # Debug unexpected keys
-                    if "LINE_ITEM" in key:
-                        print(f"DEBUG: Key '{key}' not in expected_fields: {list(extracted_data.keys())}")
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     return extracted_data
