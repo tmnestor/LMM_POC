@@ -121,3 +121,13 @@ docs/LLAMA_PROCESSOR_COMPARISON.md
 config/unified_schema.yaml.backup
 llama_bank_statement_extraction_bkp.ipynb
 internvl3_document_aware_batch copy.ipynb
+evaluation_data copy/ground_truth.csv
+evaluation_data copy/image_001.png
+evaluation_data copy/image_002.png
+evaluation_data copy/image_003.png
+evaluation_data copy/image_004.png
+evaluation_data copy/image_005.png
+evaluation_data copy/image_006.png
+evaluation_data copy/image_007.png
+evaluation_data copy/image_008.png
+evaluation_data copy/image_009.png
