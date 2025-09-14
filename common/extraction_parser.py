@@ -141,6 +141,10 @@ def parse_extraction_response(
                 # Extract key from whichever pattern matched (group 1 or 3)
                 key = markdown_key_match.group(1) or markdown_key_match.group(3)
                 key = key.replace(" ", "_")  # Normalize spaces to underscores
+
+                # Debug output for LINE_ITEM fields
+                if "LINE_ITEM" in key:
+                    print(f"DEBUG: Matched markdown key: '{key}' from line: '{line}'")
                 # Extract value from whichever pattern matched (group 2 or 4)
                 value = markdown_key_match.group(2) or markdown_key_match.group(4) or ""
                 value = value.strip()
@@ -183,10 +187,20 @@ def parse_extraction_response(
 
                     if value_lines:
                         # Handle list fields specially (LINE_ITEM_* fields)
-                        if key.startswith("LINE_ITEM_") and all(line.strip().startswith("*") for line in value_lines):
-                            # Remove bullet points and join with pipes for list fields
-                            cleaned_items = [line.strip().lstrip("* ").strip() for line in value_lines if line.strip()]
-                            value = " | ".join(cleaned_items)
+                        if key.startswith("LINE_ITEM_"):
+                            # Debug output
+                            print(f"DEBUG: Found LINE_ITEM field: {key}")
+                            print(f"DEBUG: Value lines: {value_lines}")
+
+                            if all(line.strip().startswith("*") for line in value_lines):
+                                # Remove bullet points and join with pipes for list fields
+                                cleaned_items = [line.strip().lstrip("* ").strip() for line in value_lines if line.strip()]
+                                value = " | ".join(cleaned_items)
+                                print(f"DEBUG: Cleaned to: {value}")
+                            else:
+                                # Join with pipes even if no bullet points
+                                value = " | ".join([line.strip() for line in value_lines if line.strip()])
+                                print(f"DEBUG: No bullets, joined to: {value}")
                         else:
                             # Join multi-line values with space for regular fields
                             value = " ".join(value_lines)
