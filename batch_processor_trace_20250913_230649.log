@@ -1,0 +1,3 @@
+🔍 BATCH-TRACE: BatchDocumentProcessor initialized at 20250913_230649
+🔍 BATCH-TRACE: Model type detected: llama
+🔍 BATCH-TRACE: process_batch ENTRY at 1757804809.333 - 9 images, model_type=llama

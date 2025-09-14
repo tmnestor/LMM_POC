@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "batch_id": "20250914_001611",
+    "timestamp": "2025-09-14T00:21:18.305470",
+    "model": "/home/jovyan/nfs_share/models/InternVL3-8B",
+    "total_images": 9,
+    "successful_extractions": 9,
+    "average_accuracy": 60.79365079365079,
+    "total_processing_time": 291.73306424263865,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 9.0,
+    "Successful Extractions": 9.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 60.79365079365079,
+    "Median Accuracy (%)": 74.28571428571428,
+    "Min Accuracy (%)": 0.0,
+    "Max Accuracy (%)": 90.00000000000001,
+    "Average Processing Time (s)": 32.41478491584874,
+    "Total Processing Time (s)": 291.73306424263865,
+    "Throughput (images/min)": 1.8510071918035114
+  },
+  "document_type_distribution": {
+    "receipt": 3,
+    "bank_statement": 3,
+    "invoice": 3
+  },
+  "results": [
+    {
+      "image_name": "image_001.png",
+      "document_type": "receipt",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 20.167830228805542,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7428571428571428,
+        "fields_extracted": 14,
+        "fields_matched": 11,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "receipt",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 19.504037380218506,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7857142857142857,
+        "fields_extracted": 14,
+        "fields_matched": 12,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_003.png",
+      "document_type": "bank_statement",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 32.582294940948486,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5142857142857142,
+        "fields_extracted": 7,
+        "fields_matched": 4,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "receipt",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 17.772246837615967,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9000000000000001,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "invoice",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 23.10494065284729,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "invoice",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 27.201915502548218,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8,
+        "fields_extracted": 14,
+        "fields_matched": 12,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "invoice",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 21.984349012374878,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6428571428571429,
+        "fields_extracted": 14,
+        "fields_matched": 10,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "bank_statement",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 57.03783917427063,
+      "evaluation_summary": {
+        "overall_accuracy": 0.0,
+        "fields_extracted": 7,
+        "fields_matched": 0,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "bank_statement",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 58.95431351661682,
+      "evaluation_summary": {
+        "overall_accuracy": 0.2571428571428572,
+        "fields_extracted": 7,
+        "fields_matched": 2,
+        "total_fields": 7
+      }
+    }
+  ]
+}
