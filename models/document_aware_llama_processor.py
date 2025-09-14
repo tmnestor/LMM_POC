@@ -449,6 +449,19 @@ class DocumentAwareLlamaProcessor:
                 response, expected_fields=self.field_list
             )
 
+            # Apply ExtractionCleaner for value normalization
+            cleaned_data = {}
+            for field in self.field_list:
+                raw_value = extracted_data.get(field, "NOT_FOUND")
+                if raw_value != "NOT_FOUND":
+                    cleaned_value = self.cleaner.clean_field_value(field, raw_value)
+                    cleaned_data[field] = cleaned_value
+                else:
+                    cleaned_data[field] = "NOT_FOUND"
+
+            # Replace extracted_data with cleaned version
+            extracted_data = cleaned_data
+
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
                 import sys
