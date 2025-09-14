@@ -1,2 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
-image_006.png,INVOICE,0.0,0,0,14,46.27211809158325,Standard Invoice Extraction

@@ -1,4 +1,0 @@
-document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
-BANK_STATEMENT,60.0,62.86,21.57,37.14,80.0,95.01,54.76,3
-INVOICE,42.86,21.43,40.88,17.14,90.0,30.9,31.55,3
-RECEIPT,87.62,88.57,5.77,81.43,92.86,28.05,29.4,3

@@ -1,4 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
-commbank_flat_complex copy.png,BANK_STATEMENT,0.0,0,0,0,92.29120230674744,Optimized Flat Bank Statement Extraction
-commbank_flat_complex.png,BANK_STATEMENT,72.0,5,4,5,92.28309178352356,Optimized Flat Bank Statement Extraction
-commbank_flat_simple.png,BANK_STATEMENT,80.0,5,4,5,33.233731269836426,Optimized Flat Bank Statement Extraction

@@ -1,5 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
-commbank_flat_simple.png,BANK_STATEMENT,80.0,5,4,5,34.75529360771179,Flat Bank Statement Extraction
-image_001.png,RECEIPT,97.14285714285714,14,14,14,33.25566649436951,Standard Receipt Extraction
-image_005.png,INVOICE,97.14285714285714,14,14,14,33.61194849014282,Standard Invoice Extraction
-image_006.png,INVOICE,84.28571428571429,14,12,14,46.85820960998535,Standard Invoice Extraction

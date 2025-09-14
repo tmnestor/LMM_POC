@@ -1,4 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,accuracy_DOCUMENT_TYPE,accuracy_BUSINESS_ABN,accuracy_SUPPLIER_NAME,accuracy_BUSINESS_ADDRESS,accuracy_PAYER_NAME,accuracy_PAYER_ADDRESS,accuracy_INVOICE_DATE,accuracy_LINE_ITEM_DESCRIPTIONS,accuracy_LINE_ITEM_QUANTITIES,accuracy_LINE_ITEM_PRICES,accuracy_LINE_ITEM_TOTAL_PRICES,accuracy_IS_GST_INCLUDED,accuracy_GST_AMOUNT,accuracy_TOTAL_AMOUNT
-image_005.png,invoice,81.42857142857143,14,13,14,12.835294065065682,internvl3_invoice,80.0,100.0,100.0,80.0,100.0,80.0,100.0,80.0,80.0,80.0,80.0,0.0,80.0,100.0
-image_006.png,invoice,87.14285714285715,14,13,14,12.156842925585806,internvl3_invoice,100.0,100.0,100.0,80.0,100.0,80.0,100.0,100.0,100.0,80.0,100.0,0.0,80.0,100.0
-image_007.png,invoice,58.57142857142856,14,9,14,9.033782937563956,internvl3_invoice,80.0,100.0,100.0,0.0,100.0,80.0,80.0,0.0,0.0,80.0,0.0,0.0,100.0,100.0
