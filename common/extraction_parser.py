@@ -151,13 +151,17 @@ def parse_extraction_response(
                 if not value and i + 1 < len(lines):
                     value_lines = []
                     j = i + 1
-                    # Collect all consecutive non-empty lines that don't look like keys
+                    # Skip initial empty lines to find content (especially for LINE_ITEM fields)
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+
+                    # Collect all consecutive content lines that don't look like keys
                     while j < len(lines):
                         next_line = lines[j].strip()
-                        # Stop if we hit an empty line or another key (support both underscore and space patterns)
-                        if not next_line or re.match(r"^\*\*[A-Z_]+:\*\*|^\*\*[A-Z\s]+:\*\*", next_line):
+                        # Stop if we hit another key (support both underscore and space patterns)
+                        if re.match(r"^\*\*[A-Z_]+:\*\*|^\*\*[A-Z\s]+:\*\*", next_line):
                             break
-                        # Stop if line contains colon (might be another field)
+                        # Stop if line contains colon (might be another field) - but allow address patterns
                         if ":" in next_line and not any(
                             addr_word in next_line.lower()
                             for addr_word in [
@@ -180,6 +184,10 @@ def parse_extraction_response(
                             ]
                         ):
                             break
+                        # Skip empty lines within the content but don't break
+                        if not next_line:
+                            j += 1
+                            continue
                         value_lines.append(next_line)
                         j += 1
 
