@@ -336,15 +336,15 @@ class DocumentAwareInternVL3Processor:
                     f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)"
                 )
 
-                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - ISOLATED quantization testing
+                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Optional quantization testing
                 if gpu_memory_gb >= 40:
-                    print("📦 STRATEGY: ISOLATED BitsAndBytesConfig testing on H200")
+                    print("📦 STRATEGY: Optional quantization testing on high-memory GPU")
                     print(
                         f"   Expected usage: ~16GB ({16 / gpu_memory_gb * 100:.0f}% of {gpu_memory_gb:.0f}GB)"
                     )
 
-                    # CRITICAL: Test BitsAndBytesConfig creation in complete isolation to prevent recursion
-                    print("🧪 PHASE 1: ISOLATED BitsAndBytesConfig creation test")
+                    # Test BitsAndBytesConfig creation (optional for high-memory GPUs)
+                    print("🧪 PHASE 1: Testing BitsAndBytesConfig (optional for high-memory)")
                     quantization_config = None
                     quantization_viable = False
 
@@ -439,16 +439,15 @@ class DocumentAwareInternVL3Processor:
                             print(f"✅ SUCCESS: Enhanced direct loading on {gpu_name}")
                             quantization_success = False
 
-                    # Store quantization viability for V100 strategy
-                    self._quantization_viable = quantization_viable
+                    # Note: Quantization viability is now tested independently per GPU
                     print(
                         f"   VRAM Usage: ~{16 if not quantization_success else 8}GB ({(16 if not quantization_success else 8) / gpu_memory_gb * 100:.0f}% of {gpu_memory_gb:.0f}GB)"
                     )
 
                 else:
-                    # Strategy 2: V100 and memory-constrained GPUs - Use H200-confirmed approach ONLY if viable
+                    # Strategy 2: V100 and memory-constrained GPUs - Direct quantization testing
                     print(
-                        "📦 STRATEGY: V100 quantization using H200-confirmed approach"
+                        "📦 STRATEGY: V100 direct quantization testing for InternVL3-8B"
                     )
                     if gpu_memory_gb <= 16:
                         print(
@@ -456,64 +455,61 @@ class DocumentAwareInternVL3Processor:
                         )
                     print(f"   Target usage: ~8GB (safe for {gpu_memory_gb:.0f}GB GPU)")
 
-                    # Check if H200 confirmed quantization is viable
-                    quantization_viable = getattr(self, "_quantization_viable", False)
+                    # V100 Direct Quantization Testing (independent of H200)
                     quantization_loaded = False
 
-                    if quantization_viable:
-                        print(
-                            "🔧 PHASE 2: Applying H200-confirmed BitsAndBytesConfig to V100"
+                    print("🔧 PHASE 2: Testing BitsAndBytesConfig directly on V100")
+                    print("   Testing quantization viability...")
+
+                    try:
+                        print("🔧 Step 1: Importing BitsAndBytesConfig...")
+                        from transformers import BitsAndBytesConfig
+                        print("✅ Step 1: Import successful")
+
+                        print("🔧 Step 2: Creating BitsAndBytesConfig for V100...")
+                        # Use minimal config to avoid recursion
+                        quantization_config = BitsAndBytesConfig(
+                            load_in_8bit=True,
+                            # NO bnb_8bit_compute_dtype - this can cause recursion
                         )
-                        print("✅ H200 testing confirmed quantization is viable")
+                        print("✅ Step 2: BitsAndBytesConfig creation successful")
 
-                        try:
-                            from transformers import BitsAndBytesConfig
+                        print("🔧 Step 3: Loading model with quantization on V100...")
+                        # Minimal kwargs for V100
+                        v100_kwargs = {
+                            "torch_dtype": torch_dtype,
+                            "trust_remote_code": True,
+                            "quantization_config": quantization_config,
+                            # Start minimal, add more if needed
+                        }
 
-                            # Use EXACT same minimal config that worked on H200
-                            quantization_config = BitsAndBytesConfig(
-                                load_in_8bit=True,
-                                # NO bnb_8bit_compute_dtype - confirmed to avoid recursion
-                            )
+                        self.model = AutoModel.from_pretrained(
+                            self.model_path, **v100_kwargs
+                        ).eval()
 
-                            # Minimal V100 kwargs
-                            v100_kwargs = {
-                                "torch_dtype": torch_dtype,
-                                "trust_remote_code": True,
-                                "quantization_config": quantization_config,
-                                # NO device_map, NO low_cpu_mem_usage initially
-                            }
-
-                            print(
-                                "🔧 Loading with H200-confirmed BitsAndBytesConfig..."
-                            )
-                            self.model = AutoModel.from_pretrained(
-                                self.model_path, **v100_kwargs
-                            ).eval()
-
-                            print(
-                                "✅ SUCCESS: V100 quantization using H200-confirmed approach"
-                            )
-                            print(
-                                f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)"
-                            )
-                            quantization_success = True
-                            quantization_loaded = True
-                            quantization_method = (
-                                "modern_bitsandbytes_v100"  # Track V100 modern method
-                            )
-
-                        except Exception as v100_quant_error:
-                            print(
-                                f"❌ V100 quantization failed despite H200 success: {v100_quant_error}"
-                            )
-                            if "recursion" in str(v100_quant_error).lower():
-                                print("🚨 V100 RECURSION: Different behavior than H200")
-                            quantization_loaded = False
-                    else:
                         print(
-                            "🚫 PHASE 2: Skipping quantization - H200 testing failed or caused recursion"
+                            "✅ SUCCESS: V100 quantization working!"
                         )
-                        print("🔄 Going directly to fallback strategies")
+                        print(
+                            f"   Memory: ~8GB (safe for V100's {gpu_memory_gb:.0f}GB)"
+                        )
+                        quantization_success = True
+                        quantization_loaded = True
+                        quantization_method = (
+                            "modern_bitsandbytes_v100"  # Track V100 modern method
+                        )
+
+                    except Exception as v100_quant_error:
+                        print(f"❌ V100 quantization failed: {v100_quant_error}")
+
+                        if "recursion" in str(v100_quant_error).lower() or "RecursionError" in str(type(v100_quant_error)):
+                            print("🚨 RECURSION DETECTED: BitsAndBytesConfig causes infinite recursion on V100")
+                            print("🚫 Quantization DISABLED for this session")
+                        else:
+                            print(f"💡 Error type: {type(v100_quant_error).__name__}")
+                            print(f"💡 Error details: {str(v100_quant_error)[:200]}...")
+
+                        print("🔄 Falling back to alternative strategies...")
                         quantization_loaded = False
 
                     # FALLBACK: Direct loading for sufficient memory or emergency
