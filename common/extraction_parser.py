@@ -135,14 +135,15 @@ def parse_extraction_response(
 
             # Check if this is a markdown key line (e.g., "**SUPPLIER:**" or "**SUPPLIER:** value")
             # Handle both cases: value on same line or next line
-            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*(.*)?$", line)
+            # Support both underscore and space patterns: "**SUPPLIER_NAME:**" OR "**SUPPLIER NAME:**"
+            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*(.*)?$|^\*\*([A-Z\s]+):\*\*\s*(.*)?$", line)
             if markdown_key_match:
-                key = markdown_key_match.group(1)
-                value = (
-                    markdown_key_match.group(2).strip()
-                    if markdown_key_match.group(2)
-                    else ""
-                )
+                # Extract key from whichever pattern matched (group 1 or 3)
+                key = markdown_key_match.group(1) or markdown_key_match.group(3)
+                key = key.replace(" ", "_")  # Normalize spaces to underscores
+                # Extract value from whichever pattern matched (group 2 or 4)
+                value = markdown_key_match.group(2) or markdown_key_match.group(4) or ""
+                value = value.strip()
 
                 # If value is empty, collect multi-line value from subsequent lines
                 if not value and i + 1 < len(lines):
@@ -151,8 +152,8 @@ def parse_extraction_response(
                     # Collect all consecutive non-empty lines that don't look like keys
                     while j < len(lines):
                         next_line = lines[j].strip()
-                        # Stop if we hit an empty line or another key
-                        if not next_line or re.match(r"^\*\*[A-Z_]+:\*\*", next_line):
+                        # Stop if we hit an empty line or another key (support both underscore and space patterns)
+                        if not next_line or re.match(r"^\*\*[A-Z_]+:\*\*|^\*\*[A-Z\s]+:\*\*", next_line):
                             break
                         # Stop if line contains colon (might be another field)
                         if ":" in next_line and not any(
