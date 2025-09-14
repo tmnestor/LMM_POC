@@ -409,7 +409,13 @@ class ExtractionCleaner:
 
         # Remove standalone phone numbers at end of address
         # Pattern: phone numbers with common formats
-        cleaned = re.sub(r"\s*-?\s*\(?[0-9]{2,4}\)?\s*[0-9\s\-]{6,}$", "", cleaned)
+        # IMPORTANT: Avoid matching ABN numbers (11 digits: XX XXX XXX XXX)
+        # Only match if it looks like a phone number, not an ABN
+        phone_pattern = r"\s*-?\s*\(?[0-9]{2,4}\)?\s*[0-9\s\-]{6,}$"
+        # Check if this looks like an ABN number (XX XXX XXX XXX format)
+        abn_pattern = r"\d{2}\s+\d{3}\s+\d{3}\s+\d{3}$"
+        if not re.search(abn_pattern, cleaned):
+            cleaned = re.sub(phone_pattern, "", cleaned)
 
         # CRITICAL: Remove commas from addresses to match ground truth format
         # Examples: "1/92 Watt Road, Mornington, VIC 3931" -> "1/92 Watt Road Mornington VIC 3931"

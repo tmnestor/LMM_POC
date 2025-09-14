@@ -182,9 +182,14 @@ def parse_extraction_response(
                         j += 1
 
                     if value_lines:
-                        value = " ".join(
-                            value_lines
-                        )  # Join multi-line values with space
+                        # Handle list fields specially (LINE_ITEM_* fields)
+                        if key.startswith("LINE_ITEM_") and all(line.strip().startswith("*") for line in value_lines):
+                            # Remove bullet points and join with pipes for list fields
+                            cleaned_items = [line.strip().lstrip("* ").strip() for line in value_lines if line.strip()]
+                            value = " | ".join(cleaned_items)
+                        else:
+                            # Join multi-line values with space for regular fields
+                            value = " ".join(value_lines)
                         i = j  # Skip to after the collected lines
                     else:
                         i += 1  # Just skip the key line
