@@ -1,0 +1,41 @@
+InternVL3 Document-Aware Batch Processing Summary
+==================================================
+Timestamp: 2025-09-15 01:56:23
+Model: InternVL3-8B
+Strategy: Enhanced direct loading with comprehensive analytics
+Architecture: Clean batch processing with feature parity to Llama version
+
+Processing Results:
+--------------------
+Total images: 9
+Successful: 9
+Errors: 0
+Success rate: 100.0%
+
+Performance Metrics:
+--------------------
+Total processing time: 253.40s
+Average time per image: 28.16s
+Throughput: 2.1 images/minute
+Field extraction rate: 0.3 fields/second
+
+Field Coverage:
+--------------------
+Total fields processed: 105
+Total fields found: 87
+Overall coverage: 82.9%
+
+Document Type Breakdown:
+--------------------
+receipt: 3 docs, 92.9% field coverage
+bank_statement: 3 docs, 47.6% field coverage
+invoice: 3 docs, 90.5% field coverage
+
+Enhanced Features:
+--------------------
+✅ Full image display (no truncation)
+✅ Complete prompts with syntax highlighting
+✅ Full raw responses (no truncation)
+✅ 120-character wide field comparison tables
+✅ Comprehensive analytics and professional visualizations
+✅ Executive reporting and deployment assessment
