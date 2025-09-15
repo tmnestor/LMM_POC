@@ -98,38 +98,38 @@ def load_internvl3_model(
         model_variant = "8B" if "8B" in model_path else "2B"
         estimated_memory_needed = 16 if model_variant == "8B" else 4  # Realistic estimates for fp16
 
-        # Detect GPU type for appropriate thresholds
-        gpu_name = torch.cuda.get_device_name(0).upper()
-        is_h200 = "H200" in gpu_name
-        is_l40s = "L40S" in gpu_name
-        is_v100 = "V100" in gpu_name
+        # Use dynamic GPU detection instead of hardcoded values
+        from .dynamic_gpu_config import get_gpu_detector
 
-        # Set memory buffer based on GPU type
-        if is_h200:
-            memory_buffer = 20  # Generous buffer for H200 (141GB per GPU)
-        elif is_l40s:
-            memory_buffer = 12  # Generous buffer for L40S (48GB per GPU)
-        elif is_v100:
-            memory_buffer = 4   # Conservative buffer for V100 (16GB per GPU, 1-4 GPUs available)
+        detector = get_gpu_detector()
+        gpu_config = detector.get_primary_gpu_config()
+
+        if gpu_config:
+            memory_buffer = gpu_config.memory_buffer_gb
+            gpu_name = gpu_config.name
+            gpu_architecture = gpu_config.architecture
         else:
-            memory_buffer = 8   # Default buffer for other GPUs
+            # Fallback for no GPU
+            memory_buffer = 8
+            gpu_name = "Unknown"
+            gpu_architecture = "unknown"
 
         memory_sufficient = total_gpu_memory >= (estimated_memory_needed + memory_buffer)
 
         if verbose:
-            # Dynamic V100 configuration display
-            if is_v100:
-                rprint(f"[blue]📊 GPU Hardware: {gpu_name} ({device_count}x {gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total - dynamic 1-4 V100 setup)[/blue]")
-            else:
+            # Dynamic GPU configuration display
+            if gpu_config:
                 rprint(f"[blue]📊 GPU Hardware: {gpu_name} ({device_count}x {gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total)[/blue]")
-            rprint(f"[blue]🎯 Model variant: InternVL3-{model_variant} (estimated need: {estimated_memory_needed}GB + {memory_buffer}GB buffer)[/blue]")
+                rprint(f"[blue]🏗️ Architecture: {gpu_architecture} (dynamic detection)[/blue]")
+                rprint(f"[blue]🎯 Model variant: InternVL3-{model_variant} (estimated need: {estimated_memory_needed}GB + {memory_buffer:.1f}GB buffer)[/blue]")
+            else:
+                rprint("[blue]📊 GPU Hardware: CPU fallback (no GPU detected)[/blue]")
             rprint(f"[blue]💡 Memory sufficient: {'✅ Yes' if memory_sufficient else '❌ No'}[/blue]")
 
-        # Override quantization setting based on memory availability and hardware
-        if (is_h200 or is_l40s) and use_quantization:
-            gpu_type = "H200" if is_h200 else "L40S"
+        # Override quantization setting based on dynamic GPU configuration
+        if gpu_config and gpu_config.is_high_memory and use_quantization:
             if verbose:
-                rprint(f"[green]🚀 {gpu_type} detected with abundant memory, disabling quantization for optimal performance[/green]")
+                rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory, disabling quantization for optimal performance[/green]")
             use_quantization = False
         elif memory_sufficient and use_quantization:
             if verbose:
