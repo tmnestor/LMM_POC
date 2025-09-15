@@ -98,6 +98,7 @@ class StandaloneEvaluator:
         all_scores = []
         fields_correct = 0
         fields_perfect = 0
+        fields_matched = 0  # Count fields with any positive match
 
         for field in metrics.required_fields:
             extracted_value = extracted_data.get(field, "NOT_FOUND")
@@ -111,9 +112,12 @@ class StandaloneEvaluator:
             accuracy = score["accuracy"]
             all_scores.append(accuracy)
 
-            if accuracy >= 0.8:
+            # Count matches consistently with field-level analysis
+            if accuracy > 0.0:  # Any positive match (exact, fuzzy, currency)
+                fields_matched += 1
+            if accuracy >= 0.8:  # High confidence matches
                 fields_correct += 1
-            if accuracy == 1.0:
+            if accuracy == 1.0:  # Perfect matches
                 fields_perfect += 1
 
         # Calculate overall metrics with enhanced logic
@@ -122,8 +126,9 @@ class StandaloneEvaluator:
         results["overall_metrics"] = {
             "overall_accuracy": overall_accuracy,
             "total_fields_evaluated": len(all_scores),
-            "fields_correct": fields_correct,
-            "fields_perfect": fields_perfect,
+            "fields_matched": fields_matched,  # Any positive match (>0.0 accuracy)
+            "fields_correct": fields_correct,  # High confidence (>=0.8 accuracy)
+            "fields_perfect": fields_perfect,  # Perfect matches (1.0 accuracy)
             "critical_fields_perfect": all(
                 results["field_scores"].get(field, {}).get("accuracy", 0) == 1.0
                 for field in metrics.critical_fields
@@ -146,14 +151,15 @@ class StandaloneEvaluator:
         # Handle NOT_FOUND cases
         if truth_str == "NOT_FOUND":
             if extracted_str == "NOT_FOUND":
-                return {"accuracy": 1.0, "match_type": "correct_not_found"}
+                return {"accuracy": 1.0, "match_type": "correct_not_found", "status": "MATCH"}
             else:
-                return {"accuracy": 0.0, "match_type": "false_positive"}
+                return {"accuracy": 0.0, "match_type": "false_positive", "status": "MISS"}
 
         if extracted_str == "NOT_FOUND":
             return {
                 "accuracy": 0.0,
                 "match_type": "false_negative",
+                "status": "MISS",
                 "is_critical": is_critical,
             }
 
@@ -169,17 +175,17 @@ class StandaloneEvaluator:
             truth_normalized = self._normalize_currency(truth_str)
 
             if extracted_normalized == truth_normalized:
-                return {"accuracy": 1.0, "match_type": "exact_currency"}
+                return {"accuracy": 1.0, "match_type": "exact_currency", "status": "MATCH"}
 
         # Exact match
         if extracted_str.lower() == truth_str.lower():
-            return {"accuracy": 1.0, "match_type": "exact"}
+            return {"accuracy": 1.0, "match_type": "exact", "status": "MATCH"}
 
         # Enhanced fuzzy match for text fields
         if self._enhanced_fuzzy_match(extracted_str, truth_str):
-            return {"accuracy": 0.8, "match_type": "fuzzy"}
+            return {"accuracy": 0.8, "match_type": "fuzzy", "status": "MATCH"}
 
-        return {"accuracy": 0.0, "match_type": "mismatch", "is_critical": is_critical}
+        return {"accuracy": 0.0, "match_type": "mismatch", "status": "MISS", "is_critical": is_critical}
 
     def _normalize_currency(self, value: str) -> str:
         """Enhanced currency normalization from DocumentTypeEvaluator."""
@@ -254,6 +260,7 @@ class StandaloneEvaluator:
         scores = []
         fields_correct = 0
         fields_perfect = 0
+        fields_matched = 0
 
         for field, truth_value in ground_truth.items():
             if field == "image_file":
@@ -266,16 +273,20 @@ class StandaloneEvaluator:
             accuracy = score["accuracy"]
             scores.append(accuracy)
 
-            if accuracy >= 0.8:
+            # Count matches consistently with field-level analysis
+            if accuracy > 0.0:  # Any positive match
+                fields_matched += 1
+            if accuracy >= 0.8:  # High confidence matches
                 fields_correct += 1
-            if accuracy == 1.0:
+            if accuracy == 1.0:  # Perfect matches
                 fields_perfect += 1
 
         results["overall_metrics"] = {
             "overall_accuracy": sum(scores) / len(scores) if scores else 0,
             "total_fields_evaluated": len(scores),
-            "fields_correct": fields_correct,
-            "fields_perfect": fields_perfect,
+            "fields_matched": fields_matched,  # Any positive match (>0.0 accuracy)
+            "fields_correct": fields_correct,  # High confidence (>=0.8 accuracy)
+            "fields_perfect": fields_perfect,  # Perfect matches (1.0 accuracy)
         }
 
         return results
