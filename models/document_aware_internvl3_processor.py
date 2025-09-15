@@ -1122,22 +1122,22 @@ INSTRUCTIONS:
         if self.debug:
             print(f"📋 Using document type: {document_type} for simple prompt loading")
 
-        # Baseline Llama prompt file mapping (using proven Llama prompts for fair comparison)
+        # InternVL3-specific prompt file mapping (based on Llama baseline but with output format enforcement)
         prompt_config = {
-            'invoice': 'prompts/invoice_extraction.yaml',           # Proven Llama baseline
-            'receipt': 'prompts/receipt_extraction.yaml',           # Proven Llama baseline
-            'bank_statement': 'prompts/bank_statement_extraction.yaml'  # Proven Llama baseline
+            'invoice': 'prompts/internvl3_invoice_extraction.yaml',           # InternVL3-specific with key-value format
+            'receipt': 'prompts/internvl3_receipt_extraction.yaml',           # InternVL3-specific with key-value format
+            'bank_statement': 'prompts/internvl3_bank_statement_extraction.yaml'  # InternVL3-specific with key-value format
         }
 
-        # Load prompt from Llama baseline YAML files
+        # Load prompt from InternVL3-specific YAML files
         try:
             prompt_file = prompt_config.get(document_type, prompt_config['invoice'])
 
-            # Map document types to appropriate Llama prompt keys
+            # Map document types to appropriate InternVL3 prompt keys
             prompt_key_mapping = {
-                'invoice': 'standard',      # Use standard invoice prompt
-                'receipt': 'standard',      # Use standard receipt prompt
-                'bank_statement': 'flat'    # Use flat bank statement prompt (works best)
+                'invoice': 'standard',      # Use standard invoice prompt with format enforcement
+                'receipt': 'standard',      # Use standard receipt prompt with format enforcement
+                'bank_statement': 'flat'    # Use flat bank statement prompt with format enforcement
             }
             prompt_key = prompt_key_mapping.get(document_type, 'standard')
 
