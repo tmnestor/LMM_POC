@@ -56,6 +56,8 @@ class DocumentAwareInternVL3Processor:
         debug: bool = False,
         batch_size: Optional[int] = None,
         skip_model_loading: bool = False,
+        pre_loaded_model=None,
+        pre_loaded_tokenizer=None,
     ):
         """
         Initialize document-aware InternVL3 processor with specific field list.
@@ -67,6 +69,8 @@ class DocumentAwareInternVL3Processor:
             debug (bool): Enable debug output
             batch_size (int): Batch size (auto-detected if None)
             skip_model_loading (bool): Skip loading model (for reusing existing model)
+            pre_loaded_model: Pre-loaded InternVL3 model instance (skips model loading)
+            pre_loaded_tokenizer: Pre-loaded tokenizer instance (skips tokenizer loading)
         """
 
         try:
@@ -134,10 +138,19 @@ class DocumentAwareInternVL3Processor:
             # Configure generation parameters for dynamic field count
             self._configure_generation()
 
-            # Load model and tokenizer (unless skipping for reuse)
-            if not skip_model_loading:
+            # Handle model and tokenizer loading/assignment
+            if pre_loaded_model is not None and pre_loaded_tokenizer is not None:
+                # Use pre-loaded model and tokenizer (clean architecture approach)
+                self.model = pre_loaded_model
+                self.tokenizer = pre_loaded_tokenizer
+                self.model_loaded = True
+                if self.debug:
+                    print("✅ Using pre-loaded InternVL3 model and tokenizer")
+            elif not skip_model_loading:
+                # Load model and tokenizer normally
                 self._load_model()
             else:
+                # Skip model loading (legacy support)
                 if self.debug:
                     print("ℹ️ Skipping model loading as requested")
 
