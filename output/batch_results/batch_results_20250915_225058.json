@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "batch_id": "20250915_225058",
+    "timestamp": "2025-09-15T22:53:25.822886",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 9,
+    "successful_extractions": 9,
+    "average_accuracy": 78.25396825396825,
+    "total_processing_time": 137.9269847869873,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 9.0,
+    "Successful Extractions": 9.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 78.25396825396825,
+    "Median Accuracy (%)": 88.57142857142856,
+    "Min Accuracy (%)": 25.71428571428572,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 15.325220531887478,
+    "Total Processing Time (s)": 137.9269847869873,
+    "Throughput (images/min)": 3.9151149489272834
+  },
+  "document_type_distribution": {
+    "INVOICE": 5,
+    "RECEIPT": 1,
+    "BANK_STATEMENT": 3
+  },
+  "results": [
+    {
+      "image_name": "image_001.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 9.908278942108154,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "Standard Receipt Extraction",
+      "processing_time": 8.763306379318237,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 12.444435596466064,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 7,
+        "fields_matched": 5,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 8.467818021774292,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 14,
+        "fields_matched": 10,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 8.289767742156982,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 9.861854791641235,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9857142857142858,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "INVOICE",
+      "prompt_used": "Standard Invoice Extraction",
+      "processing_time": 9.861460447311401,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8857142857142856,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 50.211886405944824,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6285714285714284,
+        "fields_extracted": 7,
+        "fields_matched": 5,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 20.118176460266113,
+      "evaluation_summary": {
+        "overall_accuracy": 0.2571428571428572,
+        "fields_extracted": 7,
+        "fields_matched": 2,
+        "total_fields": 7
+      }
+    }
+  ]
+}
