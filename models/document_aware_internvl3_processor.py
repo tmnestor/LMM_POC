@@ -1122,19 +1122,28 @@ INSTRUCTIONS:
         if self.debug:
             print(f"📋 Using document type: {document_type} for simple prompt loading")
 
-        # Simple prompt file mapping (reverted to working versions for performance)
+        # Baseline Llama prompt file mapping (using proven Llama prompts for fair comparison)
         prompt_config = {
-            'invoice': 'prompts/simple_internvl3_invoice.yaml',      # Back to proven simple version
-            'receipt': 'prompts/simple_internvl3_receipt.yaml',      # Back to proven simple version
-            'bank_statement': 'prompts/simple_internvl3_bank_statement.yaml'  # Back to proven simple version
+            'invoice': 'prompts/invoice_extraction.yaml',           # Proven Llama baseline
+            'receipt': 'prompts/receipt_extraction.yaml',           # Proven Llama baseline
+            'bank_statement': 'prompts/bank_statement_extraction.yaml'  # Proven Llama baseline
         }
 
-        # Load prompt from simple YAML file
+        # Load prompt from Llama baseline YAML files
         try:
             prompt_file = prompt_config.get(document_type, prompt_config['invoice'])
+
+            # Map document types to appropriate Llama prompt keys
+            prompt_key_mapping = {
+                'invoice': 'standard',      # Use standard invoice prompt
+                'receipt': 'standard',      # Use standard receipt prompt
+                'bank_statement': 'flat'    # Use flat bank statement prompt (works best)
+            }
+            prompt_key = prompt_key_mapping.get(document_type, 'standard')
+
             prompt_text, prompt_name, prompt_description = loader.load_prompt(
                 prompt_file=prompt_file,
-                prompt_key="extraction",  # Use the extraction prompt key
+                prompt_key=prompt_key,
                 document_type=document_type,
                 verbose=self.debug
             )
