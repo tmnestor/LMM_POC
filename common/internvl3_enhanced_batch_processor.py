@@ -79,10 +79,12 @@ class InternVL3EnhancedBatchProcessor:
         # Performance tracking
         self.performance_metrics = {
             'total_time': 0,
+            'initialization_time': 0,
             'detection_time': 0,
             'processing_time': 0,
             'evaluation_time': 0,
-            'memory_cleanup_time': 0
+            'memory_cleanup_time': 0,
+            'final_cleanup_time': 0
         }
 
     def _get_memory_stats(self) -> Dict[str, float]:
