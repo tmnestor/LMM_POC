@@ -94,22 +94,44 @@ def load_internvl3_model(
             if verbose:
                 rprint(f"   GPU {i}: {torch.cuda.get_device_name(i)} - {gpu_memory:.0f}GB")
 
-        # InternVL3 memory requirements (conservative estimates for V100-16GB)
+        # InternVL3 memory requirements with H200, L40S, and V100 support
         model_variant = "8B" if "8B" in model_path else "2B"
-        estimated_memory_needed = 12 if model_variant == "8B" else 3  # Conservative estimates
+        estimated_memory_needed = 16 if model_variant == "8B" else 4  # Realistic estimates for fp16
 
-        # V100-16GB considerations: 1-4 GPUs available (16GB, 32GB, 48GB, or 64GB total)
-        # Use quantization if total memory < required + 4GB buffer
-        memory_buffer = 4  # 4GB buffer for safety
+        # Detect GPU type for appropriate thresholds
+        gpu_name = torch.cuda.get_device_name(0).upper()
+        is_h200 = "H200" in gpu_name
+        is_l40s = "L40S" in gpu_name
+        is_v100 = "V100" in gpu_name
+
+        # Set memory buffer based on GPU type
+        if is_h200:
+            memory_buffer = 20  # Generous buffer for H200 (141GB per GPU)
+        elif is_l40s:
+            memory_buffer = 12  # Generous buffer for L40S (48GB per GPU)
+        elif is_v100:
+            memory_buffer = 4   # Conservative buffer for V100 (16GB per GPU, 1-4 GPUs available)
+        else:
+            memory_buffer = 8   # Default buffer for other GPUs
+
         memory_sufficient = total_gpu_memory >= (estimated_memory_needed + memory_buffer)
 
         if verbose:
-            rprint(f"[blue]📊 Total GPU memory: {total_gpu_memory:.0f}GB[/blue]")
-            rprint(f"[blue]🎯 Model variant: InternVL3-{model_variant} (estimated need: {estimated_memory_needed}GB)[/blue]")
+            # Dynamic V100 configuration display
+            if is_v100:
+                rprint(f"[blue]📊 GPU Hardware: {gpu_name} ({device_count}x {gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total - dynamic 1-4 V100 setup)[/blue]")
+            else:
+                rprint(f"[blue]📊 GPU Hardware: {gpu_name} ({device_count}x {gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total)[/blue]")
+            rprint(f"[blue]🎯 Model variant: InternVL3-{model_variant} (estimated need: {estimated_memory_needed}GB + {memory_buffer}GB buffer)[/blue]")
             rprint(f"[blue]💡 Memory sufficient: {'✅ Yes' if memory_sufficient else '❌ No'}[/blue]")
 
-        # Override quantization setting based on memory availability
-        if memory_sufficient and use_quantization:
+        # Override quantization setting based on memory availability and hardware
+        if (is_h200 or is_l40s) and use_quantization:
+            gpu_type = "H200" if is_h200 else "L40S"
+            if verbose:
+                rprint(f"[green]🚀 {gpu_type} detected with abundant memory, disabling quantization for optimal performance[/green]")
+            use_quantization = False
+        elif memory_sufficient and use_quantization:
             if verbose:
                 rprint("[green]🚀 Sufficient GPU memory detected, disabling quantization for better performance[/green]")
             use_quantization = False
@@ -143,10 +165,12 @@ def load_internvl3_model(
         if verbose:
             rprint("[green]🚀 Using 16-bit precision for optimal performance[/green]")
 
-    # Load model with InternVL3-optimized parameters
+    # Load model with InternVL3-optimized parameters and multi-GPU distribution
     try:
         if verbose:
             rprint("[cyan]Loading InternVL3 model...[/cyan]")
+            if device_map == "auto" and torch.cuda.device_count() > 1:
+                rprint(f"[blue]🔄 Auto-distributing model across {torch.cuda.device_count()} GPUs...[/blue]")
 
         model = AutoModel.from_pretrained(
             model_path,
@@ -177,25 +201,62 @@ def load_internvl3_model(
         rprint(f"[red]❌ Failed to load model: {e}[/red]")
         raise
 
-    # Post-loading diagnostics
+    # Post-loading diagnostics with multi-GPU awareness
     if torch.cuda.is_available() and verbose:
-        allocated = torch.cuda.memory_allocated() / 1e9
-        reserved = torch.cuda.memory_reserved() / 1e9
-        total_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+        device_count = torch.cuda.device_count()
 
-        rprint(f"[blue]📊 Device: {model.device}[/blue]")
-        rprint(f"[magenta]🎮 GPU: {torch.cuda.get_device_name(0)}[/magenta]")
-        rprint(f"[blue]💾 Memory Allocated: {allocated:.2f}GB[/blue]")
-        rprint(f"[blue]💾 Memory Reserved: {reserved:.2f}GB[/blue]")
-        rprint(f"[blue]💾 Total GPU Memory: {total_memory:.0f}GB[/blue]")
+        # Multi-GPU distribution analysis
+        if device_count > 1:
+            rprint(f"[blue]🔄 Multi-GPU Distribution Analysis ({device_count} GPUs):[/blue]")
+            total_allocated = 0
+            total_reserved = 0
+            total_capacity = 0
 
-        memory_usage_pct = (reserved / total_memory) * 100
-        if memory_usage_pct < 10:
-            rprint(f"[green]✅ Good GPU memory usage: {memory_usage_pct:.1f}%[/green]")
-        elif memory_usage_pct < 25:
-            rprint(f"[yellow]⚠️ Moderate GPU memory usage: {memory_usage_pct:.1f}%[/yellow]")
+            for gpu_id in range(device_count):
+                gpu_allocated = torch.cuda.memory_allocated(gpu_id) / 1e9
+                gpu_reserved = torch.cuda.memory_reserved(gpu_id) / 1e9
+                gpu_capacity = torch.cuda.get_device_properties(gpu_id).total_memory / 1e9
+                gpu_name = torch.cuda.get_device_name(gpu_id)
+
+                total_allocated += gpu_allocated
+                total_reserved += gpu_reserved
+                total_capacity += gpu_capacity
+
+                usage_pct = (gpu_reserved / gpu_capacity) * 100 if gpu_capacity > 0 else 0
+                rprint(f"   GPU {gpu_id} ({gpu_name}): {gpu_allocated:.1f}GB/{gpu_capacity:.0f}GB ({usage_pct:.1f}%)")
+
+            rprint(f"[blue]📊 Total across all GPUs: {total_allocated:.1f}GB allocated, {total_reserved:.1f}GB reserved, {total_capacity:.0f}GB capacity[/blue]")
+
+            # Check if model is actually distributed
+            if hasattr(model, 'hf_device_map') and model.hf_device_map:
+                rprint("[green]✅ Model successfully distributed across GPUs[/green]")
+                device_distribution = {}
+                for _module, device in model.hf_device_map.items():
+                    device_str = str(device)
+                    device_distribution[device_str] = device_distribution.get(device_str, 0) + 1
+
+                for device, count in device_distribution.items():
+                    rprint(f"   {device}: {count} modules")
+            else:
+                rprint("[yellow]⚠️ Model distribution info not available[/yellow]")
         else:
-            rprint(f"[red]🔥 High GPU memory usage: {memory_usage_pct:.1f}%[/red]")
+            # Single GPU diagnostics
+            allocated = torch.cuda.memory_allocated() / 1e9
+            reserved = torch.cuda.memory_reserved() / 1e9
+            total_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+
+            rprint("[blue]📊 Single GPU Analysis:[/blue]")
+            rprint(f"[blue]   Device: {model.device}[/blue]")
+            rprint(f"[magenta]   GPU: {torch.cuda.get_device_name(0)}[/magenta]")
+            rprint(f"[blue]   Memory: {allocated:.2f}GB allocated, {reserved:.2f}GB reserved, {total_memory:.0f}GB total[/blue]")
+
+            memory_usage_pct = (reserved / total_memory) * 100
+            if memory_usage_pct < 10:
+                rprint(f"[green]✅ Good GPU memory usage: {memory_usage_pct:.1f}%[/green]")
+            elif memory_usage_pct < 25:
+                rprint(f"[yellow]⚠️ Moderate GPU memory usage: {memory_usage_pct:.1f}%[/yellow]")
+            else:
+                rprint(f"[red]🔥 High GPU memory usage: {memory_usage_pct:.1f}%[/red]")
 
     # Configuration summary table
     if verbose:
@@ -220,10 +281,10 @@ def load_internvl3_model(
         # Add GPU memory info
         if torch.cuda.is_available():
             device_count = torch.cuda.device_count()
-            # Detect actual V100 memory (should be 16GB per GPU)
             single_gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
             total_memory = device_count * single_gpu_memory
-            table.add_row("GPU Configuration", f"{device_count}x V100-{single_gpu_memory:.0f}GB", f"✅ {total_memory:.0f}GB Total")
+            gpu_model = torch.cuda.get_device_name(0)
+            table.add_row("GPU Configuration", f"{device_count}x {gpu_model} ({single_gpu_memory:.0f}GB each)", f"✅ {total_memory:.0f}GB Total")
 
         # Get model parameters if possible
         try:
