@@ -349,15 +349,16 @@ class DocumentAwareInternVL3Processor:
                     f"🎯 InternVL3-8B Loading: {gpu_name} ({gpu_memory_gb:.0f}GB VRAM)"
                 )
 
-                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Optional quantization testing
+                # Strategy 1: High-end GPUs (H200/H100/A100 40GB+) - Direct loading without quantization
                 if gpu_memory_gb >= 40:
-                    print("📦 STRATEGY: Optional quantization testing on high-memory GPU")
+                    print(f"📦 STRATEGY: Direct full-precision loading for high-memory GPU ({gpu_memory_gb:.0f}GB)")
                     print(
                         f"   Expected usage: ~16GB ({16 / gpu_memory_gb * 100:.0f}% of {gpu_memory_gb:.0f}GB)"
                     )
+                    print("🚀 SKIPPING quantization testing - abundant memory available")
 
-                    # Test BitsAndBytesConfig creation (optional for high-memory GPUs)
-                    print("🧪 PHASE 1: Testing BitsAndBytesConfig (optional for high-memory)")
+                    # Direct loading without quantization for high-memory GPUs
+                    print("🔧 Loading model with full precision...")
                     quantization_config = None
                     quantization_viable = False
 
@@ -395,11 +396,17 @@ class DocumentAwareInternVL3Processor:
                         print(
                             "🎯 This confirms quantization approach is viable for V100"
                         )
-                        quantization_success = True
-                        quantization_viable = True
-                        quantization_method = (
-                            "modern_bitsandbytes"  # Track modern method success
-                        )
+                        # FORCE NO QUANTIZATION for high-memory GPUs (H200, etc.)
+                        if gpu_memory_gb >= 80:  # H200 has 141GB, this catches it
+                            print(f"🚀 OVERRIDE: Disabling quantization for high-memory GPU ({gpu_memory_gb:.0f}GB)")
+                            quantization_success = False
+                            quantization_method = "direct_full_precision"
+                        else:
+                            quantization_success = True
+                            quantization_viable = True
+                            quantization_method = (
+                                "modern_bitsandbytes"  # Track modern method success
+                            )
 
                     except Exception as quant_error:
                         print(f"❌ ISOLATED BitsAndBytesConfig failed: {quant_error}")
