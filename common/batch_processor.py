@@ -184,14 +184,11 @@ class BatchDocumentProcessor:
                     extracted_data = extraction_result.get("extracted_data", {})
 
                     if verbose:
-                        rprint(
-                            f"[dim]DEBUG: extraction_result keys: {list(extraction_result.keys())}[/dim]"
-                        )
                         found_fields = [
                             k for k, v in extracted_data.items() if v != "NOT_FOUND"
                         ]
                         rprint(
-                            f"[dim]DEBUG: Found {len(found_fields)} fields from DocumentAwareLlamaProcessor[/dim]"
+                            f"[cyan]✓ Extracted {len(found_fields)} fields from {image_name}[/cyan]"
                         )
 
                     # Use the working DocumentTypeEvaluator approach that succeeds
@@ -216,18 +213,12 @@ class BatchDocumentProcessor:
                             "total_fields_evaluated", 0
                         )
 
-                    # Add detailed debug output like document-aware system
-                    if verbose:
+                    # Show evaluation summary
+                    if verbose and evaluation:
+                        accuracy = evaluation.get("overall_accuracy", 0) * 100
                         rprint(
-                            f"[dim]DEBUG: verbose={verbose}, evaluation exists={evaluation is not None}[/dim]"
+                            f"[cyan]✓ Accuracy: {accuracy:.1f}% for {image_name}[/cyan]"
                         )
-                        if evaluation:
-                            rprint(
-                                f"[dim]DEBUG: evaluation keys={list(evaluation.keys())}[/dim]"
-                            )
-                            rprint(
-                                f"[dim]DEBUG: field_scores exists={'field_scores' in evaluation}[/dim]"
-                            )
 
                     # Only show detailed comparison for Llama - InternVL3 has its own display logic
                     if (
