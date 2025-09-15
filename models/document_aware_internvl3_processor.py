@@ -1122,11 +1122,11 @@ INSTRUCTIONS:
         if self.debug:
             print(f"📋 Using document type: {document_type} for simple prompt loading")
 
-        # Enhanced prompt file mapping (using layout-aware prompts with examples)
+        # Simple prompt file mapping (reverted to working versions for performance)
         prompt_config = {
-            'invoice': 'prompts/enhanced_internvl3_invoice.yaml',  # Enhanced with layout examples
-            'receipt': 'prompts/enhanced_internvl3_receipt.yaml',  # Enhanced with layout examples
-            'bank_statement': 'prompts/enhanced_internvl3_bank_statement.yaml'  # Enhanced with layout examples
+            'invoice': 'prompts/simple_internvl3_invoice.yaml',      # Back to proven simple version
+            'receipt': 'prompts/simple_internvl3_receipt.yaml',      # Back to proven simple version
+            'bank_statement': 'prompts/simple_internvl3_bank_statement.yaml'  # Back to proven simple version
         }
 
         # Load prompt from simple YAML file
