@@ -74,12 +74,29 @@ def configure_cuda_memory_allocation(verbose: bool = True):
 
     # Log current CUDA memory state
     try:
-        allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
-        reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
-        if verbose:
-            print(
-                f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
-            )
+        device_count = torch.cuda.device_count()
+        if device_count > 1:
+            # Multi-GPU: Sum across all devices
+            total_allocated = 0.0
+            total_reserved = 0.0
+            for gpu_id in range(device_count):
+                total_allocated += torch.cuda.memory_allocated(gpu_id) / (1024**3)  # GB
+                total_reserved += torch.cuda.memory_reserved(gpu_id) / (1024**3)  # GB
+
+            allocated = total_allocated
+            reserved = total_reserved
+            if verbose:
+                print(
+                    f"📊 Initial CUDA state (Multi-GPU Total): Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
+                )
+        else:
+            # Single GPU
+            allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
+            reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
+            if verbose:
+                print(
+                    f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
+                )
     except Exception as e:
         if verbose:
             print(f"⚠️ Could not check initial CUDA state: {e}")
@@ -157,19 +174,34 @@ def clear_model_caches(
 
 def detect_memory_fragmentation() -> tuple[float, float, float]:
     """
-    Detect GPU memory fragmentation.
+    Detect GPU memory fragmentation across all GPUs.
 
     Returns:
-        tuple: (allocated_gb, reserved_gb, fragmentation_gb)
+        tuple: (allocated_gb, reserved_gb, fragmentation_gb) - totals across all GPUs
     """
     if not torch.cuda.is_available():
         return 0.0, 0.0, 0.0
 
     try:
-        allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
-        reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
-        fragmentation = reserved - allocated
+        device_count = torch.cuda.device_count()
 
+        # For multi-GPU setups, sum memory across all devices
+        if device_count > 1:
+            total_allocated = 0.0
+            total_reserved = 0.0
+
+            for gpu_id in range(device_count):
+                total_allocated += torch.cuda.memory_allocated(gpu_id) / (1024**3)  # GB
+                total_reserved += torch.cuda.memory_reserved(gpu_id) / (1024**3)  # GB
+
+            allocated = total_allocated
+            reserved = total_reserved
+        else:
+            # Single GPU - use default device
+            allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
+            reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
+
+        fragmentation = reserved - allocated
         return allocated, reserved, fragmentation
     except Exception:
         return 0.0, 0.0, 0.0
@@ -497,10 +529,10 @@ class ResilientGenerator:
 
 def get_available_gpu_memory(device: str = "cuda") -> float:
     """
-    Get available GPU memory in GB.
+    Get available GPU memory in GB - now uses robust detection for consistency.
 
     Args:
-        device: Device string (e.g., "cuda", "cuda:0")
+        device: Device string (e.g., "cuda", "cuda:0") or "total" for all GPUs
 
     Returns:
         float: Available memory in GB
@@ -509,23 +541,82 @@ def get_available_gpu_memory(device: str = "cuda") -> float:
         return 0.0
 
     try:
-        # Get device index
-        if device == "cuda":
-            device_idx = torch.cuda.current_device()
-        else:
-            device_idx = int(device.split(":")[-1])
+        # For total memory across all GPUs
+        if device == "total" or device == "cuda":
+            from .robust_gpu_memory import get_total_available_gpu_memory
+            return get_total_available_gpu_memory()
 
-        # Get total and allocated memory
+        # For specific device
+        device_idx = int(device.split(":")[-1]) if ":" in device else torch.cuda.current_device()
+
+        # Get total and allocated memory for specific device
         total_memory = torch.cuda.get_device_properties(device_idx).total_memory
         allocated_memory = torch.cuda.memory_allocated(device_idx)
-        available_memory = (total_memory - allocated_memory) / (
-            1024**3
-        )  # Convert to GB
+        available_memory = (total_memory - allocated_memory) / (1024**3)  # Convert to GB
 
         return available_memory
     except Exception as e:
         print(f"⚠️ Could not detect GPU memory: {e}")
-        return 16.0  # Assume 16GB as default for V100
+        # Fallback: Try robust detection
+        try:
+            from .robust_gpu_memory import get_total_available_gpu_memory
+            fallback_memory = get_total_available_gpu_memory()
+            if fallback_memory > 0:
+                return fallback_memory
+        except Exception:
+            pass
+        return 16.0  # Final fallback for V100
+
+
+def diagnose_gpu_memory_comprehensive(verbose: bool = True) -> dict:
+    """
+    Comprehensive GPU memory diagnostics using robust detection.
+
+    Args:
+        verbose: Enable detailed output
+
+    Returns:
+        dict: Complete diagnostic information
+    """
+    try:
+        from .robust_gpu_memory import diagnose_gpu_memory
+        return diagnose_gpu_memory(verbose=verbose)
+    except Exception as e:
+        if verbose:
+            print(f"⚠️ Robust diagnostics failed: {e}")
+        # Fallback to basic diagnostics
+        basic_diagnostics = {
+            "detection_successful": False,
+            "error": str(e),
+            "fallback_diagnostics": True,
+            "recommendations": ["Check robust_gpu_memory.py installation", "Verify CUDA availability"]
+        }
+        return basic_diagnostics
+
+
+def get_total_gpu_memory_robust() -> float:
+    """
+    Get total GPU memory across all devices using robust detection.
+
+    Returns:
+        float: Total GPU memory in GB
+    """
+    try:
+        from .robust_gpu_memory import get_total_gpu_memory
+        return get_total_gpu_memory()
+    except Exception as e:
+        print(f"⚠️ Robust total memory detection failed: {e}")
+        # Fallback to basic detection
+        if not torch.cuda.is_available():
+            return 0.0
+
+        try:
+            total = 0.0
+            for i in range(torch.cuda.device_count()):
+                total += torch.cuda.get_device_properties(i).total_memory / (1024**3)
+            return total
+        except Exception:
+            return 0.0
 
 
 def optimize_model_for_v100(model: Any, verbose: bool = True):

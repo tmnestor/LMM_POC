@@ -66,9 +66,23 @@ def load_internvl3_model(
         gc.collect()
 
         if verbose:
-            allocated = torch.cuda.memory_allocated() / 1e9
-            reserved = torch.cuda.memory_reserved() / 1e9
-            rprint(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+            device_count = torch.cuda.device_count()
+            if device_count > 1:
+                # Multi-GPU: Sum across all devices
+                total_allocated = 0.0
+                total_reserved = 0.0
+                for gpu_id in range(device_count):
+                    total_allocated += torch.cuda.memory_allocated(gpu_id) / 1e9
+                    total_reserved += torch.cuda.memory_reserved(gpu_id) / 1e9
+
+                allocated = total_allocated
+                reserved = total_reserved
+                rprint(f"📊 Initial CUDA state (Multi-GPU Total): Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+            else:
+                # Single GPU
+                allocated = torch.cuda.memory_allocated() / 1e9
+                reserved = torch.cuda.memory_reserved() / 1e9
+                rprint(f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
 
     # Convert torch_dtype
     dtype_map = {
@@ -81,24 +95,27 @@ def load_internvl3_model(
     # Intelligent quantization based on available GPU memory (V100 multi-GPU setup)
     quantization_config = None
     if torch.cuda.is_available():
-        # Calculate total available GPU memory across all devices
-        total_gpu_memory = 0
-        device_count = torch.cuda.device_count()
+        # Use robust GPU memory detection for bulletproof memory analysis
+        from .robust_gpu_memory import RobustGPUMemoryDetector
 
         if verbose:
-            rprint(f"[blue]🔍 Detecting GPU memory across {device_count} device(s)...[/blue]")
+            rprint("[blue]🔍 Performing robust GPU memory detection...[/blue]")
 
-        for i in range(device_count):
-            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1e9
-            total_gpu_memory += gpu_memory
-            if verbose:
-                rprint(f"   GPU {i}: {torch.cuda.get_device_name(i)} - {gpu_memory:.0f}GB")
+        # Initialize robust detector with verbose output matching our setting
+        memory_detector = RobustGPUMemoryDetector(verbose=verbose)
+        memory_result = memory_detector.detect_gpu_memory()
+
+        # Extract key values for decision making
+        total_gpu_memory = memory_result.total_memory_gb
+        total_available_memory = memory_result.total_available_gb
+        device_count = memory_result.total_gpus
+        working_gpus = memory_result.working_gpus
 
         # InternVL3 memory requirements with H200, L40S, and V100 support
         model_variant = "8B" if "8B" in model_path else "2B"
         estimated_memory_needed = 16 if model_variant == "8B" else 4  # Realistic estimates for fp16
 
-        # Use dynamic GPU detection instead of hardcoded values
+        # Use dynamic GPU detection for architecture and buffer calculation
         from .dynamic_gpu_config import get_gpu_detector
 
         detector = get_gpu_detector()
@@ -114,21 +131,69 @@ def load_internvl3_model(
             gpu_name = "Unknown"
             gpu_architecture = "unknown"
 
-        memory_sufficient = total_gpu_memory >= (estimated_memory_needed + memory_buffer)
+        # Use total available memory for more accurate assessment
+        memory_sufficient = total_available_memory >= (estimated_memory_needed + memory_buffer)
 
         if verbose:
-            # Dynamic GPU configuration display
-            if gpu_config:
-                rprint(f"[blue]📊 GPU Hardware: {gpu_name} ({device_count}x {gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total)[/blue]")
+            # Enhanced display with robust detection results
+            if memory_result.detection_success:
+                # Get primary GPU name for display (use first working GPU)
+                primary_gpu_name = next((gpu.name for gpu in memory_result.per_gpu_info if gpu.is_available), "Unknown")
+                avg_gpu_memory = total_gpu_memory / working_gpus if working_gpus > 0 else 0
+
+                rprint(f"[blue]📊 GPU Hardware: {primary_gpu_name} ({working_gpus}x {avg_gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total)[/blue]")
                 rprint(f"[blue]🏗️ Architecture: {gpu_architecture} (dynamic detection)[/blue]")
                 rprint(f"[blue]🎯 Model variant: InternVL3-{model_variant} (estimated need: {estimated_memory_needed}GB + {memory_buffer:.1f}GB buffer)[/blue]")
+                rprint(f"[blue]💾 Available Memory: {total_available_memory:.1f}GB across {working_gpus} GPU(s)[/blue]")
+
+                # Show any warnings from robust detection
+                if memory_result.warnings:
+                    for warning in memory_result.warnings:
+                        rprint(f"[yellow]⚠️ {warning}[/yellow]")
             else:
-                rprint("[blue]📊 GPU Hardware: CPU fallback (no GPU detected)[/blue]")
+                rprint("[blue]📊 GPU Hardware: CPU fallback (robust detection failed)[/blue]")
+
             rprint(f"[blue]💡 Memory sufficient: {'✅ Yes' if memory_sufficient else '❌ No'}[/blue]")
 
-        # Override quantization setting based on dynamic GPU configuration
+        # Enhanced quantization decision using robust memory detection
         # CRITICAL FIX: Check high memory REGARDLESS of initial use_quantization setting
-        if gpu_config and gpu_config.is_high_memory:
+
+        # V100-specific logic: Dynamic assessment for 1x, 2x, 3x, or 4x V100 setups
+        v100_gpus = [gpu for gpu in memory_result.per_gpu_info if gpu.is_available and "V100" in gpu.name.upper()]
+        v100_detected = len(v100_gpus) > 0
+
+        if v100_detected:
+            v100_count = len(v100_gpus)
+            v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
+
+            # Dynamic V100 memory thresholds:
+            # 1x V100 (16GB): Needs quantization (< 20GB threshold)
+            # 2x V100 (32GB): Can do full precision (>= 20GB threshold)
+            # 3x V100 (48GB): Excellent for full precision
+            # 4x V100 (64GB): Excellent for full precision
+
+            v100_threshold = estimated_memory_needed + memory_buffer  # ~20GB for InternVL3-8B
+
+            if v100_total_memory >= v100_threshold:
+                # Sufficient V100 memory for full precision
+                if use_quantization:
+                    if verbose:
+                        rprint(f"[green]🚀 {v100_count}x V100 setup detected ({v100_total_memory:.0f}GB total), disabling quantization for optimal performance[/green]")
+                    use_quantization = False
+                else:
+                    if verbose:
+                        rprint(f"[green]✅ {v100_count}x V100 with {v100_total_memory:.0f}GB - running in full precision as requested[/green]")
+            else:
+                # Insufficient V100 memory - likely 1x V100
+                if not use_quantization:
+                    if verbose:
+                        rprint(f"[yellow]⚠️ {v100_count}x V100 setup ({v100_total_memory:.0f}GB) insufficient for full precision, enabling quantization[/yellow]")
+                    use_quantization = True
+                else:
+                    if verbose:
+                        rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
+        elif gpu_config and gpu_config.is_high_memory:
+            # High-memory GPUs (H200, H100, etc.)
             if use_quantization:
                 if verbose:
                     rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
@@ -137,28 +202,48 @@ def load_internvl3_model(
                 if verbose:
                     rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
         elif memory_sufficient:
+            # Sufficient memory based on available memory calculation
             if use_quantization:
                 if verbose:
-                    rprint(f"[green]🚀 Sufficient GPU memory detected ({total_gpu_memory:.0f}GB), disabling quantization for better performance[/green]")
+                    rprint(f"[green]🚀 Sufficient GPU memory detected ({total_available_memory:.0f}GB available), disabling quantization for better performance[/green]")
                 use_quantization = False
             else:
                 if verbose:
-                    rprint(f"[green]✅ Memory sufficient ({total_gpu_memory:.0f}GB) - running in full precision as requested[/green]")
+                    rprint(f"[green]✅ Memory sufficient ({total_available_memory:.0f}GB available) - running in full precision as requested[/green]")
         elif not memory_sufficient:
+            # Insufficient memory - enable quantization if not already enabled
             if not use_quantization:
                 if verbose:
-                    rprint(f"[yellow]⚠️ Limited GPU memory detected ({total_gpu_memory:.0f}GB), enabling quantization for compatibility[/yellow]")
+                    rprint(f"[yellow]⚠️ Limited GPU memory detected ({total_available_memory:.0f}GB available), enabling quantization for compatibility[/yellow]")
                 use_quantization = True
             else:
                 if verbose:
-                    rprint(f"[yellow]⚠️ Using quantization due to limited memory ({total_gpu_memory:.0f}GB)[/yellow]")
+                    rprint(f"[yellow]⚠️ Using quantization due to limited memory ({total_available_memory:.0f}GB available)[/yellow]")
 
-    # CRITICAL: Log final quantization decision
+        # Log robust detection warnings if any
+        if verbose and memory_result.warnings:
+            rprint("[yellow]🔍 Robust Detection Warnings:[/yellow]")
+            for warning in memory_result.warnings:
+                rprint(f"[yellow]   • {warning}[/yellow]")
+
+    # CRITICAL: Enhanced final quantization decision with robust detection data
     if verbose:
         rprint(f"[bold cyan]📊 FINAL QUANTIZATION DECISION: {'ENABLED (8-bit)' if use_quantization else 'DISABLED (full precision)'}[/bold cyan]")
-        if total_gpu_memory > 0:
-            rprint(f"[cyan]   GPU Memory: {total_gpu_memory:.0f}GB available[/cyan]")
-            rprint(f"[cyan]   Model needs: ~{estimated_memory_needed}GB for InternVL3-{model_variant}[/cyan]")
+        if torch.cuda.is_available() and total_gpu_memory > 0:
+            rprint(f"[cyan]   Total GPU Memory: {total_gpu_memory:.0f}GB[/cyan]")
+            rprint(f"[cyan]   Available Memory: {total_available_memory:.0f}GB[/cyan]")
+            rprint(f"   Model needs: ~{estimated_memory_needed}GB + {memory_buffer:.1f}GB buffer for InternVL3-{model_variant}")
+            rprint(f"[cyan]   Working GPUs: {working_gpus}/{device_count}[/cyan]")
+
+            # V100-specific final summary
+            if v100_detected:
+                v100_count = len(v100_gpus)
+                v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
+                rprint(f"[cyan]   V100 Configuration: {v100_count}x V100 = {v100_total_memory:.0f}GB total[/cyan]")
+
+            # Show any critical warnings
+            if memory_result.warnings:
+                rprint(f"[yellow]   Warnings: {len(memory_result.warnings)} detected (see above)[/yellow]")
 
     if use_quantization:
         if verbose:
@@ -346,12 +431,29 @@ def load_internvl3_model(
         gc.collect()
 
         if verbose:
-            final_allocated = torch.cuda.memory_allocated() / 1e9
-            final_reserved = torch.cuda.memory_reserved() / 1e9
-            fragmentation = final_reserved - final_allocated
+            # For multi-GPU setups, sum memory across all devices
+            device_count = torch.cuda.device_count()
+            if device_count > 1:
+                total_allocated = 0
+                total_reserved = 0
+                for gpu_id in range(device_count):
+                    total_allocated += torch.cuda.memory_allocated(gpu_id) / 1e9
+                    total_reserved += torch.cuda.memory_reserved(gpu_id) / 1e9
 
-            rprint("🧹 Memory cleanup completed")
-            rprint(f"💾 Final state: Allocated={final_allocated:.2f}GB, Reserved={final_reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB")
+                final_allocated = total_allocated
+                final_reserved = total_reserved
+                fragmentation = final_reserved - final_allocated
+
+                rprint("🧹 Memory cleanup completed")
+                rprint(f"💾 Final state (Multi-GPU Total): Allocated={final_allocated:.2f}GB, Reserved={final_reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB")
+            else:
+                # Single GPU
+                final_allocated = torch.cuda.memory_allocated() / 1e9
+                final_reserved = torch.cuda.memory_reserved() / 1e9
+                fragmentation = final_reserved - final_allocated
+
+                rprint("🧹 Memory cleanup completed")
+                rprint(f"💾 Final state: Allocated={final_allocated:.2f}GB, Reserved={final_reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB")
 
     if verbose:
         rprint("[bold green]🎉 InternVL3 model loading and validation complete![/bold green]")
