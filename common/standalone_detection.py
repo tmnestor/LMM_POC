@@ -7,7 +7,7 @@ Uses YAML-first detection approach without complex dependencies.
 
 import time
 from pathlib import Path
-from typing import Tuple, Dict, Any
+from typing import Any, Dict, Tuple
 
 from rich import print as rprint
 

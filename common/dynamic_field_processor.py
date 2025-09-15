@@ -5,7 +5,7 @@ Handles dynamic field list updates based on detected document type.
 Provides document-specific field extraction without complex dependencies.
 """
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 from rich import print as rprint
 
