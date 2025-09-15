@@ -46,24 +46,35 @@ prompts:
       Use NOT_FOUND only for empty debit/credit cells.
       DO NOT classify based on transaction description - use the ACTUAL column position from the image.
 
-      ## CRITICAL OUTPUT FORMAT:
+      ## CRITICAL OUTPUT FORMAT - READ THIS CAREFULLY:
 
-      You MUST respond in exactly this key-value format for the bank details, followed by the markdown table:
+      ⚠️ ABSOLUTELY NO JSON FORMAT ALLOWED ⚠️
+      ⚠️ DO NOT USE CURLY BRACES { } ⚠️
+      ⚠️ DO NOT USE QUOTES AROUND FIELD NAMES ⚠️
 
-      BANK_NAME: value
-      BANK_BSB_NUMBER: value
-      BANK_ACCOUNT_NUMBER: value
-      BANK_ACCOUNT_HOLDER: value
-      ACCOUNT_OPENING_BALANCE: value
-      ACCOUNT_CLOSING_BALANCE: value
-      EARLIEST_TRANSACTION_DATE: value
-      LATEST_TRANSACTION_DATE: value
+      You MUST respond in EXACTLY this simple key-value format:
 
-      Then provide the transaction table in markdown format as shown above.
+      BANK_NAME: [bank name from document]
+      BANK_BSB_NUMBER: [BSB number from document]
+      BANK_ACCOUNT_NUMBER: [account number from document]
+      BANK_ACCOUNT_HOLDER: [account holder name from document]
+      ACCOUNT_OPENING_BALANCE: [opening balance from document]
+      ACCOUNT_CLOSING_BALANCE: [closing balance from document]
+      EARLIEST_TRANSACTION_DATE: [earliest transaction date]
+      LATEST_TRANSACTION_DATE: [latest transaction date]
 
-      DO NOT use JSON format like {"field": "value"}
-      DO NOT use markdown formatting like **FIELD:** for the bank details
-      DO NOT add extra explanations or commentary
+      Then provide the transaction table in markdown format.
+
+      FORBIDDEN FORMATS:
+      ❌ {"BANK_NAME": "value"} - NO JSON
+      ❌ **BANK_NAME:** value - NO MARKDOWN
+      ❌ BANK_NAME = value - NO EQUALS
+      ❌ Any format with { } quotes or ** formatting
+
+      REQUIRED FORMAT:
+      ✅ BANK_NAME: value - SIMPLE COLON FORMAT ONLY
+
+      Remember: NO CURLY BRACES, NO QUOTES, NO MARKDOWN - JUST FIELD_NAME: value
 
   structured:
     name: "InternVL3 Structured Extraction - Separate Tables per Date"

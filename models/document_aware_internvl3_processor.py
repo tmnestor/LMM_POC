@@ -865,7 +865,7 @@ class DocumentAwareInternVL3Processor:
 
         return pixel_values
 
-    def process_single_image(self, image_path: str) -> dict:
+    def process_single_image(self, image_path: str, prompt_config: dict = None) -> dict:
         """Process single image with document-aware field extraction."""
 
         try:
@@ -894,7 +894,7 @@ class DocumentAwareInternVL3Processor:
             # DOCUMENT-AWARE: Extract using YAML-based document-specific prompts
             # Use sophisticated YAML prompt templates instead of basic dynamic prompts
             detected_doc_type = getattr(self, 'detected_document_type', None)
-            extracted_data, raw_response, prompt_info = self._extract_fields_using_yaml(image_path, target_fields, detected_doc_type)
+            extracted_data, raw_response, prompt_info = self._extract_fields_using_yaml(image_path, target_fields, detected_doc_type, prompt_config)
 
             # Post-processing: Infer document type from extraction results
             inferred_type = self._infer_document_type_from_extraction(extracted_data)
@@ -1088,7 +1088,7 @@ INSTRUCTIONS:
         return self._extract_with_prompt(image_path, prompt, generation_config=None)
 
     def _extract_fields_using_yaml(
-        self, image_path: str, field_list: List[str], document_type: str = None
+        self, image_path: str, field_list: List[str], document_type: str = None, prompt_config: dict = None
     ) -> tuple[Dict[str, str], str, Dict[str, str]]:
         """
         Extract specific fields using simple YAML prompt files.
@@ -1122,24 +1122,35 @@ INSTRUCTIONS:
         if self.debug:
             print(f"📋 Using document type: {document_type} for simple prompt loading")
 
-        # InternVL3-specific prompt file mapping (based on Llama baseline but with output format enforcement)
-        prompt_config = {
-            'invoice': 'prompts/internvl3_invoice_extraction.yaml',           # InternVL3-specific with key-value format
-            'receipt': 'prompts/internvl3_receipt_extraction.yaml',           # InternVL3-specific with key-value format
-            'bank_statement': 'prompts/internvl3_bank_statement_extraction.yaml'  # InternVL3-specific with key-value format
-        }
-
-        # Load prompt from InternVL3-specific YAML files
-        try:
-            prompt_file = prompt_config.get(document_type, prompt_config['invoice'])
-
-            # Map document types to appropriate InternVL3 prompt keys
-            prompt_key_mapping = {
-                'invoice': 'standard',      # Use standard invoice prompt with format enforcement
-                'receipt': 'standard',      # Use standard receipt prompt with format enforcement
-                'bank_statement': 'flat'    # Use flat bank statement prompt with format enforcement
+        # Use provided prompt config or fallback to default InternVL3-specific mapping
+        if prompt_config is None:
+            # Default InternVL3-specific prompt file mapping (fallback)
+            prompt_config = {
+                'extraction_files': {
+                    'INVOICE': 'prompts/internvl3_invoice_extraction.yaml',
+                    'RECEIPT': 'prompts/internvl3_receipt_extraction.yaml',
+                    'BANK_STATEMENT': 'prompts/internvl3_bank_statement_extraction.yaml'
+                },
+                'extraction_keys': {
+                    'INVOICE': 'standard',
+                    'RECEIPT': 'standard',
+                    'BANK_STATEMENT': 'flat'
+                }
             }
-            prompt_key = prompt_key_mapping.get(document_type, 'standard')
+
+        # Load prompt from InternVL3-specific YAML files using provided config
+        try:
+            # Map document_type to uppercase for config lookup
+            doc_type_upper = document_type.upper() if document_type else 'INVOICE'
+
+            prompt_file = prompt_config['extraction_files'].get(
+                doc_type_upper,
+                prompt_config['extraction_files']['INVOICE']  # Default fallback
+            )
+            prompt_key = prompt_config['extraction_keys'].get(
+                doc_type_upper,
+                prompt_config['extraction_keys']['INVOICE']  # Default fallback
+            )
 
             prompt_text, prompt_name, prompt_description = loader.load_prompt(
                 prompt_file=prompt_file,

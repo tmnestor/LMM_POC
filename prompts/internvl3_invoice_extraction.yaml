@@ -38,36 +38,39 @@ prompts:
       GST_AMOUNT: [GST/tax amount with $ symbol (e.g., $12.50) or NOT_FOUND]
       TOTAL_AMOUNT: [Final total amount with $ symbol (e.g., $137.50) or NOT_FOUND]
 
-      ## CRITICAL OUTPUT FORMAT:
+      ## CRITICAL OUTPUT FORMAT - READ THIS CAREFULLY:
 
-      You MUST respond in exactly this key-value format (one field per line):
+      ⚠️ ABSOLUTELY NO JSON FORMAT ALLOWED ⚠️
+      ⚠️ DO NOT USE CURLY BRACES { } ⚠️
+      ⚠️ DO NOT USE QUOTES AROUND FIELD NAMES ⚠️
 
-      DOCUMENT_TYPE: value
-      BUSINESS_ABN: value
-      SUPPLIER_NAME: value
-      BUSINESS_ADDRESS: value
-      PAYER_NAME: value
-      PAYER_ADDRESS: value
-      INVOICE_DATE: value
-      LINE_ITEM_DESCRIPTIONS: value
-      LINE_ITEM_QUANTITIES: value
-      LINE_ITEM_PRICES: value
-      LINE_ITEM_TOTAL_PRICES: value
-      IS_GST_INCLUDED: value
-      GST_AMOUNT: value
-      TOTAL_AMOUNT: value
+      You MUST respond in EXACTLY this simple key-value format (one field per line):
 
-      DO NOT use JSON format like {"field": "value"}
-      DO NOT use markdown formatting like **FIELD:**
-      DO NOT add extra explanations or commentary
-      DO NOT include bullet points or numbering
+      DOCUMENT_TYPE: [document type from image]
+      BUSINESS_ABN: [ABN number from document]
+      SUPPLIER_NAME: [business name from document]
+      BUSINESS_ADDRESS: [business address from document]
+      PAYER_NAME: [customer name from document]
+      PAYER_ADDRESS: [customer address from document]
+      INVOICE_DATE: [invoice date from document]
+      LINE_ITEM_DESCRIPTIONS: [item1 | item2 | item3]
+      LINE_ITEM_QUANTITIES: [qty1 | qty2 | qty3]
+      LINE_ITEM_PRICES: [$price1 | $price2 | $price3]
+      LINE_ITEM_TOTAL_PRICES: [$total1 | $total2 | $total3]
+      IS_GST_INCLUDED: [true or false]
+      GST_AMOUNT: [$amount from document]
+      TOTAL_AMOUNT: [$total from document]
 
-      Example correct output:
-      DOCUMENT_TYPE: INVOICE
-      BUSINESS_ABN: 12 345 678 901
-      SUPPLIER_NAME: ACME Company Ltd
-      BUSINESS_ADDRESS: 123 Main Street, Sydney NSW 2000
-      PAYER_NAME: John Smith
+      FORBIDDEN FORMATS:
+      ❌ {"DOCUMENT_TYPE": "INVOICE"} - NO JSON
+      ❌ **DOCUMENT_TYPE:** INVOICE - NO MARKDOWN
+      ❌ DOCUMENT_TYPE = INVOICE - NO EQUALS
+      ❌ Any format with { } quotes or ** formatting
+
+      REQUIRED FORMAT:
+      ✅ DOCUMENT_TYPE: INVOICE - SIMPLE COLON FORMAT ONLY
+
+      Remember: NO CURLY BRACES, NO QUOTES, NO MARKDOWN - JUST FIELD_NAME: value
 
       Provide EXACTLY 14 lines in the format shown above.
 

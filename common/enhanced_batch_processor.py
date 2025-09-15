@@ -180,7 +180,8 @@ class EnhancedBatchProcessor:
         ground_truth_data: Dict,
         image_index: int,
         total_images: int,
-        show_enhanced_display: bool = True
+        show_enhanced_display: bool = True,
+        prompt_config: Dict = None
     ) -> Dict[str, Any]:
         """Process a single image with enhanced display and evaluation."""
 
@@ -210,7 +211,7 @@ class EnhancedBatchProcessor:
 
             # Step C: Process image with shared model
             rprint("   ⚡ Step C: Processing image with shared model...")
-            result = processor.process_single_image(str(image_path))
+            result = processor.process_single_image(str(image_path), prompt_config)
 
             # Step D: Enhanced metadata and evaluation
             processing_time = time.perf_counter() - image_start
@@ -310,7 +311,8 @@ class EnhancedBatchProcessor:
         processor_class: Any,
         schema_loader: Any,
         config: Dict,
-        show_enhanced_display: bool = True
+        show_enhanced_display: bool = True,
+        prompt_config: Dict = None
     ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
         """
         Process a batch of images with enhanced analytics and display.
@@ -351,7 +353,7 @@ class EnhancedBatchProcessor:
         for i, image_path in enumerate(image_files, 1):
             result, proc_time, doc_type = self.process_single_image_enhanced(
                 image_path, processor, schema_loader, ground_truth_data,
-                i, len(image_files), show_enhanced_display
+                i, len(image_files), show_enhanced_display, prompt_config
             )
 
             batch_results.append(result)
@@ -396,7 +398,8 @@ def run_enhanced_batch_processing(
     processor_class: Any,
     schema_loader: Any,
     config: Dict,
-    show_enhanced_display: bool = True
+    show_enhanced_display: bool = True,
+    prompt_config: Dict = None
 ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
     """
     Convenience function to run enhanced batch processing.
@@ -413,5 +416,5 @@ def run_enhanced_batch_processing(
     """
     processor = EnhancedBatchProcessor()
     return processor.process_batch(
-        image_files, processor_class, schema_loader, config, show_enhanced_display
+        image_files, processor_class, schema_loader, config, show_enhanced_display, prompt_config
     )

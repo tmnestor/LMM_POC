@@ -76,6 +76,23 @@ def parse_extraction_response(
     # Initialize with NOT_FOUND for all fields
     extracted_data = {field: "NOT_FOUND" for field in expected_fields}
 
+    # FALLBACK: Check if response is JSON format (InternVL3 sometimes ignores format instructions)
+    try:
+        import json
+        # Try to parse as JSON
+        if response_text.strip().startswith('{') and response_text.strip().endswith('}'):
+            json_data = json.loads(response_text.strip())
+            if isinstance(json_data, dict):
+                # Convert JSON to our expected format
+                for field in expected_fields:
+                    if field in json_data:
+                        extracted_data[field] = str(json_data[field])
+                # Return immediately if JSON parsing succeeded
+                return extracted_data
+    except (json.JSONDecodeError, ValueError):
+        # Not valid JSON, continue with regular parsing
+        pass
+
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")
 
