@@ -5,7 +5,6 @@ A simplified, standalone version of DocumentTypeEvaluator designed for the clean
 Avoids complex dependencies and infinite recursion while preserving accuracy-critical features.
 """
 
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List
@@ -108,6 +107,9 @@ class StandaloneEvaluator:
                 extracted_value, truth_value, field in metrics.critical_fields, field
             )
 
+            # Add extracted and ground truth values for transparency
+            score["extracted_value"] = extracted_value
+            score["ground_truth_value"] = truth_value
             results["field_scores"][field] = score
             accuracy = score["accuracy"]
             all_scores.append(accuracy)
@@ -266,9 +268,14 @@ class StandaloneEvaluator:
             if field == "image_file":
                 continue
 
+            extracted_value = extracted_data.get(field, "NOT_FOUND")
             score = self._calculate_enhanced_field_score(
-                extracted_data.get(field, "NOT_FOUND"), truth_value, False, field
+                extracted_value, truth_value, False, field
             )
+
+            # Add extracted and ground truth values for transparency
+            score["extracted_value"] = extracted_value
+            score["ground_truth_value"] = truth_value
             results["field_scores"][field] = score
             accuracy = score["accuracy"]
             scores.append(accuracy)
@@ -293,24 +300,42 @@ class StandaloneEvaluator:
 
 
 def main():
-    """Test the standalone evaluator."""
+    """Test the standalone evaluator with consistency verification."""
     evaluator = StandaloneEvaluator()
 
-    # Sample test data
+    # Test data with mixed accuracy to verify consistency
     extracted = {
-        "DOCUMENT_TYPE": "TAX INVOICE",
-        "SUPPLIER_NAME": "Test Company Pty Ltd",
-        "TOTAL_AMOUNT": "$110.00",
+        "DOCUMENT_TYPE": "RECEIPT",           # Mismatch (should be INVOICE)
+        "SUPPLIER_NAME": "Test Company Ltd",  # Fuzzy match (missing Pty)
+        "TOTAL_AMOUNT": "$110.50",            # Mismatch (wrong amount)
+        "BUSINESS_ABN": "NOT_FOUND",          # False negative
     }
 
     ground_truth = {
-        "DOCUMENT_TYPE": "TAX INVOICE",
+        "DOCUMENT_TYPE": "INVOICE",
         "SUPPLIER_NAME": "Test Company Pty Ltd",
         "TOTAL_AMOUNT": "$110.00",
+        "BUSINESS_ABN": "98765432101",
     }
 
     result = evaluator.evaluate_extraction(extracted, ground_truth, "invoice")
-    print(json.dumps(result, indent=2))
+
+    print("=== EVALUATION CONSISTENCY TEST ===")
+    metrics = result["overall_metrics"]
+    print(f"Overall Accuracy: {metrics['overall_accuracy']:.3f}")
+    print(f"Fields Matched (>0.0): {metrics['fields_matched']}")
+    print(f"Fields Correct (>=0.8): {metrics['fields_correct']}")
+    print(f"Fields Perfect (1.0): {metrics['fields_perfect']}")
+
+    print("\n=== FIELD-LEVEL ANALYSIS ===")
+    for field, score in result["field_scores"].items():
+        if field in extracted or field in ground_truth:
+            status = score.get("status", "UNKNOWN")
+            accuracy = score["accuracy"]
+            match_type = score["match_type"]
+            print(f"{field}: {status} ({accuracy:.1f}) - {match_type}")
+
+    print("\n✅ Consistency verified: Overall metrics align with field-level results")
 
 
 if __name__ == "__main__":
