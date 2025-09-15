@@ -127,18 +127,38 @@ def load_internvl3_model(
             rprint(f"[blue]💡 Memory sufficient: {'✅ Yes' if memory_sufficient else '❌ No'}[/blue]")
 
         # Override quantization setting based on dynamic GPU configuration
-        if gpu_config and gpu_config.is_high_memory and use_quantization:
-            if verbose:
-                rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory, disabling quantization for optimal performance[/green]")
-            use_quantization = False
-        elif memory_sufficient and use_quantization:
-            if verbose:
-                rprint("[green]🚀 Sufficient GPU memory detected, disabling quantization for better performance[/green]")
-            use_quantization = False
-        elif not memory_sufficient and not use_quantization:
-            if verbose:
-                rprint("[yellow]⚠️ Limited GPU memory detected, enabling quantization for compatibility[/yellow]")
-            use_quantization = True
+        # CRITICAL FIX: Check high memory REGARDLESS of initial use_quantization setting
+        if gpu_config and gpu_config.is_high_memory:
+            if use_quantization:
+                if verbose:
+                    rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
+                use_quantization = False
+            else:
+                if verbose:
+                    rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
+        elif memory_sufficient:
+            if use_quantization:
+                if verbose:
+                    rprint(f"[green]🚀 Sufficient GPU memory detected ({total_gpu_memory:.0f}GB), disabling quantization for better performance[/green]")
+                use_quantization = False
+            else:
+                if verbose:
+                    rprint(f"[green]✅ Memory sufficient ({total_gpu_memory:.0f}GB) - running in full precision as requested[/green]")
+        elif not memory_sufficient:
+            if not use_quantization:
+                if verbose:
+                    rprint(f"[yellow]⚠️ Limited GPU memory detected ({total_gpu_memory:.0f}GB), enabling quantization for compatibility[/yellow]")
+                use_quantization = True
+            else:
+                if verbose:
+                    rprint(f"[yellow]⚠️ Using quantization due to limited memory ({total_gpu_memory:.0f}GB)[/yellow]")
+
+    # CRITICAL: Log final quantization decision
+    if verbose:
+        rprint(f"[bold cyan]📊 FINAL QUANTIZATION DECISION: {'ENABLED (8-bit)' if use_quantization else 'DISABLED (full precision)'}[/bold cyan]")
+        if total_gpu_memory > 0:
+            rprint(f"[cyan]   GPU Memory: {total_gpu_memory:.0f}GB available[/cyan]")
+            rprint(f"[cyan]   Model needs: ~{estimated_memory_needed}GB for InternVL3-{model_variant}[/cyan]")
 
     if use_quantization:
         if verbose:
