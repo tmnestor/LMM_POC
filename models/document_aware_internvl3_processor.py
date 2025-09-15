@@ -644,7 +644,18 @@ class DocumentAwareInternVL3Processor:
                 else:
                     print("Method: Direct loading (no quantization needed)")
                 print("VRAM: ~4-6GB")
-            print("Hardware: V100 GPU (16GB VRAM)")
+            # Display actual hardware instead of hardcoded V100
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+                gpu_count = torch.cuda.device_count()
+                if gpu_count > 1:
+                    total_memory = gpu_count * gpu_memory
+                    print(f"Hardware: {gpu_count}x {gpu_name} ({gpu_memory:.0f}GB each = {total_memory:.0f}GB total)")
+                else:
+                    print(f"Hardware: {gpu_name} ({gpu_memory:.0f}GB)")
+            else:
+                print("Hardware: CPU (no GPU available)")
             print("=" * 60 + "\n")
 
             # Apply GPU optimizations
