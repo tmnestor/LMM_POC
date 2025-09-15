@@ -4,27 +4,62 @@
 
 prompts:
   detection:
-    name: "Document Type Detection"
-    description: "Identify the type of business document from the image"
+    name: "Enhanced Document Type Detection"
+    description: "Identify business document type using visual layout cues and content indicators"
     prompt: |
-      Analyze this business document image and identify its type.
-      
-      Look for key indicators:
-      - INVOICE/BILL: Has invoice number, billing details, itemized list with prices, total amount
-      - RECEIPT: Shows completed transaction, payment confirmation, store/merchant details
-      - BANK STATEMENT: Shows account transactions, running balance, bank account details
-      
-      Common document type variations:
-      - Invoice types: invoice, tax invoice, bill, estimate, quote, quotation, proforma invoice
-      - Receipt types: receipt, purchase receipt, payment receipt, sales receipt
-      - Statement types: bank statement, account statement, credit card statement
-      
-      Respond with ONLY the document type in one of these exact formats:
-      - INVOICE (for any type of invoice, bill, quote, or estimate)
-      - RECEIPT (for any type of receipt or payment confirmation)
-      - BANK_STATEMENT (for any type of bank or credit card statement)
-      
-      If unclear, respond with: INVOICE
+      Analyze this business document image and identify its type using visual and content cues.
+
+      🔍 VISUAL LAYOUT ANALYSIS:
+
+      📋 INVOICE/ESTIMATE/QUOTE INDICATORS:
+      - Header: "INVOICE", "TAX INVOICE", "ESTIMATE", "QUOTE", "QUOTATION", "PROFORMA"
+      - Layout: Business header → Customer "Bill To" section → Itemized table → Total section
+      - Key fields: Invoice/Quote number, Due date, Line items with quantities/prices
+      - Table structure: Description | Qty | Unit Price | Total columns
+      - Bottom section: Subtotal, GST, TOTAL amounts
+      - Visual: Professional business letterhead, structured pricing table
+
+      🧾 RECEIPT INDICATORS:
+      - Header: "RECEIPT", "PURCHASE RECEIPT", "SALES RECEIPT", "TAX INVOICE"
+      - Layout: Store/merchant header → Transaction details → Payment confirmation
+      - Key fields: Receipt number, Transaction date/time, Payment method
+      - Content: Completed purchase, "Amount tendered", "Change given"
+      - Visual: Store branding, compact format, payment confirmation details
+      - Transaction-focused rather than billing-focused
+
+      🏦 BANK STATEMENT INDICATORS:
+      - Header: "BANK STATEMENT", "ACCOUNT STATEMENT", "CREDIT CARD STATEMENT"
+      - Layout: Bank header → Account details → Transaction table → Summary
+      - Key fields: Account number, Statement period, Opening/Closing balance
+      - Table structure: Date | Description | Debit | Credit | Balance (or similar)
+      - Visual: Bank logo/branding, tabular transaction list, running balance
+      - Multiple transactions over time period, not single purchase
+
+      🎯 DECISION CRITERIA:
+
+      PRIMARY INDICATORS:
+      1. Document title/header text (strongest indicator)
+      2. Table structure and column headers
+      3. Presence of account numbers vs invoice numbers
+      4. Single transaction vs multiple transactions over time
+      5. Future-oriented (estimates/quotes) vs past transactions
+
+      DISTINGUISHING FEATURES:
+      - INVOICE/ESTIMATE: Future billing, "Amount Due", line item pricing structure
+      - RECEIPT: Completed transaction, "Amount Paid", payment method details
+      - BANK STATEMENT: Multiple transactions, running balance, bank account details
+
+      AMBIGUOUS CASES:
+      - If document has both invoice-like and receipt-like features, prioritize header text
+      - Tax invoices that also serve as receipts: Look for payment confirmation details
+      - Estimates vs Invoices: Check for "ESTIMATE", "QUOTE" in header or "Amount Due" vs "Estimated Total"
+
+      Respond with ONLY the document type:
+      - INVOICE (for invoices, bills, estimates, quotes, proforma invoices)
+      - RECEIPT (for receipts, payment confirmations, completed transactions)
+      - BANK_STATEMENT (for bank statements, account statements, credit card statements)
+
+      If unclear after visual analysis, default to: INVOICE
 
   detection_simple:
     name: "Simple Document Type Detection"

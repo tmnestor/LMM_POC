@@ -160,6 +160,39 @@ def calculate_field_accuracy(
             print("    ✅ Exact match - score: 1.0")
         return 1.0
 
+    # Special handling for DOCUMENT_TYPE field with canonical type mapping
+    if field_name == "DOCUMENT_TYPE":
+        # Define canonical document type mappings (same as detection system)
+        type_mapping = {
+            "invoice": "invoice",
+            "tax invoice": "invoice",
+            "estimate": "invoice",
+            "quote": "invoice",
+            "quotation": "invoice",
+            "proforma invoice": "invoice",
+            "receipt": "receipt",
+            "purchase receipt": "receipt",
+            "sales receipt": "receipt",
+            "bank statement": "bank_statement",
+            "account statement": "bank_statement",
+            "credit card statement": "bank_statement",
+            "statement": "bank_statement"
+        }
+
+        # Map both values to canonical types
+        extracted_canonical = type_mapping.get(extracted_lower, extracted_lower)
+        ground_truth_canonical = type_mapping.get(ground_truth_lower, ground_truth_lower)
+
+        # Compare canonical types
+        if extracted_canonical == ground_truth_canonical:
+            if debug:
+                print(f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) matches '{ground_truth}' ({ground_truth_canonical}) - score: 1.0")
+            return 1.0
+        else:
+            if debug:
+                print(f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) != '{ground_truth}' ({ground_truth_canonical}) - score: 0.0")
+            return 0.0
+
     # Field-specific comparison logic using centralized field type definitions
     field_types = get_all_field_types()
     if field_types.get(field_name) == "numeric_id":

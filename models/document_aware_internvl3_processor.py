@@ -1091,9 +1091,9 @@ INSTRUCTIONS:
         self, image_path: str, field_list: List[str], document_type: str = None
     ) -> tuple[Dict[str, str], str, Dict[str, str]]:
         """
-        Extract specific fields using YAML-based unified prompt.
+        Extract specific fields using simple YAML prompt files.
 
-        Uses the same unified schema templates as Llama for consistency.
+        Uses direct prompt loading from prompts/ directory for easy maintenance.
 
         Returns:
             Tuple of (extracted_data, raw_response, prompt_info)
@@ -1101,13 +1101,13 @@ INSTRUCTIONS:
 
         if self.debug:
             print(
-                f"🎯 Extracting {len(field_list)} document-specific fields using YAML"
+                f"🎯 Extracting {len(field_list)} document-specific fields using simple YAML prompts"
             )
 
-        # Use YAML-first approach: generate prompt from unified schema like Llama does
-        from common.yaml_template_renderer import PureYAMLRenderer
+        # Simple prompt loading from prompts/ directory
+        from common.prompt_loader import PromptLoader
 
-        yaml_renderer = PureYAMLRenderer()
+        loader = PromptLoader()
 
         # Use provided document type or infer from field list as fallback
         if document_type is None:
@@ -1120,31 +1120,39 @@ INSTRUCTIONS:
                 document_type = "invoice"  # Default fallback
 
         if self.debug:
-            print(f"📋 Using document type: {document_type} for YAML prompt generation")
+            print(f"📋 Using document type: {document_type} for simple prompt loading")
 
-        # Generate prompt from unified schema templates
+        # Enhanced prompt file mapping (using layout-aware prompts with examples)
+        prompt_config = {
+            'invoice': 'prompts/enhanced_internvl3_invoice.yaml',  # Enhanced with layout examples
+            'receipt': 'prompts/enhanced_internvl3_receipt.yaml',  # Enhanced with layout examples
+            'bank_statement': 'prompts/enhanced_internvl3_bank_statement.yaml'  # Enhanced with layout examples
+        }
+
+        # Load prompt from simple YAML file
         try:
-            prompt = yaml_renderer.render_prompt_for_document_type(
+            prompt_file = prompt_config.get(document_type, prompt_config['invoice'])
+            prompt_text, prompt_name, prompt_description = loader.load_prompt(
+                prompt_file=prompt_file,
+                prompt_key="extraction",  # Use the extraction prompt key
                 document_type=document_type,
-                field_list=field_list,
-                model_name="internvl3",  # Use internvl3 model name
+                verbose=self.debug
             )
         except Exception as e:
-            # Re-raise the error instead of using a fallback
             raise ValueError(
-                f"❌ FATAL: Could not generate prompt from unified schema: {e}\n"
-                f"💡 Check unified_schema.yaml exists and has valid templates\n"
-                f"💡 Ensure document_type '{document_type}' is supported"
+                f"❌ FATAL: Could not load prompt from {prompt_file}: {e}\n"
+                f"💡 Check prompt file exists in prompts/ directory\n"
+                f"💡 Ensure document_type '{document_type}' has a corresponding prompt file"
             ) from e
 
         if self.debug:
             print("📝 Document-aware extraction prompt:")
             print("-" * 60)
-            print(prompt)
+            print(prompt_text[:500] + "..." if len(prompt_text) > 500 else prompt_text)
             print("-" * 60)
 
         # Extract using the model
-        raw_response = self._extract_with_prompt(image_path, prompt)
+        raw_response = self._extract_with_prompt(image_path, prompt_text)
 
         if self.debug:
             print(
@@ -1185,18 +1193,18 @@ INSTRUCTIONS:
 
         # Create prompt info for display
         prompt_info = {
-            "prompt": prompt,
-            "source": "unified_schema_yaml_template",
+            "prompt": prompt_text,
+            "source": "simple_yaml_prompt",
             "field_count": len(field_list),
-            "template_type": "yaml_document_aware_extraction",
-            "prompt_file": "config/unified_schema.yaml",
-            "prompt_key": f"prompt_templates.internvl3.{document_type}",
+            "template_type": "simple_prompt_file",
+            "prompt_file": prompt_file,
+            "prompt_name": prompt_name,
             "document_type": document_type
         }
 
         if self.debug:
             found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-            print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully")
+            print(f"✅ Parsed {found_count}/{len(field_list)} fields successfully using '{prompt_name}'")
 
         return extracted_data, raw_response, prompt_info
 
@@ -1204,9 +1212,9 @@ INSTRUCTIONS:
         self, image_path: str, field_list: List[str]
     ) -> Dict[str, str]:
         """
-        Extract all 15 universal fields using single-pass universal template.
+        Extract all universal fields using simple universal prompt file.
 
-        Replaces document-type-specific extraction with universal approach.
+        Uses direct prompt loading from prompts/universal_extraction.yaml for easy maintenance.
         """
 
         if self.debug:
@@ -1214,51 +1222,42 @@ INSTRUCTIONS:
                 f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass"
             )
 
-        # Use YAML universal extraction template
-        from common.yaml_template_renderer import PureYAMLRenderer
+        # Simple universal prompt loading from prompts/ directory
+        from common.prompt_loader import PromptLoader
 
-        yaml_renderer = PureYAMLRenderer()
+        loader = PromptLoader()
 
-        # Generate universal prompt from unified schema
+        # Load universal prompt from simple YAML file
         try:
-            # Access the universal extraction template we just added
-            universal_config = yaml_renderer.unified_schema.get(
-                "universal_extraction", {}
+            prompt_file = 'prompts/universal_extraction.yaml'
+            prompt_text, prompt_name, prompt_description = loader.load_prompt(
+                prompt_file=prompt_file,
+                prompt_key="universal",  # Use the universal prompt key
+                document_type="universal",
+                verbose=self.debug
             )
-            internvl3_config = universal_config.get("internvl3", {})
-
-            if not internvl3_config:
-                raise ValueError(
-                    "Universal extraction template not found in unified schema"
-                )
-
-            # Build universal prompt
-            system_prompt = internvl3_config.get("system_prompt", "")
-            field_instructions = internvl3_config.get("field_instructions", "")
-
-            prompt = f"{system_prompt}\n\n{field_instructions}"
 
             if self.debug:
-                print("🔨 Using universal extraction template")
-                print(f"📝 Prompt length: {len(prompt)} characters")
+                print("🔨 Using simple universal extraction prompt")
+                print(f"📝 Prompt length: {len(prompt_text)} characters")
                 print("\n" + "=" * 80)
                 print("📋 UNIVERSAL PROMPT:")
                 print("=" * 80)
-                print(prompt)
+                print(prompt_text[:500] + "..." if len(prompt_text) > 500 else prompt_text)
                 print("=" * 80 + "\n")
 
         except Exception as e:
             raise ValueError(
-                f"❌ FATAL: Could not generate universal prompt: {e}\n"
-                f"💡 Check unified_schema.yaml contains universal_extraction section"
+                f"❌ FATAL: Could not load universal prompt from {prompt_file}: {e}\n"
+                f"💡 Check prompts/universal_extraction.yaml exists"
             ) from e
 
         if self.debug:
-            print(f"📝 Generated universal prompt for all {len(field_list)} fields")
+            print(f"📝 Loaded universal prompt '{prompt_name}' for all {len(field_list)} fields")
 
         # Execute universal extraction
         raw_response = self._extract_with_prompt(
-            image_path, prompt, generation_config=None
+            image_path, prompt_text, generation_config=None
         )
 
         if self.debug:
@@ -1305,7 +1304,7 @@ INSTRUCTIONS:
         if self.debug:
             found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
             print(
-                f"✅ Universal extraction: {found_count}/{len(field_list)} fields found"
+                f"✅ Universal extraction: {found_count}/{len(field_list)} fields found using '{prompt_name}'"
             )
 
         return extracted_data
