@@ -183,6 +183,17 @@ class BatchDocumentProcessor:
                     # DocumentAwareLlamaProcessor returns extracted_data at top level
                     extracted_data = extraction_result.get("extracted_data", {})
 
+                    # Apply mathematical enhancement for bank statements
+                    if document_type.upper() == "BANK_STATEMENT":
+                        from .bank_statement_calculator import enhance_bank_statement_extraction
+
+                        if verbose:
+                            rprint(f"[blue]🧮 Applying mathematical enhancement for bank statement[/blue]")
+
+                        extracted_data = enhance_bank_statement_extraction(
+                            extracted_data, verbose=verbose
+                        )
+
                     if verbose:
                         found_fields = [
                             k for k, v in extracted_data.items() if v != "NOT_FOUND"
@@ -190,6 +201,14 @@ class BatchDocumentProcessor:
                         rprint(
                             f"[cyan]✓ Extracted {len(found_fields)} fields from {image_name}[/cyan]"
                         )
+
+                        # Show mathematical enhancement results if applied
+                        if document_type.upper() == "BANK_STATEMENT" and '_mathematical_analysis' in extracted_data:
+                            analysis = extracted_data['_mathematical_analysis']
+                            if analysis.get('calculation_success'):
+                                rprint(f"[green]✓ Mathematical analysis: {analysis.get('transaction_count', 0)} transactions calculated[/green]")
+                            else:
+                                rprint(f"[yellow]⚠️ Mathematical analysis failed[/yellow]")
 
                     # Use the working DocumentTypeEvaluator approach that succeeds
                     evaluation = self.document_evaluator.evaluate_extraction(

@@ -524,7 +524,8 @@ def _get_config():
                     "GST_AMOUNT",
                     "TOTAL_AMOUNT",
                     "TRANSACTION_AMOUNTS_PAID",
-                ]  # SUBSET: Essential amounts
+                    "TRANSACTION_AMOUNTS_RECEIVED",
+                ]  # SUBSET: Essential amounts including calculated fields
                 self.numeric_id_fields = ["BUSINESS_ABN"]  # SUBSET: Essential ID
                 self.date_fields = [
                     "INVOICE_DATE",
@@ -542,7 +543,8 @@ def _get_config():
                 self.transaction_list_fields = [
                     "TRANSACTION_DATES",
                     "TRANSACTION_AMOUNTS_PAID",
-                ]  # SUBSET: Bank statement transactions
+                    "TRANSACTION_AMOUNTS_RECEIVED",
+                ]  # SUBSET: Bank statement transactions including calculated fields
 
         _config = SimpleConfig(schema)
     return _config
@@ -1434,14 +1436,15 @@ FIELD_GROUPS = {
     },
     # NEW: Bank statement transaction group for boss's reduced schema
     "bank_transactions": {
-        # NEW_COUNT: 2 fields (specialized for bank statements)
+        # NEW_COUNT: 3 fields (specialized for bank statements including calculated fields)
         "fields": [
             "TRANSACTION_DATES",  # SUBSET: Essential transaction dates
             "TRANSACTION_AMOUNTS_PAID",  # SUBSET: Essential transaction amounts
+            "TRANSACTION_AMOUNTS_RECEIVED",  # SUBSET: Calculated transaction amounts received
         ],
-        "expertise_frame": "Extract bank statement transaction data.",
-        "cognitive_context": "TRANSACTION_DATES are when transactions occurred. TRANSACTION_AMOUNTS_PAID are the amounts.",
-        "focus_instruction": "Extract transaction dates and amounts from bank statements.",
+        "expertise_frame": "Extract bank statement transaction data including calculated amounts.",
+        "cognitive_context": "TRANSACTION_DATES are when transactions occurred. TRANSACTION_AMOUNTS_PAID and TRANSACTION_AMOUNTS_RECEIVED are debit/credit amounts.",
+        "focus_instruction": "Extract transaction dates and amounts from bank statements. Include both paid and received amounts.",
     },
 }
 
