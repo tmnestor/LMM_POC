@@ -123,9 +123,10 @@ prompts:
       - Be conservative: when in doubt, use "NOT_FOUND"
 
       🔍 CONVERSATION PROTOCOL:
-      - Start your response immediately with "**BANK_NAME:**"
-      - Do NOT include conversational text or explanations
-      - Output ONLY the structured extraction data below
+      - Start your response immediately with "BANK_NAME:"
+      - Do NOT include conversational text, explanations, or markdown formatting
+      - Do NOT use bullet points, asterisks, or narrative descriptions
+      - Output ONLY the structured field extraction data below
       - End immediately after "ACCOUNT_BALANCE:" with no additional text
 
       🏦 SPECIAL FOCUS: COMPREHENSIVE TRANSACTION ANALYSIS
@@ -152,19 +153,19 @@ prompts:
 
       Extract the following fields in this exact order:
 
-      **BANK_NAME:** [Bank name from header or NOT_FOUND]
-      **BANK_BSB_NUMBER:** [6-digit BSB number or NOT_FOUND]
-      **BANK_ACCOUNT_NUMBER:** [Account number or NOT_FOUND]
-      **BANK_ACCOUNT_HOLDER:** [Account holder name or NOT_FOUND]
-      **ACCOUNT_OPENING_BALANCE:** [Opening balance amount with $ symbol or NOT_FOUND]
-      **ACCOUNT_CLOSING_BALANCE:** [Closing balance amount with $ symbol or NOT_FOUND]
-      **STATEMENT_DATE_RANGE:** [Date range in DD/MM/YYYY to DD/MM/YYYY format or NOT_FOUND]
-      **DOCUMENT_TYPE:** [Always "BANK_STATEMENT" for bank statements]
-      **LINE_ITEM_DESCRIPTIONS:** [Transaction descriptions separated by " | " or NOT_FOUND]
-      **TRANSACTION_DATES:** [Transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
-      **TRANSACTION_AMOUNTS_PAID:** [For each transaction: if money LEFT account (debit/payment/withdrawal/fee), include amount with $ symbol; if money did NOT leave, use "NOT_FOUND". Separate with " | ". CRITICAL: Analyze transaction descriptions to determine type - keywords like "payment", "withdrawal", "debit", "fee", "purchase" indicate money leaving. Extract for ALL transactions regardless of order.]
-      **TRANSACTION_AMOUNTS_RECEIVED:** [For each transaction: if money ENTERED account (credit/deposit/salary/refund), include amount with $ symbol; if money did NOT enter, use "NOT_FOUND". Separate with " | ". CRITICAL: Analyze transaction descriptions to determine type - keywords like "credit", "deposit", "salary", "payment received", "refund" indicate money entering. Extract for ALL transactions regardless of order.]
-      **ACCOUNT_BALANCE:** [Running balance amounts separated by " | " with $ symbol, in transaction order or NOT_FOUND]
+      BANK_NAME: [Bank name from header or NOT_FOUND]
+      BANK_BSB_NUMBER: [6-digit BSB number or NOT_FOUND]
+      BANK_ACCOUNT_NUMBER: [Account number or NOT_FOUND]
+      BANK_ACCOUNT_HOLDER: [Account holder name or NOT_FOUND]
+      ACCOUNT_OPENING_BALANCE: [Opening balance amount with $ symbol or NOT_FOUND]
+      ACCOUNT_CLOSING_BALANCE: [Closing balance amount with $ symbol or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range in DD/MM/YYYY to DD/MM/YYYY format or NOT_FOUND]
+      DOCUMENT_TYPE: [Always "BANK_STATEMENT" for bank statements]
+      LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
+      TRANSACTION_DATES: [Transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [For each transaction: if money LEFT account (debit/payment/withdrawal/fee), include amount with $ symbol; if money did NOT leave, use "NOT_FOUND". Separate with " | ". CRITICAL: Analyze transaction descriptions to determine type - keywords like "payment", "withdrawal", "debit", "fee", "purchase" indicate money leaving. Extract for ALL transactions regardless of order.]
+      TRANSACTION_AMOUNTS_RECEIVED: [For each transaction: if money ENTERED account (credit/deposit/salary/refund), include amount with $ symbol; if money did NOT enter, use "NOT_FOUND". Separate with " | ". CRITICAL: Analyze transaction descriptions to determine type - keywords like "credit", "deposit", "salary", "payment received", "refund" indicate money entering. Extract for ALL transactions regardless of order.]
+      ACCOUNT_BALANCE: [Running balance amounts separated by " | " with $ symbol, in transaction order or NOT_FOUND]
 
 # Configuration settings
 settings:

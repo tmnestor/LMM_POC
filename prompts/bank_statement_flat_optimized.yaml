@@ -99,7 +99,12 @@ prompts:
       - We use balance differences for other transactions, but need the earliest one extracted
       - This enables complete mathematical reconstruction of all debits and credits
 
-      Example Format:
+      🚨 CRITICAL OUTPUT FORMAT REQUIREMENTS:
+      - Start your response immediately with "BANK_NAME:"
+      - Do NOT include conversational text, explanations, or markdown formatting
+      - Do NOT use bullet points, asterisks, or narrative descriptions
+      - Output ONLY the structured field extraction data in this EXACT format:
+
       BANK_NAME: [Extract bank name from header]
       BANK_BSB_NUMBER: [Extract 6-digit BSB number]
       BANK_ACCOUNT_NUMBER: [Extract account number]
@@ -113,6 +118,8 @@ prompts:
       TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | NOT_FOUND]
       TRANSACTION_AMOUNTS_RECEIVED: [credit1 | NOT_FOUND | credit3]
       ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
+
+      ⚠️ IMPORTANT: End immediately after "ACCOUNT_BALANCE:" with no additional text.
 
   legacy_compatible:
     name: "Legacy Compatible Flat Extraction"
