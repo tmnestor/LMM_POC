@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+image_001.png,INVOICE,92.85714285714286,14,13,14,9.934420585632324,Standard Invoice Extraction
+image_002.png,RECEIPT,92.85714285714286,14,14,14,8.642022132873535,Standard Receipt Extraction
+image_003.png,BANK_STATEMENT,71.42857142857143,7,5,7,12.57649850845337,Optimized Flat Bank Statement Extraction
+image_004.png,INVOICE,71.42857142857143,14,10,14,8.259708404541016,Standard Invoice Extraction
+image_005.png,INVOICE,100.0,14,14,14,7.664476156234741,Standard Invoice Extraction
+image_006.png,INVOICE,98.57142857142858,14,14,14,9.7086341381073,Standard Invoice Extraction
+image_007.png,INVOICE,88.57142857142856,14,13,14,9.674700021743774,Standard Invoice Extraction
+image_008.png,BANK_STATEMENT,62.85714285714285,7,5,7,49.6864275932312,Optimized Flat Bank Statement Extraction
+image_009.png,BANK_STATEMENT,25.71428571428572,7,2,7,19.764026880264282,Optimized Flat Bank Statement Extraction
