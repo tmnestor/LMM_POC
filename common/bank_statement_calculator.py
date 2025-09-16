@@ -88,16 +88,28 @@ class BankStatementCalculator:
             descriptions = self._parse_descriptions(descriptions_str)
 
             if len(dates) != len(balances):
-                return BankStatementAnalysis(
-                    transactions=[],
-                    total_debits=0.0,
-                    total_credits=0.0,
-                    transaction_count=0,
-                    calculated_amounts_paid=[],
-                    calculated_amounts_received=[],
-                    success=False,
-                    errors=[f"Mismatch: {len(dates)} dates vs {len(balances)} balances"]
-                )
+                if self.verbose:
+                    rprint(f"[yellow]⚠️ Count mismatch: {len(dates)} dates vs {len(balances)} balances - using minimum count[/yellow]")
+
+                # Use the minimum count and truncate the longer list
+                min_count = min(len(dates), len(balances))
+                if min_count == 0:
+                    return BankStatementAnalysis(
+                        transactions=[],
+                        total_debits=0.0,
+                        total_credits=0.0,
+                        transaction_count=0,
+                        calculated_amounts_paid=[],
+                        calculated_amounts_received=[],
+                        success=False,
+                        errors=[f"No valid transactions: {len(dates)} dates vs {len(balances)} balances"]
+                    )
+
+                # Truncate to minimum count
+                dates = dates[:min_count]
+                balances = balances[:min_count]
+                if descriptions and len(descriptions) > min_count:
+                    descriptions = descriptions[:min_count]
 
             if self.verbose:
                 rprint(f"[cyan]📊 Analyzing {len(dates)} transactions mathematically[/cyan]")
@@ -139,10 +151,13 @@ class BankStatementCalculator:
             date_parts = [d.strip() for d in dates_str.split('|') if d.strip()]
         else:
             # Space-separated format (fallback for Llama extraction)
-            # Look for date patterns like "Thu 04 Sep 2025"
+            # Look for date patterns like "Thu 04 Sep 2025" - more comprehensive
             date_parts = re.findall(r'[A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}', dates_str)
             if not date_parts:
-                # Fallback: try to find other date patterns
+                # Fallback: try to find DD/MM/YYYY patterns
+                date_parts = re.findall(r'\d{1,2}\/\d{1,2}\/\d{4}', dates_str)
+            if not date_parts:
+                # More aggressive fallback: find any date-like patterns
                 date_parts = re.findall(r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}', dates_str)
 
         for date_str in date_parts:
@@ -202,10 +217,13 @@ class BankStatementCalculator:
             balance_parts = [b.strip() for b in balances_str.split('|') if b.strip()]
         else:
             # Space-separated format (fallback for Llama extraction)
-            # Split on spaces but be careful with currency amounts that may contain spaces
+            # Enhanced regex to handle CR suffixes and various formats
             balance_parts = re.findall(r'\$[\d,]+\.?\d*(?:\s+CR)?', balances_str)
             if not balance_parts:
-                # Fallback: split on spaces and filter for currency-like patterns
+                # More aggressive fallback: find any currency amounts
+                balance_parts = re.findall(r'\$[\d,]+\.?\d*', balances_str)
+            if not balance_parts:
+                # Final fallback: split on spaces and filter for currency-like patterns
                 parts = balances_str.split()
                 balance_parts = [p for p in parts if '$' in p or re.match(r'\d+\.?\d*', p)]
 
