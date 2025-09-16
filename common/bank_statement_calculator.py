@@ -132,7 +132,18 @@ class BankStatementCalculator:
     def _parse_dates(self, dates_str: str) -> List[Tuple[datetime, str]]:
         """Parse date strings into datetime objects with original strings."""
         dates = []
-        date_parts = [d.strip() for d in dates_str.split('|') if d.strip()]
+
+        # Handle both pipe-separated and space-separated formats
+        if '|' in dates_str:
+            # Pipe-separated format (preferred)
+            date_parts = [d.strip() for d in dates_str.split('|') if d.strip()]
+        else:
+            # Space-separated format (fallback for Llama extraction)
+            # Look for date patterns like "Thu 04 Sep 2025"
+            date_parts = re.findall(r'[A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}', dates_str)
+            if not date_parts:
+                # Fallback: try to find other date patterns
+                date_parts = re.findall(r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}', dates_str)
 
         for date_str in date_parts:
             try:
@@ -184,7 +195,19 @@ class BankStatementCalculator:
     def _parse_balances(self, balances_str: str) -> List[float]:
         """Parse balance strings into float values."""
         balances = []
-        balance_parts = [b.strip() for b in balances_str.split('|') if b.strip()]
+
+        # Handle both pipe-separated and space-separated formats
+        if '|' in balances_str:
+            # Pipe-separated format (preferred)
+            balance_parts = [b.strip() for b in balances_str.split('|') if b.strip()]
+        else:
+            # Space-separated format (fallback for Llama extraction)
+            # Split on spaces but be careful with currency amounts that may contain spaces
+            balance_parts = re.findall(r'\$[\d,]+\.?\d*(?:\s+CR)?', balances_str)
+            if not balance_parts:
+                # Fallback: split on spaces and filter for currency-like patterns
+                parts = balances_str.split()
+                balance_parts = [p for p in parts if '$' in p or re.match(r'\d+\.?\d*', p)]
 
         for balance_str in balance_parts:
             try:
