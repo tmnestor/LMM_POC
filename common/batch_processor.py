@@ -185,10 +185,12 @@ class BatchDocumentProcessor:
 
                     # Apply mathematical enhancement for bank statements
                     if document_type.upper() == "BANK_STATEMENT":
-                        from .bank_statement_calculator import enhance_bank_statement_extraction
+                        from .bank_statement_calculator import (
+                            enhance_bank_statement_extraction,
+                        )
 
                         if verbose:
-                            rprint(f"[blue]🧮 Applying mathematical enhancement for bank statement[/blue]")
+                            rprint("[blue]🧮 Applying mathematical enhancement for bank statement[/blue]")
 
                         extracted_data = enhance_bank_statement_extraction(
                             extracted_data, verbose=verbose
@@ -208,7 +210,7 @@ class BatchDocumentProcessor:
                             if analysis.get('calculation_success'):
                                 rprint(f"[green]✓ Mathematical analysis: {analysis.get('transaction_count', 0)} transactions calculated[/green]")
                             else:
-                                rprint(f"[yellow]⚠️ Mathematical analysis failed[/yellow]")
+                                rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
 
                     # Use the working DocumentTypeEvaluator approach that succeeds
                     evaluation = self.document_evaluator.evaluate_extraction(
