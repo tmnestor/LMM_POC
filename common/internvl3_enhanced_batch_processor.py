@@ -405,7 +405,9 @@ class InternVL3EnhancedBatchProcessor:
                 rprint("   🧮 Step 3.5: Mathematical bank statement enhancement...")
 
             # Import and apply bank statement calculator
-            from common.bank_statement_calculator import enhance_bank_statement_extraction
+            from common.bank_statement_calculator import (
+                enhance_bank_statement_extraction,
+            )
 
             math_start = time.time()
             extracted_data = enhance_bank_statement_extraction(extracted_data, verbose=verbose)
