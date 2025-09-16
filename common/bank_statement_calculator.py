@@ -95,6 +95,12 @@ class BankStatementCalculator:
             extracted_paid = self._parse_extracted_amounts(amounts_paid_str)
             extracted_received = self._parse_extracted_amounts(amounts_received_str)
 
+            # Validate and correct array alignment if needed
+            if extracted_paid or extracted_received:
+                extracted_paid, extracted_received = self._validate_array_alignment(
+                    dates, extracted_paid, extracted_received, dates_str, descriptions_str
+                )
+
             if len(dates) != len(balances):
                 if self.verbose:
                     rprint(f"[yellow]⚠️ Count mismatch: {len(dates)} dates vs {len(balances)} balances - using minimum count[/yellow]")
@@ -525,6 +531,54 @@ class BankStatementCalculator:
         # Fallback: if we can't find a match, return the transaction's original index
         # This should rarely happen but provides a safe fallback
         return earliest_transaction.index
+
+    def _validate_array_alignment(
+        self,
+        dates: List[Tuple[datetime, str]],
+        extracted_paid: List[float],
+        extracted_received: List[float],
+        dates_str: str,
+        descriptions_str: str
+    ) -> Tuple[List[float], List[float]]:
+        """Validate and correct array alignment issues in extracted amounts."""
+
+        if not dates:
+            return extracted_paid, extracted_received
+
+        num_transactions = len(dates)
+
+        # Check if arrays are properly aligned (same length as dates)
+        paid_aligned = len(extracted_paid) == num_transactions if extracted_paid else True
+        received_aligned = len(extracted_received) == num_transactions if extracted_received else True
+
+        if paid_aligned and received_aligned:
+            # Arrays are already properly aligned
+            return extracted_paid, extracted_received
+
+        if self.verbose:
+            rprint("[yellow]⚠️ Detecting array misalignment - applying correction...[/yellow]")
+
+        # Apply correction: resize arrays to match transaction count
+        corrected_paid = []
+        corrected_received = []
+
+        for i in range(num_transactions):
+            # For paid amounts
+            if extracted_paid and i < len(extracted_paid):
+                corrected_paid.append(extracted_paid[i])
+            else:
+                corrected_paid.append(0.0)  # NOT_FOUND equivalent
+
+            # For received amounts
+            if extracted_received and i < len(extracted_received):
+                corrected_received.append(extracted_received[i])
+            else:
+                corrected_received.append(0.0)  # NOT_FOUND equivalent
+
+        if self.verbose:
+            rprint(f"[green]✅ Array alignment corrected: {num_transactions} transactions[/green]")
+
+        return corrected_paid, corrected_received
 
 
 def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:

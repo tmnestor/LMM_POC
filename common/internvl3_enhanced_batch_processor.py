@@ -84,7 +84,8 @@ class InternVL3EnhancedBatchProcessor:
             'processing_time': 0,
             'evaluation_time': 0,
             'memory_cleanup_time': 0,
-            'final_cleanup_time': 0
+            'final_cleanup_time': 0,
+            'mathematical_enhancement_time': 0
         }
 
     def _get_memory_stats(self) -> Dict[str, float]:
