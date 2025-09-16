@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "batch_id": "20250916_011341",
+    "timestamp": "2025-09-16T01:15:13.814661",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 3,
+    "successful_extractions": 3,
+    "average_accuracy": 85.71428571428571,
+    "total_processing_time": 82.58630418777466,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "evaluation_data",
+    "ground_truth": "evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": true,
+      "device_map": "auto",
+      "max_new_tokens": 4000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 3.0,
+    "Successful Extractions": 3.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 85.71428571428571,
+    "Median Accuracy (%)": 85.7142857142857,
+    "Min Accuracy (%)": 74.28571428571428,
+    "Max Accuracy (%)": 97.14285714285714,
+    "Average Processing Time (s)": 27.528768062591553,
+    "Total Processing Time (s)": 82.58630418777466,
+    "Throughput (images/min)": 2.1795381421928988
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 3
+  },
+  "results": [
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 13.011933088302612,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9714285714285714,
+        "fields_extracted": 7,
+        "fields_matched": 7,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 49.68891906738281,
+      "evaluation_summary": {
+        "overall_accuracy": 0.857142857142857,
+        "fields_extracted": 7,
+        "fields_matched": 7,
+        "total_fields": 7
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "Optimized Flat Bank Statement Extraction",
+      "processing_time": 19.885452032089233,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7428571428571428,
+        "fields_extracted": 7,
+        "fields_matched": 6,
+        "total_fields": 7
+      }
+    }
+  ]
+}

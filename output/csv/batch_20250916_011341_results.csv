@@ -1,0 +1,4 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used
+image_003.png,BANK_STATEMENT,97.14285714285714,7,7,7,13.011933088302612,Optimized Flat Bank Statement Extraction
+image_008.png,BANK_STATEMENT,85.7142857142857,7,7,7,49.68891906738281,Optimized Flat Bank Statement Extraction
+image_009.png,BANK_STATEMENT,74.28571428571428,7,6,7,19.885452032089233,Optimized Flat Bank Statement Extraction
