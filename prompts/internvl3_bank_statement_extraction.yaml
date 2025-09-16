@@ -43,11 +43,45 @@ prompts:
       ### STEP 3: Transaction Details
       Look at the transaction table and extract ALL transactions:
 
+      🚨 CRITICAL ARRAY ALIGNMENT REQUIREMENT:
+      ALL FIELDS MUST BE PERFECTLY ALIGNED BY DATE POSITION!
+
+      🔍 ROW-BY-ROW PROCESSING METHODOLOGY:
+      DO NOT scan columns! Process each transaction ROW individually:
+
+      EXAMPLE: If you see these transactions in the bank statement:
+      Row 1: 03/05/2025 | AMAZON PURCHASE | [DEBIT: $288.03] | [CREDIT: empty] | [BALANCE: $13387.44]
+      Row 2: 04/05/2025 | SALARY DEPOSIT | [DEBIT: empty] | [CREDIT: $3497.47] | [BALANCE: $16884.91]
+      Row 3: 05/05/2025 | ATM WITHDRAWAL | [DEBIT: $50.00] | [CREDIT: empty] | [BALANCE: $16834.91]
+
+      CORRECT ROW-BY-ROW PROCESSING:
+      1. Process Row 1 → Position [0]: Date=03/05/2025, Paid=$288.03, Received=NOT_FOUND, Balance=$13387.44
+      2. Process Row 2 → Position [1]: Date=04/05/2025, Paid=NOT_FOUND, Received=$3497.47, Balance=$16884.91
+      3. Process Row 3 → Position [2]: Date=05/05/2025, Paid=$50.00, Received=NOT_FOUND, Balance=$16834.91
+
+      RESULTING ALIGNED ARRAYS:
+      TRANSACTION_DATES: 03/05/2025 | 04/05/2025 | 05/05/2025
+      TRANSACTION_AMOUNTS_PAID: $288.03 | NOT_FOUND | $50.00
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | $3497.47 | NOT_FOUND
+      ACCOUNT_BALANCE: $13387.44 | $16884.91 | $16834.91
+
+      ❌ WRONG - COLUMN SCANNING (causes misalignment):
+      - Scanning DEBIT column: "$288.03, $50.00" → puts in positions [0], [1]
+      - Scanning CREDIT column: "$3497.47" → puts in position [0]
+      - Results in: RECEIVED[0] = $3497.47 (WRONG! This belongs in position [1])
+
+      ✅ ALWAYS process ROW-BY-ROW, never scan columns!
+
       LINE_ITEM_DESCRIPTIONS: [List ALL transaction descriptions separated by " | " or NOT_FOUND]
       TRANSACTION_DATES: [List ALL transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
       TRANSACTION_AMOUNTS_PAID: [List ALL debit/withdrawal amounts separated by " | " with $ symbol or NOT_FOUND]
+      - CRITICAL: Position [0] must correspond to TRANSACTION_DATES[0], position [1] to TRANSACTION_DATES[1], etc.
+      - If a transaction has NO debit amount, use NOT_FOUND in that exact position
       TRANSACTION_AMOUNTS_RECEIVED: [List ALL credit/deposit amounts separated by " | " with $ symbol or NOT_FOUND]
+      - CRITICAL: Position [0] must correspond to TRANSACTION_DATES[0], position [1] to TRANSACTION_DATES[1], etc.
+      - If a transaction has NO credit amount, use NOT_FOUND in that exact position
       ACCOUNT_BALANCE: [List ALL running balance amounts separated by " | " with $ symbol or NOT_FOUND]
+      - CRITICAL: Position [0] must correspond to TRANSACTION_DATES[0], position [1] to TRANSACTION_DATES[1], etc.
 
       ## CRITICAL ROW COUNT MATCHING:
       - Count the total number of transaction rows in the table
