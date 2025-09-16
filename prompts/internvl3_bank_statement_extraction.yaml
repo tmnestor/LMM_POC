@@ -4,10 +4,17 @@
 
 prompts:
   flat:
-    name: "InternVL3 Bank Statement Extraction"
-    description: "Extract bank statement data using universal field names with enforced key-value format"
+    name: "InternVL3 Enhanced Bank Statement Extraction"
+    description: "Extract bank statement data using universal field names with enhanced conversation protocol and earliest transaction focus"
     prompt: |
       Extract structured data from this bank statement document.
+
+      🔍 CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text, explanations, or markdown formatting
+      - Do NOT use bullet points, asterisks, or narrative descriptions
+      - Output ONLY the structured field extraction data
+      - End immediately after "ACCOUNT_BALANCE:" with no additional text
 
       ## CRITICAL INSTRUCTIONS:
       - Extract ONLY what is visible in the document
@@ -47,6 +54,29 @@ prompts:
       - ALL lists (descriptions, dates, amounts, balances) must have the SAME number of elements
       - If a cell is empty, use "NOT_FOUND" for that position
       - Example: If 3 transactions, all lists must have exactly 3 elements
+
+      ## SPECIAL FOCUS: EARLIEST TRANSACTION EXTRACTION
+
+      🔍 CRITICAL: PAY SPECIAL ATTENTION TO THE CHRONOLOGICALLY EARLIEST TRANSACTION
+      Bank statements may be in chronological OR reverse chronological order:
+      - Some banks show oldest first (chronological)
+      - Some banks show newest first (reverse chronological)
+
+      FOR THE EARLIEST (OLDEST) TRANSACTION IN THE STATEMENT:
+      1. Identify which transaction has the EARLIEST/OLDEST date
+      2. Carefully examine its DEBIT/CREDIT columns to determine transaction type
+      3. Look for visual cues in the statement:
+         - If amount appears in DEBIT/WITHDRAWAL column → TRANSACTION_AMOUNTS_PAID
+         - If amount appears in CREDIT/DEPOSIT column → TRANSACTION_AMOUNTS_RECEIVED
+         - If columns are empty, analyze the transaction description for keywords:
+           * DEBIT indicators: "payment", "withdrawal", "debit", "fee", "purchase", "transfer out"
+           * CREDIT indicators: "deposit", "credit", "salary", "refund", "transfer in", "payment received"
+      4. Ensure this earliest transaction's amount is correctly placed in PAID or RECEIVED
+
+      WHY THIS MATTERS:
+      - Mathematical validation requires the earliest transaction to be accurately classified
+      - We use balance differences for other transactions, but need the earliest one extracted
+      - This enables complete mathematical reconstruction of all debits and credits
 
       ## CRITICAL OUTPUT FORMAT - READ THIS CAREFULLY:
 

@@ -399,6 +399,26 @@ class InternVL3EnhancedBatchProcessor:
         doc_type = result.get('document_type', detected_type).lower()
         extracted_data = result.get('extracted_data', {})
 
+        # ENHANCED STEP 3.5: Mathematical post-processing for bank statements
+        if doc_type == 'bank_statement':
+            if verbose:
+                rprint("   🧮 Step 3.5: Mathematical bank statement enhancement...")
+
+            # Import and apply bank statement calculator
+            from common.bank_statement_calculator import enhance_bank_statement_extraction
+
+            math_start = time.time()
+            extracted_data = enhance_bank_statement_extraction(extracted_data, verbose=verbose)
+            self._monitor_performance_phase("mathematical_enhancement", math_start, verbose)
+
+            # Show mathematical enhancement results if applied
+            if verbose and '_mathematical_analysis' in extracted_data:
+                analysis = extracted_data['_mathematical_analysis']
+                if analysis.get('calculation_success'):
+                    rprint(f"   [green]✓ Mathematical analysis: {analysis.get('transaction_count', 0)} transactions calculated[/green]")
+                else:
+                    rprint("   [yellow]⚠️ Mathematical analysis failed[/yellow]")
+
         # Create prompt identifier for analytics
         prompt_used = f"{self.model_suffix}_{doc_type}"
 
