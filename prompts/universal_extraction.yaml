@@ -22,9 +22,9 @@ prompts:
       - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
       - Do NOT repeat the user's request or add explanations
       - Output ONLY the structured extraction data below
-      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+      - End immediately after "ACCOUNT_BALANCE:" with no additional text
 
-      Extract the following 17 fields from this document in this exact order:
+      Extract the following 20 fields from this document in this exact order:
       
       ⚠️ IMPORTANT: Some fields only apply to specific document types:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
@@ -48,7 +48,9 @@ prompts:
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
       STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
       TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 amount (or NOT_FOUND if empty), Position 2 = Row 2 amount (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
+      TRANSACTION_AMOUNTS_PAID: Transaction amounts PAID/DEBITED from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: For each row, determine if money LEFT the account (DEBIT/PAID) by analyzing: the transaction description (keywords like "payment", "withdrawal", "debit", "fee", "purchase", "transfer out"), the debit column, or balance decrease. If money left: include amount with $ symbol. If money did NOT leave: use "NOT_FOUND". CRITICAL: Pay special attention to the EARLIEST/FIRST transaction - extract its amount and type carefully.
+      TRANSACTION_AMOUNTS_RECEIVED: Transaction amounts RECEIVED/CREDITED from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: For each row, determine if money ENTERED the account (CREDIT/RECEIVED) by analyzing: the transaction description (keywords like "credit", "deposit", "salary", "payment received", "transfer in", "refund"), the credit column, or balance increase. If money entered: include amount with $ symbol. If money did NOT enter: use "NOT_FOUND". CRITICAL: Pay special attention to the EARLIEST/FIRST transaction - extract its amount and type carefully.
+      ACCOUNT_BALANCE: Running account balances from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: Extract the balance column values in exact order from first to last transaction. Include all balance values even if some transaction amounts are blank.
 
       OUTPUT EXACTLY IN THIS FORMAT (replace [values] with actual extracted data):
       

@@ -70,6 +70,10 @@ class BankStatementCalculator:
             balances_str = extracted_data.get('ACCOUNT_BALANCE', '')
             descriptions_str = extracted_data.get('LINE_ITEM_DESCRIPTIONS', '')
 
+            # Extract additional fields for hybrid approach
+            amounts_paid_str = extracted_data.get('TRANSACTION_AMOUNTS_PAID', '')
+            amounts_received_str = extracted_data.get('TRANSACTION_AMOUNTS_RECEIVED', '')
+
             if not dates_str or not balances_str:
                 return BankStatementAnalysis(
                     transactions=[],
@@ -86,6 +90,10 @@ class BankStatementCalculator:
             dates = self._parse_dates(dates_str)
             balances = self._parse_balances(balances_str)
             descriptions = self._parse_descriptions(descriptions_str)
+
+            # Parse extracted amounts for hybrid approach
+            extracted_paid = self._parse_extracted_amounts(amounts_paid_str)
+            extracted_received = self._parse_extracted_amounts(amounts_received_str)
 
             if len(dates) != len(balances):
                 if self.verbose:
@@ -118,8 +126,10 @@ class BankStatementCalculator:
             transactions = self._create_transactions(dates, balances, descriptions)
             sorted_transactions = self._sort_chronologically(transactions)
 
-            # Calculate transaction types and amounts
-            analyzed_transactions = self._calculate_transaction_types(sorted_transactions)
+            # Calculate transaction types and amounts using hybrid approach
+            analyzed_transactions = self._calculate_transaction_types(
+                sorted_transactions, extracted_paid, extracted_received
+            )
 
             # Generate summary
             analysis = self._generate_analysis(analyzed_transactions)
@@ -245,6 +255,39 @@ class BankStatementCalculator:
             return []
         return [d.strip() for d in descriptions_str.split('|') if d.strip()]
 
+    def _parse_extracted_amounts(self, amounts_str: str) -> List[float]:
+        """Parse extracted transaction amounts from PAID/RECEIVED fields."""
+        amounts = []
+        if not amounts_str or amounts_str == "NOT_FOUND":
+            return amounts
+
+        # Handle both pipe-separated and space-separated formats
+        if '|' in amounts_str:
+            # Pipe-separated format (preferred)
+            amount_parts = [a.strip() for a in amounts_str.split('|') if a.strip()]
+        else:
+            # Space-separated format (fallback for Llama extraction)
+            amount_parts = re.findall(r'\$[\d,]+\.?\d*(?:\s+CR)?', amounts_str)
+            if not amount_parts:
+                # More aggressive fallback: find any currency amounts
+                amount_parts = re.findall(r'\$[\d,]+\.?\d*', amounts_str)
+
+        for amount_str in amount_parts:
+            try:
+                if amount_str.upper().strip() != "NOT_FOUND":
+                    # Remove currency symbols, commas, and "CR" indicators
+                    clean_amount = re.sub(r'[^\d.-]', '', amount_str)
+                    if clean_amount:
+                        amounts.append(float(clean_amount))
+                    else:
+                        amounts.append(0.0)
+                else:
+                    amounts.append(0.0)
+            except (ValueError, TypeError):
+                amounts.append(0.0)
+
+        return amounts
+
     def _create_transactions(
         self,
         dates: List[Tuple[datetime, str]],
@@ -277,8 +320,16 @@ class BankStatementCalculator:
         """Sort transactions chronologically by date."""
         return sorted(transactions, key=lambda t: t.date)
 
-    def _calculate_transaction_types(self, transactions: List[Transaction]) -> List[Transaction]:
-        """Calculate transaction types and amounts using balance differences."""
+    def _calculate_transaction_types(
+        self,
+        transactions: List[Transaction],
+        extracted_paid: List[float] = None,
+        extracted_received: List[float] = None
+    ) -> List[Transaction]:
+        """Calculate transaction types and amounts using hybrid approach.
+
+        Uses extracted data for first transaction and mathematical differences for subsequent ones.
+        """
         if len(transactions) < 1:
             return transactions
 
@@ -288,10 +339,28 @@ class BankStatementCalculator:
             transaction = transactions[i]
 
             if i == 0:
-                # First transaction - we can't determine type without opening balance
-                # Mark as unknown unless we have additional context
-                transaction.transaction_type = "UNKNOWN"
-                transaction.amount = 0.0
+                # First transaction - use extracted data if available, otherwise mark as unknown
+                used_extracted_data = False
+
+                # Try to use extracted PAID data first
+                if extracted_paid and len(extracted_paid) > 0 and extracted_paid[0] > 0:
+                    transaction.transaction_type = "DEBIT"
+                    transaction.amount = extracted_paid[0]
+                    used_extracted_data = True
+
+                # If no PAID data, try RECEIVED data
+                elif extracted_received and len(extracted_received) > 0 and extracted_received[0] > 0:
+                    transaction.transaction_type = "CREDIT"
+                    transaction.amount = extracted_received[0]
+                    used_extracted_data = True
+
+                # Fallback to unknown if no extracted data available
+                else:
+                    transaction.transaction_type = "UNKNOWN"
+                    transaction.amount = 0.0
+
+                if self.verbose and used_extracted_data:
+                    rprint(f"[cyan]✨ First transaction: Using extracted {transaction.transaction_type} ${transaction.amount:.2f}[/cyan]")
             else:
                 # Calculate change from previous transaction
                 prev_balance = transactions[i - 1].balance
