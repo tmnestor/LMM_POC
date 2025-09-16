@@ -72,6 +72,17 @@ prompts:
 
       ✅ ALWAYS process ROW-BY-ROW, never scan columns!
 
+      ## MANDATORY ROW-BY-ROW EXTRACTION PROTOCOL:
+
+      Step 1: Count total transaction rows in the table
+      Step 2: For EACH row from top to bottom:
+         - Extract the date → add to TRANSACTION_DATES at this position
+         - Extract the description → add to LINE_ITEM_DESCRIPTIONS at this position
+         - Look at DEBIT cell: if has amount → add to TRANSACTION_AMOUNTS_PAID, if empty → add "NOT_FOUND"
+         - Look at CREDIT cell: if has amount → add to TRANSACTION_AMOUNTS_RECEIVED, if empty → add "NOT_FOUND"
+         - Extract the balance → add to ACCOUNT_BALANCE at this position
+      Step 3: Verify all arrays have same length as row count
+
       LINE_ITEM_DESCRIPTIONS: [List ALL transaction descriptions separated by " | " or NOT_FOUND]
       TRANSACTION_DATES: [List ALL transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
       TRANSACTION_AMOUNTS_PAID: [List ALL debit/withdrawal amounts separated by " | " with $ symbol or NOT_FOUND]
