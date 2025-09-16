@@ -359,8 +359,11 @@ class BankStatementCalculator:
                     transaction.transaction_type = "UNKNOWN"
                     transaction.amount = 0.0
 
-                if self.verbose and used_extracted_data:
-                    rprint(f"[cyan]✨ First transaction: Using extracted {transaction.transaction_type} ${transaction.amount:.2f}[/cyan]")
+                # Display detailed earliest transaction information when verbose
+                if self.verbose:
+                    self._display_earliest_transaction_details(
+                        transaction, extracted_paid, extracted_received, used_extracted_data
+                    )
             else:
                 # Calculate change from previous transaction
                 prev_balance = transactions[i - 1].balance
@@ -436,6 +439,56 @@ class BankStatementCalculator:
                 rprint(f"[{color}]  {txn.date_str}: {txn.transaction_type} ${txn.amount:.2f}[/{color}]")
             if len(analysis.transactions) > 3:
                 rprint(f"[dim]  ... and {len(analysis.transactions) - 3} more[/dim]")
+
+    def _display_earliest_transaction_details(
+        self,
+        transaction: Transaction,
+        extracted_paid: List[float],
+        extracted_received: List[float],
+        used_extracted_data: bool
+    ):
+        """Display detailed information about the earliest transaction when verbose mode is enabled."""
+        rprint("\n[bold yellow]🔍 EARLIEST TRANSACTION ANALYSIS[/bold yellow]")
+        rprint(f"[cyan]📅 Date: {transaction.date_str}[/cyan]")
+        rprint(f"[cyan]💰 Balance: ${transaction.balance:.2f}[/cyan]")
+        rprint(f"[cyan]📝 Description: {transaction.description[:50]}{'...' if len(transaction.description) > 50 else ''}[/cyan]")
+
+        # Show extracted data analysis
+        rprint("\n[bold blue]📊 Extracted Data Analysis:[/bold blue]")
+
+        # Display PAID data
+        if extracted_paid and len(extracted_paid) > 0:
+            paid_amount = extracted_paid[0]
+            if paid_amount > 0:
+                rprint(f"[red]  💸 TRANSACTION_AMOUNTS_PAID[0]: ${paid_amount:.2f}[/red]")
+            else:
+                rprint(f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[0]: ${paid_amount:.2f} (zero/invalid)[/dim]")
+        else:
+            rprint("[dim]  💸 TRANSACTION_AMOUNTS_PAID: No data available[/dim]")
+
+        # Display RECEIVED data
+        if extracted_received and len(extracted_received) > 0:
+            received_amount = extracted_received[0]
+            if received_amount > 0:
+                rprint(f"[green]  💰 TRANSACTION_AMOUNTS_RECEIVED[0]: ${received_amount:.2f}[/green]")
+            else:
+                rprint(f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[0]: ${received_amount:.2f} (zero/invalid)[/dim]")
+        else:
+            rprint("[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED: No data available[/dim]")
+
+        # Show final determination
+        rprint("\n[bold green]✅ FINAL DETERMINATION:[/bold green]")
+        if used_extracted_data:
+            color = "red" if transaction.transaction_type == "DEBIT" else "green"
+            rprint(f"[{color}]  🎯 Type: {transaction.transaction_type}[/{color}]")
+            rprint(f"[{color}]  💵 Amount: ${transaction.amount:.2f}[/{color}]")
+            rprint("[cyan]  📋 Source: Extracted data (hybrid approach)[/cyan]")
+        else:
+            rprint(f"[yellow]  ⚠️ Type: {transaction.transaction_type}[/yellow]")
+            rprint(f"[yellow]  💵 Amount: ${transaction.amount:.2f}[/yellow]")
+            rprint("[yellow]  📋 Source: No extracted data available - marked as UNKNOWN[/yellow]")
+
+        rprint("[dim]" + "─" * 60 + "[/dim]")
 
 
 def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
