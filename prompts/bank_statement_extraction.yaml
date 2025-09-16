@@ -130,6 +130,19 @@ prompts:
 
       🏦 SPECIAL FOCUS: COMPREHENSIVE TRANSACTION ANALYSIS
       Bank statements may be in chronological OR reverse chronological order (varies by bank).
+
+      🔍 CRITICAL: PAY SPECIAL ATTENTION TO THE CHRONOLOGICALLY EARLIEST TRANSACTION
+      1. Identify which transaction has the EARLIEST/OLDEST date (may be first or last row)
+      2. Carefully examine its DEBIT/CREDIT columns to determine transaction type
+      3. Look for visual cues in the statement:
+         - If amount appears in DEBIT/WITHDRAWAL column → TRANSACTION_AMOUNTS_PAID
+         - If amount appears in CREDIT/DEPOSIT column → TRANSACTION_AMOUNTS_RECEIVED
+      4. If columns are empty, analyze the transaction description for keywords
+      5. Ensure this earliest transaction's amount is correctly placed in PAID or RECEIVED
+
+      WHY THIS MATTERS: Mathematical validation requires the earliest transaction to be accurately
+      classified. We use balance differences for other transactions, but need the earliest one extracted.
+
       For EVERY transaction (regardless of order):
       - Examine transaction descriptions carefully for type indicators
       - CREDIT keywords: "deposit", "credit", "salary", "payment received", "refund" (money IN)
