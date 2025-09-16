@@ -128,7 +128,7 @@ class BankStatementCalculator:
 
             # Calculate transaction types and amounts using hybrid approach
             analyzed_transactions = self._calculate_transaction_types(
-                sorted_transactions, extracted_paid, extracted_received
+                sorted_transactions, extracted_paid, extracted_received, dates_str, descriptions_str
             )
 
             # Generate summary
@@ -324,7 +324,9 @@ class BankStatementCalculator:
         self,
         transactions: List[Transaction],
         extracted_paid: List[float] = None,
-        extracted_received: List[float] = None
+        extracted_received: List[float] = None,
+        dates_str: str = "",
+        descriptions_str: str = ""
     ) -> List[Transaction]:
         """Calculate transaction types and amounts using hybrid approach.
 
@@ -361,8 +363,12 @@ class BankStatementCalculator:
 
                 # Display detailed earliest transaction information when verbose
                 if self.verbose:
+                    # Find which position in the original arrays corresponds to this earliest transaction
+                    earliest_array_index = self._find_earliest_transaction_array_index(
+                        transaction, dates_str, descriptions_str
+                    )
                     self._display_earliest_transaction_details(
-                        transaction, extracted_paid, extracted_received, used_extracted_data
+                        transaction, extracted_paid, extracted_received, used_extracted_data, earliest_array_index
                     )
             else:
                 # Calculate change from previous transaction
@@ -445,36 +451,38 @@ class BankStatementCalculator:
         transaction: Transaction,
         extracted_paid: List[float],
         extracted_received: List[float],
-        used_extracted_data: bool
+        used_extracted_data: bool,
+        array_index: int
     ):
         """Display detailed information about the earliest transaction when verbose mode is enabled."""
         rprint("\n[bold yellow]🔍 EARLIEST TRANSACTION ANALYSIS[/bold yellow]")
         rprint(f"[cyan]📅 Date: {transaction.date_str}[/cyan]")
         rprint(f"[cyan]💰 Balance: ${transaction.balance:.2f}[/cyan]")
         rprint(f"[cyan]📝 Description: {transaction.description[:50]}{'...' if len(transaction.description) > 50 else ''}[/cyan]")
+        rprint(f"[cyan]📍 Array Position: {array_index} (position in original extraction data)[/cyan]")
 
         # Show extracted data analysis
         rprint("\n[bold blue]📊 Extracted Data Analysis:[/bold blue]")
 
-        # Display PAID data
-        if extracted_paid and len(extracted_paid) > 0:
-            paid_amount = extracted_paid[0]
+        # Display PAID data for the correct transaction index
+        if extracted_paid and len(extracted_paid) > array_index:
+            paid_amount = extracted_paid[array_index]
             if paid_amount > 0:
-                rprint(f"[red]  💸 TRANSACTION_AMOUNTS_PAID[0]: ${paid_amount:.2f}[/red]")
+                rprint(f"[red]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: ${paid_amount:.2f}[/red]")
             else:
-                rprint(f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[0]: ${paid_amount:.2f} (zero/invalid)[/dim]")
+                rprint(f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: NOT_FOUND (zero/invalid)[/dim]")
         else:
-            rprint("[dim]  💸 TRANSACTION_AMOUNTS_PAID: No data available[/dim]")
+            rprint(f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: No data available[/dim]")
 
-        # Display RECEIVED data
-        if extracted_received and len(extracted_received) > 0:
-            received_amount = extracted_received[0]
+        # Display RECEIVED data for the correct transaction index
+        if extracted_received and len(extracted_received) > array_index:
+            received_amount = extracted_received[array_index]
             if received_amount > 0:
-                rprint(f"[green]  💰 TRANSACTION_AMOUNTS_RECEIVED[0]: ${received_amount:.2f}[/green]")
+                rprint(f"[green]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: ${received_amount:.2f}[/green]")
             else:
-                rprint(f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[0]: ${received_amount:.2f} (zero/invalid)[/dim]")
+                rprint(f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: NOT_FOUND (zero/invalid)[/dim]")
         else:
-            rprint("[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED: No data available[/dim]")
+            rprint(f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: No data available[/dim]")
 
         # Show final determination
         rprint("\n[bold green]✅ FINAL DETERMINATION:[/bold green]")
@@ -489,6 +497,34 @@ class BankStatementCalculator:
             rprint("[yellow]  📋 Source: No extracted data available - marked as UNKNOWN[/yellow]")
 
         rprint("[dim]" + "─" * 60 + "[/dim]")
+
+    def _find_earliest_transaction_array_index(
+        self,
+        earliest_transaction: Transaction,
+        dates_str: str,
+        descriptions_str: str
+    ) -> int:
+        """Find which position in the original extraction arrays corresponds to the earliest transaction."""
+
+        # Parse the original dates and descriptions to find the matching index
+        dates = self._parse_dates(dates_str)
+        descriptions = self._parse_descriptions(descriptions_str)
+
+        # Look for the earliest transaction by date and description
+        for i, (date_obj, _date_str) in enumerate(dates):
+            # Match by date
+            if date_obj.date() == earliest_transaction.date.date():
+                # If we have descriptions, also match by description for accuracy
+                if descriptions and i < len(descriptions):
+                    if descriptions[i].strip() == earliest_transaction.description.strip():
+                        return i
+                else:
+                    # No descriptions available, match by date only
+                    return i
+
+        # Fallback: if we can't find a match, return the transaction's original index
+        # This should rarely happen but provides a safe fallback
+        return earliest_transaction.index
 
 
 def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
