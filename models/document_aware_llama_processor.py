@@ -38,7 +38,7 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
-from common.yaml_template_renderer import PureYAMLRenderer
+from common.simple_prompt_loader import SimplePromptLoader, load_llama_prompt
 
 warnings.filterwarnings("ignore")
 
@@ -84,11 +84,7 @@ class DocumentAwareLlamaProcessor:
         # Initialize extraction cleaner for value normalization
         self.cleaner = ExtractionCleaner(debug=debug)
 
-        # Initialize pure YAML template renderer - True YAML-first architecture
-        self.yaml_renderer = PureYAMLRenderer(debug=debug)
-
-        # Validate unified schema consistency at startup - fail fast
-        self.yaml_renderer.validate_field_consistency()
+        # Simple prompt loading - no templates, no complexity
 
         if self.debug:
             print(
@@ -209,38 +205,33 @@ class DocumentAwareLlamaProcessor:
                 print(f"❌ Error loading Llama model: {e}")
             raise
 
-    def generate_dynamic_prompt(self, document_type: str = "invoice") -> str:
+    def get_extraction_prompt(self, document_type: str = None) -> str:
         """
-        Generate prompt using pure YAML templates - zero Python overrides.
+        Get extraction prompt for document type - dead simple.
 
         Args:
-            document_type: Document type (invoice, receipt, bank_statement)
+            document_type: Document type ('invoice', 'receipt', 'bank_statement')
+                          If None, uses 'universal' prompt
 
         Returns:
-            Complete prompt string from unified schema templates
+            Complete prompt string loaded from YAML
         """
-        # TRUE YAML-FIRST: Pure template rendering with no Python dynamic modifications
+        if document_type is None:
+            document_type = "universal"
+
         if self.debug:
-            print(
-                f"🎯 Generating prompt for {document_type} with {len(self.field_list)} fields"
-            )
+            print(f"📝 Loading {document_type} prompt for Llama")
 
         try:
-            return self.yaml_renderer.render_prompt_for_document_type(
-                document_type=document_type,
-                field_list=self.field_list,
-                model_name="llama",  # Use llama model name
-            )
+            return load_llama_prompt(document_type)
         except Exception as e:
-            raise ValueError(
-                f"❌ FATAL: Could not generate prompt from unified schema: {e}\n"
-                "💡 Check unified_schema.yaml exists and has valid templates\n"
-                "💡 Ensure document_type '{document_type}' is supported"
-            ) from e
+            if self.debug:
+                print(f"⚠️ Failed to load {document_type} prompt, falling back to universal")
+            return load_llama_prompt("universal")
 
     def get_supported_document_types(self) -> List[str]:
-        """Get list of supported document types from unified schema."""
-        return self.yaml_renderer.get_supported_document_types()
+        """Get list of supported document types."""
+        return SimplePromptLoader.get_available_prompts("llama_prompts.yaml")
 
     def detect_document_type(self, field_list: List[str] = None) -> str:
         """
@@ -347,9 +338,9 @@ class DocumentAwareLlamaProcessor:
                 prompt = custom_prompt
                 document_type = "CUSTOM"  # Indicate custom prompt usage
             else:
-                # Generate prompt for specific field list using unified schema
+                # Get document-aware prompt
                 document_type = self.detect_document_type()
-                prompt = self.generate_dynamic_prompt(document_type=document_type)
+                prompt = self.get_extraction_prompt(document_type=document_type)
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
@@ -636,13 +627,18 @@ class DocumentAwareLlamaProcessor:
             # Load image once (vs twice in document-aware mode)
             image = self.load_document_image(image_path)
 
-            # Get universal field list and generate universal prompt
-            universal_fields = self.yaml_renderer.get_universal_field_list(
-                model_name="llama"
-            )
-            universal_prompt = self.yaml_renderer.render_universal_prompt(
-                model_name="llama"
-            )
+            # Get universal prompt for single-pass extraction
+            universal_prompt = load_llama_prompt("universal")
+
+            # Universal field list - all 19 fields
+            universal_fields = [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "STATEMENT_DATE_RANGE",
+                "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES", "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
@@ -822,19 +818,24 @@ class DocumentAwareLlamaProcessor:
 
                 traceback.print_exc()
 
-            # Return error result with universal fields
-            universal_fields = self.yaml_renderer.get_universal_field_list(
-                model_name="llama"
-            )
+            # Return error result with default fields list
+            default_fields = [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "STATEMENT_DATE_RANGE",
+                "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES", "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "NOT_FOUND" for field in universal_fields},
+                "extracted_data": {field: "NOT_FOUND" for field in default_fields},
                 "raw_response": f"Error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
                 "content_coverage": 0,
                 "extracted_fields_count": 0,
-                "field_count": len(universal_fields),
+                "field_count": len(default_fields),
                 "document_type": "unknown",
                 "extraction_mode": "universal_single_pass",
             }

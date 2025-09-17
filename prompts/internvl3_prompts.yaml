@@ -1,0 +1,119 @@
+# InternVL3 Document-Aware Prompts - Complete, Self-Contained Prompts
+# Simpler and more concise than Llama prompts for better InternVL3 performance
+# NO TEMPLATES - What you see is what gets sent to the model
+
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields"
+    prompt: |
+      Extract structured data from this invoice image.
+
+      OUTPUT FORMAT (14 FIELDS):
+
+      DOCUMENT_TYPE: [Look for INVOICE, TAX INVOICE at top - answer INVOICE or NOT_FOUND]
+      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
+      SUPPLIER_NAME: [Look at TOP/HEADER for LARGEST business name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Find address near business name at top or NOT_FOUND]
+      PAYER_NAME: [Look for 'Bill To:' or 'Customer:' section - extract name or NOT_FOUND]
+      PAYER_ADDRESS: [Find address in 'Bill To:' or 'Customer:' section or NOT_FOUND]
+      INVOICE_DATE: [Look for 'Date:' or 'Invoice Date:' - format DD/MM/YYYY or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Find main table - list items with " | " separator or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Find QTY column - list with " | " separator or NOT_FOUND]
+      LINE_ITEM_PRICES: [Find Unit Price column - list with $ and " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Find Amount column - list with $ and " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [Check if GST amount shown - answer true or false]
+      GST_AMOUNT: [Look at BOTTOM for GST - extract with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Find LARGEST amount at BOTTOM with $ or NOT_FOUND]
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 14 Fields
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 14 receipt-specific fields"
+    prompt: |
+      Extract structured data from this receipt image.
+
+      OUTPUT FORMAT (14 FIELDS):
+
+      DOCUMENT_TYPE: [Look for RECEIPT text - answer RECEIPT or NOT_FOUND]
+      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
+      SUPPLIER_NAME: [Store/business name at TOP of receipt or NOT_FOUND]
+      BUSINESS_ADDRESS: [Store address usually below name or NOT_FOUND]
+      PAYER_NAME: [Customer name if shown or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
+      INVOICE_DATE: [Transaction date - format DD/MM/YYYY or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [List product names with " | " separator or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [List quantities with " | " separator or NOT_FOUND]
+      LINE_ITEM_PRICES: [List prices with $ and " | " separator or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [List line totals with $ and " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [Check if GST shown - answer true or false]
+      GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total with $ symbol or NOT_FOUND]
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - 7 Fields
+  # ============================================================================
+  bank_statement:
+    name: "Bank Statement Extraction"
+    description: "Extract 7 bank statement-specific fields"
+    prompt: |
+      Extract structured data from this bank statement image.
+
+      CRITICAL: Count transaction table rows. Lists MUST have same number of elements.
+
+      OUTPUT FORMAT (7 FIELDS):
+
+      DOCUMENT_TYPE: [Look for STATEMENT text - answer STATEMENT or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Find period dates at top (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [List transaction descriptions with " | " or NOT_FOUND]
+      TRANSACTION_DATES: [List dates with " | " - MUST match row count or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [List debits with $ and " | " - use NOT_FOUND for empty cells]
+      TRANSACTION_AMOUNTS_RECEIVED: [List credits with $ and " | " - use NOT_FOUND for empty cells]
+      ACCOUNT_BALANCE: [List balances with $ and " | " or NOT_FOUND]
+
+      ROW MATCHING: If 5 rows exist, output exactly 5 elements per field.
+      Example: "$100 | NOT_FOUND | $50 | NOT_FOUND | $25"
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All 19 Fields
+  # ============================================================================
+  universal:
+    name: "Universal Single-Pass Extraction"
+    description: "Extract all 19 fields for any document type"
+    prompt: |
+      Extract information from this business document.
+
+      CRITICAL RULE: If field not visible, return "NOT_FOUND"
+      DO NOT GUESS missing information
+
+      OUTPUT FORMAT (19 FIELDS):
+
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/STATEMENT or NOT_FOUND]
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Business name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Business address or NOT_FOUND]
+      PAYER_NAME: [Customer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address or NOT_FOUND]
+      INVOICE_DATE: [Date DD/MM/YYYY or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range for statements or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Items with " | " separator or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Quantities with " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [Unit prices with $ and " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Line totals with $ and " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [true/false or NOT_FOUND]
+      GST_AMOUNT: [GST with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Total with $ or NOT_FOUND]
+      TRANSACTION_DATES: [Dates with " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debits with $ and " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credits with $ and " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
+
+# Configuration
+settings:
+  max_tokens: 600
+  temperature: 0.0

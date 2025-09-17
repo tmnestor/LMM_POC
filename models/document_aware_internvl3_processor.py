@@ -1135,10 +1135,8 @@ INSTRUCTIONS:
                 f"🎯 Extracting {len(field_list)} document-specific fields using simple YAML prompts"
             )
 
-        # Simple prompt loading from prompts/ directory
-        from common.prompt_loader import PromptLoader
-
-        loader = PromptLoader()
+        # Simple prompt loading - no templates, no complexity
+        from common.simple_prompt_loader import load_internvl3_prompt
 
         # Use provided document type or infer from field list as fallback
         if document_type is None:
@@ -1151,50 +1149,19 @@ INSTRUCTIONS:
                 document_type = "invoice"  # Default fallback
 
         if self.debug:
-            print(f"📋 Using document type: {document_type} for simple prompt loading")
+            print(f"📋 Loading {document_type} prompt for InternVL3")
 
-        # Use provided prompt config or fallback to default InternVL3-specific mapping
-        if prompt_config is None:
-            # Default InternVL3-specific prompt file mapping (fallback)
-            prompt_config = {
-                'extraction_files': {
-                    'INVOICE': 'prompts/internvl3_invoice_extraction.yaml',
-                    'RECEIPT': 'prompts/internvl3_receipt_extraction.yaml',
-                    'BANK_STATEMENT': 'prompts/internvl3_bank_statement_extraction.yaml'
-                },
-                'extraction_keys': {
-                    'INVOICE': 'standard',
-                    'RECEIPT': 'standard',
-                    'BANK_STATEMENT': 'flat'
-                }
-            }
-
-        # Load prompt from InternVL3-specific YAML files using provided config
+        # Load prompt using simple prompt loader
         try:
-            # Map document_type to uppercase for config lookup
-            doc_type_upper = document_type.upper() if document_type else 'INVOICE'
-
-            prompt_file = prompt_config['extraction_files'].get(
-                doc_type_upper,
-                prompt_config['extraction_files']['INVOICE']  # Default fallback
-            )
-            prompt_key = prompt_config['extraction_keys'].get(
-                doc_type_upper,
-                prompt_config['extraction_keys']['INVOICE']  # Default fallback
-            )
-
-            prompt_text, prompt_name, prompt_description = loader.load_prompt(
-                prompt_file=prompt_file,
-                prompt_key=prompt_key,
-                document_type=document_type,
-                verbose=self.debug
-            )
+            prompt_text = load_internvl3_prompt(document_type)
+            prompt_name = f"InternVL3 {document_type.title()}"
+            prompt_description = f"Extract {len(field_list)} fields for {document_type}"
         except Exception as e:
-            raise ValueError(
-                f"❌ FATAL: Could not load prompt from {prompt_file}: {e}\n"
-                f"💡 Check prompt file exists in prompts/ directory\n"
-                f"💡 Ensure document_type '{document_type}' has a corresponding prompt file"
-            ) from e
+            if self.debug:
+                print(f"⚠️ Failed to load {document_type} prompt, falling back to universal")
+            prompt_text = load_internvl3_prompt("universal")
+            prompt_name = "InternVL3 Universal"
+            prompt_description = "Universal extraction for all field types"
 
         if self.debug:
             print("📝 Document-aware extraction prompt:")
@@ -1248,7 +1215,6 @@ INSTRUCTIONS:
             "source": "simple_yaml_prompt",
             "field_count": len(field_list),
             "template_type": "simple_prompt_file",
-            "prompt_file": prompt_file,
             "prompt_name": prompt_name,
             "document_type": document_type
         }
@@ -1273,20 +1239,14 @@ INSTRUCTIONS:
                 f"🌟 Universal extraction: processing all {len(field_list)} fields in single pass"
             )
 
-        # Simple universal prompt loading from prompts/ directory
-        from common.prompt_loader import PromptLoader
-
-        loader = PromptLoader()
+        # Simple universal prompt loading - no templates, no complexity
+        from common.simple_prompt_loader import load_internvl3_prompt
 
         # Load universal prompt from simple YAML file
         try:
-            prompt_file = 'prompts/universal_extraction.yaml'
-            prompt_text, prompt_name, prompt_description = loader.load_prompt(
-                prompt_file=prompt_file,
-                prompt_key="universal",  # Use the universal prompt key
-                document_type="universal",
-                verbose=self.debug
-            )
+            prompt_text = load_internvl3_prompt("universal")
+            prompt_name = "InternVL3 Universal"
+            prompt_description = f"Universal extraction for all {len(field_list)} fields"
 
             if self.debug:
                 print("🔨 Using simple universal extraction prompt")
@@ -1299,8 +1259,8 @@ INSTRUCTIONS:
 
         except Exception as e:
             raise ValueError(
-                f"❌ FATAL: Could not load universal prompt from {prompt_file}: {e}\n"
-                f"💡 Check prompts/universal_extraction.yaml exists"
+                f"❌ FATAL: Could not load universal prompt: {e}\n"
+                f"💡 Check prompts/internvl3_prompts.yaml exists and has 'universal' key"
             ) from e
 
         if self.debug:
