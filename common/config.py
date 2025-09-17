@@ -749,6 +749,11 @@ def get_all_field_types():
     return FIELD_TYPES
 
 
+def get_field_types():
+    """Get field types (alias for get_all_field_types)."""
+    return get_all_field_types()
+
+
 def get_extraction_fields():
     """Get extraction fields."""
     _ensure_initialized()
