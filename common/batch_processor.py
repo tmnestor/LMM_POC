@@ -517,6 +517,14 @@ class BatchDocumentProcessor:
         doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
         max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
 
+        # Show detection prompt when verbose
+        if verbose:
+            rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
+            rprint("[cyan]━" * 80 + "[/cyan]")
+            rprint("[yellow]Detection Prompt:[/yellow]")
+            rprint(f"[dim]{doc_type_prompt}[/dim]")
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
+
         # Create simple processor for detection only
         from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
 
@@ -533,8 +541,15 @@ class BatchDocumentProcessor:
             image_path, doc_type_prompt, max_new_tokens=max_tokens
         )
 
+        # Show raw response when verbose
+        if verbose:
+            rprint(f"[yellow]Model Response:[/yellow] {response}")
+
         # Parse document type from response
         document_type = self._parse_document_type_response(response, detection_config)
+
+        if verbose:
+            rprint(f"[green]✅ Detected Document Type: {document_type}[/green]\n")
 
         # Special handling for bank statements: classify structure type
         if document_type == "BANK_STATEMENT":
