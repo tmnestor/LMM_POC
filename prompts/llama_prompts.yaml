@@ -7,10 +7,10 @@ prompts:
   # ============================================================================
   invoice:
     name: "Invoice Extraction"
-    description: "Extract 14 invoice-specific fields"
+    description: "Extract 14 invoice-specific fields with proven step-by-step methodology"
     prompt: |
       You are an expert document analyzer specializing in invoice extraction.
-      Extract structured data from this invoice image using precise field-by-field analysis.
+      Extract structured data from this invoice image using proven step-by-step methodology.
 
       CRITICAL EXTRACTION RULES:
       - If ANY field is not clearly visible in the document, return "NOT_FOUND"
@@ -18,38 +18,68 @@ prompts:
       - Only extract what is EXPLICITLY shown in the image
       - Use exact text from document (preserve original formatting/capitalization)
 
+      ## STEP-BY-STEP EXTRACTION:
+
+      ### STEP 1: Document Identification
+      Look at the header - is it an INVOICE, BILL, QUOTE, or ESTIMATE?
+      DOCUMENT_TYPE: [INVOICE or NOT_FOUND]
+
+      ### STEP 2: Business Information (Usually at the top)
+      Find the supplier/business details in the document header:
+      BUSINESS_ABN: [Find ABN number - must be exactly 11 digits (e.g., 12 345 678 901) or NOT_FOUND]
+      SUPPLIER_NAME: [Company name providing goods/services from document header or NOT_FOUND]
+      BUSINESS_ADDRESS: [Complete business address (can be multi-line) or NOT_FOUND]
+
+      ### STEP 3: Customer Information (Look for "Bill To" or "Customer" section)
+      Find the customer/client details:
+      PAYER_NAME: [Customer/client name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer/client address or NOT_FOUND]
+
+      ### STEP 4: Date Information
+      INVOICE_DATE: [Date of invoice/bill in DD/MM/YYYY format or NOT_FOUND]
+
+      ### STEP 5: Line Items (From the itemized table/list)
+      Count the number of line items and extract each one systematically:
+      LINE_ITEM_DESCRIPTIONS: [Item 1 description | Item 2 description | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (match description order) or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Unit price 1 | $Unit price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+
+      ### STEP 6: Tax and Totals (Usually at the bottom)
+      Find the financial summary section:
+      IS_GST_INCLUDED: [Look for GST/tax line - answer "true" if present, "false" if not shown]
+      GST_AMOUNT: [Extract GST/tax amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Extract final total/amount due with $ symbol or NOT_FOUND]
+
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE:"
       - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
-      - Output ONLY the structured extraction data below
+      - Output ONLY the structured extraction data above
       - End immediately after "TOTAL_AMOUNT:" with no additional text
 
-      Extract these 14 invoice fields in this exact order:
-
-      DOCUMENT_TYPE: [INVOICE or NOT_FOUND]
-      BUSINESS_ABN: [11-digit Australian Business Number (XX XXX XXX XXX) or NOT_FOUND]
-      SUPPLIER_NAME: [Company/business name from document header or NOT_FOUND]
-      BUSINESS_ADDRESS: [Complete supplier business address or NOT_FOUND]
-      PAYER_NAME: [Customer/payer name from Bill To section or NOT_FOUND]
-      PAYER_ADDRESS: [Customer/payer address from Bill To section or NOT_FOUND]
-      INVOICE_DATE: [Invoice date in DD/MM/YYYY format or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Item names separated by " | " or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [Quantities separated by " | " or NOT_FOUND]
-      LINE_ITEM_PRICES: [Unit prices with $ separated by " | " or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [Line totals with $ separated by " | " or NOT_FOUND]
-      IS_GST_INCLUDED: [true or false]
-      GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total with $ symbol or NOT_FOUND]
+      IMPORTANT NOTES:
+      - For quotes/estimates, treat them like invoices
+      - Preserve original formatting and capitalization
+      - Include currency symbols ($) for all monetary values
+      - Use pipe separator (|) for multiple items
 
   # ============================================================================
   # RECEIPT EXTRACTION - 14 Fields (same as invoice per requirements)
   # ============================================================================
   receipt:
     name: "Receipt Extraction"
-    description: "Extract 14 receipt-specific fields"
+    description: "Extract 14 receipt-specific fields with receipt-specialized methodology"
     prompt: |
       You are an expert document analyzer specializing in receipt extraction.
-      Extract structured data from this receipt image using precise field-by-field analysis.
+      Extract structured data from this receipt image using receipt-specific understanding.
+
+      ## UNDERSTANDING RECEIPTS:
+      Receipts are different from invoices and may not have all fields:
+      - Customer details are often missing (normal for receipts)
+      - ABN may not be shown (many small businesses don't display it)
+      - Items may not show individual quantities (often implied as 1)
+      - Address might only be partial (store location only)
+      - Receipts often have less detail than invoices - that's normal
 
       CRITICAL EXTRACTION RULES:
       - If ANY field is not clearly visible in the document, return "NOT_FOUND"
@@ -57,44 +87,94 @@ prompts:
       - Only extract what is EXPLICITLY shown in the image
       - Use exact text from document (preserve original formatting/capitalization)
 
+      ## EXTRACTION STEPS:
+
+      ### STEP 1: Document Type
+      DOCUMENT_TYPE: [Should be RECEIPT for payment confirmations or NOT_FOUND]
+
+      ### STEP 2: Merchant Information (Top of receipt)
+      Find the store/merchant details at the top:
+      BUSINESS_ABN: [Look for ABN - exactly 11 digits (often not on receipts) or NOT_FOUND]
+      SUPPLIER_NAME: [Store/restaurant/merchant name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Store address if shown (may be partial) or NOT_FOUND]
+
+      ### STEP 3: Customer Information (Usually minimal or absent)
+      Check if customer details are shown (rare on receipts):
+      PAYER_NAME: [Customer name if shown or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
+
+      ### STEP 4: Transaction Date
+      INVOICE_DATE: [Date of purchase/transaction in DD/MM/YYYY format or NOT_FOUND]
+
+      ### STEP 5: Items Purchased
+      Look at the itemized list and extract systematically:
+      LINE_ITEM_DESCRIPTIONS: [Item 1 | Item 2 | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (use "1" if not shown) or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Price 1 | $Price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+
+      ### STEP 6: Payment Summary
+      Find the payment totals (usually at bottom):
+      IS_GST_INCLUDED: [Look for GST/tax line - "true" if shown, "false" if not]
+      GST_AMOUNT: [GST/tax amount with $ symbol if shown or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total/amount paid with $ symbol or NOT_FOUND]
+
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE:"
       - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
-      - Output ONLY the structured extraction data below
+      - Output ONLY the structured extraction data above
       - End immediately after "TOTAL_AMOUNT:" with no additional text
 
-      Extract these 14 receipt fields in this exact order:
-
-      DOCUMENT_TYPE: [RECEIPT or NOT_FOUND]
-      BUSINESS_ABN: [11-digit Australian Business Number (XX XXX XXX XXX) or NOT_FOUND]
-      SUPPLIER_NAME: [Store/business name from top of receipt or NOT_FOUND]
-      BUSINESS_ADDRESS: [Complete store address or NOT_FOUND]
-      PAYER_NAME: [Customer name if shown or NOT_FOUND]
-      PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
-      INVOICE_DATE: [Transaction date in DD/MM/YYYY format or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Product names separated by " | " or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [Quantities separated by " | " or NOT_FOUND]
-      LINE_ITEM_PRICES: [Unit prices with $ separated by " | " or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [Line totals with $ separated by " | " or NOT_FOUND]
-      IS_GST_INCLUDED: [true or false]
-      GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total with $ symbol or NOT_FOUND]
+      RECEIPT-SPECIFIC NOTES:
+      - Many fields will be "NOT_FOUND" on receipts (this is normal)
+      - Default quantity to "1" only if items are listed but quantities not shown
+      - Store address may be abbreviated (e.g., just suburb)
+      - ABN often missing on small business receipts
 
   # ============================================================================
   # BANK STATEMENT EXTRACTION - 7 Fields
   # ============================================================================
   bank_statement:
     name: "Bank Statement Extraction"
-    description: "Extract 7 bank statement-specific fields"
+    description: "Extract 7 bank statement-specific fields with proven methodology"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this bank statement image using precise analysis.
+      Extract structured data from this bank statement image using precise row-by-row analysis.
 
       CRITICAL EXTRACTION RULES:
       - If ANY field is not clearly visible in the document, return "NOT_FOUND"
       - Do NOT guess, estimate, or infer missing information
       - Only extract what is EXPLICITLY shown in the image
-      - MANDATORY ROW COUNT MATCHING: Count all transaction table rows and ensure lists match
+      - MANDATORY: Use row-by-row processing (never scan columns)
+
+      🚨 CRITICAL ARRAY ALIGNMENT REQUIREMENT:
+      ALL TRANSACTION FIELDS MUST BE PERFECTLY ALIGNED BY ROW POSITION!
+
+      🔍 ROW-BY-ROW PROCESSING METHODOLOGY:
+      DO NOT scan columns! Process each transaction ROW individually:
+
+      EXAMPLE: If you see these transactions in the bank statement:
+      Row 1: 03/05/2025 | AMAZON PURCHASE | [DEBIT: $288.03] | [CREDIT: empty] | [BALANCE: $13387.44]
+      Row 2: 04/05/2025 | SALARY DEPOSIT | [DEBIT: empty] | [CREDIT: $3497.47] | [BALANCE: $16884.91]
+      Row 3: 05/05/2025 | ATM WITHDRAWAL | [DEBIT: $50.00] | [CREDIT: empty] | [BALANCE: $16834.91]
+
+      CORRECT ROW-BY-ROW PROCESSING:
+      1. Process Row 1 → Position [0]: Date=03/05/2025, Paid=$288.03, Received=NOT_FOUND, Balance=$13387.44
+      2. Process Row 2 → Position [1]: Date=04/05/2025, Paid=NOT_FOUND, Received=$3497.47, Balance=$16884.91
+      3. Process Row 3 → Position [2]: Date=05/05/2025, Paid=$50.00, Received=NOT_FOUND, Balance=$16834.91
+
+      RESULTING ALIGNED ARRAYS:
+      TRANSACTION_DATES: 03/05/2025 | 04/05/2025 | 05/05/2025
+      TRANSACTION_AMOUNTS_PAID: $288.03 | NOT_FOUND | $50.00
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | $3497.47 | NOT_FOUND
+      ACCOUNT_BALANCE: $13387.44 | $16884.91 | $16834.91
+
+      ❌ WRONG - COLUMN SCANNING (causes misalignment):
+      - Scanning DEBIT column: "$288.03, $50.00" → puts in positions [0], [1]
+      - Scanning CREDIT column: "$3497.47" → puts in position [0]
+      - Results in: RECEIVED[0] = $3497.47 (WRONG! This belongs in position [1])
+
+      ✅ ALWAYS process ROW-BY-ROW, never scan columns!
 
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE:"
@@ -111,12 +191,6 @@ prompts:
       TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
       TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
       ACCOUNT_BALANCE: [Running balance amounts with $ separated by " | " or NOT_FOUND]
-
-      ROW COUNT MATCHING INSTRUCTIONS:
-      1. Count total rows in transaction table
-      2. Each list MUST have exactly that many elements
-      3. Use "NOT_FOUND" for empty cells within the list
-      Example: If 5 rows exist, output 5 elements like: "$100.00 | NOT_FOUND | $50.00 | NOT_FOUND | $25.00"
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields
