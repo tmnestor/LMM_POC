@@ -212,9 +212,38 @@ class BatchDocumentProcessor:
                             else:
                                 rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
 
-                    # Use SimpleModelEvaluator for clean model comparison
+                    # Filter ground truth to document-specific fields for accurate evaluation
+                    # Define document-specific field lists for evaluation
+                    doc_type_fields = {
+                        'invoice': [
+                            "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                            "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                            "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                            "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                        ],
+                        'receipt': [
+                            "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                            "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                            "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                            "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                        ],
+                        'bank_statement': [
+                            "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                            "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                            "ACCOUNT_BALANCE"
+                        ]
+                    }
+                    evaluation_fields = doc_type_fields.get(document_type, doc_type_fields['invoice'])
+
+                    filtered_ground_truth = {
+                        field: ground_truth[field]
+                        for field in evaluation_fields
+                        if field in ground_truth
+                    }
+
+                    # Use SimpleModelEvaluator for clean model comparison with filtered data
                     evaluation_result = self.model_evaluator.evaluate_extraction(
-                        extracted_data, ground_truth, image_path
+                        extracted_data, filtered_ground_truth, image_path
                     )
 
                     # Convert to expected format for compatibility

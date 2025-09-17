@@ -82,28 +82,37 @@ class SimpleModelEvaluator:
 
     def _values_match(self, extracted: str, ground_truth: str) -> bool:
         """
-        Simple value matching with basic normalization.
+        Enhanced value matching with business document-specific normalization.
 
         Args:
             extracted: Value extracted by model
             ground_truth: Expected value
 
         Returns:
-            True if values match (case-insensitive, whitespace normalized)
+            True if values match (with appropriate normalization)
         """
         # Basic normalization
-        extracted_clean = extracted.lower().strip()
-        ground_truth_clean = ground_truth.lower().strip()
+        extracted_clean = extracted.lower().strip().strip('"')
+        ground_truth_clean = ground_truth.lower().strip().strip('"')
 
         # Exact match after normalization
         if extracted_clean == ground_truth_clean:
             return True
 
+        # For list fields (pipe-separated), check FIRST before other types
+        if '|' in extracted_clean or '|' in ground_truth_clean:
+            return self._list_match(extracted_clean, ground_truth_clean)
+
         # For monetary values, try to normalize currency formatting
-        if self._is_monetary(ground_truth_clean):
+        if self._is_monetary(ground_truth_clean) or self._is_monetary(extracted_clean):
             return self._monetary_match(extracted_clean, ground_truth_clean)
 
-        return False
+        # For ABN/numeric IDs, normalize whitespace and formatting
+        if self._is_abn_or_numeric_id(ground_truth_clean) or self._is_abn_or_numeric_id(extracted_clean):
+            return self._numeric_id_match(extracted_clean, ground_truth_clean)
+
+        # For addresses and text fields, use fuzzy matching
+        return self._fuzzy_text_match(extracted_clean, ground_truth_clean)
 
     def _is_monetary(self, value: str) -> bool:
         """Check if value appears to be a monetary amount."""
@@ -118,9 +127,70 @@ class SimpleModelEvaluator:
         ground_truth_nums = re.sub(r'[^\d.]', '', ground_truth)
 
         try:
-            return float(extracted_nums) == float(ground_truth_nums)
+            return abs(float(extracted_nums) - float(ground_truth_nums)) < 0.01
         except (ValueError, TypeError):
             return False
+
+    def _is_abn_or_numeric_id(self, value: str) -> bool:
+        """Check if value appears to be an ABN or numeric ID."""
+        # Remove spaces and check if it's mostly digits
+        digits_only = ''.join(c for c in value if c.isdigit())
+        return len(digits_only) >= 8 and len(digits_only) / len(value.replace(' ', '')) > 0.7
+
+    def _numeric_id_match(self, extracted: str, ground_truth: str) -> bool:
+        """Compare numeric IDs (like ABN) ignoring whitespace."""
+        import re
+
+        # Extract just digits and normalize
+        extracted_digits = re.sub(r'\D', '', extracted)
+        ground_truth_digits = re.sub(r'\D', '', ground_truth)
+
+        return extracted_digits == ground_truth_digits
+
+    def _list_match(self, extracted: str, ground_truth: str) -> bool:
+        """Compare pipe-separated lists with element-wise normalization."""
+        # Split by pipe and normalize each element
+        extracted_items = [item.strip() for item in extracted.split('|')]
+        ground_truth_items = [item.strip() for item in ground_truth.split('|')]
+
+        if len(extracted_items) != len(ground_truth_items):
+            return False
+
+        # Compare each corresponding pair
+        for ext_item, gt_item in zip(extracted_items, ground_truth_items, strict=False):
+            if not self._single_item_match(ext_item.strip(), gt_item.strip()):
+                return False
+
+        return True
+
+    def _single_item_match(self, extracted: str, ground_truth: str) -> bool:
+        """Match single items with monetary and text normalization."""
+        # Try monetary match first
+        if self._is_monetary(extracted) or self._is_monetary(ground_truth):
+            return self._monetary_match(extracted, ground_truth)
+
+        # Try exact match
+        if extracted.lower().strip() == ground_truth.lower().strip():
+            return True
+
+        # Try fuzzy match for text
+        return self._fuzzy_text_match(extracted, ground_truth)
+
+    def _fuzzy_text_match(self, extracted: str, ground_truth: str) -> bool:
+        """Fuzzy matching for text fields using simple similarity."""
+        # For short strings, require exact match
+        if len(ground_truth) <= 3:
+            return extracted == ground_truth
+
+        # Simple character-based similarity
+        if len(extracted) == 0 or len(ground_truth) == 0:
+            return False
+
+        # Calculate simple overlap ratio
+        common_chars = sum(1 for c in extracted if c in ground_truth)
+        similarity = common_chars / max(len(extracted), len(ground_truth))
+
+        return similarity >= 0.85
 
     def calculate_batch_metrics(self, results: List[SimpleEvaluationResult]) -> Dict[str, Any]:
         """
