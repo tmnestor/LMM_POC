@@ -19,7 +19,6 @@ Usage:
 """
 
 import time
-from pathlib import Path
 from typing import Any, Dict
 
 from PIL import Image
