@@ -15,7 +15,7 @@ from rich.progress import track
 
 from .document_type_metrics import DocumentTypeEvaluator
 from .evaluation_metrics import load_ground_truth
-from .prompt_loader import load_document_prompt
+from .simple_prompt_loader import SimplePromptLoader
 
 
 class BatchDocumentProcessor:
@@ -581,13 +581,11 @@ class BatchDocumentProcessor:
             extraction_files = self.prompt_config["extraction_files"]
             extraction_keys = self.prompt_config["extraction_keys"]
 
-        # Step 2: Load document-specific prompt
-        extraction_prompt, prompt_name, _ = load_document_prompt(
-            prompt_files=extraction_files,
-            prompt_keys=extraction_keys,
-            document_type=document_type,
-            verbose=verbose,
-        )
+        # Step 2: Load document-specific prompt using SimplePromptLoader
+        prompt_loader = SimplePromptLoader()
+        # Use llama prompts for Llama processor
+        extraction_prompt = prompt_loader.load_llama_prompt(document_type.lower())
+        prompt_name = f"llama_{document_type.lower()}_prompt"
 
         # Step 3: Extract fields using simplified field mapping
         doc_type_fields = {

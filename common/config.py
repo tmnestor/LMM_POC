@@ -472,87 +472,46 @@ def _get_config():
     """
     Get schema configuration with deferred initialization.
 
-    DOCUMENT AWARE REDUCTION: Updated to support reduced field schema.
+    SIMPLIFIED: Now uses field_definitions_loader instead of complex unified_schema.
     """
     global _config
     if _config is None:
-        # Use simplified schema with boss's field reduction
-        from .unified_schema import DocumentTypeFieldSchema
+        # Use simplified field definitions loader
+        from .field_definitions_loader import SimpleFieldLoader
 
-        schema = DocumentTypeFieldSchema()
+        loader = SimpleFieldLoader()
 
-        # Create simple config object with boss's reduced field counts
+        # Create simple config object with simplified fields
         class SimpleConfig:
-            def __init__(self, schema):
-                self.schema_loader = schema
-                self.extraction_fields = schema.get_all_fields()
-                # OLD_COUNT: schema.get_field_count() returned 48
-                # NEW_COUNT: Active fields are 15 unique fields after boss reduction
-                self.field_count = schema.get_field_count()  # Keep for compatibility
-                self.active_field_count = 15  # NEW_COUNT: Boss's reduced schema
+            def __init__(self, loader):
+                self.field_loader = loader
 
-                # DOCUMENT AWARE REDUCTION: Only classify fields that are in the reduced schema
-                # All active fields from reduced schema (no complex classification needed)
-                active_fields = [
-                    "DOCUMENT_TYPE",
-                    "INVOICE_DATE",
-                    "SUPPLIER_NAME",
-                    "BUSINESS_ABN",
-                    "BUSINESS_ADDRESS",
-                    "PAYER_NAME",
-                    "PAYER_ADDRESS",
-                    "LINE_ITEM_DESCRIPTIONS",
-                    "LINE_ITEM_TOTAL_PRICES",
-                    "GST_AMOUNT",
-                    "IS_GST_INCLUDED",
-                    "TOTAL_AMOUNT",
-                    "STATEMENT_DATE_RANGE",
-                    "TRANSACTION_DATES",
-                    "TRANSACTION_AMOUNTS_PAID",
-                ]
+                # Get invoice fields as the primary field set
+                self.extraction_fields = loader.get_document_fields("invoice")
+                self.field_count = len(self.extraction_fields)
+                self.active_field_count = len(self.extraction_fields)
 
-                # Simplified field types - focus on essential fields only
-                self.field_types = {field: "text" for field in active_fields}
+                # Simplified field types - all text for simplicity
+                self.field_types = {field: "text" for field in self.extraction_fields}
 
-                # DOCUMENT AWARE REDUCTION: Classify only the essential fields
-                # SUPER_SET: Most field type lists now empty due to reduction
-                self.phone_fields = []  # SUPER_SET: No phone fields in reduced schema
-                self.list_fields = [
-                    "LINE_ITEM_DESCRIPTIONS"
-                ]  # SUBSET: Essential line items
-                self.monetary_fields = [
-                    "GST_AMOUNT",
-                    "TOTAL_AMOUNT",
-                    "TRANSACTION_AMOUNTS_PAID",
-                    "TRANSACTION_AMOUNTS_RECEIVED",
-                ]  # SUBSET: Essential amounts including calculated fields
-                self.numeric_id_fields = ["BUSINESS_ABN"]  # SUBSET: Essential ID
-                self.date_fields = [
-                    "INVOICE_DATE",
-                    "STATEMENT_DATE_RANGE",
-                    "TRANSACTION_DATES",
-                ]  # SUBSET: Essential dates
-                self.text_fields = [
-                    "SUPPLIER_NAME",
-                    "BUSINESS_ADDRESS",
-                    "PAYER_NAME",
-                    "PAYER_ADDRESS",
-                ]  # SUBSET: Essential text
-                self.boolean_fields = ["IS_GST_INCLUDED"]  # SUBSET: Essential boolean
-                self.calculated_fields = []  # SUPER_SET: No calculated fields in reduced schema
-                self.transaction_list_fields = [
-                    "TRANSACTION_DATES",
-                    "TRANSACTION_AMOUNTS_PAID",
-                    "TRANSACTION_AMOUNTS_RECEIVED",
-                ]  # SUBSET: Bank statement transactions including calculated fields
+                # Simplified field classifications - minimal for compatibility
+                self.phone_fields = []
+                self.list_fields = []
+                self.monetary_fields = []
+                self.numeric_id_fields = []
+                self.date_fields = []
+                self.text_fields = self.extraction_fields  # All fields are text by default
+                self.boolean_fields = []
+                self.calculated_fields = []
+                self.transaction_list_fields = []
 
-        _config = SimpleConfig(schema)
+        _config = SimpleConfig(loader)
     return _config
 
 
 def get_document_schema():
-    """Get document schema loader."""
-    return _get_config().schema_loader
+    """Get document field loader."""
+    return _get_config().field_loader
 
 
 # Schema loader and fields - deferred access
