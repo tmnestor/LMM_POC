@@ -503,7 +503,6 @@ class BatchDocumentProcessor:
         # Step 1: Detect document type using YAML-first approach
         import yaml
 
-        from common.unified_schema import DocumentTypeFieldSchema
 
         # Load detection config from YAML
         detection_path = Path(self.prompt_config["detection_file"])
@@ -590,9 +589,27 @@ class BatchDocumentProcessor:
             verbose=verbose,
         )
 
-        # Step 3: Extract fields using DocumentAwareLlamaProcessor
-        schema_loader = DocumentTypeFieldSchema()
-        field_list = schema_loader.get_field_names_for_type(document_type)
+        # Step 3: Extract fields using simplified field mapping
+        doc_type_fields = {
+            'invoice': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'receipt': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'bank_statement': [
+                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
+        }
+        field_list = doc_type_fields.get(document_type, doc_type_fields['invoice'])
 
         # Create document-aware processor with loaded model/processor
         doc_processor = DocumentAwareLlamaProcessor(

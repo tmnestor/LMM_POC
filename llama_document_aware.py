@@ -35,8 +35,7 @@ from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
 from common.extraction_parser import create_extraction_dataframe, discover_images
 
-# Import unified schema loader (simplified YAML-first)
-from common.unified_schema import DocumentTypeFieldSchema
+# Import simplified field schema loader
 from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
 
 
@@ -53,20 +52,18 @@ class DocumentAwareLlamaHandler:
         )
 
         # Initialize V4 components
-        self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
 
-        # Load document detection prompts from unified schema (single source of truth)
-        self.detection_config = self.schema_loader.load_detection_prompts()
+        # Simple detection config - no complex schema needed
+        self.detection_config = {
+            'version': 'simplified',
+            'supported_types': ['invoice', 'receipt', 'bank_statement']
+        }
 
         if self.debug:
-            print("📝 YAML-first prompt loader initialized")
-            print(
-                f"   Detection config version: {self.detection_config.get('version', 'unknown')}"
-            )
-            print(
-                f"   Supported types: {len(self.detection_config.get('supported_types', []))}"
-            )
+            print("📝 Simplified prompt loader initialized")
+            print(f"   Detection config version: {self.detection_config.get('version', 'unknown')}")
+            print(f"   Supported types: {len(self.detection_config.get('supported_types', []))}")
 
         # Create a single processor that will be reused for all operations
         # Initially with just DOCUMENT_TYPE for detection, then reconfigured for extraction
@@ -182,8 +179,32 @@ class DocumentAwareLlamaHandler:
                 "fallback_type", "invoice"
             )
 
-        # Get schema for detected document type
-        schema = self.schema_loader.get_document_schema(doc_type)
+        # Get simplified field list for detected document type
+        doc_type_fields = {
+            'invoice': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'receipt': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'bank_statement': [
+                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
+        }
+
+        fields = doc_type_fields.get(doc_type, doc_type_fields['invoice'])
+        schema = {
+            'fields': fields,
+            'extraction_mode': 'document_specific'
+        }
 
         if self.debug:
             print(f"   Schema Fields: {len(schema['fields'])} fields")
@@ -193,9 +214,7 @@ class DocumentAwareLlamaHandler:
             "document_type": doc_type,
             "schema": schema,
             "field_count": len(schema["fields"]),
-            "field_names": schema["fields"]
-            if isinstance(schema["fields"][0], str)
-            else [f["name"] for f in schema["fields"]],
+            "field_names": fields,
         }
 
     def process_document_aware(
@@ -477,13 +496,15 @@ class DocumentAwareLlamaHandler:
 
         # Ensure processor exists for universal extraction
         if not self.processor:
-            # Initialize with universal field list for consistent configuration
-            from common.yaml_template_renderer import PureYAMLRenderer
-
-            yaml_renderer = PureYAMLRenderer(debug=self.debug)
-            universal_fields = yaml_renderer.get_universal_field_list(
-                model_name="llama"
-            )
+            # Use universal field list - simplified approach
+            universal_fields = [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "STATEMENT_DATE_RANGE",
+                "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES", "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
 
             self.processor = DocumentAwareLlamaProcessor(
                 field_list=universal_fields,

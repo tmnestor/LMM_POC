@@ -35,8 +35,7 @@ from common.document_type_metrics import DocumentTypeEvaluator
 from common.evaluation_metrics import load_ground_truth
 from common.extraction_parser import create_extraction_dataframe, discover_images
 
-# Import unified schema loader (simplified YAML-first)
-from common.unified_schema import DocumentTypeFieldSchema
+# Import simplified field schema loader
 from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
 
 # Universal extraction field list - eliminates document type detection
@@ -79,11 +78,13 @@ class DocumentAwareInternVL3Handler:
         self.model_loaded = False
 
         # Initialize V4 components
-        self.schema_loader = DocumentTypeFieldSchema()
         self.evaluator = DocumentTypeEvaluator()
 
-        # Load document detection prompts from unified schema (single source of truth)
-        self.detection_config = self.schema_loader.load_detection_prompts()
+        # Simple detection config - no complex schema needed
+        self.detection_config = {
+            'version': 'simplified',
+            'supported_types': ['invoice', 'receipt', 'bank_statement']
+        }
 
         if self.debug:
             print("📝 YAML-first prompt loader initialized")
@@ -138,8 +139,32 @@ class DocumentAwareInternVL3Handler:
                 "fallback_type", "invoice"
             )
 
-        # Get schema for correctly detected document type
-        schema = self.schema_loader.get_document_schema(doc_type)
+        # Get simplified field list for detected document type
+        doc_type_fields = {
+            'invoice': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'receipt': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'bank_statement': [
+                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
+        }
+
+        field_names = doc_type_fields.get(doc_type, doc_type_fields['invoice'])
+        schema = {
+            'fields': field_names,
+            'extraction_mode': 'document_specific'
+        }
 
         if self.debug:
             print(f"   Document Type: {doc_type}")
@@ -147,13 +172,6 @@ class DocumentAwareInternVL3Handler:
             print(f"   Extraction Mode: {schema['extraction_mode']}")
             print(f"   🔍 DEBUG: First 5 schema fields: {schema['fields'][:5]}")
             print(f"   🔍 DEBUG: Total schema fields: {len(schema['fields'])}")
-
-        # Extract field names
-        field_names = (
-            schema["fields"]
-            if isinstance(schema["fields"][0], str)
-            else [f["name"] for f in schema["fields"]]
-        )
 
         if self.debug:
             print(f"   🔍 DEBUG: Field names length: {len(field_names)}")
