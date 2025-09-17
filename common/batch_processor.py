@@ -577,9 +577,14 @@ class BatchDocumentProcessor:
 
         # Step 2: Load document-specific prompt using SimplePromptLoader
         prompt_loader = SimplePromptLoader()
-        # Use llama prompts for Llama processor
-        extraction_prompt = prompt_loader.load_llama_prompt(document_type.lower())
-        prompt_name = f"llama_{document_type.lower()}_prompt"
+        # Use llama prompts for Llama processor - with fallback to universal
+        try:
+            extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", document_type.lower())
+            prompt_name = f"llama_{document_type.lower()}_prompt"
+        except KeyError:
+            # Fall back to universal prompt if specific document type not found
+            extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", "universal")
+            prompt_name = "llama_universal_prompt"
 
         # Step 3: Extract fields using simplified field mapping
         doc_type_fields = {
