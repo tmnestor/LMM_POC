@@ -511,7 +511,8 @@ class BatchDocumentProcessor:
             detection_config = yaml.safe_load(f)
 
         # Get detection prompt and settings
-        detection_prompt_key = detection_config.get("settings", {}).get(
+        # Use the key specified in prompt_config, falling back to YAML default if not specified
+        detection_prompt_key = self.prompt_config.get("detection_key") or detection_config.get("settings", {}).get(
             "default_prompt", "detection"
         )
         doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
@@ -521,7 +522,7 @@ class BatchDocumentProcessor:
         if verbose:
             rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
             rprint("[cyan]━" * 80 + "[/cyan]")
-            rprint("[yellow]Detection Prompt:[/yellow]")
+            rprint(f"[yellow]Detection Prompt (using key: '{detection_prompt_key}'):[/yellow]")
             rprint(f"[dim]{doc_type_prompt}[/dim]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
@@ -603,9 +604,15 @@ class BatchDocumentProcessor:
         doc_processor.processor = self.processor
 
         # Load max_tokens from YAML settings
-        prompt_file = extraction_files.get(
-            document_type, "prompts/invoice_extraction.yaml"
-        )
+        # PROMPT_CONFIG must be the single source of truth - no hardcoded fallbacks!
+        if document_type not in extraction_files:
+            raise ValueError(
+                f"Document type '{document_type}' not found in extraction_files. "
+                f"Available types: {list(extraction_files.keys())}. "
+                f"Please update PROMPT_CONFIG to include this document type."
+            )
+
+        prompt_file = extraction_files[document_type]
         try:
             with Path(prompt_file).open("r") as f:
                 yaml_config = yaml.safe_load(f)

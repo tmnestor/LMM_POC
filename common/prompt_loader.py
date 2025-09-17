@@ -191,9 +191,27 @@ def load_document_prompt(
 
     Returns:
         Tuple of (prompt_text, prompt_name, prompt_description)
+
+    Raises:
+        ValueError: If document_type is not found in prompt_files or prompt_keys
     """
-    prompt_file = prompt_files.get(document_type, "prompts/invoice_extraction.yaml")
-    prompt_key = prompt_keys.get(document_type, "standard")
+    # PROMPT_CONFIG must be the single source of truth - no hardcoded fallbacks!
+    if document_type not in prompt_files:
+        raise ValueError(
+            f"Document type '{document_type}' not found in prompt_files. "
+            f"Available types: {list(prompt_files.keys())}. "
+            f"Please update PROMPT_CONFIG to include this document type."
+        )
+
+    if document_type not in prompt_keys:
+        raise ValueError(
+            f"Document type '{document_type}' not found in prompt_keys. "
+            f"Available types: {list(prompt_keys.keys())}. "
+            f"Please update PROMPT_CONFIG to include this document type."
+        )
+
+    prompt_file = prompt_files[document_type]
+    prompt_key = prompt_keys[document_type]
 
     loader = PromptLoader()
     prompt_text, prompt_name, prompt_description = loader.load_prompt(
