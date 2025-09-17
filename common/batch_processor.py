@@ -13,8 +13,8 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
 
-from .document_type_metrics import DocumentTypeEvaluator
 from .evaluation_metrics import load_ground_truth
+from .simple_model_evaluator import SimpleModelEvaluator
 from .simple_prompt_loader import SimplePromptLoader
 
 
@@ -61,8 +61,8 @@ class BatchDocumentProcessor:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._trace_file = f"batch_processor_trace_{timestamp}.log"
 
-        # Use DocumentTypeEvaluator for all evaluation
-        self.document_evaluator = DocumentTypeEvaluator()
+        # Use SimpleModelEvaluator for model comparison
+        self.model_evaluator = SimpleModelEvaluator()
         self.ground_truth_data = None
 
     def _trace_log(self, message: str):
@@ -212,27 +212,21 @@ class BatchDocumentProcessor:
                             else:
                                 rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
 
-                    # Use the working DocumentTypeEvaluator approach that succeeds
-                    evaluation = self.document_evaluator.evaluate_extraction(
-                        extracted_data, ground_truth, document_type
+                    # Use SimpleModelEvaluator for clean model comparison
+                    evaluation_result = self.model_evaluator.evaluate_extraction(
+                        extracted_data, ground_truth, image_path
                     )
 
-                    # Fix structure mismatch: BatchAnalytics expects overall_accuracy at top level
-                    # but DocumentTypeEvaluator puts it in overall_metrics
-                    if evaluation and "overall_metrics" in evaluation:
-                        # Flatten the structure for BatchAnalytics compatibility
-                        evaluation["overall_accuracy"] = evaluation[
-                            "overall_metrics"
-                        ].get("overall_accuracy", 0)
-                        evaluation["fields_extracted"] = evaluation[
-                            "overall_metrics"
-                        ].get("total_fields_evaluated", 0)
-                        evaluation["fields_matched"] = evaluation[
-                            "overall_metrics"
-                        ].get("fields_correct", 0)
-                        evaluation["total_fields"] = evaluation["overall_metrics"].get(
-                            "total_fields_evaluated", 0
-                        )
+                    # Convert to expected format for compatibility
+                    evaluation = {
+                        "overall_accuracy": evaluation_result.accuracy,
+                        "total_fields": evaluation_result.total_fields,
+                        "correct_fields": evaluation_result.correct_fields,
+                        "missing_fields": evaluation_result.missing_fields,
+                        "incorrect_fields": evaluation_result.incorrect_fields
+                    }
+
+                    # SimpleModelEvaluator already provides data in correct format - no flattening needed
 
                     # Show evaluation summary
                     if verbose and evaluation:
