@@ -1,3 +1,0 @@
-document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
-invoice,81.9,85.71,7.87,72.86,87.14,8.35,7.86,3
-receipt,85.24,87.14,5.95,78.57,90.0,7.47,7.76,3
