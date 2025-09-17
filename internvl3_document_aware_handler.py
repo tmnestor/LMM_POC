@@ -1,847 +1,263 @@
 #!/usr/bin/env python3
 """
-InternVL3 Document-Aware Handler - Following Llama Success Pattern
+InternVL3 Document-Aware Handler - Simplified for New Architecture
 
-This module implements a document-aware extraction handler for InternVL3 models,
-following the exact same pattern as the successful DocumentAwareLlamaHandler.
+This module implements a simple document-aware extraction handler for InternVL3 models,
+compatible with the unified BatchDocumentProcessor and simplified architecture.
 
 Key Features:
-- Handler pattern with lazy model loading
-- Simple constructor without immediate model loading
-- Processor lifecycle management
-- H200/high-end GPU direct loading support
-- V100 quantization fallback
+- Compatible with BatchDocumentProcessor model type detection
+- Uses SimplePromptLoader (no complex templates)
+- Uses SimpleModelEvaluator (no legacy evaluation)
+- Simple constructor accepting model and tokenizer directly
+- Direct InternVL3 processing without complex wrappers
 
 Usage:
-    handler = DocumentAwareInternVL3Handler(model_path, debug=True)
+    handler = DocumentAwareInternVL3Handler(model=model, tokenizer=tokenizer, config=config)
     classification_info = handler.detect_and_classify_document(image_path)
     result = handler.process_document_aware(image_path, classification_info)
 """
 
 import time
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from common.document_type_metrics import DocumentTypeEvaluator
-from common.unified_schema import DocumentTypeFieldSchema
-from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+from PIL import Image
+from rich import print as rprint
+
+from common.simple_model_evaluator import SimpleModelEvaluator
+from common.simple_prompt_loader import SimplePromptLoader
 
 
 class DocumentAwareInternVL3Handler:
-    """Document-Aware InternVL3 Handler using proven Llama success pattern."""
+    """Simple Document-Aware InternVL3 Handler for unified BatchDocumentProcessor."""
 
-    def __init__(self, model_path: str, device: str = "cuda", debug: bool = False):
-        """Initialize document-aware handler with lazy loading."""
-        self.debug = debug
-        self.model_path = model_path
-        self.device = device
+    def __init__(self, model, tokenizer, config: Dict[str, Any]):
+        """
+        Initialize handler with model components and config.
 
-        # Recursion protection
-        self._recursion_depth = 0
-        self._max_recursion_depth = 5
-        self._evaluation_calls = 0
-        self._max_evaluation_calls = 10
+        Args:
+            model: Loaded InternVL3 model
+            tokenizer: InternVL3 tokenizer
+            config: Configuration dictionary
+        """
+        self.model = model
+        self.tokenizer = tokenizer
+        self.config = config
 
-        # Comprehensive tracing
-        self._trace_counter = 0
-        self._method_calls = {}
-        self._start_time = time.time()
+        # Initialize simplified components
+        self.prompt_loader = SimplePromptLoader()
+        self.evaluator = SimpleModelEvaluator()
 
-        # Initialize trace log file
-        from pathlib import Path
+        # Extract prompt config from main config
+        self.prompt_config = config.get('PROMPT_CONFIG', {})
 
-        self._trace_file = Path("internvl3_handler_trace.log")
-        if self._trace_file.exists():
-            self._trace_file.unlink()  # Clear previous trace
-
-        self._trace_log(f"🔍 TRACE-000: __init__ ENTRY at {time.time():.3f}")
-        self._trace_log(
-            "🚀 Initializing InternVL3 processor for document-aware extraction..."
-        )
-
-        # Initialize components (same pattern as Llama)
-        self.schema_loader = DocumentTypeFieldSchema()
-        self.evaluator = DocumentTypeEvaluator()
-
-        # Load document detection prompts from unified schema
-        self.detection_config = self.schema_loader.load_detection_prompts()
-
-        if self.debug:
-            print("📝 YAML-first prompt loader initialized")
-            print(
-                f"   Detection config version: {self.detection_config.get('version', 'unknown')}"
-            )
-            print(
-                f"   Supported types: {len(self.detection_config.get('supported_types', []))}"
-            )
-
-        # CRITICAL: Lazy loading pattern - processor created only when needed
-        self.processor = None
-
-        self._trace_log(f"🔍 TRACE-001: __init__ EXIT at {time.time():.3f}")
-        self._trace_log(
-            "✅ Document-aware InternVL3 handler initialized (model will load on first use)"
-        )
-
-    def _trace_log(self, message: str):
-        """Log message to both console and file"""
-        print(message)
-        with Path(self._trace_file).open("a", encoding="utf-8") as f:
-            f.write(f"{message}\n")
-
-    def _trace_method(self, method_name: str, action: str, **kwargs):
-        """Helper method for comprehensive tracing."""
-        self._trace_counter += 1
-        trace_id = f"TRACE-{self._trace_counter:03d}"
-        timestamp = time.time()
-        elapsed = timestamp - self._start_time
-
-        if action == "ENTRY":
-            if method_name not in self._method_calls:
-                self._method_calls[method_name] = 0
-            self._method_calls[method_name] += 1
-            call_count = self._method_calls[method_name]
-
-            self._trace_log(
-                f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s) [call #{call_count}]"
-            )
-            if kwargs:
-                self._trace_log(f"   Args: {kwargs}")
-            if call_count > 10:
-                self._trace_log(
-                    f"🚨 WARNING: {method_name} called {call_count} times - possible infinite recursion!"
-                )
-        else:
-            self._trace_log(
-                f"🔍 {trace_id}: {method_name} {action} at {timestamp:.3f}s (elapsed: {elapsed:.3f}s)"
-            )
-
-        return trace_id
-
-    def _detect_document_type_yaml(self, image_path: str) -> str:
-        """YAML-first document type detection using configurable prompts."""
-        self._trace_method("_detect_document_type_yaml", "ENTRY", image_path=image_path)
-
-        if self.debug:
-            print("📝 Using YAML-first document detection approach")
-
-        # Get InternVL3-specific prompt from YAML configuration
-        internvl3_config = self.detection_config["detection_prompts"]["internvl3"]
-        doc_type_prompt = internvl3_config["user_prompt"]
-        max_tokens = internvl3_config.get("max_tokens", 50)
-
-        if self.debug:
-            print(
-                f"   YAML config version: {self.detection_config.get('version', 'unknown')}"
-            )
-            print(f"   Max tokens: {max_tokens}")
-            print(f"   Prompt: {doc_type_prompt[:100]}...")
-
-        # Ensure processor exists for detection (lazy loading)
-        if not self.processor:
-            self._trace_log("🔍 TRACE: Creating processor for document detection...")
-            import signal
-            import time
-
-            def timeout_handler(signum, frame):
-                raise TimeoutError("Processor creation timed out after 60 seconds")
-
-            try:
-                # Set a timeout for processor creation
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(60)  # 60 second timeout
-
-                start_time = time.time()
-                self._trace_log(
-                    f"🔍 TRACE: Initializing DocumentAwareInternVL3Processor with model_path={self.model_path}"
-                )
-
-                self.processor = DocumentAwareInternVL3Processor(
-                    field_list=["DOCUMENT_TYPE"],  # Single field for detection
-                    model_path=self.model_path,
-                    device=self.device,
-                    debug=self.debug,
-                    skip_model_loading=False,  # Load model normally
-                )
-
-                signal.alarm(0)  # Cancel timeout
-                elapsed = time.time() - start_time
-                self._trace_log(
-                    f"🔍 TRACE: Processor creation completed successfully in {elapsed:.3f}s"
-                )
-
-            except (Exception, TimeoutError) as e:
-                signal.alarm(0)  # Cancel timeout
-                print(f"🚨 TRACE: Processor creation failed: {e}")
-                # Fallback: return a default document type to prevent infinite loop
-                self._trace_method(
-                    "_detect_document_type_yaml",
-                    "EXIT",
-                    doc_type="invoice_fallback_due_to_processor_error",
-                )
-                return self.detection_config["detection_config"].get(
-                    "fallback_type", "invoice"
-                )
-
-        # Use the processor to extract with YAML prompt
-        response = self.processor._extract_with_custom_prompt(
-            image_path, doc_type_prompt, max_new_tokens=max_tokens
-        )
-
-        # Parse and normalize using YAML type mappings
-        doc_type = self._parse_document_type_response_yaml(response)
-
-        if self.debug:
-            print(f"   Raw response: '{response.strip()}'")
-            print(f"   Parsed type: '{doc_type}'")
-
-        self._trace_method("_detect_document_type_yaml", "EXIT", doc_type=doc_type)
-        return doc_type
-
-    def _parse_document_type_response_yaml(self, response: str) -> str:
-        """Parse document type response using YAML-configured type mappings."""
-        self._trace_method(
-            "_parse_document_type_response_yaml",
-            "ENTRY",
-            response_length=len(response) if response else 0,
-        )
-
-        if not response:
-            return self.detection_config["detection_config"].get(
-                "fallback_type", "invoice"
-            )
-
-        response_lower = response.lower().strip()
-
-        # First try to extract any document type mentioned in response
-        raw_type = None
-        supported_types = self.detection_config.get("supported_types", [])
-
-        for doc_type in supported_types:
-            if doc_type in response_lower:
-                raw_type = doc_type
-                break
-
-        # If no direct match, look in type mappings
-        if not raw_type:
-            type_mappings = self.detection_config.get("type_mappings", {})
-            for variant, canonical in type_mappings.items():
-                if variant.lower() in response_lower:
-                    raw_type = canonical
-                    break
-
-        # Final fallback
-        if not raw_type:
-            raw_type = self.detection_config["detection_config"].get(
-                "fallback_type", "invoice"
-            )
-
-        self._trace_method(
-            "_parse_document_type_response_yaml", "EXIT", raw_type=raw_type
-        )
-        return raw_type
+        rprint("[green]✅ DocumentAwareInternVL3Handler initialized with simplified architecture[/green]")
 
     def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
         """
-        Detect document type using YAML-first approach and get appropriate schema.
+        Detect document type using simple prompt-based approach.
 
         Args:
             image_path: Path to document image
 
         Returns:
-            Dict with document type, schema, and field information
+            Dict with document type and processing info
         """
-        self._trace_method(
-            "detect_and_classify_document", "ENTRY", image_path=image_path
-        )
-
-        if self.debug:
-            print(f"📋 Detecting document type for: {image_path}")
-            print("   Using YAML-first detection approach")
-
         try:
-            # Use YAML-first document detection
-            doc_type = self._detect_document_type_yaml(image_path)
+            # Load detection prompt
+            detection_file = self.prompt_config.get('detection_file', 'prompts/document_type_detection.yaml')
+            detection_key = self.prompt_config.get('detection_key', 'detection')
 
-            if self.debug:
-                print(f"   📄 Detected document type: {doc_type}")
+            detection_prompt = self.prompt_loader.load_prompt(detection_file, detection_key)
+
+            # Process image with detection prompt
+            image = Image.open(image_path).convert('RGB')
+
+            # Use InternVL3 chat method for detection
+            response = self.model.chat(
+                self.tokenizer,
+                pixel_values=None,  # Will be processed internally
+                question=detection_prompt,
+                generation_config=dict(
+                    max_new_tokens=100,
+                    do_sample=False,
+                    temperature=0.0
+                ),
+                image=image
+            )
+
+            # Parse document type from response
+            doc_type = self._parse_document_type(response)
+
+            # Map to field information
+            doc_type_upper = doc_type.upper()
+            field_info = self._get_field_info_for_type(doc_type_upper)
+
+            return {
+                "document_type": doc_type,
+                "field_count": field_info["field_count"],
+                "field_names": field_info["field_names"],
+                "extraction_prompt_key": field_info["prompt_key"]
+            }
 
         except Exception as e:
-            if self.debug:
-                print(f"   ⚠️ Detection failed: {e}, using fallback")
-            doc_type = self.detection_config["detection_config"].get(
-                "fallback_type", "invoice"
+            rprint(f"[red]❌ Document detection failed: {e}[/red]")
+            # Fallback to invoice
+            fallback_info = self._get_field_info_for_type("INVOICE")
+            return {
+                "document_type": "invoice",
+                "field_count": fallback_info["field_count"],
+                "field_names": fallback_info["field_names"],
+                "extraction_prompt_key": fallback_info["prompt_key"]
+            }
+
+    def process_document_aware(self, image_path: str, classification_info: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process document with type-aware extraction.
+
+        Args:
+            image_path: Path to document image
+            classification_info: Result from detect_and_classify_document
+
+        Returns:
+            Dict with extraction results
+        """
+        start_time = time.time()
+
+        try:
+            doc_type = classification_info["document_type"]
+            prompt_key = classification_info["extraction_prompt_key"]
+
+            # Load extraction prompt for document type
+            extraction_files = self.prompt_config.get('extraction_files', {})
+            doc_type_upper = doc_type.upper()
+
+            # Get the prompt file for this document type
+            prompt_file = extraction_files.get(doc_type_upper, 'prompts/internvl3_prompts.yaml')
+            extraction_prompt = self.prompt_loader.load_prompt(prompt_file, prompt_key)
+
+            # Process image with extraction prompt
+            image = Image.open(image_path).convert('RGB')
+
+            # Use InternVL3 chat method for extraction
+            response = self.model.chat(
+                self.tokenizer,
+                pixel_values=None,  # Will be processed internally
+                question=extraction_prompt,
+                generation_config=dict(
+                    max_new_tokens=self.config.get('MAX_NEW_TOKENS', 800),
+                    do_sample=False,
+                    temperature=0.0
+                ),
+                image=image
             )
 
-        # Get schema for detected document type
-        schema = self.schema_loader.get_document_schema(doc_type)
+            # Parse extraction response into structured data
+            extracted_data = self._parse_extraction_response(response, classification_info["field_names"])
 
-        if self.debug:
-            print(f"   Schema Fields: {len(schema['fields'])} fields")
-            print(f"   Extraction Mode: {schema['extraction_mode']}")
+            processing_time = time.time() - start_time
 
-        result = {
-            "document_type": doc_type,
-            "schema": schema,
-            "field_count": len(schema["fields"]),
-            "field_names": schema["fields"]
-            if isinstance(schema["fields"][0], str)
-            else [f["name"] for f in schema["fields"]],
-        }
+            return {
+                "document_type": doc_type,
+                "extracted_data": extracted_data,
+                "processing_time": processing_time,
+                "response_text": response,
+                "prompt_used": f"internvl3_{prompt_key}"
+            }
 
-        self._trace_method(
-            "detect_and_classify_document",
-            "EXIT",
-            doc_type=doc_type,
-            field_count=result["field_count"],
-        )
-        return result
+        except Exception as e:
+            processing_time = time.time() - start_time
+            rprint(f"[red]❌ Document processing failed: {e}[/red]")
 
-    def process_document_aware(
-        self, image_path: str, classification_info: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Process single document with type-aware extraction."""
-        import time
+            return {
+                "document_type": classification_info.get("document_type", "unknown"),
+                "extracted_data": {},
+                "processing_time": processing_time,
+                "error": str(e)
+            }
 
-        self._trace_method(
-            "process_document_aware",
-            "ENTRY",
-            image_path=image_path,
-            doc_type=classification_info.get("document_type", "unknown"),
-        )
+    def _parse_document_type(self, response: str) -> str:
+        """Parse document type from detection response."""
+        if not response:
+            return "invoice"
 
-        start_time = time.perf_counter()
+        response_lower = response.lower().strip()
 
-        # Extract using document-specific fields
-        field_names = classification_info["field_names"]
-        doc_type = classification_info["document_type"]
-
-        if self.debug:
-            self._trace_log(f"🔍 Extracting {len(field_names)} {doc_type} fields...")
-            self._trace_log(
-                f"   Target fields: {field_names[:5]}{'...' if len(field_names) > 5 else ''}"
-            )
-
-        # Reconfigure existing processor with new field list (same pattern as Llama)
-        if self.processor:
-            # Simply update the field list on the existing processor
-            self.processor.field_list = field_names
-            self.processor.field_count = len(field_names)
-            # Reconfigure generation parameters for new field count
-            self.processor._configure_generation()
-
-            if self.debug:
-                self._trace_log(
-                    f"   🔄 Reconfigured processor for {len(field_names)} {doc_type}-specific fields"
-                )
+        # Look for document type keywords
+        if "receipt" in response_lower:
+            return "receipt"
+        elif "bank" in response_lower or "statement" in response_lower:
+            return "bank_statement"
+        elif "invoice" in response_lower or "bill" in response_lower:
+            return "invoice"
         else:
-            # Create processor if it doesn't exist yet
-            self._trace_log(
-                "🔍 TRACE: Creating processor for document-aware extraction..."
-            )
-            import signal
-            import time
+            return "invoice"  # Default fallback
 
-            def timeout_handler(signum, frame):
-                raise TimeoutError(
-                    "Document-aware processor creation timed out after 60 seconds"
-                )
-
-            try:
-                # EMERGENCY: Maximum recursion protection
-                import sys
-
-                original_limit = sys.getrecursionlimit()
-                sys.setrecursionlimit(300)  # Very low limit to catch recursion early
-                self._trace_log(
-                    f"🚨 EMERGENCY: Set recursion limit to 300 (was {original_limit})"
-                )
-
-                # Set a timeout for processor creation
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(30)  # Reduced to 30 second timeout
-
-                start_time = time.time()
-                self._trace_log(
-                    f"🔍 TRACE: Creating DocumentAwareInternVL3Processor with {len(field_names)} fields"
-                )
-
-                try:
-                    self.processor = DocumentAwareInternVL3Processor(
-                        field_list=field_names,
-                        model_path=self.model_path,
-                        device=self.device,
-                        debug=self.debug,
-                    )
-                    # Restore original recursion limit after successful creation
-                    sys.setrecursionlimit(original_limit)
-                    self._trace_log(
-                        f"✅ TRACE: Processor created successfully, recursion limit restored to {original_limit}"
-                    )
-                except RecursionError as rec_err:
-                    sys.setrecursionlimit(original_limit)
-                    self._trace_log(f"🚨 RECURSION ERROR CAUGHT: {rec_err}")
-                    raise TimeoutError(
-                        f"Processor creation failed due to infinite recursion: {rec_err}"
-                    ) from rec_err
-
-                signal.alarm(0)  # Cancel timeout
-                elapsed = time.time() - start_time
-                self._trace_log(
-                    f"🔍 TRACE: Document-aware processor creation completed successfully in {elapsed:.3f}s"
-                )
-
-            except (Exception, TimeoutError, RecursionError) as e:
-                signal.alarm(0)  # Cancel timeout
-                self._trace_log(
-                    f"🚨 TRACE: Document-aware processor creation failed: {e}"
-                )
-                self._trace_log(
-                    "🔧 EMERGENCY: Trying processor with skip_model_loading=True"
-                )
-
-                # EMERGENCY FALLBACK: Create processor without recursion-prone model loading
-                try:
-                    self._trace_log(
-                        "🚨 EMERGENCY: Creating processor with skip_model_loading=True"
-                    )
-                    self.processor = DocumentAwareInternVL3Processor(
-                        field_list=field_names,
-                        model_path=self.model_path,
-                        device=self.device,
-                        debug=self.debug,
-                        skip_model_loading=True,  # Skip recursion-prone model loading
-                    )
-                    self._trace_log(
-                        "✅ EMERGENCY: Processor created with skip_model_loading=True"
-                    )
-
-                    # Now try to load model with safe approach
-                    self._trace_log("🔧 EMERGENCY: Attempting safe model loading...")
-                    try:
-                        # Try ultra-safe model loading without quantization
-                        self._load_model_safely_for_processor()
-                        self._trace_log(
-                            "✅ EMERGENCY: Model loaded safely for processor"
-                        )
-                    except Exception as model_load_error:
-                        self._trace_log(
-                            f"⚠️ EMERGENCY: Model loading failed: {model_load_error}"
-                        )
-                        self._trace_log(
-                            "📋 EMERGENCY: Proceeding with processor but model may not work properly"
-                        )
-
-                except Exception as fallback_error:
-                    self._trace_log(f"🚨 EMERGENCY FAILED: {fallback_error}")
-                    # Return error instead of hanging
-                    self._trace_method(
-                        "process_document_aware",
-                        "EXIT",
-                        error="processor_creation_failed",
-                    )
-                    return {
-                        "image_file": Path(image_path).name,
-                        "document_type": doc_type,
-                        "detected_fields": 0,
-                        "total_fields": len(field_names),
-                        "processing_time": 0.0,
-                        "extracted_data": {field: "NOT_FOUND" for field in field_names},
-                        "error": f"All processor creation attempts failed: {e} | {fallback_error}",
-                    }
-
-        # Extract with reconfigured processor
-        self._trace_log(
-            f"🔍 TRACE: About to call processor.process_single_image for {image_path}"
-        )
-        self._trace_log(
-            f"🔍 TRACE: Processor field_list has {len(self.processor.field_list)} fields"
-        )
-
-        try:
-            extraction_result = self.processor.process_single_image(image_path)
-            self._trace_log(
-                "🔍 TRACE: processor.process_single_image completed successfully"
-            )
-        except Exception as e:
-            self._trace_log(f"🚨 TRACE: processor.process_single_image failed: {e}")
-            import traceback
-
-            traceback.print_exc()
-            raise
-
-        if self.debug:
-            extracted_data = extraction_result.get("extracted_data", {})
-            found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-            self._trace_log(
-                f"   ✅ Found {len(found_fields)} fields: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
-            )
-
-        # Extract the data from the processor result
-        extracted_data = extraction_result.get("extracted_data", {})
-
-        processing_time = time.perf_counter() - start_time
-
-        result = {
-            "image_file": Path(image_path).name,
-            "document_type": doc_type,
-            "detected_fields": len(
-                [v for v in extracted_data.values() if v != "NOT_FOUND"]
-            ),
-            "total_fields": len(field_names),
-            "processing_time": processing_time,
-            "extracted_data": extracted_data,
+    def _get_field_info_for_type(self, doc_type: str) -> Dict[str, Any]:
+        """Get field information for document type."""
+        # Define field sets for each document type
+        field_sets = {
+            "INVOICE": {
+                "field_names": [
+                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                ],
+                "prompt_key": "invoice"
+            },
+            "RECEIPT": {
+                "field_names": [
+                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                ],
+                "prompt_key": "receipt"
+            },
+            "BANK_STATEMENT": {
+                "field_names": [
+                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                    "ACCOUNT_BALANCE"
+                ],
+                "prompt_key": "bank_statement"
+            }
         }
 
-        self._trace_method(
-            "process_document_aware",
-            "EXIT",
-            doc_type=doc_type,
-            detected_fields=result["detected_fields"],
-            processing_time=processing_time,
-        )
-        return result
+        field_info = field_sets.get(doc_type, field_sets["INVOICE"])
+        field_info["field_count"] = len(field_info["field_names"])
 
-    def evaluate_document_aware(
-        self, results: List[Dict], ground_truth: Dict
-    ) -> Dict[str, Any]:
-        """Evaluate results with document-type-specific metrics."""
-        # Recursion protection
-        self._evaluation_calls += 1
-        if self._evaluation_calls > self._max_evaluation_calls:
-            print(
-                "🚨 RECURSION PROTECTION: Too many evaluation calls, aborting to prevent infinite loop"
-            )
-            return {
-                "error": "recursion_protection_triggered",
-                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
-            }
+        return field_info
 
-        self._recursion_depth += 1
-        if self._recursion_depth > self._max_recursion_depth:
-            self._recursion_depth -= 1
-            print("🚨 RECURSION PROTECTION: Maximum recursion depth exceeded")
-            return {
-                "error": "max_recursion_depth_exceeded",
-                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
-            }
+    def _parse_extraction_response(self, response: str, expected_fields: list) -> Dict[str, str]:
+        """Parse extraction response into structured field data."""
+        extracted_data = {}
 
-        try:
-            import traceback
+        if not response:
+            # Return NOT_FOUND for all expected fields
+            return {field: "NOT_FOUND" for field in expected_fields}
 
-            print(
-                f"🔍 TRACE: evaluate_document_aware called with {len(results)} results, recursion_depth={self._recursion_depth}, eval_calls={self._evaluation_calls}"
-            )
-            print("🔍 TRACE: Call stack:")
-            for line in traceback.format_stack()[
-                -3:-1
-            ]:  # Show last 2 stack frames (excluding current)
-                print(f"   {line.strip()}")
-            print("\\n📊 Evaluating with document-type-specific metrics...")
+        # Simple parsing: look for "FIELD_NAME: value" patterns
+        lines = response.strip().split('\n')
 
-            evaluations = []
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                # Split on first colon only
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    field_name = parts[0].strip()
+                    field_value = parts[1].strip()
 
-            for result in results:
-                image_file = result["image_file"]
-                gt_data = ground_truth.get(image_file, {})
+                    # Clean up field name (remove any prefixes)
+                    if field_name in expected_fields:
+                        extracted_data[field_name] = field_value
 
-                if not gt_data:
-                    print(f"⚠️  No ground truth for {image_file}")
-                    continue
+        # Ensure all expected fields are present
+        for field in expected_fields:
+            if field not in extracted_data:
+                extracted_data[field] = "NOT_FOUND"
 
-                # Use document-type-specific evaluator
-                evaluation = self.evaluator.evaluate_extraction(
-                    result["extracted_data"], gt_data, result["document_type"]
-                )
-
-                evaluation["image_file"] = image_file
-                evaluation["processing_time"] = result["processing_time"]
-                evaluations.append(evaluation)
-
-                # Display detailed comparison for single image processing
-                # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
-                # if len(results) == 1:
-                #     self._display_detailed_comparison(result, gt_data, evaluation)
-
-            return self._generate_document_aware_report(evaluations)
-        finally:
-            # Always decrement recursion depth
-            self._recursion_depth -= 1
-
-    def _display_detailed_comparison(
-        self, result: Dict, ground_truth: Dict, evaluation: Dict
-    ):
-        """Display detailed field-by-field comparison like in the notebook."""
-        print("\\n" + "=" * 120)
-        print("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")
-        print("=" * 120)
-
-        extracted_data = result["extracted_data"]
-        processing_time = result["processing_time"]
-
-        # Display extracted data first
-        print("\\n🔍 EXTRACTED DATA:")
-        for field, value in extracted_data.items():
-            if value != "NOT_FOUND":
-                print(f"✅ {field}: {value}")
-            else:
-                print(f"❌ {field}: {value}")
-
-        # Ground truth comparison table
-        print(f"\\n📊 Ground truth loaded for {result['image_file']}")
-        print("-" * 120)
-
-        field_scores = evaluation.get("field_scores", {})
-
-        # Table header
-        print(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
-        print("=" * 120)
-
-        # Field-by-field comparison
-        fields_found = 0
-        exact_matches = 0
-        total_fields = len(field_scores)
-
-        for field, score in field_scores.items():
-            extracted_val = extracted_data.get(field, "NOT_FOUND")
-            ground_val = ground_truth.get(field, "NOT_FOUND")
-
-            # Determine status symbol
-            if score.get("accuracy", 0) == 1.0:
-                status = "✅"
-                exact_matches += 1
-            elif score.get("accuracy", 0) >= 0.8:
-                status = "≈"
-            else:
-                status = "❌"
-
-            if extracted_val != "NOT_FOUND":
-                fields_found += 1
-
-            # Truncate long values for display
-            extracted_display = str(extracted_val)[:38] + (
-                "..." if len(str(extracted_val)) > 38 else ""
-            )
-            ground_display = str(ground_val)[:38] + (
-                "..." if len(str(ground_val)) > 38 else ""
-            )
-
-            print(
-                f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
-            )
-
-        # Summary section
-        overall_accuracy = evaluation["overall_metrics"]["overall_accuracy"]
-
-        print("\\n📊 EXTRACTION SUMMARY:")
-        print(
-            f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found / total_fields * 100:.1f}%)"
-        )
-        print(
-            f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
-        )
-        print(f"📈 Extraction Success Rate: {overall_accuracy * 100:.1f}%")
-        print(f"⏱️ Accuracy (matches/total): {overall_accuracy * 100:.1f}%")
-        print(f"⏰ Processing Time: {processing_time:.3f}s")
-        print(f"🤖 Document Type: {result['document_type']}")
-        print("🔧 Model: InternVL3 (2B/8B)")
-
-        # Additional metrics
-        meets_threshold = evaluation["overall_metrics"].get("meets_threshold", False)
-        threshold = evaluation["overall_metrics"].get("document_type_threshold", 0.8)
-        print("\\n≈ = Partial match")
-        print("✗ = No match")
-        print(
-            f"Note: Meets accuracy threshold ({threshold * 100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}"
-        )
-
-    def _load_model_safely_for_processor(self):
-        """
-        Load model safely for emergency processor that was created with skip_model_loading=True.
-
-        This method tries ultra-conservative model loading approaches to avoid recursion.
-        """
-        self._trace_log(
-            "🔧 SAFE_LOAD: Starting safe model loading for emergency processor"
-        )
-
-        try:
-            # Import required modules
-            import torch
-            from transformers import AutoModel, AutoTokenizer
-
-            # Determine device and dtype safely
-            if self.device == "cpu" or not torch.cuda.is_available():
-                device = "cpu"
-                torch_dtype = torch.float32
-                self._trace_log("🔧 SAFE_LOAD: Using CPU device with float32")
-            else:
-                device = self.device
-                torch_dtype = torch.bfloat16
-                self._trace_log(f"🔧 SAFE_LOAD: Using {device} device with bfloat16")
-
-            # Ultra-minimal model loading kwargs (no quantization, no device_map, no auth)
-            safe_kwargs = {
-                "torch_dtype": torch_dtype,
-                "trust_remote_code": True,
-                # Absolutely NO BitsAndBytesConfig, device_map, or auth parameters
-            }
-
-            self._trace_log(
-                "🔧 SAFE_LOAD: Loading model with ultra-minimal configuration..."
-            )
-            model = AutoModel.from_pretrained(self.model_path, **safe_kwargs).eval()
-
-            self._trace_log("🔧 SAFE_LOAD: Loading tokenizer...")
-            tokenizer = AutoTokenizer.from_pretrained(
-                self.model_path,
-                trust_remote_code=True,
-                use_fast=False,
-            )
-
-            # Assign to processor manually
-            self.processor.model = model
-            self.processor.tokenizer = tokenizer
-            self.processor.torch_dtype = torch_dtype
-
-            self._trace_log(
-                "✅ SAFE_LOAD: Model and tokenizer loaded and assigned to processor"
-            )
-
-        except Exception as e:
-            self._trace_log(f"❌ SAFE_LOAD: Safe model loading failed: {e}")
-            raise
-
-    def _generate_document_aware_report(
-        self, evaluations: List[Dict]
-    ) -> Dict[str, Any]:
-        """Generate comprehensive document-aware evaluation report."""
-        # Recursion protection
-        self._recursion_depth += 1
-        if self._recursion_depth > self._max_recursion_depth:
-            self._recursion_depth -= 1
-            print(
-                "🚨 RECURSION PROTECTION: Maximum recursion depth exceeded in _generate_document_aware_report"
-            )
-            return {
-                "error": "max_recursion_depth_exceeded",
-                "summary": {"overall_metrics": {}, "document_type_breakdown": {}},
-            }
-
-        try:
-            print(
-                f"🔍 TRACE: _generate_document_aware_report called with {len(evaluations)} evaluations, recursion_depth={self._recursion_depth}"
-            )
-
-            # Group by document type
-            by_type = {}
-            for eval_result in evaluations:
-                doc_type = eval_result["document_type"]
-                if doc_type not in by_type:
-                    by_type[doc_type] = []
-                by_type[doc_type].append(eval_result)
-
-            # Calculate overall metrics across all documents
-            all_accuracies = []
-            total_meets_threshold = 0
-            total_critical_perfect = 0
-            total_ato_compliant = 0
-            invoice_count = 0
-
-            document_type_breakdown = {}
-
-            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
-            # print("\\n" + "=" * 80)
-            # print("📊 DOCUMENT-AWARE EVALUATION RESULTS")
-            # print("=" * 80)
-
-            for doc_type, type_evaluations in by_type.items():
-                # Calculate type-specific metrics
-                accuracies = [
-                    e["overall_metrics"]["overall_accuracy"] for e in type_evaluations
-                ]
-                all_accuracies.extend(accuracies)
-
-                meets_threshold = sum(
-                    1
-                    for e in type_evaluations
-                    if e["overall_metrics"].get("meets_threshold", False)
-                )
-                total_meets_threshold += meets_threshold
-
-                critical_perfect = sum(
-                    1
-                    for e in type_evaluations
-                    if e["overall_metrics"].get("critical_fields_perfect", False)
-                )
-                total_critical_perfect += critical_perfect
-
-                # ATO compliance for invoices
-                ato_compliant = 0
-                if doc_type == "invoice":
-                    invoice_count += len(type_evaluations)
-                    ato_compliant = sum(
-                        1
-                        for e in type_evaluations
-                        if e["overall_metrics"].get("ato_compliant", False)
-                    )
-                    total_ato_compliant += ato_compliant
-
-                type_metrics = {
-                    "documents": len(type_evaluations),
-                    "accuracy": sum(accuracies) / len(accuracies) if accuracies else 0,
-                    "accuracy_percentage": f"{(sum(accuracies) / len(accuracies) * 100 if accuracies else 0):.1f}%",
-                    "meets_threshold": meets_threshold,
-                    "critical_perfect": critical_perfect,
-                }
-
-                if doc_type == "invoice":
-                    type_metrics["ato_compliance"] = {
-                        "compliant": ato_compliant,
-                        "total": len(type_evaluations),
-                        "compliance_rate": f"{(ato_compliant / len(type_evaluations) * 100 if type_evaluations else 0):.0f}%",
-                    }
-
-                document_type_breakdown[doc_type] = type_metrics
-
-            # TEMPORARILY DISABLED TO PREVENT INFINITE RECURSION
-            # print(f"\\n📋 {doc_type.upper()}:")
-            # print(f"   Documents: {type_metrics['documents']}")
-            # print(f"   Avg Accuracy: {type_metrics['accuracy'] * 100:.1f}%")
-            # print(f"   Meeting Threshold: {meets_threshold}/{len(type_evaluations)}")
-            # print(
-            #     f"   Critical Fields Perfect: {critical_perfect}/{len(type_evaluations)}"
-            # )
-
-            # if doc_type == "invoice" and 'ato_compliance' in type_metrics:
-            #     ato_info = type_metrics['ato_compliance']
-            #     print(
-            #         f"   ATO Compliant: {ato_info['compliant']}/{ato_info['total']} ({ato_info['compliance_rate']})"
-            #     )
-
-            # Build the report with the expected 'summary' structure
-            report = {
-                "timestamp": datetime.now().isoformat(),
-                "total_documents": len(evaluations),
-                "evaluation_mode": "internvl3_document_aware",
-                "summary": {
-                    "overall_metrics": {
-                        "average_accuracy": sum(all_accuracies) / len(all_accuracies)
-                        if all_accuracies
-                        else 0,
-                        "total_documents": len(evaluations),
-                        "meets_threshold_count": total_meets_threshold,
-                        "critical_perfect_count": total_critical_perfect,
-                        "ato_compliant_count": total_ato_compliant
-                        if invoice_count > 0
-                        else None,
-                    },
-                    "document_type_breakdown": document_type_breakdown,
-                },
-            }
-
-            return report
-        finally:
-            # Always decrement recursion depth
-            self._recursion_depth -= 1
+        return extracted_data
