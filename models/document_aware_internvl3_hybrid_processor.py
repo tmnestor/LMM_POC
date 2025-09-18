@@ -530,11 +530,13 @@ class DocumentAwareInternVL3HybridProcessor:
     def _resilient_generate(self, pixel_values, question, **generation_kwargs):
         """Resilient generation with OOM fallback using InternVL3 chat method."""
 
-        # Build clean generation parameters
+        # Build clean generation parameters - use much smaller limits for document detection
+        max_tokens = generation_kwargs.get("max_new_tokens", self.generation_config["max_new_tokens"])
+        if max_tokens > 100:  # Limit detection responses to prevent infinite loops
+            max_tokens = 50
+
         clean_generation_kwargs = {
-            "max_new_tokens": generation_kwargs.get(
-                "max_new_tokens", self.generation_config["max_new_tokens"]
-            ),
+            "max_new_tokens": max_tokens,
             "temperature": generation_kwargs.get(
                 "temperature", self.generation_config["temperature"]
             ),
@@ -546,7 +548,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
         try:
             # Use InternVL3 chat method instead of generate
-            return self.model.chat(
+            response = self.model.chat(
                 self.tokenizer,
                 pixel_values,
                 question,
@@ -554,6 +556,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 history=None,
                 return_history=False
             )
+
+            # CRITICAL: Truncate response to prevent infinite repetition
+            if len(response) > 500:  # Safety limit
+                response = response[:500]
+
+            return response
         except torch.cuda.OutOfMemoryError:
             if self.debug:
                 print("⚠️ CUDA OOM during generation, attempting recovery...")
@@ -563,7 +571,7 @@ class DocumentAwareInternVL3HybridProcessor:
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
             try:
-                return self.model.chat(
+                response = self.model.chat(
                     self.tokenizer,
                     pixel_values,
                     question,
@@ -571,6 +579,12 @@ class DocumentAwareInternVL3HybridProcessor:
                     history=None,
                     return_history=False
                 )
+
+                # CRITICAL: Truncate response to prevent infinite repetition
+                if len(response) > 500:  # Safety limit
+                    response = response[:500]
+
+                return response
             except torch.cuda.OutOfMemoryError:
                 if self.debug:
                     print("❌ Still OOM after cleanup, falling back to CPU")
@@ -587,6 +601,10 @@ class DocumentAwareInternVL3HybridProcessor:
                     history=None,
                     return_history=False
                 )
+
+                # CRITICAL: Truncate response to prevent infinite repetition
+                if len(response) > 500:  # Safety limit
+                    response = response[:500]
 
                 # Move back to GPU
                 self.model = self.model.to(self.device)
