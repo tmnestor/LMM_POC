@@ -80,8 +80,8 @@ class DocumentAwareInternVL3Handler:
             # Create a temporary processor for image loading
             temp_processor = DocumentAwareInternVL3Processor(
                 field_list=["DOCUMENT_TYPE"],
-                model=self.model,
-                tokenizer=self.tokenizer,
+                pre_loaded_model=self.model,
+                pre_loaded_tokenizer=self.tokenizer,
                 skip_model_loading=True,  # Use existing model
                 debug=False
             )
@@ -169,8 +169,8 @@ class DocumentAwareInternVL3Handler:
             # Create a temporary processor for image loading
             temp_processor = DocumentAwareInternVL3Processor(
                 field_list=classification_info["field_names"],
-                model=self.model,
-                tokenizer=self.tokenizer,
+                pre_loaded_model=self.model,
+                pre_loaded_tokenizer=self.tokenizer,
                 skip_model_loading=True,  # Use existing model
                 debug=False
             )
