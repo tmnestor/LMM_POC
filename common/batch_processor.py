@@ -247,12 +247,19 @@ class BatchDocumentProcessor:
                     )
 
                     # Convert to expected format for compatibility
+                    # Calculate fields_extracted and fields_matched for notebook compatibility
+                    fields_extracted = len([k for k, v in extracted_data.items() if v != "NOT_FOUND"])
+                    fields_matched = evaluation_result.correct_fields
+
                     evaluation = {
                         "overall_accuracy": evaluation_result.accuracy,
                         "total_fields": evaluation_result.total_fields,
                         "correct_fields": evaluation_result.correct_fields,
                         "missing_fields": evaluation_result.missing_fields,
-                        "incorrect_fields": evaluation_result.incorrect_fields
+                        "incorrect_fields": evaluation_result.incorrect_fields,
+                        # Add notebook-expected keys
+                        "fields_extracted": fields_extracted,
+                        "fields_matched": fields_matched
                     }
 
                     # SimpleModelEvaluator already provides data in correct format - no flattening needed
