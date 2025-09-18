@@ -43,7 +43,7 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_v100,
 )
-from common.simple_prompt_loader import SimplePromptLoader, load_llama_prompt
+from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
 
 warnings.filterwarnings("ignore")
 
@@ -312,15 +312,15 @@ class DocumentAwareInternVL3HybridProcessor:
             print(f"📝 Loading {document_type} prompt for InternVL3 Hybrid")
 
         try:
-            return load_llama_prompt(document_type)
+            return load_internvl3_prompt(document_type)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to load {document_type} prompt, falling back to universal")
-            return load_llama_prompt("universal")
+            return load_internvl3_prompt("universal")
 
     def get_supported_document_types(self) -> List[str]:
         """Get list of supported document types."""
-        return SimplePromptLoader.get_available_prompts("llama_prompts.yaml")
+        return SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
 
     def detect_document_type(self, field_list: List[str] = None) -> str:
         """
