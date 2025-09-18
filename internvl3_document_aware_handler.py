@@ -52,12 +52,16 @@ class DocumentAwareInternVL3Handler:
 
         rprint("[green]✅ DocumentAwareInternVL3Handler initialized with simplified architecture[/green]")
 
-    def detect_and_classify_document(self, image_path: str) -> Dict[str, Any]:
+        # Verify prompt files are accessible
+        self._verify_prompt_files_on_init()
+
+    def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> Dict[str, Any]:
         """
         Detect document type using simple prompt-based approach.
 
         Args:
             image_path: Path to document image
+            verbose: Whether to show verbose output including prompts
 
         Returns:
             Dict with document type and processing info
@@ -70,6 +74,11 @@ class DocumentAwareInternVL3Handler:
             # Extract just the filename from the path for SimplePromptLoader
             detection_filename = detection_file.split('/')[-1] if '/' in detection_file else detection_file
             detection_prompt = self.prompt_loader.load_prompt(detection_filename, detection_key)
+
+            # Show detection prompt when verbose
+            if verbose:
+                rprint(f"[yellow]Detection Prompt (using key: '{detection_key}'):[/yellow]")
+                rprint(f"[dim]{detection_prompt}[/dim]")
 
             # Process image with detection prompt
             # For simplicity, use a basic processor approach
@@ -110,8 +119,12 @@ class DocumentAwareInternVL3Handler:
                 return_history=False
             )
 
+            # Show raw response when verbose
+            if verbose:
+                rprint(f"[yellow]Model Response:[/yellow] {response}")
+
             # Parse document type from response
-            doc_type = self._parse_document_type(response)
+            doc_type = self._parse_document_type(response, verbose=verbose)
 
             # Map to field information
             doc_type_upper = doc_type.upper()
@@ -135,13 +148,14 @@ class DocumentAwareInternVL3Handler:
                 "extraction_prompt_key": fallback_info["prompt_key"]
             }
 
-    def process_document_aware(self, image_path: str, classification_info: Dict[str, Any]) -> Dict[str, Any]:
+    def process_document_aware(self, image_path: str, classification_info: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
         """
         Process document with type-aware extraction.
 
         Args:
             image_path: Path to document image
             classification_info: Result from detect_and_classify_document
+            verbose: Whether to show verbose output including prompts
 
         Returns:
             Dict with extraction results
@@ -162,6 +176,12 @@ class DocumentAwareInternVL3Handler:
             # Extract just the filename from the path for SimplePromptLoader
             prompt_filename = prompt_file.split('/')[-1] if '/' in prompt_file else prompt_file
             extraction_prompt = self.prompt_loader.load_prompt(prompt_filename, prompt_key)
+
+            # Show extraction prompt when verbose
+            if verbose:
+                rprint(f"[yellow]Extraction Prompt (using key: '{prompt_key}' from {prompt_filename}):[/yellow]")
+                rprint(f"[dim]{extraction_prompt}[/dim]")
+                rprint(f"[cyan]🔧 Max tokens: {self.config.get('MAX_NEW_TOKENS', 800)}[/cyan]")
 
             # Process image with extraction prompt
             # Use the same processor approach for consistency
@@ -202,8 +222,12 @@ class DocumentAwareInternVL3Handler:
                 return_history=False
             )
 
+            # Show raw response when verbose
+            if verbose:
+                rprint(f"[yellow]Model Response:[/yellow] {response}")
+
             # Parse extraction response into structured data
-            extracted_data = self._parse_extraction_response(response, classification_info["field_names"])
+            extracted_data = self._parse_extraction_response(response, classification_info["field_names"], verbose=verbose)
 
             processing_time = time.time() - start_time
 
@@ -226,14 +250,16 @@ class DocumentAwareInternVL3Handler:
                 "error": str(e)
             }
 
-    def _parse_document_type(self, response: str) -> str:
+    def _parse_document_type(self, response: str, verbose: bool = False) -> str:
         """Parse document type from detection response with enhanced debugging."""
-        rprint("[dim]🔍 DEBUG: Parsing document type from response[/dim]")
-        if response:
-            rprint(f"[dim]📝 Detection response: {response[:100]}...[/dim]")
+        if verbose:
+            rprint("[dim]🔍 DEBUG: Parsing document type from response[/dim]")
+            if response:
+                rprint(f"[dim]📝 Detection response: {response[:100]}...[/dim]")
 
         if not response:
-            rprint("[dim]⚠️ Empty detection response - defaulting to invoice[/dim]")
+            if verbose:
+                rprint("[dim]⚠️ Empty detection response - defaulting to invoice[/dim]")
             return "invoice"
 
         response_lower = response.lower().strip()
@@ -248,7 +274,8 @@ class DocumentAwareInternVL3Handler:
         elif "invoice" in response_lower or "bill" in response_lower:
             detected_type = "invoice"
 
-        rprint(f"[dim]📋 Detected document type: {detected_type}[/dim]")
+        if verbose:
+            rprint(f"[dim]📋 Detected document type: {detected_type}[/dim]")
         return detected_type
 
     def _get_field_info_for_type(self, doc_type: str) -> Dict[str, Any]:
@@ -288,23 +315,26 @@ class DocumentAwareInternVL3Handler:
 
         return field_info
 
-    def _parse_extraction_response(self, response: str, expected_fields: list) -> Dict[str, str]:
+    def _parse_extraction_response(self, response: str, expected_fields: list, verbose: bool = False) -> Dict[str, str]:
         """Parse extraction response into structured field data with enhanced debugging."""
         extracted_data = {}
 
-        # Debug logging
-        rprint(f"[dim]🔍 DEBUG: Parsing response ({len(response) if response else 0} chars)[/dim]")
-        if response:
-            rprint(f"[dim]📝 Raw response preview: {response[:200]}...[/dim]")
+        # Debug logging only when verbose
+        if verbose:
+            rprint(f"[dim]🔍 DEBUG: Parsing response ({len(response) if response else 0} chars)[/dim]")
+            if response:
+                rprint(f"[dim]📝 Raw response preview: {response[:200]}...[/dim]")
 
         if not response:
-            rprint("[dim]⚠️ Empty response - returning NOT_FOUND for all fields[/dim]")
+            if verbose:
+                rprint("[dim]⚠️ Empty response - returning NOT_FOUND for all fields[/dim]")
             return {field: "NOT_FOUND" for field in expected_fields}
 
         # Enhanced parsing: handle multiple formats
         lines = response.strip().split('\n')
 
-        rprint(f"[dim]📋 Processing {len(lines)} response lines[/dim]")
+        if verbose:
+            rprint(f"[dim]📋 Processing {len(lines)} response lines[/dim]")
 
         for line in lines:
             line = line.strip()
@@ -328,10 +358,12 @@ class DocumentAwareInternVL3Handler:
                     for expected_field in expected_fields:
                         if clean_field_name == expected_field.upper():
                             extracted_data[expected_field] = field_value
-                            rprint(f"[dim]✅ Found {expected_field}: {field_value[:50]}...[/dim]")
+                            if verbose:
+                                rprint(f"[dim]✅ Found {expected_field}: {field_value[:50]}...[/dim]")
                             break
                     else:
-                        rprint(f"[dim]❌ Unknown field '{clean_field_name}' (original: '{field_name}')[/dim]")
+                        if verbose:
+                            rprint(f"[dim]❌ Unknown field '{clean_field_name}' (original: '{field_name}')[/dim]")
 
         # Ensure all expected fields are present
         for field in expected_fields:
@@ -339,6 +371,39 @@ class DocumentAwareInternVL3Handler:
                 extracted_data[field] = "NOT_FOUND"
 
         found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-        rprint(f"[dim]📊 Extraction summary: {found_count}/{len(expected_fields)} fields found[/dim]")
+        if verbose:
+            rprint(f"[dim]📊 Extraction summary: {found_count}/{len(expected_fields)} fields found[/dim]")
 
         return extracted_data
+
+    def _verify_prompt_files_on_init(self):
+        """Verify that all required prompt files are accessible during initialization."""
+        try:
+            # Check detection prompt file
+            detection_file = self.prompt_config.get('detection_file', 'prompts/document_type_detection.yaml')
+            detection_key = self.prompt_config.get('detection_key', 'detection')
+            detection_filename = detection_file.split('/')[-1] if '/' in detection_file else detection_file
+
+            try:
+                detection_prompt = self.prompt_loader.load_prompt(detection_filename, detection_key)
+                rprint(f"[green]✅ Detection prompt loaded: {detection_filename}[/green]")
+            except Exception as e:
+                rprint(f"[red]❌ Detection prompt failed: {detection_filename} - {e}[/red]")
+
+            # Check extraction prompt files
+            extraction_files = self.prompt_config.get('extraction_files', {})
+            extraction_keys = self.prompt_config.get('extraction_keys', {})
+
+            for doc_type, prompt_file in extraction_files.items():
+                prompt_key = extraction_keys.get(doc_type, doc_type.lower())
+                prompt_filename = prompt_file.split('/')[-1] if '/' in prompt_file else prompt_file
+
+                try:
+                    extraction_prompt = self.prompt_loader.load_prompt(prompt_filename, prompt_key)
+                    prompt_length = len(extraction_prompt) if extraction_prompt else 0
+                    rprint(f"[green]✅ {doc_type} extraction prompt loaded: {prompt_filename} ({prompt_length} chars)[/green]")
+                except Exception as e:
+                    rprint(f"[red]❌ {doc_type} extraction prompt failed: {prompt_filename} - {e}[/red]")
+
+        except Exception as e:
+            rprint(f"[red]❌ Prompt verification failed: {e}[/red]")

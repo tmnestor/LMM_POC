@@ -479,19 +479,30 @@ class BatchDocumentProcessor:
             Tuple of (document_type, extraction_result, prompt_name)
         """
 
+        if verbose:
+            rprint("\n[bold cyan]📋 INTERNVL3 DOCUMENT TYPE DETECTION[/bold cyan]")
+            rprint("[cyan]━" * 80 + "[/cyan]")
+
         # Step 1: Detect and classify document
         classification_info = self.internvl3_handler.detect_and_classify_document(
-            image_path
+            image_path, verbose=verbose
         )
         document_type = classification_info["document_type"]
 
         if verbose:
-            rprint(f"[cyan]📄 Document type detected: {document_type}[/cyan]")
+            rprint(f"[green]✅ Detected Document Type: {document_type}[/green]")
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
+
+            rprint(f"[bold cyan]📊 INTERNVL3 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]")
+            rprint("[cyan]━" * 80 + "[/cyan]")
 
         # Step 2: Process with document-aware extraction
         extraction_result = self.internvl3_handler.process_document_aware(
-            image_path, classification_info
+            image_path, classification_info, verbose=verbose
         )
+
+        if verbose:
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
 
         # Extract the actual extracted_data for evaluation
         extracted_data = extraction_result.get("extracted_data", {})
