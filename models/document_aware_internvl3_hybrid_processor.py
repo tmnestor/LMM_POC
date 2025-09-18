@@ -373,9 +373,8 @@ class DocumentAwareInternVL3HybridProcessor:
                 print(f"🔍 Using InternVL3 document detection prompt: {detection_key}")
                 print(f"📝 Prompt: {detection_prompt[:100]}...")
 
-            # Load and preprocess image
-            image = self.load_document_image(image_path)
-            pixel_values = self._preprocess_image(image)
+            # Load and preprocess image using InternVL3 pipeline
+            pixel_values = self.load_image(image_path)
 
             # Generate response using InternVL3 model with detection-specific limits
             response = self._resilient_generate(
