@@ -4,6 +4,17 @@
 
 prompts:
   detection:
+    name: "Simple Document Type Detection"
+    description: "Minimal prompt for document type detection"
+    prompt: |
+      What type of business document is this?
+      
+      Answer with one of:
+      - INVOICE (includes bills, quotes, estimates)
+      - RECEIPT (includes purchase receipts)
+      - BANK_STATEMENT (includes credit card statements)
+
+  detection_complex:
     name: "Enhanced Document Type Detection"
     description: "Identify business document type using visual layout cues and content indicators"
     prompt: |

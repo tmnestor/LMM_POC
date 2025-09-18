@@ -23,6 +23,7 @@ from typing import Any, Dict
 
 from rich import print as rprint
 
+from common.extraction_cleaner import ExtractionCleaner
 from common.simple_model_evaluator import SimpleModelEvaluator
 from common.simple_prompt_loader import SimplePromptLoader
 
@@ -46,6 +47,9 @@ class DocumentAwareInternVL3Handler:
         # Initialize simplified components
         self.prompt_loader = SimplePromptLoader()
         self.evaluator = SimpleModelEvaluator()
+
+        # Initialize ExtractionCleaner for post-processing (matching Llama pipeline)
+        self.cleaner = ExtractionCleaner(debug=config.get('VERBOSE', False))
 
         # Extract prompt config from main config
         self.prompt_config = config.get('PROMPT_CONFIG', {})
@@ -272,6 +276,23 @@ class DocumentAwareInternVL3Handler:
 
             # Parse extraction response into structured data
             extracted_data = self._parse_extraction_response(response, classification_info["field_names"], verbose=verbose)
+
+            # Apply ExtractionCleaner for value normalization (matching Llama behavior)
+            if verbose:
+                rprint("🧹 Applying ExtractionCleaner to normalize field values...")
+
+            # Temporarily set cleaner debug mode to match verbose setting
+            original_debug = self.cleaner.debug
+            self.cleaner.debug = verbose
+
+            # Clean extracted values using the same pipeline as Llama
+            cleaned_extracted_data = self.cleaner.clean_extraction_dict(extracted_data)
+
+            # Restore original debug setting
+            self.cleaner.debug = original_debug
+
+            # Use cleaned data for final results
+            extracted_data = cleaned_extracted_data
 
             processing_time = time.time() - start_time
 
