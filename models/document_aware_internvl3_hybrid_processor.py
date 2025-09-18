@@ -39,6 +39,7 @@ from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
+    detect_memory_fragmentation,
     get_available_gpu_memory,
     handle_memory_fragmentation,
     optimize_model_for_v100,
@@ -59,6 +60,8 @@ class DocumentAwareInternVL3HybridProcessor:
         debug: bool = False,
         batch_size: Optional[int] = None,
         skip_model_loading: bool = False,
+        pre_loaded_model=None,
+        pre_loaded_tokenizer=None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
@@ -70,6 +73,8 @@ class DocumentAwareInternVL3HybridProcessor:
             debug (bool): Enable debug output
             batch_size (int): Batch size (auto-detected if None)
             skip_model_loading (bool): Skip loading model (for reusing existing model)
+            pre_loaded_model: Pre-loaded InternVL3 model (avoids reloading)
+            pre_loaded_tokenizer: Pre-loaded InternVL3 tokenizer (avoids reloading)
         """
         self.field_list = field_list
         self.field_count = len(field_list)
@@ -78,8 +83,8 @@ class DocumentAwareInternVL3HybridProcessor:
         self.debug = debug
 
         # Initialize components (InternVL3 specific)
-        self.model = None
-        self.tokenizer = None
+        self.model = pre_loaded_model
+        self.tokenizer = pre_loaded_tokenizer
         self.generation_config = None
 
         # Detect model variant (2B vs 8B) for tile optimization
@@ -102,9 +107,16 @@ class DocumentAwareInternVL3HybridProcessor:
         # Configure generation parameters for dynamic field count
         self._configure_generation()
 
-        # Load model and tokenizer (unless skipping for reuse)
-        if not skip_model_loading:
+        # Load model and tokenizer (unless skipping for reuse or already provided)
+        if not skip_model_loading and (self.model is None or self.tokenizer is None):
             self._load_model()
+        elif self.model is not None and self.tokenizer is not None:
+            if self.debug:
+                print("✅ Using pre-loaded InternVL3 model and tokenizer")
+                print(f"🔧 Device: {self.model.device}")
+                print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+            # Apply V100 optimizations to pre-loaded model
+            optimize_model_for_v100(self.model)
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -569,3 +581,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 "extracted_fields_count": 0,
                 "field_count": self.field_count,
             }
+
+    def get_model_info(self) -> dict:
+        """Get information about the loaded model for debugging."""
+        if self.model is None:
+            return {"status": "not_loaded", "model_path": self.model_path}
+
+        return {
+            "status": "loaded",
+            "model_path": self.model_path,
+            "device": str(self.model.device),
+            "is_8b_model": self.is_8b_model,
+            "field_count": self.field_count,
+            "parameter_count": sum(p.numel() for p in self.model.parameters()),
+        }
