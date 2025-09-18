@@ -73,19 +73,37 @@ class DocumentAwareInternVL3Handler:
             detection_prompt = self.prompt_loader.load_prompt(detection_filename, detection_key)
 
             # Process image with detection prompt
-            image = Image.open(image_path).convert('RGB')
+            # For simplicity, use a basic processor approach
+            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+
+            # Create a temporary processor for image loading
+            temp_processor = DocumentAwareInternVL3Processor(
+                field_list=["DOCUMENT_TYPE"],
+                model=self.model,
+                tokenizer=self.tokenizer,
+                skip_model_loading=True,  # Use existing model
+                debug=False
+            )
+
+            # Load and preprocess image
+            pixel_values = temp_processor.load_image(image_path)
+
+            # Move to appropriate device
+            if hasattr(pixel_values, 'cuda') and pixel_values.device.type == 'cpu':
+                pixel_values = pixel_values.cuda()
 
             # Use InternVL3 chat method for detection
             response = self.model.chat(
                 self.tokenizer,
-                pixel_values=None,  # Will be processed internally
-                question=detection_prompt,
+                pixel_values,
+                detection_prompt,
                 generation_config=dict(
                     max_new_tokens=100,
                     do_sample=False,
                     temperature=0.0
                 ),
-                image=image
+                history=None,
+                return_history=False
             )
 
             # Parse document type from response
@@ -142,19 +160,37 @@ class DocumentAwareInternVL3Handler:
             extraction_prompt = self.prompt_loader.load_prompt(prompt_filename, prompt_key)
 
             # Process image with extraction prompt
-            image = Image.open(image_path).convert('RGB')
+            # Use the same processor approach for consistency
+            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+
+            # Create a temporary processor for image loading
+            temp_processor = DocumentAwareInternVL3Processor(
+                field_list=classification_info["field_names"],
+                model=self.model,
+                tokenizer=self.tokenizer,
+                skip_model_loading=True,  # Use existing model
+                debug=False
+            )
+
+            # Load and preprocess image
+            pixel_values = temp_processor.load_image(image_path)
+
+            # Move to appropriate device
+            if hasattr(pixel_values, 'cuda') and pixel_values.device.type == 'cpu':
+                pixel_values = pixel_values.cuda()
 
             # Use InternVL3 chat method for extraction
             response = self.model.chat(
                 self.tokenizer,
-                pixel_values=None,  # Will be processed internally
-                question=extraction_prompt,
+                pixel_values,
+                extraction_prompt,
                 generation_config=dict(
                     max_new_tokens=self.config.get('MAX_NEW_TOKENS', 800),
                     do_sample=False,
                     temperature=0.0
                 ),
-                image=image
+                history=None,
+                return_history=False
             )
 
             # Parse extraction response into structured data
