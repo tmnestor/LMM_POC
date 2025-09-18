@@ -39,7 +39,6 @@ from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
-    detect_memory_fragmentation,
     get_available_gpu_memory,
     handle_memory_fragmentation,
     optimize_model_for_v100,
