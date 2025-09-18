@@ -377,13 +377,14 @@ class DocumentAwareInternVL3HybridProcessor:
             image = self.load_document_image(image_path)
             pixel_values = self._preprocess_image(image)
 
-            # Generate response using InternVL3 model
+            # Generate response using InternVL3 model with detection-specific limits
             response = self._resilient_generate(
                 pixel_values=pixel_values,
                 question=detection_prompt,
                 max_new_tokens=max_tokens,
                 temperature=0.1,
-                do_sample=False
+                do_sample=False,
+                is_detection=True  # Enable strict token limits for detection
             )
 
             if verbose:
@@ -530,10 +531,16 @@ class DocumentAwareInternVL3HybridProcessor:
     def _resilient_generate(self, pixel_values, question, **generation_kwargs):
         """Resilient generation with OOM fallback using InternVL3 chat method."""
 
-        # Build clean generation parameters - use much smaller limits for document detection
+        # Build clean generation parameters - differentiate detection vs extraction limits
         max_tokens = generation_kwargs.get("max_new_tokens", self.generation_config["max_new_tokens"])
-        if max_tokens > 100:  # Limit detection responses to prevent infinite loops
+        is_detection = generation_kwargs.get("is_detection", False)  # New parameter to identify detection phase
+
+        if is_detection and max_tokens > 100:
+            # Strict limits for detection to prevent infinite loops
             max_tokens = 50
+        elif not is_detection and max_tokens > 1000:
+            # More generous limits for extraction, but still capped for safety
+            max_tokens = 800
 
         clean_generation_kwargs = {
             "max_new_tokens": max_tokens,
@@ -561,7 +568,14 @@ class DocumentAwareInternVL3HybridProcessor:
             if len(response) > 500:  # Safety limit
                 response = response[:500]
 
+            # CRITICAL: Detect infinite recursion patterns
+            if self._detect_recursion_pattern(response):
+                if self.debug:
+                    print(f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars")
+                response = response[:100]  # Aggressive truncation for recursion
+
             return response
+
         except torch.cuda.OutOfMemoryError:
             if self.debug:
                 print("⚠️ CUDA OOM during generation, attempting recovery...")
@@ -583,6 +597,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 # CRITICAL: Truncate response to prevent infinite repetition
                 if len(response) > 500:  # Safety limit
                     response = response[:500]
+
+                # CRITICAL: Detect infinite recursion patterns
+                if self._detect_recursion_pattern(response):
+                    if self.debug:
+                        print(f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars")
+                    response = response[:100]  # Aggressive truncation for recursion
 
                 return response
             except torch.cuda.OutOfMemoryError:
@@ -606,9 +626,56 @@ class DocumentAwareInternVL3HybridProcessor:
                 if len(response) > 500:  # Safety limit
                     response = response[:500]
 
+                # CRITICAL: Detect infinite recursion patterns
+                if self._detect_recursion_pattern(response):
+                    if self.debug:
+                        print(f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars")
+                    response = response[:100]  # Aggressive truncation for recursion
+
                 # Move back to GPU
                 self.model = self.model.to(self.device)
                 return response
+
+        except Exception as e:
+            # CRITICAL: Catch all other exceptions to prevent infinite recursion
+            if self.debug:
+                print(f"❌ CRITICAL: Generation failed with exception: {e}")
+                print(f"Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+
+            # Return empty response to trigger fallback logic (like working handler)
+            return ""
+
+    def _detect_recursion_pattern(self, response: str) -> bool:
+        """Detect infinite recursion patterns in model responses."""
+        if not response or len(response) < 50:
+            return False
+
+        # Check for repeated text patterns that indicate recursion
+        response_lines = response.split('\n')
+
+        # Look for lines that are repeated many times
+        line_counts = {}
+        for line in response_lines:
+            line = line.strip()
+            if len(line) > 10:  # Only count substantial lines
+                line_counts[line] = line_counts.get(line, 0) + 1
+
+        # If any line appears more than 5 times, it's likely recursion
+        max_repetitions = max(line_counts.values()) if line_counts else 0
+        if max_repetitions > 5:
+            return True
+
+        # Check for the specific "Answer with one of:" repetition pattern
+        if "Answer with one of:" in response and response.count("Answer with one of:") > 3:
+            return True
+
+        # Check for repeated prompt instructions
+        if "INVOICE" in response and response.count("INVOICE") > 10:
+            return True
+
+        return False
 
     def process_single_image(
         self,
@@ -678,7 +745,8 @@ class DocumentAwareInternVL3HybridProcessor:
                     f"💭 Generating with max_new_tokens={generation_config['max_new_tokens']}"
                 )
 
-            # Generate response using InternVL3 chat method
+            # Generate response using InternVL3 chat method for extraction
+            generation_config['is_detection'] = False  # Enable full token limits for extraction
             response = self._resilient_generate(pixel_values, question, **generation_config)
 
             if self.debug:
