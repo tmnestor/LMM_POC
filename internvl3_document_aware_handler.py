@@ -106,21 +106,42 @@ class DocumentAwareInternVL3Handler:
                 pixel_values = pixel_values.to(torch.float32)
 
             # Use InternVL3 chat method for detection
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                detection_prompt,
-                generation_config=dict(
-                    max_new_tokens=100,
-                    do_sample=False,
-                    temperature=0.0
-                ),
-                history=None,
-                return_history=False
-            )
-
-            # Show raw response when verbose
             if verbose:
+                rprint("[blue]🔧 DIAGNOSTIC: Starting model.chat() for detection...[/blue]")
+
+            try:
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    detection_prompt,
+                    generation_config=dict(
+                        max_new_tokens=100,
+                        do_sample=False,
+                        temperature=0.0
+                    ),
+                    history=None,
+                    return_history=False
+                )
+                if verbose:
+                    rprint("[green]✅ DIAGNOSTIC: model.chat() completed successfully[/green]")
+            except Exception as e:
+                if verbose:
+                    rprint(f"[red]❌ DIAGNOSTIC: model.chat() failed with exception: {e}[/red]")
+                    rprint(f"[red]Exception type: {type(e).__name__}[/red]")
+                    import traceback
+                    rprint(f"[red]Traceback: {traceback.format_exc()}[/red]")
+                response = ""  # Set empty response to trigger fallback logic
+
+            # DIAGNOSTIC: Enhanced model response debugging
+            if verbose:
+                rprint(f"[yellow]🔍 DIAGNOSTIC: Model Response Debug[/yellow]")
+                rprint(f"[yellow]Response type:[/yellow] {type(response)}")
+                rprint(f"[yellow]Response length:[/yellow] {len(response) if response else 0} characters")
+                if response:
+                    rprint(f"[yellow]Response content:[/yellow] {repr(response)}")
+                    rprint(f"[yellow]Response preview:[/yellow] {response[:200]}...")
+                else:
+                    rprint(f"[red]❌ CRITICAL: Model returned empty/None response![/red]")
                 rprint(f"[yellow]Model Response:[/yellow] {response}")
 
             # Parse document type from response
@@ -209,21 +230,44 @@ class DocumentAwareInternVL3Handler:
                 pixel_values = pixel_values.to(torch.float32)
 
             # Use InternVL3 chat method for extraction
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                extraction_prompt,
-                generation_config=dict(
-                    max_new_tokens=self.config.get('MAX_NEW_TOKENS', 800),
-                    do_sample=False,
-                    temperature=0.0
-                ),
-                history=None,
-                return_history=False
-            )
-
-            # Show raw response when verbose
             if verbose:
+                rprint("[blue]🔧 DIAGNOSTIC: Starting model.chat() for extraction...[/blue]")
+
+            try:
+                response = self.model.chat(
+                    self.tokenizer,
+                    pixel_values,
+                    extraction_prompt,
+                    generation_config=dict(
+                        max_new_tokens=self.config.get('MAX_NEW_TOKENS', 800),
+                        do_sample=False,
+                        temperature=0.0
+                    ),
+                    history=None,
+                    return_history=False
+                )
+                if verbose:
+                    rprint("[green]✅ DIAGNOSTIC: model.chat() completed successfully[/green]")
+            except Exception as e:
+                if verbose:
+                    rprint(f"[red]❌ DIAGNOSTIC: model.chat() failed with exception: {e}[/red]")
+                    rprint(f"[red]Exception type: {type(e).__name__}[/red]")
+                    import traceback
+                    rprint(f"[red]Traceback: {traceback.format_exc()}[/red]")
+                response = ""  # Set empty response to trigger fallback logic
+
+            # DIAGNOSTIC: Enhanced model response debugging
+            if verbose:
+                rprint(f"[yellow]🔍 DIAGNOSTIC: Extraction Response Debug[/yellow]")
+                rprint(f"[yellow]Response type:[/yellow] {type(response)}")
+                rprint(f"[yellow]Response length:[/yellow] {len(response) if response else 0} characters")
+                if response:
+                    rprint(f"[yellow]Response content:[/yellow] {repr(response)}")
+                    rprint(f"[yellow]Response preview:[/yellow] {response[:300]}...")
+                    if len(response) > 300:
+                        rprint(f"[yellow]Response tail:[/yellow] ...{response[-100:]}")
+                else:
+                    rprint(f"[red]❌ CRITICAL: Model returned empty/None response![/red]")
                 rprint(f"[yellow]Model Response:[/yellow] {response}")
 
             # Parse extraction response into structured data
@@ -252,10 +296,17 @@ class DocumentAwareInternVL3Handler:
 
     def _parse_document_type(self, response: str, verbose: bool = False) -> str:
         """Parse document type from detection response with enhanced debugging."""
+        # DIAGNOSTIC: Early debug marker to verify method entry and verbose parameter
         if verbose:
+            rprint("[bold magenta]🚀 DIAGNOSTIC: _parse_document_type method entered[/bold magenta]")
+            rprint(f"[magenta]Verbose parameter value: {verbose}[/magenta]")
+            rprint(f"[magenta]Response parameter: {type(response)} with length {len(response) if response else 0}[/magenta]")
             rprint("[dim]🔍 DEBUG: Parsing document type from response[/dim]")
             if response:
                 rprint(f"[dim]📝 Detection response: {response[:100]}...[/dim]")
+        else:
+            # Even when not verbose, show that method was called but verbose=False
+            rprint("[dim]⚠️ DIAGNOSTIC: _parse_document_type called with verbose=False[/dim]")
 
         if not response:
             if verbose:
@@ -319,11 +370,19 @@ class DocumentAwareInternVL3Handler:
         """Parse extraction response into structured field data with enhanced debugging."""
         extracted_data = {}
 
-        # Debug logging only when verbose
+        # DIAGNOSTIC: Early debug marker to verify method entry and parameters
         if verbose:
+            rprint("[bold magenta]🚀 DIAGNOSTIC: _parse_extraction_response method entered[/bold magenta]")
+            rprint(f"[magenta]Verbose parameter value: {verbose}[/magenta]")
+            rprint(f"[magenta]Response parameter: {type(response)} with length {len(response) if response else 0}[/magenta]")
+            rprint(f"[magenta]Expected fields count: {len(expected_fields)}[/magenta]")
+            rprint(f"[magenta]Expected fields: {expected_fields[:5]}{'...' if len(expected_fields) > 5 else ''}[/magenta]")
             rprint(f"[dim]🔍 DEBUG: Parsing response ({len(response) if response else 0} chars)[/dim]")
             if response:
                 rprint(f"[dim]📝 Raw response preview: {response[:200]}...[/dim]")
+        else:
+            # Even when not verbose, show that method was called but verbose=False
+            rprint(f"[dim]⚠️ DIAGNOSTIC: _parse_extraction_response called with verbose=False (expected {len(expected_fields)} fields)[/dim]")
 
         if not response:
             if verbose:
