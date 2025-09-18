@@ -364,9 +364,6 @@ class DocumentAwareInternVL3HybridProcessor:
                 "do_sample", self.generation_config["do_sample"]
             ),
             "top_p": generation_kwargs.get("top_p", self.generation_config["top_p"]),
-            "use_cache": generation_kwargs.get(
-                "use_cache", self.generation_config["use_cache"]
-            ),
         }
 
         try:
