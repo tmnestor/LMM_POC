@@ -18,7 +18,7 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import torch
 import torchvision.transforms as T
@@ -339,6 +339,184 @@ class DocumentAwareInternVL3HybridProcessor:
         else:
             # Fallback to invoice for unknown patterns
             return "invoice"
+
+    def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> Dict:
+        """
+        Detect document type using InternVL3 model and document detection prompt.
+        Compatible with BatchDocumentProcessor workflow.
+
+        Args:
+            image_path: Path to the image to classify
+            verbose: Whether to show detailed output
+
+        Returns:
+            Dict with classification info including document_type
+        """
+        try:
+            from pathlib import Path
+
+            import yaml
+
+            # Load detection configuration
+            detection_path = Path("prompts/document_type_detection.yaml")
+            with detection_path.open("r") as f:
+                detection_config = yaml.safe_load(f)
+
+            # Get InternVL3-specific detection prompt (simpler version)
+            model_config = detection_config.get("models", {}).get("internvl3", {})
+            detection_key = model_config.get("recommended_prompt", "detection_simple")
+
+            detection_prompt = detection_config["prompts"][detection_key]["prompt"]
+            max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
+
+            if verbose:
+                print(f"🔍 Using InternVL3 document detection prompt: {detection_key}")
+                print(f"📝 Prompt: {detection_prompt[:100]}...")
+
+            # Load and preprocess image
+            image = self.load_document_image(image_path)
+            pixel_values = self._preprocess_image(image)
+
+            # Generate response using InternVL3 model
+            response = self._resilient_generate(
+                pixel_values=pixel_values,
+                question=detection_prompt,
+                max_new_tokens=max_tokens,
+                temperature=0.1,
+                do_sample=False
+            )
+
+            if verbose:
+                print(f"🤖 Model response: {response}")
+
+            # Parse document type from response
+            document_type = self._parse_document_type_response(response, detection_config)
+
+            if verbose:
+                print(f"✅ Detected document type: {document_type}")
+
+            return {
+                "document_type": document_type,
+                "confidence": 1.0,  # InternVL3 doesn't provide confidence scores
+                "raw_response": response,
+                "prompt_used": detection_key
+            }
+
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error in document detection: {e}")
+
+            # Fallback to simple heuristic
+            return {
+                "document_type": "invoice",  # Safe fallback
+                "confidence": 0.1,
+                "raw_response": "",
+                "prompt_used": "fallback_heuristic",
+                "error": str(e)
+            }
+
+    def process_document_aware(self, image_path: str, classification_info: Dict, verbose: bool = False) -> Dict:
+        """
+        Process document using document-specific extraction based on detected type.
+        Compatible with BatchDocumentProcessor workflow.
+
+        Args:
+            image_path: Path to the image to process
+            classification_info: Result from detect_and_classify_document()
+            verbose: Whether to show detailed output
+
+        Returns:
+            Dict with extraction results in BatchDocumentProcessor format
+        """
+        try:
+            document_type = classification_info["document_type"].lower()
+
+            if verbose:
+                print(f"📊 Processing {document_type.upper()} document with InternVL3")
+
+            # Get document-specific prompt from InternVL3 prompts
+            extraction_prompt = self.get_extraction_prompt(document_type)
+
+            if verbose:
+                print(f"📝 Using {document_type} prompt: {len(extraction_prompt)} characters")
+
+            # Get document-specific field list
+            doc_type_fields = {
+                'invoice': [
+                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                ],
+                'receipt': [
+                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                ],
+                'bank_statement': [
+                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                    "ACCOUNT_BALANCE"
+                ]
+            }
+
+            # Update field list for document-specific extraction
+            original_field_list = self.field_list
+            self.field_list = doc_type_fields.get(document_type, doc_type_fields['invoice'])
+
+            # Process with document-specific settings
+            result = self.process_single_image(image_path)
+
+            # Restore original field list
+            self.field_list = original_field_list
+
+            if verbose:
+                extracted_data = result.get('extracted_data', {})
+                found_fields = sum(1 for v in extracted_data.values() if v != 'NOT_FOUND')
+                print(f"✅ Extracted {found_fields}/{len(extracted_data)} fields")
+
+            return result
+
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error in document-aware processing: {e}")
+
+            # Fallback to universal processing
+            return self.process_single_image(image_path)
+
+    def _parse_document_type_response(self, response: str, detection_config: Dict) -> str:
+        """
+        Parse document type from model response using type mappings.
+
+        Args:
+            response: Raw model response
+            detection_config: Detection configuration with type mappings
+
+        Returns:
+            Normalized document type
+        """
+        response_lower = response.lower().strip()
+
+        # Get type mappings from config
+        type_mappings = detection_config.get("type_mappings", {})
+
+        # Direct mapping check
+        for variant, canonical in type_mappings.items():
+            if variant.lower() in response_lower:
+                return canonical
+
+        # Fallback keyword detection
+        if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
+            return "RECEIPT"
+        elif any(word in response_lower for word in ["bank", "statement", "account"]):
+            return "BANK_STATEMENT"
+        elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
+            return "INVOICE"
+
+        # Final fallback
+        fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
+        return fallback
 
     def load_document_image(self, image_path: str) -> Image.Image:
         """Load document image with error handling."""
