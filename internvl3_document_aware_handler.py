@@ -89,9 +89,12 @@ class DocumentAwareInternVL3Handler:
             # Load and preprocess image
             pixel_values = temp_processor.load_image(image_path)
 
-            # Move to appropriate device
-            if hasattr(pixel_values, 'cuda') and pixel_values.device.type == 'cpu':
-                pixel_values = pixel_values.cuda()
+            # Move to appropriate device and convert dtype (match working processor)
+            import torch
+            if torch.cuda.is_available():
+                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+            else:
+                pixel_values = pixel_values.to(torch.float32)
 
             # Use InternVL3 chat method for detection
             response = self.model.chat(
@@ -178,9 +181,12 @@ class DocumentAwareInternVL3Handler:
             # Load and preprocess image
             pixel_values = temp_processor.load_image(image_path)
 
-            # Move to appropriate device
-            if hasattr(pixel_values, 'cuda') and pixel_values.device.type == 'cpu':
-                pixel_values = pixel_values.cuda()
+            # Move to appropriate device and convert dtype (match working processor)
+            import torch
+            if torch.cuda.is_available():
+                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+            else:
+                pixel_values = pixel_values.to(torch.float32)
 
             # Use InternVL3 chat method for extraction
             response = self.model.chat(
