@@ -134,14 +134,14 @@ class DocumentAwareInternVL3Handler:
 
             # DIAGNOSTIC: Enhanced model response debugging
             if verbose:
-                rprint(f"[yellow]🔍 DIAGNOSTIC: Model Response Debug[/yellow]")
+                rprint("[yellow]🔍 DIAGNOSTIC: Model Response Debug[/yellow]")
                 rprint(f"[yellow]Response type:[/yellow] {type(response)}")
                 rprint(f"[yellow]Response length:[/yellow] {len(response) if response else 0} characters")
                 if response:
                     rprint(f"[yellow]Response content:[/yellow] {repr(response)}")
                     rprint(f"[yellow]Response preview:[/yellow] {response[:200]}...")
                 else:
-                    rprint(f"[red]❌ CRITICAL: Model returned empty/None response![/red]")
+                    rprint("[red]❌ CRITICAL: Model returned empty/None response![/red]")
                 rprint(f"[yellow]Model Response:[/yellow] {response}")
 
             # Parse document type from response
@@ -258,7 +258,7 @@ class DocumentAwareInternVL3Handler:
 
             # DIAGNOSTIC: Enhanced model response debugging
             if verbose:
-                rprint(f"[yellow]🔍 DIAGNOSTIC: Extraction Response Debug[/yellow]")
+                rprint("[yellow]🔍 DIAGNOSTIC: Extraction Response Debug[/yellow]")
                 rprint(f"[yellow]Response type:[/yellow] {type(response)}")
                 rprint(f"[yellow]Response length:[/yellow] {len(response) if response else 0} characters")
                 if response:
@@ -267,7 +267,7 @@ class DocumentAwareInternVL3Handler:
                     if len(response) > 300:
                         rprint(f"[yellow]Response tail:[/yellow] ...{response[-100:]}")
                 else:
-                    rprint(f"[red]❌ CRITICAL: Model returned empty/None response![/red]")
+                    rprint("[red]❌ CRITICAL: Model returned empty/None response![/red]")
                 rprint(f"[yellow]Model Response:[/yellow] {response}")
 
             # Parse extraction response into structured data
