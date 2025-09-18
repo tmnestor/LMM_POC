@@ -12,22 +12,29 @@ prompts:
     prompt: |
       Extract structured data from this invoice image.
 
-      OUTPUT FORMAT (14 FIELDS):
+      IMPORTANT: Output EXACTLY in this format - one field per line with exact field names:
 
-      DOCUMENT_TYPE: [Look for INVOICE, TAX INVOICE at top - answer INVOICE or NOT_FOUND]
-      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
-      SUPPLIER_NAME: [Look at TOP/HEADER for LARGEST business name or NOT_FOUND]
-      BUSINESS_ADDRESS: [Find address near business name at top or NOT_FOUND]
-      PAYER_NAME: [Look for 'Bill To:' or 'Customer:' section - extract name or NOT_FOUND]
-      PAYER_ADDRESS: [Find address in 'Bill To:' or 'Customer:' section or NOT_FOUND]
-      INVOICE_DATE: [Look for 'Date:' or 'Invoice Date:' - format DD/MM/YYYY or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Find main table - list items with " | " separator or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [Find QTY column - list with " | " separator or NOT_FOUND]
-      LINE_ITEM_PRICES: [Find Unit Price column - list with $ and " | " or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [Find Amount column - list with $ and " | " or NOT_FOUND]
-      IS_GST_INCLUDED: [Check if GST amount shown - answer true or false]
-      GST_AMOUNT: [Look at BOTTOM for GST - extract with $ or NOT_FOUND]
-      TOTAL_AMOUNT: [Find LARGEST amount at BOTTOM with $ or NOT_FOUND]
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: 12 345 678 901
+      SUPPLIER_NAME: Company Name Here
+      BUSINESS_ADDRESS: Full Address Here
+      PAYER_NAME: Customer Name Here
+      PAYER_ADDRESS: Customer Address Here
+      INVOICE_DATE: 01/01/2024
+      LINE_ITEM_DESCRIPTIONS: Item 1 | Item 2 | Item 3
+      LINE_ITEM_QUANTITIES: 1 | 2 | 3
+      LINE_ITEM_PRICES: $10.00 | $20.00 | $30.00
+      LINE_ITEM_TOTAL_PRICES: $10.00 | $40.00 | $90.00
+      IS_GST_INCLUDED: true
+      GST_AMOUNT: $9.09
+      TOTAL_AMOUNT: $109.09
+
+      EXTRACTION RULES:
+      - Use "NOT_FOUND" if any field is not visible
+      - Use exact field names shown above
+      - For multiple items, separate with " | "
+      - Include $ symbol for all monetary amounts
+      - For GST: use "true" if GST line exists, "false" if not shown
 
   # ============================================================================
   # RECEIPT EXTRACTION - 14 Fields
@@ -38,22 +45,30 @@ prompts:
     prompt: |
       Extract structured data from this receipt image.
 
-      OUTPUT FORMAT (14 FIELDS):
+      IMPORTANT: Output EXACTLY in this format - one field per line with exact field names:
 
-      DOCUMENT_TYPE: [Look for RECEIPT text - answer RECEIPT or NOT_FOUND]
-      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
-      SUPPLIER_NAME: [Store/business name at TOP of receipt or NOT_FOUND]
-      BUSINESS_ADDRESS: [Store address usually below name or NOT_FOUND]
-      PAYER_NAME: [Customer name if shown or NOT_FOUND]
-      PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
-      INVOICE_DATE: [Transaction date - format DD/MM/YYYY or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [List product names with " | " separator or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [List quantities with " | " separator or NOT_FOUND]
-      LINE_ITEM_PRICES: [List prices with $ and " | " separator or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [List line totals with $ and " | " or NOT_FOUND]
-      IS_GST_INCLUDED: [Check if GST shown - answer true or false]
-      GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total with $ symbol or NOT_FOUND]
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: 12 345 678 901
+      SUPPLIER_NAME: Store Name Here
+      BUSINESS_ADDRESS: Store Address Here
+      PAYER_NAME: Customer Name Here
+      PAYER_ADDRESS: Customer Address Here
+      INVOICE_DATE: 01/01/2024
+      LINE_ITEM_DESCRIPTIONS: Product 1 | Product 2 | Product 3
+      LINE_ITEM_QUANTITIES: 1 | 2 | 1
+      LINE_ITEM_PRICES: $5.00 | $10.00 | $15.00
+      LINE_ITEM_TOTAL_PRICES: $5.00 | $20.00 | $15.00
+      IS_GST_INCLUDED: true
+      GST_AMOUNT: $3.64
+      TOTAL_AMOUNT: $43.64
+
+      EXTRACTION RULES:
+      - Use "NOT_FOUND" if any field is not visible
+      - Use exact field names shown above
+      - For multiple items, separate with " | "
+      - Include $ symbol for all monetary amounts
+      - For GST: use "true" if GST line exists, "false" if not shown
+      - Customer details often NOT_FOUND on receipts (normal)
 
   # ============================================================================
   # BANK STATEMENT EXTRACTION - 7 Fields
@@ -64,20 +79,23 @@ prompts:
     prompt: |
       Extract structured data from this bank statement image.
 
-      CRITICAL: Count transaction table rows. Lists MUST have same number of elements.
+      IMPORTANT: Output EXACTLY in this format - one field per line with exact field names:
 
-      OUTPUT FORMAT (7 FIELDS):
+      DOCUMENT_TYPE: STATEMENT
+      STATEMENT_DATE_RANGE: 01/01/2024 - 31/01/2024
+      LINE_ITEM_DESCRIPTIONS: Transaction 1 | Transaction 2 | Transaction 3
+      TRANSACTION_DATES: 01/01/2024 | 15/01/2024 | 31/01/2024
+      TRANSACTION_AMOUNTS_PAID: $100.00 | NOT_FOUND | $50.00
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | $500.00 | NOT_FOUND
+      ACCOUNT_BALANCE: $900.00 | $1400.00 | $1350.00
 
-      DOCUMENT_TYPE: [Look for STATEMENT text - answer STATEMENT or NOT_FOUND]
-      STATEMENT_DATE_RANGE: [Find period dates at top (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [List transaction descriptions with " | " or NOT_FOUND]
-      TRANSACTION_DATES: [List dates with " | " - MUST match row count or NOT_FOUND]
-      TRANSACTION_AMOUNTS_PAID: [List debits with $ and " | " - use NOT_FOUND for empty cells]
-      TRANSACTION_AMOUNTS_RECEIVED: [List credits with $ and " | " - use NOT_FOUND for empty cells]
-      ACCOUNT_BALANCE: [List balances with $ and " | " or NOT_FOUND]
-
-      ROW MATCHING: If 5 rows exist, output exactly 5 elements per field.
-      Example: "$100 | NOT_FOUND | $50 | NOT_FOUND | $25"
+      EXTRACTION RULES:
+      - Use "NOT_FOUND" if any field is not visible
+      - Use exact field names shown above
+      - Count transaction rows carefully - all lists must have same number of elements
+      - For multiple transactions, separate with " | "
+      - Include $ symbol for all monetary amounts
+      - Use "NOT_FOUND" for empty debit/credit cells in each row
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields

@@ -227,21 +227,29 @@ class DocumentAwareInternVL3Handler:
             }
 
     def _parse_document_type(self, response: str) -> str:
-        """Parse document type from detection response."""
+        """Parse document type from detection response with enhanced debugging."""
+        rprint("[dim]🔍 DEBUG: Parsing document type from response[/dim]")
+        if response:
+            rprint(f"[dim]📝 Detection response: {response[:100]}...[/dim]")
+
         if not response:
+            rprint("[dim]⚠️ Empty detection response - defaulting to invoice[/dim]")
             return "invoice"
 
         response_lower = response.lower().strip()
 
-        # Look for document type keywords
+        # Look for document type keywords with enhanced matching
+        detected_type = "invoice"  # Default
+
         if "receipt" in response_lower:
-            return "receipt"
+            detected_type = "receipt"
         elif "bank" in response_lower or "statement" in response_lower:
-            return "bank_statement"
+            detected_type = "bank_statement"
         elif "invoice" in response_lower or "bill" in response_lower:
-            return "invoice"
-        else:
-            return "invoice"  # Default fallback
+            detected_type = "invoice"
+
+        rprint(f"[dim]📋 Detected document type: {detected_type}[/dim]")
+        return detected_type
 
     def _get_field_info_for_type(self, doc_type: str) -> Dict[str, Any]:
         """Get field information for document type."""
@@ -281,15 +289,22 @@ class DocumentAwareInternVL3Handler:
         return field_info
 
     def _parse_extraction_response(self, response: str, expected_fields: list) -> Dict[str, str]:
-        """Parse extraction response into structured field data."""
+        """Parse extraction response into structured field data with enhanced debugging."""
         extracted_data = {}
 
+        # Debug logging
+        rprint(f"[dim]🔍 DEBUG: Parsing response ({len(response) if response else 0} chars)[/dim]")
+        if response:
+            rprint(f"[dim]📝 Raw response preview: {response[:200]}...[/dim]")
+
         if not response:
-            # Return NOT_FOUND for all expected fields
+            rprint("[dim]⚠️ Empty response - returning NOT_FOUND for all fields[/dim]")
             return {field: "NOT_FOUND" for field in expected_fields}
 
-        # Simple parsing: look for "FIELD_NAME: value" patterns
+        # Enhanced parsing: handle multiple formats
         lines = response.strip().split('\n')
+
+        rprint(f"[dim]📋 Processing {len(lines)} response lines[/dim]")
 
         for line in lines:
             line = line.strip()
@@ -300,13 +315,30 @@ class DocumentAwareInternVL3Handler:
                     field_name = parts[0].strip()
                     field_value = parts[1].strip()
 
-                    # Clean up field name (remove any prefixes)
-                    if field_name in expected_fields:
-                        extracted_data[field_name] = field_value
+                    # Clean up field name (remove any prefixes, brackets, numbers)
+                    clean_field_name = field_name.upper()
+
+                    # Remove common prefixes that might be added
+                    for prefix in ['1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.',
+                                   '11.', '12.', '13.', '14.', '15.', '-', '*', '•']:
+                        if clean_field_name.startswith(prefix):
+                            clean_field_name = clean_field_name[len(prefix):].strip()
+
+                    # Check if this matches any expected field
+                    for expected_field in expected_fields:
+                        if clean_field_name == expected_field.upper():
+                            extracted_data[expected_field] = field_value
+                            rprint(f"[dim]✅ Found {expected_field}: {field_value[:50]}...[/dim]")
+                            break
+                    else:
+                        rprint(f"[dim]❌ Unknown field '{clean_field_name}' (original: '{field_name}')[/dim]")
 
         # Ensure all expected fields are present
         for field in expected_fields:
             if field not in extracted_data:
                 extracted_data[field] = "NOT_FOUND"
+
+        found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+        rprint(f"[dim]📊 Extraction summary: {found_count}/{len(expected_fields)} fields found[/dim]")
 
         return extracted_data
