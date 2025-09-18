@@ -68,7 +68,9 @@ class DocumentAwareInternVL3Handler:
             detection_file = self.prompt_config.get('detection_file', 'prompts/document_type_detection.yaml')
             detection_key = self.prompt_config.get('detection_key', 'detection')
 
-            detection_prompt = self.prompt_loader.load_prompt(detection_file, detection_key)
+            # Extract just the filename from the path for SimplePromptLoader
+            detection_filename = detection_file.split('/')[-1] if '/' in detection_file else detection_file
+            detection_prompt = self.prompt_loader.load_prompt(detection_filename, detection_key)
 
             # Process image with detection prompt
             image = Image.open(image_path).convert('RGB')
@@ -134,7 +136,10 @@ class DocumentAwareInternVL3Handler:
 
             # Get the prompt file for this document type
             prompt_file = extraction_files.get(doc_type_upper, 'prompts/internvl3_prompts.yaml')
-            extraction_prompt = self.prompt_loader.load_prompt(prompt_file, prompt_key)
+
+            # Extract just the filename from the path for SimplePromptLoader
+            prompt_filename = prompt_file.split('/')[-1] if '/' in prompt_file else prompt_file
+            extraction_prompt = self.prompt_loader.load_prompt(prompt_filename, prompt_key)
 
             # Process image with extraction prompt
             image = Image.open(image_path).convert('RGB')
