@@ -21,7 +21,6 @@ Usage:
 import time
 from typing import Any, Dict
 
-from PIL import Image
 from rich import print as rprint
 
 from common.simple_model_evaluator import SimpleModelEvaluator
@@ -74,7 +73,9 @@ class DocumentAwareInternVL3Handler:
 
             # Process image with detection prompt
             # For simplicity, use a basic processor approach
-            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+            from models.document_aware_internvl3_processor import (
+                DocumentAwareInternVL3Processor,
+            )
 
             # Create a temporary processor for image loading
             temp_processor = DocumentAwareInternVL3Processor(
@@ -161,7 +162,9 @@ class DocumentAwareInternVL3Handler:
 
             # Process image with extraction prompt
             # Use the same processor approach for consistency
-            from models.document_aware_internvl3_processor import DocumentAwareInternVL3Processor
+            from models.document_aware_internvl3_processor import (
+                DocumentAwareInternVL3Processor,
+            )
 
             # Create a temporary processor for image loading
             temp_processor = DocumentAwareInternVL3Processor(
