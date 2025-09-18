@@ -76,12 +76,7 @@ prompts:
     name: "Simple Document Type Detection"
     description: "Minimal prompt for document type detection"
     prompt: |
-      What type of business document is this?
-      
-      Answer with one of:
-      - INVOICE (includes bills, quotes, estimates)
-      - RECEIPT (includes purchase receipts)
-      - BANK_STATEMENT (includes credit card statements)
+      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT
 
 # Type mappings for response normalization
 type_mappings:

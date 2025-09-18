@@ -535,12 +535,11 @@ class DocumentAwareInternVL3HybridProcessor:
         max_tokens = generation_kwargs.get("max_new_tokens", self.generation_config["max_new_tokens"])
         is_detection = generation_kwargs.get("is_detection", False)  # New parameter to identify detection phase
 
-        if is_detection and max_tokens > 100:
-            # Strict limits for detection to prevent infinite loops
-            max_tokens = 50
-        elif not is_detection and max_tokens > 1000:
-            # More generous limits for extraction, but still capped for safety
-            max_tokens = 800
+        if is_detection:
+            # Detection only needs a short response (just the document type)
+            max_tokens = min(max_tokens, 100)  # Allow up to 100 for detection
+        # Don't limit extraction tokens as aggressively - let the model complete its response
+        # The recursion detection will catch any infinite loops
 
         clean_generation_kwargs = {
             "max_new_tokens": max_tokens,
@@ -564,15 +563,14 @@ class DocumentAwareInternVL3HybridProcessor:
                 return_history=False
             )
 
-            # CRITICAL: Truncate response to prevent infinite repetition
-            if len(response) > 500:  # Safety limit
-                response = response[:500]
-
-            # CRITICAL: Detect infinite recursion patterns
+            # CRITICAL: Detect infinite recursion patterns FIRST
             if self._detect_recursion_pattern(response):
                 if self.debug:
                     print(f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars")
-                response = response[:100]  # Aggressive truncation for recursion
+                # For detection, we only need the document type anyway
+                response = response[:200]  # Less aggressive truncation
+            elif len(response) > 2000:  # Much higher safety limit for normal responses
+                response = response[:2000]  # Allow longer responses for extraction
 
             return response
 
@@ -594,15 +592,13 @@ class DocumentAwareInternVL3HybridProcessor:
                     return_history=False
                 )
 
-                # CRITICAL: Truncate response to prevent infinite repetition
-                if len(response) > 500:  # Safety limit
-                    response = response[:500]
-
-                # CRITICAL: Detect infinite recursion patterns
+                # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
                         print(f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars")
-                    response = response[:100]  # Aggressive truncation for recursion
+                    response = response[:200]  # Less aggressive truncation
+                elif len(response) > 2000:  # Higher safety limit for normal responses
+                    response = response[:2000]  # Allow longer responses for extraction
 
                 return response
             except torch.cuda.OutOfMemoryError:
@@ -622,15 +618,13 @@ class DocumentAwareInternVL3HybridProcessor:
                     return_history=False
                 )
 
-                # CRITICAL: Truncate response to prevent infinite repetition
-                if len(response) > 500:  # Safety limit
-                    response = response[:500]
-
-                # CRITICAL: Detect infinite recursion patterns
+                # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
                         print(f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars")
-                    response = response[:100]  # Aggressive truncation for recursion
+                    response = response[:200]  # Less aggressive truncation
+                elif len(response) > 2000:  # Higher safety limit for normal responses
+                    response = response[:2000]  # Allow longer responses for extraction
 
                 # Move back to GPU
                 self.model = self.model.to(self.device)
