@@ -10,24 +10,22 @@ prompts:
     name: "Invoice Extraction"
     description: "Extract 14 invoice-specific fields"
     prompt: |
-      Extract structured data from this invoice image.
+      Extract ALL data from this invoice image. Find each field and respond in EXACT format below.
 
-      OUTPUT FORMAT (14 FIELDS):
-
-      DOCUMENT_TYPE: [Look for INVOICE, TAX INVOICE at top - answer INVOICE or NOT_FOUND]
-      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
-      SUPPLIER_NAME: [Look at TOP/HEADER for LARGEST business name or NOT_FOUND]
-      BUSINESS_ADDRESS: [Find address near business name at top or NOT_FOUND]
-      PAYER_NAME: [Look for 'Bill To:' or 'Customer:' section - extract name or NOT_FOUND]
-      PAYER_ADDRESS: [Find address in 'Bill To:' or 'Customer:' section or NOT_FOUND]
-      INVOICE_DATE: [Look for 'Date:' or 'Invoice Date:' - format DD/MM/YYYY or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Find main table - list items with " | " separator or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [Find QTY column - list with " | " separator or NOT_FOUND]
-      LINE_ITEM_PRICES: [Find Unit Price column - list with $ and " | " or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [Find Amount column - list with $ and " | " or NOT_FOUND]
-      IS_GST_INCLUDED: [Check if GST amount shown - answer true or false]
-      GST_AMOUNT: [Look at BOTTOM for GST - extract with $ or NOT_FOUND]
-      TOTAL_AMOUNT: [Find LARGEST amount at BOTTOM with $ or NOT_FOUND]
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: [Find "ABN" followed by 11 digits like "12 345 678 901" or NOT_FOUND]
+      SUPPLIER_NAME: [Business name at top of document or NOT_FOUND]
+      BUSINESS_ADDRESS: [Full address of business or NOT_FOUND]
+      PAYER_NAME: [Customer name from "Bill To" section or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address from "Bill To" section or NOT_FOUND]
+      INVOICE_DATE: [Date in DD/MM/YYYY format or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [List ALL items separated by " | " like "Item1 | Item2 | Item3" or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [List ALL quantities separated by " | " like "1 | 2 | 3" or NOT_FOUND]
+      LINE_ITEM_PRICES: [List ALL unit prices with $ separated by " | " like "$10.00 | $20.00" or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [List ALL line totals with $ separated by " | " like "$10.00 | $40.00" or NOT_FOUND]
+      IS_GST_INCLUDED: [true if GST/tax shown, false if not, or NOT_FOUND]
+      GST_AMOUNT: [GST amount with $ like "$9.50" or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total amount with $ like "$104.50" or NOT_FOUND]
 
   # ============================================================================
   # RECEIPT EXTRACTION - 14 Fields
@@ -36,24 +34,22 @@ prompts:
     name: "Receipt Extraction"
     description: "Extract 14 receipt-specific fields"
     prompt: |
-      Extract structured data from this receipt image.
+      Extract ALL data from this receipt image. Find each field and respond in EXACT format below.
 
-      OUTPUT FORMAT (14 FIELDS):
-
-      DOCUMENT_TYPE: [Look for RECEIPT text - answer RECEIPT or NOT_FOUND]
-      BUSINESS_ABN: [Find ABN label followed by 11 digits or NOT_FOUND]
-      SUPPLIER_NAME: [Store/business name at TOP of receipt or NOT_FOUND]
-      BUSINESS_ADDRESS: [Store address usually below name or NOT_FOUND]
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: [Find "ABN" followed by 11 digits like "12 345 678 901" or NOT_FOUND]
+      SUPPLIER_NAME: [Store/business name at top or NOT_FOUND]
+      BUSINESS_ADDRESS: [Store address or NOT_FOUND]
       PAYER_NAME: [Customer name if shown or NOT_FOUND]
       PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
-      INVOICE_DATE: [Transaction date - format DD/MM/YYYY or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [List product names with " | " separator or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [List quantities with " | " separator or NOT_FOUND]
-      LINE_ITEM_PRICES: [List prices with $ and " | " separator or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [List totals with $ and " | " separator or NOT_FOUND]
-      IS_GST_INCLUDED: [Check if GST/tax amount shown - answer true or false]
-      GST_AMOUNT: [GST/tax amount with $ if shown or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total with $ or NOT_FOUND]
+      INVOICE_DATE: [Transaction date in DD/MM/YYYY format or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [List ALL items separated by " | " like "Item1 | Item2 | Item3" or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [List ALL quantities separated by " | " like "1 | 2 | 3" or NOT_FOUND]
+      LINE_ITEM_PRICES: [List ALL unit prices with $ separated by " | " like "$10.00 | $20.00" or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [List ALL line totals with $ separated by " | " like "$10.00 | $40.00" or NOT_FOUND]
+      IS_GST_INCLUDED: [true if GST/tax shown, false if not, or NOT_FOUND]
+      GST_AMOUNT: [GST amount with $ like "$9.50" or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total amount with $ like "$104.50" or NOT_FOUND]
 
   # ============================================================================
   # BANK STATEMENT EXTRACTION - 7 Fields
