@@ -92,6 +92,27 @@ class DocumentAwareInternVL3HybridProcessor:
         # Initialize extraction cleaner for value normalization (🧹 CLEANER CALLED output)
         self.cleaner = ExtractionCleaner(debug=debug)
 
+        # Document-specific field lists for optimal processing
+        self.document_field_lists = {
+            'invoice': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'receipt': [
+                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
+                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            ],
+            'bank_statement': [
+                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE"
+            ]
+        }
+
         if self.debug:
             print(
                 f"🎯 InternVL3 Hybrid processor initialized for {self.field_count} fields: {field_list[0]} → {field_list[-1]}"
@@ -208,63 +229,62 @@ class DocumentAwareInternVL3HybridProcessor:
         )
         return transform
 
-    def find_closest_aspect_ratio(
-        self, aspect_ratio, target_ratios, width, height, image_size
-    ):
-        """Find aspect ratio optimized for high tile count and better OCR coverage."""
-        best_ratio_diff = float("inf")
+    def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
+        """Standard InternVL3 find_closest_aspect_ratio from official documentation."""
+        best_ratio_diff = float('inf')
         best_ratio = (1, 1)
         area = width * height
-
         for ratio in target_ratios:
             target_aspect_ratio = ratio[0] / ratio[1]
             ratio_diff = abs(aspect_ratio - target_aspect_ratio)
             if ratio_diff < best_ratio_diff:
                 best_ratio_diff = ratio_diff
                 best_ratio = ratio
-
+            elif ratio_diff == best_ratio_diff:
+                if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
+                    best_ratio = ratio
         return best_ratio
 
-    def dynamic_preprocess(self, image, min_num=1, max_num=24, image_size=DEFAULT_IMAGE_SIZE):
-        """InternVL3 dynamic preprocessing with tiling."""
+    def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
+        """Standard InternVL3 dynamic_preprocess from official documentation."""
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
 
-        # Target ratios for optimal tiling
+        # Standard target ratios calculation
         target_ratios = set(
-            (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if i * j <= max_num and i * j >= min_num
-        )
+            (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
+            i * j <= max_num and i * j >= min_num)
         target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
-        # Find the closest aspect ratio
+        # Find the closest aspect ratio using standard method
         target_aspect_ratio = self.find_closest_aspect_ratio(
-            aspect_ratio, target_ratios, orig_width, orig_height, image_size
-        )
+            aspect_ratio, target_ratios, orig_width, orig_height, image_size)
 
-        # Resize image
         target_width = image_size * target_aspect_ratio[0]
         target_height = image_size * target_aspect_ratio[1]
-        resized_img = image.resize((target_width, target_height))
+        blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
 
+        resized_img = image.resize((target_width, target_height))
         processed_images = []
 
-        # Split into tiles
-        for i in range(target_aspect_ratio[0]):
-            for j in range(target_aspect_ratio[1]):
-                box = (
-                    i * image_size,
-                    j * image_size,
-                    (i + 1) * image_size,
-                    (j + 1) * image_size,
-                )
-                split_img = resized_img.crop(box)
-                processed_images.append(split_img)
+        # Standard tiling process
+        for i in range(blocks):
+            box = (
+                (i % (target_width // image_size)) * image_size,
+                (i // (target_width // image_size)) * image_size,
+                ((i % (target_width // image_size)) + 1) * image_size,
+                ((i // (target_width // image_size)) + 1) * image_size
+            )
+            split_img = resized_img.crop(box)
+            processed_images.append(split_img)
 
-        assert len(processed_images) == target_aspect_ratio[0] * target_aspect_ratio[1]
-        assert len(processed_images) <= max_num
+        # Add thumbnail if requested (standard InternVL3 feature)
+        if use_thumbnail and len(processed_images) != 1:
+            thumbnail_img = image.resize((image_size, image_size))
+            processed_images.append(thumbnail_img)
         return processed_images
 
-    def load_image(self, image_file, input_size=DEFAULT_IMAGE_SIZE, max_num=None):
+    def load_image(self, image_file, input_size=448, max_num=12):
         """Complete InternVL3 image loading and preprocessing pipeline."""
         if max_num is None:
             if self.is_8b_model:
@@ -278,9 +298,9 @@ class DocumentAwareInternVL3HybridProcessor:
         # Load image
         image = Image.open(image_file).convert("RGB")
 
-        # Process into tiles
+        # Process into tiles using standard InternVL3 dynamic_preprocess
         images = self.dynamic_preprocess(
-            image, min_num=1, max_num=max_num, image_size=input_size
+            image, min_num=1, max_num=max_num, image_size=input_size, use_thumbnail=True
         )
 
         # Apply transforms
@@ -712,8 +732,29 @@ class DocumentAwareInternVL3HybridProcessor:
             else:
                 # Get document-aware prompt using PROPER model-based detection
                 detection_result = self.detect_and_classify_document(image_path, verbose=self.debug)
-                document_type = detection_result.get('document_type', 'invoice')
+                detected_type = detection_result.get('document_type', 'INVOICE')
+
+                # CRITICAL FIX: Map uppercase detection result to lowercase prompt key
+                type_mapping = {
+                    'INVOICE': 'invoice',
+                    'RECEIPT': 'receipt',
+                    'BANK_STATEMENT': 'bank_statement'
+                }
+                document_type = type_mapping.get(detected_type, 'invoice')
+
+                if self.debug:
+                    print(f"📋 DOCUMENT DETECTION RESULT: {detection_result}")
+                    print(f"🎯 DETECTED DOCUMENT TYPE: '{detected_type}' → MAPPED TO: '{document_type}'")
+                    print(f"📝 LOADING EXTRACTION PROMPT FOR: '{document_type}'")
+
                 prompt = self.get_extraction_prompt(document_type=document_type)
+
+                # Get document-specific field list for accurate processing
+                document_fields = self.document_field_lists.get(document_type, self.field_list)
+
+                if self.debug:
+                    print(f"📋 DOCUMENT-SPECIFIC FIELDS: {len(document_fields)} fields for '{document_type}'")
+                    print(f"   Fields: {document_fields[:5]}{'...' if len(document_fields) > 5 else ''}")
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
@@ -774,16 +815,20 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
 
-            # Parse response using robust extraction parser with field filtering
+            # Parse response using robust extraction parser with document-specific field filtering
             from common.extraction_parser import parse_extraction_response
 
+            # Use document-specific fields if we detected a document type, otherwise use full field list
+            if 'document_fields' not in locals():
+                document_fields = self.field_list
+
             extracted_data = parse_extraction_response(
-                response, expected_fields=self.field_list
+                response, expected_fields=document_fields
             )
 
             # Apply ExtractionCleaner for value normalization (🧹 CLEANER CALLED output)
             cleaned_data = {}
-            for field in self.field_list:
+            for field in document_fields:
                 raw_value = extracted_data.get(field, "NOT_FOUND")
                 if raw_value != "NOT_FOUND":
                     cleaned_value = self.cleaner.clean_field_value(field, raw_value)
@@ -800,7 +845,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
                 sys.stdout.write("📊 PARSED EXTRACTION RESULTS:\n")
                 sys.stdout.write("=" * 80 + "\n")
-                for field in self.field_list:
+                for field in document_fields:
                     value = extracted_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
                     sys.stdout.write(f'  {status} {field}: "{value}"\n')
@@ -810,7 +855,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 found_fields = [
                     k for k, v in extracted_data.items() if v != "NOT_FOUND"
                 ]
-                print(f"✅ Extracted {len(found_fields)}/{self.field_count} fields")
+                print(f"✅ Extracted {len(found_fields)}/{len(document_fields)} fields")
                 if found_fields:
                     print(
                         f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
@@ -820,8 +865,10 @@ class DocumentAwareInternVL3HybridProcessor:
             extracted_fields_count = len(
                 [k for k in extracted_data.keys() if k in self.field_list]
             )
-            response_completeness = extracted_fields_count / len(self.field_list)
-            content_coverage = extracted_fields_count / len(self.field_list)
+            # Use document-specific field count for accurate metrics
+            document_field_count = len(document_fields) if 'document_fields' in locals() else self.field_count
+            response_completeness = extracted_fields_count / document_field_count if document_field_count > 0 else 0
+            content_coverage = extracted_fields_count / document_field_count if document_field_count > 0 else 0
 
             # Cleanup with V100 optimizations
             del pixel_values
@@ -835,7 +882,8 @@ class DocumentAwareInternVL3HybridProcessor:
                 "response_completeness": response_completeness,
                 "content_coverage": content_coverage,
                 "extracted_fields_count": extracted_fields_count,
-                "field_count": self.field_count,
+                "field_count": document_field_count,
+                "document_type": document_type if 'document_type' in locals() else 'unknown'
             }
 
         except Exception as e:

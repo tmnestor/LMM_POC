@@ -10,22 +10,31 @@ prompts:
     name: "Invoice Extraction"
     description: "Extract 14 invoice-specific fields"
     prompt: |
-      Extract ALL data from this invoice image. Find each field and respond in EXACT format below.
+      Extract ALL data from this invoice image. Respond in exact format below with actual values or NOT_FOUND.
 
       DOCUMENT_TYPE: INVOICE
-      BUSINESS_ABN: [Find "ABN" followed by 11 digits like "12 345 678 901" or NOT_FOUND]
-      SUPPLIER_NAME: [Business name at top of document or NOT_FOUND]
-      BUSINESS_ADDRESS: [Full address of business or NOT_FOUND]
-      PAYER_NAME: [Customer name from "Bill To" section or NOT_FOUND]
-      PAYER_ADDRESS: [Customer address from "Bill To" section or NOT_FOUND]
-      INVOICE_DATE: [Date in DD/MM/YYYY format or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [List ALL items separated by " | " like "Item1 | Item2 | Item3" or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [List ALL quantities separated by " | " like "1 | 2 | 3" or NOT_FOUND]
-      LINE_ITEM_PRICES: [List ALL unit prices with $ separated by " | " like "$10.00 | $20.00" or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [List ALL line totals with $ separated by " | " like "$10.00 | $40.00" or NOT_FOUND]
-      IS_GST_INCLUDED: [true if GST/tax shown, false if not, or NOT_FOUND]
-      GST_AMOUNT: [GST amount with $ like "$9.50" or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total amount with $ like "$104.50" or NOT_FOUND]
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find supplier: Business name at top
+      - Find customer: "Bill To" section
+      - Find date: Use DD/MM/YYYY format
+      - Find line items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
 
   # ============================================================================
   # RECEIPT EXTRACTION - 14 Fields
@@ -34,22 +43,30 @@ prompts:
     name: "Receipt Extraction"
     description: "Extract 14 receipt-specific fields"
     prompt: |
-      Extract ALL data from this receipt image. Find each field and respond in EXACT format below.
+      Extract ALL data from this receipt image. Respond in exact format below with actual values or NOT_FOUND.
 
       DOCUMENT_TYPE: RECEIPT
-      BUSINESS_ABN: [Find "ABN" followed by 11 digits like "12 345 678 901" or NOT_FOUND]
-      SUPPLIER_NAME: [Store/business name at top or NOT_FOUND]
-      BUSINESS_ADDRESS: [Store address or NOT_FOUND]
-      PAYER_NAME: [Customer name if shown or NOT_FOUND]
-      PAYER_ADDRESS: [Customer address if shown or NOT_FOUND]
-      INVOICE_DATE: [Transaction date in DD/MM/YYYY format or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [List ALL items separated by " | " like "Item1 | Item2 | Item3" or NOT_FOUND]
-      LINE_ITEM_QUANTITIES: [List ALL quantities separated by " | " like "1 | 2 | 3" or NOT_FOUND]
-      LINE_ITEM_PRICES: [List ALL unit prices with $ separated by " | " like "$10.00 | $20.00" or NOT_FOUND]
-      LINE_ITEM_TOTAL_PRICES: [List ALL line totals with $ separated by " | " like "$10.00 | $40.00" or NOT_FOUND]
-      IS_GST_INCLUDED: [true if GST/tax shown, false if not, or NOT_FOUND]
-      GST_AMOUNT: [GST amount with $ like "$9.50" or NOT_FOUND]
-      TOTAL_AMOUNT: [Final total amount with $ like "$104.50" or NOT_FOUND]
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find store: Business name at top
+      - Find transaction date: Use DD/MM/YYYY format
+      - Find purchased items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
 
   # ============================================================================
   # BANK STATEMENT EXTRACTION - 7 Fields
@@ -58,17 +75,24 @@ prompts:
     name: "Bank Statement Extraction"
     description: "Extract 7 bank statement-specific fields"
     prompt: |
-      Extract structured data from this bank statement image.
+      Extract structured data from this bank statement image. Respond in exact format below with actual values or NOT_FOUND.
 
-      OUTPUT FORMAT (7 FIELDS):
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND
+      ACCOUNT_BALANCE: NOT_FOUND
 
-      DOCUMENT_TYPE: [Look for BANK STATEMENT or STATEMENT - answer BANK_STATEMENT or NOT_FOUND]
-      STATEMENT_DATE_RANGE: [Find statement period dates or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [All transaction descriptions with " | " separator or NOT_FOUND]
-      TRANSACTION_DATES: [All transaction dates with " | " separator or NOT_FOUND]
-      TRANSACTION_AMOUNTS_PAID: [All debit amounts with $ and " | " separator or NOT_FOUND]
-      TRANSACTION_AMOUNTS_RECEIVED: [All credit amounts with $ and " | " separator or NOT_FOUND]
-      ACCOUNT_BALANCE: [Running balances with $ and " | " separator or NOT_FOUND]
+      Instructions:
+      - Find statement period: Date range like "01/01/2025 to 31/01/2025"
+      - Find all transactions: Descriptions separated by " | "
+      - Find transaction dates: All dates separated by " | "
+      - Find debits: Amounts paid out with $ and " | " separator
+      - Find credits: Amounts received with $ and " | " separator
+      - Find balances: Running balances with $ and " | " separator
+      - Replace NOT_FOUND with actual values
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields
