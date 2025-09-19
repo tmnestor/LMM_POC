@@ -111,7 +111,7 @@ type_mappings:
 # Configuration settings
 settings:
   default_prompt: "detection"
-  max_new_tokens: 50
+  max_new_tokens: 200
   temperature: 0.1
   fallback_type: "INVOICE"
   
