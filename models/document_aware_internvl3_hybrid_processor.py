@@ -304,7 +304,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 # Last resort: use bfloat16 explicitly for InternVL3
                 pixel_values = pixel_values.to(dtype=torch.bfloat16)
                 if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using bfloat16 as fallback")
+                    print("🔧 TENSOR_DTYPE: Using bfloat16 as fallback")
 
         if self.debug:
             print(
