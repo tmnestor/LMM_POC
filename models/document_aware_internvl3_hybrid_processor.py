@@ -287,10 +287,30 @@ class DocumentAwareInternVL3HybridProcessor:
         pixel_values = [transform(img) for img in images]
         pixel_values = torch.stack(pixel_values)
 
+        # CRITICAL FIX: Ensure tensor type matches model weights
+        # Convert to model's dtype to prevent "Input type (float) and bias type (c10::BFloat16)" error
+        if hasattr(self.model, 'dtype'):
+            pixel_values = pixel_values.to(dtype=self.model.dtype)
+        elif hasattr(self.model.vision_model, 'dtype'):
+            pixel_values = pixel_values.to(dtype=self.model.vision_model.dtype)
+        else:
+            # Fallback: try to get dtype from model parameters
+            try:
+                model_dtype = next(self.model.parameters()).dtype
+                pixel_values = pixel_values.to(dtype=model_dtype)
+                if self.debug:
+                    print(f"🔧 TENSOR_DTYPE: Converted to {model_dtype} to match model")
+            except Exception:
+                # Last resort: use bfloat16 explicitly for InternVL3
+                pixel_values = pixel_values.to(dtype=torch.bfloat16)
+                if self.debug:
+                    print(f"🔧 TENSOR_DTYPE: Using bfloat16 as fallback")
+
         if self.debug:
             print(
                 f"📐 TENSOR_SHAPE: {pixel_values.shape} (batch_size={pixel_values.shape[0]} tiles)"
             )
+            print(f"📊 TENSOR_DTYPE: {pixel_values.dtype}")
 
         return pixel_values
 
