@@ -12,10 +12,119 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
+try:
+    import orjson
+    HAS_ORJSON = True
+except ImportError:
+    import json
+    HAS_ORJSON = False
+
 from .config import (
     EXTRACTION_FIELDS,
 )
 from .unified_schema import get_global_schema
+
+
+def _fast_json_detection(text: str) -> bool:
+    """
+    Ultra-fast JSON detection without full parsing overhead.
+
+    Args:
+        text: Text to check for JSON format
+
+    Returns:
+        bool: True if text appears to be JSON format
+    """
+    text = text.strip()
+    return (
+        len(text) >= 2 and
+        text[0] == '{' and
+        text[-1] == '}' and
+        text.count('"') >= 4  # Minimum for basic JSON object
+    )
+
+
+def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | None:
+    """
+    Attempt to parse response as JSON using fastest available parser.
+
+    Args:
+        text: Response text to parse
+        expected_fields: Expected field names for extraction
+
+    Returns:
+        dict: Parsed fields if JSON, None if not JSON or parsing failed
+    """
+    if not _fast_json_detection(text):
+        return None
+
+    try:
+        if HAS_ORJSON:
+            # Use orjson for maximum performance (3-5x faster than stdlib)
+            json_data = orjson.loads(text)
+        else:
+            # Fallback to standard library json
+            json_data = json.loads(text)
+
+        if not isinstance(json_data, dict):
+            return None
+
+        # Convert JSON to expected format
+        extracted_data = {field: "NOT_FOUND" for field in expected_fields}
+        for field in expected_fields:
+            if field in json_data:
+                value = json_data[field]
+                # Convert to string, handling various types
+                if value is None or value == "":
+                    extracted_data[field] = "NOT_FOUND"
+                else:
+                    extracted_data[field] = str(value)
+
+        return extracted_data
+
+    except (ValueError, TypeError) as e:
+        # orjson raises ValueError, json raises JSONDecodeError (which inherits from ValueError)
+        return None
+
+
+def hybrid_parse_response(response_text: str, expected_fields: List[str] = None) -> Dict[str, str]:
+    """
+    Hybrid parser that handles both JSON and plain text formats automatically.
+
+    This is the main entry point for parsing model responses. It tries JSON first
+    (optimized for complex documents like bank statements) and falls back to
+    plain text parsing (for simple documents).
+
+    Args:
+        response_text: Raw model response
+        expected_fields: Expected field names (optional, uses schema if None)
+
+    Returns:
+        dict: Parsed fields in consistent format
+    """
+    # Use provided fields or get from schema
+    if expected_fields is None:
+        try:
+            schema = get_global_schema()
+            expected_fields = schema.field_names
+        except Exception:
+            # Fallback to config-based fields if schema fails
+            expected_fields = EXTRACTION_FIELDS
+
+    if not response_text:
+        return {field: "NOT_FOUND" for field in expected_fields}
+
+    # Step 1: Try JSON parsing first (fast path for complex documents)
+    json_result = _try_parse_json(response_text.strip(), expected_fields)
+    if json_result is not None:
+        return json_result
+
+    # Step 2: Fallback to existing plain text parser
+    return parse_extraction_response(
+        response_text=response_text,
+        clean_conversation_artifacts=False,
+        expected_fields=expected_fields
+    )
 
 
 def parse_extraction_response(
@@ -76,22 +185,10 @@ def parse_extraction_response(
     # Initialize with NOT_FOUND for all fields
     extracted_data = {field: "NOT_FOUND" for field in expected_fields}
 
-    # FALLBACK: Check if response is JSON format (InternVL3 sometimes ignores format instructions)
-    try:
-        import json
-        # Try to parse as JSON
-        if response_text.strip().startswith('{') and response_text.strip().endswith('}'):
-            json_data = json.loads(response_text.strip())
-            if isinstance(json_data, dict):
-                # Convert JSON to our expected format
-                for field in expected_fields:
-                    if field in json_data:
-                        extracted_data[field] = str(json_data[field])
-                # Return immediately if JSON parsing succeeded
-                return extracted_data
-    except (json.JSONDecodeError, ValueError):
-        # Not valid JSON, continue with regular parsing
-        pass
+    # HYBRID PARSING: Try JSON first (fast path for complex documents like bank statements)
+    json_result = _try_parse_json(response_text.strip(), expected_fields)
+    if json_result is not None:
+        return json_result
 
     # Process each line looking for key-value pairs
     lines = response_text.strip().split("\n")

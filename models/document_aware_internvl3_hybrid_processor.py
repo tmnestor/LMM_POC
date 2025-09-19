@@ -815,14 +815,14 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
 
-            # Parse response using robust extraction parser with document-specific field filtering
-            from common.extraction_parser import parse_extraction_response
+            # Parse response using hybrid parser (handles both JSON and plain text)
+            from common.extraction_parser import hybrid_parse_response
 
             # Use document-specific fields if we detected a document type, otherwise use full field list
             if 'document_fields' not in locals():
                 document_fields = self.field_list
 
-            extracted_data = parse_extraction_response(
+            extracted_data = hybrid_parse_response(
                 response, expected_fields=document_fields
             )
 
