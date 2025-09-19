@@ -169,6 +169,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 device_map="auto",
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
+                # use_flash_attn=True,  # Disabled: Poor V100 compatibility
             ).eval()
 
             # Load tokenizer
