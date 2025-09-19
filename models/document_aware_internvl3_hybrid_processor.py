@@ -228,7 +228,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 if isinstance(device_map, str):
                     print(f"🗺️ Device mapping: {device_map}")
                 else:
-                    print(f"🗺️ Device mapping: Custom multi-GPU strategy")
+                    print("🗺️ Device mapping: Custom multi-GPU strategy")
 
             # Load InternVL3 model with optimal device mapping
             self.model = AutoModel.from_pretrained(
