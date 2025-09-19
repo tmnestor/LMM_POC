@@ -14,7 +14,7 @@ def debug_json_repair():
     print("🔍 DEBUGGING JSON REPAIR STEP BY STEP")
     print("=" * 60)
 
-    from common.extraction_parser import _repair_truncated_json, _fast_json_detection
+    from common.extraction_parser import _fast_json_detection, _repair_truncated_json
 
     # Test with the truncated JSON from image_008
     truncated_json = '''```json
