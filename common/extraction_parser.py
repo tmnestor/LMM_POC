@@ -28,6 +28,7 @@ from .unified_schema import get_global_schema
 def _fast_json_detection(text: str) -> bool:
     """
     Ultra-fast JSON detection without full parsing overhead.
+    Handles markdown code blocks and various JSON formats.
 
     Args:
         text: Text to check for JSON format
@@ -36,17 +37,29 @@ def _fast_json_detection(text: str) -> bool:
         bool: True if text appears to be JSON format
     """
     text = text.strip()
+
+    # Handle markdown code blocks
+    if text.startswith('```json'):
+        text = text[7:].strip()
+    elif text.startswith('```'):
+        text = text[3:].strip()
+
+    if text.endswith('```'):
+        text = text[:-3].strip()
+
+    # Check for JSON structure
     return (
         len(text) >= 2 and
         text[0] == '{' and
-        text[-1] == '}' and
-        text.count('"') >= 4  # Minimum for basic JSON object
+        text.count('"') >= 4 and  # Minimum for basic JSON object
+        (text[-1] == '}' or text.find('"') > 0)  # Either properly closed or has JSON fields
     )
 
 
 def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | None:
     """
     Attempt to parse response as JSON using fastest available parser.
+    Includes repair for common truncation issues.
 
     Args:
         text: Response text to parse
@@ -58,13 +71,16 @@ def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | N
     if not _fast_json_detection(text):
         return None
 
+    # Try to repair common JSON truncation issues
+    repaired_text = _repair_truncated_json(text, expected_fields)
+
     try:
         if HAS_ORJSON:
             # Use orjson for maximum performance (3-5x faster than stdlib)
-            json_data = orjson.loads(text)
+            json_data = orjson.loads(repaired_text)
         else:
             # Fallback to standard library json
-            json_data = json.loads(text)
+            json_data = json.loads(repaired_text)
 
         if not isinstance(json_data, dict):
             return None
@@ -85,6 +101,88 @@ def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | N
     except (ValueError, TypeError) as e:
         # orjson raises ValueError, json raises JSONDecodeError (which inherits from ValueError)
         return None
+
+
+def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
+    """
+    Attempt to repair common JSON truncation and formatting issues.
+
+    Args:
+        text: Potentially truncated JSON text
+        expected_fields: Expected field names for validation
+
+    Returns:
+        str: Repaired JSON text
+    """
+    text = text.strip()
+
+    # Remove markdown code blocks if present
+    if text.startswith('```json'):
+        text = text[7:]  # Remove ```json
+    if text.startswith('```'):
+        text = text[3:]  # Remove ```
+    if text.endswith('```'):
+        text = text[:-3]  # Remove trailing ```
+
+    text = text.strip()
+
+    # If JSON doesn't end with }, try to close it properly
+    if not text.endswith('}'):
+        # Find the last field that was being written
+        lines = text.split('\n')
+
+        # Look for incomplete field (missing closing quote or value)
+        for i in range(len(lines) - 1, -1, -1):
+            line = lines[i].strip()
+
+            # Handle incomplete string value (missing closing quote)
+            if line.count('"') % 2 == 1 and ':' in line:
+                # Find the last quote and close the string
+                last_quote = line.rfind('"')
+                if last_quote > 0 and line[last_quote-1] != '\\':
+                    # Add closing quote if not escaped
+                    lines[i] = line + '"'
+                break
+
+            # Handle incomplete field assignment (ends with |, comma, etc.)
+            elif line.endswith(('|', ',', '| ')):
+                # Complete the truncated field with closing quote
+                lines[i] = line.rstrip('| ,') + '"'
+                break
+
+        # Reconstruct text and ensure proper JSON closure
+        text = '\n'.join(lines)
+
+        # Remove trailing commas and incomplete entries
+        text = re.sub(r',\s*$', '', text, flags=re.MULTILINE)
+
+        # Ensure JSON closes properly
+        if not text.endswith('}'):
+            text += '\n}'
+
+    # Fix missing commas between JSON fields
+    lines = text.split('\n')
+    fixed_lines = []
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+        # If this line has a field (contains ": ") and the next line also has a field
+        # but current line doesn't end with comma or closing brace, add comma
+        if (i < len(lines) - 1 and
+            '": "' in line and
+            not line.endswith(',') and
+            not line.endswith('}') and
+            '": "' in lines[i + 1]):
+            line += ','
+        fixed_lines.append(line)
+
+    text = '\n'.join(fixed_lines)
+
+    # Fix common formatting issues
+    text = re.sub(r',\s*"', ',\n  "', text)  # Fix line breaks after commas
+    text = re.sub(r'",\s*,', '",', text)  # Remove double commas
+
+    return text
 
 
 def hybrid_parse_response(response_text: str, expected_fields: List[str] = None) -> Dict[str, str]:

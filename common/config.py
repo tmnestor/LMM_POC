@@ -1088,13 +1088,14 @@ INTERNVL3_GENERATION_CONFIG = {
 
 
 # Helper function to calculate dynamic max_new_tokens
-def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
+def get_max_new_tokens(model_name: str, field_count: int = None, document_type: str = None) -> int:
     """
-    Calculate max_new_tokens based on model and field count.
+    Calculate max_new_tokens based on model, field count, and document complexity.
 
     Args:
         model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
         field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
+        document_type (str): Document type ('bank_statement', 'invoice', 'receipt', etc.)
 
     Returns:
         int: Calculated max_new_tokens value
@@ -1113,9 +1114,16 @@ def get_max_new_tokens(model_name: str, field_count: int = None) -> int:
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
-    return max(
+    base_tokens = max(
         config["max_new_tokens_base"], field_count * config["max_new_tokens_per_field"]
     )
+
+    # Special handling for complex documents that may output JSON with many transactions
+    if document_type == "bank_statement":
+        # Bank statements can have many transactions, need significantly more tokens for JSON format
+        return max(base_tokens, 1500)  # Ensure at least 1500 tokens for complex bank statements
+
+    return base_tokens
 
 
 # ============================================================================

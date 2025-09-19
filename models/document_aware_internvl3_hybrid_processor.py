@@ -506,8 +506,12 @@ class DocumentAwareInternVL3HybridProcessor:
             original_field_list = self.field_list
             self.field_list = doc_type_fields.get(document_type, doc_type_fields['invoice'])
 
+            # Calculate document-specific max tokens
+            from common.config import get_max_new_tokens
+            doc_specific_tokens = get_max_new_tokens("internvl3", len(self.field_list), document_type)
+
             # Process with document-specific settings
-            result = self.process_single_image(image_path)
+            result = self.process_single_image(image_path, custom_max_tokens=doc_specific_tokens)
 
             # Restore original field list
             self.field_list = original_field_list
