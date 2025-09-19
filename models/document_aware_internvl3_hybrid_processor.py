@@ -156,17 +156,85 @@ class DocumentAwareInternVL3HybridProcessor:
                 f"do_sample={self.generation_config['do_sample']}"
             )
 
+    def _get_optimal_device_map(self):
+        """Get optimal device mapping for available GPU configuration."""
+        if not torch.cuda.is_available():
+            return "cpu"
+
+        gpu_count = torch.cuda.device_count()
+
+        if gpu_count == 1:
+            # Single GPU: use auto mapping
+            return "auto"
+        elif gpu_count >= 2:
+            # Multi-GPU: implement custom mapping following InternVL3 recommendations
+            return self._create_multi_gpu_device_map(gpu_count)
+        else:
+            return "auto"
+
+    def _create_multi_gpu_device_map(self, gpu_count):
+        """Create InternVL3-optimized device mapping for multiple GPUs."""
+        # Following InternVL3 documentation recommendations
+        # Reserve GPU 0 for Vision Transformer (treated as "half a GPU")
+        # Distribute language model layers across remaining GPUs
+
+        device_map = {
+            # Vision components on first GPU
+            "vision_model": 0,
+            "mlp1": 0,
+        }
+
+        # Distribute language model layers across available GPUs
+        # InternVL3-8B has approximately 32 transformer layers
+        total_layers = 32
+        gpus_for_llm = gpu_count - 1 if gpu_count > 1 else 1
+        layers_per_gpu = total_layers // gpus_for_llm
+
+        for i in range(total_layers):
+            gpu_id = (i // layers_per_gpu) + 1
+            if gpu_id >= gpu_count:
+                gpu_id = gpu_count - 1
+            device_map[f"language_model.model.layers.{i}"] = gpu_id
+
+        # Place final components on last GPU
+        final_gpu = gpu_count - 1
+        device_map.update({
+            "language_model.lm_head": final_gpu,
+            "language_model.model.embed_tokens": 1,  # Start on GPU 1
+            "language_model.model.norm": final_gpu,
+        })
+
+        if self.debug:
+            print(f"🔧 Multi-GPU mapping created for {gpu_count} GPUs:")
+            for component, gpu_id in device_map.items():
+                if not component.startswith("language_model.model.layers"):
+                    print(f"   {component} → GPU {gpu_id}")
+            print(f"   language_model.model.layers.* → GPUs 1-{final_gpu} ({layers_per_gpu} layers each)")
+
+        return device_map
+
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
         if self.debug:
             print(f"🔄 Loading InternVL3 model from: {self.model_path}")
+            gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+            print(f"🔧 Available GPUs: {gpu_count}")
 
         try:
-            # Load InternVL3 model with V100 optimizations
+            # Get optimal device mapping for current hardware
+            device_map = self._get_optimal_device_map()
+
+            if self.debug:
+                if isinstance(device_map, str):
+                    print(f"🗺️ Device mapping: {device_map}")
+                else:
+                    print(f"🗺️ Device mapping: Custom multi-GPU strategy")
+
+            # Load InternVL3 model with optimal device mapping
             self.model = AutoModel.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,
-                device_map="auto",
+                device_map=device_map,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
                 # use_flash_attn=True,  # Disabled: Poor V100 compatibility
