@@ -62,7 +62,7 @@ prompts:
 
       OUTPUT FORMAT (7 FIELDS):
 
-      DOCUMENT_TYPE: [Look for BANK STATEMENT or STATEMENT - answer STATEMENT or NOT_FOUND]
+      DOCUMENT_TYPE: [Look for BANK STATEMENT or STATEMENT - answer BANK_STATEMENT or NOT_FOUND]
       STATEMENT_DATE_RANGE: [Find statement period dates or NOT_FOUND]
       LINE_ITEM_DESCRIPTIONS: [All transaction descriptions with " | " separator or NOT_FOUND]
       TRANSACTION_DATES: [All transaction dates with " | " separator or NOT_FOUND]
@@ -81,7 +81,7 @@ prompts:
 
       OUTPUT FORMAT (19 FIELDS):
 
-      DOCUMENT_TYPE: [INVOICE/RECEIPT/STATEMENT or NOT_FOUND]
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/BANK_STATEMENT or NOT_FOUND]
       BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
       SUPPLIER_NAME: [Business name or NOT_FOUND]
       BUSINESS_ADDRESS: [Business address or NOT_FOUND]

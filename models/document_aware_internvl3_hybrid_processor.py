@@ -710,8 +710,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 prompt = custom_prompt
                 document_type = "CUSTOM"  # Indicate custom prompt usage
             else:
-                # Get document-aware prompt
-                document_type = self.detect_document_type()
+                # Get document-aware prompt using PROPER model-based detection
+                detection_result = self.detect_and_classify_document(image_path, verbose=self.debug)
+                document_type = detection_result.get('document_type', 'invoice')
                 prompt = self.get_extraction_prompt(document_type=document_type)
 
             if self.debug:
