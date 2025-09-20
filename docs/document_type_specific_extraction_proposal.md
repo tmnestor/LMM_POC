@@ -279,8 +279,9 @@ class DocumentTypeFieldSchema(FieldSchema):
 def process_single_image(self, image_path: str) -> dict:
     """Process image with document-type-specific extraction."""
     
-    # Step 1: Detect document type (lightweight)
-    doc_type = self.schema_loader.detect_document_type(image_path)
+    # Step 1: Detect and classify document type (modern approach)
+    classification_info = self.schema_loader.detect_and_classify_document(image_path)
+    doc_type = classification_info['document_type']
     
     # Step 2: Get appropriate schema
     doc_schema = self.schema_loader.get_document_schema(doc_type)

@@ -363,23 +363,6 @@ class DocumentAwareInternVL3HybridProcessor:
         """Get list of supported document types."""
         return SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
 
-    def detect_document_type(self, field_list: List[str] = None) -> str:
-        """
-        Detect document type based on field composition.
-        Simple heuristic for backward compatibility.
-        """
-        fields_to_check = field_list or self.field_list
-        field_set = set(fields_to_check)
-
-        # Simple heuristic based on unique fields
-        if "STATEMENT_DATE_RANGE" in field_set or "TRANSACTION_DATES" in field_set:
-            return "bank_statement"
-        elif "INVOICE_DATE" in field_set and "GST_AMOUNT" in field_set:
-            # Both invoice and receipt have these, default to invoice
-            return "invoice"
-        else:
-            # Fallback to invoice for unknown patterns
-            return "invoice"
 
     def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> Dict:
         """

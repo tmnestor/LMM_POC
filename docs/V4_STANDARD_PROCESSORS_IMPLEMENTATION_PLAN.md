@@ -118,9 +118,10 @@ def get_extraction_prompt(self):
    def get_extraction_prompt(self, image_path=None):
        if self.enable_v4_schema and image_path:
            # Detect document type
-           doc_type = self.document_detector.detect_document_type(
-               image_path, self._quick_extract
+           classification_info = self.document_detector.detect_and_classify_document(
+               image_path
            )
+           doc_type = classification_info['document_type']
            # Get document-specific fields
            fields = get_document_type_fields(doc_type)
        else:

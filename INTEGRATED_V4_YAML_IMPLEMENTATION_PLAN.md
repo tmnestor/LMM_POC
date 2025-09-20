@@ -156,9 +156,10 @@ def _load_single_pass_prompts(self):
 def get_extraction_prompt(self, image_path=None):
     if self.enable_v4_schema and image_path:
         # V4: Document type detection + field filtering
-        doc_type = self.document_detector.detect_document_type(
-            image_path, self._quick_extract
+        classification_info = self.document_detector.detect_and_classify_document(
+            image_path
         )
+        doc_type = classification_info['document_type']
         fields = get_document_type_fields(doc_type)  # 25/19/17 fields
     else:
         # V4: All 49 fields (fallback mode)
