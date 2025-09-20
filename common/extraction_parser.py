@@ -160,23 +160,48 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
         if not text.endswith('}'):
             text += '\n}'
 
-    # Fix missing commas between JSON fields
+    # Fix standalone commas and malformed JSON structure
     lines = text.split('\n')
     fixed_lines = []
 
-    for i, line in enumerate(lines):
-        line = line.strip()
-        # If this line has a field (contains ": ") and the next line also has a field
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Skip standalone comma lines (malformed JSON pattern)
+        if line == '",' or line == ',':
+            # If we skipped a comma line, ensure previous line has comma (if it's a field)
+            if (fixed_lines and
+                '":' in fixed_lines[-1] and
+                not fixed_lines[-1].endswith(',') and
+                not fixed_lines[-1].endswith('}')):
+                fixed_lines[-1] += ','
+            i += 1
+            continue
+
+        # Remove trailing comma followed by quote if present
+        if line.endswith('",'):
+            line = line[:-2] + '"'
+
+        fixed_lines.append(line)
+        i += 1
+
+    # Now add missing commas between fields
+    final_lines = []
+    for i, line in enumerate(fixed_lines):
+        # If this line has a field and the next line also has a field
         # but current line doesn't end with comma or closing brace, add comma
-        if (i < len(lines) - 1 and
-            '": "' in line and
+        next_line = fixed_lines[i + 1] if i < len(fixed_lines) - 1 else ""
+
+        if (i < len(fixed_lines) - 1 and
+            '":' in line and
             not line.endswith(',') and
             not line.endswith('}') and
-            '": "' in lines[i + 1]):
+            '":' in next_line):
             line += ','
-        fixed_lines.append(line)
+        final_lines.append(line)
 
-    text = '\n'.join(fixed_lines)
+    text = '\n'.join(final_lines)
 
     # Fix common formatting issues
     text = re.sub(r',\s*"', ',\n  "', text)  # Fix line breaks after commas
