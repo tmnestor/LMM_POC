@@ -177,6 +177,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 f"do_sample={self.generation_config['do_sample']}"
             )
 
+    def _get_model_device(self):
+        """Get the device of the model for tensor placement."""
+        if hasattr(self.model, 'device'):
+            return self.model.device
+        try:
+            # Get device from first parameter
+            return next(self.model.parameters()).device
+        except (StopIteration, AttributeError):
+            # Fallback to cuda if available
+            return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
         if self.debug:
@@ -327,11 +338,20 @@ class DocumentAwareInternVL3HybridProcessor:
                 if self.debug:
                     print("🔧 TENSOR_DTYPE: Using bfloat16 as fallback")
 
+        # Move to model's device
+        if self.model is not None:
+            model_device = self._get_model_device()
+            if pixel_values.device != model_device:
+                pixel_values = pixel_values.to(model_device)
+                if self.debug:
+                    print(f"🔧 DEVICE_MOVE: Moved tensor from {pixel_values.device} to {model_device}")
+
         if self.debug:
             print(
                 f"📐 TENSOR_SHAPE: {pixel_values.shape} (batch_size={pixel_values.shape[0]} tiles)"
             )
             print(f"📊 TENSOR_DTYPE: {pixel_values.dtype}")
+            print(f"📍 TENSOR_DEVICE: {pixel_values.device}")
 
         return pixel_values
 
@@ -399,6 +419,13 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Load and preprocess image using InternVL3 pipeline
             pixel_values = self.load_image(image_path)
+
+            # Ensure on correct device (backup check)
+            model_device = self._get_model_device()
+            if pixel_values.device != model_device:
+                pixel_values = pixel_values.to(model_device)
+                if verbose:
+                    print(f"🔧 BACKUP_DEVICE_FIX: Moved tensor to {model_device}")
 
             # Generate response using InternVL3 model with detection-specific limits
             response = self._resilient_generate(
@@ -768,11 +795,12 @@ class DocumentAwareInternVL3HybridProcessor:
             # Load and preprocess image using InternVL3 pipeline
             pixel_values = self.load_image(image_path)
 
-            # Move to appropriate device and convert dtype
-            if self.device == "cpu":
-                pixel_values = pixel_values.to(torch.float32)
+            # Move to model's device with proper dtype
+            model_device = self._get_model_device()
+            if model_device.type == 'cpu':
+                pixel_values = pixel_values.to(device=model_device, dtype=torch.float32)
             else:
-                pixel_values = pixel_values.to(torch.bfloat16).cuda()
+                pixel_values = pixel_values.to(device=model_device, dtype=torch.bfloat16)
 
             # Prepare question for InternVL3
             question = f"<image>\n{prompt}"
