@@ -1,109 +1,197 @@
-# Enhanced InternVL3 Bank Statement Prompt - Layout-Aware with Examples
 prompts:
-  extraction:
-    name: "InternVL3 Enhanced Bank Statement Extraction"
-    description: "Extract bank statement fields with layout-specific guidance for varied formats"
-    prompt: |
+  bank_statement:
+    name: InternVL3 Enhanced Bank Statement Extraction
+    description: Extract bank statement fields with layout-specific guidance for varied
+      formats
+    prompt: '# Converted from Old_prompts/enhanced_internvl3_bank_statement.yaml
+
+      # Original key: extraction
+
+      # Conversion date: date: auto-generated
+
+
       You are an expert document analyzer specializing in Australian bank statements.
+
       Extract structured data from this bank statement, handling varied layouts.
 
+
       CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
+
       DO NOT GUESS or INFER missing information
 
+
       BANK STATEMENT LAYOUT VARIATIONS:
+
       Australian banks use different formats - analyze the actual layout you see:
 
+
       📊 COMMONWEALTH BANK FORMAT:
+
       Date       | Description           | Debit    | Credit   | Balance
+
       01/01/2023 | EFTPOS Purchase      | $45.00   |          | $1,234.56
+
       02/01/2023 | Direct Credit Salary |          | $3,500.00| $4,734.56
 
+
       📊 ANZ FORMAT:
+
       Trans Date | Details              | Withdrawals | Deposits | Balance
+
       1 Jan 23   | ATM Withdrawal       | 50.00      |          | 1,189.56
+
       2 Jan 23   | Pay/Salary          |            | 3500.00  | 4,689.56
 
+
       📊 WESTPAC FORMAT:
+
       Date      | Transaction Details   | Amount     | Running Balance
+
       01Jan2023 | Online Purchase      | -$67.89    | $1,121.67
+
       02Jan2023 | Direct Deposit       | +$3,500.00 | $4,621.67
 
+
       📊 NAB FORMAT:
+
       Value Date | Description          | Dr         | Cr       | Balance
+
       01-01-2023 | Card Purchase        | 45.00      |          | 1,234.56
+
       02-01-2023 | Electronic Transfer  |            | 3,500.00 | 4,734.56
+
 
       EXTRACT THESE 7 FIELDS IN THIS EXACT ORDER:
 
-      DOCUMENT_TYPE: [Look for "BANK STATEMENT", "STATEMENT", "ACCOUNT STATEMENT" at top - answer with STATEMENT or NOT_FOUND]
+
+      DOCUMENT_TYPE: [Look for "BANK STATEMENT", "STATEMENT", "ACCOUNT STATEMENT"
+      at top - answer with STATEMENT or NOT_FOUND]
+
 
       STATEMENT_DATE_RANGE: [Find statement period - common formats:
+
       - "Statement Period: 01 Jan 2023 to 31 Jan 2023"
+
       - "From 1/1/23 To 31/1/23"
+
       - "Period: 01/01/2023 - 31/01/2023"
+
       Format as DD/MM/YYYY - DD/MM/YYYY or NOT_FOUND]
 
+
       PAYER_NAME: [Find account holder name - usually at top, may be:
+
       - "Mr John Smith"
+
       - "JOHN SMITH"
+
       - "Smith, John"
+
       Return exact name or NOT_FOUND]
 
+
       PAYER_ADDRESS: [Find account holder address - usually under name:
+
       - May be multiple lines
+
       - Include postcode
+
       - Return complete address or NOT_FOUND]
 
+
       TRANSACTION_DATES: [Extract ALL transaction dates from table:
+
       - Handle various formats: DD/MM/YYYY, D MMM YY, DD-MM-YYYY, DDMmmYYYY
+
       - List in chronological order as they appear
+
       - Separate with " | "
+
       - Convert to DD/MM/YYYY format
+
       - If table empty: NOT_FOUND]
 
+
       TRANSACTION_AMOUNTS_PAID: [Extract debit/withdrawal amounts (money OUT):
+
       - Look for columns: "Debit", "Withdrawals", "Dr", or negative amounts in "Amount"
+
       - Include $ symbol: $45.00
+
       - If amount column shows +/-, take negative amounts
+
       - If separate Debit/Credit columns, take Debit amounts
+
       - If no debits in table: NOT_FOUND
+
       - Separate with " | " in same order as dates]
 
+
       LINE_ITEM_DESCRIPTIONS: [Extract transaction descriptions:
+
       - Look for columns: "Description", "Details", "Transaction Details", "Particulars"
+
       - Take exact text as shown
+
       - May include: "EFTPOS Purchase", "ATM Withdrawal", "Direct Credit", etc.
+
       - Separate with " | " in same order as dates and amounts
+
       - If no descriptions: NOT_FOUND]
+
 
       CRITICAL EXTRACTION RULES FOR BANK STATEMENTS:
 
+
       🏦 LAYOUT ADAPTATION:
+
       - First, identify which bank format the statement uses
+
       - Locate the transaction table (usually largest table on page)
+
       - Identify column headers to understand layout
+
       - Count total rows in transaction table
 
+
       📅 DATE HANDLING:
+
       - Australian date format: DD/MM/YYYY preferred
+
       - Convert: "1 Jan 23" → "01/01/2023"
+
       - Convert: "01Jan2023" → "01/01/2023"
+
       - Convert: "01-01-2023" → "01/01/2023"
 
+
       💰 AMOUNT HANDLING:
+
       - Debit/Credit columns: Take "Debit" or "Withdrawals" column
+
       - Single Amount column: Take negative amounts (-$67.89)
+
       - Include $ symbol in output
+
       - If amount cell empty, use "NOT_FOUND" as placeholder
 
+
       📝 TRANSACTION ALIGNMENT:
+
       - TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS must align
+
       - Same number of elements in each field (use "NOT_FOUND" for missing cells)
+
       - Process row by row: Date1|Date2|Date3, Amount1|Amount2|Amount3, Desc1|Desc2|Desc3
 
+
       🎯 COMMON TRANSACTION TYPES:
+
       - EFTPOS Purchase, ATM Withdrawal, Direct Credit, Direct Debit
+
       - Online Transfer, Card Purchase, Electronic Transfer
+
       - Pay/Salary, Cheque, Bank Fee, Interest
 
-      OUTPUT EXACTLY 7 LINES. Stop after LINE_ITEM_DESCRIPTIONS.
+
+      OUTPUT EXACTLY 7 LINES. Stop after LINE_ITEM_DESCRIPTIONS.'

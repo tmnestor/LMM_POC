@@ -1,0 +1,68 @@
+prompts:
+  invoice:
+    name: Standard Invoice Extraction
+    description: Extract all relevant fields from invoices
+    prompt: '# Converted from Old_prompts/invoice_extraction.yaml
+
+      # Original key: standard
+
+      # Conversion date: date: auto-generated
+
+
+      Extract structured data from this invoice/bill document.
+
+
+      ## CRITICAL INSTRUCTIONS:
+
+      - Extract ONLY what is visible in the document
+
+      - Use "NOT_FOUND" for any field that is not present
+
+      - Do not guess or infer missing information
+
+
+      ## INVOICE FIELDS TO EXTRACT:
+
+
+      DOCUMENT_TYPE: [Type of document - INVOICE/BILL/QUOTE/ESTIMATE or NOT_FOUND]
+
+      BUSINESS_ABN: [11-digit Australian Business Number (XX XXX XXX XXX format) or
+      NOT_FOUND]
+
+      SUPPLIER_NAME: [Business/company name at top of invoice or NOT_FOUND]
+
+      BUSINESS_ADDRESS: [Complete supplier address or NOT_FOUND]
+
+      PAYER_NAME: [Customer/Bill To name or NOT_FOUND]
+
+      PAYER_ADDRESS: [Customer/Bill To address or NOT_FOUND]
+
+      INVOICE_DATE: [Invoice date in DD/MM/YYYY format or NOT_FOUND]
+
+
+      ## LINE ITEMS:
+
+      Extract all items/services from the itemized section:
+
+
+      LINE_ITEM_DESCRIPTIONS: [List all item/service descriptions separated by " |
+      " or NOT_FOUND]
+
+      LINE_ITEM_QUANTITIES: [List quantities for each item separated by " | " or NOT_FOUND]
+
+      LINE_ITEM_PRICES: [List unit prices separated by " | " with $ symbol or NOT_FOUND]
+
+      LINE_ITEM_TOTAL_PRICES: [List total prices per item separated by " | " with
+      $ symbol or NOT_FOUND]
+
+
+      ## FINANCIAL TOTALS:
+
+
+      IS_GST_INCLUDED: [true if GST/tax amount is shown, false if not, or NOT_FOUND]
+
+      GST_AMOUNT: [GST/tax amount with $ symbol (e.g., $12.50) or NOT_FOUND]
+
+      TOTAL_AMOUNT: [Final total amount with $ symbol (e.g., $137.50) or NOT_FOUND]
+
+      '

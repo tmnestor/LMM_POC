@@ -1,0 +1,69 @@
+prompts:
+  receipt:
+    name: Standard Receipt Extraction
+    description: Extract all relevant fields from receipts
+    prompt: '# Converted from Old_prompts/receipt_extraction.yaml
+
+      # Original key: standard
+
+      # Conversion date: date: auto-generated
+
+
+      Extract structured data from this receipt/payment confirmation document.
+
+
+      ## CRITICAL INSTRUCTIONS:
+
+      - Extract ONLY what is visible in the document
+
+      - Use "NOT_FOUND" for any field that is not present
+
+      - Do not guess or infer missing information
+
+      - Receipts often have less detail than invoices - that''s normal
+
+
+      ## RECEIPT FIELDS TO EXTRACT:
+
+
+      DOCUMENT_TYPE: [RECEIPT or NOT_FOUND]
+
+      BUSINESS_ABN: [11-digit Australian Business Number if shown or NOT_FOUND]
+
+      SUPPLIER_NAME: [Store/merchant name at top of receipt or NOT_FOUND]
+
+      BUSINESS_ADDRESS: [Store/merchant address if shown or NOT_FOUND]
+
+      PAYER_NAME: [Customer name if shown (often not on receipts) or NOT_FOUND]
+
+      PAYER_ADDRESS: [Customer address if shown (rarely on receipts) or NOT_FOUND]
+
+      INVOICE_DATE: [Transaction date in DD/MM/YYYY format or NOT_FOUND]
+
+
+      ## PURCHASED ITEMS:
+
+      Extract all items from the receipt:
+
+
+      LINE_ITEM_DESCRIPTIONS: [List all item names separated by " | " or NOT_FOUND]
+
+      LINE_ITEM_QUANTITIES: [List quantities separated by " | " (default to 1 if not
+      shown) or NOT_FOUND]
+
+      LINE_ITEM_PRICES: [List prices separated by " | " with $ symbol or NOT_FOUND]
+
+      LINE_ITEM_TOTAL_PRICES: [List total prices per item separated by " | " with
+      $ symbol or NOT_FOUND]
+
+
+      ## PAYMENT TOTALS:
+
+
+      IS_GST_INCLUDED: [true if GST/tax is shown, false if not, or NOT_FOUND]
+
+      GST_AMOUNT: [GST/tax amount with $ symbol if shown or NOT_FOUND]
+
+      TOTAL_AMOUNT: [Final total/amount paid with $ symbol or NOT_FOUND]
+
+      '

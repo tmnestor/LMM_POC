@@ -1,0 +1,108 @@
+prompts:
+  invoice:
+    name: InternVL3 Enhanced Invoice Extraction
+    description: Extract invoice fields with layout-specific guidance for varied formats
+    prompt: "# Converted from Old_prompts/enhanced_internvl3_invoice.yaml\n# Original\
+      \ key: extraction\n# Conversion date: date: auto-generated\n\nYou are an expert\
+      \ document analyzer specializing in Australian business invoices.\nExtract structured\
+      \ data from this invoice, handling varied layouts.\n\nCRITICAL RULE: If you\
+      \ cannot clearly see a field in the document, return \"NOT_FOUND\"\nDO NOT GUESS\
+      \ or INFER missing information\n\nINVOICE LAYOUT VARIATIONS:\nAustralian businesses\
+      \ use different invoice formats - analyze the actual layout you see:\n\n\U0001F4CB\
+      \ SERVICE INVOICE FORMAT:\n[Company Logo] ACME CONSULTING PTY LTD\nABN: 12 345\
+      \ 678 901\nLevel 5, 123 Collins Street, Melbourne VIC 3000\n\nINVOICE #INV-2023-001\
+      \                    Date: 15/01/2023\n\nBill To:\nJohn Smith Pty Ltd\n456 George\
+      \ Street\nSydney NSW 2000\n\nDescription              | Hours | Rate      |\
+      \ Amount\nWebsite Development      | 40    | $150.00   | $6,000.00\nSEO Optimization\
+      \        | 20    | $120.00   | $2,400.00\n\n                        Subtotal:\
+      \ $8,400.00\n                        GST (10%): $840.00\n                  \
+      \      TOTAL: $9,240.00\n\n\U0001F4E6 PRODUCT INVOICE FORMAT:\nTechWorld Electronics\n\
+      ABN: 98 765 432 109\n789 King Street, Perth WA 6000\n\nTAX INVOICE #TW-2023-456\
+      \               Invoice Date: 22/01/2023\n\nCustomer Details:\nSarah Johnson\n\
+      321 Queen Street, Brisbane QLD 4000\n\nItem                     | Qty | Unit\
+      \ Price | Total\nMacBook Pro 14\"         | 1   | $2,999.00  | $2,999.00\nUSB-C\
+      \ Hub              | 2   | $89.95     | $179.90\nLaptop Case            | 1\
+      \   | $49.99     | $49.99\n\n                        Subtotal: $3,228.89\n \
+      \                       GST: $322.89\n                        Total Amount:\
+      \ $3,551.78\n\n\U0001F4C4 ESTIMATE/QUOTE FORMAT:\nBuildRight Construction\n\
+      ABN: 55 123 456 789\n\nESTIMATE #EST-2023-789                 Date: 10/01/2023\n\
+      Valid Until: 10/02/2023\n\nQuote For: Home Renovation\nClient: Mark & Lisa Wilson\n\
+      Property: 15 Oak Avenue, Adelaide SA 5000\n\nWork Description              \
+      \          | Amount\nKitchen Renovation                      | $25,000.00\n\
+      Bathroom Upgrade                        | $15,000.00\nElectrical Work      \
+      \                   | $3,500.00\n\n                        Subtotal: $43,500.00\n\
+      \                        GST (10%): $4,350.00\n                        ESTIMATED\
+      \ TOTAL: $47,850.00\n\n\U0001F4CA XERO/ACCOUNTING SOFTWARE FORMAT:\nINNOVATIVE\
+      \ SOLUTIONS PTY LTD\nABN 12 345 678 901\n\nInvoice: INV-2023-012           \
+      \        Invoice Date: 28/01/2023\n                                       Due\
+      \ Date: 27/02/2023\nBill To:\nCorporate Client Ltd\nLevel 10, 500 Bourke Street\n\
+      Melbourne VIC 3000\n\nItem Code | Description          | Qty | Rate     | Amount\n\
+      CONS001   | Business Consulting  | 8   | $200.00  | $1,600.00\nTRAIN002  | Staff\
+      \ Training      | 1   | $800.00  | $800.00\n\n                        Net Amount:\
+      \ $2,400.00\n                        GST Amount: $240.00\n                 \
+      \       Invoice Total: $2,640.00\n                        Amount Due: $2,640.00\n\
+      \nEXTRACT THESE 14 FIELDS IN THIS EXACT ORDER:\n\nDOCUMENT_TYPE: [Look for \"\
+      INVOICE\", \"TAX INVOICE\", \"ESTIMATE\", \"QUOTE\", \"QUOTATION\", \"PROFORMA\"\
+      \ in header - answer with INVOICE or NOT_FOUND]\n\nBUSINESS_ABN: [Find 'ABN'\
+      \ or 'ABN:' label followed by 11 digits:\n- Format: XX XXX XXX XXX (spaces)\
+      \ or XXXXXXXXXXX (no spaces)\n- Usually near business name at top\n- Must be\
+      \ exactly 11 digits - count carefully\n- Extract as shown: \"12 345 678 901\"\
+      \ or \"12345678901\" or NOT_FOUND]\n\nSUPPLIER_NAME: [Find the business providing\
+      \ the invoice:\n- Usually the LARGEST text at top of document\n- Business/company\
+      \ name in header area\n- May include \"PTY LTD\", \"PTY\", \"LTD\", \"& CO\"\
+      \n- Return exact name as shown or NOT_FOUND]\n\nBUSINESS_ADDRESS: [Find supplier's\
+      \ address:\n- Usually directly under or near business name\n- Include street\
+      \ number, street name, suburb, state, postcode\n- May span multiple lines\n\
+      - Return complete address or NOT_FOUND]\n\nPAYER_NAME: [Find customer/client\
+      \ being invoiced:\n- Look for sections labeled: \"Bill To:\", \"Customer:\"\
+      , \"Sold To:\", \"Client:\", \"Invoice To:\"\n- Usually in upper-middle section\
+      \ of invoice\n- Person or company name (not address)\n- Return exact name or\
+      \ NOT_FOUND]\n\nPAYER_ADDRESS: [Find customer's address:\n- In same section\
+      \ as PAYER_NAME\n- Include full address with postcode\n- May be multiple lines\n\
+      - Return complete address or NOT_FOUND]\n\nINVOICE_DATE: [Find invoice creation\
+      \ date:\n- Look for: \"Date:\", \"Invoice Date:\", \"Date Issued:\", header\
+      \ date\n- Common formats: DD/MM/YYYY, DD/MM/YY, DD MMM YYYY\n- Convert to DD/MM/YYYY\
+      \ format\n- Return formatted date or NOT_FOUND]\n\nLINE_ITEM_DESCRIPTIONS: [Extract\
+      \ ALL item/service descriptions from main table:\n- Table columns typically:\
+      \ Description | Qty | Rate | Amount\n- Take description/item name column\n-\
+      \ Include ALL rows in chronological order\n- Separate with \" | \" (space-pipe-space)\n\
+      - Example: \"Website Development | SEO Optimization | Logo Design\"\n- Return\
+      \ complete list or NOT_FOUND]\n\nLINE_ITEM_QUANTITIES: [Extract quantities for\
+      \ each line item:\n- From \"Qty\", \"Quantity\", \"Hours\", \"Units\" column\n\
+      - Match order of LINE_ITEM_DESCRIPTIONS exactly\n- Include decimal places if\
+      \ shown (e.g., \"2.5\")\n- Separate with \" | \"\n- If no quantity column, use\
+      \ \"1\" for each item\n- Return aligned quantities or NOT_FOUND]\n\nLINE_ITEM_PRICES:\
+      \ [Extract unit prices (NOT line totals):\n- From \"Rate\", \"Unit Price\",\
+      \ \"Price Each\", \"Per Hour\" column\n- Include $ symbol: \"$150.00\"\n- Match\
+      \ order of descriptions\n- Separate with \" | \"\n- Return unit prices or NOT_FOUND]\n\
+      \nLINE_ITEM_TOTAL_PRICES: [Extract line total amounts:\n- From \"Amount\", \"\
+      Line Total\", \"Total\" column (rightmost)\n- Include $ symbol: \"$6,000.00\"\
+      \n- These are calculated: Qty × Unit Price\n- Match order of descriptions\n\
+      - Separate with \" | \"\n- Return line totals or NOT_FOUND]\n\nIS_GST_INCLUDED:\
+      \ [Check if GST is charged:\n- Look for \"GST\", \"Tax\", \"GST (10%)\", \"\
+      Sales Tax\" with dollar amount\n- Answer \"true\" if GST amount exists anywhere\n\
+      - Answer \"false\" if no GST shown\n- Must be true/false (lowercase)]\n\nGST_AMOUNT:\
+      \ [Extract GST dollar amount:\n- Look in totals section at bottom\n- Labels:\
+      \ \"GST:\", \"GST (10%):\", \"Tax:\", \"Sales Tax:\"\n- Include $ symbol: \"\
+      $840.00\"\n- Return GST amount or NOT_FOUND]\n\nTOTAL_AMOUNT: [Extract final\
+      \ total amount:\n- Find the LARGEST dollar amount at bottom\n- Labels: \"TOTAL:\"\
+      , \"Total Amount:\", \"Amount Due:\", \"Invoice Total:\", \"ESTIMATED TOTAL:\"\
+      \n- Include $ symbol with 2 decimals\n- This is the amount customer must pay\n\
+      - Return total amount or NOT_FOUND]\n\nCRITICAL EXTRACTION RULES FOR INVOICES:\n\
+      \n\U0001F3E2 LAYOUT ADAPTATION:\n- First, identify invoice type (service, product,\
+      \ estimate, software-generated)\n- Locate the main itemized table (usually center\
+      \ of document)\n- Identify column headers to understand structure\n- Count total\
+      \ rows in line items table\n\n\U0001F4CA TABLE STRUCTURE:\n- Common patterns:\
+      \ Description | Qty | Rate | Amount\n- Alternative: Item Code | Description\
+      \ | Qty | Unit Price | Total\n- Service invoices: Description | Hours | Hourly\
+      \ Rate | Amount\n- Product invoices: Product | Quantity | Unit Price | Line\
+      \ Total\n\n\U0001F4B0 AMOUNT HANDLING:\n- LINE_ITEM_PRICES: Unit/hourly rates\
+      \ (per single item)\n- LINE_ITEM_TOTAL_PRICES: Calculated totals (Qty × Rate)\n\
+      - Include $ symbol in all monetary values\n- Preserve decimal places as shown\n\
+      \n\U0001F4DD FIELD ALIGNMENT:\n- LINE_ITEM_DESCRIPTIONS, LINE_ITEM_QUANTITIES,\
+      \ LINE_ITEM_PRICES, LINE_ITEM_TOTAL_PRICES must align\n- Same number of elements\
+      \ in each field (use \"NOT_FOUND\" for missing cells)\n- Process row by row\
+      \ maintaining order\n\n\U0001F3AF DOCUMENT TYPE INDICATORS:\n- \"INVOICE\" =\
+      \ billing document for payment\n- \"ESTIMATE\"/\"QUOTE\" = pricing proposal\
+      \ (not yet billed)\n- \"TAX INVOICE\" = GST-compliant invoice\n- \"PROFORMA\"\
+      \ = preliminary invoice\n\nOUTPUT EXACTLY 14 LINES. Stop after TOTAL_AMOUNT."
