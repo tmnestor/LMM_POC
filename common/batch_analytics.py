@@ -37,21 +37,26 @@ class BatchAnalytics:
         results_data = []
 
         for result in self.successful_results:
+            # Handle both inference-only and evaluation modes
+            evaluation = result.get("evaluation", {})
+            inference_only = evaluation.get("inference_only", False)
+
             row = {
                 "image_name": result["image_name"],
                 "document_type": result["document_type"],
-                "overall_accuracy": result["evaluation"].get("overall_accuracy", 0)
-                * 100,
-                "fields_extracted": result["evaluation"].get("fields_extracted", 0),
-                "fields_matched": result["evaluation"].get("fields_matched", 0),
-                "total_fields": result["evaluation"].get("total_fields", 0),
+                "overall_accuracy": evaluation.get("overall_accuracy", 0)
+                * 100 if not inference_only else None,
+                "fields_extracted": evaluation.get("fields_extracted", 0),
+                "fields_matched": evaluation.get("fields_matched", 0),
+                "total_fields": evaluation.get("total_fields", 0),
                 "processing_time": result["processing_time"],
                 "prompt_used": result["prompt_used"],
+                "inference_only": inference_only,
             }
 
-            # Add individual field accuracies
-            if "field_accuracies" in result["evaluation"]:
-                for field, data in result["evaluation"]["field_accuracies"].items():
+            # Add individual field accuracies (only in evaluation mode)
+            if not inference_only and "field_accuracies" in evaluation:
+                for field, data in evaluation["field_accuracies"].items():
                     row[f"accuracy_{field}"] = data.get("accuracy", 0) * 100
 
             results_data.append(row)
@@ -68,23 +73,36 @@ class BatchAnalytics:
         Returns:
             DataFrame with summary statistics
         """
+        # Check if we're in inference-only mode
+        inference_only = df_results.get("inference_only", pd.Series([False])).any() if len(df_results) > 0 else False
+
         summary_stats = {
             "Total Images": len(self.batch_results),
             "Successful Extractions": len(self.successful_results),
             "Failed Extractions": len(self.batch_results)
             - len(self.successful_results),
-            "Average Accuracy (%)": df_results["overall_accuracy"].mean()
-            if len(df_results) > 0
-            else 0,
-            "Median Accuracy (%)": df_results["overall_accuracy"].median()
-            if len(df_results) > 0
-            else 0,
-            "Min Accuracy (%)": df_results["overall_accuracy"].min()
-            if len(df_results) > 0
-            else 0,
-            "Max Accuracy (%)": df_results["overall_accuracy"].max()
-            if len(df_results) > 0
-            else 0,
+        }
+
+        # Only include accuracy metrics in evaluation mode
+        if not inference_only and len(df_results) > 0:
+            accuracy_series = df_results["overall_accuracy"].dropna()
+            if len(accuracy_series) > 0:
+                summary_stats.update({
+                    "Average Accuracy (%)": accuracy_series.mean(),
+                    "Median Accuracy (%)": accuracy_series.median(),
+                    "Min Accuracy (%)": accuracy_series.min(),
+                    "Max Accuracy (%)": accuracy_series.max(),
+                })
+        elif inference_only and len(df_results) > 0:
+            # In inference-only mode, show field extraction statistics instead
+            summary_stats.update({
+                "Average Fields Found": df_results["fields_extracted"].mean(),
+                "Min Fields Found": df_results["fields_extracted"].min(),
+                "Max Fields Found": df_results["fields_extracted"].max(),
+            })
+
+        # Add processing time statistics for both modes
+        summary_stats.update({
             "Average Processing Time (s)": np.mean(self.processing_times)
             if self.processing_times
             else 0,
@@ -94,7 +112,7 @@ class BatchAnalytics:
             "Throughput (images/min)": 60 / np.mean(self.processing_times)
             if self.processing_times
             else 0,
-        }
+        })
 
         df_summary = pd.DataFrame([summary_stats]).T
         df_summary.columns = ["Value"]

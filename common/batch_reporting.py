@@ -59,19 +59,30 @@ class BatchReporter:
         # Calculate key metrics
         total_images = len(self.batch_results)
         successful_extractions = len(self.successful_results)
-        avg_accuracy = (
-            df_results["overall_accuracy"].mean() if len(df_results) > 0 else 0
-        )
+
+        # Check if we're in inference-only mode
+        inference_only = df_results.get("inference_only", pd.Series([False])).any() if len(df_results) > 0 else False
+
+        if not inference_only and len(df_results) > 0:
+            # Evaluation mode - calculate accuracy metrics
+            accuracy_series = df_results["overall_accuracy"].dropna()
+            avg_accuracy = accuracy_series.mean() if len(accuracy_series) > 0 else 0
+
+            # Determine deployment readiness
+            if avg_accuracy >= 95:
+                readiness = "✅ **Production Ready**"
+            elif avg_accuracy >= 80:
+                readiness = "🟡 **Pilot Ready**"
+            else:
+                readiness = "🔴 **Needs Improvement**"
+        else:
+            # Inference-only mode - show extraction metrics instead
+            avg_accuracy = None
+            avg_fields_found = df_results["fields_extracted"].mean() if len(df_results) > 0 else 0
+            readiness = f"📋 **Inference-Only Mode** (Avg: {avg_fields_found:.1f} fields found)"
+
         total_time = sum(self.processing_times) if self.processing_times else 0
         throughput = 60 / np.mean(self.processing_times) if self.processing_times else 0
-
-        # Determine deployment readiness
-        if avg_accuracy >= 95:
-            readiness = "✅ **Production Ready**"
-        elif avg_accuracy >= 80:
-            readiness = "🟡 **Pilot Ready**"
-        else:
-            readiness = "🔴 **Needs Improvement**"
 
         # Extract model info from timestamp for dynamic title and model name
         model_name = "Vision Model"
@@ -89,17 +100,22 @@ class BatchReporter:
         # Build report
         report = f"""# {model_name} Batch Processing Report
 
-**Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
-**Batch ID:** {self.timestamp}  
-**Model:** {model_version}  
+**Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+**Batch ID:** {self.timestamp}
+**Model:** {model_version}
 
 ## Executive Summary
 
 ### Overall Performance
 - **Total Images Processed:** {total_images}
-- **Successful Extractions:** {successful_extractions} ({successful_extractions / total_images * 100:.1f}%)
-- **Average Accuracy:** {avg_accuracy:.2f}%
-- **Deployment Status:** {readiness}
+- **Successful Extractions:** {successful_extractions} ({successful_extractions / total_images * 100:.1f}%)"""
+
+        if not inference_only and avg_accuracy is not None:
+            report += f"""
+- **Average Accuracy:** {avg_accuracy:.2f}%"""
+
+        report += f"""
+- **Status:** {readiness}
 
 ### Processing Efficiency
 - **Total Processing Time:** {total_time:.2f} seconds ({total_time / 60:.1f} minutes)
@@ -114,33 +130,46 @@ class BatchReporter:
             percentage = (count / total_images) * 100 if total_images > 0 else 0
             report += f"- **{doc_type}:** {count} ({percentage:.1f}%)\n"
 
-        # Add accuracy by document type
-        if not df_doctype_stats.empty:
+        # Add accuracy by document type (only in evaluation mode)
+        if not inference_only and not df_doctype_stats.empty:
             report += "\n### Accuracy by Document Type\n"
             for doc_type in df_doctype_stats.index:
                 mean_acc = df_doctype_stats.loc[doc_type, "overall_accuracy_mean"]
                 report += f"- **{doc_type}:** {mean_acc:.2f}%\n"
 
-        # Add top performing images
-        if len(df_results) > 0:
-            top_performers = df_results.nlargest(
-                min(5, len(df_results)), "overall_accuracy"
-            )[["image_name", "overall_accuracy", "document_type"]]
+        # Add top performing images (only in evaluation mode)
+        if not inference_only and len(df_results) > 0:
+            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            if len(accuracy_results) > 0:
+                top_performers = accuracy_results.nlargest(
+                    min(5, len(accuracy_results)), "overall_accuracy"
+                )[["image_name", "overall_accuracy", "document_type"]]
 
-            report += "\n### Top Performing Images\n"
-            for _, row in top_performers.iterrows():
-                report += f"- {row['image_name']}: {row['overall_accuracy']:.1f}% ({row['document_type']})\n"
-
-        # Add areas for improvement
-        if len(df_results) > 0:
-            poor_performers = df_results.nsmallest(
-                min(5, len(df_results)), "overall_accuracy"
-            )[["image_name", "overall_accuracy", "document_type"]]
-
-            if poor_performers["overall_accuracy"].min() < 80:
-                report += "\n### Areas for Improvement\n"
-                for _, row in poor_performers.iterrows():
+                report += "\n### Top Performing Images\n"
+                for _, row in top_performers.iterrows():
                     report += f"- {row['image_name']}: {row['overall_accuracy']:.1f}% ({row['document_type']})\n"
+        elif inference_only and len(df_results) > 0:
+            # In inference-only mode, show top field extraction results
+            top_extractors = df_results.nlargest(
+                min(5, len(df_results)), "fields_extracted"
+            )[["image_name", "fields_extracted", "document_type"]]
+
+            report += "\n### Best Field Extraction Results\n"
+            for _, row in top_extractors.iterrows():
+                report += f"- {row['image_name']}: {row['fields_extracted']} fields extracted ({row['document_type']})\n"
+
+        # Add areas for improvement (only in evaluation mode)
+        if not inference_only and len(df_results) > 0:
+            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            if len(accuracy_results) > 0:
+                poor_performers = accuracy_results.nsmallest(
+                    min(5, len(accuracy_results)), "overall_accuracy"
+                )[["image_name", "overall_accuracy", "document_type"]]
+
+                if poor_performers["overall_accuracy"].min() < 80:
+                    report += "\n### Areas for Improvement\n"
+                    for _, row in poor_performers.iterrows():
+                        report += f"- {row['image_name']}: {row['overall_accuracy']:.1f}% ({row['document_type']})\n"
 
         # Add output files section
         report += f"""\n## Output Files Generated
@@ -223,18 +252,40 @@ All results have been saved to: `{output_base}`
 
         # Add individual results (excluding large extraction data)
         for result in self.successful_results:
-            export_result = {
-                "image_name": result["image_name"],
-                "document_type": result["document_type"],
-                "prompt_used": result["prompt_used"],
-                "processing_time": result["processing_time"],
-                "evaluation_summary": {
-                    "overall_accuracy": result["evaluation"].get("overall_accuracy", 0),
-                    "fields_extracted": result["evaluation"].get("fields_extracted", 0),
-                    "fields_matched": result["evaluation"].get("fields_matched", 0),
-                    "total_fields": result["evaluation"].get("total_fields", 0),
-                },
-            }
+            # Handle both inference-only and evaluation modes
+            evaluation = result.get("evaluation", {})
+            inference_only = evaluation.get("inference_only", False)
+
+            # In inference-only mode, we may not have evaluation data at all
+            if not evaluation:
+                # Fallback for inference-only results without evaluation key
+                export_result = {
+                    "image_name": result["image_name"],
+                    "document_type": result["document_type"],
+                    "prompt_used": result["prompt_used"],
+                    "processing_time": result["processing_time"],
+                    "evaluation_summary": {
+                        "overall_accuracy": None,
+                        "fields_extracted": 0,  # Would need to count from extraction_result
+                        "fields_matched": None,
+                        "total_fields": None,
+                        "inference_only": True,
+                    },
+                }
+            else:
+                export_result = {
+                    "image_name": result["image_name"],
+                    "document_type": result["document_type"],
+                    "prompt_used": result["prompt_used"],
+                    "processing_time": result["processing_time"],
+                    "evaluation_summary": {
+                        "overall_accuracy": evaluation.get("overall_accuracy", 0) if not inference_only else None,
+                        "fields_extracted": evaluation.get("fields_extracted", 0),
+                        "fields_matched": evaluation.get("fields_matched", 0),
+                        "total_fields": evaluation.get("total_fields", 0),
+                        "inference_only": inference_only,
+                    },
+                }
             export_data["results"].append(export_result)
 
         return export_data
