@@ -131,3 +131,6 @@ evaluation_data copy/image_006.png
 evaluation_data copy/image_007.png
 evaluation_data copy/image_008.png
 evaluation_data copy/image_009.png
+generate_vlm_diagram.py
+vlm_architecture_transparent.mmd
+vlm_architecture.mmd
