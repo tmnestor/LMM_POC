@@ -152,10 +152,16 @@ class VisionBankStatementClassifier:
 
         # Detect model type and use appropriate processing
         if hasattr(self.model, 'chat'):
-            # InternVL3-style processing
+            # Direct InternVL3 model with chat method
+            return self._analyze_with_internvl3(image_path)
+        elif hasattr(self.model, 'model') and hasattr(self.model.model, 'chat'):
+            # InternVL3 processor wrapping a model with chat method
+            return self._analyze_with_internvl3(image_path)
+        elif hasattr(self.model, 'load_image'):
+            # InternVL3 processor (has load_image method)
             return self._analyze_with_internvl3(image_path)
         elif self.processor is not None:
-            # Llama-style processing
+            # Llama-style processing with separate processor
             return self._analyze_with_llama(image_path)
         else:
             raise ValueError("No suitable VLM model configuration found")
