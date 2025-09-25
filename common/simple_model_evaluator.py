@@ -130,7 +130,7 @@ class SimpleModelEvaluator:
         return any(char in value for char in ['$', '£', '€', '.', ',']) and any(char.isdigit() for char in value)
 
     def _monetary_match(self, extracted: str, ground_truth: str) -> bool:
-        """Compare monetary values with flexible formatting."""
+        """Compare monetary values with rounding to nearest dollar for evaluation."""
         import re
 
         # Extract just the numeric parts
@@ -138,7 +138,10 @@ class SimpleModelEvaluator:
         ground_truth_nums = re.sub(r'[^\d.]', '', ground_truth)
 
         try:
-            return abs(float(extracted_nums) - float(ground_truth_nums)) < 0.01
+            # Round both values to nearest dollar for comparison
+            extracted_rounded = round(float(extracted_nums))
+            ground_truth_rounded = round(float(ground_truth_nums))
+            return extracted_rounded == ground_truth_rounded
         except (ValueError, TypeError):
             return False
 

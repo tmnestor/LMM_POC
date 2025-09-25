@@ -342,11 +342,13 @@ class BankStatementCalculator:
                 debug_df = debug_df.sort_values('original_index')  # Show in original order
                 for _i, row in debug_df.iterrows():
                     desc_short = row['description'][:40] + "..." if len(row['description']) > 40 else row['description']
+                    final_paid_str = f"${row['final_paid']:.2f}" if pd.notna(row['final_paid']) else "NOT_FOUND"
+                    final_recv_str = f"${row['final_received']:.2f}" if pd.notna(row['final_received']) else "NOT_FOUND"
                     rprint(f"[cyan]Pos {int(row['original_index'])}: {row['date_str']} | {desc_short} | "
                           f"Balance: ${row['balance']:.2f} | Change: {row['balance_change'] if pd.notna(row['balance_change']) else 'NaN'} | "
                           f"VLM_PAID: {row['extracted_paid'] if pd.notna(row['extracted_paid']) else 'NaN'} | "
                           f"VLM_RECV: {row['extracted_received'] if pd.notna(row['extracted_received']) else 'NaN'} | "
-                          f"FINAL_PAID: ${row['final_paid']:.2f} | FINAL_RECV: ${row['final_received']:.2f}[/cyan]")
+                          f"FINAL_PAID: {final_paid_str} | FINAL_RECV: {final_recv_str}[/cyan]")
 
             # Determine transaction types
             df_calc['transaction_type'] = df_calc.apply(
