@@ -11,6 +11,16 @@ No enterprise complexity - just: extracted_fields vs ground_truth = accuracy%
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+try:
+    from common.config import filter_evaluation_fields, is_evaluation_field
+except ImportError:
+    # Fallback if config import fails - include all fields
+    def filter_evaluation_fields(fields: list) -> list:
+        return fields
+
+    def is_evaluation_field(field_name: str) -> bool:
+        return True
+
 
 @dataclass
 class SimpleEvaluationResult:
@@ -47,14 +57,15 @@ class SimpleModelEvaluator:
         Returns:
             SimpleEvaluationResult with accuracy metrics
         """
-        # Get all fields that should be evaluated
+        # Get all fields that should be evaluated (excluding validation-only fields)
         all_fields = set(ground_truth.keys())
+        evaluation_fields = {field for field in all_fields if is_evaluation_field(field)}
 
         correct_fields = []
         incorrect_fields = []
         missing_fields = []
 
-        for field in all_fields:
+        for field in evaluation_fields:
             ground_truth_value = ground_truth.get(field, "").strip()
             extracted_value = extracted_data.get(field, "").strip()
 

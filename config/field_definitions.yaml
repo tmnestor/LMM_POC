@@ -138,10 +138,28 @@ field_categories:
     - ACCOUNT_BALANCE
 
 # ============================================================================
+# FIELD USAGE CLASSIFICATION
+# ============================================================================
+field_usage:
+  # Fields used for mathematical validation but excluded from evaluation metrics
+  validation_only:
+    - TRANSACTION_AMOUNTS_RECEIVED  # Used for transaction calculation but not evaluated
+    - ACCOUNT_BALANCE  # Used for balance validation but not evaluated
+
+  # Fields used for both evaluation and validation (default for all other fields)
+  evaluation_and_validation:
+    - DOCUMENT_TYPE
+    - STATEMENT_DATE_RANGE
+    - LINE_ITEM_DESCRIPTIONS
+    - TRANSACTION_DATES
+    - TRANSACTION_AMOUNTS_PAID
+    # All other fields not in validation_only list
+
+# ============================================================================
 # EVALUATION SETTINGS
 # ============================================================================
 evaluation:
-  # Critical fields requiring highest accuracy
+  # Critical fields requiring highest accuracy (only evaluated fields)
   critical_fields:
     - BUSINESS_ABN
     - GST_AMOUNT

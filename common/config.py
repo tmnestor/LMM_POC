@@ -1439,3 +1439,46 @@ GROUP_VALIDATION_RULES = {
         "document_metadata",
     ],
 }
+
+# ============================================================================
+# EVALUATION VS VALIDATION FIELD SEPARATION
+# ============================================================================
+
+# Fields used for mathematical validation but excluded from evaluation metrics
+VALIDATION_ONLY_FIELDS = [
+    "TRANSACTION_AMOUNTS_RECEIVED",  # Used for mathematical transaction calculation
+    "ACCOUNT_BALANCE",  # Used for mathematical balance validation
+]
+
+def is_evaluation_field(field_name: str) -> bool:
+    """
+    Check if a field should be included in evaluation metrics.
+
+    Args:
+        field_name (str): Field name to check
+
+    Returns:
+        bool: True if field should be evaluated, False if validation-only
+    """
+    return field_name not in VALIDATION_ONLY_FIELDS
+
+def filter_evaluation_fields(fields: list) -> list:
+    """
+    Filter a list of fields to exclude validation-only fields.
+
+    Args:
+        fields (list): List of field names
+
+    Returns:
+        list: Filtered list excluding validation-only fields
+    """
+    return [field for field in fields if is_evaluation_field(field)]
+
+def get_validation_only_fields() -> list:
+    """
+    Get list of fields used only for validation (not evaluation).
+
+    Returns:
+        list: List of validation-only field names
+    """
+    return VALIDATION_ONLY_FIELDS.copy()

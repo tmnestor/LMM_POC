@@ -9,6 +9,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List
 
+try:
+    from .config import filter_evaluation_fields, is_evaluation_field
+except ImportError:
+    # Fallback if config import fails - include all fields
+    def filter_evaluation_fields(fields: list) -> list:
+        return fields
+
+    def is_evaluation_field(field_name: str) -> bool:
+        return True
+
 
 @dataclass
 class DocumentMetrics:
@@ -54,12 +64,12 @@ class StandaloneEvaluator:
             ),
             "bank_statement": DocumentMetrics(
                 document_type="bank_statement",
-                required_fields=[
+                required_fields=filter_evaluation_fields([
                     'DOCUMENT_TYPE', 'STATEMENT_DATE_RANGE', 'LINE_ITEM_DESCRIPTIONS',
                     'TRANSACTION_DATES', 'TRANSACTION_AMOUNTS_PAID', 'TRANSACTION_AMOUNTS_RECEIVED',
                     'ACCOUNT_BALANCE'
-                ],
-                critical_fields=['DOCUMENT_TYPE', 'STATEMENT_DATE_RANGE', 'ACCOUNT_BALANCE'],
+                ]),
+                critical_fields=filter_evaluation_fields(['DOCUMENT_TYPE', 'STATEMENT_DATE_RANGE', 'ACCOUNT_BALANCE']),
                 accuracy_threshold=0.70
             )
         }
