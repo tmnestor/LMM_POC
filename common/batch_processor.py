@@ -233,7 +233,9 @@ class BatchDocumentProcessor:
                             "ACCOUNT_BALANCE"
                         ]
                     }
-                    evaluation_fields = doc_type_fields.get(document_type, doc_type_fields['invoice'])
+                    # Ensure case-insensitive document type matching for evaluation fields
+                    document_type_lower_eval = document_type.lower()
+                    evaluation_fields = doc_type_fields.get(document_type_lower_eval, doc_type_fields['invoice'])
 
                     filtered_ground_truth = {
                         field: ground_truth[field]
@@ -653,7 +655,9 @@ class BatchDocumentProcessor:
                 "ACCOUNT_BALANCE"
             ]
         }
-        field_list = doc_type_fields.get(document_type, doc_type_fields['invoice'])
+        # Ensure case-insensitive document type matching for field list selection
+        document_type_lower = document_type.lower()
+        field_list = doc_type_fields.get(document_type_lower, doc_type_fields['invoice'])
 
         # Create document-aware processor with loaded model/processor
         doc_processor = DocumentAwareLlamaProcessor(
