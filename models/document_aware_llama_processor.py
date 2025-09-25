@@ -325,6 +325,7 @@ class DocumentAwareLlamaProcessor:
         """Process single image with document-aware extraction."""
 
         try:
+            from pathlib import Path
             start_time = time.time()
 
             # Memory cleanup
