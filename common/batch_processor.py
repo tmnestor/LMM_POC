@@ -192,9 +192,19 @@ class BatchDocumentProcessor:
                         if verbose:
                             rprint("[blue]🧮 Applying mathematical enhancement for bank statement[/blue]")
 
-                        extracted_data = enhance_bank_statement_extraction(
+                        # Get enhanced data with mathematical corrections
+                        enhanced_result = enhance_bank_statement_extraction(
                             extracted_data, verbose=verbose
                         )
+
+                        # Separate the corrected extraction data from analysis metadata
+                        extracted_data = {
+                            k: v for k, v in enhanced_result.items()
+                            if k != '_mathematical_analysis'
+                        }
+
+                        # Store analysis metadata for reporting but don't include in evaluation
+                        mathematical_analysis = enhanced_result.get('_mathematical_analysis', {})
 
                     if verbose:
                         found_fields = [
@@ -205,10 +215,9 @@ class BatchDocumentProcessor:
                         )
 
                         # Show mathematical enhancement results if applied
-                        if document_type.upper() == "BANK_STATEMENT" and '_mathematical_analysis' in extracted_data:
-                            analysis = extracted_data['_mathematical_analysis']
-                            if analysis.get('calculation_success'):
-                                rprint(f"[green]✓ Mathematical analysis: {analysis.get('transaction_count', 0)} transactions calculated[/green]")
+                        if document_type.upper() == "BANK_STATEMENT" and 'mathematical_analysis' in locals():
+                            if mathematical_analysis.get('calculation_success'):
+                                rprint(f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]")
                             else:
                                 rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
 
@@ -244,6 +253,9 @@ class BatchDocumentProcessor:
                     }
 
                     # Use SimpleModelEvaluator for clean model comparison with filtered data
+                    if verbose and document_type.upper() == "BANK_STATEMENT":
+                        rprint("[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]")
+
                     evaluation_result = self.model_evaluator.evaluate_extraction(
                         extracted_data, filtered_ground_truth, image_path
                     )
