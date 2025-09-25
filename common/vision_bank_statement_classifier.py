@@ -29,27 +29,33 @@ class VisionBankStatementClassifier:
         self.processor = processor
         self.verbose = verbose
 
-        # Classification prompt for VLM
-        self.classification_prompt = """
-        Analyze this bank statement image and classify its structural layout.
+        # Load classification prompt from YAML file
+        self.classification_prompt = self._load_classification_prompt()
 
-        Look at how transactions are organized:
+    def _load_classification_prompt(self) -> str:
+        """Load classification prompt from YAML file."""
+        try:
+            from .simple_prompt_loader import SimplePromptLoader
 
-        FLAT TABLE: Transactions are in a continuous table format with column headers like:
-        Date | Description | Withdrawal | Deposit | Balance
-        - All transactions are in one continuous table
-        - Clear column structure throughout
+            prompt_loader = SimplePromptLoader()
+            classification_prompt = prompt_loader.load_prompt(
+                "bank_statement_classification.yaml",
+                "structure_classification"
+            )
+            return classification_prompt
+        except Exception as e:
+            # Fallback prompt if YAML loading fails
+            if self.verbose:
+                rprint(f"[yellow]⚠️ Could not load classification prompt from YAML: {e}[/yellow]")
+                rprint("[yellow]Using fallback prompt[/yellow]")
 
-        DATE-GROUPED: Transactions are grouped under date section headers like:
-        "Thu 04 Sep 2025"
-        [transactions for that date]
-        "Mon 01 Sep 2025"
-        [transactions for that date]
-        - Date headers separate different sections
-        - Transactions are grouped by date sections
+            return """
+            Analyze this bank statement and classify its layout.
 
-        Respond with only: FLAT or DATE_GROUPED
-        """
+            If you see date headers that separate transaction groups, respond: DATE_GROUPED
+            If transactions are in one continuous table, respond: FLAT
+
+            Response:"""
 
     def classify_structure_vision(
         self, image_path: str
@@ -71,20 +77,40 @@ class VisionBankStatementClassifier:
         try:
             # Use VLM to analyze the image structure
             if self.model is not None:
+                if self.verbose:
+                    rprint("[dim]🤖 Using VLM for structure analysis...[/dim]")
                 classification_result = self._analyze_with_vlm(image_path)
+
+                if self.verbose:
+                    rprint(f"[dim]📋 VLM response: '{classification_result}'[/dim]")
             else:
                 # Fallback: Conservative default if no model available
                 if self.verbose:
                     rprint("[yellow]⚠️ No VLM model provided, using conservative default[/yellow]")
                 classification_result = "flat"
 
-            # Normalize result
-            if "DATE" in classification_result.upper() or "GROUPED" in classification_result.upper():
+            # Normalize result with better detection
+            classification_upper = classification_result.upper()
+
+            # Look for generic classification indicators (no specific data from actual images)
+            date_indicators = ["DATE", "GROUPED", "SECTION", "HEADER"]
+            flat_indicators = ["FLAT", "TABLE", "COLUMN", "CONTINUOUS", "ROW"]
+
+            has_date_indicators = any(indicator in classification_upper for indicator in date_indicators)
+            has_flat_indicators = any(indicator in classification_upper for indicator in flat_indicators)
+
+            if has_date_indicators and not has_flat_indicators:
+                structure_type = "date_grouped"
+            elif has_flat_indicators and not has_date_indicators:
+                structure_type = "flat"
+            elif "DATE" in classification_upper or "GROUPED" in classification_upper:
                 structure_type = "date_grouped"
             else:
+                # Default fallback
                 structure_type = "flat"
 
             if self.verbose:
+                rprint(f"[dim]🧠 Analysis: date_indicators={has_date_indicators}, flat_indicators={has_flat_indicators}[/dim]")
                 self._display_classification_result(structure_type, image_name)
 
             return structure_type
@@ -163,24 +189,39 @@ class VisionBankStatementClassifier:
 
     def _analyze_with_internvl3(self, image_path: str) -> str:
         """Analyze using InternVL3 model."""
-        from PIL import Image
+        try:
+            from PIL import Image
 
-        # Load image
-        image = Image.open(image_path).convert('RGB')
+            # Load image
+            image = Image.open(image_path).convert('RGB')
 
-        # Use InternVL3 chat method
-        response = self.model.chat(
-            tokenizer=None,  # InternVL3 uses internal tokenizer
-            pixel_values=image,
-            question=self.classification_prompt,
-            generation_config=dict(
-                max_new_tokens=50,
-                temperature=0.0,
-                do_sample=False,
-            )
-        )
+            # Use InternVL3 chat method - handle different possible interfaces
+            if hasattr(self.model, 'chat'):
+                response = self.model.chat(
+                    tokenizer=None,  # InternVL3 uses internal tokenizer
+                    pixel_values=image,
+                    question=self.classification_prompt,
+                    generation_config=dict(
+                        max_new_tokens=50,
+                        temperature=0.0,
+                        do_sample=False,
+                    )
+                )
+            else:
+                # Alternative interface
+                response = self.model.generate(
+                    image=image,
+                    prompt=self.classification_prompt,
+                    max_new_tokens=50,
+                    temperature=0.0
+                )
 
-        return response.strip()
+            return response.strip() if isinstance(response, str) else str(response).strip()
+
+        except Exception as e:
+            if self.verbose:
+                rprint(f"[red]❌ InternVL3 analysis failed: {e}[/red]")
+            raise
 
     def _display_classification_result(
         self, structure_type: Literal["flat", "date_grouped"], image_name: str

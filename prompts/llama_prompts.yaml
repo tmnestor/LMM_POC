@@ -209,11 +209,11 @@ prompts:
       🚨 CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
 
       ## DATE-GROUPED STRUCTURE:
-      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+      This statement has transactions grouped under date headers.
 
       ## SIMPLIFIED PARSING STEPS:
 
-      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      1. Find date headers (e.g., day names followed by dates)
       2. Extract ALL transactions from under each date header
       3. Combine with pipe separators in chronological order
       4. Use balance direction to validate transaction types:

@@ -110,10 +110,10 @@ prompts:
     prompt: |
       Extract structured data from this date-grouped bank statement. Transactions are grouped under date headers.
 
-      This statement has sections like "Thu 04 Sep 2025" with transactions listed underneath each date.
+      This statement has sections with date headers and transactions listed underneath each date.
 
       Process by:
-      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      1. Find date headers (e.g., day names followed by dates)
       2. Extract all transactions under each date section
       3. Combine in chronological order with " | " separators
       4. Use balance changes to determine transaction types
