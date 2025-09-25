@@ -316,21 +316,26 @@ class BankStatementCalculator:
                 np.where(df_calc['extracted_received'].notna(), 'RECEIVED', 'NONE')
             )
 
-            # FIXED: Use mathematical calculation for ALL transactions, trust balance differences
-            # First transaction: Use VLM extracted amount if available
+            # CORRECTED: Use mathematical balance differences to place amounts in correct positions
+            # VLM may extract amounts but place them in wrong positions - math fixes this
+
+            # For first transaction (NaN balance_change) - use VLM if available
+            first_transaction_paid = df_calc['extracted_paid'].fillna(0.0)
+            first_transaction_received = df_calc['extracted_received'].fillna(0.0)
+
             df_calc['final_paid'] = np.where(
-                # First transaction (NaN balance_change) - use VLM if available, otherwise 0
+                # First transaction (NaN balance_change) - use VLM
                 df_calc['balance_change'].isna(),
-                df_calc['extracted_paid'].fillna(0.0),
-                # Other transactions - use mathematical balance differences
+                first_transaction_paid,
+                # All other transactions - use mathematical calculation to get correct amounts
                 df_calc['calc_paid'].fillna(0.0)
             )
 
             df_calc['final_received'] = np.where(
-                # First transaction (NaN balance_change) - use VLM if available, otherwise 0
+                # First transaction (NaN balance_change) - use VLM
                 df_calc['balance_change'].isna(),
-                df_calc['extracted_received'].fillna(0.0),
-                # Other transactions - use mathematical balance differences
+                first_transaction_received,
+                # All other transactions - use mathematical calculation to get correct amounts
                 df_calc['calc_received'].fillna(0.0)
             )
 
