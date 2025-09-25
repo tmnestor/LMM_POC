@@ -242,30 +242,36 @@ class VisionBankStatementClassifier:
             if hasattr(self.model, 'chat'):
                 # Check if it's a wrapped processor or direct model
                 if hasattr(self.model, 'model') and hasattr(self.model, 'tokenizer'):
-                    # It's a processor wrapping a model - use processor's tokenizer
+                    # It's a processor wrapping a model - use exact same interface as working code
                     response = self.model.model.chat(
-                        self.model.tokenizer,  # Use processor's tokenizer
+                        self.model.tokenizer,
                         pixel_values,
                         self.classification_prompt,
                         generation_config=dict(
                             max_new_tokens=50,
                             temperature=0.0,
                             do_sample=False,
+                            top_p=0.9,
+                            use_cache=True,
                         ),
-                        history=None
+                        history=None,
+                        return_history=False  # Match exact working interface
                     )
                 else:
-                    # Direct model with chat method
+                    # Direct model with chat method - use exact same interface
                     response = self.model.chat(
-                        None,  # InternVL3 uses internal tokenizer for direct models
+                        None,  # Direct model uses internal tokenizer
                         pixel_values,
                         self.classification_prompt,
                         generation_config=dict(
                             max_new_tokens=50,
                             temperature=0.0,
                             do_sample=False,
+                            top_p=0.9,
+                            use_cache=True,
                         ),
-                        history=None
+                        history=None,
+                        return_history=False
                     )
             else:
                 # Alternative interface - handle processor vs direct model
