@@ -255,8 +255,15 @@ class ExtractionCleaner:
                 # General text cleaning for descriptions and quantities
                 cleaned_item = self._clean_text_field(item)
 
-            if cleaned_item and cleaned_item != "NOT_FOUND":
-                cleaned_items.append(cleaned_item)
+            # PRESERVE POSITIONAL ARRAY STRUCTURE: Keep NOT_FOUND values for bank statement arrays
+            # This is critical for TRANSACTION_AMOUNTS_* fields where position matters
+            if field_name.upper().startswith('TRANSACTION_AMOUNTS') or field_name.upper() == 'ACCOUNT_BALANCE':
+                # For bank statement transaction arrays, preserve ALL positions including NOT_FOUND
+                cleaned_items.append(cleaned_item if cleaned_item else "NOT_FOUND")
+            else:
+                # For other list fields, filter out NOT_FOUND (original behavior)
+                if cleaned_item and cleaned_item != "NOT_FOUND":
+                    cleaned_items.append(cleaned_item)
 
         # Always return pipe-separated format for consistency
         return " | ".join(cleaned_items) if cleaned_items else "NOT_FOUND"
