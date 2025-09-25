@@ -93,8 +93,15 @@ class VisionBankStatementClassifier:
             classification_upper = classification_result.upper()
 
             # Look for generic classification indicators (no specific data from actual images)
-            date_indicators = ["DATE", "GROUPED", "SECTION", "HEADER"]
-            flat_indicators = ["FLAT", "TABLE", "COLUMN", "CONTINUOUS", "ROW"]
+            date_indicators = [
+                "DATE", "GROUPED", "SECTION", "HEADER",  # Original core terms
+                "ORGANIZE", "SEPARATE", "UNDER", "LABELS",  # Action/relationship words
+                "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"  # Generic day names
+            ]
+            flat_indicators = [
+                "FLAT", "TABLE", "COLUMN", "CONTINUOUS", "ROW",  # Original core terms
+                "SINGLE", "UNBROKEN", "CONSISTENT"  # Layout continuity terms
+            ]
 
             has_date_indicators = any(indicator in classification_upper for indicator in date_indicators)
             has_flat_indicators = any(indicator in classification_upper for indicator in flat_indicators)
@@ -111,6 +118,15 @@ class VisionBankStatementClassifier:
 
             if self.verbose:
                 rprint(f"[dim]🧠 Analysis: date_indicators={has_date_indicators}, flat_indicators={has_flat_indicators}[/dim]")
+
+                # Show which specific indicators were triggered for debugging
+                triggered_date = [ind for ind in date_indicators if ind in classification_upper]
+                triggered_flat = [ind for ind in flat_indicators if ind in classification_upper]
+                if triggered_date:
+                    rprint(f"[dim]📅 Triggered date indicators: {triggered_date}[/dim]")
+                if triggered_flat:
+                    rprint(f"[dim]📊 Triggered flat indicators: {triggered_flat}[/dim]")
+
                 self._display_classification_result(structure_type, image_name)
 
             return structure_type

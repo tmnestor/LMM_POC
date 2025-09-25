@@ -20,10 +20,10 @@ prompts:
       - Transactions are grouped by date sections
       - Look for date headers that separate groups of transactions
 
-      Examine the image carefully. Do you see date headers that separate groups of transactions?
+      Does each transaction have its own date value, or are the transactions grouped by date?
 
-      If YES: Respond with "DATE_GROUPED"
-      If NO: Respond with "FLAT"
+      If each transaction has its own individual date in a table: Respond with "FLAT"
+      If transactions are grouped under shared date headers: Respond with "DATE_GROUPED"
 
       Response:
 
