@@ -206,6 +206,12 @@ class BatchDocumentProcessor:
                         # Store analysis metadata for reporting but don't include in evaluation
                         mathematical_analysis = enhanced_result.get('_mathematical_analysis', {})
 
+                        # CRITICAL: Filter to debit-only transactions for evaluation
+                        if verbose:
+                            rprint("[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]")
+
+                        extracted_data = self._filter_debit_transactions(extracted_data, verbose)
+
                     if verbose:
                         found_fields = [
                             k for k, v in extracted_data.items() if v != "NOT_FOUND"
@@ -356,6 +362,68 @@ class BatchDocumentProcessor:
         end_time = time.time()
 
         return batch_results, processing_times, document_types_found
+
+    def _filter_debit_transactions(self, extracted_data: dict, verbose: bool = False) -> dict:
+        """
+        Filter bank statement data to keep only debit transactions using pandas.
+
+        This removes credit transactions from all transaction arrays to match ground truth
+        which only contains debit transactions.
+        """
+        if extracted_data.get('DOCUMENT_TYPE') != 'BANK_STATEMENT':
+            return extracted_data  # Only filter bank statements
+
+        try:
+            import pandas as pd
+
+            # Get transaction arrays
+            descriptions = extracted_data.get('LINE_ITEM_DESCRIPTIONS', '')
+            dates = extracted_data.get('TRANSACTION_DATES', '')
+            paid = extracted_data.get('TRANSACTION_AMOUNTS_PAID', '')
+            received = extracted_data.get('TRANSACTION_AMOUNTS_RECEIVED', '')
+            balances = extracted_data.get('ACCOUNT_BALANCE', '')
+
+            if any(field == '' or field == 'NOT_FOUND' for field in [descriptions, dates, paid, balances]):
+                if verbose:
+                    rprint("[yellow]⚠️ Missing transaction data - skipping debit filtering[/yellow]")
+                return extracted_data
+
+            # Create DataFrame from transaction data
+            transactions_df = pd.DataFrame({
+                'description': descriptions.split(' | '),
+                'date': dates.split(' | '),
+                'paid': paid.split(' | '),
+                'received': received.split(' | ') if received != 'NOT_FOUND' else None,
+                'balance': balances.split(' | ')
+            })
+
+            if verbose:
+                rprint(f"[dim]Pre-filter: {len(transactions_df)} transactions[/dim]")
+
+            # Filter to keep only debit transactions (where paid != 'NOT_FOUND')
+            debit_df = transactions_df[transactions_df['paid'] != 'NOT_FOUND'].copy()
+
+            if verbose:
+                rprint(f"[dim]Debit transactions found: {len(debit_df)}/{len(transactions_df)}[/dim]")
+
+            # Convert back to pipe-separated strings
+            filtered_data = extracted_data.copy()
+            filtered_data['LINE_ITEM_DESCRIPTIONS'] = ' | '.join(debit_df['description'].tolist())
+            filtered_data['TRANSACTION_DATES'] = ' | '.join(debit_df['date'].tolist())
+            filtered_data['TRANSACTION_AMOUNTS_PAID'] = ' | '.join(debit_df['paid'].tolist())
+            filtered_data['TRANSACTION_AMOUNTS_RECEIVED'] = 'NOT_FOUND'  # No credits in debit-only
+            filtered_data['ACCOUNT_BALANCE'] = ' | '.join(debit_df['balance'].tolist())
+
+            if verbose:
+                rprint(f"[green]✅ Pandas filtered to {len(debit_df)} debit transactions[/green]")
+
+            return filtered_data
+
+        except Exception as e:
+            if verbose:
+                rprint(f"[red]❌ Pandas filtering failed: {e}[/red]")
+                rprint("[yellow]⚠️ Falling back to original data[/yellow]")
+            return extracted_data
 
     def _parse_document_type_response(
         self, response: str, detection_config: dict
