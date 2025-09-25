@@ -132,14 +132,16 @@ prompts:
       - ABN often missing on small business receipts
 
   # ============================================================================
-  # BANK STATEMENT EXTRACTION - 7 Fields
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (7 Fields)
   # ============================================================================
-  bank_statement:
-    name: "Bank Statement Extraction"
-    description: "Extract 7 bank statement-specific fields with proven methodology"
+
+  # Flat Table Bank Statements (continuous table format)
+  bank_statement_flat:
+    name: "Flat Table Bank Statement Extraction"
+    description: "Optimized for flat table bank statements with continuous rows"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this bank statement image using precise row-by-row analysis.
+      Extract structured data from this flat table bank statement using row-by-row analysis.
 
       CRITICAL EXTRACTION RULES:
       - If ANY field is not clearly visible in the document, return "NOT_FOUND"
@@ -148,7 +150,7 @@ prompts:
       - MANDATORY: Use row-by-row processing (never scan columns)
 
       🚨 CRITICAL ARRAY ALIGNMENT REQUIREMENT:
-      ALL TRANSACTION FIELDS MUST BE PERFECTLY ALIGNED BY ROW POSITION!
+      ALL FIELDS MUST BE PERFECTLY ALIGNED BY DATE POSITION!
 
       🔍 ROW-BY-ROW PROCESSING METHODOLOGY:
       DO NOT scan columns! Process each transaction ROW individually:
@@ -169,12 +171,69 @@ prompts:
       TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | $3497.47 | NOT_FOUND
       ACCOUNT_BALANCE: $13387.44 | $16884.91 | $16834.91
 
-      ❌ WRONG - COLUMN SCANNING (causes misalignment):
-      - Scanning DEBIT column: "$288.03, $50.00" → puts in positions [0], [1]
-      - Scanning CREDIT column: "$3497.47" → puts in position [0]
-      - Results in: RECEIVED[0] = $3497.47 (WRONG! This belongs in position [1])
+      ## MANDATORY ROW-BY-ROW EXTRACTION PROTOCOL:
 
-      ✅ ALWAYS process ROW-BY-ROW, never scan columns!
+      Step 1: Count total transaction rows in the table
+      Step 2: For EACH row from top to bottom:
+         - Extract the date → add to TRANSACTION_DATES at this position
+         - Extract the description → add to LINE_ITEM_DESCRIPTIONS at this position
+         - Look at DEBIT cell: if has amount → add to TRANSACTION_AMOUNTS_PAID, if empty → add "NOT_FOUND"
+         - Look at CREDIT cell: if has amount → add to TRANSACTION_AMOUNTS_RECEIVED, if empty → add "NOT_FOUND"
+         - Extract the balance → add to ACCOUNT_BALANCE at this position
+      Step 3: Verify all arrays have same length as row count
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text
+      - Output ONLY the structured extraction data below
+      - End immediately after "ACCOUNT_BALANCE:" with no additional text
+
+      Extract these 7 bank statement fields in this exact order:
+
+      DOCUMENT_TYPE: [STATEMENT or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
+      TRANSACTION_DATES: [Transaction dates separated by " | " - MUST match row count or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
+      ACCOUNT_BALANCE: [Running balance amounts with $ separated by " | " or NOT_FOUND]
+
+  # Date-Grouped Bank Statements (transactions grouped under date headers)
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement Extraction"
+    description: "Optimized for bank statements with date section headers"
+    prompt: |
+      You are an expert document analyzer specializing in bank statement extraction.
+      Extract structured data from this date-grouped bank statement with transactions organized under date headers.
+
+      🚨 CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
+
+      ## DATE-GROUPED STRUCTURE:
+      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+
+      ## SIMPLIFIED PARSING STEPS:
+
+      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      2. Extract ALL transactions from under each date header
+      3. Combine with pipe separators in chronological order
+      4. Use balance direction to validate transaction types:
+         - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
+         - Balance DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+
+      ## FIELD EXTRACTION RULES:
+
+      LINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with " | "
+      TRANSACTION_DATES: Convert date headers to DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts (money OUT)
+      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts (money IN)
+      ACCOUNT_BALANCE: Running balance after each transaction
+
+      Use NOT_FOUND for any missing values. Maintain same count across all lists.
+
+      ## BALANCE VALIDATION (CRITICAL):
+      The BALANCE column is nearly 100% accurate. Use it to validate transactions:
+      - Balance INCREASES → Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
+      - Balance DECREASES → Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
 
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE:"

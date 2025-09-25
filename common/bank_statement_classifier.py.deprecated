@@ -1,9 +1,13 @@
 """
-Bank Statement Structure Classification Module
+DEPRECATED: Bank Statement Structure Classification Module
 
-Distinguishes between flat and date-grouped bank statement structures
-to apply optimal extraction prompts.
+FILENAME-BASED CLASSIFICATION IS INAPPROPRIATE FOR PRODUCTION SYSTEMS.
+
+This module has been deprecated and should not be used.
+All bank statements now use standard processing without structure classification.
 """
+
+# DEPRECATED MODULE - DO NOT USE
 
 from pathlib import Path
 from typing import Dict, Literal

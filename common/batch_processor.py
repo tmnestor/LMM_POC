@@ -370,13 +370,7 @@ class BatchDocumentProcessor:
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
         return fallback
 
-    def _classify_bank_statement_structure(
-        self, image_path: str, verbose: bool = False
-    ):
-        """Classify bank statement structure for optimal prompt selection."""
-        from .bank_statement_classifier import classify_bank_statement_structure
-
-        return classify_bank_statement_structure(image_path, verbose)
+    # Removed: _classify_bank_statement_structure - filename-based classification is inappropriate
 
     def _display_detailed_field_comparison(
         self,
@@ -594,24 +588,40 @@ class BatchDocumentProcessor:
         if verbose:
             rprint(f"[green]✅ Detected Document Type: {document_type}[/green]\n")
 
-        # Special handling for bank statements: classify structure type
+        # Initialize bank statement structure (used for prompt selection)
+        bank_structure = None
+
+        # Bank statements: Use vision-based structure classification for optimal prompt selection
         if document_type == "BANK_STATEMENT":
-            bank_structure = self._classify_bank_statement_structure(
-                image_path, verbose
+            from .vision_bank_statement_classifier import (
+                classify_bank_statement_structure_vision,
+            )
+
+            # Classify bank statement structure using vision analysis
+            bank_structure = classify_bank_statement_structure_vision(
+                image_path=image_path,
+                model=self.model,
+                processor=self.processor,
+                verbose=verbose
             )
 
             if verbose:
                 rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
-                rprint(
-                    "[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement)[/cyan]"
-                )
+                rprint(f"[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement_{bank_structure})[/cyan]")
 
         # Step 2: Load document-specific prompt using SimplePromptLoader
         prompt_loader = SimplePromptLoader()
-        # Use llama prompts for Llama processor - with fallback to universal
+        # Use llama prompts for Llama processor - with structure-specific bank statement support
         try:
-            extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", document_type.lower())
-            prompt_name = f"llama_{document_type.lower()}_prompt"
+            if document_type == "BANK_STATEMENT":
+                # Use structure-specific bank statement prompt
+                prompt_key = f"bank_statement_{bank_structure}"
+                extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", prompt_key)
+                prompt_name = f"llama_{prompt_key}_prompt"
+            else:
+                # Use standard document type prompt
+                extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", document_type.lower())
+                prompt_name = f"llama_{document_type.lower()}_prompt"
         except KeyError:
             # Fall back to universal prompt if specific document type not found
             extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", "universal")
