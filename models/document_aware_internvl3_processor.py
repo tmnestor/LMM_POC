@@ -503,10 +503,10 @@ class DocumentAwareInternVL3HybridProcessor:
                     if verbose:
                         print("🔍 Running vision-based structure classification for bank statement")
 
-                    # Use the model for classification
+                    # Pass self (the processor) which has the load_image method
                     structure_type = classify_bank_statement_structure_vision(
                         image_path,
-                        model=self.model,
+                        model=self,  # Pass the processor itself which has load_image
                         processor=None,  # InternVL3 doesn't use separate processor
                         verbose=verbose
                     )
@@ -827,10 +827,10 @@ class DocumentAwareInternVL3HybridProcessor:
                         if self.debug:
                             print("🔍 Running vision-based structure classification for bank statement")
 
-                        # Use the model and processor if available for classification
+                        # Pass self (the processor) which has the load_image method
                         structure_type = classify_bank_statement_structure_vision(
                             image_path,
-                            model=self.model,
+                            model=self,  # Pass the processor itself which has load_image
                             processor=None,  # InternVL3 doesn't use separate processor
                             verbose=self.debug
                         )

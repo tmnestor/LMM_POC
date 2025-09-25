@@ -206,27 +206,63 @@ class VisionBankStatementClassifier:
     def _analyze_with_internvl3(self, image_path: str) -> str:
         """Analyze using InternVL3 model."""
         try:
-            from PIL import Image
+            # Check if model has the InternVL3-specific load_image method
+            if hasattr(self.model, 'load_image'):
+                # Model is wrapped in a processor that has load_image
+                pixel_values = self.model.load_image(image_path)
+            elif hasattr(self.model, '__class__') and 'InternVL3' in str(self.model.__class__):
+                # Direct InternVL3 model - need to preprocess manually
+                from models.document_aware_internvl3_processor import (
+                    DocumentAwareInternVL3Processor,
+                )
+                # Create a temporary processor instance to use its load_image method
+                temp_processor = DocumentAwareInternVL3Processor(self.model, debug=False)
+                pixel_values = temp_processor.load_image(image_path)
+            else:
+                # Fallback: Try to load and preprocess the image directly
+                from PIL import Image
+                image = Image.open(image_path).convert('RGB')
 
-            # Load image
-            image = Image.open(image_path).convert('RGB')
+                # Try to find the model's preprocessing method
+                if hasattr(self.model, 'img_processor'):
+                    pixel_values = self.model.img_processor([image])
+                elif hasattr(self.model, 'image_processor'):
+                    pixel_values = self.model.image_processor([image])
+                else:
+                    # Last resort - pass raw image and hope model handles it
+                    pixel_values = image
 
             # Use InternVL3 chat method - handle different possible interfaces
             if hasattr(self.model, 'chat'):
-                response = self.model.chat(
-                    tokenizer=None,  # InternVL3 uses internal tokenizer
-                    pixel_values=image,
-                    question=self.classification_prompt,
-                    generation_config=dict(
-                        max_new_tokens=50,
-                        temperature=0.0,
-                        do_sample=False,
+                # Check if it's a wrapped processor or direct model
+                if hasattr(self.model, 'model'):
+                    # It's a processor wrapping a model
+                    response = self.model.model.chat(
+                        tokenizer=None,  # InternVL3 uses internal tokenizer
+                        pixel_values=pixel_values,
+                        question=self.classification_prompt,
+                        generation_config=dict(
+                            max_new_tokens=50,
+                            temperature=0.0,
+                            do_sample=False,
+                        )
                     )
-                )
+                else:
+                    # Direct model with chat method
+                    response = self.model.chat(
+                        tokenizer=None,  # InternVL3 uses internal tokenizer
+                        pixel_values=pixel_values,
+                        question=self.classification_prompt,
+                        generation_config=dict(
+                            max_new_tokens=50,
+                            temperature=0.0,
+                            do_sample=False,
+                        )
+                    )
             else:
                 # Alternative interface
                 response = self.model.generate(
-                    image=image,
+                    image=pixel_values,
                     prompt=self.classification_prompt,
                     max_new_tokens=50,
                     temperature=0.0
