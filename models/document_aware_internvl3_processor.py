@@ -485,6 +485,37 @@ class DocumentAwareInternVL3HybridProcessor:
             if verbose:
                 print(f"📊 Processing {document_type.upper()} document with InternVL3")
 
+            # For bank statements, use vision-based structure classification
+            if document_type == 'bank_statement':
+                try:
+                    from ..common.vision_bank_statement_classifier import (
+                        classify_bank_statement_structure_vision,
+                    )
+
+                    if verbose:
+                        print("🔍 Running vision-based structure classification for bank statement")
+
+                    # Use the model for classification
+                    structure_type = classify_bank_statement_structure_vision(
+                        image_path,
+                        model=self.model,
+                        processor=None,  # InternVL3 doesn't use separate processor
+                        verbose=verbose
+                    )
+
+                    # Map structure to specific prompt
+                    document_type = f"bank_statement_{structure_type}"
+
+                    if verbose:
+                        print(f"🏗️ Bank statement structure: {structure_type}")
+                        print(f"📝 Using prompt key: {document_type}")
+
+                except Exception as e:
+                    if verbose:
+                        print(f"⚠️ Vision classification failed: {e}")
+                        print("📝 Falling back to universal prompt")
+                    document_type = "universal"
+
             # Get document-specific prompt from InternVL3 prompts
             extraction_prompt = self.get_extraction_prompt(document_type)
 
@@ -509,6 +540,17 @@ class DocumentAwareInternVL3HybridProcessor:
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
                     "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
                     "ACCOUNT_BALANCE"
+                ],
+                # Add structure-specific bank statement fields (same for both)
+                'bank_statement_flat': [
+                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                    "ACCOUNT_BALANCE"
+                ],
+                'bank_statement_date_grouped': [
+                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
+                    "ACCOUNT_BALANCE"
                 ]
             }
 
@@ -518,7 +560,9 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Calculate document-specific max tokens
             from common.config import get_max_new_tokens
-            doc_specific_tokens = get_max_new_tokens("internvl3", len(self.field_list), document_type)
+            # Use base document type for max tokens calculation
+            base_doc_type = document_type.replace('_flat', '').replace('_date_grouped', '')
+            doc_specific_tokens = get_max_new_tokens("internvl3", len(self.field_list), base_doc_type)
 
             # Process with document-specific settings
             result = self.process_single_image(image_path, custom_max_tokens=doc_specific_tokens)
