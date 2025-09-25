@@ -241,38 +241,50 @@ class VisionBankStatementClassifier:
             # Use InternVL3 chat method - handle different possible interfaces
             if hasattr(self.model, 'chat'):
                 # Check if it's a wrapped processor or direct model
-                if hasattr(self.model, 'model'):
-                    # It's a processor wrapping a model
+                if hasattr(self.model, 'model') and hasattr(self.model, 'tokenizer'):
+                    # It's a processor wrapping a model - use processor's tokenizer
                     response = self.model.model.chat(
-                        tokenizer=None,  # InternVL3 uses internal tokenizer
-                        pixel_values=pixel_values,
-                        question=self.classification_prompt,
+                        self.model.tokenizer,  # Use processor's tokenizer
+                        pixel_values,
+                        self.classification_prompt,
                         generation_config=dict(
                             max_new_tokens=50,
                             temperature=0.0,
                             do_sample=False,
-                        )
+                        ),
+                        history=None
                     )
                 else:
                     # Direct model with chat method
                     response = self.model.chat(
-                        tokenizer=None,  # InternVL3 uses internal tokenizer
-                        pixel_values=pixel_values,
-                        question=self.classification_prompt,
+                        None,  # InternVL3 uses internal tokenizer for direct models
+                        pixel_values,
+                        self.classification_prompt,
                         generation_config=dict(
                             max_new_tokens=50,
                             temperature=0.0,
                             do_sample=False,
-                        )
+                        ),
+                        history=None
                     )
             else:
-                # Alternative interface
-                response = self.model.generate(
-                    image=pixel_values,
-                    prompt=self.classification_prompt,
-                    max_new_tokens=50,
-                    temperature=0.0
-                )
+                # Alternative interface - handle processor vs direct model
+                if hasattr(self.model, 'model'):
+                    # It's a processor wrapping a model
+                    response = self.model.model.generate(
+                        image=pixel_values,
+                        prompt=self.classification_prompt,
+                        max_new_tokens=50,
+                        temperature=0.0
+                    )
+                else:
+                    # Direct model
+                    response = self.model.generate(
+                        image=pixel_values,
+                        prompt=self.classification_prompt,
+                        max_new_tokens=50,
+                        temperature=0.0
+                    )
 
             return response.strip() if isinstance(response, str) else str(response).strip()
 
