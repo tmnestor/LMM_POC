@@ -494,10 +494,10 @@ class BankStatementCalculator:
                 avg_accuracy = accuracy_scores.mean()
                 rprint(f"[dim]💡 VLM Amount Accuracy: {avg_accuracy:.1%} average[/dim]")
 
-        # Show sample transactions with enhanced source information
+        # Show ALL transactions with enhanced source information
         if len(transactions_df) > 0:
-            rprint("\n[dim]📅 Sample transactions with validation:[/dim]")
-            for _, row in transactions_df.head(3).iterrows():
+            rprint("\n[dim]📅 All transactions with validation:[/dim]")
+            for _, row in transactions_df.iterrows():
                 color = "red" if row['transaction_type'] == "DEBIT" else "green"
                 amount = row['final_paid'] if row['transaction_type'] == "DEBIT" else row['final_received']
                 confidence = f"({row['confidence']:.1f})"
@@ -517,9 +517,6 @@ class BankStatementCalculator:
                     accuracy = ""
 
                 rprint(f"[{color}]  {row['date_str']}: {row['transaction_type']} ${amount:.2f} [{source}{accuracy}] {confidence}[/{color}]")
-
-            if len(transactions_df) > 3:
-                rprint(f"[dim]  ... and {len(transactions_df) - 3} more[/dim]")
 
     def _parse_dates(self, dates_str: str) -> List[Tuple[datetime, str]]:
         """Parse date strings into datetime objects with original strings."""
@@ -633,8 +630,8 @@ class BankStatementCalculator:
 
         # Handle both pipe-separated and space-separated formats
         if '|' in amounts_str:
-            # Pipe-separated format (preferred)
-            amount_parts = [a.strip() for a in amounts_str.split('|') if a.strip()]
+            # Pipe-separated format (preferred) - PRESERVE ALL POSITIONS INCLUDING NOT_FOUND
+            amount_parts = [a.strip() for a in amounts_str.split('|')]  # Don't filter - keep positions!
         else:
             # Space-separated format (fallback for Llama extraction)
             amount_parts = re.findall(r'\$[\d,]+\.?\d*(?:\s+CR)?', amounts_str)
