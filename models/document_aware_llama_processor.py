@@ -344,10 +344,12 @@ class DocumentAwareLlamaProcessor:
                 # For bank statements, use vision-based structure classification
                 if document_type == "bank_statement":
                     try:
-                        from ..common.vision_bank_statement_classifier import classify_bank_statement_structure_vision
+                        from ..common.vision_bank_statement_classifier import (
+                            classify_bank_statement_structure_vision,
+                        )
 
                         if self.debug:
-                            print(f"🔍 Running vision-based structure classification for bank statement")
+                            print("🔍 Running vision-based structure classification for bank statement")
 
                         # Use the model and processor for classification
                         structure_type = classify_bank_statement_structure_vision(

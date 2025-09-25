@@ -759,10 +759,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 # For bank statements, use vision-based structure classification
                 if detected_type == 'BANK_STATEMENT':
                     try:
-                        from ..common.vision_bank_statement_classifier import classify_bank_statement_structure_vision
+                        from ..common.vision_bank_statement_classifier import (
+                            classify_bank_statement_structure_vision,
+                        )
 
                         if self.debug:
-                            print(f"🔍 Running vision-based structure classification for bank statement")
+                            print("🔍 Running vision-based structure classification for bank statement")
 
                         # Use the model and processor if available for classification
                         structure_type = classify_bank_statement_structure_vision(
