@@ -786,6 +786,7 @@ class DocumentAwareInternVL3HybridProcessor:
         """Process single image with document-aware extraction using InternVL3."""
 
         try:
+            from pathlib import Path
             start_time = time.time()
 
             # Memory cleanup
