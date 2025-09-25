@@ -316,21 +316,37 @@ class BankStatementCalculator:
                 np.where(df_calc['extracted_received'].notna(), 'RECEIVED', 'NONE')
             )
 
-            # Correct VLM classification using mathematical ground truth
-            df_calc['corrected_paid'] = np.where(
-                (df_calc['math_transaction_type'] == 'DEBIT') & df_calc['vlm_amount'].notna(),
-                df_calc['vlm_amount'],
-                np.nan
-            )
-            df_calc['corrected_received'] = np.where(
-                (df_calc['math_transaction_type'] == 'CREDIT') & df_calc['vlm_amount'].notna(),
-                df_calc['vlm_amount'],
-                np.nan
+            # FIXED: Use mathematical calculation for ALL transactions, trust balance differences
+            # First transaction: Use VLM extracted amount if available
+            df_calc['final_paid'] = np.where(
+                # First transaction (NaN balance_change) - use VLM if available, otherwise 0
+                df_calc['balance_change'].isna(),
+                df_calc['extracted_paid'].fillna(0.0),
+                # Other transactions - use mathematical balance differences
+                df_calc['calc_paid'].fillna(0.0)
             )
 
-            # Enhanced hybrid approach: Use corrected VLM amounts where available, mathematical fallback
-            df_calc['final_paid'] = df_calc['corrected_paid'].fillna(df_calc['calc_paid'])
-            df_calc['final_received'] = df_calc['corrected_received'].fillna(df_calc['calc_received'])
+            df_calc['final_received'] = np.where(
+                # First transaction (NaN balance_change) - use VLM if available, otherwise 0
+                df_calc['balance_change'].isna(),
+                df_calc['extracted_received'].fillna(0.0),
+                # Other transactions - use mathematical balance differences
+                df_calc['calc_received'].fillna(0.0)
+            )
+
+            # Debug output - print the corrected DataFrame
+            if self.verbose:
+                rprint("\n[bold cyan]🔍 MATHEMATICAL CORRECTION DEBUG - CORRECTED DATAFRAME[/bold cyan]")
+                rprint("Key columns showing mathematical correction results:")
+                debug_df = df_calc[['original_index', 'date_str', 'balance', 'balance_change',
+                                  'extracted_paid', 'extracted_received', 'final_paid', 'final_received']].copy()
+                debug_df = debug_df.sort_values('original_index')  # Show in original order
+                for _i, row in debug_df.iterrows():
+                    rprint(f"[cyan]Pos {int(row['original_index'])}: {row['date_str']} | Balance: ${row['balance']:.2f} | "
+                          f"Change: {row['balance_change'] if pd.notna(row['balance_change']) else 'NaN'} | "
+                          f"VLM_PAID: {row['extracted_paid'] if pd.notna(row['extracted_paid']) else 'NaN'} | "
+                          f"VLM_RECV: {row['extracted_received'] if pd.notna(row['extracted_received']) else 'NaN'} | "
+                          f"FINAL_PAID: ${row['final_paid']:.2f} | FINAL_RECV: ${row['final_received']:.2f}[/cyan]")
 
             # Determine transaction types
             df_calc['transaction_type'] = df_calc.apply(
