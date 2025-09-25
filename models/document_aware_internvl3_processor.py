@@ -17,7 +17,6 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 
 import time
 import warnings
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import torch
@@ -488,9 +487,18 @@ class DocumentAwareInternVL3HybridProcessor:
             # For bank statements, use vision-based structure classification
             if document_type == 'bank_statement':
                 try:
-                    from ..common.vision_bank_statement_classifier import (
-                        classify_bank_statement_structure_vision,
-                    )
+                    # Try different import methods to handle various execution contexts
+                    try:
+                        from common.vision_bank_statement_classifier import (
+                            classify_bank_statement_structure_vision,
+                        )
+                    except ImportError:
+                        import sys
+                        from pathlib import Path
+                        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+                        from common.vision_bank_statement_classifier import (
+                            classify_bank_statement_structure_vision,
+                        )
 
                     if verbose:
                         print("🔍 Running vision-based structure classification for bank statement")
@@ -803,9 +811,18 @@ class DocumentAwareInternVL3HybridProcessor:
                 # For bank statements, use vision-based structure classification
                 if detected_type == 'BANK_STATEMENT':
                     try:
-                        from ..common.vision_bank_statement_classifier import (
-                            classify_bank_statement_structure_vision,
-                        )
+                        # Try different import methods to handle various execution contexts
+                        try:
+                            from common.vision_bank_statement_classifier import (
+                                classify_bank_statement_structure_vision,
+                            )
+                        except ImportError:
+                            import sys
+                            from pathlib import Path
+                            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+                            from common.vision_bank_statement_classifier import (
+                                classify_bank_statement_structure_vision,
+                            )
 
                         if self.debug:
                             print("🔍 Running vision-based structure classification for bank statement")
