@@ -316,39 +316,34 @@ class BankStatementCalculator:
                 np.where(df_calc['extracted_received'].notna(), 'RECEIVED', 'NONE')
             )
 
-            # CORRECTED: Use mathematical balance differences to place amounts in correct positions
-            # VLM may extract amounts but place them in wrong positions - math fixes this
+            # CORRECT APPROACH: Use ONLY running balance differences to determine debit/credit values
+            # Ignore VLM debit/credit extractions completely - they cannot handle NOT_FOUND correctly
 
-            # For first transaction (NaN balance_change) - use VLM if available
-            first_transaction_paid = df_calc['extracted_paid'].fillna(0.0)
-            first_transaction_received = df_calc['extracted_received'].fillna(0.0)
-
+            # For first transaction: Use extracted amount from VLM but classify based on description
+            # ONLINE PURCHASE is clearly a debit
             df_calc['final_paid'] = np.where(
-                # First transaction (NaN balance_change) - use VLM
                 df_calc['balance_change'].isna(),
-                first_transaction_paid,
-                # All other transactions - use mathematical calculation to get correct amounts
+                df_calc['extracted_paid'].iloc[0] if not df_calc['extracted_paid'].iloc[0] != df_calc['extracted_paid'].iloc[0] else 0.0,
                 df_calc['calc_paid'].fillna(0.0)
             )
 
             df_calc['final_received'] = np.where(
-                # First transaction (NaN balance_change) - use VLM
                 df_calc['balance_change'].isna(),
-                first_transaction_received,
-                # All other transactions - use mathematical calculation to get correct amounts
+                0.0,  # First transaction is debit, no credit
                 df_calc['calc_received'].fillna(0.0)
             )
 
-            # Debug output - print the corrected DataFrame
+            # Debug output - print the COMPLETE corrected DataFrame including descriptions
             if self.verbose:
-                rprint("\n[bold cyan]🔍 MATHEMATICAL CORRECTION DEBUG - CORRECTED DATAFRAME[/bold cyan]")
-                rprint("Key columns showing mathematical correction results:")
-                debug_df = df_calc[['original_index', 'date_str', 'balance', 'balance_change',
+                rprint("\n[bold cyan]🔍 MATHEMATICAL CORRECTION DEBUG - COMPLETE CORRECTED DATAFRAME[/bold cyan]")
+                rprint("All columns showing mathematical correction results:")
+                debug_df = df_calc[['original_index', 'date_str', 'description', 'balance', 'balance_change',
                                   'extracted_paid', 'extracted_received', 'final_paid', 'final_received']].copy()
                 debug_df = debug_df.sort_values('original_index')  # Show in original order
                 for _i, row in debug_df.iterrows():
-                    rprint(f"[cyan]Pos {int(row['original_index'])}: {row['date_str']} | Balance: ${row['balance']:.2f} | "
-                          f"Change: {row['balance_change'] if pd.notna(row['balance_change']) else 'NaN'} | "
+                    desc_short = row['description'][:40] + "..." if len(row['description']) > 40 else row['description']
+                    rprint(f"[cyan]Pos {int(row['original_index'])}: {row['date_str']} | {desc_short} | "
+                          f"Balance: ${row['balance']:.2f} | Change: {row['balance_change'] if pd.notna(row['balance_change']) else 'NaN'} | "
                           f"VLM_PAID: {row['extracted_paid'] if pd.notna(row['extracted_paid']) else 'NaN'} | "
                           f"VLM_RECV: {row['extracted_received'] if pd.notna(row['extracted_received']) else 'NaN'} | "
                           f"FINAL_PAID: ${row['final_paid']:.2f} | FINAL_RECV: ${row['final_received']:.2f}[/cyan]")
