@@ -319,18 +319,18 @@ class BankStatementCalculator:
             # CORRECT APPROACH: Use ONLY running balance differences to determine debit/credit values
             # Ignore VLM debit/credit extractions completely - they cannot handle NOT_FOUND correctly
 
-            # For first transaction: Use extracted amount from VLM but classify based on description
-            # ONLINE PURCHASE is clearly a debit
+            # For first transaction: Use VLM extracted amount (can't calculate balance difference for first)
+            # Keep NaN for missing values so they become "NOT_FOUND" in output
             df_calc['final_paid'] = np.where(
                 df_calc['balance_change'].isna(),
-                df_calc['extracted_paid'].iloc[0] if not df_calc['extracted_paid'].iloc[0] != df_calc['extracted_paid'].iloc[0] else 0.0,
-                df_calc['calc_paid'].fillna(0.0)
+                df_calc['extracted_paid'],  # Keep NaN if VLM didn't extract
+                df_calc['calc_paid']        # Keep NaN if no balance decrease
             )
 
             df_calc['final_received'] = np.where(
                 df_calc['balance_change'].isna(),
-                0.0,  # First transaction is debit, no credit
-                df_calc['calc_received'].fillna(0.0)
+                df_calc['extracted_received'],  # Keep NaN if VLM didn't extract
+                df_calc['calc_received']        # Keep NaN if no balance increase
             )
 
             # Debug output - print the COMPLETE corrected DataFrame including descriptions
@@ -356,9 +356,7 @@ class BankStatementCalculator:
                 axis=1
             )
 
-            # Fill NaN values in final amounts
-            df_calc['final_paid'] = df_calc['final_paid'].fillna(0.0)
-            df_calc['final_received'] = df_calc['final_received'].fillna(0.0)
+            # Keep NaN values - they will be handled correctly in output generation as "NOT_FOUND"
 
             # Add mathematical validation columns for VLM accuracy
             df_calc['vlm_classification_correct'] = np.where(
