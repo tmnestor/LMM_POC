@@ -238,59 +238,33 @@ class VisionBankStatementClassifier:
                     # Last resort - pass raw image and hope model handles it
                     pixel_values = image
 
-            # Use InternVL3 chat method - handle different possible interfaces
-            if hasattr(self.model, 'chat'):
-                # Check if it's a wrapped processor or direct model
-                if hasattr(self.model, 'model') and hasattr(self.model, 'tokenizer'):
-                    # It's a processor wrapping a model - use exact same interface as working code
-                    response = self.model.model.chat(
-                        self.model.tokenizer,
-                        pixel_values,
-                        self.classification_prompt,
-                        generation_config=dict(
-                            max_new_tokens=50,
-                            temperature=0.0,
-                            do_sample=False,
-                            top_p=0.9,
-                            use_cache=True,
-                        ),
-                        history=None,
-                        return_history=False  # Match exact working interface
-                    )
-                else:
-                    # Direct model with chat method - use exact same interface
-                    response = self.model.chat(
-                        None,  # Direct model uses internal tokenizer
-                        pixel_values,
-                        self.classification_prompt,
-                        generation_config=dict(
-                            max_new_tokens=50,
-                            temperature=0.0,
-                            do_sample=False,
-                            top_p=0.9,
-                            use_cache=True,
-                        ),
-                        history=None,
-                        return_history=False
-                    )
+            # Use the same proven method as document detection and extraction
+            if hasattr(self.model, '_resilient_generate'):
+                # It's a processor with the working _resilient_generate method
+                response = self.model._resilient_generate(
+                    pixel_values=pixel_values,
+                    question=self.classification_prompt,
+                    max_new_tokens=50,
+                    temperature=0.0,
+                    do_sample=False,
+                    is_detection=True  # Classification is like detection - short response
+                )
             else:
-                # Alternative interface - handle processor vs direct model
-                if hasattr(self.model, 'model'):
-                    # It's a processor wrapping a model
-                    response = self.model.model.generate(
-                        image=pixel_values,
-                        prompt=self.classification_prompt,
+                # Fallback to manual interface (should not happen with proper processor)
+                response = self.model.model.chat(
+                    self.model.tokenizer,
+                    pixel_values,
+                    self.classification_prompt,
+                    generation_config=dict(
                         max_new_tokens=50,
-                        temperature=0.0
-                    )
-                else:
-                    # Direct model
-                    response = self.model.generate(
-                        image=pixel_values,
-                        prompt=self.classification_prompt,
-                        max_new_tokens=50,
-                        temperature=0.0
-                    )
+                        temperature=0.0,
+                        do_sample=False,
+                        top_p=0.9,
+                        use_cache=True,
+                    ),
+                    history=None,
+                    return_history=False
+                )
 
             return response.strip() if isinstance(response, str) else str(response).strip()
 
