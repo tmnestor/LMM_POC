@@ -600,29 +600,11 @@ class BatchDocumentProcessor:
                 image_path, verbose
             )
 
-            # Update prompt configuration for bank statement structure
-            extraction_files = self.prompt_config["extraction_files"].copy()
-            extraction_keys = self.prompt_config["extraction_keys"].copy()
-
-            if bank_structure == "flat":
-                extraction_files["BANK_STATEMENT"] = (
-                    "prompts/bank_statement_flat_optimized.yaml"
-                )
-                extraction_keys["BANK_STATEMENT"] = "flat_optimized"
-            else:  # date_grouped
-                extraction_files["BANK_STATEMENT"] = (
-                    "prompts/bank_statement_date_grouped.yaml"
-                )
-                extraction_keys["BANK_STATEMENT"] = "date_grouped"
-
             if verbose:
                 rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
                 rprint(
-                    f"[cyan]📁 Using prompt: {extraction_files['BANK_STATEMENT']}[/cyan]"
+                    "[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement)[/cyan]"
                 )
-        else:
-            extraction_files = self.prompt_config["extraction_files"]
-            extraction_keys = self.prompt_config["extraction_keys"]
 
         # Step 2: Load document-specific prompt using SimplePromptLoader
         prompt_loader = SimplePromptLoader()
@@ -669,24 +651,11 @@ class BatchDocumentProcessor:
         doc_processor.processor = self.processor
 
         # Load max_tokens from YAML settings
-        # PROMPT_CONFIG must be the single source of truth - no hardcoded fallbacks!
-        if document_type not in extraction_files:
-            raise ValueError(
-                f"Document type '{document_type}' not found in extraction_files. "
-                f"Available types: {list(extraction_files.keys())}. "
-                f"Please update PROMPT_CONFIG to include this document type."
-            )
-
-        prompt_file = extraction_files[document_type]
-        try:
-            with Path(prompt_file).open("r") as f:
-                yaml_config = yaml.safe_load(f)
-                max_tokens = yaml_config.get("settings", {}).get("max_new_tokens", 600)
-        except Exception:
-            max_tokens = 600  # fallback
+        # Use standard max_tokens (no hardcoded YAML file parsing)
+        max_tokens = 600
 
         if verbose:
-            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} from {prompt_file}[/cyan]")
+            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} (standard)[/cyan]")
 
         # Extract data using document-aware approach with loaded YAML prompt and tokens
         extraction_result = doc_processor.process_single_image(
