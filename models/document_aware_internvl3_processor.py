@@ -752,9 +752,38 @@ class DocumentAwareInternVL3HybridProcessor:
                 type_mapping = {
                     'INVOICE': 'invoice',
                     'RECEIPT': 'receipt',
-                    'BANK_STATEMENT': 'bank_statement'
+                    'BANK_STATEMENT': 'bank_statement'  # Will be refined below
                 }
                 document_type = type_mapping.get(detected_type, 'invoice')
+
+                # For bank statements, use vision-based structure classification
+                if detected_type == 'BANK_STATEMENT':
+                    try:
+                        from ..common.vision_bank_statement_classifier import classify_bank_statement_structure_vision
+
+                        if self.debug:
+                            print(f"🔍 Running vision-based structure classification for bank statement")
+
+                        # Use the model and processor if available for classification
+                        structure_type = classify_bank_statement_structure_vision(
+                            image_path,
+                            model=self.model,
+                            processor=None,  # InternVL3 doesn't use separate processor
+                            verbose=self.debug
+                        )
+
+                        # Map structure to specific prompt
+                        document_type = f"bank_statement_{structure_type}"
+
+                        if self.debug:
+                            print(f"🏗️ Bank statement structure: {structure_type}")
+                            print(f"📝 Using prompt key: {document_type}")
+
+                    except Exception as e:
+                        if self.debug:
+                            print(f"⚠️ Vision classification failed: {e}")
+                            print("📝 Falling back to universal prompt")
+                        document_type = "universal"
 
                 if self.debug:
                     print(f"📋 DOCUMENT DETECTION RESULT: {detection_result}")

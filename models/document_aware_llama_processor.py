@@ -340,6 +340,36 @@ class DocumentAwareLlamaProcessor:
             else:
                 # Get document-aware prompt
                 document_type = self.detect_document_type()
+
+                # For bank statements, use vision-based structure classification
+                if document_type == "bank_statement":
+                    try:
+                        from ..common.vision_bank_statement_classifier import classify_bank_statement_structure_vision
+
+                        if self.debug:
+                            print(f"🔍 Running vision-based structure classification for bank statement")
+
+                        # Use the model and processor for classification
+                        structure_type = classify_bank_statement_structure_vision(
+                            image_path,
+                            model=self.model,
+                            processor=self.processor,
+                            verbose=self.debug
+                        )
+
+                        # Map structure to specific prompt
+                        document_type = f"bank_statement_{structure_type}"
+
+                        if self.debug:
+                            print(f"🏗️ Bank statement structure: {structure_type}")
+                            print(f"📝 Using prompt key: {document_type}")
+
+                    except Exception as e:
+                        if self.debug:
+                            print(f"⚠️ Vision classification failed: {e}")
+                            print("📝 Falling back to universal prompt")
+                        document_type = "universal"
+
                 prompt = self.get_extraction_prompt(document_type=document_type)
 
             if self.debug:
