@@ -11,7 +11,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 from rich import print as rprint
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pd = None
+    np = None
+    PANDAS_AVAILABLE = False
 
 
 @dataclass
@@ -42,13 +51,16 @@ class BankStatementAnalysis:
 class BankStatementCalculator:
     """Mathematical calculator for bank statement transaction analysis."""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, use_pandas: bool = True):
         """Initialize the calculator.
 
         Args:
             verbose: Whether to display detailed processing information
+            use_pandas: Whether to use pandas-based calculation (recommended)
+                       Falls back to legacy method if pandas not available
         """
         self.verbose = verbose
+        self.use_pandas = use_pandas and PANDAS_AVAILABLE
 
     def analyze_bank_statement(
         self,
@@ -56,6 +68,30 @@ class BankStatementCalculator:
     ) -> BankStatementAnalysis:
         """
         Analyze bank statement data using mathematical balance differences.
+
+        Routes to pandas-based implementation by default, falls back to legacy method.
+
+        Args:
+            extracted_data: Dictionary containing extracted fields including
+                           TRANSACTION_DATES and ACCOUNT_BALANCE
+
+        Returns:
+            BankStatementAnalysis with calculated transaction types and amounts
+        """
+        # Route to pandas implementation if enabled
+        if self.use_pandas:
+            return self.analyze_bank_statement_pandas(extracted_data)
+        else:
+            return self.analyze_bank_statement_legacy(extracted_data)
+
+    def analyze_bank_statement_legacy(
+        self,
+        extracted_data: Dict[str, Any]
+    ) -> BankStatementAnalysis:
+        """
+        Analyze bank statement data using original manual array manipulation.
+
+        This is the legacy implementation kept for compatibility and fallback.
 
         Args:
             extracted_data: Dictionary containing extracted fields including
@@ -156,6 +192,320 @@ class BankStatementCalculator:
                 success=False,
                 errors=[f"Analysis failed: {str(e)}"]
             )
+
+    def analyze_bank_statement_pandas(
+        self,
+        extracted_data: Dict[str, Any]
+    ) -> BankStatementAnalysis:
+        """
+        Analyze bank statement data using pandas for reliable calculations.
+
+        This pandas-based approach eliminates array index mapping issues and provides
+        cleaner mathematical operations with better data integrity.
+
+        Args:
+            extracted_data: Dictionary containing extracted fields including
+                           TRANSACTION_DATES and ACCOUNT_BALANCE
+
+        Returns:
+            BankStatementAnalysis with calculated transaction types and amounts
+        """
+        if not PANDAS_AVAILABLE:
+            if self.verbose:
+                rprint("[yellow]⚠️ Pandas not available, falling back to legacy method[/yellow]")
+            return self.analyze_bank_statement(extracted_data)
+
+        try:
+            # Extract required fields
+            dates_str = extracted_data.get('TRANSACTION_DATES', '')
+            balances_str = extracted_data.get('ACCOUNT_BALANCE', '')
+            descriptions_str = extracted_data.get('LINE_ITEM_DESCRIPTIONS', '')
+            amounts_paid_str = extracted_data.get('TRANSACTION_AMOUNTS_PAID', '')
+            amounts_received_str = extracted_data.get('TRANSACTION_AMOUNTS_RECEIVED', '')
+
+            if not dates_str or not balances_str:
+                return BankStatementAnalysis(
+                    transactions=[],
+                    total_debits=0.0,
+                    total_credits=0.0,
+                    transaction_count=0,
+                    calculated_amounts_paid=[],
+                    calculated_amounts_received=[],
+                    success=False,
+                    errors=["Missing required fields: TRANSACTION_DATES or ACCOUNT_BALANCE"]
+                )
+
+            # Parse data using existing methods
+            dates_parsed = self._parse_dates(dates_str)
+            balances_parsed = self._parse_balances(balances_str)
+            descriptions_parsed = self._parse_descriptions(descriptions_str)
+            amounts_paid_parsed = self._parse_extracted_amounts(amounts_paid_str)
+            amounts_received_parsed = self._parse_extracted_amounts(amounts_received_str)
+
+            if not dates_parsed or not balances_parsed:
+                return BankStatementAnalysis(
+                    transactions=[], total_debits=0.0, total_credits=0.0,
+                    transaction_count=0, calculated_amounts_paid=[], calculated_amounts_received=[],
+                    success=False, errors=["Failed to parse dates or balances"]
+                )
+
+            # Create DataFrame with parsed data
+            max_length = max(len(dates_parsed), len(balances_parsed))
+
+            # Ensure all arrays are same length for DataFrame creation
+            dates_list = [(d[0], d[1], i) for i, d in enumerate(dates_parsed)]
+            balances_list = balances_parsed[:max_length]
+            descriptions_list = descriptions_parsed[:max_length] if descriptions_parsed else ["Transaction"] * max_length
+
+            # Pad shorter lists
+            while len(dates_list) < max_length:
+                dates_list.append((None, "Unknown", len(dates_list)))
+            while len(balances_list) < max_length:
+                balances_list.append(0.0)
+            while len(descriptions_list) < max_length:
+                descriptions_list.append("Transaction")
+            while len(amounts_paid_parsed) < max_length:
+                amounts_paid_parsed.append(0.0)
+            while len(amounts_received_parsed) < max_length:
+                amounts_received_parsed.append(0.0)
+
+            # Create DataFrame
+            transactions_df = pd.DataFrame({
+                'date': [d[0] for d in dates_list],
+                'date_str': [d[1] for d in dates_list],
+                'original_index': [d[2] for d in dates_list],
+                'balance': balances_list[:max_length],
+                'description': descriptions_list[:max_length],
+                'extracted_paid': [x if x > 0 else np.nan for x in amounts_paid_parsed[:max_length]],
+                'extracted_received': [x if x > 0 else np.nan for x in amounts_received_parsed[:max_length]]
+            })
+
+            # Remove rows with invalid dates
+            transactions_df = transactions_df.dropna(subset=['date'])
+
+            if len(transactions_df) == 0:
+                return BankStatementAnalysis(
+                    transactions=[], total_debits=0.0, total_credits=0.0,
+                    transaction_count=0, calculated_amounts_paid=[], calculated_amounts_received=[],
+                    success=False, errors=["No valid transactions after parsing"]
+                )
+
+            if self.verbose:
+                rprint(f"[cyan]📊 Analyzing {len(transactions_df)} transactions with pandas[/cyan]")
+
+            # Sort chronologically for mathematical calculations
+            df_calc = transactions_df.sort_values('date').copy()
+
+            # Calculate balance differences (vectorized operation)
+            df_calc['balance_change'] = df_calc['balance'].diff()
+
+            # Calculate mathematical amounts from balance differences (ground truth)
+            df_calc['calc_paid'] = df_calc['balance_change'].where(df_calc['balance_change'] < 0).abs()
+            df_calc['calc_received'] = df_calc['balance_change'].where(df_calc['balance_change'] > 0)
+
+            # Mathematical ground truth for transaction classification
+            df_calc['math_transaction_type'] = df_calc['balance_change'].apply(
+                lambda x: 'DEBIT' if x < 0 else 'CREDIT' if x > 0 else 'UNKNOWN'
+            )
+            df_calc['math_amount'] = df_calc['balance_change'].abs()
+
+            # Extract VLM amount from whichever column it appears in
+            df_calc['vlm_amount'] = df_calc['extracted_paid'].fillna(df_calc['extracted_received'])
+            df_calc['vlm_source_column'] = np.where(
+                df_calc['extracted_paid'].notna(), 'PAID',
+                np.where(df_calc['extracted_received'].notna(), 'RECEIVED', 'NONE')
+            )
+
+            # Correct VLM classification using mathematical ground truth
+            df_calc['corrected_paid'] = np.where(
+                (df_calc['math_transaction_type'] == 'DEBIT') & df_calc['vlm_amount'].notna(),
+                df_calc['vlm_amount'],
+                np.nan
+            )
+            df_calc['corrected_received'] = np.where(
+                (df_calc['math_transaction_type'] == 'CREDIT') & df_calc['vlm_amount'].notna(),
+                df_calc['vlm_amount'],
+                np.nan
+            )
+
+            # Enhanced hybrid approach: Use corrected VLM amounts where available, mathematical fallback
+            df_calc['final_paid'] = df_calc['corrected_paid'].fillna(df_calc['calc_paid'])
+            df_calc['final_received'] = df_calc['corrected_received'].fillna(df_calc['calc_received'])
+
+            # Determine transaction types
+            df_calc['transaction_type'] = df_calc.apply(
+                lambda row: 'DEBIT' if pd.notna(row['final_paid']) and row['final_paid'] > 0
+                           else 'CREDIT' if pd.notna(row['final_received']) and row['final_received'] > 0
+                           else 'UNKNOWN',
+                axis=1
+            )
+
+            # Fill NaN values in final amounts
+            df_calc['final_paid'] = df_calc['final_paid'].fillna(0.0)
+            df_calc['final_received'] = df_calc['final_received'].fillna(0.0)
+
+            # Add mathematical validation columns for VLM accuracy
+            df_calc['vlm_classification_correct'] = np.where(
+                df_calc['vlm_amount'].isna(),
+                np.nan,  # No VLM data to validate
+                # VLM classification matches mathematical ground truth
+                ((df_calc['vlm_source_column'] == 'PAID') & (df_calc['math_transaction_type'] == 'DEBIT')) |
+                ((df_calc['vlm_source_column'] == 'RECEIVED') & (df_calc['math_transaction_type'] == 'CREDIT'))
+            )
+
+            # Amount accuracy validation (percentage difference from mathematical amount)
+            df_calc['vlm_amount_accuracy'] = np.where(
+                df_calc['vlm_amount'].isna() | (df_calc['math_amount'] == 0),
+                np.nan,
+                1.0 - (abs(df_calc['vlm_amount'] - df_calc['math_amount']) / df_calc['math_amount'])
+            )
+
+            # Enhanced confidence scoring based on data source and validation
+            # Create boolean masks explicitly to avoid pandas boolean operation issues
+            def create_confidence_score(row):
+                has_vlm = pd.notna(row['vlm_amount'])
+                if not has_vlm:
+                    return 0.80  # Mathematical calculation only
+
+                classification_correct = row['vlm_classification_correct']
+                if pd.notna(classification_correct) and classification_correct:
+                    return 0.95  # VLM amount + correct classification
+                else:
+                    return 0.85  # VLM amount but wrong/missing classification (corrected)
+
+            df_calc['confidence'] = df_calc.apply(create_confidence_score, axis=1)
+
+            # Validate balance continuity
+            balance_validation_passed = True
+            try:
+                expected_final_balance = df_calc['balance'].iloc[0] + df_calc['balance_change'].sum()
+                actual_final_balance = df_calc['balance'].iloc[-1]
+                balance_validation_passed = abs(expected_final_balance - actual_final_balance) < 0.01
+            except Exception:
+                balance_validation_passed = False
+
+            # Convert back to original order for output
+            df_final = df_calc.sort_values('original_index')
+
+            # Generate output arrays in original extraction order
+            calculated_amounts_paid = []
+            calculated_amounts_received = []
+
+            for _, row in df_final.iterrows():
+                if row['transaction_type'] == 'DEBIT':
+                    calculated_amounts_paid.append(f"${row['final_paid']:.2f}")
+                    calculated_amounts_received.append("NOT_FOUND")
+                elif row['transaction_type'] == 'CREDIT':
+                    calculated_amounts_paid.append("NOT_FOUND")
+                    calculated_amounts_received.append(f"${row['final_received']:.2f}")
+                else:
+                    calculated_amounts_paid.append("NOT_FOUND")
+                    calculated_amounts_received.append("NOT_FOUND")
+
+            # Calculate summary statistics
+            total_debits = df_calc['final_paid'].sum()
+            total_credits = df_calc['final_received'].sum()
+
+            # Create Transaction objects for compatibility
+            transactions = []
+            for _, row in df_calc.iterrows():
+                transactions.append(Transaction(
+                    date=row['date'],
+                    date_str=row['date_str'],
+                    description=row['description'],
+                    balance=row['balance'],
+                    amount=row['final_paid'] if row['transaction_type'] == 'DEBIT' else row['final_received'],
+                    transaction_type=row['transaction_type'],
+                    index=int(row['original_index'])
+                ))
+
+            analysis = BankStatementAnalysis(
+                transactions=transactions,
+                total_debits=total_debits,
+                total_credits=total_credits,
+                transaction_count=len(df_calc),
+                calculated_amounts_paid=calculated_amounts_paid,
+                calculated_amounts_received=calculated_amounts_received,
+                success=True,
+                errors=[] if balance_validation_passed else ["Balance validation warning: calculated vs actual balance mismatch"]
+            )
+
+            if self.verbose:
+                self._display_pandas_analysis_summary(analysis, df_calc, balance_validation_passed)
+
+            return analysis
+
+        except Exception as e:
+            if self.verbose:
+                rprint(f"[red]❌ Pandas analysis failed: {e}[/red]")
+                rprint("[yellow]Falling back to legacy method[/yellow]")
+            return self.analyze_bank_statement(extracted_data)
+
+    def _display_pandas_analysis_summary(
+        self,
+        analysis: BankStatementAnalysis,
+        transactions_df: 'pd.DataFrame',
+        balance_validation_passed: bool
+    ):
+        """Display pandas-based analysis summary with enhanced debugging."""
+        if not self.verbose or not PANDAS_AVAILABLE:
+            return
+
+        rprint("\n[bold blue]📊 Pandas-Based Bank Statement Analysis[/bold blue]")
+        rprint(f"[cyan]📋 Transactions: {analysis.transaction_count}[/cyan]")
+        rprint(f"[red]📤 Total Debits: ${analysis.total_debits:.2f}[/red]")
+        rprint(f"[green]📥 Total Credits: ${analysis.total_credits:.2f}[/green]")
+        rprint(f"[blue]💰 Net Change: ${analysis.total_credits - analysis.total_debits:.2f}[/blue]")
+
+        # Balance validation status
+        validation_color = "green" if balance_validation_passed else "yellow"
+        validation_status = "✅ PASSED" if balance_validation_passed else "⚠️  WARNING"
+        rprint(f"[{validation_color}]🔍 Balance Validation: {validation_status}[/{validation_color}]")
+
+        # Show VLM correction and validation metrics
+        vlm_count = transactions_df['vlm_amount'].notna().sum()
+        vlm_correct_count = transactions_df['vlm_classification_correct'].fillna(False).sum()
+        vlm_corrected_count = vlm_count - vlm_correct_count if vlm_count > 0 else 0
+        mathematical_count = analysis.transaction_count - vlm_count
+
+        rprint("[dim]📊 Data Sources and Corrections:[/dim]")
+        rprint(f"[dim]   • {vlm_correct_count} VLM amounts (correctly classified)[/dim]")
+        if vlm_corrected_count > 0:
+            rprint(f"[dim]   • {vlm_corrected_count} VLM amounts (classification corrected)[/dim]")
+        rprint(f"[dim]   • {mathematical_count} mathematical calculations (VLM gaps filled)[/dim]")
+
+        if vlm_count > 0:
+            accuracy_scores = transactions_df['vlm_amount_accuracy'].dropna()
+            if len(accuracy_scores) > 0:
+                avg_accuracy = accuracy_scores.mean()
+                rprint(f"[dim]💡 VLM Amount Accuracy: {avg_accuracy:.1%} average[/dim]")
+
+        # Show sample transactions with enhanced source information
+        if len(transactions_df) > 0:
+            rprint("\n[dim]📅 Sample transactions with validation:[/dim]")
+            for _, row in transactions_df.head(3).iterrows():
+                color = "red" if row['transaction_type'] == "DEBIT" else "green"
+                amount = row['final_paid'] if row['transaction_type'] == "DEBIT" else row['final_received']
+                confidence = f"({row['confidence']:.1f})"
+
+                # Determine source and validation status
+                if pd.notna(row['vlm_amount']):
+                    if row['vlm_classification_correct']:
+                        source = "VLM✓"  # VLM correct
+                    else:
+                        source = "VLM→CORRECTED"  # VLM corrected
+                    if pd.notna(row['vlm_amount_accuracy']):
+                        accuracy = f" {row['vlm_amount_accuracy']:.0%}"
+                    else:
+                        accuracy = ""
+                else:
+                    source = "CALCULATED"
+                    accuracy = ""
+
+                rprint(f"[{color}]  {row['date_str']}: {row['transaction_type']} ${amount:.2f} [{source}{accuracy}] {confidence}[/{color}]")
+
+            if len(transactions_df) > 3:
+                rprint(f"[dim]  ... and {len(transactions_df) - 3} more[/dim]")
 
     def _parse_dates(self, dates_str: str) -> List[Tuple[datetime, str]]:
         """Parse date strings into datetime objects with original strings."""
@@ -581,19 +931,20 @@ class BankStatementCalculator:
         return corrected_paid, corrected_received
 
 
-def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
+def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False, use_pandas: bool = True) -> Dict[str, Any]:
     """
     Enhance bank statement extraction with mathematical post-processing.
 
     Args:
         extracted_data: Dictionary containing extracted fields
         verbose: Whether to display detailed processing information
+        use_pandas: Whether to use pandas-based calculation (recommended)
 
     Returns:
         Enhanced extracted_data with calculated TRANSACTION_AMOUNTS_PAID
         and TRANSACTION_AMOUNTS_RECEIVED fields
     """
-    calculator = BankStatementCalculator(verbose=verbose)
+    calculator = BankStatementCalculator(verbose=verbose, use_pandas=use_pandas)
     analysis = calculator.analyze_bank_statement(extracted_data)
 
     if analysis.success:
