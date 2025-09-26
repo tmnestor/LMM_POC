@@ -316,22 +316,58 @@ class BankStatementCalculator:
                 np.where(df_calc['extracted_received'].notna(), 'RECEIVED', 'NONE')
             )
 
-            # CORRECT APPROACH: Use ONLY running balance differences to determine debit/credit values
-            # Ignore VLM debit/credit extractions completely - they cannot handle NOT_FOUND correctly
+            # ENHANCED APPROACH: Apply validation and description-based correction
+            # Use balance differences as ground truth but validate VLM extractions
 
-            # For first transaction: Use VLM extracted amount (can't calculate balance difference for first)
-            # Keep NaN for missing values so they become "NOT_FOUND" in output
-            df_calc['final_paid'] = np.where(
-                df_calc['balance_change'].isna(),
-                df_calc['extracted_paid'],  # Keep NaN if VLM didn't extract
-                df_calc['calc_paid']        # Keep NaN if no balance decrease
-            )
+            # Apply validation to each row
+            def apply_validation(row):
+                # Get VLM extracted values
+                vlm_paid = row['extracted_paid'] if pd.notna(row['extracted_paid']) else 0
+                vlm_received = row['extracted_received'] if pd.notna(row['extracted_received']) else 0
+                balance_change = row['balance_change'] if pd.notna(row['balance_change']) else 0
+                description = row['description']
 
-            df_calc['final_received'] = np.where(
-                df_calc['balance_change'].isna(),
-                df_calc['extracted_received'],  # Keep NaN if VLM didn't extract
-                df_calc['calc_received']        # Keep NaN if no balance increase
-            )
+                # Apply validation and correction
+                corrected_paid, corrected_received, reason = self._validate_and_correct_vlm_extraction(
+                    vlm_paid, vlm_received, description, balance_change
+                )
+
+                # For first transaction or when balance change is NaN, use corrected VLM values
+                if pd.isna(row['balance_change']):
+                    return pd.Series([
+                        corrected_paid if corrected_paid > 0 else np.nan,
+                        corrected_received if corrected_received > 0 else np.nan,
+                        reason
+                    ])
+
+                # Otherwise use calculated values from balance change
+                calc_paid = abs(balance_change) if balance_change < 0 else 0
+                calc_received = balance_change if balance_change > 0 else 0
+
+                # If VLM values were corrected and are reasonable, use them
+                # Otherwise use calculated values
+                if corrected_paid > 0 and abs(corrected_paid - calc_paid) < calc_paid * 0.3:
+                    final_paid = corrected_paid
+                elif calc_paid > 0:
+                    final_paid = calc_paid
+                else:
+                    final_paid = np.nan
+
+                if corrected_received > 0 and abs(corrected_received - calc_received) < calc_received * 0.3:
+                    final_received = corrected_received
+                elif calc_received > 0:
+                    final_received = calc_received
+                else:
+                    final_received = np.nan
+
+                return pd.Series([
+                    final_paid,
+                    final_received,
+                    reason
+                ])
+
+            # Apply validation to all rows
+            df_calc[['final_paid', 'final_received', 'validation_reason']] = df_calc.apply(apply_validation, axis=1)
 
             # Debug output - print the COMPLETE corrected DataFrame including descriptions
             if self.verbose:
@@ -942,6 +978,89 @@ class BankStatementCalculator:
             rprint(f"[green]✅ Array alignment corrected: {num_transactions} transactions[/green]")
 
         return corrected_paid, corrected_received
+
+
+    def _infer_transaction_type_from_description(
+        self,
+        description: str
+    ) -> Optional[str]:
+        """
+        Infer transaction type (DEBIT/CREDIT) from description keywords.
+
+        Returns:
+            'DEBIT', 'CREDIT', or None if uncertain
+        """
+        description_lower = description.lower()
+
+        # Keywords strongly indicating DEBIT (money out)
+        DEBIT_KEYWORDS = [
+            'withdrawal', 'atm', 'cash out', 'payment', 'purchase',
+            'eftpos', 'direct debit', 'fee', 'charge', 'debit',
+            'transfer to', 'repayment', 'mortgage', 'home loan',
+            'bill', 'subscription', 'insurance'
+        ]
+
+        # Keywords strongly indicating CREDIT (money in)
+        CREDIT_KEYWORDS = [
+            'salary', 'wage', 'payroll', 'deposit', 'credit',
+            'transfer from', 'received', 'refund', 'return',
+            'dividend', 'interest', 'payment from', 'income',
+            'centrelink', 'jobseeker', 'pension'
+        ]
+
+        debit_score = sum(1 for keyword in DEBIT_KEYWORDS if keyword in description_lower)
+        credit_score = sum(1 for keyword in CREDIT_KEYWORDS if keyword in description_lower)
+
+        if debit_score > credit_score:
+            return 'DEBIT'
+        elif credit_score > debit_score:
+            return 'CREDIT'
+
+        return None
+
+    def _validate_and_correct_vlm_extraction(
+        self,
+        vlm_paid: float,
+        vlm_received: float,
+        description: str,
+        balance_change: float
+    ) -> Tuple[float, float, str]:
+        """
+        Validate VLM extracted amounts and correct if necessary.
+
+        Returns:
+            Tuple of (corrected_paid, corrected_received, correction_reason)
+        """
+        # Infer transaction type from description
+        inferred_type = self._infer_transaction_type_from_description(description)
+
+        # Simple validation: Check if VLM amount is likely a balance (too large)
+        if vlm_paid > 0 and vlm_paid > 5000 and abs(balance_change) < vlm_paid * 0.5:
+            # VLM amount is too large, likely confused with balance
+            if self.verbose:
+                rprint(f"[yellow]⚠️ VLM debit ${vlm_paid:.2f} likely a balance - using calculated ${abs(balance_change):.2f}[/yellow]")
+            return abs(balance_change), 0, "Amount too large - likely a balance"
+
+        if vlm_received > 0 and vlm_received > 10000 and abs(balance_change) < vlm_received * 0.5:
+            # VLM amount is too large, likely confused with balance
+            if self.verbose:
+                rprint(f"[yellow]⚠️ VLM credit ${vlm_received:.2f} likely a balance - using calculated ${abs(balance_change):.2f}[/yellow]")
+            return 0, abs(balance_change), "Amount too large - likely a balance"
+
+        # Check if VLM classification matches description inference
+        if inferred_type:
+            if inferred_type == 'DEBIT' and vlm_received > 0 and vlm_paid == 0:
+                # Misclassified as credit, should be debit
+                if self.verbose:
+                    rprint("[yellow]⚠️ Description suggests DEBIT but VLM extracted as CREDIT - correcting[/yellow]")
+                return vlm_received, 0, "Reclassified based on description"
+            elif inferred_type == 'CREDIT' and vlm_paid > 0 and vlm_received == 0:
+                # Misclassified as debit, should be credit
+                if self.verbose:
+                    rprint("[yellow]⚠️ Description suggests CREDIT but VLM extracted as DEBIT - correcting[/yellow]")
+                return 0, vlm_paid, "Reclassified based on description"
+
+        return vlm_paid, vlm_received, "No correction needed"
 
 
 def enhance_bank_statement_extraction(extracted_data: Dict[str, Any], verbose: bool = False, use_pandas: bool = True) -> Dict[str, Any]:

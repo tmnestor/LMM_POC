@@ -206,34 +206,61 @@ prompts:
       You are an expert document analyzer specializing in bank statement extraction.
       Extract structured data from this date-grouped bank statement with transactions organized under date headers.
 
-      🚨 CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
+      🚨 CRITICAL COLUMN IDENTIFICATION - AVOID COMMON ERRORS:
+      ⚠️ DO NOT confuse the BALANCE column with transaction amounts!
+      ⚠️ Transaction amounts are SMALLER values in DEBIT/CREDIT columns
+      ⚠️ Balance values are LARGER cumulative totals (often $1000s+)
 
       ## DATE-GROUPED STRUCTURE:
-      This statement has transactions grouped under date headers.
+      This statement groups transactions under date headers like:
+      "Thu 04 Sep 2025" followed by multiple transactions
+      "Mon 31 Sep 2025" followed by transactions for that date
 
-      ## SIMPLIFIED PARSING STEPS:
+      ## CRITICAL COLUMN MAPPING FOR COMMONWEALTH BANK:
 
-      1. Find date headers (e.g., day names followed by dates)
-      2. Extract ALL transactions from under each date header
-      3. Combine with pipe separators in chronological order
-      4. Use balance direction to validate transaction types:
-         - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
-         - Balance DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+      Typical layout pattern:
+      Date | Transaction | Debit | Credit | Balance
 
-      ## FIELD EXTRACTION RULES:
+      WHERE:
+      - Date column: Contains the date header
+      - Transaction column: Description text
+      - Debit column: Money OUT (withdrawals, payments) - SMALLER amounts
+      - Credit column: Money IN (deposits, salary) - SMALLER amounts
+      - Balance column: Running total - LARGER cumulative amount (DO NOT EXTRACT AS TRANSACTION!)
 
-      LINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with " | "
-      TRANSACTION_DATES: Convert date headers to DD/MM/YYYY format
-      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts (money OUT)
-      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts (money IN)
-      ACCOUNT_BALANCE: Running balance after each transaction
+      ## STEP-BY-STEP EXTRACTION PROTOCOL:
 
-      Use NOT_FOUND for any missing values. Maintain same count across all lists.
+      1. IDENTIFY DATE HEADERS:
+         Look for lines with day names + dates (e.g., "Thu 04 Sep 2025")
+         These are DATE GROUPS, not individual transactions
 
-      ## BALANCE VALIDATION (CRITICAL):
-      The BALANCE column is nearly 100% accurate. Use it to validate transactions:
-      - Balance INCREASES → Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
-      - Balance DECREASES → Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+      2. FOR EACH DATE GROUP:
+         - Note the date (this applies to ALL transactions below it)
+         - Count transactions under this date (before next date header)
+         - Extract EACH transaction's description
+         - Look for DEBIT amount (money out) - typically $10-$1000 range
+         - Look for CREDIT amount (money in) - typically $10-$5000 range
+         - Extract BALANCE after each transaction (typically $1000+ range)
+
+      3. CRITICAL VALUE IDENTIFICATION:
+         ❌ WRONG: Extracting large 4-5 digit amounts as transactions (these are likely balances!)
+         ✅ RIGHT: Extracting smaller 2-3 digit amounts as transactions (reasonable transaction size)
+
+         Transaction amounts are typically:
+         - Debits: $5 to $2000 (purchases, withdrawals, bills)
+         - Credits: $10 to $10000 (salary, deposits, transfers in)
+         - Balances: $100 to $100000+ (cumulative account total)
+
+      4. VALIDATION CHECK:
+         If Balance goes DOWN → Previous transaction was DEBIT
+         If Balance goes UP → Previous transaction was CREDIT
+         Use this to verify you extracted from correct columns!
+
+      ## ARRAY ALIGNMENT REQUIREMENT:
+      Every transaction needs an entry in ALL arrays:
+      - If debit column empty → use "NOT_FOUND" in TRANSACTION_AMOUNTS_PAID
+      - If credit column empty → use "NOT_FOUND" in TRANSACTION_AMOUNTS_RECEIVED
+      - Every position must align across all arrays
 
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE:"
@@ -246,10 +273,10 @@ prompts:
       DOCUMENT_TYPE: [STATEMENT or NOT_FOUND]
       STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
       LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
-      TRANSACTION_DATES: [Transaction dates separated by " | " - MUST match row count or NOT_FOUND]
-      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
-      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
-      ACCOUNT_BALANCE: [Running balance amounts with $ separated by " | " or NOT_FOUND]
+      TRANSACTION_DATES: [Repeat date for each transaction under that date separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts (SMALL values) with $ separated by " | " - use NOT_FOUND for empty]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts (SMALL values) with $ separated by " | " - use NOT_FOUND for empty]
+      ACCOUNT_BALANCE: [Running balance (LARGE values) with $ separated by " | " or NOT_FOUND]
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields
