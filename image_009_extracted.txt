@@ -1,0 +1,19 @@
+| Date | Transaction | Debit | Credit | Balance |
+| --- | --- | --- | --- | --- |
+| Thu 04 Sep 2025 | Direct Debit DOMINO'S PTY LTD | $117.57 |  | $8586.28 CR |
+| Mon 01 Sep 2025 | Monthly Service Fee | $17.89 |  | $8703.85 CR |
+| Sun 31 Aug 2025 | Monthly Service Fee | $18.87 |  | $8721.74 CR |
+| Fri 29 Aug 2025 | Wdi ATM WBC WESTPAC GLEN WAVE | $241.14 |  | $8740.61 CR |
+| Wed 27 Aug 2025 | Direct Debit 94924P40133289 MHF 75969 Cash Withdrawal ATM SYDNEY NSW | $251.33 | $9080.28 CR | 
+$8981.75 CR |
+| Sat 23 Aug 2025 | Home Loan Payment LN REPAY 56052P41700670 | $1918.75 |  | $9331.81 CR |
+| Thu 21 Aug 2025 | Salary - ATO PAYROLL 89278P11488578 Direct Debit COLES PTY LTD | $7836.75 | $11526.67 CR | 
+$11250.36 CR |
+| Tue 19 Aug 2025 | Cash Withdrawal ATM HOBART TAS | $61.68 |  | $3689.92 CR |
+| Sun 17 Aug 2025 | Transfer To Vicks Account NetBank From Tod | $3775.28 |  | $3751.80 CR |
+| Sat 16 Aug 2025 | Salary Payment ATO 65208P39971825 | $5778.51 |  | $7526.88 CR |
+| Fri 15 Aug 2025 | Direct Debit MYER PTY LTD | $245.00 |  | $1748.37 CR |
+| Wed 13 Aug 2025 | ATM Withdrawal SYDNEY NSW Direct Debit 55452P29227883 MHF 11016 | $51.36 | $2221.48 CR | 
+$1993.37 CR |
+| Mon 11 Aug 2025 | Transfer To Western Port Marina NetBank Direct Debit 82572P66018423 MHF 62020 | $4374.15 | 
+$4814.35 CR | $4600.09 CR |
