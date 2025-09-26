@@ -205,7 +205,7 @@ prompts:
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
       The bank statement transaction table has a Date, Transaction, Debit, Credit, and Balance columns.
-      Extract the the numbers from the Balance Column (these are the currencies with " CR" suffix on the right most side end of the table).
+      Extract the the date, description, debit, credit, and balance information from each transaction row.
 
 
   # ============================================================================
