@@ -205,6 +205,7 @@ prompts:
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
       Extract this date-grouped bank statement as markdown includingthe Account Balances (these are the currencies with "CR" suffix on the right side of the statement)
+      Every transaction must be extracted in the order it appears in the statement as a separate line.
 
 
   # ============================================================================
