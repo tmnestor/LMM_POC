@@ -740,12 +740,12 @@ class BatchDocumentProcessor:
         doc_processor.model = self.model
         doc_processor.processor = self.processor
 
-        # Load max_tokens from YAML settings
-        # Use standard max_tokens (no hardcoded YAML file parsing)
-        max_tokens = 600
+        # Load max_tokens from config
+        from .config import LLAMA_GENERATION_CONFIG
+        max_tokens = LLAMA_GENERATION_CONFIG["max_new_tokens_base"]
 
         if verbose:
-            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} (standard)[/cyan]")
+            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} (from config)[/cyan]")
 
         # Extract data using document-aware approach with loaded YAML prompt and tokens
         extraction_result = doc_processor.process_single_image(

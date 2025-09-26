@@ -1068,8 +1068,8 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 
 # Llama-3.2-11B-Vision generation configuration
 LLAMA_GENERATION_CONFIG = {
-    "max_new_tokens_base": 600,  # Reduced from 800 to save memory
-    "max_new_tokens_per_field": 30,  # Reduced from 40 - still adequate for extraction
+    "max_new_tokens_base": 2000,  # Increased for complex bank statements (4 V100 setup)
+    "max_new_tokens_per_field": 50,  # Increased from 30 for better extraction
     "temperature": 0.0,  # Deterministic sampling for consistent results
     "do_sample": False,  # Disable sampling for full determinism
     "top_p": 0.95,  # Nucleus sampling parameter (inactive with do_sample=False)
@@ -1078,11 +1078,11 @@ LLAMA_GENERATION_CONFIG = {
 
 # InternVL3 generation configuration
 INTERNVL3_GENERATION_CONFIG = {
-    "max_new_tokens_base": 600,  # PHASE 1: Reduced from 1000 to match Llama for focused output
+    "max_new_tokens_base": 2000,  # Increased for complex bank statements (4 V100 setup)
     "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
-    "temperature": 0.0,  # PHASE 1: Explicit deterministic sampling for consistent results
+    "temperature": 0.0,  # Deterministic sampling for consistent results
     "do_sample": False,  # Deterministic for consistent field extraction
-    "use_cache": True,  # PHASE 1: CRITICAL parameter - required for extraction quality (from Llama config)
+    "use_cache": True,  # CRITICAL parameter - required for extraction quality
     "pad_token_id": None,  # Set dynamically from tokenizer
 }
 
