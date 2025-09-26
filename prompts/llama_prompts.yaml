@@ -205,7 +205,9 @@ prompts:
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
       The transaction table is grouped by date headers (e.g., "Monday 3 May 2025").
-      Extract the Account Balances (these are the currencies with " CR" suffix on the right side end of each transaction row).
+      Each transaction row under a date header belongs to that date.
+      Each transaction row has a transaction description (only one of either a DEBIT or a CREDIT), and BALANCE at the right end.
+      Extract the the numbers on the Balance Column (these are the currencies with " CR" suffix on the right side end of each transaction row).
 
 
   # ============================================================================
