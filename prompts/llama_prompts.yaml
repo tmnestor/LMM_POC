@@ -204,86 +204,40 @@ prompts:
     description: "Optimized for bank statements with date section headers"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this date-grouped bank statement with transactions organized under date headers.
+      Extract structured data from this date-grouped bank statement.
 
-      🚨 CRITICAL COLUMN IDENTIFICATION - AVOID COMMON ERRORS:
-      ⚠️ DO NOT confuse the BALANCE column with transaction amounts!
-      ⚠️ VALUES WITH " CR" SUFFIX ARE ALWAYS BALANCES - NEVER TRANSACTION AMOUNTS!
-      ⚠️ Transaction amounts do NOT have " CR" suffix
-      ⚠️ Balance values always end with " CR" (e.g., "$8586.28 CR")
+      ## EXTRACTION STEPS:
 
-      ## DATE-GROUPED STRUCTURE:
-      This statement groups transactions under date headers like:
-      "Thu 04 Sep 2025" followed by multiple transactions
-      "Mon 31 Sep 2025" followed by transactions for that date
+      1. **EXTRACT ALL BALANCES FIRST**
+         - Find ALL values with " CR" suffix (rightmost column)
+         - Extract in chronological order
+         - These are account balances after each transaction
 
-      ## CRITICAL COLUMN MAPPING FOR COMMONWEALTH BANK:
+      2. **EXTRACT ALL TRANSACTION DESCRIPTIONS**
+         - Each transaction description is on a new line
+         - Extract ALL descriptions in chronological order
+         - Number of descriptions MUST equal number of balances
 
-      Typical layout pattern:
-      Date | Transaction | Debit | Credit | Balance
+      3. **CREATE MATCHING DATES**
+         - Repeat date headers for each transaction under that date
+         - Number of dates MUST equal number of balances and descriptions
 
-      WHERE:
-      - Date column: Contains the date header
-      - Transaction column: Description text
-      - Debit column: Money OUT (withdrawals, payments) - SMALLER amounts
-      - Credit column: Money IN (deposits, salary) - SMALLER amounts
-      - Balance column: Running total - LARGER cumulative amount (DO NOT EXTRACT AS TRANSACTION!)
-
-      ## COLUMN-ORIENTED EXTRACTION PROTOCOL:
-
-      1. EXTRACT COMPLETE COLUMNS (NEVER HAVE GAPS):
-
-      **STEP 1: EXTRACT ALL TRANSACTION DESCRIPTIONS**
-         - Scan the entire statement for ALL transaction description text
-         - These appear as continuous text entries (merchant names, transaction types)
-         - Extract EVERY description in chronological order
-         - Examples: "Direct Debit DOMINO'S PTY LTD", "Monthly Service Fee", "Cash Withdrawal ATM"
-
-      **STEP 2: EXTRACT ALL BALANCES (WITH " CR" SUFFIX)**
-         - Scan the entire statement for ALL values ending with " CR"
-         - These are the running account balances after each transaction
-         - Extract EVERY " CR" value in chronological order
-         - Examples: "$8586.28 CR", "$8703.85 CR", "$8721.74 CR"
-
-      **STEP 3: CREATE MATCHING DATES**
-         - For each description, determine which date header it falls under
-         - Repeat the date for ALL transactions under that date header
-         - Must match the count of descriptions and balances exactly
-
-      2. CRITICAL RULES:
-         - Descriptions column: ALWAYS complete (no gaps or NOT_FOUND)
-         - Balances column: ALWAYS complete (every value has " CR")
-         - Dates: Repeat date headers to match transaction count
-         - COUNT CHECK: Descriptions = Balances = Dates (always same number)
-
-      3. TRANSACTION AMOUNTS (CAN HAVE GAPS):
+      4. **EXTRACT TRANSACTION AMOUNTS**
          - Look for dollar values WITHOUT " CR" suffix
-         - These may be empty for some transactions (use NOT_FOUND)
-         - Separate into PAID (debits) and RECEIVED (credits) based on transaction type
-
-      ## ARRAY ALIGNMENT REQUIREMENT:
-      Every transaction needs an entry in ALL arrays:
-      - If debit column empty → use "NOT_FOUND" in TRANSACTION_AMOUNTS_PAID
-      - If credit column empty → use "NOT_FOUND" in TRANSACTION_AMOUNTS_RECEIVED
-      - Every position must align across all arrays
+         - Use NOT_FOUND if no amount shown
 
       CONVERSATION PROTOCOL:
-      - Start your response immediately with "DOCUMENT_TYPE:"
-      - Do NOT include conversational text
-      - Output ONLY the structured extraction data below
-      - End immediately after "ACCOUNT_BALANCE:" with no additional text
-
-      Extract these 7 bank statement fields in this exact order:
+      - Start immediately with "DOCUMENT_TYPE:"
+      - Output ONLY the structured data below
+      - End after "ACCOUNT_BALANCE:"
 
       DOCUMENT_TYPE: [STATEMENT or NOT_FOUND]
-      STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
-      TRANSACTION_DATES: [Repeat date for each transaction under that date separated by " | "]
-      TRANSACTION_AMOUNTS_PAID: [Debit amounts WITHOUT " CR" suffix, separated by " | " - use NOT_FOUND for empty]
-      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts WITHOUT " CR" suffix, separated by " | " - use NOT_FOUND for empty]
-      ACCOUNT_BALANCE: [Values WITH " CR" suffix from each transaction row, separated by " | " or NOT_FOUND]
-
-      CRITICAL: All arrays must have EXACTLY the same number of entries as transaction rows!
+      STATEMENT_DATE_RANGE: [Date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [All descriptions separated by " | "]
+      TRANSACTION_DATES: [Dates repeated to match description count, separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts without " CR", separated by " | "]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts without " CR", separated by " | "]
+      ACCOUNT_BALANCE: [All " CR" values, separated by " | "]
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields
