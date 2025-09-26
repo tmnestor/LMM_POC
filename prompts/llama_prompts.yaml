@@ -204,7 +204,7 @@ prompts:
     description: "Optimized for bank statements with date section headers"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract the Account Balances (these are the currencies with "CR" suffix on the right side of the transaction rows) from this date-grouped bank statement.
+      Extract the Account Balances (these are the currencies on the right side of the transaction rows) from this date-grouped bank statement.
 
 
   # ============================================================================
