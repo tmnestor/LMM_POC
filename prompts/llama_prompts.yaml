@@ -204,10 +204,8 @@ prompts:
     description: "Optimized for bank statements with date section headers"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      The transaction table is grouped by date headers (e.g., "Monday 3 May 2025").
-      Each transaction row under a date header belongs to that date.
-      Each transaction row has a transaction description (only one of either a DEBIT or a CREDIT), and BALANCE at the right end.
-      Extract the the numbers on the Balance Column (these are the currencies with " CR" suffix on the right side end of each transaction row).
+      The bank statement transaction table has a Date, Transaction, Debit, Credit, and Balance columns.
+      Extract the the numbers from the Balance Column (these are the currencies with " CR" suffix on the right most side end of the table).
 
 
   # ============================================================================
