@@ -208,8 +208,9 @@ prompts:
 
       🚨 CRITICAL COLUMN IDENTIFICATION - AVOID COMMON ERRORS:
       ⚠️ DO NOT confuse the BALANCE column with transaction amounts!
-      ⚠️ Transaction amounts are SMALLER values in DEBIT/CREDIT columns
-      ⚠️ Balance values are LARGER cumulative totals (often $1000s+)
+      ⚠️ VALUES WITH " CR" SUFFIX ARE ALWAYS BALANCES - NEVER TRANSACTION AMOUNTS!
+      ⚠️ Transaction amounts do NOT have " CR" suffix
+      ⚠️ Balance values always end with " CR" (e.g., "$8586.28 CR")
 
       ## DATE-GROUPED STRUCTURE:
       This statement groups transactions under date headers like:
@@ -228,32 +229,37 @@ prompts:
       - Credit column: Money IN (deposits, salary) - SMALLER amounts
       - Balance column: Running total - LARGER cumulative amount (DO NOT EXTRACT AS TRANSACTION!)
 
-      ## STEP-BY-STEP EXTRACTION PROTOCOL:
+      ## COLUMN-ORIENTED EXTRACTION PROTOCOL:
 
-      1. UNDERSTAND THE STRUCTURE:
-         - Date headers (e.g., "Thu 04 Sep 2025") group transactions
-         - Under each date header, there may be 1 or MORE transaction rows
-         - Each transaction row has: Description | [Debit] | [Credit] | Balance
-         - The rightmost number on each transaction row is ALWAYS the running balance
+      1. EXTRACT COMPLETE COLUMNS (NEVER HAVE GAPS):
 
-      2. COUNT TRANSACTIONS CORRECTLY:
-         - Count EVERY transaction row, not just date headers
-         - If "Thu 04 Sep 2025" has 3 transactions underneath, that's 3 separate entries
-         - Each transaction gets its own date entry (repeat the date for each transaction)
+      **STEP 1: EXTRACT ALL TRANSACTION DESCRIPTIONS**
+         - Scan the entire statement for ALL transaction description text
+         - These appear as continuous text entries (merchant names, transaction types)
+         - Extract EVERY description in chronological order
+         - Examples: "Direct Debit DOMINO'S PTY LTD", "Monthly Service Fee", "Cash Withdrawal ATM"
 
-      3. EXTRACT FROM EACH TRANSACTION ROW:
-         - Description: The transaction text
-         - Date: The date header this transaction falls under (may repeat)
-         - Debit/Credit: Look for transaction amounts (NOT the balance)
-         - Balance: The rightmost number on the transaction row
+      **STEP 2: EXTRACT ALL BALANCES (WITH " CR" SUFFIX)**
+         - Scan the entire statement for ALL values ending with " CR"
+         - These are the running account balances after each transaction
+         - Extract EVERY " CR" value in chronological order
+         - Examples: "$8586.28 CR", "$8703.85 CR", "$8721.74 CR"
 
-      4. CRITICAL RULE - BALANCE POSITION:
-         The RIGHTMOST number on each transaction row is the running account balance.
-         This balance shows the account total AFTER that transaction.
+      **STEP 3: CREATE MATCHING DATES**
+         - For each description, determine which date header it falls under
+         - Repeat the date for ALL transactions under that date header
+         - Must match the count of descriptions and balances exactly
 
-      5. ARRAY ALIGNMENT REQUIREMENT:
-         - Number of descriptions = Number of dates = Number of balances
-         - If you have 14 transaction rows, you need exactly 14 of everything
+      2. CRITICAL RULES:
+         - Descriptions column: ALWAYS complete (no gaps or NOT_FOUND)
+         - Balances column: ALWAYS complete (every value has " CR")
+         - Dates: Repeat date headers to match transaction count
+         - COUNT CHECK: Descriptions = Balances = Dates (always same number)
+
+      3. TRANSACTION AMOUNTS (CAN HAVE GAPS):
+         - Look for dollar values WITHOUT " CR" suffix
+         - These may be empty for some transactions (use NOT_FOUND)
+         - Separate into PAID (debits) and RECEIVED (credits) based on transaction type
 
       ## ARRAY ALIGNMENT REQUIREMENT:
       Every transaction needs an entry in ALL arrays:
@@ -273,9 +279,9 @@ prompts:
       STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
       LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
       TRANSACTION_DATES: [Repeat date for each transaction under that date separated by " | "]
-      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty]
-      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty]
-      ACCOUNT_BALANCE: [Rightmost number from each transaction row with $ separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts WITHOUT " CR" suffix, separated by " | " - use NOT_FOUND for empty]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts WITHOUT " CR" suffix, separated by " | " - use NOT_FOUND for empty]
+      ACCOUNT_BALANCE: [Values WITH " CR" suffix from each transaction row, separated by " | " or NOT_FOUND]
 
       CRITICAL: All arrays must have EXACTLY the same number of entries as transaction rows!
 
