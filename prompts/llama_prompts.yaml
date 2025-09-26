@@ -204,9 +204,9 @@ prompts:
     description: "Optimized for bank statements with date section headers"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      The bank statement transaction table has a Date, Transaction, Debit, Credit, and Balance columns.
-      Several transactions are grouped under each date header.
-      Extract the the date, description, the single debit/credit amount, and balance amount (with the CR suffix) from each transaction row.
+      Extract the transaction data from this Australian bank statement.
+
+
 
 
   # ============================================================================
