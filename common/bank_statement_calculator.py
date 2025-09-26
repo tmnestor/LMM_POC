@@ -344,21 +344,9 @@ class BankStatementCalculator:
                 calc_paid = abs(balance_change) if balance_change < 0 else 0
                 calc_received = balance_change if balance_change > 0 else 0
 
-                # If VLM values were corrected and are reasonable, use them
-                # Otherwise use calculated values
-                if corrected_paid > 0 and abs(corrected_paid - calc_paid) < calc_paid * 0.3:
-                    final_paid = corrected_paid
-                elif calc_paid > 0:
-                    final_paid = calc_paid
-                else:
-                    final_paid = np.nan
-
-                if corrected_received > 0 and abs(corrected_received - calc_received) < calc_received * 0.3:
-                    final_received = corrected_received
-                elif calc_received > 0:
-                    final_received = calc_received
-                else:
-                    final_received = np.nan
+                # Use corrected VLM values if available, otherwise use calculated values
+                final_paid = corrected_paid if corrected_paid > 0 else (calc_paid if calc_paid > 0 else np.nan)
+                final_received = corrected_received if corrected_received > 0 else (calc_received if calc_received > 0 else np.nan)
 
                 return pd.Series([
                     final_paid,
@@ -1034,18 +1022,7 @@ class BankStatementCalculator:
         # Infer transaction type from description
         inferred_type = self._infer_transaction_type_from_description(description)
 
-        # Simple validation: Check if VLM amount is likely a balance (too large)
-        if vlm_paid > 0 and vlm_paid > 5000 and abs(balance_change) < vlm_paid * 0.5:
-            # VLM amount is too large, likely confused with balance
-            if self.verbose:
-                rprint(f"[yellow]⚠️ VLM debit ${vlm_paid:.2f} likely a balance - using calculated ${abs(balance_change):.2f}[/yellow]")
-            return abs(balance_change), 0, "Amount too large - likely a balance"
-
-        if vlm_received > 0 and vlm_received > 10000 and abs(balance_change) < vlm_received * 0.5:
-            # VLM amount is too large, likely confused with balance
-            if self.verbose:
-                rprint(f"[yellow]⚠️ VLM credit ${vlm_received:.2f} likely a balance - using calculated ${abs(balance_change):.2f}[/yellow]")
-            return 0, abs(balance_change), "Amount too large - likely a balance"
+        # No numerical validation - trust the VLM extraction and balance calculations
 
         # Check if VLM classification matches description inference
         if inferred_type:

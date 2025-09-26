@@ -230,31 +230,30 @@ prompts:
 
       ## STEP-BY-STEP EXTRACTION PROTOCOL:
 
-      1. IDENTIFY DATE HEADERS:
-         Look for lines with day names + dates (e.g., "Thu 04 Sep 2025")
-         These are DATE GROUPS, not individual transactions
+      1. UNDERSTAND THE STRUCTURE:
+         - Date headers (e.g., "Thu 04 Sep 2025") group transactions
+         - Under each date header, there may be 1 or MORE transaction rows
+         - Each transaction row has: Description | [Debit] | [Credit] | Balance
+         - The rightmost number on each transaction row is ALWAYS the running balance
 
-      2. FOR EACH DATE GROUP:
-         - Note the date (this applies to ALL transactions below it)
-         - Count transactions under this date (before next date header)
-         - Extract EACH transaction's description
-         - Look for DEBIT amount (money out) - typically $10-$1000 range
-         - Look for CREDIT amount (money in) - typically $10-$5000 range
-         - Extract BALANCE after each transaction (typically $1000+ range)
+      2. COUNT TRANSACTIONS CORRECTLY:
+         - Count EVERY transaction row, not just date headers
+         - If "Thu 04 Sep 2025" has 3 transactions underneath, that's 3 separate entries
+         - Each transaction gets its own date entry (repeat the date for each transaction)
 
-      3. CRITICAL VALUE IDENTIFICATION:
-         ❌ WRONG: Extracting large 4-5 digit amounts as transactions (these are likely balances!)
-         ✅ RIGHT: Extracting smaller 2-3 digit amounts as transactions (reasonable transaction size)
+      3. EXTRACT FROM EACH TRANSACTION ROW:
+         - Description: The transaction text
+         - Date: The date header this transaction falls under (may repeat)
+         - Debit/Credit: Look for transaction amounts (NOT the balance)
+         - Balance: The rightmost number on the transaction row
 
-         Transaction amounts are typically:
-         - Debits: $5 to $2000 (purchases, withdrawals, bills)
-         - Credits: $10 to $10000 (salary, deposits, transfers in)
-         - Balances: $100 to $100000+ (cumulative account total)
+      4. CRITICAL RULE - BALANCE POSITION:
+         The RIGHTMOST number on each transaction row is the running account balance.
+         This balance shows the account total AFTER that transaction.
 
-      4. VALIDATION CHECK:
-         If Balance goes DOWN → Previous transaction was DEBIT
-         If Balance goes UP → Previous transaction was CREDIT
-         Use this to verify you extracted from correct columns!
+      5. ARRAY ALIGNMENT REQUIREMENT:
+         - Number of descriptions = Number of dates = Number of balances
+         - If you have 14 transaction rows, you need exactly 14 of everything
 
       ## ARRAY ALIGNMENT REQUIREMENT:
       Every transaction needs an entry in ALL arrays:
@@ -274,9 +273,11 @@ prompts:
       STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
       LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
       TRANSACTION_DATES: [Repeat date for each transaction under that date separated by " | "]
-      TRANSACTION_AMOUNTS_PAID: [Debit amounts (SMALL values) with $ separated by " | " - use NOT_FOUND for empty]
-      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts (SMALL values) with $ separated by " | " - use NOT_FOUND for empty]
-      ACCOUNT_BALANCE: [Running balance (LARGE values) with $ separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty]
+      ACCOUNT_BALANCE: [Rightmost number from each transaction row with $ separated by " | " or NOT_FOUND]
+
+      CRITICAL: All arrays must have EXACTLY the same number of entries as transaction rows!
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields
