@@ -455,6 +455,8 @@ If you need to investigate similar issues:
 |--------|-------------------------|----------------------|
 | **Model Loading** | DataParallel | device_map="auto" |
 | **Quantization** | None | 8-bit (BitsAndBytesConfig) |
+| **Model dtype** | bfloat16 | float16 (for quantization) |
+| **Pixel Values dtype** | bfloat16 | float16 (must match) |
 | **Memory per GPU** | ~4GB | ~2-3GB distributed |
 | **Chat Method** | `model.module.chat()` | `model.chat()` |
 | **Pixel Values Device** | `.cuda()` | Match vision_model.device |
@@ -468,13 +470,20 @@ If you need to investigate similar issues:
 3. bitsandbytes handles device placement automatically
 4. pixel_values should match vision encoder's device
 
-**Critical difference:** With quantization, we move pixel_values to the device where the vision encoder is located:
-```python
-vision_device = model.vision_model.device
-pixel_values = pixel_values.to(vision_device)
-```
+**Critical differences with quantization:**
 
-This avoids the device mismatch that caused exclamation marks in the unquantized version.
+1. **dtype must be float16 (not bfloat16):**
+   ```python
+   pixel_values = load_image(imageName).to(torch.float16)  # NOT bfloat16
+   ```
+   8-bit quantized models use float16 (Half precision). Using bfloat16 causes RuntimeError: "Input type (c10::BFloat16) and bias type (c10::Half) should be the same"
+
+2. **Device placement:**
+   ```python
+   vision_device = model.vision_model.device
+   pixel_values = pixel_values.to(vision_device)
+   ```
+   This avoids the device mismatch that caused exclamation marks in the unquantized version.
 
 ## Summary
 
@@ -496,8 +505,9 @@ Use `torch.nn.DataParallel` without quantization:
 Use 8-bit quantization with device_map:
 1. Add `BitsAndBytesConfig(load_in_8bit=True)`
 2. Use `device_map="auto"` (required for quantization)
-3. Move pixel_values to vision encoder's device
-4. Use `do_sample=False` for deterministic greedy decoding
-5. Call `model.chat()` directly (not wrapped)
+3. **Convert pixel_values to float16** (not bfloat16): `.to(torch.float16)`
+4. Move pixel_values to vision encoder's device: `pixel_values.to(vision_device)`
+5. Use `do_sample=False` for deterministic greedy decoding
+6. Call `model.chat()` directly (not wrapped)
 
 **Result**: Proper text generation with multi-GPU utilization and deterministic output
