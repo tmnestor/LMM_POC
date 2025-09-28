@@ -422,19 +422,82 @@ If you need to investigate similar issues:
 - "PyTorch DataParallel .module.chat() access"
 - "InternVL3 tokenizer pad_token_id eos_token_id"
 
+## Model Size Considerations
+
+### InternVL3-2B on V100 (No Quantization Needed)
+
+**Memory Requirements:**
+- Model size: ~4GB in bfloat16
+- Can fit on single 16GB V100
+- Can use DataParallel for multi-GPU
+
+**Configuration:** Use DataParallel approach (as documented above)
+- Notebook: `/notebooks/internvl3_VQA.ipynb`
+- No quantization required
+- Best performance (no quantization overhead)
+
+### InternVL3-8B on V100 (Quantization Required)
+
+**Memory Requirements:**
+- Model size: ~16GB in bfloat16 (too large for single 16GB V100)
+- Model size: ~8GB in 8-bit quantization (fits with headroom)
+- Must use device_map with quantization
+
+**Configuration:** Use 8-bit quantization with device_map
+- Notebook: `/notebooks/internvl3_8B_quantized_VQA.ipynb`
+- Requires `BitsAndBytesConfig(load_in_8bit=True)`
+- Use `device_map="auto"` (required for quantization)
+- Call `model.chat()` directly (not wrapped in DataParallel)
+
+### Key Differences
+
+| Aspect | InternVL3-2B (No Quant) | InternVL3-8B (8-bit) |
+|--------|-------------------------|----------------------|
+| **Model Loading** | DataParallel | device_map="auto" |
+| **Quantization** | None | 8-bit (BitsAndBytesConfig) |
+| **Memory per GPU** | ~4GB | ~2-3GB distributed |
+| **Chat Method** | `model.module.chat()` | `model.chat()` |
+| **Pixel Values Device** | `.cuda()` | Match vision_model.device |
+| **Performance** | Faster (no quant overhead) | Slower (quantization) |
+
+### Why Quantization Works with device_map
+
+8-bit quantization with `device_map="auto"` works differently:
+1. Each layer is quantized individually
+2. Layers are distributed with proper device tracking
+3. bitsandbytes handles device placement automatically
+4. pixel_values should match vision encoder's device
+
+**Critical difference:** With quantization, we move pixel_values to the device where the vision encoder is located:
+```python
+vision_device = model.vision_model.device
+pixel_values = pixel_values.to(vision_device)
+```
+
+This avoids the device mismatch that caused exclamation marks in the unquantized version.
+
 ## Summary
 
 **Problem**: InternVL3-8B outputs exclamation marks instead of text when using `device_map="auto"`
 
 **Root Cause**: device_map distributes layers across GPUs, breaking chat() method's device placement assumptions
 
-**Solution**: Use `torch.nn.DataParallel` instead of `device_map="auto"` for proper multi-GPU utilization
+**Solution**: Depends on model size and GPU memory:
 
-**Key Changes**:
-1. Replace `device_map="auto"` with `torch.nn.DataParallel` for 4x V100 GPU utilization
+### For InternVL3-2B (fits in memory):
+Use `torch.nn.DataParallel` without quantization:
+1. Replace `device_map="auto"` with `torch.nn.DataParallel`
 2. Move pixel_values to GPU with `.cuda()`
 3. Use `do_sample=False` for deterministic greedy decoding
 4. Access chat via `model.module.chat()` when using DataParallel
 5. Remove explicit `pad_token_id` setting from generation_config
+
+### For InternVL3-8B (requires quantization on 16GB V100):
+Use 8-bit quantization with device_map:
+1. Add `BitsAndBytesConfig(load_in_8bit=True)`
+2. Use `device_map="auto"` (required for quantization)
+3. Move pixel_values to vision encoder's device
+4. Use `do_sample=False` for deterministic greedy decoding
+5. Call `model.chat()` directly (not wrapped)
 
 **Result**: Proper text generation with multi-GPU utilization and deterministic output
