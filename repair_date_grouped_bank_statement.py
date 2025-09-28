@@ -19,17 +19,20 @@ def split_description_by_transaction_types(description: str) -> List[str]:
     Split combined descriptions by detecting transaction type boundaries.
 
     Generic approach: Look for common transaction type keywords that
-    typically start new transactions.
+    typically start new transactions. Handles compound phrases like
+    "Salary Payment" as single transactions.
     """
     # Common transaction type starters (generic patterns)
+    # Order matters: longer patterns first to avoid false splits
     transaction_starters = [
+        r'\bHome Loan Payment\b',  # Compound phrase
+        r'\bSalary Payment\b',     # Compound phrase
         r'\bDirect Debit\b',
         r'\bCash Withdrawal\b',
         r'\bATM Withdrawal\b',
         r'\bEFTPOS\b',
         r'\bTransfer (?:To|From)\b',
         r'\bSalary\b',
-        r'\bPayment\b',
         r'\bHome Loan\b',
     ]
 
@@ -43,11 +46,26 @@ def split_description_by_transaction_types(description: str) -> List[str]:
         # Single transaction or no matches
         return [description]
 
+    # Filter out overlapping matches (keep longer/earlier matches)
+    filtered_matches = []
+    for match in matches:
+        # Check if this match overlaps with any already filtered match
+        overlaps = False
+        for existing in filtered_matches:
+            if not (match.end() <= existing.start() or match.start() >= existing.end()):
+                overlaps = True
+                break
+        if not overlaps:
+            filtered_matches.append(match)
+
+    if len(filtered_matches) <= 1:
+        return [description]
+
     # Split at each match position
     segments = []
-    for i, match in enumerate(matches):
+    for i, match in enumerate(filtered_matches):
         start = match.start()
-        end = matches[i + 1].start() if i < len(matches) - 1 else len(description)
+        end = filtered_matches[i + 1].start() if i < len(filtered_matches) - 1 else len(description)
         segment = description[start:end].strip()
         if segment:
             segments.append(segment)
@@ -68,9 +86,55 @@ def extract_amounts_with_positions(text: str) -> List[tuple]:
     return matches
 
 
+def repair_combined_row_with_balances(date: str, description: str, debit_col: str, balances: List[str]) -> List[Dict[str, str]]:
+    """
+    Repair a row with combined transactions using extracted balances list.
+
+    Priority: Correctly assign balances (most important) and dates to each transaction,
+    followed by debit amounts.
+
+    Args:
+        date: Transaction date
+        description: Combined description
+        debit_col: Debit amount column
+        balances: List of all balance amounts (with CR suffix)
+
+    Returns:
+        List of repaired transaction dictionaries
+    """
+    # Split description into individual transactions
+    desc_segments = split_description_by_transaction_types(description)
+
+    # Extract debit amounts
+    debit_amounts_data = extract_amounts_with_positions(debit_col)
+    debit_amounts = [amt[0] for amt in debit_amounts_data if 'CR' not in amt[0]]
+
+    # Determine number of transactions from max of desc segments or balance count
+    num_transactions = max(len(desc_segments), len(balances))
+
+    transactions = []
+    for i in range(num_transactions):
+        trans_desc = desc_segments[i] if i < len(desc_segments) else description
+        trans_debit = debit_amounts[i] if i < len(debit_amounts) else ""
+        trans_balance = balances[i] if i < len(balances) else ""
+
+        transactions.append({
+            'date': date,
+            'description': trans_desc,
+            'debit': trans_debit,
+            'credit': "",
+            'balance': trans_balance
+        })
+
+    return transactions
+
+
 def repair_combined_row(date: str, description: str, col2: str, col3: str, col4: str = "") -> List[Dict[str, str]]:
     """
     Repair a row with combined transactions.
+
+    Priority: Extract and correctly assign balances (most important) and dates,
+    followed by debit amounts.
 
     Args:
         date: Transaction date
@@ -90,40 +154,45 @@ def repair_combined_row(date: str, description: str, col2: str, col3: str, col4:
     col3_amounts = extract_amounts_with_positions(col3)
     col4_amounts = extract_amounts_with_positions(col4) if col4 else []
 
-    # Determine column structure
+    # Determine column structure and extract balances (highest priority)
+    balance_amounts = []
+    debit_amounts = []
+    credit_amounts = []
+
+    # Balances always end with "CR"
     if col4:
-        # 5 columns: date | desc | debit | credit | balance
+        balance_amounts = [amt[0] for amt in col4_amounts if 'CR' in amt[0]]
+        # If col4 has balances, col2 is debit, col3 is credit
         debit_amounts = [amt[0] for amt in col2_amounts]
-        credit_amounts = [amt[0] for amt in col3_amounts]
-        balance_amounts = [amt[0] for amt in col4_amounts]
+        credit_amounts = [amt[0] for amt in col3_amounts if 'CR' not in amt[0]]
     elif col3:
-        # 4 columns: likely date | desc | amount | balance (missing credit column)
-        # or date | desc | debit | credit (missing balance)
-        # Heuristic: if col3 ends with "CR", it's a balance
-        if col3.strip().endswith('CR'):
+        # Check if col3 contains balances (CR suffix)
+        col3_balances = [amt[0] for amt in col3_amounts if 'CR' in amt[0]]
+        if col3_balances:
+            # col3 has balances, so col2 is debits
+            balance_amounts = col3_balances
             debit_amounts = [amt[0] for amt in col2_amounts]
             credit_amounts = []
-            balance_amounts = [amt[0] for amt in col3_amounts]
         else:
-            # Could be debit + credit, need more context
+            # col3 doesn't have balances, might be debit + credit
             debit_amounts = [amt[0] for amt in col2_amounts]
             credit_amounts = [amt[0] for amt in col3_amounts]
             balance_amounts = []
     else:
-        # 3 columns: date | desc | amount
+        # 3 columns: date | desc | amount (likely debit)
         debit_amounts = [amt[0] for amt in col2_amounts]
         credit_amounts = []
         balance_amounts = []
 
-    # Match description segments with amounts
-    num_transactions = max(len(desc_segments), len(debit_amounts), len(credit_amounts))
+    # Determine number of transactions (use max of desc segments or balance count)
+    num_transactions = max(len(desc_segments), len(balance_amounts))
 
     transactions = []
     for i in range(num_transactions):
         trans_desc = desc_segments[i] if i < len(desc_segments) else description
         trans_debit = debit_amounts[i] if i < len(debit_amounts) else ""
         trans_credit = credit_amounts[i] if i < len(credit_amounts) else ""
-        trans_balance = balance_amounts[i] if i < len(balance_amounts) else (balance_amounts[-1] if balance_amounts else "")
+        trans_balance = balance_amounts[i] if i < len(balance_amounts) else ""
 
         transactions.append({
             'date': date,
@@ -172,34 +241,85 @@ def repair_extraction(input_file: str, output_file: str = None):
     # Process data rows
     repaired_rows = []
     skipped_lines = 0
+    i = data_start
 
-    for i in range(data_start, len(lines)):
+    while i < len(lines):
         line = lines[i].rstrip('\n')
 
-        # Skip empty lines or continuation lines
-        if not line.strip() or not line.strip().startswith('|'):
+        # Skip empty lines
+        if not line.strip():
             skipped_lines += 1
+            i += 1
+            continue
+
+        # Check for continuation lines (lines with balance amounts but no date)
+        if line.strip().startswith('$') and not line.startswith('|'):
+            skipped_lines += 1
+            i += 1
+            continue
+
+        # Skip non-table lines
+        if not line.strip().startswith('|'):
+            skipped_lines += 1
+            i += 1
             continue
 
         # Parse columns
         parts = [p.strip() for p in line.split('|')[1:-1]]
 
         if len(parts) < 2:
+            i += 1
             continue
 
         date = parts[0]
         description = parts[1]
+        col2 = parts[2] if len(parts) > 2 else ""
+        col3 = parts[3] if len(parts) > 3 else ""
+        col4 = parts[4] if len(parts) > 4 else ""
 
-        # Check if this is a combined row (description has multiple transaction types)
+        # Look ahead for continuation lines with additional balances
+        continuation_balances = []
+        j = i + 1
+        while j < len(lines):
+            next_line = lines[j].rstrip('\n').strip()
+            # Check if next line is a continuation (starts with $ or is a partial table row)
+            if next_line.startswith('$') and 'CR' in next_line:
+                # Extract ALL balances from continuation line (may have multiple)
+                balance_matches = re.findall(r'[$£€¥]\s*[\d,]+\.[\d]{2}\s*CR', next_line)
+                continuation_balances.extend(balance_matches)
+                j += 1
+                skipped_lines += 1
+            elif next_line.startswith('|') and not lines[j].split('|')[1].strip():
+                # Partial table row with no date (continuation of previous row)
+                cont_parts = [p.strip() for p in lines[j].split('|')[1:-1]]
+                for part in cont_parts:
+                    if part and 'CR' in part:
+                        balance_matches = re.findall(r'[$£€¥]\s*[\d,]+\.[\d]{2}\s*CR', part)
+                        continuation_balances.extend(balance_matches)
+                j += 1
+                skipped_lines += 1
+            else:
+                break
+
+        # Check if this is a combined row
         desc_segments = split_description_by_transaction_types(description)
 
-        if len(desc_segments) > 1 or len(parts) < 5:
+        if len(desc_segments) > 1 or len(parts) < 5 or continuation_balances:
             # Combined or malformed row - repair it
-            col2 = parts[2] if len(parts) > 2 else ""
-            col3 = parts[3] if len(parts) > 3 else ""
-            col4 = parts[4] if len(parts) > 4 else ""
+            # Collect all balance amounts from all sources
+            all_balances = []
+            if col3 and 'CR' in col3:
+                balance_matches = re.findall(r'[$£€¥]\s*[\d,]+\.[\d]{2}\s*CR', col3)
+                all_balances.extend(balance_matches)
+            if col4 and 'CR' in col4:
+                balance_matches = re.findall(r'[$£€¥]\s*[\d,]+\.[\d]{2}\s*CR', col4)
+                all_balances.extend(balance_matches)
+            all_balances.extend(continuation_balances)
 
-            repaired_transactions = repair_combined_row(date, description, col2, col3, col4)
+            # Get repaired transactions with all balances passed separately
+            repaired_transactions = repair_combined_row_with_balances(
+                date, description, col2, all_balances
+            )
 
             for trans in repaired_transactions:
                 row = f"| {trans['date']} | {trans['description']} | {trans['debit']} | {trans['credit']} | {trans['balance']} |"
@@ -207,6 +327,8 @@ def repair_extraction(input_file: str, output_file: str = None):
         else:
             # Normal row - keep as is
             repaired_rows.append(line)
+
+        i = j if continuation_balances else i + 1
 
     # Write output
     if output_file is None:
