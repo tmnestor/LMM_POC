@@ -46,7 +46,7 @@ model = AutoModel.from_pretrained(
 
 1. **pad_token_id Configuration**: Explicitly setting `pad_token_id=tokenizer.eos_token_id` can interfere with InternVL3's internal tokenization
 
-2. **do_sample=False Incompatibility**: Pure greedy decoding (`do_sample=False`) may not work correctly with InternVL3's vision-language architecture
+2. **temperature=0.0 ValueError**: Setting `temperature=0.0` with `do_sample=True` raises ValueError: "temperature (=0.0) has to be a strictly positive float." Use `do_sample=False` for deterministic generation instead.
 
 ## Solution
 
@@ -92,7 +92,7 @@ pixel_values = load_image(imageName, max_num=12).to(torch.bfloat16)  # CPU
 pixel_values = load_image(imageName, max_num=12).to(torch.bfloat16).cuda()
 ```
 
-### 3. Use Deterministic Sampling-Based Generation
+### 3. Use Deterministic Greedy Decoding
 
 **Before:**
 ```python
@@ -116,9 +116,7 @@ response, history = model.chat(
 ```python
 generation_config = dict(
     max_new_tokens=2000,
-    do_sample=True,
-    temperature=0.0,  # Zero temperature for deterministic output
-    top_p=1.0
+    do_sample=False  # Pure greedy decoding for deterministic output
 )
 
 # Access chat() via .module when using DataParallel
@@ -146,12 +144,13 @@ response, history = chat_method(
 | **chat() Compatibility** | ❌ Breaks device assumptions | ✅ Maintains single-device semantics |
 | **Multi-GPU Utilization** | ✅ Yes | ✅ Yes |
 
-### Deterministic Generation via Temperature
+### Deterministic Generation via Greedy Decoding
 
-Setting `temperature=0.0` with `do_sample=True`:
-- Uses the sampling codepath (compatible with vision-language architecture)
-- Temperature of 0.0 makes sampling deterministic (always picks highest probability token)
-- More reliable than `do_sample=False` for multimodal models
+Using `do_sample=False`:
+- Enables pure greedy decoding (always selects token with highest probability)
+- Produces deterministic, reproducible outputs across runs
+- Compatible with InternVL3's vision-language architecture
+- No temperature parameter needed (temperature=0.0 raises ValueError)
 
 ### DataParallel Method Access
 
@@ -247,12 +246,181 @@ After applying the fix, verify correct operation:
    - No repeated characters or gibberish
    - Content should be relevant to the image
 
-## References
+## Technical References
 
-- **GitHub Issue #1015**: [Setting pad_token_id to eos_token_id warning](https://github.com/OpenGVLab/InternVL/issues/1015)
-- **GitHub Issue #967**: [Attention mask all True due to mismatched pad_token_id](https://github.com/OpenGVLab/InternVL/issues/967)
-- **InternVL3 Official Docs**: [Quick Start Guide](https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html)
-- **Hugging Face Model Card**: [OpenGVLab/InternVL3-8B](https://huggingface.co/OpenGVLab/InternVL3-8B)
+### Official Documentation
+
+1. **InternVL3 Quick Start Guide**
+   - URL: https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
+   - Contains official model loading and inference examples
+   - Documents the `load_image()` preprocessing pipeline with dynamic_preprocess
+
+2. **InternVL3 Introduction**
+   - URL: https://internvl.readthedocs.io/en/latest/internvl3.0/introduction.html
+   - Technical architecture overview
+   - Model capabilities and specifications
+
+3. **Hugging Face Model Card - InternVL3-8B**
+   - URL: https://huggingface.co/OpenGVLab/InternVL3-8B
+   - Model weights and configuration files
+   - Official usage examples and requirements
+
+4. **Hugging Face Transformers - InternVL Documentation**
+   - URL: https://huggingface.co/docs/transformers/main/model_doc/internvl
+   - Integration with Transformers library
+   - API reference for InternVL models
+
+### GitHub Issues - InternVL Repository
+
+5. **Issue #1015: Setting pad_token_id to eos_token_id warning**
+   - URL: https://github.com/OpenGVLab/InternVL/issues/1015
+   - Discussion of pad_token_id configuration
+   - Community solutions for token ID warnings
+   - Relevant for understanding tokenization issues
+
+6. **Issue #967: Attention mask all True due to mismatched pad_token_id**
+   - URL: https://github.com/OpenGVLab/InternVL/issues/967
+   - Details device mismatch and pad_token_id problems
+   - Explains attention mask computation issues
+   - Root cause analysis similar to exclamation marks issue
+
+7. **Issue #116: ValueError: Tokenizer class InternLM2Tokenizer does not exist**
+   - URL: https://github.com/OpenGVLab/InternVL/issues/116
+   - Tokenizer loading errors
+   - Import and installation troubleshooting
+
+### GitHub Issues - Related Projects
+
+8. **llama.cpp Issue #15528: InternVL3 vision model produces weird outputs on images with text**
+   - URL: https://github.com/ggml-org/llama.cpp/issues/15528
+   - Reports similar gibberish output issues
+   - Community investigation of vision encoder problems
+   - Different framework but same underlying issue
+
+9. **vLLM Issue #17725: Can't run InternVL3**
+   - URL: https://github.com/vllm-project/vllm/issues/17725
+   - vLLM compatibility issues with InternVL3
+   - Alternative deployment framework challenges
+
+10. **Transformers Issue #38000: ValueError: limit_mm_per_prompt after HF format conversion**
+    - URL: https://github.com/huggingface/transformers/issues/38000
+    - Model format conversion issues
+    - Multi-modal model detection problems
+
+### Source Code References
+
+11. **InternVL Chat Model Implementation**
+    - URL: https://github.com/OpenGVLab/InternVL/blob/main/internvl_chat/internvl/model/internvl_chat/modeling_internvl_chat.py
+    - Source code for chat() method
+    - Device handling logic
+    - Token processing implementation
+
+12. **InternVL Chat README**
+    - URL: https://github.com/OpenGVLab/InternVL/blob/main/internvl_chat/README.md
+    - Official setup and usage instructions
+    - Model loading best practices
+
+### PyTorch and Transformers Documentation
+
+13. **PyTorch DataParallel Documentation**
+    - URL: https://pytorch.org/docs/stable/generated/torch.nn.DataParallel.html
+    - Multi-GPU parallelism strategy
+    - Module access patterns (.module attribute)
+
+14. **Hugging Face Generation Strategies**
+    - URL: https://huggingface.co/docs/transformers/generation_strategies
+    - Greedy decoding, sampling, beam search
+    - Temperature and top_p parameters
+    - do_sample behavior documentation
+
+15. **Hugging Face Text Generation Parameters**
+    - URL: https://huggingface.co/docs/transformers/main_classes/text_generation
+    - Complete GenerationConfig API reference
+    - Parameter validation rules (e.g., temperature > 0)
+
+16. **How to Generate Text: Different Decoding Methods**
+    - URL: https://huggingface.co/blog/how-to-generate
+    - Comprehensive guide to generation strategies
+    - Explains greedy vs sampling approaches
+
+### Research Papers and Technical Blogs
+
+17. **InternVL3 Research Paper (arXiv)**
+    - URL: https://arxiv.org/abs/2504.10479
+    - Title: "InternVL3: Exploring Advanced Training and Test-Time Recipes for Open-Source Multimodal Models"
+    - Technical architecture details
+    - Training methodology
+
+18. **InternVL3 Official Blog Announcement**
+    - URL: https://internvl.github.io/blog/2025-04-11-InternVL-3.0/
+    - Feature overview and capabilities
+    - Benchmark results
+
+### Community Discussions
+
+19. **Hugging Face Forums: Setting pad_token_id to eos_token_id**
+    - URL: https://discuss.huggingface.co/t/setting-pad-token-id-to-eos-token-id-50256-for-open-end-generation/22247
+    - Community discussion of token ID warnings
+    - Solutions and workarounds
+
+20. **Stack Overflow: Suppress HuggingFace pad_token_id warning**
+    - URL: https://stackoverflow.com/questions/69609401/suppress-huggingface-logging-warning-setting-pad-token-id-to-eos-token-id
+    - Practical solutions for token ID configuration
+    - Warning suppression techniques
+
+### Device Map and Multi-GPU Resources
+
+21. **Hugging Face Accelerate Documentation - device_map**
+    - URL: https://huggingface.co/docs/accelerate/usage_guides/big_modeling
+    - Explanation of device_map="auto" behavior
+    - When to use device_map vs DataParallel
+
+22. **PyTorch Distributed Training Documentation**
+    - URL: https://pytorch.org/tutorials/beginner/dist_overview.html
+    - Overview of DataParallel vs DistributedDataParallel
+    - Multi-GPU strategy comparison
+
+### Token ID Configuration
+
+23. **Qwen 2.5 Tokenizer Discussion (InternVL3's LLM backbone)**
+    - URL: https://github.com/QwenLM/Qwen2.5/issues/814
+    - pad_token configuration for Qwen models
+    - Tokenizer special tokens reference
+
+24. **InternVL2-8B Generation Config Discussion**
+    - URL: https://huggingface.co/OpenGVLab/InternVL2-8B/discussions/12
+    - Adding eos_token_id to generation_config.json
+    - Required for vLLM inference
+
+### Debug and Troubleshooting Resources
+
+25. **Vision-Language Model Debugging Guide**
+    - Search terms: "vision language model wrong output device mismatch"
+    - Common pitfalls with multimodal models
+    - Device placement best practices
+
+## Related Project Files
+
+### Project-Specific Documentation
+- `/Users/tod/Desktop/LMM_POC/CLAUDE.md` - Project setup and environment configuration
+- `/Users/tod/Desktop/LMM_POC/docs/V100_MEMORY_STRATEGIES.md` - V100 GPU memory optimization strategies
+- `/Users/tod/Desktop/LMM_POC/docs/V100_MODEL_LOADING_COMPARISON.md` - Model loading comparisons for V100
+
+### Notebooks
+- `/Users/tod/Desktop/LMM_POC/notebooks/internvl3_VQA.ipynb` - Fixed InternVL3 VQA notebook with DataParallel
+- `/Users/tod/Desktop/LMM_POC/notebooks/llama_VQA.ipynb` - Llama-3.2-Vision comparison notebook
+
+## Keywords for Further Research
+
+If you need to investigate similar issues:
+- "InternVL3 device_map exclamation marks output"
+- "vision language model gibberish generation"
+- "DataParallel vs device_map multimodal"
+- "InternVL3 chat method device mismatch"
+- "transformers temperature strictly positive float"
+- "greedy decoding vs sampling vision language models"
+- "PyTorch DataParallel .module.chat() access"
+- "InternVL3 tokenizer pad_token_id eos_token_id"
 
 ## Summary
 
@@ -265,7 +433,7 @@ After applying the fix, verify correct operation:
 **Key Changes**:
 1. Replace `device_map="auto"` with `torch.nn.DataParallel` for 4x V100 GPU utilization
 2. Move pixel_values to GPU with `.cuda()`
-3. Use `temperature=0.0` with `do_sample=True` for deterministic generation
+3. Use `do_sample=False` for deterministic greedy decoding
 4. Access chat via `model.module.chat()` when using DataParallel
 5. Remove explicit `pad_token_id` setting from generation_config
 
