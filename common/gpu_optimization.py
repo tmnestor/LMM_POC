@@ -5,7 +5,6 @@ Minimal, effective GPU memory management without complex legacy systems.
 
 import gc
 import os
-from typing import Optional
 
 import torch
 
