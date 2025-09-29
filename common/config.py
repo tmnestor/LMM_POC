@@ -1068,7 +1068,7 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 
 # Llama-3.2-11B-Vision generation configuration
 LLAMA_GENERATION_CONFIG = {
-    "max_new_tokens_base": 2000,  # Increased for complex bank statements (4 V100 setup)
+    "max_new_tokens_base": 400,  # Reduced for L40S hardware (was 2000 for 4xV100)
     "max_new_tokens_per_field": 50,  # Increased from 30 for better extraction
     "temperature": 0.0,  # Deterministic sampling for consistent results
     "do_sample": False,  # Disable sampling for full determinism

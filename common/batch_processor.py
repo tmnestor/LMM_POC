@@ -753,12 +753,12 @@ class BatchDocumentProcessor:
         doc_processor.model = self.model
         doc_processor.processor = self.processor
 
-        # Load max_tokens from config
-        from .config import LLAMA_GENERATION_CONFIG
-        max_tokens = LLAMA_GENERATION_CONFIG["max_new_tokens_base"]
+        # Calculate appropriate max_tokens based on field count
+        from .config import get_max_new_tokens
+        max_tokens = get_max_new_tokens("llama", len(field_list))
 
         if verbose:
-            rprint(f"[cyan]🔧 Using max_tokens: {max_tokens} (from config)[/cyan]")
+            rprint(f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]")
 
         # Extract data using document-aware approach with loaded YAML prompt and tokens
         extraction_result = doc_processor.process_single_image(
