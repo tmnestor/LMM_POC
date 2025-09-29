@@ -8,7 +8,6 @@ parameter to avoid the broadcasting error.
 Run this on the H200/V100 machine to investigate the actual model configuration.
 """
 
-import sys
 from pathlib import Path
 
 from transformers import AutoConfig
@@ -58,8 +57,8 @@ def test_tile_generation(image_path, model_path):
 
     # Import required modules and define load_image function locally
     import torch
-    from PIL import Image
     import torchvision.transforms as T
+    from PIL import Image
     from torchvision.transforms.functional import InterpolationMode
 
     # Define the image processing functions directly
