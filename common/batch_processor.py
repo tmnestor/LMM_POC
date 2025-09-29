@@ -649,6 +649,7 @@ class BatchDocumentProcessor:
             field_list=["DOCUMENT_TYPE"],  # Single field for detection
             skip_model_loading=True,
             debug=verbose,
+            batch_size=1,  # Force batch_size=1 for detection
         )
         detection_processor.model = self.model
         detection_processor.processor = self.processor
@@ -667,6 +668,12 @@ class BatchDocumentProcessor:
 
         if verbose:
             rprint(f"[green]✅ Detected Document Type: {document_type}[/green]\n")
+
+        # Memory cleanup between detection and extraction
+        if verbose:
+            rprint("[dim]🧹 Cleaning memory before extraction...[/dim]")
+        from common.gpu_optimization import emergency_cleanup
+        emergency_cleanup(verbose=False)
 
         # Initialize bank statement structure (used for prompt selection)
         bank_structure = None
@@ -732,10 +739,16 @@ class BatchDocumentProcessor:
         field_list = doc_type_fields.get(document_type_lower, doc_type_fields['invoice'])
 
         # Create document-aware processor with loaded model/processor
+        if verbose:
+            rprint(f"\n[bold cyan]📋 FIELD EXTRACTION[/bold cyan]")
+            rprint(f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]")
+            rprint(f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]")
+
         doc_processor = DocumentAwareLlamaProcessor(
             field_list=field_list,
             skip_model_loading=True,  # Use existing model
             debug=verbose,
+            batch_size=1,  # Force batch_size=1 for extraction
         )
         doc_processor.model = self.model
         doc_processor.processor = self.processor
