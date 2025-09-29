@@ -1,16 +1,121 @@
-Here is the extracted data in the format you requested:
+<|begin_of_text|><|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
-**Date Grouped Bank Statement Extraction**
+<|image|>
+You are an expert document analyser specializing in Date Grouped Australian Bank Statement extraction.
+Date Grouped Bank Statements are date ordered, with one or more transactions for each date header.
+Every transaction for a given date heading has a description, a debit/credit amount and finally a balance amount with a'CR' suffix.
+Extract all balance amounts along with their'CR' suffix, the transaction dates (from the date heading) and transaction descriptions,
+maintaining the same date ordering as the image, with every transaction appearing on its own row and remembering that some date headings have more than one balance.
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-| Date        | Description                        | Debit/Credit Amount | Balance CR |
-| :---------- | :--------------------------------- | :-----------------: | :--------: |
-| 03/05/2025 | ONLINE PURCHASE AMAZON AU          |      $288.03       | $13387.44  |
-| 04/05/2025 | EFTPOS PURCHASE COLES EXP          |      $22.50       | $13344.94  |
-| 05/05/2025 | EFTPOS PURCHASE COLES EXP          |      $114.66       | $13230.27  |
-| 06/05/2025 | DIRECT CREDIT SALARY               |      $3497.47      | $16727.74  |
-| 07/05/2025 | ATM WITHDRAWAL ANZ ATM             |      $187.59       | $16540.15  |
-| 08/05/2025 | EFTPOS PURCHASE COLES EXP          |      $112.50       | $16427.65  |
-| 09/05/2025 | INTEREST PAYMENT                   |      $5.16         | $16432.81  |
-| 10/05/2025 | ATM WITHDRAWAL ANZ ATM             |      $146.72       | $16286.08  |
+Here is the list of extracted balance amounts, transaction dates, and descriptions:
 
-Note: The 'CR' suffix in the Balance column indicates that these are credit amounts, which means they are being added to the balance.
+**08/09/2025**
+
+* $48890.58 - EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD
+* $49212.76 - EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO...
+* $49277.09 - Mortgage Repayment MORT 0103P16754533 NAB
+* $49266.81 - OSKO Payment to MIKE CHEN 809845773133
+* $61312.57 - Direct Debit 15395P41608263 MWF 42730
+* $61511.48 - Salary Payment ATO 28782P60782100
+* $43405.77 - DD INSURANCE ACME CORP PTY LTD 82321942151853
+* $43440.81 - Auto Payment UTILITIES AGL 7240P85943944
+* $43708.81 - DIRECT CREDIT SALARY 6080P677812986
+* $39296.85 - BPAY Payment BILLER60279 CRN 9813018480
+* $41754.72 - Professional Services Red Energy 98073P31959417
+* $42025.03 - Card Purchase RED ROOSTER Paramatta SA
+* $43882.12 - Credit Card Payment CC 72599P33283283298
+* $44203.72 - EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD
+* $44226.28 - Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo...
+* $38747.07 - Fortnightly Pay ATO PAYROLL 91032P35687918
+* $34291.61 - PAY RUN ACME CORP PTY LTD 99584P07785218
+* $26339.68 - Salary Payment ATO 30175P32361419
+* $20423.46 - Online Purchase amazon.com.au AUS
+* $20409.76 - Salary Payment ATO 28773P16041610
+* $22754.86 - Transfer To Vicks Account NetBank 54381P90841102
+* $19213.59 - Salary Payment ATO 94514P80490207
+* $19940.07 - Transfer To Western Port Marina NetBank From Tod
+* $20141.21 - Subscription Netflix 33588P77385123
+* $20352.49 - Contactless Payment Cinema CAIRNS QLD
+* $20385.73 - Auto Payment UTILITIES Red Energy 15107P21771655
+* $20531.43 - Contactless Payment Restaurant MACKAY QLD
+* $13330.24 - Fortnightly Pay ATO PAYROLL 36358P70254998
+* $11088.85 - Centrelink Payment JobSeeker 59392P56090878
+* $11115.91 - International Transaction Fee
+* $11594.77 - Equipment Purchase OfficeMax Australia 13554P45...
+* $11855.48 - International ATM USA USD
+* $5460.39 - Dividend Payment PREMIUM CORP PTY LTD 7353SP419...
+* $5899.73 - Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD...
+* $5940.78 - Online Purchase ebay.com.au AUS
+* $6133.98 - Subscription Spotify Monthly 15369P58427775
+* $6157.78 - International Transaction Fee
+* $6792.06 - Business Expense IT Equipment 66969P86141679
+* $6792.06 - Auto Payment UTILITIES Energy Australia 47683P7...
+* $6884.90 - Auto Payment UTILITIES Red Energy 81338P61572286
+
+**07/09/2025**
+
+* $322.18 - EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD
+* $64.33 - EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO...
+* $649.79 - Mortgage Repayment MORT 0103P16754533 NAB
+* $1365.43 - OSKO Payment to MIKE CHEN 809845773133
+* $199.17 - Direct Debit 15395P41608263 MWF 42730
+* $45.04 - Salary Payment ATO 28782P60782100
+* $257.50 - DD INSURANCE ACME CORP PTY LTD 82321942151853
+* $257.50 - Auto Payment UTILITIES AGL 7240P85943944
+* $37.68 - DIRECT CREDIT SALARY 6080P677812986
+* $37.68 - BPAY Payment BILLER60279 CRN 9813018480
+* $270.31 - Professional Services Red Energy 98073P31959417
+* $1957.09 - Card Purchase RED ROOSTER Paramatta SA
+* $221.60 - Credit Card Payment CC 72599P33283283298
+* $222.56 - EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD
+* $222.56 - Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo...
+* $4455.46 - Fortnightly Pay ATO PAYROLL 91032P35687918
+* $7951.93 - PAY RUN ACME CORP PTY LTD 99584P07785218
+* $6013.70 - Salary Payment ATO 30175P32361419
+* $2345.10 - Online Purchase amazon.com.au AUS
+* $2345.10 - Salary Payment ATO 28773P16041610
+* $728.48 - Transfer To Vicks Account NetBank 54381P90841102
+* $201.14 - Salary Payment ATO 94514P80490207
+* $201.14 - Transfer To Western Port Marina NetBank From Tod
+* $211.28 - Subscription Netflix 33588P77385123
+* $33.24 - Contactless Payment Cinema CAIRNS QLD
+* $145.70 - Auto Payment UTILITIES Red Energy 15107P21771655
+* $27.06 - Contactless Payment Restaurant MACKAY QLD
+* $478.86 - Fortnightly Pay ATO PAYROLL 36358P70254998
+* $260.71 - Centrelink Payment JobSeeker 59392P56090878
+* $229.39 - International Transaction Fee
+* $229.39 - Equipment Purchase OfficeMax Australia 13554P45...
+* $257.95 - Dividend Payment PREMIUM CORP PTY LTD 7353SP419...
+* $166.22 - Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD...
+* $186.22 - Online Purchase ebay.com.au AUS
+* $33.83 - Subscription Spotify Monthly 15369P58427775
+* $63.83 - International Transaction Fee
+* $91.04 - Business Expense IT Equipment 66969P86141679
+* $91.04 - Auto Payment UTILITIES Energy Australia 47683P7...
+* $389.57 - Auto Payment UTILITIES Red Energy 81338P61572286
+
+**06/09/2025**
+
+* $64890.58 - EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD
+* $49212.76 - EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO...
+* $49277.09 - Mortgage Repayment MORT 0103P16754533 NAB
+* $49266.81 - OSKO Payment to MIKE CHEN 809845773133
+* $61312.57 - Direct Debit 15395P41608263 MWF 42730
+* $61511.48 - Salary Payment ATO 28782P60782100
+* $43405.77 - DD INSURANCE ACME CORP PTY LTD 82321942151853
+* $43440.81 - Auto Payment UTILITIES AGL 7240P85943944
+* $43708.81 - DIRECT CREDIT SALARY 6080P677812986
+* $39296.85 - BPAY Payment BILLER60279 CRN 9813018480
+* $39296.85 - Professional Services Red Energy 98073P31959417
+* $41754.72 - Card Purchase RED ROOSTER Paramatta SA
+* $42025.03 - Credit Card Payment CC 72599P33283283298
+* $43882.12 - EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD
+* $44203.72 - Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo...
+* $44226.28 - Fortnightly Pay ATO PAYROLL 91032P35687918
+* $38747.07 - PAY RUN ACME CORP PTY LTD 99584P07785218
+* $34291.61 - Salary Payment ATO 30175P32361419
+* $26339.68 - Online Purchase amazon.com.au AUS
+* $20423.46 - Salary Payment ATO 28773P16041610
+* $20409.76 - Transfer To Vicks Account NetBank 54381P90841102
+* $22754
