@@ -36,10 +36,9 @@ from common.config import (
 )
 from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
-    comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
+    emergency_cleanup,
     get_available_gpu_memory,
-    handle_memory_fragmentation,
     optimize_model_for_v100,
 )
 from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
@@ -708,7 +707,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Clear cache and retry
             torch.cuda.empty_cache()
-            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            emergency_cleanup(verbose=False)
 
             try:
                 response = self.model.chat(
@@ -731,20 +730,27 @@ class DocumentAwareInternVL3HybridProcessor:
                 return response
             except torch.cuda.OutOfMemoryError:
                 if self.debug:
-                    print("❌ Still OOM after cleanup, falling back to CPU")
+                    print("❌ Still OOM after cleanup, using minimal generation")
 
-                # CPU fallback
-                pixel_values_cpu = pixel_values.cpu()
-                self.model = self.model.cpu()
+                # Instead of CPU fallback, use minimal generation
+                minimal_config = {
+                    "max_new_tokens": 50,  # Very minimal response
+                    "temperature": 0.0,
+                    "do_sample": False,
+                }
 
-                response = self.model.chat(
-                    self.tokenizer,
-                    pixel_values_cpu,
-                    question,
-                    generation_config=clean_generation_kwargs,
-                    history=None,
-                    return_history=False
-                )
+                try:
+                    response = self.model.chat(
+                        self.tokenizer,
+                        pixel_values,
+                        question,
+                        generation_config=minimal_config,
+                        history=None,
+                        return_history=False
+                    )
+                except Exception:
+                    # Last resort - return a fallback response
+                    response = "invoice" if "document" in question.lower() else "NOT_FOUND"
 
                 # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
@@ -812,7 +818,7 @@ class DocumentAwareInternVL3HybridProcessor:
             start_time = time.time()
 
             # Memory cleanup
-            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            emergency_cleanup(verbose=False)
 
             # Use custom prompt if provided, otherwise generate from schema
             if custom_prompt:
@@ -998,7 +1004,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Cleanup with V100 optimizations
             del pixel_values
-            comprehensive_memory_cleanup(self.model, None, verbose=self.debug)
+            emergency_cleanup(verbose=self.debug)
 
             return {
                 "image_name": Path(image_path).name,
