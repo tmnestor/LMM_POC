@@ -320,22 +320,44 @@ class DocumentAwareInternVL3HybridProcessor:
 
         # CRITICAL FIX: Ensure tensor type matches model weights
         # Convert to model's dtype to prevent "Input type (float) and bias type (c10::BFloat16)" error
-        if hasattr(self.model, 'dtype'):
-            pixel_values = pixel_values.to(dtype=self.model.dtype)
-        elif hasattr(self.model.vision_model, 'dtype'):
-            pixel_values = pixel_values.to(dtype=self.model.vision_model.dtype)
-        else:
-            # Fallback: try to get dtype from model parameters
-            try:
+        try:
+            # For 8-bit quantized models, we need to check vision model's weight dtype
+            if hasattr(self.model, 'vision_model') and hasattr(self.model.vision_model, 'embeddings'):
+                # Get dtype from vision model's embedding layer (most reliable for quantized models)
+                vision_dtype = next(self.model.vision_model.embeddings.parameters()).dtype
+                pixel_values = pixel_values.to(dtype=vision_dtype)
+                if self.debug:
+                    print(f"🔧 TENSOR_DTYPE: Using vision model dtype {vision_dtype}")
+            elif hasattr(self.model, 'dtype'):
+                pixel_values = pixel_values.to(dtype=self.model.dtype)
+                if self.debug:
+                    print(f"🔧 TENSOR_DTYPE: Using model.dtype {self.model.dtype}")
+            elif hasattr(self.model.vision_model, 'dtype'):
+                pixel_values = pixel_values.to(dtype=self.model.vision_model.dtype)
+                if self.debug:
+                    print(f"🔧 TENSOR_DTYPE: Using vision_model.dtype {self.model.vision_model.dtype}")
+            else:
+                # Try to get dtype from first model parameter
                 model_dtype = next(self.model.parameters()).dtype
                 pixel_values = pixel_values.to(dtype=model_dtype)
                 if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Converted to {model_dtype} to match model")
-            except Exception:
-                # Last resort: use bfloat16 explicitly for InternVL3
+                    print(f"🔧 TENSOR_DTYPE: Using parameter dtype {model_dtype}")
+        except Exception as e:
+            # Determine dtype based on model type and configuration
+            # For 8-bit quantized models, use float16; otherwise use bfloat16
+            if "8B" in self.model_path and hasattr(self.model, 'config'):
+                # 8B models with quantization typically use float16
+                pixel_values = pixel_values.to(dtype=torch.float16)
+                if self.debug:
+                    print("🔧 TENSOR_DTYPE: Using float16 for 8B model (quantized)")
+            else:
+                # 2B models or non-quantized models use bfloat16
                 pixel_values = pixel_values.to(dtype=torch.bfloat16)
                 if self.debug:
-                    print("🔧 TENSOR_DTYPE: Using bfloat16 as fallback")
+                    print("🔧 TENSOR_DTYPE: Using bfloat16 fallback")
+
+            if self.debug:
+                print(f"⚠️ Dtype detection exception: {e}")
 
         # Move to model's device
         if self.model is not None:
@@ -888,12 +910,8 @@ class DocumentAwareInternVL3HybridProcessor:
             # Load and preprocess image using InternVL3 pipeline
             pixel_values = self.load_image(image_path)
 
-            # Move to model's device with proper dtype
-            model_device = self._get_model_device()
-            if model_device.type == 'cpu':
-                pixel_values = pixel_values.to(device=model_device, dtype=torch.float32)
-            else:
-                pixel_values = pixel_values.to(device=model_device, dtype=torch.bfloat16)
+            # Note: load_image() already handles device placement and dtype conversion
+            # based on the actual model requirements, so no additional conversion needed here
 
             # Prepare question for InternVL3
             question = f"<image>\n{prompt}"
