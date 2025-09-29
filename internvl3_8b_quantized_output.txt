@@ -1,0 +1,44 @@
+![](https://i.imgur.com/4ZjKj5r.png)
+
+Here's the extracted transaction data from the Commonwealth Bank statement:
+
+| Date       | Description                                      | Withdrawal | Deposit | Balance     |
+|------------|--------------------------------------------------|------------|---------|-------------|
+| 07/09/2025 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD     | $322.18    |         | $4880.58    |
+| 08/09/2025 | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO...| $64.33     |         | $4921.76    |
+| 09/09/2025 | Mortgage Repayment                                | $849.79    |         | $4927.70    |
+| 03/09/2025 | OSKO Payment to MIKE CHEN 80884985773133          | $1385.43   |         | $4926.88    |
+| 03/09/2025 | Direct Debit 15595481802039 MHF 42730            | $190.17    |         | $5132.31    |
+| 02/09/2025 | Salary Payment ATO 287286780782109                |            | $8105.71| $51511.48   |
+| 02/09/2025 | DD INSURANCE ACME CORP PTY LTD                    | $45.04     |         | $43405.77   |
+| 02/09/2025 | Auto Payment UTILITIES AGL 67840P85943944         | $257.50    |         | $43450.81   |
+| 01/09/2025 | DIRECT CREDIT SALARY 60080P6712986                | $37.98     | $4449.44| $43708.31   |
+| 01/09/2025 | BPAY Payment BILLER 60080P67290 CRN 90130184380   | $2457.87   |         | $39260.85   |
+| 31/08/2025 | Professional Services Red Energy 68073P1959417    | $270.31    |         | $39154.54   |
+| 20/08/2025 | Card Purchase RED ROOSTER Paramatta SA             | $1957.09   |         | $41754.72   |
+| 20/08/2025 | Credit Card Payment 7025993329288                |            |         | $42025.03   |
+| 27/08/2025 | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD   | $221.60    |         | $43892.12   |
+| 26/08/2025 | Card Purchase CHEMIST WAREHOUSE DISCOUNT          | $222.56    |         | $44203.72   |
+| 24/08/2025 | Fortnightly Pay ATO PAYROLL 103235887819         |            | $5679.21| $44426.28   |
+| 24/08/2025 | PAY RUN ACME CORP PTY LTD 0958498775381           | $4455.48   |         | $38747.07   |
+| 24/08/2025 | Salary Payment ATO 31715538641491                | $7951.93   |         | $34291.93   |
+| 23/08/2025 | Online Purchase amazon.com.au                    | $83.78     |         | $26309.68   |
+| 22/08/2025 | Salary Payment ATO 94514P8040207                 |            | $8013.70| $26423.46   |
+| 20/08/2025 | Transfer To Vicks Account NatBank 54381P99641102  | $2345.10   |         | $24049.76   |
+| 20/08/2025 | Salary Payment ATO 94514P8040207                 |            | $3541.27| $22754.86   |
+| 19/08/2025 | Transfer To Westem Port Marina NatBank From Tod   | $726.48    |         | $19213.59   |
+| 18/08/2025 | Subscription Netflix 33856877385123              | $201.14    |         | $19940.07   |
+| 18/08/2025 | Contactless Payment CINEMA CARINS QLD             | $211.28    |         | $19728.81   |
+| 18/08/2025 | Auto Payment UTILITIES Red Energy 15107P2171655   | $33.24     |         | $20352.40   |
+| 17/08/2025 | Contactless Payment Restaurant MACKAY OLD         | $145.70    |         | $20385.73   |
+| 17/08/2025 | Fortnightly Pay ATO PAYROLL 3635879254998        |            | $7201.19| $20531.43   |
+| 14/08/2025 | Centrlink Payment JobSeeker 59032P50000878        | $27.06     | $2241.39| $13330.24   |
+| 14/08/2025 | International Transaction Fee                    | $27.06     |         | $11088.85   |
+| 13/08/2025 | Equipment Purchase OfficeMax Australia 13554P413  | $478.86    |         | $11115.91   |
+| 13/08/2025 | International ATM USA                            | $280.71    |         | $11594.77   |
+| 11/08/2025 | Dividend Payment PREMIUM CORP PTY LTD 735354P18...|            | $6395.00| $11855.48   |
+| 10/08/2025 | Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD    | $229.39    |         | $5460.39    |
+| 10/08/2025 | Online Purchase ebay.com.au                       | $257.95    |         | $5689.78    |
+| 10/08/2025 | Subscription Spotify Monthly                     | $180.22    |         | $5947.73    |
+| 09/08/2025 | International Transaction 68688P8141679         | $33.83     |         | $6133.95    |
+| 08/08/2025
