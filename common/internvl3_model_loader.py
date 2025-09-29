@@ -23,7 +23,8 @@ def load_internvl3_model(
     max_new_tokens: int = 4000,
     torch_dtype: str = "bfloat16",
     low_cpu_mem_usage: bool = True,
-    verbose: bool = True
+    verbose: bool = True,
+    force_quantization: bool = False
 ) -> Tuple[Any, Any]:
     """
     Load InternVL3 model with official optimizations.
@@ -38,6 +39,7 @@ def load_internvl3_model(
         torch_dtype: Data type (bfloat16 recommended)
         low_cpu_mem_usage: Enable low CPU memory usage
         verbose: Enable detailed logging
+        force_quantization: If True, never override quantization setting (for V100 compatibility)
 
     Returns:
         Tuple of (model, tokenizer)
@@ -176,10 +178,13 @@ def load_internvl3_model(
 
             if v100_total_memory >= v100_threshold:
                 # Sufficient V100 memory for full precision
-                if use_quantization:
+                if use_quantization and not force_quantization:
                     if verbose:
                         rprint(f"[green]🚀 {v100_count}x V100 setup detected ({v100_total_memory:.0f}GB total), disabling quantization for optimal performance[/green]")
                     use_quantization = False
+                elif use_quantization and force_quantization:
+                    if verbose:
+                        rprint(f"[yellow]🔒 {v100_count}x V100 with {v100_total_memory:.0f}GB - FORCING quantization as explicitly requested[/yellow]")
                 else:
                     if verbose:
                         rprint(f"[green]✅ {v100_count}x V100 with {v100_total_memory:.0f}GB - running in full precision as requested[/green]")
@@ -194,19 +199,25 @@ def load_internvl3_model(
                         rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
         elif gpu_config and gpu_config.is_high_memory:
             # High-memory GPUs (H200, H100, etc.)
-            if use_quantization:
+            if use_quantization and not force_quantization:
                 if verbose:
                     rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
                 use_quantization = False
+            elif use_quantization and force_quantization:
+                if verbose:
+                    rprint(f"[yellow]🔒 {gpu_architecture} with {total_gpu_memory:.0f}GB - FORCING quantization as explicitly requested[/yellow]")
             else:
                 if verbose:
                     rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
         elif memory_sufficient:
             # Sufficient memory based on available memory calculation
-            if use_quantization:
+            if use_quantization and not force_quantization:
                 if verbose:
                     rprint(f"[green]🚀 Sufficient GPU memory detected ({total_available_memory:.0f}GB available), disabling quantization for better performance[/green]")
                 use_quantization = False
+            elif use_quantization and force_quantization:
+                if verbose:
+                    rprint(f"[yellow]🔒 Sufficient memory ({total_available_memory:.0f}GB) - FORCING quantization as explicitly requested[/yellow]")
             else:
                 if verbose:
                     rprint(f"[green]✅ Memory sufficient ({total_available_memory:.0f}GB available) - running in full precision as requested[/green]")
