@@ -669,7 +669,16 @@ class BatchDocumentProcessor:
         textInput = self.processor.apply_chat_template(
             messageDataStructure, add_generation_prompt=True
         )
-        inputs = self.processor(image, textInput, return_tensors="pt").to(self.model.device)
+        inputs = self.processor(image, textInput, return_tensors="pt")
+
+        # Debug device information for detection step
+        if verbose:
+            print(f"🔍 DETECTION - Model device: {self.model.device}")
+            print(f"🔍 DETECTION - Model hf_device_map: {getattr(self.model, 'hf_device_map', 'None')}")
+            print(f"🔍 DETECTION - Available GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved")
+
+        # Move to model device like working notebook
+        inputs = inputs.to(self.model.device)
 
         # Generate response directly like working notebook
         with torch.no_grad():
