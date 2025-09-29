@@ -130,11 +130,12 @@ def test_tile_generation(image_path, model_path):
         pixel_values = torch.stack(pixel_values)
         return pixel_values
 
-    # Test different max_num values
+    # Test different max_num values - extended to find the breaking point
     test_configs = [
         (448, 1), (448, 2), (448, 3), (448, 4), (448, 5), (448, 6), (448, 7),
-        (560, 1), (560, 2), (560, 3), (560, 4), (560, 5), (560, 6),
-        (672, 1), (672, 2), (672, 3), (672, 4), (672, 5), (672, 6)
+        (448, 8), (448, 9), (448, 10), (448, 11), (448, 12),  # Find where it breaks
+        (560, 1), (560, 2), (560, 3), (560, 4), (560, 5), (560, 6), (560, 7),
+        (672, 1), (672, 2), (672, 3), (672, 4), (672, 5), (672, 6), (672, 7)
     ]
 
     print("\n📊 TILE GENERATION ANALYSIS:")
