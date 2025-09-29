@@ -740,7 +740,7 @@ class BatchDocumentProcessor:
 
         # Create document-aware processor with loaded model/processor
         if verbose:
-            rprint(f"\n[bold cyan]📋 FIELD EXTRACTION[/bold cyan]")
+            rprint("\n[bold cyan]📋 FIELD EXTRACTION[/bold cyan]")
             rprint(f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]")
             rprint(f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]")
 
