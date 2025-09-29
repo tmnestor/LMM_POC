@@ -129,14 +129,17 @@ class DocumentAwareLlamaProcessor:
         # Initialize generation config
         self.generation_config = LLAMA_GENERATION_CONFIG.copy()
 
-        # Calculate dynamic max_new_tokens based on actual field count
+        # Use configured max_new_tokens from model if available, otherwise calculate
+        self.configured_max_tokens = None  # Will be set when model is assigned
+
+        # FALLBACK: Calculate dynamic max_new_tokens based on actual field count
+        # This is only used if no pre-configured value is available
         # DOCUMENT AWARE REDUCTION: This now calculates much smaller token counts
         # OLD_COUNT: ~1200-1450 tokens for 29 invoice fields
         # NEW_COUNT: ~530-650 tokens for 11 invoice/receipt fields
         # NEW_COUNT: ~350-450 tokens for 5 bank statement fields
-        self.generation_config["max_new_tokens"] = get_max_new_tokens(
-            "llama", self.field_count
-        )
+        self.fallback_max_tokens = get_max_new_tokens("llama", self.field_count)
+        self.generation_config["max_new_tokens"] = self.fallback_max_tokens
 
         if self.debug:
             performance_gain = max(
@@ -607,6 +610,13 @@ class DocumentAwareLlamaProcessor:
                 "pad_token_id": self.processor.tokenizer.eos_token_id,
             }
             final_generation_kwargs.update(generation_kwargs)
+
+            # Debug: Show actual token configuration being used
+            if self.debug:
+                passed_tokens = generation_kwargs.get("max_new_tokens", "not specified")
+                config_tokens = self.generation_config.get("max_new_tokens", "not set")
+                final_tokens = final_generation_kwargs.get("max_new_tokens", "not set")
+                print(f"🎯 Token debug - Passed: {passed_tokens}, Config: {config_tokens}, Final: {final_tokens}")
 
             # Clean up temperature if do_sample is False to avoid warnings
             if not final_generation_kwargs.get("do_sample", False):

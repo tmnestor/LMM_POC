@@ -634,6 +634,11 @@ class BatchDocumentProcessor:
         doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
         max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
 
+        # Debug: Show detection token configuration
+        if verbose:
+            configured_model_tokens = getattr(self.model.config, 'max_new_tokens', None)
+            rprint(f"[cyan]🔧 Detection tokens - YAML: {max_tokens}, Model config: {configured_model_tokens}[/cyan]")
+
         # Show detection prompt when verbose
         if verbose:
             rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
