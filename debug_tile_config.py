@@ -10,9 +10,9 @@ Run this on the H200/V100 machine to investigate the actual model configuration.
 
 import sys
 from pathlib import Path
-import torch
-from PIL import Image
-from transformers import AutoModel, AutoTokenizer, AutoConfig
+
+from transformers import AutoConfig
+
 
 def analyze_model_config(model_path):
     """Analyze the InternVL3-8B configuration for vision token limits."""
@@ -59,10 +59,8 @@ def test_tile_generation(image_path, model_path):
     # Import the load_image function from your notebook
     sys.path.append('/home/jovyan/nfs_share/tod/LMM_POC')
 
-    from notebooks.internvl3_8B_quantized import load_image, dynamic_preprocess
-    from PIL import Image
-    import torchvision.transforms as T
-    from torchvision.transforms.functional import InterpolationMode
+
+    from notebooks.internvl3_8B_quantized import load_image
 
     # Test different max_num values
     test_configs = [
@@ -71,7 +69,7 @@ def test_tile_generation(image_path, model_path):
         (672, 1), (672, 2), (672, 3), (672, 4), (672, 5), (672, 6)
     ]
 
-    print(f"\n📊 TILE GENERATION ANALYSIS:")
+    print("\n📊 TILE GENERATION ANALYSIS:")
     print(f"{'Resolution':<10} {'Max Tiles':<10} {'Actual Tiles':<12} {'Total Tokens':<12} {'Status'}")
     print("-" * 70)
 
@@ -98,7 +96,7 @@ def test_tile_generation(image_path, model_path):
 
 def find_model_token_limit(model_path):
     """Try to determine the actual token limit from model architecture."""
-    print(f"\n🎯 INVESTIGATING MODEL TOKEN CAPACITY...")
+    print("\n🎯 INVESTIGATING MODEL TOKEN CAPACITY...")
 
     try:
         # Load just the config to inspect architecture
