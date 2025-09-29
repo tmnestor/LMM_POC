@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import torch
 from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
@@ -647,22 +648,39 @@ class BatchDocumentProcessor:
             rprint(f"[dim]{doc_type_prompt}[/dim]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
-        # Create simple processor for detection only
-        from models.document_aware_llama_processor import DocumentAwareLlamaProcessor
+        # Use direct model approach (like working llama_single_image.ipynb)
+        from PIL import Image
 
-        detection_processor = DocumentAwareLlamaProcessor(
-            field_list=["DOCUMENT_TYPE"],  # Single field for detection
-            skip_model_loading=True,
-            debug=verbose,
-            batch_size=1,  # Force batch_size=1 for detection
-        )
-        detection_processor.model = self.model
-        detection_processor.processor = self.processor
+        # Load image directly
+        image = Image.open(image_path)
 
-        # Extract document type using YAML prompt
-        response = detection_processor._extract_with_custom_prompt(
-            image_path, doc_type_prompt, max_new_tokens=max_tokens
+        # Create message structure like working notebook
+        messageDataStructure = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": doc_type_prompt}
+                ]
+            }
+        ]
+
+        # Process input like working notebook
+        textInput = self.processor.apply_chat_template(
+            messageDataStructure, add_generation_prompt=True
         )
+        inputs = self.processor(image, textInput, return_tensors="pt").to(self.model.device)
+
+        # Generate response directly like working notebook
+        with torch.no_grad():
+            output = self.model.generate(
+                **inputs,
+                max_new_tokens=max_tokens,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+            )
+        response = self.processor.decode(output[0], skip_special_tokens=True)
 
         # Show raw response when verbose
         if verbose:
@@ -749,25 +767,58 @@ class BatchDocumentProcessor:
             rprint(f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]")
             rprint(f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]")
 
-        doc_processor = DocumentAwareLlamaProcessor(
-            field_list=field_list,
-            skip_model_loading=True,  # Use existing model
-            debug=verbose,
-            batch_size=1,  # Force batch_size=1 for extraction
+        # Use configured max_tokens from model if available, otherwise calculate
+        configured_tokens = getattr(self.model.config, 'max_new_tokens', None)
+        if configured_tokens:
+            max_tokens = configured_tokens
+            if verbose:
+                rprint(f"[cyan]🔧 Using configured max_tokens: {max_tokens} (from notebook CONFIG)[/cyan]")
+        else:
+            # Fallback to calculation
+            from .config import get_max_new_tokens
+            max_tokens = get_max_new_tokens("llama", len(field_list))
+            if verbose:
+                rprint(f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]")
+
+        # Use direct model approach for extraction (like working notebook)
+        image = Image.open(image_path)
+
+        # Create message structure like working notebook
+        messageDataStructure = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": extraction_prompt}
+                ]
+            }
+        ]
+
+        # Process input like working notebook
+        textInput = self.processor.apply_chat_template(
+            messageDataStructure, add_generation_prompt=True
         )
-        doc_processor.model = self.model
-        doc_processor.processor = self.processor
+        inputs = self.processor(image, textInput, return_tensors="pt").to(self.model.device)
 
-        # Calculate appropriate max_tokens based on field count
-        from .config import get_max_new_tokens
-        max_tokens = get_max_new_tokens("llama", len(field_list))
+        # Generate response directly like working notebook
+        with torch.no_grad():
+            output = self.model.generate(
+                **inputs,
+                max_new_tokens=max_tokens,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+            )
+        response = self.processor.decode(output[0], skip_special_tokens=True)
 
-        if verbose:
-            rprint(f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]")
+        # Create extraction result in expected format
+        from .extraction_parser import parse_extraction_response
+        parsed_data = parse_extraction_response(response, field_list)
 
-        # Extract data using document-aware approach with loaded YAML prompt and tokens
-        extraction_result = doc_processor.process_single_image(
-            image_path, custom_prompt=extraction_prompt, custom_max_tokens=max_tokens
-        )
+        extraction_result = {
+            'extracted_data': parsed_data,
+            'raw_response': response,
+            'field_list': field_list
+        }
 
         return document_type, extraction_result, prompt_name
