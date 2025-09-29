@@ -13,10 +13,9 @@ Author: Claude Code Analysis
 Date: 2025-09-29
 """
 
-import math
-from typing import Tuple, List, Dict, Any
 from pathlib import Path
-import torch
+from typing import Any, Dict, List
+
 from PIL import Image
 
 
@@ -249,10 +248,10 @@ class EmbeddingAnalyzer:
         report.extend([
             "",
             "📊 CRITICAL INSIGHTS:",
-            f"   • 1792 embedding limit is architectural constraint",
-            f"   • Even 560px + 6 tiles exceeds limit by 56%",
-            f"   • Safe strategy: 448px + ≤3 tiles guaranteed",
-            f"   • Compensation: Use 8000+ token generation",
+            "   • 1792 embedding limit is architectural constraint",
+            "   • Even 560px + 6 tiles exceeds limit by 56%",
+            "   • Safe strategy: 448px + ≤3 tiles guaranteed",
+            "   • Compensation: Use 8000+ token generation",
             "",
             "💡 RECOMMENDED WORKFLOW:",
             "   1. Start with 448px + 3 tiles (guaranteed safe)",
