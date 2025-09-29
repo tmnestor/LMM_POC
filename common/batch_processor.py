@@ -677,6 +677,12 @@ class BatchDocumentProcessor:
             print(f"🔍 DETECTION - Model hf_device_map: {getattr(self.model, 'hf_device_map', 'None')}")
             print(f"🔍 DETECTION - Available GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved")
 
+        # Clear GPU 1 cache before processing since model has layers there
+        torch.cuda.empty_cache()
+        if torch.cuda.device_count() > 1:
+            with torch.cuda.device(1):
+                torch.cuda.empty_cache()
+
         # Move to model device like working notebook
         inputs = inputs.to(self.model.device)
 
