@@ -196,14 +196,14 @@ class InternVL3_8B_MemoryManager:
             if self.verbose:
                 rprint("[cyan]📥 Loading InternVL3-8B model with memory optimization...[/cyan]")
 
-            # Use the exact official pattern but with memory monitoring
+            # Use sequential loading with direct CUDA placement (fixed for gibberish issue)
             model = AutoModel.from_pretrained(
                 model_path,
                 torch_dtype=torch_dtype,
                 low_cpu_mem_usage=low_cpu_mem_usage,
                 use_flash_attn=use_flash_attn,
-                trust_remote_code=True,
-                device_map="auto"  # Let transformers handle device placement
+                trust_remote_code=True
+                # REMOVED: device_map="auto" - suspected cause of gibberish responses
             ).eval()
 
             self.create_memory_checkpoint("model_loaded")
@@ -215,19 +215,18 @@ class InternVL3_8B_MemoryManager:
                 torch.cuda.empty_cache()
                 gc.collect()
 
-            # Step 5: Move to CUDA if not already there
-            if not next(model.parameters()).is_cuda:
-                if self.verbose:
-                    rprint("[cyan]📤 Moving model to CUDA...[/cyan]")
-                model = model.cuda()
+            # Step 5: Move to CUDA (always required without device_map="auto")
+            if self.verbose:
+                rprint("[cyan]📤 Moving model to CUDA...[/cyan]")
+            model = model.cuda()
 
             self.create_memory_checkpoint("model_on_cuda")
 
             # Step 6: Final memory optimization
-            if hasattr(model, 'gradient_checkpointing_enable'):
-                model.gradient_checkpointing_enable()
-                if self.verbose:
-                    rprint("[blue]✅ Gradient checkpointing enabled[/blue]")
+            # REMOVED: gradient_checkpointing_enable() - meant for training, not inference
+            # This was suspected cause of gibberish responses during inference
+            if self.verbose:
+                rprint("[yellow]⚠️ Skipped gradient checkpointing (meant for training, not inference)[/yellow]")
 
             # Final memory report
             final_checkpoint = self.create_memory_checkpoint("loading_complete")
