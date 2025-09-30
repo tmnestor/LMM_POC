@@ -466,12 +466,16 @@ class DocumentAwareInternVL3HybridProcessor:
             }
 
         except Exception as e:
-            if verbose:
-                print(f"❌ Error in document detection: {e}")
+            # ALWAYS show detection errors - critical for debugging
+            print(f"❌ DETECTION ERROR: {e}")
+            if self.debug:
+                import traceback
+                print(f"❌ DETECTION ERROR TRACEBACK:")
+                traceback.print_exc()
 
             # Fallback to simple heuristic
             return {
-                "document_type": "invoice",  # Safe fallback
+                "document_type": "INVOICE",  # Use uppercase for consistency
                 "confidence": 0.1,
                 "raw_response": "",
                 "prompt_used": "fallback_heuristic",
