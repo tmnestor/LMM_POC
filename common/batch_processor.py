@@ -950,8 +950,39 @@ class BatchDocumentProcessor:
         # Show raw extraction response when verbose
         if verbose:
             rprint("\n[bold yellow]📄 RAW MODEL EXTRACTION RESPONSE:[/bold yellow]")
-            # Sanitize and show raw response
-            safe_response = sanitize_for_rich(response, max_length=2000)
+            # Show response length and check if model generated output
+            rprint(f"[dim]Total response length: {len(response)} characters[/dim]")
+
+            # Extract only the assistant's response (after the prompt)
+            # Llama responses include the full conversation, split at "assistant" marker
+            if "assistant" in response:
+                # Get everything after the last "assistant" marker
+                model_response = response.split("assistant")[-1].strip()
+                if not model_response or len(model_response) < 50:
+                    rprint(
+                        "[red]⚠️ WARNING: Model generated very short or empty response![/red]"
+                    )
+                    rprint(
+                        "[yellow]This likely means max_tokens is too low for this prompt.[/yellow]"
+                    )
+            else:
+                # No assistant marker means model didn't generate anything
+                rprint(
+                    "[red]⚠️ CRITICAL: No 'assistant' response found in output![/red]"
+                )
+                rprint(
+                    "[yellow]Model may have hit token limit during prompt processing.[/yellow]"
+                )
+                model_response = response
+
+            # Show only last 3000 chars to see the actual extraction part
+            if len(model_response) > 3000:
+                display_response = "...[truncated]..." + model_response[-3000:]
+            else:
+                display_response = model_response
+
+            # Sanitize for Rich console
+            safe_response = sanitize_for_rich(display_response, max_length=10000)
             rprint(f"[dim]{safe_response}[/dim]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
