@@ -989,7 +989,9 @@ class BatchDocumentProcessor:
         # Create extraction result in expected format
         from .extraction_parser import parse_extraction_response
 
-        parsed_data = parse_extraction_response(response, field_list)
+        parsed_data = parse_extraction_response(
+            response, clean_conversation_artifacts=False, expected_fields=field_list
+        )
 
         # Show parsed/cleaned data when verbose
         if verbose:
