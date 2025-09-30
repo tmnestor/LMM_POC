@@ -11,6 +11,34 @@ import re
 from typing import Any, Dict
 
 
+def sanitize_for_rich(content: str, max_length: int = 200) -> str:
+    """
+    Sanitize content for safe Rich console rendering.
+
+    Rich console interprets '[' and ']' as markup syntax, which can cause
+    RecursionError with certain content patterns. This function escapes
+    those characters and truncates long content.
+
+    Args:
+        content: Content to sanitize
+        max_length: Maximum length before truncation
+
+    Returns:
+        Sanitized content safe for Rich console output
+    """
+    if not content:
+        return content
+
+    # Escape Rich markup characters that cause recursion
+    safe_content = str(content).replace('[', '\\[').replace(']', '\\]')
+
+    # Truncate if too long to prevent overwhelming output
+    if len(safe_content) > max_length:
+        safe_content = safe_content[:max_length] + "..."
+
+    return safe_content
+
+
 class ExtractionCleaner:
     """
     Centralized field value cleaning for all document processors.
@@ -96,7 +124,8 @@ class ExtractionCleaner:
             return "NOT_FOUND"
 
         if self.debug:
-            print(f"🧹 CLEANER CALLED: {field_name}: '{raw_value}' -> ", end="")
+            safe_raw_value = sanitize_for_rich(str(raw_value), max_length=100)
+            print(f"🧹 CLEANER CALLED: {field_name}: '{safe_raw_value}' -> ", end="")
 
         # Pre-process lists: convert comma-separated to pipe-separated format
         if self._is_list_field(field_name) and "," in value and "|" not in value:
@@ -126,7 +155,8 @@ class ExtractionCleaner:
             cleaned_value = self._normalize_document_type(cleaned_value)
 
         if self.debug:
-            print(f"'{cleaned_value}'")
+            safe_cleaned_value = sanitize_for_rich(str(cleaned_value), max_length=100)
+            print(f"'{safe_cleaned_value}'")
 
         return cleaned_value
 
