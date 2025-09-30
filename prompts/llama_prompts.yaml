@@ -193,7 +193,7 @@ prompts:
       DOCUMENT_TYPE: [STATEMENT or NOT_FOUND]
       STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
       LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
-      TRANSACTION_DATES: [Transaction dates separated by " | " - MUST match row count or NOT_FOUND]
+      TRANSACTION_DATES: [Transaction dates separated by " | " or NOT_FOUND]
       TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
       TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
       ACCOUNT_BALANCE: [Running balance amounts with $ separated by " | " or NOT_FOUND]
