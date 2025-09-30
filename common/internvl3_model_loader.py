@@ -23,6 +23,7 @@ def load_internvl3_model(
     max_new_tokens: int = 4000,
     torch_dtype: str = "bfloat16",
     low_cpu_mem_usage: bool = True,
+    use_flash_attn: bool = False,  # Default False for V100 compatibility
     verbose: bool = True
 ) -> Tuple[Any, Any]:
     """
@@ -40,6 +41,7 @@ def load_internvl3_model(
         max_new_tokens: Maximum tokens for generation
         torch_dtype: Data type (bfloat16 recommended)
         low_cpu_mem_usage: Enable low CPU memory usage
+        use_flash_attn: Enable Flash Attention (NOT supported on V100, use False for V100)
         verbose: Enable detailed logging
 
     Returns:
@@ -244,30 +246,13 @@ def load_internvl3_model(
             if memory_result.warnings:
                 rprint(f"[yellow]   Warnings: {len(memory_result.warnings)} detected (see above)[/yellow]")
 
+    # Simple quantization status logging (actual config handled in model loading)
     if use_quantization:
         if verbose:
-            rprint("[yellow]🔧 Configuring InternVL3-compatible 8-bit quantization...[/yellow]")
-
-        try:
-            from transformers import BitsAndBytesConfig
-
-            # InternVL3-specific quantization config (no vision module skipping)
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                llm_int8_enable_fp32_cpu_offload=True,
-                # Note: No skip_modules for InternVL3 - all components processed normally
-            )
-
-            if verbose:
-                rprint("[green]✅ InternVL3-compatible quantization configured[/green]")
-
-        except ImportError:
-            if verbose:
-                rprint("[yellow]⚠️ BitsAndBytesConfig not available, using 16-bit[/yellow]")
-            use_quantization = False
+            rprint("[yellow]🔧 Using 8-bit quantization (load_in_8bit=True) as per official docs[/yellow]")
     else:
         if verbose:
-            rprint("[green]🚀 Using 16-bit precision for optimal performance[/green]")
+            rprint("[green]🚀 Using 16-bit precision mode[/green]")
 
     # Load model with InternVL3-optimized parameters and multi-GPU distribution
     try:
@@ -276,14 +261,25 @@ def load_internvl3_model(
             if device_map == "auto" and torch.cuda.device_count() > 1:
                 rprint(f"[blue]🔄 Auto-distributing model across {torch.cuda.device_count()} GPUs...[/blue]")
 
-        model = AutoModel.from_pretrained(
-            model_path,
-            torch_dtype=torch_dtype_obj,
-            low_cpu_mem_usage=low_cpu_mem_usage,
-            trust_remote_code=True,
-            quantization_config=quantization_config if use_quantization else None,
-            device_map=device_map
-        )
+        # Load model according to official InternVL3 documentation format
+        # https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
+        model_kwargs = {
+            "torch_dtype": torch_dtype_obj,
+            "load_in_8bit": use_quantization,  # Official parameter name
+            "low_cpu_mem_usage": low_cpu_mem_usage,
+            "trust_remote_code": True,
+            "device_map": device_map
+        }
+
+        # Add Flash Attention only if requested (not supported on V100)
+        if use_flash_attn:
+            model_kwargs["use_flash_attn"] = True
+            if verbose:
+                rprint("[cyan]⚡ Enabling Flash Attention (ensure GPU supports it)[/cyan]")
+        elif verbose:
+            rprint("[yellow]⚠️ Flash Attention disabled (V100 compatible)[/yellow]")
+
+        model = AutoModel.from_pretrained(model_path, **model_kwargs).eval()
 
         # Load tokenizer
         if verbose:
