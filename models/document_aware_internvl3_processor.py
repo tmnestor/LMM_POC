@@ -432,13 +432,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 detection_path = Path(self.prompt_config["detection_file"])
                 detection_key = self.prompt_config["detection_key"]
                 if verbose:
-                    print(f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'")
+                    import sys
+                    sys.stdout.write(f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'\n")
+                    sys.stdout.flush()
             else:
                 # Fallback to hardcoded YAML (legacy behavior)
                 detection_path = Path("prompts/document_type_detection.yaml")
                 detection_key = "detection"
                 if verbose:
-                    print(f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'")
+                    import sys
+                    sys.stdout.write(f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'\n")
+                    sys.stdout.flush()
 
             with detection_path.open("r") as f:
                 detection_config = yaml.safe_load(f)
@@ -447,8 +451,10 @@ class DocumentAwareInternVL3HybridProcessor:
             max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
 
             if verbose:
-                print(f"🔍 Using InternVL3 document detection prompt: {detection_key}")
-                print(f"📝 Prompt: {detection_prompt[:100]}...")
+                import sys
+                sys.stdout.write(f"🔍 Using InternVL3 document detection prompt: {detection_key}\n")
+                sys.stdout.write(f"📝 Prompt: {detection_prompt[:100]}...\n")
+                sys.stdout.flush()
 
             # Load and preprocess image using InternVL3 pipeline
             pixel_values = self.load_image(image_path)
@@ -458,7 +464,9 @@ class DocumentAwareInternVL3HybridProcessor:
             if pixel_values.device != model_device:
                 pixel_values = pixel_values.to(model_device)
                 if verbose:
-                    print(f"🔧 BACKUP_DEVICE_FIX: Moved tensor to {model_device}")
+                    import sys
+                    sys.stdout.write(f"🔧 BACKUP_DEVICE_FIX: Moved tensor to {model_device}\n")
+                    sys.stdout.flush()
 
             # Generate response using InternVL3 model with detection-specific limits
             response = self._resilient_generate(
@@ -471,13 +479,17 @@ class DocumentAwareInternVL3HybridProcessor:
             )
 
             if verbose:
-                print(f"🤖 Model response: {response}")
+                import sys
+                sys.stdout.write(f"🤖 Model response: {response}\n")
+                sys.stdout.flush()
 
             # Parse document type from response
             document_type = self._parse_document_type_response(response, detection_config)
 
             if verbose:
-                print(f"✅ Detected document type: {document_type}")
+                import sys
+                sys.stdout.write(f"✅ Detected document type: {document_type}\n")
+                sys.stdout.flush()
 
             return {
                 "document_type": document_type,
@@ -488,10 +500,13 @@ class DocumentAwareInternVL3HybridProcessor:
 
         except Exception as e:
             # ALWAYS show detection errors - critical for debugging
-            print(f"❌ DETECTION ERROR: {e}")
+            import sys
+            sys.stdout.write(f"❌ DETECTION ERROR: {e}\n")
+            sys.stdout.flush()
             if self.debug:
                 import traceback
-                print("❌ DETECTION ERROR TRACEBACK:")
+                sys.stdout.write("❌ DETECTION ERROR TRACEBACK:\n")
+                sys.stdout.flush()
                 traceback.print_exc()
 
             # Fallback to simple heuristic
@@ -644,8 +659,10 @@ class DocumentAwareInternVL3HybridProcessor:
         response_lower = response.lower().strip()
 
         if self.debug:
-            print(f"🔍 PARSING DEBUG - Raw response: '{response}'")
-            print(f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'")
+            import sys
+            sys.stdout.write(f"🔍 PARSING DEBUG - Raw response: '{response}'\n")
+            sys.stdout.write(f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'\n")
+            sys.stdout.flush()
 
         # Get type mappings from config
         type_mappings = detection_config.get("type_mappings", {})
@@ -654,27 +671,37 @@ class DocumentAwareInternVL3HybridProcessor:
         for variant, canonical in type_mappings.items():
             if variant.lower() in response_lower:
                 if self.debug:
-                    print(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'")
+                    import sys
+                    sys.stdout.write(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n")
+                    sys.stdout.flush()
                 return canonical
 
         # Fallback keyword detection
         if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: RECEIPT")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: RECEIPT\n")
+                sys.stdout.flush()
             return "RECEIPT"
         elif any(word in response_lower for word in ["bank", "statement", "account"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT\n")
+                sys.stdout.flush()
             return "BANK_STATEMENT"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: INVOICE")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: INVOICE\n")
+                sys.stdout.flush()
             return "INVOICE"
 
         # Final fallback
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
         if self.debug:
-            print(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'")
+            import sys
+            sys.stdout.write(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n")
+            sys.stdout.flush()
         return fallback
 
     def load_document_image(self, image_path: str) -> Image.Image:
