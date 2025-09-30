@@ -60,6 +60,7 @@ class DocumentAwareInternVL3HybridProcessor:
         skip_model_loading: bool = False,
         pre_loaded_model=None,
         pre_loaded_tokenizer=None,
+        prompt_config: Dict = None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
@@ -70,6 +71,10 @@ class DocumentAwareInternVL3HybridProcessor:
             device (str): Device to run on
             debug (bool): Enable debug output
             batch_size (int): Batch size (auto-detected if None)
+            skip_model_loading (bool): Skip model loading (use pre-loaded)
+            pre_loaded_model: Pre-loaded model instance
+            pre_loaded_tokenizer: Pre-loaded tokenizer instance
+            prompt_config (Dict): Configuration for prompts (single source of truth)
             skip_model_loading (bool): Skip loading model (for reusing existing model)
             pre_loaded_model: Pre-loaded InternVL3 model (avoids reloading)
             pre_loaded_tokenizer: Pre-loaded InternVL3 tokenizer (avoids reloading)
@@ -79,6 +84,7 @@ class DocumentAwareInternVL3HybridProcessor:
         self.model_path = model_path or INTERNVL3_MODEL_PATH
         self.device = device
         self.debug = debug
+        self.prompt_config = prompt_config  # Single source of truth for prompt configuration
 
         # Initialize components (InternVL3 specific)
         self.model = pre_loaded_model
@@ -400,14 +406,17 @@ class DocumentAwareInternVL3HybridProcessor:
 
             import yaml
 
-            # Load detection configuration
-            detection_path = Path("prompts/document_type_detection.yaml")
+            # Use prompt_config if provided (single source of truth), otherwise fallback to YAML
+            if self.prompt_config:
+                detection_path = Path(self.prompt_config["detection_file"])
+                detection_key = self.prompt_config["detection_key"]
+            else:
+                # Fallback to hardcoded YAML (legacy behavior)
+                detection_path = Path("prompts/document_type_detection.yaml")
+                detection_key = "detection"
+
             with detection_path.open("r") as f:
                 detection_config = yaml.safe_load(f)
-
-            # Get InternVL3-specific detection prompt (simpler version)
-            model_config = detection_config.get("models", {}).get("internvl3", {})
-            detection_key = model_config.get("recommended_prompt", "detection_simple")
 
             detection_prompt = detection_config["prompts"][detection_key]["prompt"]
             max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)

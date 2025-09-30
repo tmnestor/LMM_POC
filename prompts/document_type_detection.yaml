@@ -121,5 +121,5 @@ models:
     recommended_prompt: "detection"
     notes: "Llama-3.2-Vision works well with structured detection prompts"
   internvl3:
-    recommended_prompt: "detection_simple"
-    notes: "InternVL3 may work better with simpler prompts"
+    recommended_prompt: "detection"
+    notes: "InternVL3 needs detailed visual cues for proper document type detection"
