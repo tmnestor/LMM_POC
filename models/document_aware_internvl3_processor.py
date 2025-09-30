@@ -431,10 +431,14 @@ class DocumentAwareInternVL3HybridProcessor:
             if self.prompt_config:
                 detection_path = Path(self.prompt_config["detection_file"])
                 detection_key = self.prompt_config["detection_key"]
+                if verbose:
+                    print(f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'")
             else:
                 # Fallback to hardcoded YAML (legacy behavior)
                 detection_path = Path("prompts/document_type_detection.yaml")
                 detection_key = "detection"
+                if verbose:
+                    print(f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'")
 
             with detection_path.open("r") as f:
                 detection_config = yaml.safe_load(f)
@@ -635,24 +639,38 @@ class DocumentAwareInternVL3HybridProcessor:
         """
         response_lower = response.lower().strip()
 
+        if self.debug:
+            print(f"🔍 PARSING DEBUG - Raw response: '{response}'")
+            print(f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'")
+
         # Get type mappings from config
         type_mappings = detection_config.get("type_mappings", {})
 
         # Direct mapping check
         for variant, canonical in type_mappings.items():
             if variant.lower() in response_lower:
+                if self.debug:
+                    print(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'")
                 return canonical
 
         # Fallback keyword detection
         if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
+            if self.debug:
+                print(f"✅ PARSING DEBUG - Keyword match: RECEIPT")
             return "RECEIPT"
         elif any(word in response_lower for word in ["bank", "statement", "account"]):
+            if self.debug:
+                print(f"✅ PARSING DEBUG - Keyword match: BANK_STATEMENT")
             return "BANK_STATEMENT"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
+            if self.debug:
+                print(f"✅ PARSING DEBUG - Keyword match: INVOICE")
             return "INVOICE"
 
         # Final fallback
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
+        if self.debug:
+            print(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'")
         return fallback
 
     def load_document_image(self, image_path: str) -> Image.Image:
