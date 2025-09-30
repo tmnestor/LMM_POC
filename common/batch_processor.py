@@ -499,33 +499,42 @@ class BatchDocumentProcessor:
     def _parse_document_type_response(
         self, response: str, detection_config: dict
     ) -> str:
-        """Parse document type response using YAML-configured type mappings."""
+        """Parse document type response using Python 3.11 structural pattern matching."""
         if not response:
             return detection_config.get("settings", {}).get("fallback_type", "INVOICE")
 
         response_lower = response.lower().strip()
 
-        # Check for bank statement first (matches both "bank_statement" and "bank statement")
-        if "bank" in response_lower and "statement" in response_lower:
-            return "BANK_STATEMENT"
+        # Use structural pattern matching for clear, explicit document type detection
+        # Check most specific patterns first, then more general ones
+        match response_lower:
+            # RECEIPT - most specific check first
+            case s if "receipt" in s:
+                return "RECEIPT"
 
-        # Check for receipt
-        if "receipt" in response_lower:
-            return "RECEIPT"
+            # INVOICE - check before general "statement"
+            case s if "invoice" in s or "bill" in s:
+                return "INVOICE"
 
-        # Check for invoice
-        if "invoice" in response_lower or "bill" in response_lower:
-            return "INVOICE"
+            # BANK_STATEMENT - check for explicit bank statement
+            case s if "bank" in s and "statement" in s:
+                return "BANK_STATEMENT"
 
-        # Look in type mappings for variations
-        type_mappings = detection_config.get("type_mappings", {})
-        for variant, canonical in type_mappings.items():
-            if variant.lower() in response_lower:
-                return canonical
+            # STATEMENT alone could be bank statement (but after more specific checks)
+            case s if "statement" in s:
+                return "BANK_STATEMENT"
 
-        # Final fallback
-        fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
-        return fallback
+            # No keyword matches - check type mappings from config
+            case _:
+                type_mappings = detection_config.get("type_mappings", {})
+                for variant, canonical in type_mappings.items():
+                    if variant.lower() in response_lower:
+                        return canonical
+
+                # Final fallback
+                return detection_config.get("settings", {}).get(
+                    "fallback_type", "INVOICE"
+                )
 
     # Removed: _classify_bank_statement_structure - filename-based classification is inappropriate
 
