@@ -4,11 +4,12 @@ Test InternVL3-8B Vision-Language Model with sequential mapping.
 PROPERLY tests with images, not just text!
 """
 
+from pathlib import Path
+
 import torch
 from PIL import Image
 from rich import print as rprint
 from transformers import AutoModel, AutoTokenizer
-from pathlib import Path
 
 
 def test_sequential_vlm_inference():
@@ -63,7 +64,7 @@ def test_sequential_vlm_inference():
 
         # Check if image exists
         if not Path(img_path).exists():
-            rprint(f"[yellow]Image not found, using a dummy test image[/yellow]")
+            rprint("[yellow]Image not found, using a dummy test image[/yellow]")
             # Create a simple test image
             image = Image.new('RGB', (224, 224), color='white')
         else:
