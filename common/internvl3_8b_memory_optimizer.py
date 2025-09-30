@@ -17,12 +17,13 @@ than InternVL3-2B, causing memory issues even with quantization.
 """
 
 import gc
+import math
 import time
 from typing import Any, Dict, Tuple
 
 import torch
 from rich import print as rprint
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from common.gpu_optimization import (
     aggressive_defragmentation,
@@ -131,22 +132,95 @@ class InternVL3_8B_MemoryManager:
             if self.verbose:
                 rprint(f"[yellow]⚠️ Vision cache clearing warning: {e}[/yellow]")
 
+    def create_official_device_map(self, model_path: str) -> Dict[str, int]:
+        """
+        Create official InternVL3 multi-GPU device map following documentation.
+
+        Based on: https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
+        """
+        device_map = {}
+        world_size = torch.cuda.device_count()
+
+        if world_size < 2:
+            if self.verbose:
+                rprint("[yellow]⚠️ Single GPU detected - using standard device_map='auto'[/yellow]")
+            return "auto"
+
+        if self.verbose:
+            rprint(f"[cyan]🔧 Creating official multi-GPU device map for {world_size} GPUs[/cyan]")
+
+        try:
+            config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+            num_layers = config.llm_config.num_hidden_layers
+
+            # Official strategy: First GPU treated as half a GPU due to ViT
+            num_layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
+            num_layers_per_gpu = [num_layers_per_gpu] * world_size
+            num_layers_per_gpu[0] = math.ceil(num_layers_per_gpu[0] * 0.5)
+
+            # Distribute language model layers
+            layer_cnt = 0
+            for i, num_layer in enumerate(num_layers_per_gpu):
+                for _ in range(num_layer):  # Using _ for unused loop variable
+                    if layer_cnt < num_layers:
+                        device_map[f'language_model.model.layers.{layer_cnt}'] = i
+                        layer_cnt += 1
+
+            # Critical components on GPU 0 (official requirement)
+            device_map['vision_model'] = 0
+            device_map['mlp1'] = 0
+            device_map['language_model.model.tok_embeddings'] = 0
+            device_map['language_model.model.embed_tokens'] = 0
+            device_map['language_model.output'] = 0
+            device_map['language_model.model.norm'] = 0
+            device_map['language_model.model.rotary_emb'] = 0
+            device_map['language_model.lm_head'] = 0
+            device_map[f'language_model.model.layers.{num_layers - 1}'] = 0
+
+            if self.verbose:
+                rprint(f"[green]✅ Official device map created: {num_layers} layers across {world_size} GPUs[/green]")
+                for device_id in range(world_size):
+                    layer_count = sum(1 for v in device_map.values() if v == device_id)
+                    rprint(f"[cyan]  GPU {device_id}: {layer_count} components[/cyan]")
+
+            return device_map
+
+        except Exception as e:
+            if self.verbose:
+                rprint(f"[yellow]⚠️ Error creating official device map: {e}[/yellow]")
+                rprint("[yellow]💡 Falling back to device_map='auto'[/yellow]")
+            return "auto"
+
     def check_memory_requirements(self, model_path: str) -> Tuple[bool, str]:
         """Check if we have enough memory for InternVL3-8B."""
         available = get_available_gpu_memory()
 
-        # InternVL3-8B memory requirements (estimated)
-        base_model_memory = 8.0  # ~8GB for quantized language model
-        vision_encoder_memory = 6.0  # ~6GB for large vision encoder
-        overhead_memory = 2.0  # ~2GB for processing overhead
+        world_size = torch.cuda.device_count()
 
-        total_required = base_model_memory + vision_encoder_memory + overhead_memory
+        if world_size >= 2:
+            # Multi-GPU setup - use official requirements from docs
+            total_memory = sum(torch.cuda.get_device_properties(i).total_memory / 1e9 for i in range(world_size))
+            if self.verbose:
+                rprint(f"[cyan]🔍 Multi-GPU setup detected: {world_size} GPUs, {total_memory:.1f}GB total[/cyan]")
 
-        if available >= total_required:
-            return True, f"✅ Sufficient memory: {available:.1f}GB available, {total_required:.1f}GB required"
+            # Official requirement: "at least three 80GB GPUs" for non-quantized
+            if world_size >= 3 or total_memory >= 150:  # Allow for smaller GPUs if enough total memory
+                return True, f"✅ Multi-GPU sufficient: {world_size} GPUs, {total_memory:.1f}GB total"
+            else:
+                return False, f"⚠️ Multi-GPU insufficient: {world_size} GPUs, {total_memory:.1f}GB total (official: 3x80GB)"
         else:
-            deficit = total_required - available
-            return False, f"❌ Insufficient memory: {available:.1f}GB available, {total_required:.1f}GB required (deficit: {deficit:.1f}GB)"
+            # Single GPU - original estimation
+            base_model_memory = 8.0  # ~8GB for quantized language model
+            vision_encoder_memory = 6.0  # ~6GB for large vision encoder
+            overhead_memory = 2.0  # ~2GB for processing overhead
+
+            total_required = base_model_memory + vision_encoder_memory + overhead_memory
+
+            if available >= total_required:
+                return True, f"✅ Single GPU sufficient: {available:.1f}GB available, {total_required:.1f}GB required"
+            else:
+                deficit = total_required - available
+                return False, f"❌ Single GPU insufficient: {available:.1f}GB available, {total_required:.1f}GB required (deficit: {deficit:.1f}GB)"
 
     def sequential_model_loading(
         self,
@@ -196,14 +270,23 @@ class InternVL3_8B_MemoryManager:
             if self.verbose:
                 rprint("[cyan]📥 Loading InternVL3-8B model with memory optimization...[/cyan]")
 
-            # Use sequential loading with direct CUDA placement (fixed for gibberish issue)
+            # Create official device map for multi-GPU or fallback for single GPU
+            device_map = self.create_official_device_map(model_path)
+
+            if self.verbose:
+                if isinstance(device_map, str):
+                    rprint(f"[cyan]📥 Using device mapping: {device_map}[/cyan]")
+                else:
+                    rprint("[cyan]📥 Using official multi-GPU device mapping[/cyan]")
+
+            # Use official InternVL3 loading pattern with proper device mapping
             model = AutoModel.from_pretrained(
                 model_path,
                 torch_dtype=torch_dtype,
                 low_cpu_mem_usage=low_cpu_mem_usage,
                 use_flash_attn=use_flash_attn,
-                trust_remote_code=True
-                # REMOVED: device_map="auto" - suspected cause of gibberish responses
+                trust_remote_code=True,
+                device_map=device_map
             ).eval()
 
             self.create_memory_checkpoint("model_loaded")
@@ -215,10 +298,20 @@ class InternVL3_8B_MemoryManager:
                 torch.cuda.empty_cache()
                 gc.collect()
 
-            # Step 5: Move to CUDA (always required without device_map="auto")
-            if self.verbose:
-                rprint("[cyan]📤 Moving model to CUDA...[/cyan]")
-            model = model.cuda()
+            # Step 5: CUDA placement (only needed for single GPU without device_map)
+            if isinstance(device_map, str) and device_map == "auto":
+                # For device_map="auto", model is already on appropriate devices
+                if self.verbose:
+                    rprint("[cyan]📤 Model automatically placed by device_map='auto'[/cyan]")
+            elif isinstance(device_map, str):
+                # For single GPU setups without multi-GPU device mapping
+                if self.verbose:
+                    rprint("[cyan]📤 Moving model to CUDA...[/cyan]")
+                model = model.cuda()
+            else:
+                # Multi-GPU setup - model components already distributed
+                if self.verbose:
+                    rprint("[cyan]📤 Model distributed across GPUs by official device mapping[/cyan]")
 
             self.create_memory_checkpoint("model_on_cuda")
 
