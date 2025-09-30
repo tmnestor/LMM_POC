@@ -491,7 +491,7 @@ class DocumentAwareInternVL3HybridProcessor:
             print(f"❌ DETECTION ERROR: {e}")
             if self.debug:
                 import traceback
-                print(f"❌ DETECTION ERROR TRACEBACK:")
+                print("❌ DETECTION ERROR TRACEBACK:")
                 traceback.print_exc()
 
             # Fallback to simple heuristic
