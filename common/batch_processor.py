@@ -14,10 +14,10 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
 
+from .evaluation_metrics import load_ground_truth
+
 # Import Rich content sanitization to prevent recursion errors
 from .extraction_cleaner import sanitize_for_rich
-
-from .evaluation_metrics import load_ground_truth
 from .simple_model_evaluator import SimpleModelEvaluator
 from .simple_prompt_loader import SimplePromptLoader
 
