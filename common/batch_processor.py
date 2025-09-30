@@ -785,8 +785,19 @@ class BatchDocumentProcessor:
             safe_response = sanitize_for_rich(response, max_length=500)
             rprint(f"[yellow]Model Response:[/yellow] {safe_response}")
 
-        # Parse document type from response
-        document_type = self._parse_document_type_response(response, detection_config)
+        # Extract only the assistant's response (not the prompt) for parsing
+        # Llama responses include full conversation: "user\n\n[prompt]\nassistant\n\n[answer]"
+        if "assistant" in response:
+            # Get everything after the last "assistant" marker
+            assistant_response = response.split("assistant")[-1].strip()
+        else:
+            # Fallback: use full response (shouldn't happen normally)
+            assistant_response = response
+
+        # Parse document type from assistant's response only
+        document_type = self._parse_document_type_response(
+            assistant_response, detection_config
+        )
 
         if verbose:
             rprint(f"[green]✅ Detected Document Type: {document_type}[/green]\n")
