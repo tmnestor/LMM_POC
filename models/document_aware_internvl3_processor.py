@@ -635,15 +635,15 @@ class DocumentAwareInternVL3HybridProcessor:
         # Fallback keyword detection
         if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
             if self.debug:
-                print(f"✅ PARSING DEBUG - Keyword match: RECEIPT")
+                print("✅ PARSING DEBUG - Keyword match: RECEIPT")
             return "RECEIPT"
         elif any(word in response_lower for word in ["bank", "statement", "account"]):
             if self.debug:
-                print(f"✅ PARSING DEBUG - Keyword match: BANK_STATEMENT")
+                print("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT")
             return "BANK_STATEMENT"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
-                print(f"✅ PARSING DEBUG - Keyword match: INVOICE")
+                print("✅ PARSING DEBUG - Keyword match: INVOICE")
             return "INVOICE"
 
         # Final fallback
