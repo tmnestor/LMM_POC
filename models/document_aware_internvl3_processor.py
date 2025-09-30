@@ -447,10 +447,11 @@ class DocumentAwareInternVL3HybridProcessor:
             max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
 
             if verbose:
-                print(f"🔍 Using InternVL3 document detection prompt: {detection_key}")
-                # Escape problematic characters that might trigger Rich recursion
-                safe_prompt = detection_prompt[:100].replace('[', '\\[').replace(']', '\\]')
-                print(f"📝 Prompt: {safe_prompt}...")
+                # Use direct stdout to bypass Rich console completely for detection
+                import sys
+                sys.stdout.write(f"🔍 Using InternVL3 document detection prompt: {detection_key}\n")
+                sys.stdout.write(f"📝 Prompt: {detection_prompt[:100]}...\n")
+                sys.stdout.flush()
 
             # Load and preprocess image using InternVL3 pipeline
             pixel_values = self.load_image(image_path)
@@ -473,15 +474,19 @@ class DocumentAwareInternVL3HybridProcessor:
             )
 
             if verbose:
-                # Sanitize response content to prevent Rich recursion
-                safe_response = response.replace('[', '\\[').replace(']', '\\]')[:200]
-                print(f"🤖 Model response: {safe_response}...")
+                # Use direct stdout to bypass Rich console completely for detection
+                import sys
+                sys.stdout.write(f"🤖 Model response: {response}\n")
+                sys.stdout.flush()
 
             # Parse document type from response
             document_type = self._parse_document_type_response(response, detection_config)
 
             if verbose:
-                print(f"✅ Detected document type: {document_type}")
+                # Use direct stdout to bypass Rich console completely for detection
+                import sys
+                sys.stdout.write(f"✅ Detected document type: {document_type}\n")
+                sys.stdout.flush()
 
             return {
                 "document_type": document_type,
@@ -492,10 +497,13 @@ class DocumentAwareInternVL3HybridProcessor:
 
         except Exception as e:
             # ALWAYS show detection errors - critical for debugging
-            print(f"❌ DETECTION ERROR: {e}")
+            import sys
+            sys.stdout.write(f"❌ DETECTION ERROR: {e}\n")
+            sys.stdout.flush()
             if self.debug:
                 import traceback
-                print("❌ DETECTION ERROR TRACEBACK:")
+                sys.stdout.write("❌ DETECTION ERROR TRACEBACK:\n")
+                sys.stdout.flush()
                 traceback.print_exc()
 
             # Fallback to simple heuristic
@@ -648,11 +656,11 @@ class DocumentAwareInternVL3HybridProcessor:
         response_lower = response.lower().strip()
 
         if self.debug:
-            # Sanitize content to prevent Rich recursion
-            safe_response = response.replace('[', '\\[').replace(']', '\\]')[:100]
-            safe_response_lower = response_lower.replace('[', '\\[').replace(']', '\\]')[:100]
-            print(f"🔍 PARSING DEBUG - Raw response: '{safe_response}'")
-            print(f"🔍 PARSING DEBUG - Cleaned response: '{safe_response_lower}'")
+            # Use direct stdout to bypass Rich console completely for detection debug
+            import sys
+            sys.stdout.write(f"🔍 PARSING DEBUG - Raw response: '{response}'\n")
+            sys.stdout.write(f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'\n")
+            sys.stdout.flush()
 
         # Get type mappings from config
         type_mappings = detection_config.get("type_mappings", {})
@@ -661,27 +669,37 @@ class DocumentAwareInternVL3HybridProcessor:
         for variant, canonical in type_mappings.items():
             if variant.lower() in response_lower:
                 if self.debug:
-                    print(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'")
+                    import sys
+                    sys.stdout.write(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n")
+                    sys.stdout.flush()
                 return canonical
 
         # Fallback keyword detection
         if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: RECEIPT")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: RECEIPT\n")
+                sys.stdout.flush()
             return "RECEIPT"
         elif any(word in response_lower for word in ["bank", "statement", "account"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT\n")
+                sys.stdout.flush()
             return "BANK_STATEMENT"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
-                print("✅ PARSING DEBUG - Keyword match: INVOICE")
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: INVOICE\n")
+                sys.stdout.flush()
             return "INVOICE"
 
         # Final fallback
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
         if self.debug:
-            print(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'")
+            import sys
+            sys.stdout.write(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n")
+            sys.stdout.flush()
         return fallback
 
     def load_document_image(self, image_path: str) -> Image.Image:
@@ -731,7 +749,9 @@ class DocumentAwareInternVL3HybridProcessor:
             # CRITICAL: Detect infinite recursion patterns FIRST
             if self._detect_recursion_pattern(response):
                 if self.debug:
-                    print(f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars")
+                    import sys
+                    sys.stdout.write(f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n")
+                    sys.stdout.flush()
                 # For detection, we only need the document type anyway
                 response = response[:200]  # Less aggressive truncation
             elif len(response) > 2000:  # Much higher safety limit for normal responses
@@ -760,7 +780,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
-                        print(f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars")
+                        import sys
+                        sys.stdout.write(f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars\n")
+                        sys.stdout.flush()
                     response = response[:200]  # Less aggressive truncation
                 elif len(response) > 2000:  # Higher safety limit for normal responses
                     response = response[:2000]  # Allow longer responses for extraction
@@ -793,7 +815,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
-                        print(f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars")
+                        import sys
+                        sys.stdout.write(f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars\n")
+                        sys.stdout.flush()
                     response = response[:200]  # Less aggressive truncation
                 elif len(response) > 2000:  # Higher safety limit for normal responses
                     response = response[:2000]  # Allow longer responses for extraction
@@ -805,8 +829,10 @@ class DocumentAwareInternVL3HybridProcessor:
         except Exception as e:
             # CRITICAL: Catch all other exceptions to prevent infinite recursion
             if self.debug:
-                print(f"❌ CRITICAL: Generation failed with exception: {e}")
-                print(f"Exception type: {type(e).__name__}")
+                import sys
+                sys.stdout.write(f"❌ CRITICAL: Generation failed with exception: {e}\n")
+                sys.stdout.write(f"Exception type: {type(e).__name__}\n")
+                sys.stdout.flush()
                 import traceback
                 traceback.print_exc()
 
