@@ -194,7 +194,9 @@ class BatchDocumentProcessor:
                         )
 
                         if verbose:
-                            rprint("[blue]🧮 Applying mathematical enhancement for bank statement[/blue]")
+                            rprint(
+                                "[blue]🧮 Applying mathematical enhancement for bank statement[/blue]"
+                            )
 
                         # Get enhanced data with mathematical corrections
                         enhanced_result = enhance_bank_statement_extraction(
@@ -203,18 +205,25 @@ class BatchDocumentProcessor:
 
                         # Separate the corrected extraction data from analysis metadata
                         extracted_data = {
-                            k: v for k, v in enhanced_result.items()
-                            if k != '_mathematical_analysis'
+                            k: v
+                            for k, v in enhanced_result.items()
+                            if k != "_mathematical_analysis"
                         }
 
                         # Store analysis metadata for reporting but don't include in evaluation
-                        mathematical_analysis = enhanced_result.get('_mathematical_analysis', {})
+                        mathematical_analysis = enhanced_result.get(
+                            "_mathematical_analysis", {}
+                        )
 
                         # CRITICAL: Filter to debit-only transactions for evaluation
                         if verbose:
-                            rprint("[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]")
+                            rprint(
+                                "[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]"
+                            )
 
-                        extracted_data = self._filter_debit_transactions(extracted_data, verbose)
+                        extracted_data = self._filter_debit_transactions(
+                            extracted_data, verbose
+                        )
 
                     if verbose:
                         found_fields = [
@@ -225,36 +234,69 @@ class BatchDocumentProcessor:
                         )
 
                         # Show mathematical enhancement results if applied
-                        if document_type.upper() == "BANK_STATEMENT" and 'mathematical_analysis' in locals():
-                            if mathematical_analysis.get('calculation_success'):
-                                rprint(f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]")
+                        if (
+                            document_type.upper() == "BANK_STATEMENT"
+                            and "mathematical_analysis" in locals()
+                        ):
+                            if mathematical_analysis.get("calculation_success"):
+                                rprint(
+                                    f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]"
+                                )
                             else:
-                                rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
+                                rprint(
+                                    "[yellow]⚠️ Mathematical analysis failed[/yellow]"
+                                )
 
                     # Filter ground truth to document-specific fields for accurate evaluation
                     # Define document-specific field lists for evaluation
                     doc_type_fields = {
-                        'invoice': [
-                            "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                            "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                            "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                            "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                        "invoice": [
+                            "DOCUMENT_TYPE",
+                            "BUSINESS_ABN",
+                            "SUPPLIER_NAME",
+                            "BUSINESS_ADDRESS",
+                            "PAYER_NAME",
+                            "PAYER_ADDRESS",
+                            "INVOICE_DATE",
+                            "LINE_ITEM_DESCRIPTIONS",
+                            "LINE_ITEM_QUANTITIES",
+                            "LINE_ITEM_PRICES",
+                            "LINE_ITEM_TOTAL_PRICES",
+                            "IS_GST_INCLUDED",
+                            "GST_AMOUNT",
+                            "TOTAL_AMOUNT",
                         ],
-                        'receipt': [
-                            "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                            "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                            "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                            "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+                        "receipt": [
+                            "DOCUMENT_TYPE",
+                            "BUSINESS_ABN",
+                            "SUPPLIER_NAME",
+                            "BUSINESS_ADDRESS",
+                            "PAYER_NAME",
+                            "PAYER_ADDRESS",
+                            "INVOICE_DATE",
+                            "LINE_ITEM_DESCRIPTIONS",
+                            "LINE_ITEM_QUANTITIES",
+                            "LINE_ITEM_PRICES",
+                            "LINE_ITEM_TOTAL_PRICES",
+                            "IS_GST_INCLUDED",
+                            "GST_AMOUNT",
+                            "TOTAL_AMOUNT",
                         ],
-                        'bank_statement': [
-                            "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                            "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                            "ACCOUNT_BALANCE"
-                        ]
+                        "bank_statement": [
+                            "DOCUMENT_TYPE",
+                            "STATEMENT_DATE_RANGE",
+                            "LINE_ITEM_DESCRIPTIONS",
+                            "TRANSACTION_DATES",
+                            "TRANSACTION_AMOUNTS_PAID",
+                            "TRANSACTION_AMOUNTS_RECEIVED",
+                            "ACCOUNT_BALANCE",
+                        ],
                     }
                     # Ensure case-insensitive document type matching for evaluation fields
                     document_type_lower_eval = document_type.lower()
-                    evaluation_fields = doc_type_fields.get(document_type_lower_eval, doc_type_fields['invoice'])
+                    evaluation_fields = doc_type_fields.get(
+                        document_type_lower_eval, doc_type_fields["invoice"]
+                    )
 
                     filtered_ground_truth = {
                         field: ground_truth[field]
@@ -264,7 +306,9 @@ class BatchDocumentProcessor:
 
                     # Use SimpleModelEvaluator for clean model comparison with filtered data
                     if verbose and document_type.upper() == "BANK_STATEMENT":
-                        rprint("[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]")
+                        rprint(
+                            "[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]"
+                        )
 
                     evaluation_result = self.model_evaluator.evaluate_extraction(
                         extracted_data, filtered_ground_truth, image_path
@@ -272,7 +316,9 @@ class BatchDocumentProcessor:
 
                     # Convert to expected format for compatibility
                     # Calculate fields_extracted and fields_matched for notebook compatibility
-                    fields_extracted = len([k for k, v in extracted_data.items() if v != "NOT_FOUND"])
+                    fields_extracted = len(
+                        [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+                    )
                     fields_matched = evaluation_result.correct_fields
 
                     evaluation = {
@@ -283,7 +329,7 @@ class BatchDocumentProcessor:
                         "incorrect_fields": evaluation_result.incorrect_fields,
                         # Add notebook-expected keys
                         "fields_extracted": fields_extracted,
-                        "fields_matched": fields_matched
+                        "fields_matched": fields_matched,
                     }
 
                     # SimpleModelEvaluator already provides data in correct format - no flattening needed
@@ -367,59 +413,80 @@ class BatchDocumentProcessor:
 
         return batch_results, processing_times, document_types_found
 
-    def _filter_debit_transactions(self, extracted_data: dict, verbose: bool = False) -> dict:
+    def _filter_debit_transactions(
+        self, extracted_data: dict, verbose: bool = False
+    ) -> dict:
         """
         Filter bank statement data to keep only debit transactions using pandas.
 
         This removes credit transactions from all transaction arrays to match ground truth
         which only contains debit transactions.
         """
-        if extracted_data.get('DOCUMENT_TYPE') != 'BANK_STATEMENT':
+        if extracted_data.get("DOCUMENT_TYPE") != "BANK_STATEMENT":
             return extracted_data  # Only filter bank statements
 
         try:
             import pandas as pd
 
             # Get transaction arrays
-            descriptions = extracted_data.get('LINE_ITEM_DESCRIPTIONS', '')
-            dates = extracted_data.get('TRANSACTION_DATES', '')
-            paid = extracted_data.get('TRANSACTION_AMOUNTS_PAID', '')
-            received = extracted_data.get('TRANSACTION_AMOUNTS_RECEIVED', '')
-            balances = extracted_data.get('ACCOUNT_BALANCE', '')
+            descriptions = extracted_data.get("LINE_ITEM_DESCRIPTIONS", "")
+            dates = extracted_data.get("TRANSACTION_DATES", "")
+            paid = extracted_data.get("TRANSACTION_AMOUNTS_PAID", "")
+            received = extracted_data.get("TRANSACTION_AMOUNTS_RECEIVED", "")
+            balances = extracted_data.get("ACCOUNT_BALANCE", "")
 
-            if any(field == '' or field == 'NOT_FOUND' for field in [descriptions, dates, paid, balances]):
+            if any(
+                field == "" or field == "NOT_FOUND"
+                for field in [descriptions, dates, paid, balances]
+            ):
                 if verbose:
-                    rprint("[yellow]⚠️ Missing transaction data - skipping debit filtering[/yellow]")
+                    rprint(
+                        "[yellow]⚠️ Missing transaction data - skipping debit filtering[/yellow]"
+                    )
                 return extracted_data
 
             # Create DataFrame from transaction data
-            transactions_df = pd.DataFrame({
-                'description': descriptions.split(' | '),
-                'date': dates.split(' | '),
-                'paid': paid.split(' | '),
-                'received': received.split(' | ') if received != 'NOT_FOUND' else None,
-                'balance': balances.split(' | ')
-            })
+            transactions_df = pd.DataFrame(
+                {
+                    "description": descriptions.split(" | "),
+                    "date": dates.split(" | "),
+                    "paid": paid.split(" | "),
+                    "received": received.split(" | ")
+                    if received != "NOT_FOUND"
+                    else None,
+                    "balance": balances.split(" | "),
+                }
+            )
 
             if verbose:
                 rprint(f"[dim]Pre-filter: {len(transactions_df)} transactions[/dim]")
 
             # Filter to keep only debit transactions (where paid != 'NOT_FOUND')
-            debit_df = transactions_df[transactions_df['paid'] != 'NOT_FOUND'].copy()
+            debit_df = transactions_df[transactions_df["paid"] != "NOT_FOUND"].copy()
 
             if verbose:
-                rprint(f"[dim]Debit transactions found: {len(debit_df)}/{len(transactions_df)}[/dim]")
+                rprint(
+                    f"[dim]Debit transactions found: {len(debit_df)}/{len(transactions_df)}[/dim]"
+                )
 
             # Convert back to pipe-separated strings
             filtered_data = extracted_data.copy()
-            filtered_data['LINE_ITEM_DESCRIPTIONS'] = ' | '.join(debit_df['description'].tolist())
-            filtered_data['TRANSACTION_DATES'] = ' | '.join(debit_df['date'].tolist())
-            filtered_data['TRANSACTION_AMOUNTS_PAID'] = ' | '.join(debit_df['paid'].tolist())
-            filtered_data['TRANSACTION_AMOUNTS_RECEIVED'] = 'NOT_FOUND'  # No credits in debit-only
-            filtered_data['ACCOUNT_BALANCE'] = ' | '.join(debit_df['balance'].tolist())
+            filtered_data["LINE_ITEM_DESCRIPTIONS"] = " | ".join(
+                debit_df["description"].tolist()
+            )
+            filtered_data["TRANSACTION_DATES"] = " | ".join(debit_df["date"].tolist())
+            filtered_data["TRANSACTION_AMOUNTS_PAID"] = " | ".join(
+                debit_df["paid"].tolist()
+            )
+            filtered_data["TRANSACTION_AMOUNTS_RECEIVED"] = (
+                "NOT_FOUND"  # No credits in debit-only
+            )
+            filtered_data["ACCOUNT_BALANCE"] = " | ".join(debit_df["balance"].tolist())
 
             if verbose:
-                rprint(f"[green]✅ Pandas filtered to {len(debit_df)} debit transactions[/green]")
+                rprint(
+                    f"[green]✅ Pandas filtered to {len(debit_df)} debit transactions[/green]"
+                )
 
             return filtered_data
 
@@ -438,11 +505,17 @@ class BatchDocumentProcessor:
 
         response_lower = response.lower().strip()
 
-        # First try direct match for standard types
-        standard_types = ["INVOICE", "RECEIPT", "BANK_STATEMENT"]
-        for doc_type in standard_types:
-            if doc_type.lower() in response_lower:
-                return doc_type
+        # Check for bank statement first (matches both "bank_statement" and "bank statement")
+        if "bank" in response_lower and "statement" in response_lower:
+            return "BANK_STATEMENT"
+
+        # Check for receipt
+        if "receipt" in response_lower:
+            return "RECEIPT"
+
+        # Check for invoice
+        if "invoice" in response_lower or "bill" in response_lower:
+            return "INVOICE"
 
         # Look in type mappings for variations
         type_mappings = detection_config.get("type_mappings", {})
@@ -580,7 +653,9 @@ class BatchDocumentProcessor:
             rprint(f"[green]✅ Detected Document Type: {document_type}[/green]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
-            rprint(f"[bold cyan]📊 INTERNVL3 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]")
+            rprint(
+                f"[bold cyan]📊 INTERNVL3 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]"
+            )
             rprint("[cyan]━" * 80 + "[/cyan]")
 
         # Step 2: Process with document-aware extraction
@@ -605,7 +680,6 @@ class BatchDocumentProcessor:
         # Prompt name for InternVL3
         prompt_name = f"internvl3_{document_type.lower()}"
 
-
         return document_type, formatted_result, prompt_name
 
     def _process_llama_image(
@@ -624,7 +698,6 @@ class BatchDocumentProcessor:
         # Step 1: Detect document type using YAML-first approach
         import yaml
 
-
         # Load detection config from YAML
         detection_path = Path(self.prompt_config["detection_file"])
         with detection_path.open("r") as f:
@@ -632,22 +705,26 @@ class BatchDocumentProcessor:
 
         # Get detection prompt and settings
         # Use the key specified in prompt_config, falling back to YAML default if not specified
-        detection_prompt_key = self.prompt_config.get("detection_key") or detection_config.get("settings", {}).get(
-            "default_prompt", "detection"
-        )
+        detection_prompt_key = self.prompt_config.get(
+            "detection_key"
+        ) or detection_config.get("settings", {}).get("default_prompt", "detection")
         doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
         max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
 
         # Debug: Show detection token configuration
         if verbose:
-            configured_model_tokens = getattr(self.model.config, 'max_new_tokens', None)
-            rprint(f"[cyan]🔧 Detection tokens - YAML: {max_tokens}, Model config: {configured_model_tokens}[/cyan]")
+            configured_model_tokens = getattr(self.model.config, "max_new_tokens", None)
+            rprint(
+                f"[cyan]🔧 Detection tokens - YAML: {max_tokens}, Model config: {configured_model_tokens}[/cyan]"
+            )
 
         # Show detection prompt when verbose
         if verbose:
             rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
             rprint("[cyan]━" * 80 + "[/cyan]")
-            rprint(f"[yellow]Detection Prompt (using key: '{detection_prompt_key}'):[/yellow]")
+            rprint(
+                f"[yellow]Detection Prompt (using key: '{detection_prompt_key}'):[/yellow]"
+            )
             rprint(f"[dim]{doc_type_prompt}[/dim]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
@@ -663,8 +740,8 @@ class BatchDocumentProcessor:
                 "role": "user",
                 "content": [
                     {"type": "image"},
-                    {"type": "text", "text": doc_type_prompt}
-                ]
+                    {"type": "text", "text": doc_type_prompt},
+                ],
             }
         ]
 
@@ -677,8 +754,12 @@ class BatchDocumentProcessor:
         # Debug device information for detection step
         if verbose:
             print(f"🔍 DETECTION - Model device: {self.model.device}")
-            print(f"🔍 DETECTION - Model hf_device_map: {getattr(self.model, 'hf_device_map', 'None')}")
-            print(f"🔍 DETECTION - Available GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved")
+            print(
+                f"🔍 DETECTION - Model hf_device_map: {getattr(self.model, 'hf_device_map', 'None')}"
+            )
+            print(
+                f"🔍 DETECTION - Available GPU memory: {torch.cuda.memory_allocated() / 1e9:.2f}GB allocated, {torch.cuda.memory_reserved() / 1e9:.2f}GB reserved"
+            )
 
         # Clear GPU 1 cache before processing since model has layers there
         torch.cuda.empty_cache()
@@ -715,6 +796,7 @@ class BatchDocumentProcessor:
         if verbose:
             rprint("[dim]🧹 Cleaning memory before extraction...[/dim]")
         from common.gpu_optimization import emergency_cleanup
+
         emergency_cleanup(verbose=False)
 
         # Initialize bank statement structure (used for prompt selection)
@@ -731,12 +813,14 @@ class BatchDocumentProcessor:
                 image_path=image_path,
                 model=self.model,
                 processor=self.processor,
-                verbose=verbose
+                verbose=verbose,
             )
 
             if verbose:
                 rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
-                rprint(f"[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement_{bank_structure})[/cyan]")
+                rprint(
+                    f"[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement_{bank_structure})[/cyan]"
+                )
 
         # Step 2: Load document-specific prompt using SimplePromptLoader
         prompt_loader = SimplePromptLoader()
@@ -745,59 +829,100 @@ class BatchDocumentProcessor:
             if document_type == "BANK_STATEMENT":
                 # Use structure-specific bank statement prompt
                 prompt_key = f"bank_statement_{bank_structure}"
-                extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", prompt_key)
+                extraction_prompt = prompt_loader.load_prompt(
+                    "llama_prompts.yaml", prompt_key
+                )
                 prompt_name = f"llama_{prompt_key}_prompt"
             else:
                 # Use standard document type prompt
-                extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", document_type.lower())
+                extraction_prompt = prompt_loader.load_prompt(
+                    "llama_prompts.yaml", document_type.lower()
+                )
                 prompt_name = f"llama_{document_type.lower()}_prompt"
         except KeyError:
             # Fall back to universal prompt if specific document type not found
-            extraction_prompt = prompt_loader.load_prompt("llama_prompts.yaml", "universal")
+            extraction_prompt = prompt_loader.load_prompt(
+                "llama_prompts.yaml", "universal"
+            )
             prompt_name = "llama_universal_prompt"
 
         # Step 3: Extract fields using simplified field mapping
         doc_type_fields = {
-            'invoice': [
-                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            "invoice": [
+                "DOCUMENT_TYPE",
+                "BUSINESS_ABN",
+                "SUPPLIER_NAME",
+                "BUSINESS_ADDRESS",
+                "PAYER_NAME",
+                "PAYER_ADDRESS",
+                "INVOICE_DATE",
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED",
+                "GST_AMOUNT",
+                "TOTAL_AMOUNT",
             ],
-            'receipt': [
-                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
+            "receipt": [
+                "DOCUMENT_TYPE",
+                "BUSINESS_ABN",
+                "SUPPLIER_NAME",
+                "BUSINESS_ADDRESS",
+                "PAYER_NAME",
+                "PAYER_ADDRESS",
+                "INVOICE_DATE",
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES",
+                "IS_GST_INCLUDED",
+                "GST_AMOUNT",
+                "TOTAL_AMOUNT",
             ],
-            'bank_statement': [
-                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                "ACCOUNT_BALANCE"
-            ]
+            "bank_statement": [
+                "DOCUMENT_TYPE",
+                "STATEMENT_DATE_RANGE",
+                "LINE_ITEM_DESCRIPTIONS",
+                "TRANSACTION_DATES",
+                "TRANSACTION_AMOUNTS_PAID",
+                "TRANSACTION_AMOUNTS_RECEIVED",
+                "ACCOUNT_BALANCE",
+            ],
         }
         # Ensure case-insensitive document type matching for field list selection
         document_type_lower = document_type.lower()
-        field_list = doc_type_fields.get(document_type_lower, doc_type_fields['invoice'])
+        field_list = doc_type_fields.get(
+            document_type_lower, doc_type_fields["invoice"]
+        )
 
         # Create document-aware processor with loaded model/processor
         if verbose:
             rprint("\n[bold cyan]📋 FIELD EXTRACTION[/bold cyan]")
-            rprint(f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]")
-            rprint(f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]")
+            rprint(
+                f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]"
+            )
+            rprint(
+                f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]"
+            )
 
         # Use configured max_tokens from model if available, otherwise calculate
-        configured_tokens = getattr(self.model.config, 'max_new_tokens', None)
+        configured_tokens = getattr(self.model.config, "max_new_tokens", None)
         if configured_tokens:
             max_tokens = configured_tokens
             if verbose:
-                rprint(f"[cyan]🔧 Using configured max_tokens: {max_tokens} (from notebook CONFIG)[/cyan]")
+                rprint(
+                    f"[cyan]🔧 Using configured max_tokens: {max_tokens} (from notebook CONFIG)[/cyan]"
+                )
         else:
             # Fallback to calculation
             from .config import get_max_new_tokens
+
             max_tokens = get_max_new_tokens("llama", len(field_list))
             if verbose:
-                rprint(f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]")
+                rprint(
+                    f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]"
+                )
 
         # Use direct model approach for extraction (like working notebook)
         image = Image.open(image_path)
@@ -808,8 +933,8 @@ class BatchDocumentProcessor:
                 "role": "user",
                 "content": [
                     {"type": "image"},
-                    {"type": "text", "text": extraction_prompt}
-                ]
+                    {"type": "text", "text": extraction_prompt},
+                ],
             }
         ]
 
@@ -817,7 +942,9 @@ class BatchDocumentProcessor:
         textInput = self.processor.apply_chat_template(
             messageDataStructure, add_generation_prompt=True
         )
-        inputs = self.processor(image, textInput, return_tensors="pt").to(self.model.device)
+        inputs = self.processor(image, textInput, return_tensors="pt").to(
+            self.model.device
+        )
 
         # Generate response directly like working notebook
         with torch.no_grad():
@@ -832,12 +959,13 @@ class BatchDocumentProcessor:
 
         # Create extraction result in expected format
         from .extraction_parser import parse_extraction_response
+
         parsed_data = parse_extraction_response(response, field_list)
 
         extraction_result = {
-            'extracted_data': parsed_data,
-            'raw_response': response,
-            'field_list': field_list
+            "extracted_data": parsed_data,
+            "raw_response": response,
+            "field_list": field_list,
         }
 
         return document_type, extraction_result, prompt_name
