@@ -751,16 +751,6 @@ class BatchDocumentProcessor:
         )
         inputs = self.processor(image, textInput, return_tensors="pt")
 
-        # Debug device information for detection step
-        if verbose:
-            print(f"🔍 DETECTION - Model device: {self.model.device}")
-            print(
-                f"🔍 DETECTION - Model hf_device_map: {getattr(self.model, 'hf_device_map', 'None')}"
-            )
-            print(
-                f"🔍 DETECTION - Available GPU memory: {torch.cuda.memory_allocated() / 1e9:.2f}GB allocated, {torch.cuda.memory_reserved() / 1e9:.2f}GB reserved"
-            )
-
         # Clear GPU 1 cache before processing since model has layers there
         torch.cuda.empty_cache()
         if torch.cuda.device_count() > 1:
@@ -957,10 +947,30 @@ class BatchDocumentProcessor:
             )
         response = self.processor.decode(output[0], skip_special_tokens=True)
 
+        # Show raw extraction response when verbose
+        if verbose:
+            rprint("\n[bold yellow]📄 RAW MODEL EXTRACTION RESPONSE:[/bold yellow]")
+            # Sanitize and show raw response
+            safe_response = sanitize_for_rich(response, max_length=2000)
+            rprint(f"[dim]{safe_response}[/dim]")
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
+
         # Create extraction result in expected format
         from .extraction_parser import parse_extraction_response
 
         parsed_data = parse_extraction_response(response, field_list)
+
+        # Show parsed/cleaned data when verbose
+        if verbose:
+            rprint("[bold green]✅ PARSED EXTRACTION DATA:[/bold green]")
+            for field, value in parsed_data.items():
+                if value != "NOT_FOUND":
+                    # Truncate long values for readability
+                    display_value = (
+                        str(value)[:100] + "..." if len(str(value)) > 100 else value
+                    )
+                    rprint(f"  [cyan]{field}:[/cyan] {display_value}")
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
 
         extraction_result = {
             "extracted_data": parsed_data,
