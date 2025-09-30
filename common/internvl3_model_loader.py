@@ -23,23 +23,24 @@ def load_internvl3_model(
     max_new_tokens: int = 4000,
     torch_dtype: str = "bfloat16",
     low_cpu_mem_usage: bool = True,
-    verbose: bool = True,
-    force_quantization: bool = False
+    verbose: bool = True
 ) -> Tuple[Any, Any]:
     """
     Load InternVL3 model with official optimizations.
 
     Based on https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
 
+    CRITICAL: InternVL3 models REQUIRE 8-bit quantization on V100 GPUs to function properly.
+    Without quantization, the model produces gibberish responses on V100 hardware.
+
     Args:
         model_path: Path to InternVL3 model
-        use_quantization: Use 8-bit quantization (requires appropriate GPU memory)
+        use_quantization: Use 8-bit quantization (REQUIRED for V100, recommended for other GPUs)
         device_map: Device mapping strategy
         max_new_tokens: Maximum tokens for generation
         torch_dtype: Data type (bfloat16 recommended)
         low_cpu_mem_usage: Enable low CPU memory usage
         verbose: Enable detailed logging
-        force_quantization: If True, never override quantization setting (for V100 compatibility)
 
     Returns:
         Tuple of (model, tokenizer)
@@ -160,7 +161,8 @@ def load_internvl3_model(
         # Enhanced quantization decision using robust memory detection
         # CRITICAL FIX: Check high memory REGARDLESS of initial use_quantization setting
 
-        # V100-specific logic: Dynamic assessment for 1x, 2x, 3x, or 4x V100 setups
+        # CRITICAL FIX: InternVL3 models REQUIRE 8-bit quantization on V100 GPUs for proper operation
+        # Per official documentation and user testing, this is mandatory for correct responses
         v100_gpus = [gpu for gpu in memory_result.per_gpu_info if gpu.is_available and "V100" in gpu.name.upper()]
         v100_detected = len(v100_gpus) > 0
 
@@ -168,59 +170,44 @@ def load_internvl3_model(
             v100_count = len(v100_gpus)
             v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
 
-            # Dynamic V100 memory thresholds:
-            # 1x V100 (16GB): Needs quantization (< 20GB threshold)
-            # 2x V100 (32GB): Can do full precision (>= 20GB threshold)
-            # 3x V100 (48GB): Excellent for full precision
-            # 4x V100 (64GB): Excellent for full precision
-
-            v100_threshold = estimated_memory_needed + memory_buffer  # ~20GB for InternVL3-8B
-
-            if v100_total_memory >= v100_threshold:
-                # Sufficient V100 memory for full precision
-                if use_quantization and not force_quantization:
-                    if verbose:
-                        rprint(f"[green]🚀 {v100_count}x V100 setup detected ({v100_total_memory:.0f}GB total), disabling quantization for optimal performance[/green]")
-                    use_quantization = False
-                elif use_quantization and force_quantization:
-                    if verbose:
-                        rprint(f"[yellow]🔒 {v100_count}x V100 with {v100_total_memory:.0f}GB - FORCING quantization as explicitly requested[/yellow]")
-                else:
-                    if verbose:
-                        rprint(f"[green]✅ {v100_count}x V100 with {v100_total_memory:.0f}GB - running in full precision as requested[/green]")
+            # CRITICAL: InternVL3 models MUST use 8-bit quantization on V100 GPUs
+            # Without quantization, the model produces gibberish responses
+            if not use_quantization:
+                if verbose:
+                    rprint(f"[yellow]⚠️ {v100_count}x V100 detected ({v100_total_memory:.0f}GB) - FORCING 8-bit quantization for InternVL3[/yellow]")
+                    rprint("[yellow]📝 Note: 8-bit quantization is REQUIRED for InternVL3 on V100 GPUs[/yellow]")
+                use_quantization = True
             else:
-                # Insufficient V100 memory - likely 1x V100
-                if not use_quantization:
-                    if verbose:
-                        rprint(f"[yellow]⚠️ {v100_count}x V100 setup ({v100_total_memory:.0f}GB) insufficient for full precision, enabling quantization[/yellow]")
-                    use_quantization = True
-                else:
-                    if verbose:
-                        rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
+                if verbose:
+                    rprint(f"[green]✅ {v100_count}x V100 with {v100_total_memory:.0f}GB - using required 8-bit quantization[/green]")
         elif gpu_config and gpu_config.is_high_memory:
-            # High-memory GPUs (H200, H100, etc.)
-            if use_quantization and not force_quantization:
+            # High-memory GPUs (H200, H100, L40, etc.) - allow configuration choice
+            # L40 and other modern GPUs can handle both modes
+            l40_detected = any("L40" in gpu.name.upper() for gpu in memory_result.per_gpu_info if gpu.is_available)
+
+            if l40_detected:
                 if verbose:
-                    rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
-                use_quantization = False
-            elif use_quantization and force_quantization:
-                if verbose:
-                    rprint(f"[yellow]🔒 {gpu_architecture} with {total_gpu_memory:.0f}GB - FORCING quantization as explicitly requested[/yellow]")
+                    if use_quantization:
+                        rprint(f"[green]✅ L40 GPU detected ({total_gpu_memory:.0f}GB) - using 8-bit quantization as configured[/green]")
+                    else:
+                        rprint(f"[cyan]🔍 L40 GPU detected ({total_gpu_memory:.0f}GB) - running in full precision mode[/cyan]")
+                        rprint("[cyan]💡 Note: Enable quantization if you encounter gibberish responses[/cyan]")
             else:
-                if verbose:
-                    rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
+                # Other high-memory GPUs (H200, H100, etc.)
+                if use_quantization:
+                    if verbose:
+                        rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - using 8-bit quantization as configured[/green]")
+                else:
+                    if verbose:
+                        rprint(f"[green]✅ {gpu_architecture} with {total_gpu_memory:.0f}GB - running in full precision as configured[/green]")
         elif memory_sufficient:
-            # Sufficient memory based on available memory calculation
-            if use_quantization and not force_quantization:
-                if verbose:
-                    rprint(f"[green]🚀 Sufficient GPU memory detected ({total_available_memory:.0f}GB available), disabling quantization for better performance[/green]")
-                use_quantization = False
-            elif use_quantization and force_quantization:
-                if verbose:
-                    rprint(f"[yellow]🔒 Sufficient memory ({total_available_memory:.0f}GB) - FORCING quantization as explicitly requested[/yellow]")
-            else:
-                if verbose:
-                    rprint(f"[green]✅ Memory sufficient ({total_available_memory:.0f}GB available) - running in full precision as requested[/green]")
+            # Sufficient memory based on available memory calculation - respect user configuration
+            if verbose:
+                if use_quantization:
+                    rprint(f"[green]✅ Sufficient GPU memory detected ({total_available_memory:.0f}GB available) - using 8-bit quantization as configured[/green]")
+                    rprint("[cyan]💡 Note: You have sufficient memory for full precision if needed[/cyan]")
+                else:
+                    rprint(f"[green]✅ Memory sufficient ({total_available_memory:.0f}GB available) - running in full precision as configured[/green]")
         elif not memory_sufficient:
             # Insufficient memory - enable quantization if not already enabled
             if not use_quantization:
@@ -251,6 +238,7 @@ def load_internvl3_model(
                 v100_count = len(v100_gpus)
                 v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
                 rprint(f"[cyan]   V100 Configuration: {v100_count}x V100 = {v100_total_memory:.0f}GB total[/cyan]")
+                rprint("[yellow]   ⚠️ CRITICAL: 8-bit quantization is REQUIRED for V100 GPUs[/yellow]")
 
             # Show any critical warnings
             if memory_result.warnings:
