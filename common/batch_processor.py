@@ -13,6 +13,9 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
 
+# Import Rich content sanitization to prevent recursion errors
+from .extraction_cleaner import sanitize_for_rich
+
 from .evaluation_metrics import load_ground_truth
 from .simple_model_evaluator import SimpleModelEvaluator
 from .simple_prompt_loader import SimplePromptLoader
@@ -658,9 +661,10 @@ class BatchDocumentProcessor:
             image_path, doc_type_prompt, max_new_tokens=max_tokens
         )
 
-        # Show raw response when verbose
+        # Show raw response when verbose (sanitized for Rich console safety)
         if verbose:
-            rprint(f"[yellow]Model Response:[/yellow] {response}")
+            safe_response = sanitize_for_rich(response, max_length=500)
+            rprint(f"[yellow]Model Response:[/yellow] {safe_response}")
 
         # Parse document type from response
         document_type = self._parse_document_type_response(response, detection_config)

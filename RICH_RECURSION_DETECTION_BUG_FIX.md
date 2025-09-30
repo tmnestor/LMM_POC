@@ -160,6 +160,108 @@ except Exception as e:
 - Include special characters in test cases
 - Monitor for recursion patterns in CI/CD
 
+## Extended Investigation - Additional Rich Recursion Sources
+
+### Secondary Issue: Model Response Content Recursion
+After resolving the detection prompt issue, **additional Rich recursion sources were discovered**:
+
+#### Model Response Patterns Causing Recursion
+- **Repetitive content**: Model generating hundreds of repeated date entries (`27/08/2025` repeated 100+ times)
+- **Large content blocks**: Extremely long field values (e.g., `TRANSACTION_DATES` with excessive entries)
+- **Combined content size**: Multiple large fields in single response overwhelming Rich console
+
+#### Example Problematic Model Output
+```
+TRANSACTION_DATES: 07/09/2025 | 08/09/2025 | 09/03/2025 | 03/09/2025 | 02/09/2025 | 01/09/2025 | 01/08/2025 |
+01/08/2025 | 01/08/2025 | 20/08/2025 | 20/08/2025 | 20/08/2025 | 20/08/2025 | 27/08/2025 | 27/08/2025 | 27/08/2025
+| 27/08/2025 | 27/08/2025 | 27/08/2025 | [... 50+ more repeated 27/08/2025 entries]
+```
+
+### Additional Fixes Applied
+
+#### 1. Universal Rich Sanitization Function
+Added comprehensive sanitization helper in `common/extraction_cleaner.py`:
+
+```python
+def sanitize_for_rich(content: str, max_length: int = 200) -> str:
+    """
+    Sanitize content for safe Rich console rendering.
+
+    Rich console interprets '[' and ']' as markup syntax, which can cause
+    RecursionError with certain content patterns. This function escapes
+    those characters and truncates long content.
+    """
+    if not content:
+        return content
+
+    # Escape Rich markup characters that cause recursion
+    safe_content = str(content).replace('[', '\\[').replace(']', '\\]')
+
+    # Truncate if too long to prevent overwhelming output
+    if len(safe_content) > max_length:
+        safe_content = safe_content[:max_length] + "..."
+
+    return safe_content
+```
+
+#### 2. Extraction Cleaner Debug Output
+**Fixed**: `/common/extraction_cleaner.py` debug prints now use sanitization:
+
+```python
+# BEFORE - caused recursion with long content
+if self.debug:
+    print(f"🧹 CLEANER CALLED: {field_name}: '{raw_value}' -> ", end="")
+    print(f"'{cleaned_value}'")
+
+# AFTER - sanitized for Rich safety
+if self.debug:
+    safe_raw_value = sanitize_for_rich(str(raw_value), max_length=100)
+    print(f"🧹 CLEANER CALLED: {field_name}: '{safe_raw_value}' -> ", end="")
+    safe_cleaned_value = sanitize_for_rich(str(cleaned_value), max_length=100)
+    print(f"'{safe_cleaned_value}'")
+```
+
+#### 3. Batch Processor Model Response Display
+**Fixed**: `/common/batch_processor.py` verbose response output:
+
+```python
+# BEFORE - could cause recursion with large responses
+if verbose:
+    rprint(f"[yellow]Model Response:[/yellow] {response}")
+
+# AFTER - sanitized and truncated
+if verbose:
+    safe_response = sanitize_for_rich(response, max_length=500)
+    rprint(f"[yellow]Model Response:[/yellow] {safe_response}")
+```
+
+### Root Cause Analysis: Two-Layer Problem
+
+#### Layer 1: Model Generation Issue
+- **InternVL3 repetition**: Model generating excessive repeated content
+- **Content length**: Single fields exceeding thousands of characters
+- **Pattern recognition failure**: Model losing context and repeating patterns
+
+#### Layer 2: Rich Console Rendering Limits
+- **Markup interpretation**: Rich parsing `[` and `]` characters in content
+- **Recursion threshold**: Large content blocks hitting internal regex limits
+- **Memory exhaustion**: Console rendering running out of stack space
+
+### Impact Summary
+
+#### Before Complete Fix
+- ❌ Detection failures (all documents classified as INVOICE)
+- ❌ Cleaner recursion on long field values
+- ❌ Batch processor recursion on verbose model responses
+- ❌ Silent failures masking underlying issues
+
+#### After Complete Fix
+- ✅ Document detection working correctly
+- ✅ Safe handling of large model responses
+- ✅ Cleaner debug output functioning reliably
+- ✅ All Rich console outputs sanitized and limited
+- ✅ Comprehensive error visibility maintained
+
 ## Related Issues
 
 ### Similar Patterns to Watch For
@@ -167,12 +269,17 @@ except Exception as e:
 - Model responses containing markdown-like syntax
 - File paths or URLs with bracket characters
 - JSON content displayed for debugging
+- **NEW**: Repetitive model-generated content (dates, transactions, etc.)
+- **NEW**: Large field values from document extraction
+- **NEW**: Batch processing verbose outputs
 
 ### Code Locations Using Rich
-- Batch processing progress output
-- Debug logging throughout pipeline
-- Error reporting and status messages
-- Configuration display and validation
+- Batch processing progress output ✅ **FIXED**
+- Debug logging throughout pipeline ✅ **FIXED**
+- Error reporting and status messages ✅ **PROTECTED**
+- Configuration display and validation ✅ **PROTECTED**
+- Extraction cleaner debug output ✅ **FIXED**
+- Model response display in verbose mode ✅ **FIXED**
 
 ## Summary
 
