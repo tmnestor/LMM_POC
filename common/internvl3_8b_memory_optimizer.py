@@ -18,7 +18,7 @@ than InternVL3-2B, causing memory issues even with quantization.
 
 import gc
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import torch
 from rich import print as rprint
@@ -234,7 +234,7 @@ class InternVL3_8B_MemoryManager:
 
             if self.verbose:
                 param_count = sum(p.numel() for p in model.parameters())
-                rprint(f"[green]✅ InternVL3-8B loaded successfully![/green]")
+                rprint("[green]✅ InternVL3-8B loaded successfully![/green]")
                 rprint(f"[blue]📊 Model parameters: {param_count:,}[/blue]")
                 rprint(f"[blue]🎯 Peak memory usage: {self.peak_memory_usage:.2f}GB[/blue]")
                 rprint(f"[blue]💾 Final memory usage: {final_checkpoint['allocated_gb']:.2f}GB[/blue]")
