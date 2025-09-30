@@ -37,15 +37,9 @@ complete_prompt: 'You are an expert document analyzer. Extract structured data f
   LINE_ITEM_DESCRIPTIONS: [pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas
   or NOT_FOUND]
 
-  TRANSACTION_DATES: MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list
-  MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if date cell has value include
-  it, if empty write NOT_FOUND. Row 2 - if date cell has value include it, if empty write NOT_FOUND. Continue for all rows.
-  DO NOT skip empty rows or compress the list.
+  TRANSACTION_DATES: [Extract transaction dates separated by " | " or NOT_FOUND]
 
-  TRANSACTION_AMOUNTS_PAID: MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated
-  list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has value
-  include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue for
-  all rows. DO NOT skip empty rows or compress the list.
+  TRANSACTION_AMOUNTS_PAID: [Extract transaction amounts separated by " | " or NOT_FOUND]
 
 
   RULES:
@@ -63,11 +57,5 @@ field_instructions:
   STATEMENT_DATE_RANGE: '[statement period or date range or NOT_FOUND]'
   LINE_ITEM_DESCRIPTIONS: '[pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas
     or NOT_FOUND]'
-  TRANSACTION_DATES: 'MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated list
-    MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if date cell has value
-    include it, if empty write NOT_FOUND. Row 2 - if date cell has value include it, if empty write NOT_FOUND. Continue for
-    all rows. DO NOT skip empty rows or compress the list.'
-  TRANSACTION_AMOUNTS_PAID: 'MANDATORY ROW COUNT MATCHING: Count total table rows in the transaction table. Your pipe-separated
-    list MUST have exactly the same number of elements. Go through each table row sequentially: Row 1 - if amount cell has
-    value include it, if empty write NOT_FOUND. Row 2 - if amount cell has value include it, if empty write NOT_FOUND. Continue
-    for all rows. DO NOT skip empty rows or compress the list.'
+  TRANSACTION_DATES: '[Extract transaction dates separated by " | " or NOT_FOUND]'
+  TRANSACTION_AMOUNTS_PAID: '[Extract transaction amounts separated by " | " or NOT_FOUND]'

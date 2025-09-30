@@ -97,11 +97,11 @@ prompts:
       Instructions:
       - Statement period: Find date range like "01/01/2025 to 31/01/2025"
       - Transaction descriptions: All descriptions separated by " | "
-      - Transaction dates: All dates separated by " | " (same order as descriptions)
+      - Transaction dates: All dates separated by " | "
       - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT)
       - Amounts received: Credit/deposit amounts with $ and " | " (money IN)
       - Account balance: Running balances with $ and " | " (balance after each transaction)
-      - Use NOT_FOUND for empty cells, maintain position alignment
+      - Use NOT_FOUND for empty cells
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
@@ -135,7 +135,7 @@ prompts:
       - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT, balance decreases)
       - Amounts received: Credit/deposit amounts with $ and " | " (money IN, balance increases)
       - Account balance: Running balances with $ and " | " (balance after each transaction)
-      - Use NOT_FOUND for missing values, keep same count across all fields
+      - Use NOT_FOUND for missing values
 
   # ============================================================================
   # UNIVERSAL EXTRACTION - All 19 Fields

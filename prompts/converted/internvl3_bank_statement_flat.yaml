@@ -13,7 +13,7 @@ prompts:
       \ additional text\n\n## CRITICAL INSTRUCTIONS:\n- Extract ONLY what is visible\
       \ in the document\n- Use \"NOT_FOUND\" for any field that is not present\n-\
       \ Do not guess or infer missing information\n- For transaction lists, maintain\
-      \ row count matching\n\n## BANK STATEMENT FIELDS TO EXTRACT:\n\nDOCUMENT_TYPE:\
+      \ clear extraction\n\n## BANK STATEMENT FIELDS TO EXTRACT:\n\nDOCUMENT_TYPE:\
       \ [BANK_STATEMENT or STATEMENT or NOT_FOUND]\nSTATEMENT_DATE_RANGE: [Statement\
       \ period or date range (e.g., \"01/01/2024 - 31/01/2024\") or NOT_FOUND]\nLINE_ITEM_DESCRIPTIONS:\
       \ [All transaction descriptions separated by \" | \" or NOT_FOUND]\nTRANSACTION_DATES:\
@@ -53,24 +53,15 @@ prompts:
       \ if empty → add \"NOT_FOUND\"\n   - Look at CREDIT cell: if has amount → add\
       \ to TRANSACTION_AMOUNTS_RECEIVED, if empty → add \"NOT_FOUND\"\n   - Extract\
       \ the balance → add to ACCOUNT_BALANCE at this position\nStep 3: Verify all\
-      \ arrays have same length as row count\n\nLINE_ITEM_DESCRIPTIONS: [List ALL\
+      \ arrays are properly extracted\n\nLINE_ITEM_DESCRIPTIONS: [List ALL\
       \ transaction descriptions separated by \" | \" or NOT_FOUND]\nTRANSACTION_DATES:\
       \ [List ALL transaction dates separated by \" | \" in DD/MM/YYYY format or NOT_FOUND]\n\
       TRANSACTION_AMOUNTS_PAID: [List ALL debit/withdrawal amounts separated by \"\
-      \ | \" with $ symbol or NOT_FOUND]\n- CRITICAL: Position [0] must correspond\
-      \ to TRANSACTION_DATES[0], position [1] to TRANSACTION_DATES[1], etc.\n- If\
-      \ a transaction has NO debit amount, use NOT_FOUND in that exact position\n\
+      \ | \" with $ symbol or NOT_FOUND]\n\
       TRANSACTION_AMOUNTS_RECEIVED: [List ALL credit/deposit amounts separated by\
-      \ \" | \" with $ symbol or NOT_FOUND]\n- CRITICAL: Position [0] must correspond\
-      \ to TRANSACTION_DATES[0], position [1] to TRANSACTION_DATES[1], etc.\n- If\
-      \ a transaction has NO credit amount, use NOT_FOUND in that exact position\n\
+      \ \" | \" with $ symbol or NOT_FOUND]\n\
       ACCOUNT_BALANCE: [List ALL running balance amounts separated by \" | \" with\
-      \ $ symbol or NOT_FOUND]\n- CRITICAL: Position [0] must correspond to TRANSACTION_DATES[0],\
-      \ position [1] to TRANSACTION_DATES[1], etc.\n\n## CRITICAL ROW COUNT MATCHING:\n\
-      - Count the total number of transaction rows in the table\n- ALL lists (descriptions,\
-      \ dates, amounts, balances) must have the SAME number of elements\n- If a cell\
-      \ is empty, use \"NOT_FOUND\" for that position\n- Example: If 3 transactions,\
-      \ all lists must have exactly 3 elements\n\n## SPECIAL FOCUS: EARLIEST TRANSACTION\
+      \ $ symbol or NOT_FOUND]\n\n## SPECIAL FOCUS: EARLIEST TRANSACTION\
       \ EXTRACTION\n\n\U0001F50D CRITICAL: PAY SPECIAL ATTENTION TO THE CHRONOLOGICALLY\
       \ EARLIEST TRANSACTION\nBank statements may be in chronological OR reverse chronological\
       \ order:\n- Some banks show oldest first (chronological)\n- Some banks show\
