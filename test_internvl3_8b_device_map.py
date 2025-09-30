@@ -4,17 +4,18 @@ Diagnostic script to test InternVL3-8B multi-GPU device mapping
 and identify why it produces gibberish responses.
 """
 
-import torch
-from transformers import AutoConfig, AutoModel, AutoTokenizer
-from rich import print as rprint
 import math
+
+import torch
+from rich import print as rprint
+from transformers import AutoConfig
 
 
 def diagnose_multi_gpu_setup():
     """Diagnose the multi-GPU setup and device mapping."""
 
     world_size = torch.cuda.device_count()
-    rprint(f"[bold cyan]🔍 GPU Configuration:[/bold cyan]")
+    rprint("[bold cyan]🔍 GPU Configuration:[/bold cyan]")
     rprint(f"Number of GPUs: {world_size}")
 
     total_memory = 0

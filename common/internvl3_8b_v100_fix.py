@@ -4,8 +4,8 @@ Addresses gibberish responses on multi-GPU V100 setups.
 """
 
 import torch
-from transformers import AutoModel, AutoTokenizer
 from rich import print as rprint
+from transformers import AutoModel, AutoTokenizer
 
 
 def load_internvl3_8b_for_v100_multi_gpu(
