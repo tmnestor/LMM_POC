@@ -141,62 +141,31 @@ prompts:
     description: "Optimized for flat table bank statements with continuous rows"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this flat table bank statement using row-by-row analysis.
+      Extract structured data from this flat table bank statement. Process each transaction row individually.
 
-      CRITICAL EXTRACTION RULES:
-      - If ANY field is not clearly visible in the document, return "NOT_FOUND"
-      - Do NOT guess, estimate, or infer missing information
-      - Only extract what is EXPLICITLY shown in the image
-      - MANDATORY: Use row-by-row processing (never scan columns)
+      Critical: Process ROW-BY-ROW, not by scanning columns. Each transaction row contains:
+      - Date | Description | Debit/Withdrawal | Credit/Deposit | Balance
 
-      🚨 CRITICAL ARRAY ALIGNMENT REQUIREMENT:
-      ALL FIELDS MUST BE PERFECTLY ALIGNED BY DATE POSITION!
+      For each row, extract data in the same position across all fields.
 
-      🔍 ROW-BY-ROW PROCESSING METHODOLOGY:
-      DO NOT scan columns! Process each transaction ROW individually:
+      Output format (replace NOT_FOUND with actual values):
 
-      EXAMPLE: If you see these transactions in the bank statement:
-      Row 1: 03/05/2025 | AMAZON PURCHASE | [DEBIT: $288.03] | [CREDIT: empty] | [BALANCE: $13387.44]
-      Row 2: 04/05/2025 | SALARY DEPOSIT | [DEBIT: empty] | [CREDIT: $3497.47] | [BALANCE: $16884.91]
-      Row 3: 05/05/2025 | ATM WITHDRAWAL | [DEBIT: $50.00] | [CREDIT: empty] | [BALANCE: $16834.91]
+      DOCUMENT_TYPE: STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND
+      ACCOUNT_BALANCE: NOT_FOUND
 
-      CORRECT ROW-BY-ROW PROCESSING:
-      1. Process Row 1 → Position [0]: Date=03/05/2025, Paid=$288.03, Received=NOT_FOUND, Balance=$13387.44
-      2. Process Row 2 → Position [1]: Date=04/05/2025, Paid=NOT_FOUND, Received=$3497.47, Balance=$16884.91
-      3. Process Row 3 → Position [2]: Date=05/05/2025, Paid=$50.00, Received=NOT_FOUND, Balance=$16834.91
-
-      RESULTING ALIGNED ARRAYS:
-      TRANSACTION_DATES: 03/05/2025 | 04/05/2025 | 05/05/2025
-      TRANSACTION_AMOUNTS_PAID: $288.03 | NOT_FOUND | $50.00
-      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND | $3497.47 | NOT_FOUND
-      ACCOUNT_BALANCE: $13387.44 | $16884.91 | $16834.91
-
-      ## MANDATORY ROW-BY-ROW EXTRACTION PROTOCOL:
-
-      Step 1: Count total transaction rows in the table
-      Step 2: For EACH row from top to bottom:
-         - Extract the date → add to TRANSACTION_DATES at this position
-         - Extract the description → add to LINE_ITEM_DESCRIPTIONS at this position
-         - Look at DEBIT cell: if has amount → add to TRANSACTION_AMOUNTS_PAID, if empty → add "NOT_FOUND"
-         - Look at CREDIT cell: if has amount → add to TRANSACTION_AMOUNTS_RECEIVED, if empty → add "NOT_FOUND"
-         - Extract the balance → add to ACCOUNT_BALANCE at this position
-      Step 3: Verify all arrays have same length as row count
-
-      CONVERSATION PROTOCOL:
-      - Start your response immediately with "DOCUMENT_TYPE:"
-      - Do NOT include conversational text
-      - Output ONLY the structured extraction data below
-      - End immediately after "ACCOUNT_BALANCE:" with no additional text
-
-      Extract these 7 bank statement fields in this exact order:
-
-      DOCUMENT_TYPE: [STATEMENT or NOT_FOUND]
-      STATEMENT_DATE_RANGE: [Date range (DD/MM/YYYY - DD/MM/YYYY) or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [Transaction descriptions separated by " | " or NOT_FOUND]
-      TRANSACTION_DATES: [Transaction dates separated by " | " or NOT_FOUND]
-      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
-      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " - use NOT_FOUND for empty cells]
-      ACCOUNT_BALANCE: [Running balance amounts with $ separated by " | " or NOT_FOUND]
+      Instructions:
+      - Statement period: Find date range like "01/01/2025 to 31/01/2025"
+      - Transaction descriptions: All descriptions separated by " | "
+      - Transaction dates: All dates separated by " | "
+      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT)
+      - Amounts received: Credit/deposit amounts with $ and " | " (money IN)
+      - Account balance: Running balances with $ and " | " (balance after each transaction)
+      - Use NOT_FOUND for empty cells
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
