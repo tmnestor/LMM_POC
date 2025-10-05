@@ -741,6 +741,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 "do_sample", self.generation_config["do_sample"]
             ),
             "top_p": generation_kwargs.get("top_p", self.generation_config["top_p"]),
+            "pad_token_id": self.tokenizer.eos_token_id,  # Suppress pad_token_id warnings
         }
 
         try:
