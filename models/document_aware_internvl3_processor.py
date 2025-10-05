@@ -90,6 +90,10 @@ class DocumentAwareInternVL3HybridProcessor:
         self.tokenizer = pre_loaded_tokenizer
         self.generation_config = None
 
+        # Fix pad_token_id if tokenizer is pre-loaded to suppress warnings
+        if self.tokenizer is not None and self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
         # Detect model variant (2B vs 8B) for tile optimization
         self.is_8b_model = "8B" in self.model_path
 
@@ -214,6 +218,10 @@ class DocumentAwareInternVL3HybridProcessor:
                 trust_remote_code=True,
                 use_fast=False,  # More reliable for structured tasks
             )
+
+            # Fix pad_token_id to suppress warnings during generation
+            if self.tokenizer.pad_token_id is None:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
             if self.debug:
                 print("✅ InternVL3 model loaded successfully")
