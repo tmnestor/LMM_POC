@@ -203,12 +203,9 @@ class InternVL3_8B_MemoryManager:
             if self.verbose:
                 rprint(f"[cyan]🔍 Multi-GPU setup detected: {world_size} GPUs, {total_memory:.1f}GB total[/cyan]")
 
-            # Official requirement: "at least three 80GB GPUs" for non-quantized
-            # Allow 2×L40S (2×48GB = 96GB) or similar configurations
-            if world_size >= 3 or total_memory >= 90:  # Lowered from 150GB to support 2×L40S
-                return True, f"✅ Multi-GPU sufficient: {world_size} GPUs, {total_memory:.1f}GB total"
-            else:
-                return False, f"⚠️ Multi-GPU insufficient: {world_size} GPUs, {total_memory:.1f}GB total (need 3+ GPUs or 90GB+ total)"
+            # Removed strict GPU count requirement - allow any multi-GPU configuration
+            # Previously required 3+ GPUs or 90GB+ total, now accepts 2+ GPUs
+            return True, f"✅ Multi-GPU detected: {world_size} GPUs, {total_memory:.1f}GB total"
         else:
             # Single GPU - original estimation
             base_model_memory = 8.0  # ~8GB for quantized language model
