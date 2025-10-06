@@ -94,6 +94,13 @@ class DocumentAwareInternVL3HybridProcessor:
         if self.tokenizer is not None and self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
+        # Also set pad_token_id on model's generation_config to suppress warnings
+        if self.model is not None and self.tokenizer is not None:
+            if hasattr(self.model, 'generation_config'):
+                self.model.generation_config.pad_token_id = self.tokenizer.eos_token_id
+            elif hasattr(self.model.config, 'pad_token_id'):
+                self.model.config.pad_token_id = self.tokenizer.eos_token_id
+
         # Detect model variant (2B vs 8B) for tile optimization
         self.is_8b_model = "8B" in self.model_path
 
@@ -831,8 +838,14 @@ class DocumentAwareInternVL3HybridProcessor:
                 elif len(response) > 2000:  # Higher safety limit for normal responses
                     response = response[:2000]  # Allow longer responses for extraction
 
-                # Move back to GPU
-                self.model = self.model.to(self.device)
+                # Skip moving quantized models (not supported with .to())
+                # Quantized models can't be moved with .to() method
+                if not (hasattr(self.model, 'quantization_method') or
+                        hasattr(self.model, 'is_quantized') or
+                        getattr(self.model.config, 'quantization_config', None) is not None):
+                    # Only move non-quantized models
+                    self.model = self.model.to(self.device)
+
                 return response
 
         except Exception as e:
