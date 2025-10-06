@@ -291,6 +291,10 @@ def load_internvl3_model(
             use_fast=False
         )
 
+        # Fix pad_token_id to suppress warnings during generation
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = tokenizer.eos_token_id
+
         # Set generation parameters
         model.config.max_new_tokens = max_new_tokens
 
@@ -407,7 +411,8 @@ def load_internvl3_model(
         with torch.no_grad():
             # Basic tokenization test
             inputs = tokenizer(test_prompt, return_tensors="pt")
-            if hasattr(model, 'device'):
+            # Don't move inputs if model is dispatched with device_map (accelerate handles placement)
+            if device_map != "auto" and hasattr(model, 'device'):
                 inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
         if verbose:
