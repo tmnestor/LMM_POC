@@ -854,9 +854,10 @@ def _parse_boolean_value(value: str) -> bool:
     if not value or value == "NOT_FOUND":
         return None
 
-    value_lower = value.lower().strip()
+    # Convert to string first to handle boolean objects
+    value_lower = str(value).lower().strip()
 
-    # Strict boolean matching - only accept exact values
+    # Strict boolean matching - accept both lowercase and Python boolean string representations
     true_values = ["true", "1"]
     false_values = ["false", "0"]
 
