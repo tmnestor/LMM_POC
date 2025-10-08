@@ -11,11 +11,13 @@
 1. [Overview](#overview)
 2. [Core Concepts](#core-concepts)
 3. [Ground Truth Data](#ground-truth-data)
-4. [Evaluation Metrics](#evaluation-metrics)
-5. [How to Use the Evaluation System](#how-to-use-the-evaluation-system)
-6. [Understanding Evaluation Reports](#understanding-evaluation-reports)
-7. [Advanced Usage](#advanced-usage)
-8. [Troubleshooting](#troubleshooting)
+4. [Custom Comparison Logic: Design Rationale](#custom-comparison-logic-design-rationale)
+5. [Evaluation Metrics](#evaluation-metrics)
+6. [How to Use the Evaluation System](#how-to-use-the-evaluation-system)
+7. [Understanding Evaluation Reports](#understanding-evaluation-reports)
+8. [Advanced Usage](#advanced-usage)
+9. [Troubleshooting](#troubleshooting)
+10. [Summary: Key Takeaways](#summary-key-takeaways)
 
 ---
 
@@ -103,20 +105,23 @@ image_005.png,INVOICE,73 154 562 747,Aussie Office Supplies Pty Ltd,$4834.03,...
 
 2. **Field Columns**: Any fields you want to evaluate (e.g., `SUPPLIER_NAME`, `TOTAL_AMOUNT`, `INVOICE_DATE`)
 
-### Field Types
+### Field Types and Custom Comparison Logic
 
-The evaluation system recognizes these field types:
+The evaluation system uses **custom comparison logic** (not sklearn) with field-specific scoring rules. Each field type has tailored comparison methods that award partial credit for near-matches, reflecting real-world OCR and extraction scenarios.
 
-| Field Type | Examples | Comparison Logic |
-|------------|----------|------------------|
-| **Numeric IDs** | `BUSINESS_ABN` | Exact digit match (ignoring spaces/dashes) |
-| **Monetary** | `TOTAL_AMOUNT`, `GST_AMOUNT` | Numeric comparison with 1% tolerance |
-| **Dates** | `INVOICE_DATE` | Flexible format matching |
-| **Boolean** | `IS_GST_INCLUDED` | Exact true/false match |
-| **Lists** | `LINE_ITEM_DESCRIPTIONS` | Pipe-separated overlap calculation |
-| **Transactions** | `TRANSACTION_DATES`, `TRANSACTION_AMOUNTS_PAID` | Structured comparison |
-| **Phone** | `CONTACT_PHONE` | Digit-based with partial credit |
-| **Text** | `SUPPLIER_NAME`, `PAYER_ADDRESS` | Fuzzy matching (substring, word overlap) |
+**IMPORTANT**: The system does **not** use sklearn's classification metrics. All accuracy calculations use custom fuzzy matching logic implemented in `common/evaluation_metrics.py`.
+
+| Field Type | Examples | Comparison Logic | Scoring Rules |
+|------------|----------|------------------|---------------|
+| **Numeric IDs** | `BUSINESS_ABN` | Exact digit match (ignoring spaces/dashes) | 1.0 if digits match, 0.0 otherwise |
+| **Monetary** | `TOTAL_AMOUNT`, `GST_AMOUNT` | Numeric comparison with tolerance | 1.0 if within 1% tolerance, 0.0 otherwise |
+| **Dates** | `INVOICE_DATE` | Flexible format matching | 1.0 if all components match, 0.8 if 2+ components match, 0.0 otherwise |
+| **Boolean** | `IS_GST_INCLUDED` | Exact true/false match | 1.0 if boolean values match, 0.0 otherwise |
+| **Lists** | `LINE_ITEM_DESCRIPTIONS` | Pipe-separated overlap calculation | Ratio of matched items to max(extracted, ground_truth) |
+| **Transactions** | `TRANSACTION_DATES`, `TRANSACTION_AMOUNTS_PAID` | Structured comparison | Ratio of matching transaction entries |
+| **Phone** | `CONTACT_PHONE` | Digit-based with partial credit | 1.0 exact match, 0.8 if 80%+ digits match, 0.5 if 60%+ match |
+| **Text** | `SUPPLIER_NAME`, `PAYER_ADDRESS` | Fuzzy matching (substring, word overlap) | 1.0 exact, 0.9 substring match, 0.8+ for 80%+ word overlap |
+| **Document Type** | `DOCUMENT_TYPE` | Canonical type mapping | Maps variations to canonical types (e.g., "tax invoice" → "invoice") |
 
 ### Creating Ground Truth
 
@@ -138,14 +143,161 @@ test_receipt.png,RECEIPT,Corner Store,$45.00,16/03/2025
 
 ---
 
+## Custom Comparison Logic: Design Rationale
+
+### Why Custom Logic Instead of sklearn?
+
+The evaluation system uses **custom fuzzy matching logic** rather than sklearn's binary classification for several critical reasons:
+
+#### 1. **Partial Credit for Near-Matches**
+**Business Need**: OCR and vision models often produce "almost correct" results due to image quality, font variations, or formatting differences.
+
+**Example**:
+- Ground truth: `"Acme Corporation Pty Ltd"`
+- Extracted: `"Acme Corporation"`
+- **Binary classification**: ❌ Incorrect (0.0)
+- **Custom logic**: ✅ Partial credit (0.9 - substring match)
+
+**Justification**: A 90% accurate extraction is valuable and should be scored differently from a completely wrong value. Binary metrics hide this nuance.
+
+#### 2. **Field-Type-Specific Tolerance**
+**Business Need**: Different field types have different error tolerances based on their business purpose.
+
+**Examples**:
+- **Monetary values**: 1% tolerance accounts for rounding ($100.00 vs $100.01 are functionally identical)
+- **Phone numbers**: 80% digit match tolerance handles OCR errors in middle digits
+- **Dates**: Component-based matching handles format variations (15/03/2025 vs 15-03-2025)
+- **ABN/Tax IDs**: Zero tolerance - these must be exact for legal/regulatory compliance
+
+**Justification**: sklearn's binary classification cannot encode domain-specific tolerance rules. A $1234.56 vs $1234.55 difference matters differently than a phone number with one wrong digit.
+
+#### 3. **Structured Data Comparison**
+**Business Need**: Some fields contain structured lists (line items, transactions) that require element-wise comparison.
+
+**Example**:
+- Ground truth transactions: `"$50.00 | $75.25 | $100.00"`
+- Extracted: `"$50.00 | $75.25 | $99.99"`
+- **Binary classification**: ❌ Incorrect (0.0)
+- **Custom logic**: ✅ Partial credit (0.67 - 2/3 transactions match)
+
+**Justification**: Successfully extracting 2 out of 3 transactions is better than 0 out of 3. The system should quantify this partial success.
+
+#### 4. **NOT_FOUND Handling**
+**Business Need**: Documents legitimately lack certain fields (e.g., receipts don't have invoice numbers).
+
+**Example**:
+- Ground truth: `"NOT_FOUND"` (field doesn't exist in document)
+- Extracted: `"NOT_FOUND"` (model correctly identified absence)
+- **Custom logic**: ✅ Correct (1.0)
+
+**Justification**: Correctly identifying that a field is absent is as important as correctly extracting present fields. This is not a classification error—it's a correct prediction.
+
+#### 5. **Normalization for OCR Artifacts**
+**Business Need**: OCR introduces formatting noise (extra spaces, comma variations, case differences) that doesn't change semantic meaning.
+
+**Example**:
+- Ground truth: `"$1,234.56"`
+- Extracted: `"$ 1234.56"` (extra space, missing comma)
+- **Custom logic**: Normalizes both → `"1234.56"` → ✅ 1.0
+
+**Justification**: These are presentation differences, not extraction errors. The semantic content is identical.
+
+#### 6. **Word-Overlap for Text Fields**
+**Business Need**: Business names and addresses often have minor variations that don't affect meaning.
+
+**Example**:
+- Ground truth: `"Aussie Office Supplies Pty Ltd"`
+- Extracted: `"Aussie Office Supplies"`
+- **Word overlap**: 3/5 words match (60%) → 0.6 score
+- If 4/5 match → 0.8 score
+
+**Justification**: Partial name matches are common in OCR. A supplier name with 80% word overlap is usually the correct entity, just with abbreviated legal suffixes.
+
+### Comparison Logic Implementation
+
+The custom logic is implemented in `common/evaluation_metrics.py:calculate_field_accuracy()` with the following workflow:
+
+```python
+def calculate_field_accuracy(extracted_value, ground_truth_value, field_name):
+    # 1. Normalize both values (lowercase, remove formatting)
+    # 2. Check for NOT_FOUND (both must agree)
+    # 3. Apply field-type-specific comparison:
+    #    - Numeric IDs: Extract digits only, exact match
+    #    - Monetary: Parse numbers, apply 1% tolerance
+    #    - Dates: Extract components, flexible matching
+    #    - Phone: Compare digits with partial credit
+    #    - Lists/Transactions: Element-wise comparison
+    #    - Text: Substring or word overlap scoring
+    # 4. Return float score (0.0 to 1.0)
+```
+
+### Why 1% Tolerance for Monetary Values?
+
+**Rationale**:
+- **Rounding differences**: OCR may read `$99.99` as `$100.00` due to image quality
+- **Decimal precision**: Vision models sometimes round to nearest dollar
+- **Business impact**: For a $10,000 invoice, $100 variance (1%) is typically acceptable for automated extraction
+- **Stricter alternative**: Can be changed to 0.1% in code for high-precision requirements
+
+**Implementation** (`evaluation_metrics.py:215`):
+```python
+tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+score = 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
+```
+
+### Why 80% Threshold for Text Matching?
+
+**Rationale**:
+- **OCR errors**: Common to drop articles, suffixes (Pty, Ltd, Inc)
+- **Abbreviations**: Business names often abbreviated consistently
+- **False positives**: Below 80%, matches become unreliable (e.g., common words only)
+- **Empirical testing**: 80% word overlap empirically correlates with "same entity"
+
+**Implementation** (`evaluation_metrics.py:362`):
+```python
+overlap = len(extracted_words & ground_truth_words) / len(ground_truth_words)
+if overlap >= 0.8:
+    return overlap  # Award partial credit
+```
+
+### Accuracy Score Interpretation
+
+| Score | Meaning | Business Interpretation |
+|-------|---------|------------------------|
+| **1.0** | Perfect match | Field extracted exactly correctly |
+| **0.9** | Substring match (text fields) | Minor OCR artifact, semantically correct |
+| **0.8** | Partial component match (dates, phones) | Mostly correct, usable with validation |
+| **0.5-0.7** | Significant partial match | May require human review |
+| **0.0** | Complete mismatch or wrong/missing | Field extraction failed |
+
+### When Custom Logic Matters Most
+
+**Scenario 1: Production Readiness Assessment**
+- Binary metrics: 65% accuracy (many partial matches scored as failures)
+- Custom metrics: 82% accuracy (partial credit for near-matches)
+- **Impact**: Custom logic reveals model is closer to production-ready than binary metrics suggest
+
+**Scenario 2: Model Comparison**
+- Model A: 50 perfect extractions, 50 failures (binary: 50%)
+- Model B: 40 perfect, 60 near-matches (binary: 40%, custom: 64%)
+- **Impact**: Custom logic correctly identifies Model B as better for real-world use
+
+**Scenario 3: Field-Specific Optimization**
+- Binary: "Phone extraction: 30% accurate"
+- Custom: "Phone extraction: 30% perfect, 40% at 0.8 (80% digits correct)"
+- **Impact**: Reveals OCR quality issue rather than model capability issue
+
+---
+
 ## Evaluation Metrics
 
 ### Field-Level Accuracy
 
-Calculated per field across all documents:
+Calculated per field across all documents using custom scoring:
 
 ```python
-field_accuracy = correct_extractions / total_fields_evaluated
+field_accuracy = sum(partial_scores) / total_fields_evaluated
+# partial_scores are floats from 0.0 to 1.0, not binary 0/1
 ```
 
 **Example**:
@@ -183,6 +335,20 @@ overall_accuracy = sum(image_accuracies) / num_images
 ---
 
 ## How to Use the Evaluation System
+
+### Important Note: "sklearn Classification Reports"
+
+The system generates reports **formatted like sklearn's classification_report()**, but these are **cosmetic formatting only**. The underlying metrics come from the custom comparison logic described above, not from sklearn's binary classification.
+
+**What the "classification report" actually contains**:
+- Precision/Recall/F1-Score values are **derived from custom accuracy scores**, not sklearn
+- These metrics are converted from your field-level accuracy percentages
+- The report format mimics sklearn for familiarity, but the calculation method is completely different
+
+**Why this matters**:
+- You cannot directly compare these reports to sklearn classification reports from other systems
+- The "support" values and averaging methods are approximations for visualization
+- The actual evaluation logic is the custom fuzzy matching described in the previous section
 
 ### Method 1: Programmatic Evaluation (Recommended)
 
@@ -473,6 +639,87 @@ score = calculate_field_accuracy(
 - Check word overlap: `"Acme Corp Ltd"` vs `"Acme Corporation"` = 50% overlap (below 80% threshold)
 - For lists: Check pipe separators are correct
 
+### Understanding Custom Logic Decisions
+
+**Question**: Why did my field get score X instead of Y?
+
+**Debug workflow**:
+
+1. **Enable debug mode** to see step-by-step comparison:
+```python
+from common.evaluation_metrics import calculate_field_accuracy
+
+score = calculate_field_accuracy(
+    extracted_value="Your Extracted Value",
+    ground_truth_value="Ground Truth Value",
+    field_name="FIELD_NAME",
+    debug=True  # Shows detailed comparison steps
+)
+```
+
+2. **Review field type assignment**:
+```python
+from common.config import get_all_field_types
+field_types = get_all_field_types()
+print(f"FIELD_NAME is type: {field_types.get('FIELD_NAME')}")
+```
+
+3. **Check normalization**:
+   - Both values converted to lowercase
+   - Formatting chars removed: `,`, `$`, `%`, `(`, `)`, spaces
+   - Then compared
+
+4. **Verify thresholds**:
+   - Text fields: Need 80%+ word overlap for partial credit
+   - Phone fields: Need 80%+ digit match for 0.8 score
+   - Monetary: Need within 1% tolerance
+   - Dates: Need 2+ matching components
+
+**Common surprises**:
+- `"Acme Corp"` vs `"Acme Corporation"` → 50% overlap → 0.0 (below 80% threshold)
+- `"$100.00"` vs `"$101.50"` → 1.5% difference → 0.0 (exceeds 1% tolerance)
+- `"04/05/2025"` vs `"05/04/2025"` → Same components, different order → 1.0 (components match)
+
+### Adjusting Custom Logic Thresholds
+
+**To modify tolerances**, edit `common/evaluation_metrics.py`:
+
+**Monetary tolerance** (line ~215):
+```python
+# Default: 1% tolerance
+tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+
+# For stricter (0.1%):
+tolerance = abs(ground_truth_num * 0.001) if ground_truth_num != 0 else 0.001
+```
+
+**Text overlap threshold** (line ~362):
+```python
+# Default: 80% word overlap required
+if overlap >= 0.8:
+    return overlap
+
+# For more lenient (70%):
+if overlap >= 0.7:
+    return overlap
+```
+
+**Phone digit matching** (line ~243):
+```python
+# Default: 80% digits match → score 0.8
+score = 0.8 if match_ratio >= 0.8 else (0.5 if match_ratio >= 0.6 else 0.0)
+
+# For stricter (90% required):
+score = 0.8 if match_ratio >= 0.9 else 0.0
+```
+
+**When to adjust thresholds**:
+- Your document set has consistently higher/lower OCR quality than expected
+- Business requirements demand stricter accuracy for specific fields
+- Empirical testing shows current thresholds are too lenient/strict for your use case
+
+**⚠️ Important**: Document any threshold changes and re-run all evaluations to ensure consistency.
+
 ---
 
 ## Best Practices
@@ -561,13 +808,70 @@ generate_executive_report(
 
 ---
 
+## Summary: Key Takeaways
+
+### What Makes This Evaluation System Unique
+
+1. **Custom fuzzy matching logic** instead of binary sklearn classification
+2. **Partial credit scoring** (0.0-1.0) reflects real-world OCR quality
+3. **Field-type-specific tolerances** encode business requirements
+4. **NOT_FOUND handling** correctly evaluates absent fields
+5. **Structured data comparison** for lists and transactions
+
+### When to Use This Approach
+
+✅ **Use custom logic when**:
+- Evaluating OCR/vision extraction quality
+- Partial matches have business value
+- Different fields require different tolerances
+- You need to quantify "how close" near-matches are
+
+❌ **Consider binary classification when**:
+- Fields are truly binary (present/absent only)
+- No tolerance for variation is acceptable
+- You need strict sklearn-compatible metrics
+- Integration with existing sklearn-based systems required
+
+### Quick Reference: Evaluation Workflow
+
+```bash
+# 1. Prepare ground truth CSV
+evaluation_data/ground_truth.csv
+
+# 2. Run extraction evaluation (remote GPU)
+python llama_keyvalue.py
+python internvl3_keyvalue.py
+
+# 3. Review reports
+output/reports/{model}_comprehensive_evaluation_report_{timestamp}.md
+output/reports/{model}_classification_report_{timestamp}.md
+
+# 4. Debug specific fields
+python -c "from common.evaluation_metrics import calculate_field_accuracy; \
+  score = calculate_field_accuracy('extracted', 'ground_truth', 'FIELD', debug=True)"
+```
+
+### Implementation File Reference
+
+- **Custom comparison logic**: `common/evaluation_metrics.py:99-370` (`calculate_field_accuracy()`)
+- **Field type definitions**: `common/config.py` (field classification functions)
+- **Evaluation orchestration**: `common/evaluation_metrics.py:491-708` (`evaluate_extraction_results()`)
+- **Report generation**: `common/reporting.py:229-408` (`generate_classification_report()`)
+
+---
+
 ## Related Documentation
 
 - **[PROMPT_TESTING_GUIDE.md](docs/PROMPT_TESTING_GUIDE.md)**: How to test and refine extraction prompts
 - **[PIPELINE_FLOW.md](docs/PIPELINE_FLOW.md)**: Complete extraction pipeline architecture
 - **[CLAUDE.md](CLAUDE.md)**: Project setup and environment configuration
+- **[common/evaluation_metrics.py](common/evaluation_metrics.py)**: Source code for custom comparison logic
 
 ---
 
 **Questions or Issues?**
-See [Troubleshooting](#troubleshooting) or check existing evaluation runs in `output/reports/`
+
+- See [Custom Comparison Logic: Design Rationale](#custom-comparison-logic-design-rationale) for justification of design choices
+- See [Troubleshooting](#troubleshooting) for debugging evaluation results
+- See [Adjusting Custom Logic Thresholds](#adjusting-custom-logic-thresholds) to modify tolerances
+- Check existing evaluation runs in `output/reports/` for examples
