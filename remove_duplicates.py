@@ -42,7 +42,7 @@ def display_dataframe_summary(df, df_name="DataFrame"):
     print("=" * 70)
     print(df.head().to_string(index=False))
 
-    print(f"\n📊 Column Summary:")
+    print("\n📊 Column Summary:")
     print("=" * 70)
 
     # Percentage filled (excluding 'NOT_FOUND')
