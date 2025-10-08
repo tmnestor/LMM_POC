@@ -66,8 +66,8 @@ class SimpleModelEvaluator:
         missing_fields = []
 
         for field in evaluation_fields:
-            ground_truth_value = ground_truth.get(field, "").strip()
-            extracted_value = extracted_data.get(field, "").strip()
+            ground_truth_value = str(ground_truth.get(field, "")).strip()
+            extracted_value = str(extracted_data.get(field, "")).strip()
 
             # Skip empty ground truth fields
             if not ground_truth_value:
@@ -102,9 +102,9 @@ class SimpleModelEvaluator:
         Returns:
             True if values match (with appropriate normalization)
         """
-        # Basic normalization
-        extracted_clean = extracted.lower().strip().strip('"')
-        ground_truth_clean = ground_truth.lower().strip().strip('"')
+        # Basic normalization - ensure string type first
+        extracted_clean = str(extracted).lower().strip().strip('"')
+        ground_truth_clean = str(ground_truth).lower().strip().strip('"')
 
         # Exact match after normalization
         if extracted_clean == ground_truth_clean:
@@ -163,9 +163,9 @@ class SimpleModelEvaluator:
 
     def _list_match(self, extracted: str, ground_truth: str) -> bool:
         """Compare pipe-separated lists with element-wise normalization."""
-        # Split by pipe and normalize each element
-        extracted_items = [item.strip() for item in extracted.split('|')]
-        ground_truth_items = [item.strip() for item in ground_truth.split('|')]
+        # Split by pipe and normalize each element - ensure string type first
+        extracted_items = [item.strip() for item in str(extracted).split('|')]
+        ground_truth_items = [item.strip() for item in str(ground_truth).split('|')]
 
         if len(extracted_items) != len(ground_truth_items):
             return False
@@ -183,8 +183,8 @@ class SimpleModelEvaluator:
         if self._is_monetary(extracted) or self._is_monetary(ground_truth):
             return self._monetary_match(extracted, ground_truth)
 
-        # Try exact match
-        if extracted.lower().strip() == ground_truth.lower().strip():
+        # Try exact match - ensure string type first
+        if str(extracted).lower().strip() == str(ground_truth).lower().strip():
             return True
 
         # Try fuzzy match for text
