@@ -176,11 +176,21 @@ class BatchDocumentProcessor:
 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name
-                ground_truth = (
-                    self.ground_truth_data.get(image_name, {})
-                    if self.ground_truth_data
-                    else {}
-                )
+
+                # Fuzzy ground truth lookup - try exact match first, then without extension
+                ground_truth = {}
+                if self.ground_truth_data:
+                    # Try exact match first
+                    ground_truth = self.ground_truth_data.get(image_name, {})
+
+                    # If not found, try without extension
+                    if not ground_truth:
+                        image_stem = Path(image_path).stem  # name without extension
+                        # Look for any GT key that matches the stem
+                        for gt_key in self.ground_truth_data.keys():
+                            if Path(gt_key).stem == image_stem or gt_key == image_stem:
+                                ground_truth = self.ground_truth_data[gt_key]
+                                break
 
                 if ground_truth:
                     # Extract data using working DocumentAwareLlamaProcessor format
