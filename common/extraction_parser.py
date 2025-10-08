@@ -345,7 +345,8 @@ def parse_extraction_response(
         parts = clean_line.split(":", 1)
         if len(parts) == 2:
             key = parts[0].strip().upper()
-            value = parts[1].strip()
+            # Convert to string first to handle boolean/numeric values
+            value = str(parts[1]).strip()
 
             # Store if it's an expected field
             if key in expected_fields:
@@ -476,7 +477,8 @@ def parse_extraction_response(
             parts = clean_line.split(":", 1)
             if len(parts) == 2:
                 key = parts[0].strip().upper()
-                value = parts[1].strip()
+                # Convert to string first to handle boolean/numeric values
+                value = str(parts[1]).strip()
 
                 # Store if it's an expected field - this filters out hallucinated content
                 if key in extracted_data:
