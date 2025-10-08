@@ -1,8 +1,14 @@
 # Evaluation System Guide
 
-**Document Version**: 1.0
-**Last Updated**: 2025-10-06
+**Document Version**: 1.1
+**Last Updated**: 2025-10-08
 **Purpose**: Comprehensive guide to the vision-language model evaluation system for business document extraction
+
+**Version 1.1 Updates**:
+- Added pipe normalization for multi-line text fields (addresses, names)
+- Detailed explanation of word-based matching algorithm
+- Added ABN/numeric ID format handling documentation
+- Enhanced troubleshooting with pipe-related issues
 
 ---
 
@@ -120,8 +126,34 @@ The evaluation system uses **custom comparison logic** (not sklearn) with field-
 | **Lists** | `LINE_ITEM_DESCRIPTIONS` | Pipe-separated overlap calculation | Ratio of matched items to max(extracted, ground_truth) |
 | **Transactions** | `TRANSACTION_DATES`, `TRANSACTION_AMOUNTS_PAID` | Structured comparison | Ratio of matching transaction entries |
 | **Phone** | `CONTACT_PHONE` | Digit-based with partial credit | 1.0 exact match, 0.8 if 80%+ digits match, 0.5 if 60%+ match |
-| **Text** | `SUPPLIER_NAME`, `PAYER_ADDRESS` | Fuzzy matching (substring, word overlap) | 1.0 exact, 0.9 substring match, 0.8+ for 80%+ word overlap |
+| **Text** | `SUPPLIER_NAME`, `PAYER_ADDRESS`, `BUSINESS_ADDRESS` | Fuzzy matching (substring, word overlap) | 1.0 exact, 0.9 substring match, 0.8+ for 80%+ word overlap |
 | **Document Type** | `DOCUMENT_TYPE` | Canonical type mapping | Maps variations to canonical types (e.g., "tax invoice" → "invoice") |
+
+### Multi-Line Fields and Pipe Normalization
+
+**New in v1.1**: The evaluation system now handles multi-line document fields correctly.
+
+**Problem**: Some fields appear on multiple lines in source documents:
+```
+Document shows:        Ground Truth Should Be:
+123 Main Street    →   "123 Main Street | Sydney NSW 2000"
+Sydney NSW 2000
+```
+
+**Solution**: For **text fields only** (addresses, names), pipes `|` are normalized to spaces before comparison:
+- Ground truth: `"123 Main St | Sydney NSW 2000"`
+- Model extracts: `"123 Main St Sydney NSW 2000"`
+- **Result**: ✅ Perfect match (1.0)
+
+**Important**: This normalization **only applies to text fields**:
+- ✅ **Text fields** (ADDRESS, NAME): Pipes normalized to spaces
+- ❌ **List fields** (LINE_ITEM_DESCRIPTIONS): Pipes remain as delimiters
+- ❌ **Transaction fields**: Pipes remain as delimiters
+
+**Benefits**:
+- Ground truth accurately reflects multi-line source documents
+- Models can extract with or without line breaks
+- No need to manually clean ground truth CSV
 
 ### Creating Ground Truth
 
@@ -245,20 +277,121 @@ tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
 score = 1.0 if abs(extracted_num - ground_truth_num) <= tolerance else 0.0
 ```
 
+### Numeric ID Fields (ABN, Tax IDs)
+
+**Format doesn't matter - only digits are compared.**
+
+For fields like `BUSINESS_ABN`, the evaluation system:
+1. **Strips ALL non-digit characters** (spaces, dashes, etc.)
+2. **Compares only the digits**
+3. **Requires exact digit match** (0% tolerance for regulatory/legal IDs)
+
+**Examples:**
+
+| Extracted | Ground Truth | Digits Match? | Score |
+|-----------|--------------|---------------|-------|
+| `"06 082 698 025"` | `"06082698025"` | `06082698025` = `06082698025` | ✅ **1.0** |
+| `"06-082-698-025"` | `"06 082 698 025"` | `06082698025` = `06082698025` | ✅ **1.0** |
+| `"06082698025"` | `"06 082 698 025"` | `06082698025` = `06082698025` | ✅ **1.0** |
+| `"06082698026"` | `"06082698025"` | `06082698026` ≠ `06082698025` | ❌ **0.0** |
+
+**Rationale:**
+- **Legal/regulatory compliance**: ABNs, Tax IDs must be exact for legal validity
+- **Format variations**: Different systems display with different formatting
+- **Zero tolerance**: A single wrong digit makes the ID invalid
+
+**Implementation** (`evaluation_metrics.py:198-207`):
+```python
+if field_types.get(field_name) == "numeric_id":
+    extracted_digits = re.sub(r"\D", "", extracted)  # Remove ALL non-digits
+    ground_truth_digits = re.sub(r"\D", "", ground_truth)
+    score = 1.0 if extracted_digits == ground_truth_digits else 0.0
+```
+
+### Word-Based Matching Explained
+
+**What is word-based matching?**
+
+Word-based matching is a fuzzy comparison method that breaks text into individual words and calculates how many words overlap. This is used for **text fields** (addresses, names) when exact and substring matches fail.
+
+**How it works:**
+
+```python
+# Step 1: Split text into words
+extracted = "Aussie Office Supplies Pty Ltd"
+ground_truth = "Aussie Office Supplies Corporation Pty Ltd"
+
+extracted_words = {"aussie", "office", "supplies", "pty", "ltd"}  # 5 words
+ground_truth_words = {"aussie", "office", "supplies", "corporation", "pty", "ltd"}  # 6 words
+
+# Step 2: Find matching words (set intersection)
+matching_words = {"aussie", "office", "supplies", "pty", "ltd"}  # 5 words match
+
+# Step 3: Calculate overlap ratio
+overlap = len(matching_words) / len(ground_truth_words)
+overlap = 5 / 6 = 0.833 (83.3%)
+
+# Step 4: Apply threshold
+if overlap >= 0.8:  # 80% threshold required
+    score = 0.833  # Award partial credit
+else:
+    score = 0.0   # Below threshold
+```
+
+**Implementation** (`evaluation_metrics.py:368-375`):
+```python
+# Check word overlap for longer text
+extracted_words = set(extracted_lower.split())  # Split on spaces
+ground_truth_words = set(ground_truth_lower.split())
+
+if ground_truth_words:
+    overlap = len(extracted_words & ground_truth_words) / len(ground_truth_words)
+    if overlap >= 0.8:
+        return overlap  # Return the overlap ratio as score
+```
+
+**Examples:**
+
+| Extracted | Ground Truth | Analysis | Score |
+|-----------|--------------|----------|-------|
+| `"Aussie Office Supplies Pty"` | `"Aussie Office Supplies Pty Ltd"` | 4/5 words = 80% | **0.80** |
+| `"123 Main Street Sydney NSW"` | `"123 Main Street Sydney NSW 2000"` | Substring match | **0.90** |
+| `"Aussie Office Supplies Ltd"` | `"Aussie Office Supplies Limited"` | 3/4 words = 75% | **0.0** (below 80%) |
+| `"456 Collins St Melbourne"` | `"123 Main St Sydney"` | 1/4 words = 25% | **0.0** |
+
+**Text Field Matching Cascade:**
+
+Text fields use a cascading approach for maximum accuracy:
+
+1. **Exact match** (after normalization) → Score: **1.0**
+   - Example: `"acme corp"` = `"ACME Corp"` (case/punctuation ignored)
+
+2. **Substring match** → Score: **0.9**
+   - Example: `"Acme Corp"` is contained in `"Acme Corporation Ltd"`
+
+3. **Word-based match** (≥80% overlap) → Score: **0.8-1.0**
+   - Example: `"Acme Corp Pty"` vs `"Acme Corp Pty Ltd"` = 3/4 = 75% → **0.0**
+   - Example: `"Acme Corp Pty Ltd"` vs `"Acme Corp Pty Ltd Australia"` = 4/5 = 80% → **0.80**
+
+4. **No match** → Score: **0.0**
+
+**Key characteristics:**
+
+- ✅ **Order doesn't matter**: `"Sydney NSW 123 Main St"` = `"123 Main St Sydney NSW"`
+- ✅ **Case doesn't matter**: `"ACME CORP"` = `"acme corp"`
+- ✅ **Punctuation removed**: `"Acme, Corp."` = `"Acme Corp"`
+- ✅ **Pipes normalized** (text fields only): `"A | B"` = `"A B"`
+- ❌ **Abbreviations count as different**: `"Ltd"` ≠ `"Limited"`
+- ❌ **Typos not handled**: `"Mian"` ≠ `"Main"`
+
 ### Why 80% Threshold for Text Matching?
 
 **Rationale**:
 - **OCR errors**: Common to drop articles, suffixes (Pty, Ltd, Inc)
 - **Abbreviations**: Business names often abbreviated consistently
-- **False positives**: Below 80%, matches become unreliable (e.g., common words only)
+- **False positives**: Below 80%, matches become unreliable (e.g., only common words matching)
 - **Empirical testing**: 80% word overlap empirically correlates with "same entity"
-
-**Implementation** (`evaluation_metrics.py:362`):
-```python
-overlap = len(extracted_words & ground_truth_words) / len(ground_truth_words)
-if overlap >= 0.8:
-    return overlap  # Award partial credit
-```
+- **Balance**: Allows 1-2 missing words while requiring substantial overlap
 
 ### Accuracy Score Interpretation
 
@@ -619,7 +752,8 @@ score = calculate_field_accuracy(
 **Common Issues**:
 - **Formatting**: `"$1,234"` vs `"$1234"` (should match - check for extra spaces)
 - **Case sensitivity**: System normalizes to lowercase, but check quotes: `"ACME"` vs `"acme"`
-- **List separators**: Use ` | ` (space-pipe-space), not `|` or `, `
+- **List separators**: Use ` | ` (space-pipe-space) for lists, but NOT for text fields
+- **Pipes in addresses**: For text fields (ADDRESS, NAME), pipes are normalized to spaces automatically (v1.1+)
 
 ### Field Not Evaluated
 
@@ -679,6 +813,8 @@ print(f"FIELD_NAME is type: {field_types.get('FIELD_NAME')}")
 - `"Acme Corp"` vs `"Acme Corporation"` → 50% overlap → 0.0 (below 80% threshold)
 - `"$100.00"` vs `"$101.50"` → 1.5% difference → 0.0 (exceeds 1% tolerance)
 - `"04/05/2025"` vs `"05/04/2025"` → Same components, different order → 1.0 (components match)
+- `"06-082-698-025"` vs `"06 082 698 025"` → Same digits → 1.0 (ABN format ignored)
+- `"123 Main St | Sydney"` vs `"123 Main St Sydney"` → Pipes normalized → 1.0 (text fields only)
 
 ### Adjusting Custom Logic Thresholds
 
@@ -728,15 +864,24 @@ score = 0.8 if match_ratio >= 0.9 else 0.0
 
 ✅ **Do**:
 ```csv
-INVOICE_DATE,TOTAL_AMOUNT,LINE_ITEM_DESCRIPTIONS
-15/03/2025,$1234.56,Item 1 | Item 2 | Item 3
+INVOICE_DATE,TOTAL_AMOUNT,LINE_ITEM_DESCRIPTIONS,BUSINESS_ADDRESS
+15/03/2025,$1234.56,Item 1 | Item 2 | Item 3,123 Main St | Sydney NSW 2000
 ```
+
+**Notes**:
+- Use pipes `|` for list fields (LINE_ITEM_DESCRIPTIONS)
+- Use pipes `|` for multi-line text fields (BUSINESS_ADDRESS) - normalized automatically (v1.1+)
+- Date format: DD/MM/YYYY
+- Money format: Include `$` and decimals
 
 ❌ **Don't**:
 ```csv
-INVOICE_DATE,TOTAL_AMOUNT,LINE_ITEM_DESCRIPTIONS
-15-Mar-2025,1234.56,Item 1, Item 2, Item 3
+INVOICE_DATE,TOTAL_AMOUNT,LINE_ITEM_DESCRIPTIONS,BUSINESS_ADDRESS
+15-Mar-2025,1234.56,Item 1, Item 2, Item 3,"123 Main St
+Sydney NSW 2000"
 ```
+
+**Why**: Inconsistent separators and date formats break comparison logic
 
 ### 2. Document Representative Test Set
 
@@ -817,6 +962,9 @@ generate_executive_report(
 3. **Field-type-specific tolerances** encode business requirements
 4. **NOT_FOUND handling** correctly evaluates absent fields
 5. **Structured data comparison** for lists and transactions
+6. **Pipe normalization** (v1.1+) handles multi-line text fields automatically
+7. **Word-based matching** with 80% threshold for text similarity
+8. **Format-agnostic numeric IDs** - only digits matter for ABN/Tax IDs
 
 ### When to Use This Approach
 

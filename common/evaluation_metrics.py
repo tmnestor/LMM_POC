@@ -146,16 +146,29 @@ def calculate_field_accuracy(
     extracted_lower = extracted.lower()
     ground_truth_lower = ground_truth.lower()
 
+    # Normalize pipes to spaces for text fields (handles multi-line addresses/names in ground truth)
+    # This allows "123 Main St | Sydney NSW" to match "123 Main St Sydney NSW"
+    field_types = get_all_field_types()
+    if field_types.get(field_name) == "text":
+        extracted_lower = extracted_lower.replace("|", " ")
+        ground_truth_lower = ground_truth_lower.replace("|", " ")
+        # Clean up multiple consecutive spaces from pipe replacement
+        extracted_lower = " ".join(extracted_lower.split())
+        ground_truth_lower = " ".join(ground_truth_lower.split())
+
+    # For exact match checking, create normalized versions with formatting removed
+    extracted_normalized = extracted_lower
+    ground_truth_normalized = ground_truth_lower
     # Remove common formatting
     for char in [",", "$", "%", "(", ")", " "]:
-        extracted_lower = extracted_lower.replace(char, "")
-        ground_truth_lower = ground_truth_lower.replace(char, "")
+        extracted_normalized = extracted_normalized.replace(char, "")
+        ground_truth_normalized = ground_truth_normalized.replace(char, "")
 
     if debug:
-        print(f"    🔍 Normalized: '{extracted_lower}' vs '{ground_truth_lower}'")
+        print(f"    🔍 Normalized: '{extracted_normalized}' vs '{ground_truth_normalized}'")
 
     # Exact match after normalization
-    if extracted_lower == ground_truth_lower:
+    if extracted_normalized == ground_truth_normalized:
         if debug:
             print("    ✅ Exact match - score: 1.0")
         return 1.0
