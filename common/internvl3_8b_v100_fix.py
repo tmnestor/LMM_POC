@@ -9,8 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 
 
 def load_internvl3_8b_for_v100_multi_gpu(
-    model_path: str,
-    verbose: bool = True
+    model_path: str, verbose: bool = True
 ) -> tuple:
     """
     Special loading pattern for 4x V100 16GB GPUs.
@@ -32,10 +31,10 @@ def load_internvl3_8b_for_v100_multi_gpu(
     # GPUs 2-3 reserved for activations
 
     device_map = {
-        'vision_model': 0,
-        'mlp1': 0,
-        'language_model.model.embed_tokens': 0,
-        'language_model.model.tok_embeddings': 0,
+        "vision_model": 0,
+        "mlp1": 0,
+        "language_model.model.embed_tokens": 0,
+        "language_model.model.tok_embeddings": 0,
     }
 
     # Try loading with this simplified device map
@@ -47,17 +46,15 @@ def load_internvl3_8b_for_v100_multi_gpu(
         # First attempt: Sequential device map (less splitting)
         model = AutoModel.from_pretrained(
             model_path,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.float16,  # V100-compatible (changed from bfloat16)
             low_cpu_mem_usage=True,
             use_flash_attn=False,  # V100 doesn't support Flash Attention
             trust_remote_code=True,
-            device_map="sequential"  # Try sequential instead of auto
+            device_map="sequential",  # Try sequential instead of auto
         ).eval()
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-            use_fast=False
+            model_path, trust_remote_code=True, use_fast=False
         )
 
         if verbose:
@@ -74,17 +71,15 @@ def load_internvl3_8b_for_v100_multi_gpu(
         try:
             model = AutoModel.from_pretrained(
                 model_path,
-                torch_dtype=torch.bfloat16,
+                torch_dtype=torch.float16,  # V100-compatible (changed from bfloat16)
                 low_cpu_mem_usage=True,
                 use_flash_attn=False,
                 trust_remote_code=True,
-                device_map="balanced_low_0"  # Minimize GPU 0 load
+                device_map="balanced_low_0",  # Minimize GPU 0 load
             ).eval()
 
             tokenizer = AutoTokenizer.from_pretrained(
-                model_path,
-                trust_remote_code=True,
-                use_fast=False
+                model_path, trust_remote_code=True, use_fast=False
             )
 
             if verbose:
@@ -101,11 +96,7 @@ def load_internvl3_8b_for_v100_multi_gpu(
 def test_inference_quality(model, tokenizer, verbose=True):
     """Quick test to check if responses are gibberish."""
 
-    test_prompts = [
-        "What is 2+2?",
-        "Name three colors.",
-        "Is water wet?"
-    ]
+    test_prompts = ["What is 2+2?", "Name three colors.", "Is water wet?"]
 
     clean_responses = 0
 
@@ -121,13 +112,13 @@ def test_inference_quality(model, tokenizer, verbose=True):
                 **inputs,
                 max_new_tokens=20,
                 do_sample=False,  # Deterministic for testing
-                temperature=1.0
+                temperature=1.0,
             )
 
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
         # Check for gibberish (excessive exclamation marks)
-        gibberish_ratio = response.count('!') / max(len(response), 1)
+        gibberish_ratio = response.count("!") / max(len(response), 1)
 
         if verbose:
             rprint(f"Q: {prompt}")
@@ -139,7 +130,9 @@ def test_inference_quality(model, tokenizer, verbose=True):
                 rprint("[green]✅ Clean response[/green]")
         else:
             if verbose:
-                rprint(f"[red]❌ Gibberish detected (ratio: {gibberish_ratio:.2f})[/red]")
+                rprint(
+                    f"[red]❌ Gibberish detected (ratio: {gibberish_ratio:.2f})[/red]"
+                )
 
     success_rate = clean_responses / len(test_prompts)
 

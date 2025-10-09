@@ -51,22 +51,30 @@ class InternVL3_8B_MemoryManager:
             available = get_available_gpu_memory()
 
             checkpoint = {
-                'stage': stage,
-                'allocated_gb': allocated,
-                'reserved_gb': reserved,
-                'available_gb': available,
-                'timestamp': time.time()
+                "stage": stage,
+                "allocated_gb": allocated,
+                "reserved_gb": reserved,
+                "available_gb": available,
+                "timestamp": time.time(),
             }
 
             self.memory_checkpoints.append(checkpoint)
             self.peak_memory_usage = max(self.peak_memory_usage, allocated)
 
             if self.verbose:
-                rprint(f"[blue]📊 Memory checkpoint ({stage}): {allocated:.2f}GB allocated, {available:.2f}GB available[/blue]")
+                rprint(
+                    f"[blue]📊 Memory checkpoint ({stage}): {allocated:.2f}GB allocated, {available:.2f}GB available[/blue]"
+                )
 
             return checkpoint
 
-        return {'stage': stage, 'allocated_gb': 0, 'reserved_gb': 0, 'available_gb': 0, 'timestamp': time.time()}
+        return {
+            "stage": stage,
+            "allocated_gb": 0,
+            "reserved_gb": 0,
+            "available_gb": 0,
+            "timestamp": time.time(),
+        }
 
     def detect_memory_spike(self, threshold_gb: float = 2.0) -> bool:
         """Detect if there's been a sudden memory spike."""
@@ -76,11 +84,13 @@ class InternVL3_8B_MemoryManager:
         recent = self.memory_checkpoints[-1]
         previous = self.memory_checkpoints[-2]
 
-        spike = recent['allocated_gb'] - previous['allocated_gb']
+        spike = recent["allocated_gb"] - previous["allocated_gb"]
 
         if spike > threshold_gb:
             if self.verbose:
-                rprint(f"[yellow]⚠️ Memory spike detected: +{spike:.2f}GB between {previous['stage']} and {recent['stage']}[/yellow]")
+                rprint(
+                    f"[yellow]⚠️ Memory spike detected: +{spike:.2f}GB between {previous['stage']} and {recent['stage']}[/yellow]"
+                )
             return True
 
         return False
@@ -88,7 +98,9 @@ class InternVL3_8B_MemoryManager:
     def aggressive_cleanup_for_8b(self):
         """Perform aggressive cleanup specifically designed for InternVL3-8B."""
         if self.verbose:
-            rprint("[bold red]🧹 Performing aggressive cleanup for InternVL3-8B...[/bold red]")
+            rprint(
+                "[bold red]🧹 Performing aggressive cleanup for InternVL3-8B...[/bold red]"
+            )
 
         # Step 1: Clear any existing model references
         emergency_cleanup(verbose=self.verbose)
@@ -113,19 +125,21 @@ class InternVL3_8B_MemoryManager:
 
         if self.verbose:
             available = get_available_gpu_memory()
-            rprint(f"[green]✅ Cleanup complete. Available memory: {available:.2f}GB[/green]")
+            rprint(
+                f"[green]✅ Cleanup complete. Available memory: {available:.2f}GB[/green]"
+            )
 
     def _clear_vision_transformer_caches(self):
         """Clear caches specific to vision transformer components."""
         # Clear any vision-specific caches that might be lingering
         try:
             # Clear torchvision caches if available
-            if hasattr(torch.backends.cudnn, 'benchmark'):
+            if hasattr(torch.backends.cudnn, "benchmark"):
                 torch.backends.cudnn.benchmark = False
                 torch.backends.cudnn.benchmark = True
 
             # Clear any transformer caches
-            if hasattr(torch.nn.functional, '_clearCachedTensors'):
+            if hasattr(torch.nn.functional, "_clearCachedTensors"):
                 torch.nn.functional._clearCachedTensors()
 
         except Exception as e:
@@ -143,11 +157,15 @@ class InternVL3_8B_MemoryManager:
 
         if world_size < 2:
             if self.verbose:
-                rprint("[yellow]⚠️ Single GPU detected - using standard device_map='auto'[/yellow]")
+                rprint(
+                    "[yellow]⚠️ Single GPU detected - using standard device_map='auto'[/yellow]"
+                )
             return "auto"
 
         if self.verbose:
-            rprint(f"[cyan]🔧 Creating official multi-GPU device map for {world_size} GPUs[/cyan]")
+            rprint(
+                f"[cyan]🔧 Creating official multi-GPU device map for {world_size} GPUs[/cyan]"
+            )
 
         try:
             config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
@@ -163,22 +181,24 @@ class InternVL3_8B_MemoryManager:
             for i, num_layer in enumerate(num_layers_per_gpu):
                 for _ in range(num_layer):  # Using _ for unused loop variable
                     if layer_cnt < num_layers:
-                        device_map[f'language_model.model.layers.{layer_cnt}'] = i
+                        device_map[f"language_model.model.layers.{layer_cnt}"] = i
                         layer_cnt += 1
 
             # Critical components on GPU 0 (official requirement)
-            device_map['vision_model'] = 0
-            device_map['mlp1'] = 0
-            device_map['language_model.model.tok_embeddings'] = 0
-            device_map['language_model.model.embed_tokens'] = 0
-            device_map['language_model.output'] = 0
-            device_map['language_model.model.norm'] = 0
-            device_map['language_model.model.rotary_emb'] = 0
-            device_map['language_model.lm_head'] = 0
-            device_map[f'language_model.model.layers.{num_layers - 1}'] = 0
+            device_map["vision_model"] = 0
+            device_map["mlp1"] = 0
+            device_map["language_model.model.tok_embeddings"] = 0
+            device_map["language_model.model.embed_tokens"] = 0
+            device_map["language_model.output"] = 0
+            device_map["language_model.model.norm"] = 0
+            device_map["language_model.model.rotary_emb"] = 0
+            device_map["language_model.lm_head"] = 0
+            device_map[f"language_model.model.layers.{num_layers - 1}"] = 0
 
             if self.verbose:
-                rprint(f"[green]✅ Official device map created: {num_layers} layers across {world_size} GPUs[/green]")
+                rprint(
+                    f"[green]✅ Official device map created: {num_layers} layers across {world_size} GPUs[/green]"
+                )
                 for device_id in range(world_size):
                     layer_count = sum(1 for v in device_map.values() if v == device_id)
                     rprint(f"[cyan]  GPU {device_id}: {layer_count} components[/cyan]")
@@ -199,13 +219,21 @@ class InternVL3_8B_MemoryManager:
 
         if world_size >= 2:
             # Multi-GPU setup - use official requirements from docs
-            total_memory = sum(torch.cuda.get_device_properties(i).total_memory / 1e9 for i in range(world_size))
+            total_memory = sum(
+                torch.cuda.get_device_properties(i).total_memory / 1e9
+                for i in range(world_size)
+            )
             if self.verbose:
-                rprint(f"[cyan]🔍 Multi-GPU setup detected: {world_size} GPUs, {total_memory:.1f}GB total[/cyan]")
+                rprint(
+                    f"[cyan]🔍 Multi-GPU setup detected: {world_size} GPUs, {total_memory:.1f}GB total[/cyan]"
+                )
 
             # Removed strict GPU count requirement - allow any multi-GPU configuration
             # Previously required 3+ GPUs or 90GB+ total, now accepts 2+ GPUs
-            return True, f"✅ Multi-GPU detected: {world_size} GPUs, {total_memory:.1f}GB total"
+            return (
+                True,
+                f"✅ Multi-GPU detected: {world_size} GPUs, {total_memory:.1f}GB total",
+            )
         else:
             # Single GPU - original estimation
             base_model_memory = 8.0  # ~8GB for quantized language model
@@ -215,17 +243,23 @@ class InternVL3_8B_MemoryManager:
             total_required = base_model_memory + vision_encoder_memory + overhead_memory
 
             if available >= total_required:
-                return True, f"✅ Single GPU sufficient: {available:.1f}GB available, {total_required:.1f}GB required"
+                return (
+                    True,
+                    f"✅ Single GPU sufficient: {available:.1f}GB available, {total_required:.1f}GB required",
+                )
             else:
                 deficit = total_required - available
-                return False, f"❌ Single GPU insufficient: {available:.1f}GB available, {total_required:.1f}GB required (deficit: {deficit:.1f}GB)"
+                return (
+                    False,
+                    f"❌ Single GPU insufficient: {available:.1f}GB available, {total_required:.1f}GB required (deficit: {deficit:.1f}GB)",
+                )
 
     def sequential_model_loading(
         self,
         model_path: str,
-        torch_dtype: torch.dtype = torch.bfloat16,
+        torch_dtype: torch.dtype = torch.float16,  # V100-compatible (changed from bfloat16)
         low_cpu_mem_usage: bool = True,
-        use_flash_attn: bool = False
+        use_flash_attn: bool = False,
     ) -> Tuple[Any, Any]:
         """
         Load InternVL3-8B using sequential component loading to minimize memory spikes.
@@ -234,7 +268,9 @@ class InternVL3_8B_MemoryManager:
         to avoid the large memory spike that occurs during standard loading.
         """
         if self.verbose:
-            rprint("[bold green]🚀 Starting sequential InternVL3-8B loading...[/bold green]")
+            rprint(
+                "[bold green]🚀 Starting sequential InternVL3-8B loading...[/bold green]"
+            )
 
         # Initial cleanup and memory check
         self.aggressive_cleanup_for_8b()
@@ -258,15 +294,15 @@ class InternVL3_8B_MemoryManager:
                 rprint("[cyan]📥 Loading tokenizer...[/cyan]")
 
             tokenizer = AutoTokenizer.from_pretrained(
-                model_path,
-                trust_remote_code=True,
-                use_fast=False
+                model_path, trust_remote_code=True, use_fast=False
             )
             self.create_memory_checkpoint("tokenizer_loaded")
 
             # Step 3: Load model with optimized settings
             if self.verbose:
-                rprint("[cyan]📥 Loading InternVL3-8B model with memory optimization...[/cyan]")
+                rprint(
+                    "[cyan]📥 Loading InternVL3-8B model with memory optimization...[/cyan]"
+                )
 
             # Create official device map for multi-GPU or fallback for single GPU
             device_map = self.create_official_device_map(model_path)
@@ -284,7 +320,7 @@ class InternVL3_8B_MemoryManager:
                 low_cpu_mem_usage=low_cpu_mem_usage,
                 use_flash_attn=use_flash_attn,
                 trust_remote_code=True,
-                device_map=device_map
+                device_map=device_map,
             ).eval()
 
             self.create_memory_checkpoint("model_loaded")
@@ -300,7 +336,9 @@ class InternVL3_8B_MemoryManager:
             if isinstance(device_map, str) and device_map == "auto":
                 # For device_map="auto", model is already on appropriate devices
                 if self.verbose:
-                    rprint("[cyan]📤 Model automatically placed by device_map='auto'[/cyan]")
+                    rprint(
+                        "[cyan]📤 Model automatically placed by device_map='auto'[/cyan]"
+                    )
             elif isinstance(device_map, str):
                 # For single GPU setups without multi-GPU device mapping
                 if self.verbose:
@@ -309,7 +347,9 @@ class InternVL3_8B_MemoryManager:
             else:
                 # Multi-GPU setup - model components already distributed
                 if self.verbose:
-                    rprint("[cyan]📤 Model distributed across GPUs by official device mapping[/cyan]")
+                    rprint(
+                        "[cyan]📤 Model distributed across GPUs by official device mapping[/cyan]"
+                    )
 
             self.create_memory_checkpoint("model_on_cuda")
 
@@ -317,7 +357,9 @@ class InternVL3_8B_MemoryManager:
             # REMOVED: gradient_checkpointing_enable() - meant for training, not inference
             # This was suspected cause of gibberish responses during inference
             if self.verbose:
-                rprint("[yellow]⚠️ Skipped gradient checkpointing (meant for training, not inference)[/yellow]")
+                rprint(
+                    "[yellow]⚠️ Skipped gradient checkpointing (meant for training, not inference)[/yellow]"
+                )
 
             # Final memory report
             final_checkpoint = self.create_memory_checkpoint("loading_complete")
@@ -326,8 +368,12 @@ class InternVL3_8B_MemoryManager:
                 param_count = sum(p.numel() for p in model.parameters())
                 rprint("[green]✅ InternVL3-8B loaded successfully![/green]")
                 rprint(f"[blue]📊 Model parameters: {param_count:,}[/blue]")
-                rprint(f"[blue]🎯 Peak memory usage: {self.peak_memory_usage:.2f}GB[/blue]")
-                rprint(f"[blue]💾 Final memory usage: {final_checkpoint['allocated_gb']:.2f}GB[/blue]")
+                rprint(
+                    f"[blue]🎯 Peak memory usage: {self.peak_memory_usage:.2f}GB[/blue]"
+                )
+                rprint(
+                    f"[blue]💾 Final memory usage: {final_checkpoint['allocated_gb']:.2f}GB[/blue]"
+                )
 
             return model, tokenizer
 
@@ -342,10 +388,10 @@ class InternVL3_8B_MemoryManager:
     def get_memory_report(self) -> Dict[str, Any]:
         """Get a comprehensive memory usage report."""
         return {
-            'checkpoints': self.memory_checkpoints,
-            'peak_memory_gb': self.peak_memory_usage,
-            'current_available_gb': get_available_gpu_memory(),
-            'loading_stages': len(self.memory_checkpoints)
+            "checkpoints": self.memory_checkpoints,
+            "peak_memory_gb": self.peak_memory_usage,
+            "current_available_gb": get_available_gpu_memory(),
+            "loading_stages": len(self.memory_checkpoints),
         }
 
     def print_memory_report(self):
@@ -360,26 +406,28 @@ class InternVL3_8B_MemoryManager:
 
         rprint("\n[bold blue]Memory Timeline:[/bold blue]")
         for i, checkpoint in enumerate(self.memory_checkpoints):
-            stage = checkpoint['stage']
-            allocated = checkpoint['allocated_gb']
-            available = checkpoint['available_gb']
+            stage = checkpoint["stage"]
+            allocated = checkpoint["allocated_gb"]
+            available = checkpoint["available_gb"]
 
             if i > 0:
-                prev_allocated = self.memory_checkpoints[i-1]['allocated_gb']
+                prev_allocated = self.memory_checkpoints[i - 1]["allocated_gb"]
                 delta = allocated - prev_allocated
                 delta_str = f" ({delta:+.2f}GB)" if delta != 0 else ""
             else:
                 delta_str = ""
 
-            rprint(f"[cyan]  {i+1}. {stage}: {allocated:.2f}GB allocated, {available:.2f}GB available{delta_str}[/cyan]")
+            rprint(
+                f"[cyan]  {i + 1}. {stage}: {allocated:.2f}GB allocated, {available:.2f}GB available{delta_str}[/cyan]"
+            )
 
 
 def load_internvl3_8b_optimized(
     model_path: str,
-    torch_dtype: torch.dtype = torch.bfloat16,
+    torch_dtype: torch.dtype = torch.float16,  # V100-compatible (changed from bfloat16)
     low_cpu_mem_usage: bool = True,
     use_flash_attn: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> Tuple[Any, Any]:
     """
     Optimized loading function for InternVL3-8B that handles the large vision encoder.
@@ -401,7 +449,7 @@ def load_internvl3_8b_optimized(
             model_path=model_path,
             torch_dtype=torch_dtype,
             low_cpu_mem_usage=low_cpu_mem_usage,
-            use_flash_attn=use_flash_attn
+            use_flash_attn=use_flash_attn,
         )
 
         if verbose:
