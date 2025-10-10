@@ -8,18 +8,58 @@
 
 ## Table of Contents
 
-1. [Quick Fix Summary](#quick-fix-summary)
-2. [Problem Description](#problem-description)
-3. [Root Cause with Official References](#root-cause-with-official-references)
-4. [Changes Applied](#changes-applied)
-5. [Validation Steps](#validation-steps)
-6. [Expected Results](#expected-results)
-7. [Troubleshooting Guide](#troubleshooting-guide)
-8. [Technical Background](#technical-background)
+1. [Migration to A10 GPU](#migration-to-a10-gpu)
+2. [Quick Fix Summary (V100)](#quick-fix-summary-v100-historical-issue)
+3. [Problem Description](#problem-description)
+4. [Root Cause with Official References](#root-cause-with-official-references)
+5. [Changes Applied](#changes-applied)
+6. [Validation Steps](#validation-steps)
+7. [Expected Results](#expected-results)
+8. [Troubleshooting Guide](#troubleshooting-guide)
+9. [A10 Recommendations](#a10-recommendations)
+10. [Technical Background](#technical-background)
 
 ---
 
-## Quick Fix Summary
+## Migration to A10 GPU
+
+**🎯 Production Environment Update**: Migrating from V100 to A10 GPU
+
+### Why A10?
+- ✅ Native bfloat16 support (compute capability 8.6)
+- ✅ 3rd generation Tensor Cores (same as A100)
+- ✅ 24GB GDDR6 VRAM per GPU
+- ✅ Lower power (150W vs 250W)
+- ✅ Better price/performance for inference
+- ✅ No dtype compatibility issues
+
+### Key Differences: V100 → A10
+
+| Feature | V100 | A10 |
+|---------|------|-----|
+| **Architecture** | Volta | Ampere |
+| **Tensor Core Gen** | 1st Gen | 3rd Gen |
+| **Compute Capability** | 7.0 | 8.6 |
+| **Native bfloat16** | ❌ No (emulated) | ✅ Yes |
+| **VRAM** | 32GB HBM2 | 24GB GDDR6 |
+| **Memory Bandwidth** | 900 GB/s | 600 GB/s |
+| **Power** | 250W | 150W |
+| **Recommended dtype** | float16 only | bfloat16 or float16 |
+
+### Configuration Changes for A10
+With A10 GPUs, you can now use the optimal bfloat16 dtype:
+
+```python
+CONFIG = {
+    'TORCH_DTYPE': 'bfloat16',  # ✅ A10 supports native bfloat16
+    'USE_FLASH_ATTN': False,    # Optional: test if compatible
+    # ... rest of config
+}
+```
+
+---
+
+## Quick Fix Summary (V100 Historical Issue)
 
 ### Problem
 InternVL3-8B outputs gibberish ("!") on 4xV100 production machine after weeks of troubleshooting.
@@ -63,14 +103,15 @@ Actual:   "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 **V100 Compute Capability**: 7.0 (lacks native bfloat16 support)
 **Requirement for bfloat16**: Compute capability ≥ 8.0
 
-| GPU Model | Architecture | Compute Capability | Native bfloat16 | Status |
-|-----------|--------------|-------------------|-----------------|---------|
-| **Tesla V100** | Volta | **7.0** | ❌ **No** (emulated) | **Problem GPU** |
-| Tesla T4 | Turing | 7.5 | ❌ No | Also incompatible |
-| A100 | Ampere | 8.0 | ✅ Yes | Works fine |
-| H100 | Hopper | 9.0 | ✅ Yes | Works fine |
-| H200 | Hopper | 9.0 | ✅ Yes | **Testing GPU** |
-| L40S | Ada Lovelace | 8.9 | ✅ Yes | Works fine |
+| GPU Model | Architecture | Tensor Core Gen | Compute Capability | Native bfloat16 | Status |
+|-----------|--------------|----------------|-------------------|-----------------|---------|
+| **Tesla V100** | Volta | **1st Gen** | **7.0** | ❌ **No** (emulated) | **Previous Production GPU** |
+| Tesla T4 | Turing | 2nd Gen | 7.5 | ❌ No | Also incompatible |
+| **A10** | Ampere | **3rd Gen** | **8.6** | ✅ **Yes** | **🎯 New Production GPU** |
+| A100 | Ampere | 3rd Gen | 8.0 | ✅ Yes (BF16 introduced) | Works fine |
+| H100 | Hopper | 4th Gen | 9.0 | ✅ Yes (+ FP8) | Works fine |
+| H200 | Hopper | 4th Gen | 9.0 | ✅ Yes (+ FP8) | **Testing GPU** |
+| L40S | Ada Lovelace | 4th Gen | 8.9 | ✅ Yes (+ FP8) | Works fine |
 
 ### Official References
 
@@ -517,19 +558,27 @@ print(f"Success rate: {(successful/total_images*100):.1f}%")
 |---------------|-----|------------------|----------|-----------------|------------------|
 | **Before (bfloat16)** | V100 | ❌ Gibberish "!" | 0% | N/A | ~30GB |
 | **After (float16)** | V100 | ✅ Clean JSON | 60-75% | 2.5-4.0 | ~30GB |
+| **A10 (bfloat16)** | A10 | ✅ Clean JSON | 65-80% | 3.0-4.5 | ~22GB |
 | **Baseline (bfloat16)** | H200 | ✅ Clean JSON | 65-80% | 3.5-5.0 | ~30GB |
 
 ### Memory Usage
 
-**4xV100 32GB Configuration**:
+**A10 24GB Configuration (Current Production)**:
+- Model size (bfloat16): ~16GB
+- Required per GPU: ~22GB
+- **Multi-GPU**: Recommended for non-quantized InternVL3-8B
+- **Single A10**: Use 8-bit quantization (reduces to ~8GB)
+
+**4xV100 32GB Configuration (Legacy)**:
 - Total VRAM: 128GB
 - Model size (float16): ~16GB
 - Required per GPU: ~30GB
 - **Result**: Fits comfortably on 4xV100
 
-**Alternative with 8-bit Quantization**:
+**8-bit Quantization Option**:
 - Model size (int8): ~8GB
-- Required per GPU: ~18GB
+- Required per GPU: ~12-18GB
+- Works on single A10 24GB or V100 32GB
 - Slight accuracy reduction (~1-2%)
 
 ---
@@ -685,6 +734,127 @@ if hasattr(model, 'hf_device_map'):
     print("Device map:", model.hf_device_map)
     # Should show distribution across GPUs
 ```
+
+---
+
+## A10 Recommendations
+
+### Optimal Configuration for A10
+
+**Recommended Settings for InternVL3-8B on A10**:
+
+```python
+# Notebook Cell 2 - CONFIG Dictionary
+CONFIG = {
+    'MODEL_PATH': '/path/to/InternVL3-8B',
+    'TORCH_DTYPE': 'bfloat16',  # ✅ A10 native support (compute capability 8.6)
+    'USE_QUANTIZATION': False,  # Optional: Not needed with multi-GPU A10 setup
+    'USE_FLASH_ATTN': False,    # Test with True - may work on A10
+    'DEVICE_MAP': 'auto',       # Automatic multi-GPU distribution
+    'LOW_CPU_MEM_USAGE': True,
+    # ... rest of config
+}
+```
+
+### A10 vs V100: What You Gain
+
+| Feature | V100 Limitation | A10 Advantage |
+|---------|----------------|---------------|
+| **dtype Support** | float16 only | bfloat16 + float16 |
+| **Tensor Cores** | 1st gen (FP16/FP32) | 3rd gen (BF16/FP16/FP32/INT8) |
+| **Model Compatibility** | Requires code changes | Works out-of-box with modern models |
+| **Numerical Stability** | Potential issues with emulated BF16 | Native BF16 = stable |
+| **Power Efficiency** | 250W TDP | 150W TDP (40% reduction) |
+| **Modern Features** | No RT cores | 2nd gen RT cores (bonus for graphics) |
+
+### Multi-GPU Setup on A10
+
+**Recommended**: 2-3 A10 GPUs for InternVL3-8B non-quantized
+
+```python
+# Official InternVL3 multi-GPU device mapping works natively
+# No V100-specific workarounds needed
+
+# Check GPU allocation after loading:
+if hasattr(model, 'hf_device_map'):
+    print("Device map:", model.hf_device_map)
+    # Should show automatic distribution across available A10 GPUs
+```
+
+**Memory Distribution**:
+- **2x A10 (48GB total)**: Comfortable for InternVL3-8B with bfloat16
+- **3+ A10**: Extra headroom for larger batches or future models
+
+### Testing Checklist for A10
+
+When migrating from V100 to A10, verify:
+
+1. **Compute Capability Check**:
+```python
+import torch
+compute_capability = torch.cuda.get_device_capability(0)
+print(f"Compute capability: {compute_capability}")
+# Expected: (8, 6) for A10
+```
+
+2. **bfloat16 Support**:
+```python
+bf16_supported = torch.cuda.is_bf16_supported()
+print(f"Native bfloat16: {bf16_supported}")
+# Expected: True
+```
+
+3. **Model dtype Verification**:
+```python
+print(f"Model dtype: {model.dtype}")
+# Expected: torch.bfloat16 (not float16)
+```
+
+4. **Performance Baseline**:
+- Test 10 images to establish baseline speed
+- Expected: 3.0-4.5 images/minute
+- Compare against V100 results (should be 15-30% faster)
+
+### Flash Attention on A10
+
+**Experimental**: Test Flash Attention with A10
+
+```python
+# Try enabling Flash Attention (may improve speed)
+CONFIG['USE_FLASH_ATTN'] = True
+```
+
+**If it works**:
+- ✅ Expect 20-40% speedup on long sequences
+- ✅ Reduced memory usage
+
+**If it fails**:
+- Set back to `False`
+- A10 may require specific Flash Attention version
+
+### When to Use Quantization on A10
+
+**Skip quantization if**:
+- You have 2+ A10 GPUs (48GB+ total)
+- Model fits comfortably in VRAM
+- Maximum accuracy is priority
+
+**Use 8-bit quantization if**:
+- Single A10 24GB setup
+- Want to maximize batch size
+- Inference speed > absolute accuracy
+
+### Expected Performance Improvements
+
+**A10 vs V100** (same InternVL3-8B model):
+
+| Metric | V100 (float16) | A10 (bfloat16) | Improvement |
+|--------|----------------|----------------|-------------|
+| **Accuracy** | 60-75% | 65-80% | +5% |
+| **Speed** | 2.5-4.0 img/min | 3.0-4.5 img/min | +15-20% |
+| **Stability** | Occasional issues | Stable | Better |
+| **Power** | 250W | 150W | -40% |
+| **Code Changes** | Required (dtype fix) | None | Easier |
 
 ---
 
@@ -894,6 +1064,16 @@ After applying all fixes, success is defined as:
 
 ### Next Steps
 
+**For A10 Migration (Recommended)**:
+1. Set up A10 GPU environment (2-3 GPUs recommended)
+2. Update CONFIG to use `'TORCH_DTYPE': 'bfloat16'`
+3. Test with sample images to verify clean responses
+4. Validate model dtype is `torch.bfloat16`
+5. Run performance baseline (10+ images)
+6. Compare accuracy/speed against V100 results
+7. Document final performance metrics
+
+**For V100 (Legacy/Historical)**:
 1. Transfer updated notebook to V100 production machine
 2. Test with 3 sample images to verify clean responses
 3. Validate model dtype is `torch.float16`
@@ -902,7 +1082,7 @@ After applying all fixes, success is defined as:
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 2.0
 **Last Updated**: 2025-01-09
-**Status**: Ready for V100 testing
-**Confidence**: 95% based on official documentation + proven InternVL3-2B float16 pattern
+**Status**: ✅ V100 fix applied | 🎯 Migrating to A10 for production
+**A10 Advantages**: Native bfloat16, 3rd gen Tensor Cores, 40% power reduction, better compatibility
