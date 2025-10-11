@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
+from dateutil import parser as date_parser
 
 try:
     import orjson
@@ -23,6 +24,39 @@ from .config import (
     EXTRACTION_FIELDS,
 )
 from .unified_schema import get_global_schema
+
+
+def _normalize_date(date_str: str) -> str:
+    """
+    Normalize various date formats to DD/MM/YYYY format.
+
+    Handles formats like:
+    - "26 Apr 2023" → "26/04/2023"
+    - "2023-04-14 11:22 AM (UTC+10:00)" → "14/04/2023"
+    - "Wednesday, 24th August 2022" → "24/08/2022"
+
+    Args:
+        date_str: Date string in any common format
+
+    Returns:
+        str: Date in DD/MM/YYYY format, or original string if parsing fails
+    """
+    if not date_str or date_str == "NOT_FOUND":
+        return date_str
+
+    try:
+        # Remove timezone info and extra content for cleaner parsing
+        # Strip anything after ( like "(UTC+10:00)"
+        clean_str = date_str.split('(')[0].strip()
+
+        # Parse with dayfirst=True for Australian DD/MM/YYYY preference
+        parsed_date = date_parser.parse(clean_str, dayfirst=True)
+
+        # Format as DD/MM/YYYY
+        return parsed_date.strftime('%d/%m/%Y')
+    except (ValueError, TypeError, date_parser.ParserError):
+        # If parsing fails, return original string
+        return date_str
 
 
 def _fast_json_detection(text: str) -> bool:
@@ -535,10 +569,13 @@ def parse_extraction_response(
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     # POST-PROCESSING: Clean field values
-    # 1. List fields: Convert commas/markdown to " | " separator
+    # 1. List fields: Convert commas/markdown/spaces to " | " separator
     # 2. Address fields: Remove commas entirely
+    # 3. Quantity fields: Remove " EACH" suffix
+    # 4. Date fields: Normalize to DD/MM/YYYY format
     list_field_prefixes = ("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE")
     address_fields = ("BUSINESS_ADDRESS", "PAYER_ADDRESS")
+    date_fields = ("INVOICE_DATE", "TRANSACTION_DATES")
 
     for field_name, field_value in extracted_data.items():
         if field_value == "NOT_FOUND":
@@ -562,10 +599,31 @@ def parse_extraction_response(
                 items = [item.strip() for item in re.split(r'\s{2,}', field_value) if item.strip()]
                 extracted_data[field_name] = " | ".join(items)
 
+            # Special handling for LINE_ITEM_QUANTITIES: remove " EACH" suffix
+            if field_name == "LINE_ITEM_QUANTITIES":
+                # Remove " EACH" from each quantity item
+                items = [item.strip() for item in extracted_data[field_name].split(" | ")]
+                cleaned_items = [re.sub(r'\s+EACH$', '', item, flags=re.IGNORECASE).strip() for item in items]
+                extracted_data[field_name] = " | ".join(cleaned_items)
+
         # Handle address fields: remove commas entirely
         elif field_name in address_fields and "," in field_value:
             # Remove commas and normalize spaces
             extracted_data[field_name] = " ".join(field_value.split(",")).strip()
+
+        # Handle date fields: normalize to DD/MM/YYYY format
+        # Note: Use 'if' not 'elif' because TRANSACTION_DATES is also a list field
+        if field_name in date_fields:
+            if field_name == "TRANSACTION_DATES":
+                # Handle list of dates (pipe-separated)
+                # Use extracted_data[field_name] to get the updated value after pipe conversion
+                current_value = extracted_data[field_name]
+                dates = [d.strip() for d in current_value.split(" | ")]
+                normalized_dates = [_normalize_date(d) for d in dates]
+                extracted_data[field_name] = " | ".join(normalized_dates)
+            else:
+                # Handle single date (INVOICE_DATE)
+                extracted_data[field_name] = _normalize_date(extracted_data[field_name])
 
     return extracted_data
 
