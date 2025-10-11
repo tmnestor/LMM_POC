@@ -544,7 +544,7 @@ def parse_extraction_response(
         if field_value == "NOT_FOUND":
             continue
 
-        # Handle list fields: convert commas/markdown to pipes
+        # Handle list fields: convert commas/markdown/spaces to pipes
         if field_name.startswith(list_field_prefixes):
             # Check if value contains markdown bullet points or commas instead of pipes
             if "," in field_value and " | " not in field_value:
@@ -556,6 +556,10 @@ def parse_extraction_response(
                 # Split by newlines and clean bullet points
                 lines = field_value.split("\n")
                 items = [line.strip().lstrip("* ").strip() for line in lines if line.strip()]
+                extracted_data[field_name] = " | ".join(items)
+            elif re.search(r'\s{2,}', field_value) and " | " not in field_value:
+                # Convert space-separated to pipe-separated (2+ consecutive spaces)
+                items = [item.strip() for item in re.split(r'\s{2,}', field_value) if item.strip()]
                 extracted_data[field_name] = " | ".join(items)
 
         # Handle address fields: remove commas entirely
