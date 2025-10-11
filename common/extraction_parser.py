@@ -534,13 +534,18 @@ def parse_extraction_response(
                         extracted_data[key] = value if value else "NOT_FOUND"
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
-    # POST-PROCESSING: Clean all list fields to ensure " | " separator format
-    # This handles cases where models output comma-separated or markdown lists
-    # List fields include: LINE_ITEM_*, TRANSACTION_*, ACCOUNT_BALANCE
+    # POST-PROCESSING: Clean field values
+    # 1. List fields: Convert commas/markdown to " | " separator
+    # 2. Address fields: Remove commas entirely
     list_field_prefixes = ("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE")
+    address_fields = ("BUSINESS_ADDRESS", "PAYER_ADDRESS")
 
     for field_name, field_value in extracted_data.items():
-        if field_name.startswith(list_field_prefixes) and field_value != "NOT_FOUND":
+        if field_value == "NOT_FOUND":
+            continue
+
+        # Handle list fields: convert commas/markdown to pipes
+        if field_name.startswith(list_field_prefixes):
             # Check if value contains markdown bullet points or commas instead of pipes
             if "," in field_value and " | " not in field_value:
                 # Convert comma-separated to pipe-separated
@@ -552,6 +557,11 @@ def parse_extraction_response(
                 lines = field_value.split("\n")
                 items = [line.strip().lstrip("* ").strip() for line in lines if line.strip()]
                 extracted_data[field_name] = " | ".join(items)
+
+        # Handle address fields: remove commas entirely
+        elif field_name in address_fields and "," in field_value:
+            # Remove commas and normalize spaces
+            extracted_data[field_name] = " ".join(field_value.split(",")).strip()
 
     return extracted_data
 
