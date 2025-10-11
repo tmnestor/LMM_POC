@@ -318,9 +318,12 @@ def parse_extraction_response(
 
     # First pass: Try standard parsing (works for Llama and clean InternVL3 output)
     extracted_data_first = {}
-    for line in lines:
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         # Skip empty lines and non-key-value lines
         if not line.strip() or ":" not in line:
+            i += 1
             continue
 
         # Clean the line from various formatting issues
@@ -350,18 +353,62 @@ def parse_extraction_response(
 
             # Store if it's an expected field
             if key in expected_fields:
+                # If value is empty, look ahead for bullet list on next lines (list fields only)
+                # List fields: LINE_ITEM_*, TRANSACTION_*, ACCOUNT_BALANCE
+                is_list_field = key.startswith(("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE"))
+                if not value and is_list_field and i + 1 < len(lines):
+                    # Collect subsequent bullet point lines or plain text lines
+                    value_lines = []
+                    j = i + 1
+                    # Skip initial empty lines
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+
+                    # Now collect value lines
+                    while j < len(lines):
+                        next_line = lines[j].strip()
+                        # Stop if we hit another field (non-bullet line with colon)
+                        if ":" in next_line and not next_line.startswith(("*", "-")):
+                            # Check if this looks like a field name (all caps before colon)
+                            before_colon = next_line.split(":")[0].strip()
+                            if before_colon.isupper() and "_" in before_colon:
+                                break
+                        # Stop at empty line after we've started collecting
+                        if not next_line and value_lines:
+                            break
+                        # Skip empty lines between bullets
+                        if not next_line:
+                            j += 1
+                            continue
+                        # Collect the line (bullet or plain text)
+                        if next_line.startswith(("*", "-")):
+                            value_lines.append(next_line)
+                            j += 1
+                        else:
+                            # Not a bullet point, might be next field
+                            break
+
+                    # If we found lines, process them
+                    if value_lines:
+                        # Remove bullet points and join
+                        items = [line.lstrip("* -").strip() for line in value_lines]
+                        value = " | ".join(items)
+                        i = j - 1  # Skip the lines we consumed
+
                 extracted_data_first[key] = value if value else "NOT_FOUND"
 
-    # If first pass got most fields with actual values, use it (this preserves Llama's performance)
+        i += 1
+
+    # ALWAYS use first pass results as the starting point (includes look-ahead parsing for LINE_ITEM fields)
+    extracted_data.update(extracted_data_first)
+
+    # If first pass got most fields with actual values, skip second pass (preserves Llama's performance)
     # Only count fields that actually have values (not "NOT_FOUND")
     first_pass_valid_fields = sum(
         1 for v in extracted_data_first.values() if v != "NOT_FOUND"
     )
-    if (
-        first_pass_valid_fields >= len(expected_fields) * 0.5
-    ):  # Got at least 50% of fields with actual values
-        extracted_data.update(extracted_data_first)
-    else:
+    if first_pass_valid_fields < len(expected_fields) * 0.5:
+        # First pass didn't get enough fields, run second pass to fill gaps
         # Second pass: Handle multi-line markdown format (fallback for problematic InternVL3 output)
         processed_lines = []
         i = 0
@@ -486,6 +533,25 @@ def parse_extraction_response(
                     if extracted_data[key] == "NOT_FOUND" or not extracted_data[key]:
                         extracted_data[key] = value if value else "NOT_FOUND"
                 # Silently ignore unexpected keys to prevent hallucination contamination
+
+    # POST-PROCESSING: Clean all list fields to ensure " | " separator format
+    # This handles cases where models output comma-separated or markdown lists
+    # List fields include: LINE_ITEM_*, TRANSACTION_*, ACCOUNT_BALANCE
+    list_field_prefixes = ("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE")
+
+    for field_name, field_value in extracted_data.items():
+        if field_name.startswith(list_field_prefixes) and field_value != "NOT_FOUND":
+            # Check if value contains markdown bullet points or commas instead of pipes
+            if "," in field_value and " | " not in field_value:
+                # Convert comma-separated to pipe-separated
+                items = [item.strip() for item in field_value.split(",") if item.strip()]
+                extracted_data[field_name] = " | ".join(items)
+            elif "*" in field_value and " | " not in field_value:
+                # Convert markdown list to pipe-separated
+                # Split by newlines and clean bullet points
+                lines = field_value.split("\n")
+                items = [line.strip().lstrip("* ").strip() for line in lines if line.strip()]
+                extracted_data[field_name] = " | ".join(items)
 
     return extracted_data
 
