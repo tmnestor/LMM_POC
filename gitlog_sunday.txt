@@ -1,3 +1,0 @@
-3c7088f 2025-09-28 17:33:31 +1000 Update InternVL3-8B documentation to include validation testing results and emphasize the necessity of 8-bit quantization for proper operation on V100 GPUs
-
-git checkout -b SundaySep28 3c7088f
