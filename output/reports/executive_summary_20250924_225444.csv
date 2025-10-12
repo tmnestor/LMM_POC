@@ -1,4 +1,0 @@
-Model,Documents Processed,Average Accuracy (%),Best Performance (%),Worst Performance (%),Avg Processing Time (s),Fastest Processing (s),Slowest Processing (s),Throughput (docs/min)
-Llama-3.2-Vision,9,88.9%,100.0%,78.6%,18.3s,11.6s,33.3s,3.3
-InternVL3-8B,9,57.1%,85.7%,28.6%,27.8s,5.7s,99.4s,2.2
-InternVL3-2B,9,55.6%,92.9%,28.6%,16.6s,4.5s,85.8s,3.6
