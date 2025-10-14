@@ -20,9 +20,9 @@ prompts:
     prompt: |
       Analyze this business document image and identify its type using visual and content cues.
 
-      🔍 VISUAL LAYOUT ANALYSIS:
+      VISUAL LAYOUT ANALYSIS:
 
-      📋 INVOICE/ESTIMATE/QUOTE INDICATORS:
+      INVOICE/ESTIMATE/QUOTE INDICATORS:
       - Header: "INVOICE", "TAX INVOICE", "ESTIMATE", "QUOTE", "QUOTATION", "PROFORMA"
       - Layout: Business header → Customer "Bill To" section → Itemized table → Total section
       - Key fields: Invoice/Quote number, Due date, Line items with quantities/prices
@@ -30,7 +30,7 @@ prompts:
       - Bottom section: Subtotal, GST, TOTAL amounts
       - Visual: Professional business letterhead, structured pricing table
 
-      🧾 RECEIPT INDICATORS:
+      RECEIPT INDICATORS:
       - Header: "RECEIPT", "PURCHASE RECEIPT", "SALES RECEIPT", "TAX INVOICE"
       - Layout: Store/merchant header → Transaction details → Payment confirmation
       - Key fields: Receipt number, Transaction date/time, Payment method
@@ -38,7 +38,7 @@ prompts:
       - Visual: Store branding, compact format, payment confirmation details
       - Transaction-focused rather than billing-focused
 
-      🏦 BANK STATEMENT INDICATORS:
+      BANK STATEMENT INDICATORS:
       - Header: "BANK STATEMENT", "ACCOUNT STATEMENT", "CREDIT CARD STATEMENT"
       - Layout: Bank header → Account details → Transaction table → Summary
       - Key fields: Account number, Statement period, Opening/Closing balance
@@ -46,7 +46,7 @@ prompts:
       - Visual: Bank logo/branding, tabular transaction list, running balance
       - Multiple transactions over time period, not single purchase
 
-      🎯 DECISION CRITERIA:
+      DECISION CRITERIA:
 
       PRIMARY INDICATORS:
       1. Document title/header text (strongest indicator)
