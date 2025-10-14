@@ -22,6 +22,95 @@ from .simple_model_evaluator import SimpleModelEvaluator
 from .simple_prompt_loader import SimplePromptLoader
 
 
+def load_document_field_definitions() -> Dict[str, List[str]]:
+    """
+    Load document-aware field definitions from field_definitions.yaml.
+
+    CRITICAL: This function will raise an exception if YAML loading fails.
+    NO FALLBACKS - fail fast with clear diagnostics.
+
+    Returns:
+        Dictionary mapping document types (lowercase) to field lists
+
+    Raises:
+        FileNotFoundError: If field_definitions.yaml does not exist
+        ValueError: If YAML structure is invalid or missing required fields
+    """
+    import yaml
+
+    field_def_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
+
+    # Check file exists first for clear error message
+    if not field_def_path.exists():
+        raise FileNotFoundError(
+            f"❌ FATAL: Field definitions file not found\n"
+            f"Expected location: {field_def_path.absolute()}\n"
+            f"This file is REQUIRED for document-aware field filtering.\n"
+            f"Ensure config/field_definitions.yaml exists in the project root."
+        )
+
+    try:
+        with field_def_path.open("r") as f:
+            config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ValueError(
+            f"❌ FATAL: Invalid YAML syntax in field_definitions.yaml\n"
+            f"File: {field_def_path.absolute()}\n"
+            f"Error: {e}\n"
+            f"Fix the YAML syntax errors before proceeding."
+        ) from e
+    except Exception as e:
+        raise ValueError(
+            f"❌ FATAL: Could not read field_definitions.yaml\n"
+            f"File: {field_def_path.absolute()}\n"
+            f"Error: {e}"
+        ) from e
+
+    # Validate structure
+    if "document_fields" not in config:
+        raise ValueError(
+            f"❌ FATAL: Missing 'document_fields' section in field_definitions.yaml\n"
+            f"File: {field_def_path.absolute()}\n"
+            f"Required structure:\n"
+            f"document_fields:\n"
+            f"  invoice:\n"
+            f"    fields: [list of fields]\n"
+            f"  receipt:\n"
+            f"    fields: [list of fields]\n"
+            f"  bank_statement:\n"
+            f"    fields: [list of fields]"
+        )
+
+    doc_fields = config["document_fields"]
+
+    # Validate each required document type
+    for doc_type in ["invoice", "receipt", "bank_statement"]:
+        if doc_type not in doc_fields:
+            raise ValueError(
+                f"❌ FATAL: Missing '{doc_type}' definition in field_definitions.yaml\n"
+                f"File: {field_def_path.absolute()}\n"
+                f"Each document type must be defined with a 'fields' list."
+            )
+        if "fields" not in doc_fields[doc_type]:
+            raise ValueError(
+                f"❌ FATAL: Missing 'fields' list for '{doc_type}' in field_definitions.yaml\n"
+                f"File: {field_def_path.absolute()}\n"
+                f"Each document type must have a 'fields' list."
+            )
+        if not doc_fields[doc_type]["fields"]:
+            raise ValueError(
+                f"❌ FATAL: Empty 'fields' list for '{doc_type}' in field_definitions.yaml\n"
+                f"File: {field_def_path.absolute()}\n"
+                f"Each document type must have at least one field defined."
+            )
+
+    return {
+        "invoice": doc_fields["invoice"]["fields"],
+        "receipt": doc_fields["receipt"]["fields"],
+        "bank_statement": doc_fields["bank_statement"]["fields"],
+    }
+
+
 class BatchDocumentProcessor:
     """Handles batch processing of documents with extraction and evaluation."""
 
@@ -258,50 +347,9 @@ class BatchDocumentProcessor:
                                 )
 
                     # Filter ground truth to document-specific fields for accurate evaluation
-                    # Define document-specific field lists for evaluation
-                    doc_type_fields = {
-                        "invoice": [
-                            "DOCUMENT_TYPE",
-                            "BUSINESS_ABN",
-                            "SUPPLIER_NAME",
-                            "BUSINESS_ADDRESS",
-                            "PAYER_NAME",
-                            "PAYER_ADDRESS",
-                            "INVOICE_DATE",
-                            "LINE_ITEM_DESCRIPTIONS",
-                            "LINE_ITEM_QUANTITIES",
-                            "LINE_ITEM_PRICES",
-                            "LINE_ITEM_TOTAL_PRICES",
-                            "IS_GST_INCLUDED",
-                            "GST_AMOUNT",
-                            "TOTAL_AMOUNT",
-                        ],
-                        "receipt": [
-                            "DOCUMENT_TYPE",
-                            "BUSINESS_ABN",
-                            "SUPPLIER_NAME",
-                            "BUSINESS_ADDRESS",
-                            "PAYER_NAME",
-                            "PAYER_ADDRESS",
-                            "INVOICE_DATE",
-                            "LINE_ITEM_DESCRIPTIONS",
-                            "LINE_ITEM_QUANTITIES",
-                            "LINE_ITEM_PRICES",
-                            "LINE_ITEM_TOTAL_PRICES",
-                            "IS_GST_INCLUDED",
-                            "GST_AMOUNT",
-                            "TOTAL_AMOUNT",
-                        ],
-                        "bank_statement": [
-                            "DOCUMENT_TYPE",
-                            "STATEMENT_DATE_RANGE",
-                            "LINE_ITEM_DESCRIPTIONS",
-                            "TRANSACTION_DATES",
-                            "TRANSACTION_AMOUNTS_PAID",
-                            "TRANSACTION_AMOUNTS_RECEIVED",
-                            "ACCOUNT_BALANCE",
-                        ],
-                    }
+                    # Load document-specific field lists from YAML configuration
+                    doc_type_fields = load_document_field_definitions()
+
                     # Ensure case-insensitive document type matching for evaluation fields
                     document_type_lower_eval = document_type.lower()
                     evaluation_fields = doc_type_fields.get(
@@ -882,50 +930,9 @@ class BatchDocumentProcessor:
             )
             prompt_name = f"{Path(extraction_file).stem}_universal_prompt"
 
-        # Step 3: Extract fields using simplified field mapping
-        doc_type_fields = {
-            "invoice": [
-                "DOCUMENT_TYPE",
-                "BUSINESS_ABN",
-                "SUPPLIER_NAME",
-                "BUSINESS_ADDRESS",
-                "PAYER_NAME",
-                "PAYER_ADDRESS",
-                "INVOICE_DATE",
-                "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES",
-                "LINE_ITEM_PRICES",
-                "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED",
-                "GST_AMOUNT",
-                "TOTAL_AMOUNT",
-            ],
-            "receipt": [
-                "DOCUMENT_TYPE",
-                "BUSINESS_ABN",
-                "SUPPLIER_NAME",
-                "BUSINESS_ADDRESS",
-                "PAYER_NAME",
-                "PAYER_ADDRESS",
-                "INVOICE_DATE",
-                "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES",
-                "LINE_ITEM_PRICES",
-                "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED",
-                "GST_AMOUNT",
-                "TOTAL_AMOUNT",
-            ],
-            "bank_statement": [
-                "DOCUMENT_TYPE",
-                "STATEMENT_DATE_RANGE",
-                "LINE_ITEM_DESCRIPTIONS",
-                "TRANSACTION_DATES",
-                "TRANSACTION_AMOUNTS_PAID",
-                "TRANSACTION_AMOUNTS_RECEIVED",
-                "ACCOUNT_BALANCE",
-            ],
-        }
+        # Step 3: Extract fields using YAML-configured field mapping
+        doc_type_fields = load_document_field_definitions()
+
         # Ensure case-insensitive document type matching for field list selection
         document_type_lower = document_type.lower()
         field_list = doc_type_fields.get(
