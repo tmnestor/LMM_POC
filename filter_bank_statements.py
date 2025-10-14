@@ -43,7 +43,7 @@ for img_name in image_names:
         missing_count += 1
         print(f'  ✗ Missing: {img_name}')
 
-print(f'\nSummary:')
+print('\nSummary:')
 print(f'  Copied: {copied_count} images')
 print(f'  Missing: {missing_count} images')
 print(f'  Destination: {output_dir.absolute()}')
