@@ -715,6 +715,8 @@ class BatchDocumentProcessor:
             Tuple of (document_type, extraction_result, prompt_name)
         """
         # Step 1: Detect document type using YAML-first approach
+        from pathlib import Path
+
         import yaml
 
         # Load detection config from YAML
@@ -842,29 +844,43 @@ class BatchDocumentProcessor:
                     f"[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement_{bank_structure})[/cyan]"
                 )
 
-        # Step 2: Load document-specific prompt using SimplePromptLoader
+        # Step 2: Load document-specific prompt using prompt_config (single source of truth)
         prompt_loader = SimplePromptLoader()
-        # Use llama prompts for Llama processor - with structure-specific bank statement support
+
         try:
+            # Get extraction file and key from prompt_config
+            doc_type_upper = document_type.upper()
+            extraction_file = self.prompt_config.get('extraction_files', {}).get(
+                doc_type_upper,
+                'prompts/llama_prompts.yaml'  # fallback
+            )
+            extraction_key = self.prompt_config.get('extraction_keys', {}).get(
+                doc_type_upper,
+                document_type.lower()  # fallback
+            )
+
+            # For bank statements, append structure to key
             if document_type == "BANK_STATEMENT":
-                # Use structure-specific bank statement prompt
-                prompt_key = f"bank_statement_{bank_structure}"
-                extraction_prompt = prompt_loader.load_prompt(
-                    "llama_prompts.yaml", prompt_key
-                )
-                prompt_name = f"llama_{prompt_key}_prompt"
-            else:
-                # Use standard document type prompt
-                extraction_prompt = prompt_loader.load_prompt(
-                    "llama_prompts.yaml", document_type.lower()
-                )
-                prompt_name = f"llama_{document_type.lower()}_prompt"
+                extraction_key = f"{extraction_key}_{bank_structure}"
+
+            # Load using config values (extract filename from path)
+            from pathlib import Path
+            extraction_prompt = prompt_loader.load_prompt(
+                Path(extraction_file).name,
+                extraction_key
+            )
+            prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
+
         except KeyError:
             # Fall back to universal prompt if specific document type not found
-            extraction_prompt = prompt_loader.load_prompt(
-                "llama_prompts.yaml", "universal"
+            extraction_file = self.prompt_config.get('extraction_files', {}).get(
+                'INVOICE',  # Use invoice as fallback doc type
+                'prompts/llama_prompts.yaml'
             )
-            prompt_name = "llama_universal_prompt"
+            extraction_prompt = prompt_loader.load_prompt(
+                Path(extraction_file).name, "universal"
+            )
+            prompt_name = f"{Path(extraction_file).stem}_universal_prompt"
 
         # Step 3: Extract fields using simplified field mapping
         doc_type_fields = {

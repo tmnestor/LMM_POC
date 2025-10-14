@@ -589,11 +589,38 @@ class DocumentAwareInternVL3HybridProcessor:
                         print("📝 Falling back to universal prompt")
                     document_type = "universal"
 
-            # Get document-specific prompt from InternVL3 prompts
-            extraction_prompt = self.get_extraction_prompt(document_type)
+            # Get document-specific prompt using prompt_config (single source of truth)
+            if self.prompt_config:
+                # Use prompt_config to determine which file and key to use
+                doc_type_upper = document_type.upper().replace('_FLAT', '').replace('_DATE_GROUPED', '')
+                extraction_file = self.prompt_config.get('extraction_files', {}).get(
+                    doc_type_upper,
+                    'prompts/internvl3_prompts.yaml'
+                )
+                extraction_key = self.prompt_config.get('extraction_keys', {}).get(
+                    doc_type_upper,
+                    document_type
+                )
+
+                # For structure-specific bank statements, append structure
+                if 'bank_statement' in document_type:
+                    if '_flat' in document_type:
+                        extraction_key = f"{extraction_key}_flat"
+                    elif '_date_grouped' in document_type:
+                        extraction_key = f"{extraction_key}_date_grouped"
+
+                from pathlib import Path
+
+                from common.simple_prompt_loader import SimplePromptLoader
+                loader = SimplePromptLoader()
+                extraction_prompt = loader.load_prompt(Path(extraction_file).name, extraction_key)
+            else:
+                # Fallback to get_extraction_prompt method
+                extraction_prompt = self.get_extraction_prompt(document_type)
 
             if verbose:
-                print(f"📝 Using {document_type} prompt: {len(extraction_prompt)} characters")
+                prompt_source = "prompt_config" if self.prompt_config else "get_extraction_prompt"
+                print(f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters")
 
             # Get document-specific field list
             doc_type_fields = {
