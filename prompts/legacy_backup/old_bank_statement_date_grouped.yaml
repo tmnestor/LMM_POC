@@ -1,38 +1,59 @@
 prompts:
   bank_statement:
     name: Date-Grouped Bank Statement Extraction
-    description: Handles complex bank statements with transactions grouped by date
-      sections
-    prompt: "# Converted from Old_prompts/bank_statement_date_grouped.yaml\n# Original\
-      \ key: date_grouped\n# Conversion date: date: auto-generated\n\n\U0001F6A8 CRITICAL:\
-      \ OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS\n\nExtract\
-      \ bank account details and all transactions from this date-grouped bank statement.\n\
-      \n## MANDATORY OUTPUT FORMAT:\nUse these EXACT field names with colons. Do not\
-      \ add explanations or comments.\n\nDOCUMENT_TYPE: STATEMENT\nSTATEMENT_DATE_RANGE:\
-      \ [statement period or NOT_FOUND]\nLINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2\
-      \ | transaction3]\nTRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]\n\
-      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]\nTRANSACTION_AMOUNTS_RECEIVED:\
-      \ [NOT_FOUND | credit2 | NOT_FOUND]\nACCOUNT_BALANCE: [balance1 | balance2 |\
-      \ balance3]\n\nSTOP AFTER ACCOUNT_BALANCE. Do not add explanations or comments.\n\
-      \n## DATE-GROUPED STRUCTURE:\nThis statement has transactions grouped under\
-      \ date headers like \"Thu 04 Sep 2025\".\n\n## SIMPLIFIED PARSING STEPS:\n\n\
-      1. Find date headers like \"Thu 04 Sep 2025\", \"Mon 01 Sep 2025\"\n2. Extract\
-      \ ALL transactions from under each date header  \n3. Combine with pipe separators\
-      \ in chronological order\n4. Use balance direction to validate transaction types:\n\
-      \   - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED\n   - Balance\
-      \ DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID\n\n## FIELD EXTRACTION\
-      \ RULES:\n\nLINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with\
-      \ \" | \"\nTRANSACTION_DATES: Convert date headers to DD/MM/YYYY format\nTRANSACTION_AMOUNTS_PAID:\
-      \ DEBIT/WITHDRAWAL amounts (money OUT)\nTRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT\
-      \ amounts (money IN)  \nACCOUNT_BALANCE: Running balance after each transaction\n\
-      \nUse NOT_FOUND for any missing values. Maintain same count across all lists.\n\
-      \n## BALANCE VALIDATION (CRITICAL):\nThe BALANCE column is nearly 100% accurate.\
-      \ Use it to validate transactions:\n- Balance INCREASES → Money IN (CREDIT)\
-      \ → TRANSACTION_AMOUNTS_RECEIVED  \n- Balance DECREASES → Money OUT (DEBIT)\
-      \ → TRANSACTION_AMOUNTS_PAID\n\n## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:\n\
-      DOCUMENT_TYPE: STATEMENT\nSTATEMENT_DATE_RANGE: [statement period]\nLINE_ITEM_DESCRIPTIONS:\
-      \ [transaction1 | transaction2 | transaction3]\nTRANSACTION_DATES: [DD/MM/YYYY\
-      \ | DD/MM/YYYY | DD/MM/YYYY]\nTRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND\
-      \ | debit3]\nTRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]\n\
-      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]\n\nSTOP AFTER ACCOUNT_BALANCE.\
-      \ Do not add explanations or comments.\n"
+    description: Handles complex bank statements with transactions grouped by date sections
+    prompt: |
+      CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
+
+      Extract bank account details and all transactions from this date-grouped bank statement.
+
+      ## MANDATORY OUTPUT FORMAT:
+      Use these EXACT field names with colons. Do not add explanations or comments.
+
+      DOCUMENT_TYPE: STATEMENT
+      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]
+      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]
+      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
+
+      STOP AFTER ACCOUNT_BALANCE. Do not add explanations or comments.
+
+      ## DATE-GROUPED STRUCTURE:
+      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+
+      ## SIMPLIFIED PARSING STEPS:
+
+      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      2. Extract ALL transactions from under each date header
+      3. Combine with pipe separators in chronological order
+      4. Use balance direction to validate transaction types:
+         - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
+         - Balance DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+
+      ## FIELD EXTRACTION RULES:
+
+      LINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with " | "
+      TRANSACTION_DATES: Convert date headers to DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts (money OUT)
+      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts (money IN)
+      ACCOUNT_BALANCE: Running balance after each transaction
+
+      Use NOT_FOUND for any missing values. Maintain same count across all lists.
+
+      ## BALANCE VALIDATION (CRITICAL):
+      The BALANCE column is nearly 100% accurate. Use it to validate transactions:
+      - Balance INCREASES → Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
+      - Balance DECREASES → Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+
+      ## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:
+      DOCUMENT_TYPE: STATEMENT
+      STATEMENT_DATE_RANGE: [statement period]
+      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]
+      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]
+      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
+
+      STOP AFTER ACCOUNT_BALANCE. Do not add explanations or comments.
