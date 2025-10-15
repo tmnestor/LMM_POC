@@ -15,9 +15,11 @@ from dateutil import parser as date_parser
 
 try:
     import orjson
+
     HAS_ORJSON = True
 except ImportError:
     import json
+
     HAS_ORJSON = False
 
 from .config import (
@@ -47,13 +49,13 @@ def _normalize_date(date_str: str) -> str:
     try:
         # Remove timezone info and extra content for cleaner parsing
         # Strip anything after ( like "(UTC+10:00)"
-        clean_str = date_str.split('(')[0].strip()
+        clean_str = date_str.split("(")[0].strip()
 
         # Parse with dayfirst=True for Australian DD/MM/YYYY preference
         parsed_date = date_parser.parse(clean_str, dayfirst=True)
 
         # Format as DD/MM/YYYY
-        return parsed_date.strftime('%d/%m/%Y')
+        return parsed_date.strftime("%d/%m/%Y")
     except (ValueError, TypeError, date_parser.ParserError):
         # If parsing fails, return original string
         return date_str
@@ -73,20 +75,22 @@ def _fast_json_detection(text: str) -> bool:
     text = text.strip()
 
     # Handle markdown code blocks
-    if text.startswith('```json'):
+    if text.startswith("```json"):
         text = text[7:].strip()
-    elif text.startswith('```'):
+    elif text.startswith("```"):
         text = text[3:].strip()
 
-    if text.endswith('```'):
+    if text.endswith("```"):
         text = text[:-3].strip()
 
     # Check for JSON structure
     return (
-        len(text) >= 2 and
-        text[0] == '{' and
-        text.count('"') >= 4 and  # Minimum for basic JSON object
-        (text[-1] == '}' or text.find('"') > 0)  # Either properly closed or has JSON fields
+        len(text) >= 2
+        and text[0] == "{"
+        and text.count('"') >= 4  # Minimum for basic JSON object
+        and (
+            text[-1] == "}" or text.find('"') > 0
+        )  # Either properly closed or has JSON fields
     )
 
 
@@ -151,51 +155,51 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
     text = text.strip()
 
     # Remove markdown code blocks if present
-    if text.startswith('```json'):
+    if text.startswith("```json"):
         text = text[7:]  # Remove ```json
-    if text.startswith('```'):
+    if text.startswith("```"):
         text = text[3:]  # Remove ```
-    if text.endswith('```'):
+    if text.endswith("```"):
         text = text[:-3]  # Remove trailing ```
 
     text = text.strip()
 
     # If JSON doesn't end with }, try to close it properly
-    if not text.endswith('}'):
+    if not text.endswith("}"):
         # Find the last field that was being written
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         # Look for incomplete field (missing closing quote or value)
         for i in range(len(lines) - 1, -1, -1):
             line = lines[i].strip()
 
             # Handle incomplete string value (missing closing quote)
-            if line.count('"') % 2 == 1 and ':' in line:
+            if line.count('"') % 2 == 1 and ":" in line:
                 # Find the last quote and close the string
                 last_quote = line.rfind('"')
-                if last_quote > 0 and line[last_quote-1] != '\\':
+                if last_quote > 0 and line[last_quote - 1] != "\\":
                     # Add closing quote if not escaped
                     lines[i] = line + '"'
                 break
 
             # Handle incomplete field assignment (ends with |, comma, etc.)
-            elif line.endswith(('|', ',', '| ')):
+            elif line.endswith(("|", ",", "| ")):
                 # Complete the truncated field with closing quote
-                lines[i] = line.rstrip('| ,') + '"'
+                lines[i] = line.rstrip("| ,") + '"'
                 break
 
         # Reconstruct text and ensure proper JSON closure
-        text = '\n'.join(lines)
+        text = "\n".join(lines)
 
         # Remove trailing commas and incomplete entries
-        text = re.sub(r',\s*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r",\s*$", "", text, flags=re.MULTILINE)
 
         # Ensure JSON closes properly
-        if not text.endswith('}'):
-            text += '\n}'
+        if not text.endswith("}"):
+            text += "\n}"
 
     # Fix standalone commas and malformed JSON structure
-    lines = text.split('\n')
+    lines = text.split("\n")
     fixed_lines = []
 
     i = 0
@@ -203,13 +207,15 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
         line = lines[i].strip()
 
         # Skip standalone comma lines (malformed JSON pattern)
-        if line == '",' or line == ',':
+        if line == '",' or line == ",":
             # If we skipped a comma line, ensure previous line has comma (if it's a field)
-            if (fixed_lines and
-                '":' in fixed_lines[-1] and
-                not fixed_lines[-1].endswith(',') and
-                not fixed_lines[-1].endswith('}')):
-                fixed_lines[-1] += ','
+            if (
+                fixed_lines
+                and '":' in fixed_lines[-1]
+                and not fixed_lines[-1].endswith(",")
+                and not fixed_lines[-1].endswith("}")
+            ):
+                fixed_lines[-1] += ","
             i += 1
             continue
 
@@ -227,15 +233,17 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
         # but current line doesn't end with comma or closing brace, add comma
         next_line = fixed_lines[i + 1] if i < len(fixed_lines) - 1 else ""
 
-        if (i < len(fixed_lines) - 1 and
-            '":' in line and
-            not line.endswith(',') and
-            not line.endswith('}') and
-            '":' in next_line):
-            line += ','
+        if (
+            i < len(fixed_lines) - 1
+            and '":' in line
+            and not line.endswith(",")
+            and not line.endswith("}")
+            and '":' in next_line
+        ):
+            line += ","
         final_lines.append(line)
 
-    text = '\n'.join(final_lines)
+    text = "\n".join(final_lines)
 
     # Fix common formatting issues
     text = re.sub(r',\s*"', ',\n  "', text)  # Fix line breaks after commas
@@ -244,7 +252,9 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
     return text
 
 
-def hybrid_parse_response(response_text: str, expected_fields: List[str] = None) -> Dict[str, str]:
+def hybrid_parse_response(
+    response_text: str, expected_fields: List[str] = None
+) -> Dict[str, str]:
     """
     Hybrid parser that handles both JSON and plain text formats automatically.
 
@@ -280,7 +290,7 @@ def hybrid_parse_response(response_text: str, expected_fields: List[str] = None)
     return parse_extraction_response(
         response_text=response_text,
         clean_conversation_artifacts=False,
-        expected_fields=expected_fields
+        expected_fields=expected_fields,
     )
 
 
@@ -376,7 +386,9 @@ def parse_extraction_response(
         clean_line = re.sub(r"^DESCRIPTION:", "DESCRIPTIONS:", clean_line)
         clean_line = re.sub(r"^DESCRIPTIONDESCRIPTION:", "DESCRIPTIONS:", clean_line)
         # Fix LINE_ITEM_DESCRIPTION -> LINE_ITEM_DESCRIPTIONS mismatch
-        clean_line = re.sub(r"^LINE_ITEM_DESCRIPTION:", "LINE_ITEM_DESCRIPTIONS:", clean_line)
+        clean_line = re.sub(
+            r"^LINE_ITEM_DESCRIPTION:", "LINE_ITEM_DESCRIPTIONS:", clean_line
+        )
 
         # Extract key and value
         parts = clean_line.split(":", 1)
@@ -389,7 +401,9 @@ def parse_extraction_response(
             if key in expected_fields:
                 # If value is empty, look ahead for bullet list on next lines (list fields only)
                 # List fields: LINE_ITEM_*, TRANSACTION_*, ACCOUNT_BALANCE
-                is_list_field = key.startswith(("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE"))
+                is_list_field = key.startswith(
+                    ("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE")
+                )
                 if not value and is_list_field and i + 1 < len(lines):
                     # Collect subsequent bullet point lines or plain text lines
                     value_lines = []
@@ -455,7 +469,9 @@ def parse_extraction_response(
             # Check if this is a markdown key line (e.g., "**SUPPLIER:**" or "**SUPPLIER:** value")
             # Handle both cases: value on same line or next line
             # Support both underscore and space patterns: "**SUPPLIER_NAME:**" OR "**SUPPLIER NAME:**"
-            markdown_key_match = re.match(r"^\*\*([A-Z_]+):\*\*\s*(.*)?$|^\*\*([A-Z\s]+):\*\*\s*(.*)?$", line)
+            markdown_key_match = re.match(
+                r"^\*\*([A-Z_]+):\*\*\s*(.*)?$|^\*\*([A-Z\s]+):\*\*\s*(.*)?$", line
+            )
             if markdown_key_match:
                 # Extract key from whichever pattern matched (group 1 or 3)
                 key = markdown_key_match.group(1) or markdown_key_match.group(3)
@@ -464,7 +480,6 @@ def parse_extraction_response(
                 # Extract value from whichever pattern matched (group 2 or 4)
                 value = markdown_key_match.group(2) or markdown_key_match.group(4) or ""
                 value = value.strip()
-
 
                 # If value is empty, collect multi-line value from subsequent lines
                 if not value and i + 1 < len(lines):
@@ -513,13 +528,25 @@ def parse_extraction_response(
                     if value_lines:
                         # Handle list fields specially (LINE_ITEM_* fields)
                         if key.startswith("LINE_ITEM_"):
-                            if all(line.strip().startswith("*") for line in value_lines):
+                            if all(
+                                line.strip().startswith("*") for line in value_lines
+                            ):
                                 # Remove bullet points and join with pipes for list fields
-                                cleaned_items = [line.strip().lstrip("* ").strip() for line in value_lines if line.strip()]
+                                cleaned_items = [
+                                    line.strip().lstrip("* ").strip()
+                                    for line in value_lines
+                                    if line.strip()
+                                ]
                                 value = " | ".join(cleaned_items)
                             else:
                                 # Join with pipes even if no bullet points
-                                value = " | ".join([line.strip() for line in value_lines if line.strip()])
+                                value = " | ".join(
+                                    [
+                                        line.strip()
+                                        for line in value_lines
+                                        if line.strip()
+                                    ]
+                                )
                         else:
                             # Join multi-line values with space for regular fields
                             value = " ".join(value_lines)
@@ -569,10 +596,11 @@ def parse_extraction_response(
                 # Silently ignore unexpected keys to prevent hallucination contamination
 
     # POST-PROCESSING: Clean field values
-    # 1. List fields: Convert commas/markdown/spaces to " | " separator
-    # 2. Address fields: Remove commas entirely
-    # 3. Quantity fields: Remove " EACH" suffix
-    # 4. Date fields: Normalize to DD/MM/YYYY format
+    # 1. Document type normalization
+    # 2. List fields: Convert commas/markdown/spaces to " | " separator
+    # 3. Address fields: Remove commas entirely
+    # 4. Quantity fields: Remove " EACH" suffix
+    # 5. Date fields: Normalize to DD/MM/YYYY format
     list_field_prefixes = ("LINE_ITEM_", "TRANSACTION_", "ACCOUNT_BALANCE")
     address_fields = ("BUSINESS_ADDRESS", "PAYER_ADDRESS")
     date_fields = ("INVOICE_DATE", "TRANSACTION_DATES")
@@ -581,29 +609,53 @@ def parse_extraction_response(
         if field_value == "NOT_FOUND":
             continue
 
+        # Normalize DOCUMENT_TYPE values to canonical forms
+        if field_name == "DOCUMENT_TYPE":
+            doc_type_lower = field_value.lower().strip()
+            if doc_type_lower in ("statement", "bank statement"):
+                extracted_data[field_name] = "BANK_STATEMENT"
+            elif doc_type_lower in ("invoice", "bill"):
+                extracted_data[field_name] = "INVOICE"
+            elif doc_type_lower == "receipt":
+                extracted_data[field_name] = "RECEIPT"
+            continue
+
         # Handle list fields: convert commas/markdown/spaces to pipes
         if field_name.startswith(list_field_prefixes):
             # Check if value contains markdown bullet points or commas instead of pipes
             if "," in field_value and " | " not in field_value:
                 # Convert comma-separated to pipe-separated
-                items = [item.strip() for item in field_value.split(",") if item.strip()]
+                items = [
+                    item.strip() for item in field_value.split(",") if item.strip()
+                ]
                 extracted_data[field_name] = " | ".join(items)
             elif "*" in field_value and " | " not in field_value:
                 # Convert markdown list to pipe-separated
                 # Split by newlines and clean bullet points
                 lines = field_value.split("\n")
-                items = [line.strip().lstrip("* ").strip() for line in lines if line.strip()]
+                items = [
+                    line.strip().lstrip("* ").strip() for line in lines if line.strip()
+                ]
                 extracted_data[field_name] = " | ".join(items)
-            elif re.search(r'\s{2,}', field_value) and " | " not in field_value:
+            elif re.search(r"\s{2,}", field_value) and " | " not in field_value:
                 # Convert space-separated to pipe-separated (2+ consecutive spaces)
-                items = [item.strip() for item in re.split(r'\s{2,}', field_value) if item.strip()]
+                items = [
+                    item.strip()
+                    for item in re.split(r"\s{2,}", field_value)
+                    if item.strip()
+                ]
                 extracted_data[field_name] = " | ".join(items)
 
             # Special handling for LINE_ITEM_QUANTITIES: remove " EACH" suffix
             if field_name == "LINE_ITEM_QUANTITIES":
                 # Remove " EACH" from each quantity item
-                items = [item.strip() for item in extracted_data[field_name].split(" | ")]
-                cleaned_items = [re.sub(r'\s+EACH$', '', item, flags=re.IGNORECASE).strip() for item in items]
+                items = [
+                    item.strip() for item in extracted_data[field_name].split(" | ")
+                ]
+                cleaned_items = [
+                    re.sub(r"\s+EACH$", "", item, flags=re.IGNORECASE).strip()
+                    for item in items
+                ]
                 extracted_data[field_name] = " | ".join(cleaned_items)
 
         # Handle address fields: remove commas entirely

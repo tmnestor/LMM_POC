@@ -110,6 +110,10 @@ class SimpleModelEvaluator:
         if extracted_clean == ground_truth_clean:
             return True
 
+        # Document type normalization (STATEMENT matches BANK_STATEMENT, etc.)
+        if self._document_type_match(extracted_clean, ground_truth_clean):
+            return True
+
         # For list fields (pipe-separated), check FIRST before other types
         if '|' in extracted_clean or '|' in ground_truth_clean:
             return self._list_match(extracted_clean, ground_truth_clean)
@@ -124,6 +128,23 @@ class SimpleModelEvaluator:
 
         # For addresses and text fields, use fuzzy matching
         return self._fuzzy_text_match(extracted_clean, ground_truth_clean)
+
+    def _document_type_match(self, extracted: str, ground_truth: str) -> bool:
+        """Match document types with common variations (STATEMENT = BANK_STATEMENT, etc.)."""
+        # Normalize to canonical forms
+        doc_type_map = {
+            'statement': 'bank_statement',
+            'bank statement': 'bank_statement',
+            'bank_statement': 'bank_statement',
+            'invoice': 'invoice',
+            'bill': 'invoice',
+            'receipt': 'receipt'
+        }
+
+        extracted_normalized = doc_type_map.get(extracted.strip(), extracted.strip())
+        ground_truth_normalized = doc_type_map.get(ground_truth.strip(), ground_truth.strip())
+
+        return extracted_normalized == ground_truth_normalized
 
     def _is_monetary(self, value: str) -> bool:
         """Check if value appears to be a monetary amount."""
@@ -163,9 +184,15 @@ class SimpleModelEvaluator:
 
     def _list_match(self, extracted: str, ground_truth: str) -> bool:
         """Compare pipe-separated lists with element-wise normalization."""
+        # Handle NOT_FOUND cases
+        if 'not_found' in extracted.lower() and 'not_found' in ground_truth.lower():
+            return True
+        if 'not_found' in extracted.lower() or 'not_found' in ground_truth.lower():
+            return False
+
         # Split by pipe and normalize each element - ensure string type first
-        extracted_items = [item.strip() for item in str(extracted).split('|')]
-        ground_truth_items = [item.strip() for item in str(ground_truth).split('|')]
+        extracted_items = [item.strip() for item in str(extracted).split('|') if item.strip()]
+        ground_truth_items = [item.strip() for item in str(ground_truth).split('|') if item.strip()]
 
         if len(extracted_items) != len(ground_truth_items):
             return False
