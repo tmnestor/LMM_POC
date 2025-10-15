@@ -1,7 +1,3 @@
-# InternVL3 Document-Aware Prompts - Complete, Self-Contained Prompts
-# Simpler and more concise than Llama prompts for better InternVL3 performance
-# NO TEMPLATES - What you see is what gets sent to the model
-
 prompts:
   # ============================================================================
   # INVOICE EXTRACTION - 14 Fields

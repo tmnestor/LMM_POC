@@ -1,6 +1,3 @@
-# Llama Document-Aware Prompts - Complete, Self-Contained Prompts
-# NO TEMPLATES - What you see is what gets sent to the model
-
 prompts:
   # ============================================================================
   # INVOICE EXTRACTION - 14 Fields

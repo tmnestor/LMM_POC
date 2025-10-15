@@ -1,7 +1,3 @@
-# Document Type Detection Prompts Configuration
-# This file contains prompts for detecting document types (invoice/receipt/bank_statement)
-# Used by the document-aware extraction pipeline to route to appropriate extraction prompts
-
 prompts:
   detection:
     name: "Simple Document Type Detection"
