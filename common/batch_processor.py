@@ -923,15 +923,13 @@ class BatchDocumentProcessor:
             prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
 
         except KeyError:
-            # Fall back to universal prompt if specific document type not found
-            extraction_file = self.prompt_config.get('extraction_files', {}).get(
-                'INVOICE',  # Use invoice as fallback doc type
-                'prompts/llama_prompts.yaml'
-            )
+            # Fall back to llama_prompts.yaml with universal key
+            # Always use the main llama_prompts.yaml file for fallback since it has "universal"
+            extraction_file = 'prompts/llama_prompts.yaml'
             extraction_prompt = prompt_loader.load_prompt(
                 extraction_file, "universal"
             )
-            prompt_name = f"{Path(extraction_file).stem}_universal_prompt"
+            prompt_name = "llama_prompts_universal_prompt"
 
         # Step 3: Extract fields using YAML-configured field mapping
         doc_type_fields = load_document_field_definitions()
