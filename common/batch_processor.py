@@ -382,6 +382,20 @@ class BatchDocumentProcessor:
                     )
                     fields_matched = evaluation_result.correct_fields
 
+                    # Build field-level scores for detailed comparison display
+                    field_scores = {}
+                    for field in filtered_ground_truth.keys():
+                        extracted_val = extracted_data.get(field, "NOT_FOUND")
+                        ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
+
+                        # Determine field-level accuracy
+                        if self.model_evaluator._values_match(str(extracted_val), str(ground_val)):
+                            field_scores[field] = {"accuracy": 1.0}
+                        elif extracted_val == "NOT_FOUND" or not extracted_val:
+                            field_scores[field] = {"accuracy": 0.0}  # Missing
+                        else:
+                            field_scores[field] = {"accuracy": 0.0}  # Incorrect
+
                     evaluation = {
                         "overall_accuracy": evaluation_result.accuracy,
                         "total_fields": evaluation_result.total_fields,
@@ -391,6 +405,13 @@ class BatchDocumentProcessor:
                         # Add notebook-expected keys
                         "fields_extracted": fields_extracted,
                         "fields_matched": fields_matched,
+                        # Add field-level scores for detailed comparison
+                        "field_scores": field_scores,
+                        "overall_metrics": {
+                            "overall_accuracy": evaluation_result.accuracy,
+                            "meets_threshold": evaluation_result.accuracy >= 0.8,
+                            "document_type_threshold": 0.8,
+                        },
                     }
 
                     # SimpleModelEvaluator already provides data in correct format - no flattening needed
