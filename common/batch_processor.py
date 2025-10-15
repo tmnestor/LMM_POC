@@ -922,14 +922,13 @@ class BatchDocumentProcessor:
             )
             prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
 
-        except KeyError:
-            # Fall back to llama_prompts.yaml with universal key
-            # Always use the main llama_prompts.yaml file for fallback since it has "universal"
-            extraction_file = 'prompts/llama_prompts.yaml'
-            extraction_prompt = prompt_loader.load_prompt(
-                extraction_file, "universal"
-            )
-            prompt_name = "llama_prompts_universal_prompt"
+        except KeyError as e:
+            # If specific key not found, provide clear error message
+            raise KeyError(
+                f"❌ Prompt key '{extraction_key}' not found in {extraction_file}\n"
+                f"💡 Check that the prompt file has the required key for document type: {document_type}\n"
+                f"💡 For bank statements, ensure both 'bank_statement_flat' and 'bank_statement_date_grouped' exist"
+            ) from e
 
         # Step 3: Extract fields using YAML-configured field mapping
         doc_type_fields = load_document_field_definitions()
