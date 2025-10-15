@@ -914,10 +914,10 @@ class BatchDocumentProcessor:
             if document_type == "BANK_STATEMENT":
                 extraction_key = f"{extraction_key}_{bank_structure}"
 
-            # Load using config values (extract filename from path)
+            # Load using config values (pass full path - loader handles normalization)
             from pathlib import Path
             extraction_prompt = prompt_loader.load_prompt(
-                Path(extraction_file).name,
+                extraction_file,
                 extraction_key
             )
             prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
@@ -929,7 +929,7 @@ class BatchDocumentProcessor:
                 'prompts/llama_prompts.yaml'
             )
             extraction_prompt = prompt_loader.load_prompt(
-                Path(extraction_file).name, "universal"
+                extraction_file, "universal"
             )
             prompt_name = f"{Path(extraction_file).stem}_universal_prompt"
 
