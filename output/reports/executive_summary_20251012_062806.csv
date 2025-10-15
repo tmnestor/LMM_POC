@@ -1,4 +1,0 @@
-model,overall_accuracy_mean,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_std,processing_time_min,processing_time_max,fields_extracted_mean,fields_matched_mean,throughput_docs_per_min,efficiency_score
-InternVL3-NonQuantized-2B,68.89,24.61,40.0,92.86,14.11,12.79,6.35,45.44,10.78,8.44,4.25,292.78
-InternVL3-Quantized-8B,60.63,32.04,20.0,92.86,58.24,57.04,22.96,201.19,9.89,7.89,1.03,62.45
-Llama-3.2-Vision,64.76,39.6,0.0,100.0,13.92,12.83,7.4,46.59,10.56,8.67,4.31,279.12
