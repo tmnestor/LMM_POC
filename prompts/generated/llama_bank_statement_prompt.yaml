@@ -1,33 +1,28 @@
-complete_prompt: |
-  You are an expert document analyzer. Extract structured data from this business document image.
+prompts:
+  bank_statement:
+    name: "Generated Llama Bank Statement Extraction"
+    description: "Generated prompt from unified schema for bank statement documents"
+    prompt: |
+      You are an expert document analyzer. Extract structured data from this business document image.
 
-  CRITICAL INSTRUCTIONS:
-  - Output ONLY the structured data below
-  - Start immediately with DOCUMENT_TYPE
-  - Stop immediately after ACCOUNT_BALANCE
+      CRITICAL INSTRUCTIONS:
+      - Output ONLY the structured data below
+      - Start immediately with DOCUMENT_TYPE
+      - Stop immediately after ACCOUNT_BALANCE
 
-  OUTPUT FORMAT (7 FIELDS):
+      OUTPUT FORMAT (7 FIELDS):
 
-  DOCUMENT_TYPE: [document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]
-  STATEMENT_DATE_RANGE: [statement period or date range or NOT_FOUND]
-  LINE_ITEM_DESCRIPTIONS: [pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]
-  TRANSACTION_DATES: [Extract transaction dates separated by " | " or NOT_FOUND]
-  TRANSACTION_AMOUNTS_PAID: [Extract transaction amounts separated by " | " or NOT_FOUND]
-  TRANSACTION_AMOUNTS_RECEIVED: [Extract transaction amounts received separated by " | " or NOT_FOUND]
-  ACCOUNT_BALANCE: [Extract account balance amounts separated by " | " or NOT_FOUND]
+      DOCUMENT_TYPE: [document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [statement period or date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]
+      TRANSACTION_DATES: [Extract transaction dates separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Extract transaction amounts separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Extract transaction amounts received separated by " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Extract account balance amounts separated by " | " or NOT_FOUND]
 
-  RULES:
-  - Use exact text from document
-  - CRITICAL: Use ONLY pipe separators (|) for lists - NEVER use commas for LINE_ITEM fields
-  - Be conservative: use NOT_FOUND if field is truly missing
+      RULES:
+      - Use exact text from document
+      - CRITICAL: Use ONLY pipe separators (|) for lists - NEVER use commas for LINE_ITEM fields
+      - Be conservative: use NOT_FOUND if field is truly missing
 
-  STOP AFTER the ACCOUNT_BALANCE. Do not add explanations or comments.
-
-field_instructions:
-  DOCUMENT_TYPE: '[document type (INVOICE/RECEIPT/STATEMENT) or NOT_FOUND]'
-  STATEMENT_DATE_RANGE: '[statement period or date range or NOT_FOUND]'
-  LINE_ITEM_DESCRIPTIONS: '[pipe-separated list using | character ONLY - format: item1 | item2 | item3 - do NOT use commas or NOT_FOUND]'
-  TRANSACTION_DATES: '[Extract transaction dates separated by " | " or NOT_FOUND]'
-  TRANSACTION_AMOUNTS_PAID: '[Extract transaction amounts separated by " | " or NOT_FOUND]'
-  TRANSACTION_AMOUNTS_RECEIVED: '[Extract transaction amounts received separated by " | " or NOT_FOUND]'
-  ACCOUNT_BALANCE: '[Extract account balance amounts separated by " | " or NOT_FOUND]'
+      STOP AFTER the ACCOUNT_BALANCE. Do not add explanations or comments.
