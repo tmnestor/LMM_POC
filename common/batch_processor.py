@@ -423,6 +423,11 @@ class BatchDocumentProcessor:
                             f"[cyan]✓ Accuracy: {accuracy:.1f}% for {image_name}[/cyan]"
                         )
 
+                    # Debug: Show why detailed comparison might not be displayed
+                    if verbose:
+                        has_field_scores = "field_scores" in evaluation
+                        rprint(f"[dim]🔍 DEBUG: model_type={self.model_type}, has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]")
+
                     # Only show detailed comparison for Llama - InternVL3 has its own display logic
                     if (
                         verbose
