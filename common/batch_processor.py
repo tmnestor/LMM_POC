@@ -121,6 +121,7 @@ class BatchDocumentProcessor:
         prompt_config: Dict,
         ground_truth_csv: str,
         console: Optional[Console] = None,
+        enable_math_enhancement: bool = True,
     ):
         """
         Initialize batch processor with support for both Llama and InternVL3 models.
@@ -131,6 +132,7 @@ class BatchDocumentProcessor:
             prompt_config: Dictionary with prompt file paths and keys
             ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
+            enable_math_enhancement: Whether to apply mathematical enhancement for bank statements
         """
         # Detect model type and store components appropriately
         self.model_type = self._detect_model_type(model, processor)
@@ -149,6 +151,7 @@ class BatchDocumentProcessor:
         self.prompt_config = prompt_config
         self.ground_truth_csv = ground_truth_csv
         self.console = console or Console()
+        self.enable_math_enhancement = enable_math_enhancement
 
         # Initialize file-based trace logging
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -287,7 +290,7 @@ class BatchDocumentProcessor:
                     extracted_data = extraction_result.get("extracted_data", {})
 
                     # Apply mathematical enhancement for bank statements
-                    if document_type.upper() == "BANK_STATEMENT":
+                    if document_type.upper() == "BANK_STATEMENT" and self.enable_math_enhancement:
                         from .bank_statement_calculator import (
                             enhance_bank_statement_extraction,
                         )
