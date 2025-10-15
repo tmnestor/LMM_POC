@@ -31,6 +31,9 @@ class SimplePromptLoader:
             FileNotFoundError: If the prompt file doesn't exist
             KeyError: If the prompt key doesn't exist in the file
         """
+        # Strip leading 'prompts/' if present for user convenience
+        if filename.startswith('prompts/'):
+            filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
         if not prompt_path.exists():
@@ -68,6 +71,9 @@ class SimplePromptLoader:
         Returns:
             List of available prompt keys
         """
+        # Strip leading 'prompts/' if present for user convenience
+        if filename.startswith('prompts/'):
+            filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
         if not prompt_path.exists():
@@ -92,6 +98,9 @@ class SimplePromptLoader:
         Returns:
             Dictionary with 'prompt', 'name', and 'description'
         """
+        # Strip leading 'prompts/' if present for user convenience
+        if filename.startswith('prompts/'):
+            filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
         with prompt_path.open("r", encoding="utf-8") as f:
@@ -115,6 +124,9 @@ class SimplePromptLoader:
         Returns:
             Settings dictionary or empty dict if no settings
         """
+        # Strip leading 'prompts/' if present for user convenience
+        if filename.startswith('prompts/'):
+            filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
         try:
