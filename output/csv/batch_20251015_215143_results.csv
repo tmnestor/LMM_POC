@@ -1,0 +1,5 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+image_004.png,RECEIPT,100.0,14,14,14,6.595758438110352,llama_receipt_prompt_receipt_prompt,False
+image_005.png,INVOICE,100.0,14,14,14,7.935786962509155,llama_invoice_prompt_invoice_prompt,False
+image_006.png,INVOICE,100.0,14,14,14,9.875671625137329,llama_invoice_prompt_invoice_prompt,False
+image_007.png,INVOICE,85.71428571428571,14,12,14,7.503075361251831,llama_invoice_prompt_invoice_prompt,False
