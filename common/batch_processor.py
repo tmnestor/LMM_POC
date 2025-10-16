@@ -382,46 +382,56 @@ class BatchDocumentProcessor:
                     )
 
                     # Build field-level scores for detailed comparison display
-                    # Use sophisticated partial matching from evaluation_metrics.py
-                    from common.evaluation_metrics import calculate_field_accuracy
+                    # Use F1-based evaluation from evaluation_metrics.py
+                    from common.evaluation_metrics import calculate_field_accuracy_f1
 
                     field_scores = {}
-                    total_accuracy_score = 0.0
+                    total_f1_score = 0.0
+                    total_precision = 0.0
+                    total_recall = 0.0
+
                     for field in filtered_ground_truth.keys():
                         extracted_val = extracted_data.get(field, "NOT_FOUND")
                         ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
 
-                        # Use calculate_field_accuracy which supports partial matching for lists
-                        accuracy_score = calculate_field_accuracy(
+                        # Use F1-based scoring which penalizes both false positives and false negatives
+                        f1_metrics = calculate_field_accuracy_f1(
                             extracted_val, ground_val, field, debug=False
                         )
-                        field_scores[field] = {"accuracy": accuracy_score}
-                        total_accuracy_score += accuracy_score
+                        field_scores[field] = f1_metrics
+                        total_f1_score += f1_metrics["f1_score"]
+                        total_precision += f1_metrics["precision"]
+                        total_recall += f1_metrics["recall"]
 
-                    # Calculate overall accuracy from partial scores (not binary matches)
-                    overall_accuracy = (
-                        total_accuracy_score / len(field_scores) if field_scores else 0.0
-                    )
+                    # Calculate overall metrics from F1 scores
+                    num_fields = len(field_scores)
+                    overall_accuracy = total_f1_score / num_fields if num_fields else 0.0
+                    overall_precision = total_precision / num_fields if num_fields else 0.0
+                    overall_recall = total_recall / num_fields if num_fields else 0.0
 
                     # Count perfect matches for compatibility
                     perfect_matches = sum(
-                        1 for score in field_scores.values() if score["accuracy"] == 1.0
+                        1 for score in field_scores.values() if score["f1_score"] == 1.0
                     )
                     fields_matched = perfect_matches
 
                     evaluation = {
-                        "overall_accuracy": overall_accuracy,  # Use partial scoring average
+                        "overall_accuracy": overall_accuracy,  # F1-based average
+                        "overall_precision": overall_precision,  # Average precision
+                        "overall_recall": overall_recall,  # Average recall
                         "total_fields": len(field_scores),
-                        "correct_fields": perfect_matches,  # Perfect matches only
+                        "correct_fields": perfect_matches,  # Perfect F1=1.0 matches
                         "missing_fields": evaluation_result.missing_fields,
                         "incorrect_fields": evaluation_result.incorrect_fields,
                         # Add notebook-expected keys
                         "fields_extracted": fields_extracted,
                         "fields_matched": fields_matched,
-                        # Add field-level scores for detailed comparison
+                        # Add field-level scores for detailed comparison (now with F1 metrics)
                         "field_scores": field_scores,
                         "overall_metrics": {
-                            "overall_accuracy": overall_accuracy,  # Use partial scoring average
+                            "overall_accuracy": overall_accuracy,  # F1-based
+                            "overall_precision": overall_precision,
+                            "overall_recall": overall_recall,
                             "meets_threshold": overall_accuracy >= 0.8,
                             "document_type_threshold": 0.8,
                         },
@@ -681,11 +691,19 @@ class BatchDocumentProcessor:
             extracted_val = extracted_data.get(field, "NOT_FOUND")
             ground_val = ground_truth.get(field, "NOT_FOUND")
 
-            # Determine status symbol (same logic as document-aware system)
-            if score.get("accuracy", 0) == 1.0:
+            # Get F1 metrics from score dict
+            f1_score = score.get("f1_score", 0)
+            precision = score.get("precision", 0)
+            recall = score.get("recall", 0)
+            tp = score.get("tp", 0)
+            fp = score.get("fp", 0)
+            fn = score.get("fn", 0)
+
+            # Determine status symbol based on F1 score
+            if f1_score == 1.0:
                 status = "✅"
                 exact_matches += 1
-            elif score.get("accuracy", 0) >= 0.8:
+            elif f1_score >= 0.8:
                 status = "≈"
             else:
                 status = "❌"
@@ -693,7 +711,7 @@ class BatchDocumentProcessor:
             if extracted_val != "NOT_FOUND":
                 fields_found += 1
 
-            # Truncate long values for display (same as document-aware system)
+            # Truncate long values for display
             extracted_display = str(extracted_val)[:38] + (
                 "..." if len(str(extracted_val)) > 38 else ""
             )
@@ -705,40 +723,36 @@ class BatchDocumentProcessor:
                 f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
             )
 
-            # For mismatches and partial matches, show full values and partial scores
+            # For mismatches and partial matches, show full values and F1 metrics
             if (status == "❌" or status == "≈") and verbose:
-                accuracy_pct = score.get("accuracy", 0) * 100
-                rprint(f"[red]  ⚠️ MISMATCH DETAILS (Partial Score: {accuracy_pct:.1f}%):[/red]")
+                rprint(f"[red]  ⚠️ MISMATCH DETAILS (F1={f1_score:.1%}, P={precision:.1%}, R={recall:.1%}):[/red]")
                 rprint(f"[yellow]     Extracted (full): {extracted_val}[/yellow]")
                 rprint(f"[yellow]     Ground Truth (full): {ground_val}[/yellow]")
+                rprint(f"[cyan]     Metrics: TP={tp}, FP={fp}, FN={fn}[/cyan]")
 
                 # Show detailed comparison for list fields
                 if '|' in str(extracted_val) or '|' in str(ground_val):
                     ext_items = [i.strip() for i in str(extracted_val).split('|') if i.strip()]
                     gt_items = [i.strip() for i in str(ground_val).split('|') if i.strip()]
 
-                    # Count matching items
-                    matches = 0
-                    for ext_item in ext_items:
-                        if ext_item in gt_items:
-                            matches += 1
+                    rprint(f"[yellow]     List comparison: {len(ext_items)} extracted vs {len(gt_items)} ground truth[/yellow]")
+                    rprint(f"[cyan]     True Positives (correct): {tp}[/cyan]")
+                    rprint(f"[yellow]     False Positives (extra): {fp}[/yellow]")
+                    rprint(f"[red]     False Negatives (missing): {fn}[/red]")
 
-                    rprint(f"[yellow]     List comparison: {len(ext_items)} extracted items vs {len(gt_items)} ground truth items[/yellow]")
-                    rprint(f"[cyan]     Matched items: {matches}/{max(len(ext_items), len(gt_items))} ({accuracy_pct:.1f}% partial credit)[/cyan]")
+                    # Show which items matched (first 3 TPs)
+                    if tp > 0:
+                        matching_items = [item for item in ext_items if any(item.lower().strip() == gt.lower().strip() for gt in gt_items)][:3]
+                        rprint(f"[green]     ✓ Correct: {' | '.join(matching_items)}{'...' if len(matching_items) < tp else ''}[/green]")
 
-                    # Show which items matched (first 3)
-                    if matches > 0:
-                        matching_items = [item for item in ext_items if item in gt_items][:3]
-                        rprint(f"[green]     ✓ Matches: {' | '.join(matching_items)}{'...' if len(matching_items) < matches else ''}[/green]")
-
-                    # Show what's missing (first 3)
-                    missing_items = [item for item in gt_items if item not in ext_items][:3]
-                    if missing_items:
+                    # Show what's missing (first 3 FNs)
+                    if fn > 0:
+                        missing_items = [item for item in gt_items if not any(item.lower().strip() == ext.lower().strip() for ext in ext_items)][:3]
                         rprint(f"[red]     ✗ Missing: {' | '.join(missing_items)}{'...' if len(missing_items) > 3 else ''}[/red]")
 
-                    # Show what's extra (first 3)
-                    extra_items = [item for item in ext_items if item not in gt_items][:3]
-                    if extra_items:
+                    # Show what's extra (first 3 FPs)
+                    if fp > 0:
+                        extra_items = [item for item in ext_items if not any(item.lower().strip() == gt.lower().strip() for gt in gt_items)][:3]
                         rprint(f"[yellow]     + Extra: {' | '.join(extra_items)}{'...' if len(extra_items) > 3 else ''}[/yellow]")
                 else:
                     rprint("[yellow]     Simple text/value mismatch[/yellow]")

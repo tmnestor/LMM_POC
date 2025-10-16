@@ -1027,3 +1027,138 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
 
     # If same number of components and they match, consider it a match
     return len(extracted_nums) >= 2 and extracted_nums == ground_truth_nums
+
+
+def calculate_field_accuracy_f1(
+    extracted_value: str, ground_truth_value: str, field_name: str, debug: bool = False
+) -> dict:
+    """
+    Calculate F1-based accuracy for a field with proper false positive handling.
+
+    This function uses Precision, Recall, and F1 Score to evaluate list extractions,
+    properly penalizing both false positives (over-extraction) and false negatives
+    (under-extraction).
+
+    Args:
+        extracted_value (str): Value extracted by the model
+        ground_truth_value (str): Expected correct value
+        field_name (str): Name of the field being compared
+        debug (bool): Whether to print debug information
+
+    Returns:
+        dict: Dictionary with keys:
+            - f1_score (float): F1 score (0.0 to 1.0)
+            - precision (float): Precision (0.0 to 1.0)
+            - recall (float): Recall (0.0 to 1.0)
+            - tp (int): True positives count
+            - fp (int): False positives count
+            - fn (int): False negatives count
+    """
+    # Convert to strings and clean
+    extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
+    ground_truth = (
+        str(ground_truth_value).strip() if ground_truth_value else "NOT_FOUND"
+    )
+
+    # Handle NOT_FOUND cases
+    if ground_truth.upper() == "NOT_FOUND":
+        is_correct = extracted.upper() == "NOT_FOUND"
+        return {
+            "f1_score": 1.0 if is_correct else 0.0,
+            "precision": 1.0 if is_correct else 0.0,
+            "recall": 1.0,
+            "tp": 0,
+            "fp": 0 if is_correct else 1,
+            "fn": 0,
+        }
+
+    if extracted.upper() == "NOT_FOUND":
+        # Missing extraction - all ground truth items are false negatives
+        gt_items = [
+            i.strip() for i in str(ground_truth).split("|") if i.strip()
+        ]
+        return {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": len(gt_items) if gt_items else 1,
+        }
+
+    # Handle single values (non-list fields)
+    if "|" not in str(extracted) and "|" not in str(ground_truth):
+        # Use existing comparison logic for single values
+        if field_name in get_transaction_list_fields():
+            match = _transaction_item_matches(extracted, ground_truth, field_name)
+        else:
+            # Simplified match for non-transaction fields
+            match = extracted.lower() == ground_truth.lower()
+
+        return {
+            "f1_score": 1.0 if match else 0.0,
+            "precision": 1.0 if match else 0.0,
+            "recall": 1.0 if match else 0.0,
+            "tp": 1 if match else 0,
+            "fp": 0 if match else 1,
+            "fn": 0 if match else 1,
+        }
+
+    # Handle list values (transaction fields)
+    extracted_items = [i.strip() for i in str(extracted).split("|") if i.strip()]
+    ground_truth_items = [
+        i.strip() for i in str(ground_truth).split("|") if i.strip()
+    ]
+
+    # Calculate TP, FP, FN using position-aware matching
+    tp = 0
+    matched_gt_indices = set()
+
+    # For each extracted item, find if it matches any unmatched ground truth item
+    for ext_item in extracted_items:
+        for i, gt_item in enumerate(ground_truth_items):
+            if i not in matched_gt_indices:
+                if field_name in get_transaction_list_fields():
+                    if _transaction_item_matches(ext_item, gt_item, field_name):
+                        tp += 1
+                        matched_gt_indices.add(i)
+                        break
+                else:
+                    # Simple text matching for non-transaction lists
+                    if ext_item.lower().strip() == gt_item.lower().strip():
+                        tp += 1
+                        matched_gt_indices.add(i)
+                        break
+
+    # False positives: extracted items that didn't match any ground truth
+    fp = len(extracted_items) - tp
+
+    # False negatives: ground truth items that weren't matched
+    fn = len(ground_truth_items) - tp
+
+    # Calculate metrics
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1_score = (
+        2 * (precision * recall) / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
+
+    if debug:
+        print(f"  📊 F1 Metrics for {field_name}:")
+        print(f"     TP={tp}, FP={fp}, FN={fn}")
+        print(
+            f"     Precision={precision:.2%}, Recall={recall:.2%}, F1={f1_score:.2%}"
+        )
+        print(f"     Extracted items: {len(extracted_items)}")
+        print(f"     Ground truth items: {len(ground_truth_items)}")
+
+    return {
+        "f1_score": f1_score,
+        "precision": precision,
+        "recall": recall,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+    }
