@@ -944,20 +944,31 @@ class BatchDocumentProcessor:
         prompt_loader = SimplePromptLoader()
 
         try:
-            # Get extraction file and key from prompt_config
+            # Get extraction file and key from prompt_config - fully explicit configuration
             doc_type_upper = document_type.upper()
-            extraction_file = self.prompt_config.get('extraction_files', {}).get(
+
+            # Get the prompt file path from config
+            extraction_files = self.prompt_config.get('extraction_files', {})
+            extraction_file = extraction_files.get(
                 doc_type_upper,
                 'prompts/llama_prompts.yaml'  # fallback
             )
-            extraction_key = self.prompt_config.get('extraction_keys', {}).get(
-                doc_type_upper,
-                document_type.lower()  # fallback
-            )
 
-            # For bank statements, append structure to key
-            if document_type == "BANK_STATEMENT":
-                extraction_key = f"{extraction_key}_{bank_structure}"
+            # Get the prompt key from config (or derive from document type if not specified)
+            extraction_keys = self.prompt_config.get('extraction_keys', {})
+
+            if doc_type_upper in extraction_keys:
+                # Use explicitly configured key
+                extraction_key = extraction_keys[doc_type_upper]
+            else:
+                # Derive key from document type - simple lowercase conversion
+                extraction_key = document_type.lower()
+
+            # For bank statements ONLY: if key doesn't include structure suffix, append it
+            # This allows config to override by specifying full key like "bank_statement_flat"
+            if document_type == "BANK_STATEMENT" and bank_structure:
+                if "_flat" not in extraction_key and "_date_grouped" not in extraction_key:
+                    extraction_key = f"{extraction_key}_{bank_structure}"
 
             # Load using config values (pass full path - loader handles normalization)
             from pathlib import Path
