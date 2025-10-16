@@ -1091,20 +1091,60 @@ def calculate_field_accuracy_f1(
         # Use existing comparison logic for single values
         if field_name in get_transaction_list_fields():
             match = _transaction_item_matches(extracted, ground_truth, field_name)
+            # For transaction fields, keep binary matching
+            return {
+                "f1_score": 1.0 if match else 0.0,
+                "precision": 1.0 if match else 0.0,
+                "recall": 1.0 if match else 0.0,
+                "tp": 1 if match else 0,
+                "fp": 0 if match else 1,
+                "fn": 0 if match else 1,
+            }
         else:
-            # Normalize whitespace for text comparison (collapse multiple spaces)
+            # For text fields, use fuzzy matching with Levenshtein distance
+            # Normalize whitespace first
             extracted_normalized = " ".join(extracted.split())
             ground_truth_normalized = " ".join(ground_truth.split())
-            match = extracted_normalized.lower() == ground_truth_normalized.lower()
 
-        return {
-            "f1_score": 1.0 if match else 0.0,
-            "precision": 1.0 if match else 0.0,
-            "recall": 1.0 if match else 0.0,
-            "tp": 1 if match else 0,
-            "fp": 0 if match else 1,
-            "fn": 0 if match else 1,
-        }
+            # Try Levenshtein, fall back to exact match if not available
+            try:
+                from Levenshtein import distance as levenshtein_distance
+
+                # Calculate normalized similarity (ANLS-style)
+                edit_dist = levenshtein_distance(
+                    extracted_normalized.lower(),
+                    ground_truth_normalized.lower()
+                )
+                max_len = max(len(extracted_normalized), len(ground_truth_normalized))
+
+                if max_len == 0:
+                    similarity = 1.0
+                else:
+                    similarity = 1.0 - (edit_dist / max_len)
+
+                # Apply 0.5 threshold like ANLS (standard in DocVQA)
+                # Below 50% similarity = 0.0, above = give partial credit
+                if similarity >= 0.5:
+                    f1_score = similarity
+                else:
+                    f1_score = 0.0
+
+            except ImportError:
+                # Fallback to exact match if Levenshtein not installed
+                if extracted_normalized.lower() == ground_truth_normalized.lower():
+                    f1_score = 1.0
+                else:
+                    f1_score = 0.0
+
+            # For text fields, precision = recall = f1 (single value)
+            return {
+                "f1_score": f1_score,
+                "precision": f1_score,
+                "recall": f1_score,
+                "tp": 1 if f1_score > 0.5 else 0,
+                "fp": 0 if f1_score > 0.5 else 1,
+                "fn": 0 if f1_score > 0.5 else 1,
+            }
 
     # Handle list values (transaction fields)
     extracted_items = [i.strip() for i in str(extracted).split("|") if i.strip()]
