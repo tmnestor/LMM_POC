@@ -1021,12 +1021,84 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
     if extracted_date.strip() == ground_truth_date.strip():
         return True
 
-    # Extract numbers from dates for loose comparison
-    extracted_nums = re.findall(r"\d+", extracted_date)
-    ground_truth_nums = re.findall(r"\d+", ground_truth_date)
+    # Month name to number mapping
+    months = {
+        'jan': '01', 'january': '01',
+        'feb': '02', 'february': '02',
+        'mar': '03', 'march': '03',
+        'apr': '04', 'april': '04',
+        'may': '05',
+        'jun': '06', 'june': '06',
+        'jul': '07', 'july': '07',
+        'aug': '08', 'august': '08',
+        'sep': '09', 'sept': '09', 'september': '09',
+        'oct': '10', 'october': '10',
+        'nov': '11', 'november': '11',
+        'dec': '12', 'december': '12',
+    }
 
-    # If same number of components and they match, consider it a match
-    return len(extracted_nums) >= 2 and extracted_nums == ground_truth_nums
+    def normalize_date(date_str):
+        """Extract day, month, year from date string, handling month names."""
+        date_lower = date_str.lower()
+
+        # Extract all numbers
+        nums = re.findall(r'\d+', date_str)
+
+        # Check for month names
+        month_num = None
+        for month_name, month_val in months.items():
+            if month_name in date_lower:
+                month_num = month_val
+                break
+
+        if not nums:
+            return None
+
+        # Try to extract day, month, year based on available information
+        if len(nums) == 3:
+            # Full date like DD/MM/YYYY or MM/DD/YYYY or YYYY/MM/DD
+            day, month, year = nums[0], nums[1], nums[2]
+        elif len(nums) == 2 and month_num:
+            # Date with month name like "16-Jul-25"
+            day, month, year = nums[0], month_num, nums[1]
+        elif len(nums) == 2:
+            # Ambiguous - assume day and year with month missing
+            day, month, year = nums[0], None, nums[1]
+        elif len(nums) == 1 and month_num:
+            # Just day with month name
+            day, month, year = nums[0], month_num, None
+        else:
+            return None
+
+        # Normalize 2-digit years to 4-digit
+        if year and len(year) == 2:
+            year_int = int(year)
+            # Assume 00-50 is 2000-2050, 51-99 is 1951-1999
+            year = str(2000 + year_int) if year_int <= 50 else str(1900 + year_int)
+
+        # Pad day and month to 2 digits
+        if day:
+            day = day.zfill(2)
+        if month:
+            month = month.zfill(2)
+
+        return (day, month, year)
+
+    extracted_parts = normalize_date(extracted_date)
+    ground_truth_parts = normalize_date(ground_truth_date)
+
+    if extracted_parts is None or ground_truth_parts is None:
+        return False
+
+    # Compare available components (day, month, year)
+    # All non-None components must match
+    for ext, gt in zip(extracted_parts, ground_truth_parts, strict=False):
+        if ext is not None and gt is not None and ext != gt:
+            return False
+
+    # At least day and one other component must match
+    matches = sum(1 for ext, gt in zip(extracted_parts, ground_truth_parts, strict=False) if ext == gt and ext is not None)
+    return matches >= 2
 
 
 def calculate_field_accuracy_f1(
@@ -1104,6 +1176,23 @@ def calculate_field_accuracy_f1(
             # Normalize whitespace first
             extracted_normalized = " ".join(extracted.split())
             ground_truth_normalized = " ".join(ground_truth.split())
+
+            # For date fields, use date-aware comparison that normalizes formats
+            # This handles cases like "16/07/2025" vs "16-Jul-25" (same date, different format)
+            date_field_keywords = ["DATE", "DUE_DATE", "INVOICE_DATE", "STATEMENT_DATE"]
+            is_date_field = any(keyword in field_name.upper() for keyword in date_field_keywords)
+
+            if is_date_field:
+                # Use fuzzy date comparison from _compare_dates_fuzzy
+                match = _compare_dates_fuzzy(extracted_normalized, ground_truth_normalized)
+                return {
+                    "f1_score": 1.0 if match else 0.0,
+                    "precision": 1.0 if match else 0.0,
+                    "recall": 1.0 if match else 0.0,
+                    "tp": 1 if match else 0,
+                    "fp": 0 if match else 1,
+                    "fn": 0 if match else 1,
+                }
 
             # For single-value monetary fields (GST_AMOUNT, TOTAL_AMOUNT), use monetary comparison with F1-style penalty
             # This ensures incorrect amounts get 0.0 score (penalizing false positives)
