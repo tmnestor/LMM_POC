@@ -380,13 +380,13 @@ class BatchDocumentProcessor:
                     fields_extracted = len(
                         [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
                     )
-                    fields_matched = evaluation_result.correct_fields
 
                     # Build field-level scores for detailed comparison display
                     # Use sophisticated partial matching from evaluation_metrics.py
                     from common.evaluation_metrics import calculate_field_accuracy
 
                     field_scores = {}
+                    total_accuracy_score = 0.0
                     for field in filtered_ground_truth.keys():
                         extracted_val = extracted_data.get(field, "NOT_FOUND")
                         ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
@@ -396,11 +396,23 @@ class BatchDocumentProcessor:
                             extracted_val, ground_val, field, debug=False
                         )
                         field_scores[field] = {"accuracy": accuracy_score}
+                        total_accuracy_score += accuracy_score
+
+                    # Calculate overall accuracy from partial scores (not binary matches)
+                    overall_accuracy = (
+                        total_accuracy_score / len(field_scores) if field_scores else 0.0
+                    )
+
+                    # Count perfect matches for compatibility
+                    perfect_matches = sum(
+                        1 for score in field_scores.values() if score["accuracy"] == 1.0
+                    )
+                    fields_matched = perfect_matches
 
                     evaluation = {
-                        "overall_accuracy": evaluation_result.accuracy,
-                        "total_fields": evaluation_result.total_fields,
-                        "correct_fields": evaluation_result.correct_fields,
+                        "overall_accuracy": overall_accuracy,  # Use partial scoring average
+                        "total_fields": len(field_scores),
+                        "correct_fields": perfect_matches,  # Perfect matches only
                         "missing_fields": evaluation_result.missing_fields,
                         "incorrect_fields": evaluation_result.incorrect_fields,
                         # Add notebook-expected keys
@@ -409,8 +421,8 @@ class BatchDocumentProcessor:
                         # Add field-level scores for detailed comparison
                         "field_scores": field_scores,
                         "overall_metrics": {
-                            "overall_accuracy": evaluation_result.accuracy,
-                            "meets_threshold": evaluation_result.accuracy >= 0.8,
+                            "overall_accuracy": overall_accuracy,  # Use partial scoring average
+                            "meets_threshold": overall_accuracy >= 0.8,
                             "document_type_threshold": 0.8,
                         },
                     }
