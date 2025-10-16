@@ -1,0 +1,2 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+image_003.png,BANK_STATEMENT,80.0,7,4,5,11.88949728012085,llama_bank_statement_prompt_bank_statement_flat_prompt,False

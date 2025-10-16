@@ -166,10 +166,16 @@ prompts:
       You are an expert document analyzer specializing in bank statement extraction.
       Extract structured data from this flat table bank statement for taxpayer expense claims.
 
-      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
-      IGNORE deposits and credits (money IN) - we only need expenses.
+      CRITICAL: Extract ONLY the transaction rows having DEBIT/WITHDRAWAL (money OUT) for expense tracking.
+      IGNORE transaction rows having deposits and credits (money IN) - we only need expenses.
 
-      Process each DEBIT transaction row individually.
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+      - Output ONLY the structured extraction data below
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+      - NO explanations, NO comments, NO additional text
 
       Output format (5 FIELDS - replace NOT_FOUND with actual values):
 
@@ -183,11 +189,10 @@ prompts:
 
       Instructions:
       - Statement period: Find date range like "01/01/2025 to 31/01/2025"
-      - Transaction descriptions: All DEBIT descriptions separated by " | " (ONLY withdrawals/payments)
       - Transaction dates: All DEBIT dates separated by " | " (ONLY dates with expenses)
+      - Transaction descriptions: All DEBIT descriptions separated by " | " (ONLY withdrawals/payments)
       - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
       - Skip any deposits, credits, or money IN transactions
-      - Use NOT_FOUND for missing fields
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
