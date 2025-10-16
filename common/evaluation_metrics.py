@@ -1290,31 +1290,38 @@ def calculate_field_accuracy_f1(
         i.strip() for i in str(ground_truth).split("|") if i.strip()
     ]
 
-    # Calculate TP, FP, FN using position-aware matching
+    # POSITION-AWARE MATCHING: Items must be in correct positions
+    # This penalizes order errors (e.g., reversed lists)
     tp = 0
-    matched_gt_indices = set()
+    fp = 0
+    fn = 0
 
-    # For each extracted item, find if it matches any unmatched ground truth item
-    for ext_item in extracted_items:
-        for i, gt_item in enumerate(ground_truth_items):
-            if i not in matched_gt_indices:
-                if field_name in get_transaction_list_fields():
-                    if _transaction_item_matches(ext_item, gt_item, field_name):
-                        tp += 1
-                        matched_gt_indices.add(i)
-                        break
-                else:
-                    # Simple text matching for non-transaction lists
-                    if ext_item.lower().strip() == gt_item.lower().strip():
-                        tp += 1
-                        matched_gt_indices.add(i)
-                        break
+    # Compare position-by-position
+    max_len = max(len(extracted_items), len(ground_truth_items))
 
-    # False positives: extracted items that didn't match any ground truth
-    fp = len(extracted_items) - tp
+    for i in range(max_len):
+        if i < len(ground_truth_items) and i < len(extracted_items):
+            # Both have an item at this position - check if they match
+            if field_name in get_transaction_list_fields():
+                match = _transaction_item_matches(
+                    extracted_items[i], ground_truth_items[i], field_name
+                )
+            else:
+                # Simple text matching for non-transaction lists
+                match = extracted_items[i].lower().strip() == ground_truth_items[i].lower().strip()
 
-    # False negatives: ground truth items that weren't matched
-    fn = len(ground_truth_items) - tp
+            if match:
+                tp += 1
+            else:
+                # Wrong item at this position = FP + FN
+                fp += 1
+                fn += 1
+        elif i < len(ground_truth_items):
+            # Ground truth has item but extraction doesn't (missing)
+            fn += 1
+        else:
+            # Extraction has item but ground truth doesn't (extra)
+            fp += 1
 
     # Calculate metrics
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0

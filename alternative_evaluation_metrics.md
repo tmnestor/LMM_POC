@@ -377,7 +377,288 @@ def calculate_order_aware_f1(extracted_items, ground_truth_items, field_name):
 
 ---
 
-## 5. **Weighted Error Penalty Score**
+## 5. **Cross-List Correlation Validation** ⭐ FOR TRANSACTION ALIGNMENT
+
+### Description
+Validates that **related lists maintain semantic alignment** across fields. Critical for transaction data where dates, descriptions, and amounts must correspond to the same transaction at the same index position.
+
+### The Problem
+Standard F1 scoring evaluates each list independently, missing semantic misalignment:
+
+```python
+# Ground Truth - semantically aligned
+TRANSACTION_DATES:        ["01/01/2025", "02/01/2025", "03/01/2025"]
+LINE_ITEM_DESCRIPTIONS:   ["Coffee",     "Lunch",      "Dinner"]
+TRANSACTION_AMOUNTS_PAID: ["$5",         "$15",        "$25"]
+# Transaction 1: Coffee on 01/01 cost $5 ✓
+
+# Extracted - individually correct but semantically WRONG
+TRANSACTION_DATES:        ["01/01/2025", "02/01/2025", "03/01/2025"]  # F1=100%
+LINE_ITEM_DESCRIPTIONS:   ["Dinner",     "Coffee",     "Lunch"]       # F1=100% (all items present!)
+TRANSACTION_AMOUNTS_PAID: ["$5",         "$15",        "$25"]         # F1=100%
+# Transaction 1: Dinner on 01/01 cost $5 ✗ WRONG!
+
+Overall F1: 100% but semantically incorrect!
+```
+
+### Solution: Correlation-Aware F1
+
+Combines **within-list F1** with **cross-list alignment penalty**.
+
+#### Formula
+```python
+For each transaction row i:
+    dates_match = TRANSACTION_DATES[i] matches ground_truth_dates[i]
+    desc_match = LINE_ITEM_DESCRIPTIONS[i] matches ground_truth_descriptions[i]
+    amt_match = TRANSACTION_AMOUNTS_PAID[i] matches ground_truth_amounts[i]
+
+    # Row is correct only if ALL fields align
+    row_correct = dates_match AND desc_match AND amt_match
+
+Alignment_Score = correct_rows / total_rows
+Combined_F1 = (standard_F1 + Alignment_Score) / 2
+```
+
+### Implementation Approaches
+
+#### Option A: Strict Alignment (Recommended for Invoices/Statements)
+All related fields must align at the same index.
+
+```python
+def calculate_correlation_aware_f1(extracted_data, ground_truth_data,
+                                    related_field_groups, debug=False):
+    """
+    Calculate F1 with cross-list correlation validation.
+
+    Args:
+        extracted_data: Dict with extracted fields
+        ground_truth_data: Dict with ground truth fields
+        related_field_groups: List of field tuples that must align
+            Example: [("TRANSACTION_DATES", "LINE_ITEM_DESCRIPTIONS", "TRANSACTION_AMOUNTS_PAID")]
+
+    Returns:
+        dict with standard_f1, alignment_score, combined_f1
+    """
+    results = {}
+
+    # Calculate standard F1 for each field
+    field_f1_scores = {}
+    for field in extracted_data.keys():
+        f1_metrics = calculate_field_accuracy_f1(
+            extracted_data[field],
+            ground_truth_data[field],
+            field
+        )
+        field_f1_scores[field] = f1_metrics["f1_score"]
+
+    # Calculate alignment scores for related field groups
+    alignment_scores = []
+
+    for field_group in related_field_groups:
+        # Parse all fields in the group into lists
+        extracted_lists = {}
+        ground_truth_lists = {}
+
+        for field in field_group:
+            extracted_lists[field] = [
+                i.strip() for i in str(extracted_data[field]).split('|') if i.strip()
+            ]
+            ground_truth_lists[field] = [
+                i.strip() for i in str(ground_truth_data[field]).split('|') if i.strip()
+            ]
+
+        # Check alignment row-by-row
+        min_len = min(len(lst) for lst in ground_truth_lists.values())
+        aligned_rows = 0
+
+        for i in range(min_len):
+            # Check if all fields match at position i
+            row_aligned = True
+            for field in field_group:
+                if i < len(extracted_lists[field]):
+                    # Use field-specific matching
+                    if not _transaction_item_matches(
+                        extracted_lists[field][i],
+                        ground_truth_lists[field][i],
+                        field
+                    ):
+                        row_aligned = False
+                        break
+                else:
+                    row_aligned = False
+                    break
+
+            if row_aligned:
+                aligned_rows += 1
+
+        # Alignment score for this group
+        alignment_score = aligned_rows / min_len if min_len > 0 else 0.0
+        alignment_scores.append(alignment_score)
+
+        if debug:
+            print(f"  Field Group {field_group}:")
+            print(f"    Aligned rows: {aligned_rows}/{min_len}")
+            print(f"    Alignment score: {alignment_score:.1%}")
+
+    # Overall alignment score
+    overall_alignment = sum(alignment_scores) / len(alignment_scores) if alignment_scores else 0.0
+
+    # Overall standard F1
+    overall_f1 = sum(field_f1_scores.values()) / len(field_f1_scores) if field_f1_scores else 0.0
+
+    # Combined score (weighted average)
+    combined_f1 = (overall_f1 + overall_alignment) / 2
+
+    return {
+        "standard_f1": overall_f1,
+        "alignment_score": overall_alignment,
+        "combined_f1": combined_f1,
+        "field_f1_scores": field_f1_scores,
+        "alignment_details": alignment_scores
+    }
+```
+
+#### Option B: Partial Credit Alignment
+Gives partial credit for partially aligned rows.
+
+```python
+def calculate_partial_alignment_score(extracted_lists, ground_truth_lists, field_group):
+    """
+    Calculate alignment with partial credit.
+    Row gets score = (matching_fields / total_fields) for that row.
+    """
+    min_len = min(len(lst) for lst in ground_truth_lists.values())
+    total_alignment = 0.0
+
+    for i in range(min_len):
+        matching_fields = 0
+
+        for field in field_group:
+            if i < len(extracted_lists[field]):
+                if _transaction_item_matches(
+                    extracted_lists[field][i],
+                    ground_truth_lists[field][i],
+                    field
+                ):
+                    matching_fields += 1
+
+        # Partial credit for this row
+        row_score = matching_fields / len(field_group)
+        total_alignment += row_score
+
+    return total_alignment / min_len if min_len > 0 else 0.0
+```
+
+### Example Calculation
+
+```python
+# Ground Truth
+TRANSACTION_DATES:        ["01/01/2025", "02/01/2025", "03/01/2025"]
+LINE_ITEM_DESCRIPTIONS:   ["Coffee",     "Lunch",      "Dinner"]
+TRANSACTION_AMOUNTS_PAID: ["$5",         "$15",        "$25"]
+
+# Extracted (descriptions reversed)
+TRANSACTION_DATES:        ["01/01/2025", "02/01/2025", "03/01/2025"]
+LINE_ITEM_DESCRIPTIONS:   ["Dinner",     "Coffee",     "Lunch"]
+TRANSACTION_AMOUNTS_PAID: ["$5",         "$15",        "$25"]
+
+# Standard F1 for each field
+TRANSACTION_DATES:        F1 = 100% (all dates correct)
+LINE_ITEM_DESCRIPTIONS:   F1 = 100% (all items present)
+TRANSACTION_AMOUNTS_PAID: F1 = 100% (all amounts present)
+Overall Standard F1:      100%
+
+# Alignment Check (row-by-row)
+Row 0: Date✓ + Desc✗ (Dinner≠Coffee) + Amt✓ → 2/3 fields aligned → 0% (strict) or 67% (partial)
+Row 1: Date✓ + Desc✗ (Coffee≠Lunch) + Amt✓ → 2/3 fields aligned → 0% (strict) or 67% (partial)
+Row 2: Date✓ + Desc✗ (Lunch≠Dinner) + Amt✓ → 2/3 fields aligned → 0% (strict) or 67% (partial)
+
+Alignment Score (strict):  0/3 = 0%
+Alignment Score (partial): (67%+67%+67%)/3 = 67%
+
+# Combined Scores
+Strict Combined F1:  (100% + 0%) / 2 = 50%  ← Properly penalized!
+Partial Combined F1: (100% + 67%) / 2 = 83%
+```
+
+### When to Use
+
+✅ **Use for:**
+- Transaction lists (dates, descriptions, amounts must align)
+- Invoice line items (description, quantity, price, total)
+- Sequential data where order and alignment matter
+- Multi-field entities (name + address + phone must correspond)
+
+❌ **Don't use for:**
+- Independent field lists (no semantic relationship)
+- Unordered sets
+- Single-value fields
+
+### Advantages
+✅ Detects semantic misalignment that standard F1 misses
+✅ Ensures extracted data is **usable** (not just present)
+✅ Critical for downstream applications (accounting, RPA)
+✅ Reflects real-world data quality requirements
+
+### Disadvantages
+❌ More complex to implement
+❌ Requires knowing which fields are related
+❌ May be overly strict (strict mode)
+❌ Can double-penalize errors (field F1 + alignment penalty)
+
+### Integration with Batch Processor
+
+```python
+# In batch_processor.py - add correlation validation
+def evaluate_with_correlation(extracted_data, ground_truth_data):
+    """Evaluate with cross-list correlation checking."""
+
+    # Define related field groups for each document type
+    doc_type = extracted_data.get("DOCUMENT_TYPE", "").lower()
+
+    if "bank" in doc_type or "statement" in doc_type:
+        related_groups = [
+            ("TRANSACTION_DATES", "LINE_ITEM_DESCRIPTIONS", "TRANSACTION_AMOUNTS_PAID")
+        ]
+    elif "invoice" in doc_type or "receipt" in doc_type:
+        related_groups = [
+            ("LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES",
+             "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES")
+        ]
+    else:
+        related_groups = []
+
+    # Calculate correlation-aware F1
+    if related_groups:
+        metrics = calculate_correlation_aware_f1(
+            extracted_data,
+            ground_truth_data,
+            related_groups,
+            debug=True
+        )
+
+        return metrics
+    else:
+        # Fall back to standard F1 if no related groups
+        return calculate_standard_f1(extracted_data, ground_truth_data)
+```
+
+### Display Output
+
+```python
+# Enhanced display with alignment metrics
+rprint("[bold cyan]Correlation Analysis:[/bold cyan]")
+rprint(f"  Standard F1:      {metrics['standard_f1']:.1%}")
+rprint(f"  Alignment Score:  {metrics['alignment_score']:.1%}")
+rprint(f"  [bold]Combined F1:      {metrics['combined_f1']:.1%}[/bold]")
+
+if metrics['alignment_score'] < 0.8:
+    rprint("[yellow]  ⚠️ Warning: Low alignment - check field ordering![/yellow]")
+```
+
+---
+
+## 6. **Weighted Error Penalty Score**
 
 ### Description
 Custom metric that assigns **different costs** to different error types based on business impact.
@@ -473,14 +754,15 @@ def calculate_weighted_score(extracted_items, ground_truth_items, field_name,
 
 ## Metric Comparison Table
 
-| Metric | Penalizes FP? | Penalizes FN? | Order-Aware? | Fuzzy Match? | Complexity | Best For |
-|--------|---------------|---------------|--------------|--------------|------------|----------|
-| **Current (matches/gt_len)** | ❌ No | ✅ Yes | ❌ No | ❌ No | Low | Simple recall |
-| **F1 Score** | ✅ Yes | ✅ Yes | ❌ No | ❌ No | Low | **General use** ⭐ |
-| **ANLS** | ❌ No | ✅ Yes | ❌ No | ✅ Yes | Medium | OCR/typo tolerance |
-| **KIEval** | ✅ Yes | ✅ Yes | ❌ No | ❌ No | Medium | Production RPA |
-| **Order-Aware F1** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | Medium | Sequential data |
-| **Weighted Penalty** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | High | Custom business needs |
+| Metric | Penalizes FP? | Penalizes FN? | Order-Aware? | Cross-List Correlation? | Fuzzy Match? | Complexity | Best For |
+|--------|---------------|---------------|--------------|------------------------|--------------|------------|----------|
+| **Current (matches/gt_len)** | ❌ No | ✅ Yes | ❌ No | ❌ No | ❌ No | Low | Simple recall |
+| **F1 Score** | ✅ Yes | ✅ Yes | ❌ No | ❌ No | ❌ No | Low | **General use** ⭐ |
+| **ANLS** | ❌ No | ✅ Yes | ❌ No | ❌ No | ✅ Yes | Medium | OCR/typo tolerance |
+| **KIEval** | ✅ Yes | ✅ Yes | ❌ No | ❌ No | ❌ No | Medium | Production RPA |
+| **Order-Aware F1** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | ❌ No | Medium | Sequential data |
+| **Cross-List Correlation** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | High | **Transaction alignment** ⭐ |
+| **Weighted Penalty** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | ❌ No | High | Custom business needs |
 
 ---
 
@@ -494,6 +776,15 @@ def calculate_weighted_score(extracted_items, ground_truth_items, field_name,
 3. ✅ **Easy to explain**: "Balance between accuracy and completeness"
 4. ✅ **Interpretable**: Precision shows extraction accuracy, Recall shows completeness
 5. ✅ **Well-tested**: Proven in NER, entity extraction, document processing
+
+### Advanced Metric: **Cross-List Correlation F1** ⭐⭐ (For Production)
+
+**Why Add This:**
+1. ✅ **Semantic correctness**: Ensures dates/descriptions/amounts align properly
+2. ✅ **Catches order errors**: Detects when lists are individually correct but misaligned
+3. ✅ **Production-critical**: Prevents unusable extractions (Coffee costing $25)
+4. ✅ **Downstream validation**: Ensures data can be used in accounting/RPA systems
+5. ✅ **Real-world quality**: Reflects actual data usability, not just presence
 
 **Example:**
 ```
