@@ -76,10 +76,40 @@ prompts:
     prompt: |
       Extract structured data from this flat table bank statement for taxpayer expense claims.
 
-      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
-      IGNORE deposits and credits (money IN).
+      STEP 1 - LOCATE TRANSACTION TABLE:
+      Focus on the main transaction table (usually center/body area).
+      Columns: Date | Description | Debit/Withdrawal | Credit/Deposit | Balance
+      Ignore: Headers, footers, summaries, advertisements
 
-      Process each DEBIT transaction row individually.
+      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
+      TARGET COLUMNS: Date + Description + Debit/Withdrawal amount
+
+      For each row check:
+      - Has value in DEBIT/WITHDRAWAL column? → Extract this row
+      - Has value in CREDIT/DEPOSIT column only? → SKIP this row
+      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received
+
+      STEP 3 - EXTRACT ROW-BY-ROW:
+      For EACH debit row:
+      1. Extract DATE (DD/MM/YYYY format)
+      2. Extract DESCRIPTION (exact text)
+      3. Extract AMOUNT (with $ symbol)
+      4. Add to output with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Extract ONLY debits/withdrawals (money OUT)
+      - IGNORE credits/deposits (money IN)
+      - Dates, descriptions, and amounts must have same count
+      - Multiple transactions per date = separate entries
+      - Process chronologically (top to bottom)
+
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any row with value in CREDIT/DEPOSIT column
+      - Any transaction that increases account balance
 
       Output format (5 FIELDS):
 
@@ -90,11 +120,10 @@ prompts:
       TRANSACTION_AMOUNTS_PAID: NOT_FOUND
 
       Instructions:
-      - Statement period: Find date range like "01/01/2025 to 31/01/2025"
-      - Transaction descriptions: DEBIT descriptions only, separated by " | "
-      - Transaction dates: DEBIT dates only, separated by " | "
-      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
-      - Skip deposits, credits, or money IN transactions
+      - Statement period: Date range like "01/01/2025 to 31/01/2025"
+      - Transaction descriptions: DEBIT descriptions only, " | " separator
+      - Transaction dates: DEBIT dates only, DD/MM/YYYY, " | " separator
+      - Amounts paid: Debit amounts with $, " | " separator (money OUT only)
       - Use NOT_FOUND for missing fields
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
@@ -104,16 +133,42 @@ prompts:
     prompt: |
       Extract structured data from this date-grouped bank statement for taxpayer expense claims.
 
-      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
-      IGNORE deposits and credits (money IN).
+      STEP 1 - LOCATE DATE-GROUPED SECTIONS:
+      Focus on main transaction area in document body.
+      Structure: Date headers (e.g., "Thu 04 Sep 2025") with transactions listed below.
+      Under each date: Description + Amount columns
+      Ignore: Headers, footers, summaries, advertisements
 
-      This statement has sections with date headers and transactions listed underneath each date.
+      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
+      For each date header section:
+      TARGET DATA: Transaction description + Amount (negative or explicit debit)
 
-      Process by:
-      1. Find date headers (e.g., day names followed by dates)
-      2. Extract ONLY DEBIT/WITHDRAWAL transactions under each date section
-      3. SKIP deposits, credits, or salary payments
-      4. Combine debits in chronological order with " | " separators
+      For each transaction under date header check:
+      - Is this DEBIT/WITHDRAWAL (money OUT)? → Extract
+      - Is this CREDIT/DEPOSIT (money IN)? → SKIP
+      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS, card purchase
+      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received, refund, income
+
+      STEP 3 - EXTRACT TRANSACTION-BY-TRANSACTION:
+      For EACH debit transaction:
+      1. Extract DATE from date header above (DD/MM/YYYY format)
+      2. Extract DESCRIPTION from transaction row (exact text)
+      3. Extract AMOUNT from transaction row (with $ symbol)
+      4. Add to output with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Extract ONLY debits/withdrawals (money OUT)
+      - IGNORE credits/deposits (money IN)
+      - Dates, descriptions, and amounts must have same count
+      - Multiple transactions per date = separate entries with same date
+      - Process chronologically (top to bottom through date headers)
+
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any credit/deposit transaction
+      - Any transaction that increases account balance
 
       Output format (5 FIELDS):
 
@@ -124,11 +179,10 @@ prompts:
       TRANSACTION_AMOUNTS_PAID: NOT_FOUND
 
       Instructions:
-      - Statement period: Find overall statement date range
-      - Transaction descriptions: DEBIT descriptions only, separated by " | "
-      - Transaction dates: Dates of DEBIT transactions only, in DD/MM/YYYY format, separated by " | "
-      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
-      - Skip deposits (money IN, balance increases)
+      - Statement period: Overall date range like "1 Sep 2025 to 30 Sep 2025"
+      - Transaction descriptions: DEBIT descriptions only, " | " separator
+      - Transaction dates: DEBIT dates only, DD/MM/YYYY, " | " separator
+      - Amounts paid: Debit amounts with $, " | " separator (money OUT only)
       - Use NOT_FOUND for missing values
 
   # ============================================================================

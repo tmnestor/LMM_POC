@@ -76,22 +76,22 @@ prompts:
       - If multiple transactions occur on the same date, extract each as a separate entry
       - Process rows in chronological order (top to bottom in table)
 
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any row with value in CREDIT/DEPOSIT column
+      - Any transaction that increases account balance
+
       ## MANDATORY OUTPUT FORMAT (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: [Find date range like "01/01/2025 to 31/01/2025" at top of statement]
-      TRANSACTION_DATES: [Date1 | Date2 | Date3 - only debit dates, DD/MM/YYYY format]
-      LINE_ITEM_DESCRIPTIONS: [Description1 | Description2 | Description3 - only debit descriptions]
-      TRANSACTION_AMOUNTS_PAID: [Amount1 | Amount2 | Amount3 - only debit amounts with $]
+      STATEMENT_DATE_RANGE: [statement date range from document]
+      TRANSACTION_DATES: [actual dates in DD/MM/YYYY format separated by " | "]
+      LINE_ITEM_DESCRIPTIONS: [actual transaction descriptions separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [actual amounts with $ separated by " | "]
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
-
-      EXAMPLE ROW PROCESSING:
-      Table Row: "15/01/2025 | EFTPOS PIZZA HUT | $97.95 | | $2,450.30"
-      → Extract: Date=15/01/2025, Description=EFTPOS PIZZA HUT, Amount=$97.95
-
-      Table Row: "16/01/2025 | SALARY DEPOSIT | | $3,500.00 | $5,950.30"
-      → SKIP (credit transaction, not debit)
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
@@ -140,27 +140,19 @@ prompts:
       - Process transactions in chronological order (top to bottom through date headers)
       - Multiple transactions can share the same date (common in date-grouped format)
 
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any credit/deposit transaction
+      - Any transaction that increases account balance
+
       ## MANDATORY OUTPUT FORMAT (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: [Find date range like "1 September 2025 to 30 September 2025" at top of statement]
-      TRANSACTION_DATES: [Date1 | Date2 | Date3 - only debit dates, DD/MM/YYYY format]
-      LINE_ITEM_DESCRIPTIONS: [Description1 | Description2 | Description3 - only debit descriptions]
-      TRANSACTION_AMOUNTS_PAID: [Amount1 | Amount2 | Amount3 - only debit amounts with $]
+      STATEMENT_DATE_RANGE: [statement date range from document]
+      TRANSACTION_DATES: [actual dates in DD/MM/YYYY format separated by " | "]
+      LINE_ITEM_DESCRIPTIONS: [actual transaction descriptions separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [actual amounts with $ separated by " | "]
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
-
-      EXAMPLE EXTRACTION FROM DATE-GROUPED FORMAT:
-
-      Date Header: "Thu 04 Sep 2025"
-      Transaction 1: "EFTPOS PIZZA HUT | $97.95" → Extract (debit)
-      Transaction 2: "SALARY DEPOSIT | $3,500.00" → SKIP (credit)
-      Transaction 3: "ATM WITHDRAWAL | $200.00" → Extract (debit)
-
-      Date Header: "Fri 05 Sep 2025"
-      Transaction 4: "Card Purchase WOOLWORTHS | $156.40" → Extract (debit)
-
-      Output:
-      TRANSACTION_DATES: 04/09/2025 | 04/09/2025 | 05/09/2025
-      LINE_ITEM_DESCRIPTIONS: EFTPOS PIZZA HUT | ATM WITHDRAWAL | Card Purchase WOOLWORTHS
-      TRANSACTION_AMOUNTS_PAID: $97.95 | $200.00 | $156.40
