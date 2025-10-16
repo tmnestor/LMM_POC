@@ -46,31 +46,52 @@ prompts:
       - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
       - NO explanations, NO comments, NO additional text
 
-      CRITICAL: 
-      - Every transaction row will have a TRANSACTION_DATES value, but either a TRANSACTION_AMOUNTS_PAID or a TRANSACTION_AMOUNTS_CREDITED value (not both). 
-      - The transaction row may also have a running BALANCE value at the end.
-      - Not every transaction row may be relevant, so it is extremely important not to include extraneous data.
-      - Extract ONLY DEBIT/WITHDRAWAL (money OUT) transactions rows for expense tracking.
-      - IGNORE deposits and credits (money IN) transactions rows completely.
-      - When in doubt, the LINE_ITEM_DESCRIPTIONS of the row explain whether the transaction was a debit or credit.
-      - The number of entries in TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS,  and TRANSACTION_AMOUNTS_PAID must match exactly to the number of debit transactions extracted.
+      ## STEP 1: LOCATE THE TRANSACTION TABLE
+      Focus on the main transaction table in the document, typically located in the center/body area.
+      The table will have columns including: Date, Description, Debit/Withdrawal, Credit/Deposit, Balance.
+      Ignore page headers, footers, account summaries, and advertisement sections.
 
-      Output format (5 FIELDS):
+      ## STEP 2: IDENTIFY DEBIT TRANSACTIONS
+      TARGET COLUMNS: Date column + Description column + Debit/Withdrawal amount column
+
+      For each table row, check:
+      - Does it have a value in the DEBIT/WITHDRAWAL column? → Extract this row
+      - Does it have a value in the CREDIT/DEPOSIT column only? → SKIP this row
+      - Keywords indicating DEBIT: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS, transfer out
+      - Keywords indicating CREDIT to skip: deposit, credit, salary, transfer in, interest received, refund
+
+      ## STEP 3: EXTRACT ROW-BY-ROW
+      For EACH debit transaction row identified in Step 2:
+      1. Extract the DATE from the date column (format as DD/MM/YYYY)
+      2. Extract the DESCRIPTION from the description column (exact text)
+      3. Extract the AMOUNT from the debit/withdrawal column (include $ symbol)
+      4. Add each extracted value to its respective field with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Every transaction row has a date, but EITHER a debit OR credit value (never both)
+      - The row may have a running balance at the end - ignore balance column
+      - Extract ONLY rows with debit/withdrawal amounts (money OUT)
+      - IGNORE rows with credit/deposit amounts (money IN)
+      - The number of entries in TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, and TRANSACTION_AMOUNTS_PAID must match exactly
+      - If multiple transactions occur on the same date, extract each as a separate entry
+      - Process rows in chronological order (top to bottom in table)
+
+      ## MANDATORY OUTPUT FORMAT (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: Transaction data
-      TRANSACTION_DATES: Transaction data
-      LINE_ITEM_DESCRIPTIONS: Transaction data
-      TRANSACTION_AMOUNTS_PAID: Transaction data
+      STATEMENT_DATE_RANGE: [Find date range like "01/01/2025 to 31/01/2025" at top of statement]
+      TRANSACTION_DATES: [Date1 | Date2 | Date3 - only debit dates, DD/MM/YYYY format]
+      LINE_ITEM_DESCRIPTIONS: [Description1 | Description2 | Description3 - only debit descriptions]
+      TRANSACTION_AMOUNTS_PAID: [Amount1 | Amount2 | Amount3 - only debit amounts with $]
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
-      Instructions:
-      - Statement period: Find date range like "01/01/2025 to 31/01/2025"
-      - Transaction descriptions: DEBIT descriptions only, separated by " | "
-      - Transaction dates: DEBIT dates only, separated by " | "
-      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
-      - Skip deposits, credits, or money IN transactions
+      EXAMPLE ROW PROCESSING:
+      Table Row: "15/01/2025 | EFTPOS PIZZA HUT | $97.95 | | $2,450.30"
+      → Extract: Date=15/01/2025, Description=EFTPOS PIZZA HUT, Amount=$97.95
+
+      Table Row: "16/01/2025 | SALARY DEPOSIT | | $3,500.00 | $5,950.30"
+      → SKIP (credit transaction, not debit)
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
@@ -80,9 +101,6 @@ prompts:
       You are an expert document analyzer specializing in bank statement extraction.
       Extract transaction data from this Australian bank statement for taxpayer expense claims.
 
-      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
-      IGNORE deposits and credits (money IN).
-
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
       - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
@@ -91,44 +109,58 @@ prompts:
       - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
       - NO explanations, NO comments, NO additional text
 
+      ## STEP 1: LOCATE DATE-GROUPED TRANSACTION SECTIONS
+      Focus on the main transaction area in the document body.
+      This statement has transactions grouped under date headers like "Thu 04 Sep 2025" or "Mon 01 Sep 2025".
+      Under each date header, there will be transaction rows with: Description, Amount columns.
+      Ignore page headers, footers, account summaries, and advertisement sections.
+
+      ## STEP 2: IDENTIFY DEBIT TRANSACTIONS UNDER EACH DATE
+      For each date header section:
+      TARGET DATA: Transaction description + Transaction amount (look for negative amounts or explicit debit indicators)
+
+      For each transaction under a date header, check:
+      - Is this a DEBIT/WITHDRAWAL transaction (money OUT)? → Extract this transaction
+      - Is this a CREDIT/DEPOSIT transaction (money IN)? → SKIP this transaction
+      - Keywords indicating DEBIT: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS, transfer out, card purchase
+      - Keywords indicating CREDIT to skip: deposit, credit, salary, transfer in, interest received, refund, income
+
+      ## STEP 3: EXTRACT TRANSACTION-BY-TRANSACTION
+      For EACH debit transaction identified in Step 2:
+      1. Extract the DATE from the date header above it (convert to DD/MM/YYYY format)
+      2. Extract the DESCRIPTION from the transaction row (exact text)
+      3. Extract the AMOUNT from the transaction row (include $ symbol, ensure it's a debit)
+      4. Add each extracted value to its respective field with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking
+      - IGNORE deposits and credits (money IN) completely
+      - The number of entries in TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, and TRANSACTION_AMOUNTS_PAID must match exactly
+      - If multiple debit transactions occur under the same date header, extract each as a separate entry with the same date
+      - Process transactions in chronological order (top to bottom through date headers)
+      - Multiple transactions can share the same date (common in date-grouped format)
+
       ## MANDATORY OUTPUT FORMAT (5 FIELDS):
-      Use these EXACT field names with colons. Do not add explanations or comments.
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
-      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | debit3]
+      STATEMENT_DATE_RANGE: [Find date range like "1 September 2025 to 30 September 2025" at top of statement]
+      TRANSACTION_DATES: [Date1 | Date2 | Date3 - only debit dates, DD/MM/YYYY format]
+      LINE_ITEM_DESCRIPTIONS: [Description1 | Description2 | Description3 - only debit descriptions]
+      TRANSACTION_AMOUNTS_PAID: [Amount1 | Amount2 | Amount3 - only debit amounts with $]
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
-      ## DATE-GROUPED STRUCTURE:
-      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+      EXAMPLE EXTRACTION FROM DATE-GROUPED FORMAT:
 
-      ## SIMPLIFIED PARSING STEPS:
+      Date Header: "Thu 04 Sep 2025"
+      Transaction 1: "EFTPOS PIZZA HUT | $97.95" → Extract (debit)
+      Transaction 2: "SALARY DEPOSIT | $3,500.00" → SKIP (credit)
+      Transaction 3: "ATM WITHDRAWAL | $200.00" → Extract (debit)
 
-      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
-      2. Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from under each date header
-      3. SKIP deposits, credits, or salary payments (money IN)
-      4. Combine debits with pipe separators in chronological order
+      Date Header: "Fri 05 Sep 2025"
+      Transaction 4: "Card Purchase WOOLWORTHS | $156.40" → Extract (debit)
 
-      ## FIELD EXTRACTION RULES:
-
-      LINE_ITEM_DESCRIPTIONS: DEBIT transaction descriptions only, combined with " | "
-      TRANSACTION_DATES: Dates of DEBIT transactions only, in DD/MM/YYYY format
-      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts only (money OUT), with $ and " | "
-
-      Use NOT_FOUND for any missing fields.
-
-      ## IDENTIFYING DEBITS:
-      Look for keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
-      SKIP keywords: deposit, credit, salary, transfer in, interest received
-
-      ## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:
-      DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: [statement period]
-      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
-      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
-
-      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+      Output:
+      TRANSACTION_DATES: 04/09/2025 | 04/09/2025 | 05/09/2025
+      LINE_ITEM_DESCRIPTIONS: EFTPOS PIZZA HUT | ATM WITHDRAWAL | Card Purchase WOOLWORTHS
+      TRANSACTION_AMOUNTS_PAID: $97.95 | $200.00 | $156.40
