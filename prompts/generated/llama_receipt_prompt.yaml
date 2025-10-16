@@ -5,6 +5,14 @@ prompts:
     prompt: |
       You are an expert document analyzer. Extract structured data from this business document image.
 
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+      - Output ONLY the structured extraction data below
+      - End immediately after the last field with no additional text
+      - NO explanations, NO comments, NO additional text
+
       CRITICAL INSTRUCTIONS:
       - Output ONLY the structured data below
       - Start immediately with DOCUMENT_TYPE

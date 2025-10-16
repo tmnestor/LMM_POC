@@ -41,6 +41,14 @@ prompts:
       CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
       IGNORE deposits and credits (money IN).
 
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+      - Output ONLY the structured extraction data below
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+      - NO explanations, NO comments, NO additional text
+
       Process each DEBIT transaction row individually.
 
       Output format (5 FIELDS):
@@ -71,6 +79,14 @@ prompts:
 
       CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
       IGNORE deposits and credits (money IN).
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+      - Output ONLY the structured extraction data below
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+      - NO explanations, NO comments, NO additional text
 
       ## MANDATORY OUTPUT FORMAT (5 FIELDS):
       Use these EXACT field names with colons. Do not add explanations or comments.

@@ -993,6 +993,16 @@ class BatchDocumentProcessor:
                     f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]"
                 )
 
+        # Show extraction prompt when verbose (BEFORE model generation)
+        if verbose:
+            rprint("\n[bold yellow]📋 EXTRACTION PROMPT:[/bold yellow]")
+            rprint("[cyan]━" * 80 + "[/cyan]")
+            # Truncate prompt if too long
+            prompt_display = extraction_prompt[:1500] + "..." if len(extraction_prompt) > 1500 else extraction_prompt
+            safe_prompt = sanitize_for_rich(prompt_display, max_length=2000)
+            rprint(f"[dim]{safe_prompt}[/dim]")
+            rprint("[cyan]━" * 80 + "[/cyan]\n")
+
         # Use direct model approach for extraction (like working notebook)
         image = Image.open(image_path)
 
