@@ -592,22 +592,32 @@ class DocumentAwareInternVL3HybridProcessor:
             # Get document-specific prompt using prompt_config (single source of truth)
             if self.prompt_config:
                 # Use prompt_config to determine which file and key to use
+                # Strip structure suffixes to get base document type
                 doc_type_upper = document_type.upper().replace('_FLAT', '').replace('_DATE_GROUPED', '')
                 extraction_file = self.prompt_config.get('extraction_files', {}).get(
                     doc_type_upper,
                     'prompts/internvl3_prompts.yaml'
                 )
-                extraction_key = self.prompt_config.get('extraction_keys', {}).get(
-                    doc_type_upper,
-                    document_type
-                )
 
-                # For structure-specific bank statements, append structure
-                if 'bank_statement' in document_type:
-                    if '_flat' in document_type:
-                        extraction_key = f"{extraction_key}_flat"
-                    elif '_date_grouped' in document_type:
-                        extraction_key = f"{extraction_key}_date_grouped"
+                # Get the prompt key from config (or derive from document type if not specified)
+                extraction_keys = self.prompt_config.get('extraction_keys', {})
+
+                if doc_type_upper in extraction_keys:
+                    # Use explicitly configured key
+                    extraction_key = extraction_keys[doc_type_upper]
+                else:
+                    # Derive key from document type (already includes structure suffix if present)
+                    extraction_key = document_type
+
+                # For bank statements ONLY: if key doesn't include structure suffix, append it
+                # This allows config to override by specifying full key like "bank_statement_flat"
+                if document_type.startswith('bank_statement') and doc_type_upper == 'BANK_STATEMENT':
+                    if '_flat' not in extraction_key and '_date_grouped' not in extraction_key:
+                        # Only append if document_type has a structure suffix
+                        if '_flat' in document_type:
+                            extraction_key = f"{extraction_key}_flat"
+                        elif '_date_grouped' in document_type:
+                            extraction_key = f"{extraction_key}_date_grouped"
 
                 from pathlib import Path
 
@@ -998,7 +1008,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 prompt = self.get_extraction_prompt(document_type=document_type)
 
                 # Get document-specific field list for accurate processing
-                document_fields = self.document_field_lists.get(document_type, self.field_list)
+                # Normalize document_type by stripping structure suffix for field list lookup
+                base_doc_type = document_type.replace('_flat', '').replace('_date_grouped', '')
+                document_fields = self.document_field_lists.get(base_doc_type, self.field_list)
 
                 if self.debug:
                     print(f"📋 DOCUMENT-SPECIFIC FIELDS: {len(document_fields)} fields for '{document_type}'")
