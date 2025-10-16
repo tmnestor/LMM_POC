@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "batch_id": "20251016_004428",
+    "timestamp": "2025-10-16T00:45:17.557928",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 2,
+    "successful_extractions": 2,
+    "average_accuracy": 60.0,
+    "total_processing_time": 43.28538942337036,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "/home/jovyan/nfs_share/tod/evaluation_data",
+    "ground_truth": "/home/jovyan/nfs_share/tod/evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": false,
+      "device_map": "auto",
+      "max_new_tokens": 2000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 2.0,
+    "Successful Extractions": 2.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 60.0,
+    "Median Accuracy (%)": 60.0,
+    "Min Accuracy (%)": 40.0,
+    "Max Accuracy (%)": 80.0,
+    "Average Processing Time (s)": 21.64269471168518,
+    "Total Processing Time (s)": 43.28538942337036,
+    "Throughput (images/min)": 2.7722980340153853
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 2
+  },
+  "results": [
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "llama_bank_statement_prompt_bank_statement_flat_prompt",
+      "processing_time": 8.347566843032837,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8,
+        "fields_extracted": 5,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "llama_bank_statement_prompt_bank_statement_flat_prompt",
+      "processing_time": 34.937822580337524,
+      "evaluation_summary": {
+        "overall_accuracy": 0.4,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}
