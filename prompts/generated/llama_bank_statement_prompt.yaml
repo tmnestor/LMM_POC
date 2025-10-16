@@ -38,8 +38,8 @@ prompts:
       You are an expert document analyzer specializing in bank statement extraction.
       Extract structured data from the transaction table for taxpayer's expense claims.
 
-      CRITICAL: Not every transaction row may be relevant. 
-      Extract ONLY DEBIT/WITHDRAWAL (money OUT)  transactions rows for expense tracking.
+      CRITICAL: Not every transaction row may be relevant, so it is extremely important not to include extraneous data.
+      Extract ONLY DEBIT/WITHDRAWAL (money OUT) transactions rows for expense tracking.
       IGNORE deposits and credits (money IN) transactions rows completely.
 
       CONVERSATION PROTOCOL:
@@ -55,10 +55,10 @@ prompts:
       Output format (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
-      TRANSACTION_DATES: NOT_FOUND
-      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+      STATEMENT_DATE_RANGE: Transaction data
+      LINE_ITEM_DESCRIPTIONS: Transaction data
+      TRANSACTION_DATES: Transaction data
+      TRANSACTION_AMOUNTS_PAID: Transaction data
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
