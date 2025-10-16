@@ -441,6 +441,7 @@ class BatchDocumentProcessor:
                             ground_truth,
                             evaluation,
                             document_type,
+                            verbose=verbose,
                         )
                 else:
                     evaluation = {
@@ -632,6 +633,7 @@ class BatchDocumentProcessor:
         ground_truth: dict,
         evaluation: dict,
         document_type: str,
+        verbose: bool = True,
     ):
         """Display detailed field-by-field comparison like in document-aware system."""
 
@@ -689,6 +691,23 @@ class BatchDocumentProcessor:
             rprint(
                 f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
             )
+
+            # For mismatches, show full values to debug evaluation issues
+            if status == "❌" and verbose:
+                rprint("[red]  ⚠️ MISMATCH DETAILS:[/red]")
+                rprint(f"[yellow]     Extracted (full): {extracted_val}[/yellow]")
+                rprint(f"[yellow]     Ground Truth (full): {ground_val}[/yellow]")
+                # Show why they don't match
+                if self.model_evaluator._values_match(str(extracted_val), str(ground_val)):
+                    rprint("[cyan]     ⚠️ WARNING: Values actually MATCH but marked as mismatch![/cyan]")
+                else:
+                    # Show what type of comparison failed
+                    if '|' in str(extracted_val) or '|' in str(ground_val):
+                        ext_items = [i.strip() for i in str(extracted_val).split('|')]
+                        gt_items = [i.strip() for i in str(ground_val).split('|')]
+                        rprint(f"[yellow]     List comparison: {len(ext_items)} extracted items vs {len(gt_items)} ground truth items[/yellow]")
+                    else:
+                        rprint("[yellow]     Simple text/value mismatch[/yellow]")
 
         # Summary section (same format as document-aware system)
         overall_accuracy = evaluation.get("overall_metrics", {}).get(
