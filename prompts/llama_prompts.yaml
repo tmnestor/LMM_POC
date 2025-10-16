@@ -154,64 +154,62 @@ prompts:
     #   - ABN often missing on small business receipts
 
   # ============================================================================
-  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (7 Fields)
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (5 Fields)
+  # For taxpayer expense claims - DEBIT transactions only
   # ============================================================================
 
   # Flat Table Bank Statements (continuous table format)
   bank_statement_flat:
     name: "Flat Table Bank Statement Extraction"
-    description: "Optimized for flat table bank statements with continuous rows"
+    description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this flat table bank statement. Process each transaction row individually.
+      Extract structured data from this flat table bank statement for taxpayer expense claims.
 
-      Critical: Process ROW-BY-ROW, not by scanning columns. Each transaction row contains:
-      - Date | Description | Debit/Withdrawal | Credit/Deposit | Balance
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+      IGNORE deposits and credits (money IN) - we only need expenses.
 
-      For each row, extract data in the same position across all fields.
+      Process each DEBIT transaction row individually.
 
-      Output format (replace NOT_FOUND with actual values):
+      Output format (5 FIELDS - replace NOT_FOUND with actual values):
 
-      DOCUMENT_TYPE: STATEMENT
+      DOCUMENT_TYPE: BANK_STATEMENT
       STATEMENT_DATE_RANGE: NOT_FOUND
       LINE_ITEM_DESCRIPTIONS: NOT_FOUND
       TRANSACTION_DATES: NOT_FOUND
       TRANSACTION_AMOUNTS_PAID: NOT_FOUND
-      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND
-      ACCOUNT_BALANCE: NOT_FOUND
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
       Instructions:
       - Statement period: Find date range like "01/01/2025 to 31/01/2025"
-      - Transaction descriptions: All descriptions separated by " | "
-      - Transaction dates: All dates separated by " | "
-      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT)
-      - Amounts received: Credit/deposit amounts with $ and " | " (money IN)
-      - Account balance: Running balances with $ and " | " (balance after each transaction)
-      - Use NOT_FOUND for empty cells
+      - Transaction descriptions: All DEBIT descriptions separated by " | " (ONLY withdrawals/payments)
+      - Transaction dates: All DEBIT dates separated by " | " (ONLY dates with expenses)
+      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
+      - Skip any deposits, credits, or money IN transactions
+      - Use NOT_FOUND for missing fields
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
     name: "Date-Grouped Bank Statement Extraction"
-    description: "Optimized for bank statements with date section headers"
+    description: "Optimized for date-grouped bank statements - taxpayer expense claims (5 fields)"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract the transaction data from this Australian bank statement.
-      CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
+      Extract transaction data from this Australian bank statement for taxpayer expense claims.
 
-      Extract bank account details and all transactions from this date-grouped bank statement.
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+      IGNORE deposits and credits (money IN) - we only need expenses.
 
-      ## MANDATORY OUTPUT FORMAT:
+      ## MANDATORY OUTPUT FORMAT (5 FIELDS):
       Use these EXACT field names with colons. Do not add explanations or comments.
 
-      DOCUMENT_TYPE: STATEMENT
+      DOCUMENT_TYPE: BANK_STATEMENT
       STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
-      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      LINE_ITEM_DESCRIPTIONS: [debit_description1 | debit_description2 | debit_description3]
       TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]
-      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]
-      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | debit3]
 
-      STOP AFTER ACCOUNT_BALANCE. Do not add explanations or comments.
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
       ## DATE-GROUPED STRUCTURE:
       This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
@@ -219,37 +217,30 @@ prompts:
       ## SIMPLIFIED PARSING STEPS:
 
       1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
-      2. Extract ALL transactions from under each date header
-      3. Combine with pipe separators in chronological order
-      4. Use balance direction to validate transaction types:
-         - Balance UP = Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
-         - Balance DOWN = Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+      2. Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from under each date header
+      3. SKIP any deposits, credits, or salary payments (money IN)
+      4. Combine debits with pipe separators in chronological order
 
       ## FIELD EXTRACTION RULES:
 
-      LINE_ITEM_DESCRIPTIONS: All transaction descriptions combined with " | "
-      TRANSACTION_DATES: Convert date headers to DD/MM/YYYY format
-      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts (money OUT)
-      TRANSACTION_AMOUNTS_RECEIVED: CREDIT/DEPOSIT amounts (money IN)
-      ACCOUNT_BALANCE: Running balance after each transaction
+      LINE_ITEM_DESCRIPTIONS: DEBIT transaction descriptions only, combined with " | "
+      TRANSACTION_DATES: Dates of DEBIT transactions only, in DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts only (money OUT), with $ and " | "
 
-      Use NOT_FOUND for any missing values. Maintain same count across all lists.
+      Use NOT_FOUND for any missing fields.
 
-      ## BALANCE VALIDATION (CRITICAL):
-      The BALANCE column is nearly 100% accurate. Use it to validate transactions:
-      - Balance INCREASES → Money IN (CREDIT) → TRANSACTION_AMOUNTS_RECEIVED
-      - Balance DECREASES → Money OUT (DEBIT) → TRANSACTION_AMOUNTS_PAID
+      ## IDENTIFYING DEBITS:
+      Look for keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      SKIP keywords: deposit, credit, salary, transfer in, interest received
 
       ## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:
-      DOCUMENT_TYPE: STATEMENT
+      DOCUMENT_TYPE: BANK_STATEMENT
       STATEMENT_DATE_RANGE: [statement period]
-      LINE_ITEM_DESCRIPTIONS: [transaction1 | transaction2 | transaction3]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
       TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
-      TRANSACTION_AMOUNTS_PAID: [debit1 | NOT_FOUND | debit3]
-      TRANSACTION_AMOUNTS_RECEIVED: [NOT_FOUND | credit2 | NOT_FOUND]
-      ACCOUNT_BALANCE: [balance1 | balance2 | balance3]
+      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
 
-      STOP AFTER ACCOUNT_BALANCE. Do not add explanations or comments.
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
 
 
 

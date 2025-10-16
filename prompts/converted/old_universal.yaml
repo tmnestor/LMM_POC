@@ -28,9 +28,10 @@ prompts:
 
       IMPORTANT: Some fields only apply to specific document types:
       • INVOICE/RECEIPT fields: INVOICE_DATE, BUSINESS_ABN, SUPPLIER_NAME, BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS, LINE_ITEM_*, GST_AMOUNT, IS_GST_INCLUDED, TOTAL_AMOUNT
-      • BANK STATEMENT fields: STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
+      • BANK STATEMENT fields (TAXPAYER EXPENSE CLAIMS): STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, LINE_ITEM_DESCRIPTIONS (transaction descriptions)
+      • CRITICAL FOR BANK STATEMENTS: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking. IGNORE deposits and credits (money IN).
       • If field doesn't apply to document type, return "NOT_FOUND"
-      • BANK STATEMENT ROW COUNT MATCHING: For TRANSACTION_DATES and TRANSACTION_AMOUNTS_PAID on bank statements only - count total transaction table rows and create lists with exactly that many elements. For invoices/receipts, extract visible line items normally.
+      • BANK STATEMENT DEBIT-ONLY EXTRACTION: For TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, and TRANSACTION_AMOUNTS_PAID on bank statements - count DEBIT transaction rows only and create lists with exactly that many elements. SKIP credit/deposit rows.
 
       DOCUMENT_TYPE: Type of document (INVOICE/RECEIPT/STATEMENT) - return "NOT_FOUND" if unclear
       INVOICE_DATE: Date of invoice/receipt/transaction (DD/MM/YYYY format) - return "NOT_FOUND" if not visible
@@ -46,11 +47,12 @@ prompts:
       GST_AMOUNT: GST/tax amount (include $ symbol, e.g., "$8.62") - return "NOT_FOUND" if not visible
       IS_GST_INCLUDED: Whether GST amount is shown (answer: "true" or "false") - return "NOT_FOUND" if unclear
       TOTAL_AMOUNT: Final total amount (include $ symbol, e.g., "$95.50") - return "NOT_FOUND" if not visible
-      STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY - DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
-      TRANSACTION_DATES: Transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: Position 1 = Row 1 date (or NOT_FOUND if empty), Position 2 = Row 2 date (or NOT_FOUND if empty), etc. CRITICAL: List must have same number of elements as table rows.
-      TRANSACTION_AMOUNTS_PAID: Transaction amounts PAID/DEBITED from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: For each row, determine if money LEFT the account (DEBIT/PAID) by analyzing: the transaction description (keywords like "payment", "withdrawal", "debit", "fee", "purchase", "transfer out"), the debit column, or balance decrease. If money left: include amount with $ symbol. If money did NOT leave: use "NOT_FOUND". CRITICAL: Pay special attention to the EARLIEST/FIRST transaction - extract its amount and type carefully.
-      TRANSACTION_AMOUNTS_RECEIVED: Transaction amounts RECEIVED/CREDITED from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: STEP 1: Count total rows in transaction table. STEP 2: Create pipe-separated list with EXACTLY that many elements. STEP 3: For each row, determine if money ENTERED the account (CREDIT/RECEIVED) by analyzing: the transaction description (keywords like "credit", "deposit", "salary", "payment received", "transfer in", "refund"), the credit column, or balance increase. If money entered: include amount with $ symbol. If money did NOT enter: use "NOT_FOUND". CRITICAL: Pay special attention to the EARLIEST/FIRST transaction - extract its amount and type carefully.
-      ACCOUNT_BALANCE: Running account balances from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS: Extract the balance column values in exact order from first to last transaction. Include all balance values even if some transaction amounts are blank.
+      STATEMENT_DATE_RANGE: Date range for BANK STATEMENTS ONLY (format: DD/MM/YYYY to DD/MM/YYYY) - return "NOT_FOUND" if not a bank statement
+      TRANSACTION_DATES: DEBIT transaction dates from BANK STATEMENTS ONLY (separate with " | ", DD/MM/YYYY format) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS (TAXPAYER EXPENSE CLAIMS): STEP 1: Identify DEBIT/WITHDRAWAL rows only (skip credit/deposit rows). STEP 2: Extract dates from DEBIT rows only. STEP 3: Create pipe-separated list of debit dates. CRITICAL: Extract only debits, skip credits entirely.
+      LINE_ITEM_DESCRIPTIONS: For BANK STATEMENTS: DEBIT transaction descriptions only (separate with " | ") - return "NOT_FOUND" if not a bank statement. STEP 1: Identify DEBIT/WITHDRAWAL rows by checking debit column or keywords like "purchase", "withdrawal", "ATM", "EFTPOS", "fee". STEP 2: Extract descriptions from DEBIT rows only. STEP 3: SKIP deposit descriptions like "salary", "transfer in", "direct credit". CRITICAL: Descriptions must match dates in same order.
+      TRANSACTION_AMOUNTS_PAID: DEBIT amounts from BANK STATEMENTS ONLY (separate with " | ", include $ symbol) - return "NOT_FOUND" if not a bank statement. FOR BANK STATEMENTS (TAXPAYER EXPENSE CLAIMS): STEP 1: Identify DEBIT/WITHDRAWAL rows (money OUT) by checking debit column, negative amounts, or balance decreases. STEP 2: Extract amounts from DEBIT rows only with $ symbol. STEP 3: SKIP credit/deposit amounts entirely. CRITICAL: Extract only debits for expense tracking.
+      TRANSACTION_AMOUNTS_RECEIVED: NOT APPLICABLE for taxpayer expense claims - always return "NOT_FOUND"
+      ACCOUNT_BALANCE: NOT APPLICABLE for taxpayer expense claims - always return "NOT_FOUND"
 
       OUTPUT EXACTLY IN THIS FORMAT (replace [values] with actual extracted data):
 
@@ -69,5 +71,8 @@ prompts:
       IS_GST_INCLUDED: [true/false or NOT_FOUND]
       TOTAL_AMOUNT: [$amount or NOT_FOUND]
       STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
-      TRANSACTION_DATES: [date1 | date2 | NOT_FOUND | date4 or NOT_FOUND]
-      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | NOT_FOUND | $amount4 or NOT_FOUND]
+      TRANSACTION_DATES: [debit_date1 | debit_date2 | debit_date3 or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit_desc1 | debit_desc2 | debit_desc3 or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [debit_$amount1 | debit_$amount2 | debit_$amount3 or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: NOT_FOUND
+      ACCOUNT_BALANCE: NOT_FOUND

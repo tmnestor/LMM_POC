@@ -1,7 +1,7 @@
 prompts:
   bank_statement:
     name: InternVL3 Bank Statement Extraction
-    description: Extract 7 bank statement-specific fields using InternVL3
+    description: Extract bank statement data for taxpayer expense claims (5 fields)
     prompt: '# Converted from Old_prompts/simple_internvl3_bank_statement.yaml
 
       # Original key: extraction
@@ -9,8 +9,14 @@ prompts:
       # Conversion date: date: auto-generated
 
 
-      You are an expert document analyzer. Extract structured data from this business
-      document.
+      You are an expert document analyzer. Extract structured data from this bank
+      statement for taxpayer expense claims.
+
+
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense
+      tracking.
+
+      IGNORE deposits and credits (money IN).
 
 
       CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
@@ -18,41 +24,43 @@ prompts:
       DO NOT GUESS or INFER missing information
 
 
-      EXTRACT THESE 7 FIELDS IN THIS EXACT ORDER:
+      EXTRACT THESE 5 FIELDS IN THIS EXACT ORDER:
 
 
-      DOCUMENT_TYPE: [Look for words like BANK STATEMENT, STATEMENT, ACCOUNT STATEMENT
-      at the top - answer with STATEMENT or NOT_FOUND]
+      DOCUMENT_TYPE: BANK_STATEMENT
+
 
       STATEMENT_DATE_RANGE: [Find the statement period (e.g., ''01 Jan 2023 to 31
-      Jan 2023'') - format as DD/MM/YYYY - DD/MM/YYYY or NOT_FOUND]
+      Jan 2023'') - format as DD/MM/YYYY to DD/MM/YYYY or NOT_FOUND]
 
-      PAYER_NAME: [Find the account holder name (usually near top of statement) or
-      NOT_FOUND]
 
-      PAYER_ADDRESS: [Find the account holder address (usually under the name) or
-      NOT_FOUND]
+      TRANSACTION_DATES: [Look for the transaction table - extract DEBIT transaction
+      dates only in chronological order separated by '' | '' in DD/MM/YYYY format
+      or NOT_FOUND]
 
-      TRANSACTION_DATES: [Look for the transaction table - extract ALL transaction
-      dates in chronological order separated by '' | '' in DD/MM/YYYY format or NOT_FOUND]
 
-      TRANSACTION_AMOUNTS_PAID: [From the transaction table, extract ALL debit/withdrawal
-      amounts (money going out) separated by '' | '' - include $ symbol or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [From the transaction table, extract DEBIT transaction
+      descriptions only separated by '' | '' in same order as dates or NOT_FOUND]
 
-      LINE_ITEM_DESCRIPTIONS: [From the transaction table, extract ALL transaction
-      descriptions separated by '' | '' in same order as dates or NOT_FOUND]
+
+      TRANSACTION_AMOUNTS_PAID: [From the transaction table, extract DEBIT/WITHDRAWAL
+      amounts only (money going out) separated by '' | '' - include $ symbol or NOT_FOUND]
 
 
       CRITICAL EXTRACTION RULES:
 
       - Each line must be: FIELDNAME: value
 
-      - For transaction lists: Count the rows in transaction table carefully
+      - Extract DEBIT/WITHDRAWAL transactions only (money OUT)
 
-      - TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, and LINE_ITEM_DESCRIPTIONS must
+      - SKIP credit/deposit transactions (money IN)
+
+      - For debit lists: Count DEBIT rows in transaction table carefully
+
+      - TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, and TRANSACTION_AMOUNTS_PAID must
       have same number of elements
 
-      - Use pipe separation (|) for multiple values: value1 | value2 | value3
+      - Use pipe separation (|) for multiple values: debit1 | debit2 | debit3
 
       - Include $ symbol for monetary amounts
 
@@ -60,8 +68,21 @@ prompts:
 
       - Date format: DD/MM/YYYY
 
-      - If a transaction row has no amount, include ''NOT_FOUND'' as placeholder to
-      maintain alignment
+      - Identify debits by: Debit column, Withdrawal column, negative amounts, or
+      balance decreases
 
 
-      OUTPUT EXACTLY 7 LINES. Stop after LINE_ITEM_DESCRIPTIONS.'
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+
+      OUTPUT EXACTLY 5 LINES in this format:
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+
+      STATEMENT_DATE_RANGE: [value or NOT_FOUND]
+
+      TRANSACTION_DATES: [debit dates with '' | '' or NOT_FOUND]
+
+      LINE_ITEM_DESCRIPTIONS: [debit descriptions with '' | '' or NOT_FOUND]
+
+      TRANSACTION_AMOUNTS_PAID: [debit amounts with '' | '' or NOT_FOUND]'

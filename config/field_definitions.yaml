@@ -43,15 +43,13 @@ document_fields:
       - TOTAL_AMOUNT
 
   bank_statement:
-    count: 7
+    count: 5
     fields:
       - DOCUMENT_TYPE
       - STATEMENT_DATE_RANGE
       - LINE_ITEM_DESCRIPTIONS  # Transaction descriptions
       - TRANSACTION_DATES
       - TRANSACTION_AMOUNTS_PAID
-      - TRANSACTION_AMOUNTS_RECEIVED
-      - ACCOUNT_BALANCE
 
   universal:
     count: 19
