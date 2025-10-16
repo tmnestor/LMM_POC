@@ -38,13 +38,6 @@ prompts:
       You are an expert document analyzer specializing in bank statement extraction.
       Extract structured data from the transaction table for taxpayer's expense claims.
 
-      CRITICAL: Not every transaction row may be relevant, so it is extremely important not to include extraneous data.
-      Extract ONLY DEBIT/WITHDRAWAL (money OUT) transactions rows for expense tracking.
-      IGNORE deposits and credits (money IN) transactions rows completely.
-      Every transaction row will have a TRANSACTION_DATES value, but either a TRANSACTION_AMOUNTS_PAID or a TRANSACTION_AMOUNTS_CREDITED value (not both). 
-      The transaction row may also have a running BALANCE value at the end
-      When in doubt, the LINE_ITEM_DESCRIPTIONS of the row explain whether the transaction was a debit or credit.
-
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
       - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
@@ -53,14 +46,21 @@ prompts:
       - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
       - NO explanations, NO comments, NO additional text
 
-      Process each DEBIT transaction row individually.
+      CRITICAL: 
+      - Every transaction row will have a TRANSACTION_DATES value, but either a TRANSACTION_AMOUNTS_PAID or a TRANSACTION_AMOUNTS_CREDITED value (not both). 
+      - The transaction row may also have a running BALANCE value at the end.
+      - Not every transaction row may be relevant, so it is extremely important not to include extraneous data.
+      - Extract ONLY DEBIT/WITHDRAWAL (money OUT) transactions rows for expense tracking.
+      - IGNORE deposits and credits (money IN) transactions rows completely.
+      - When in doubt, the LINE_ITEM_DESCRIPTIONS of the row explain whether the transaction was a debit or credit.
+      - The number of entries in TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS,  and TRANSACTION_AMOUNTS_PAID must match exactly to the number of debit transactions extracted.
 
       Output format (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
       STATEMENT_DATE_RANGE: Transaction data
-      LINE_ITEM_DESCRIPTIONS: Transaction data
       TRANSACTION_DATES: Transaction data
+      LINE_ITEM_DESCRIPTIONS: Transaction data
       TRANSACTION_AMOUNTS_PAID: Transaction data
 
       STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
