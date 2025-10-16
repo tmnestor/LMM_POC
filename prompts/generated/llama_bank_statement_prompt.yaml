@@ -36,10 +36,11 @@ prompts:
     description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
     prompt: |
       You are an expert document analyzer specializing in bank statement extraction.
-      Extract structured data from this flat table bank statement for taxpayer expense claims.
+      Extract structured data from the transaction table for taxpayer's expense claims.
 
-      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
-      IGNORE deposits and credits (money IN).
+      CRITICAL: Not every transaction row may be relevant. 
+      Extract ONLY DEBIT/WITHDRAWAL (money OUT)  transactions rows for expense tracking.
+      IGNORE deposits and credits (money IN) transactions rows completely.
 
       CONVERSATION PROTOCOL:
       - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
@@ -67,7 +68,6 @@ prompts:
       - Transaction dates: DEBIT dates only, separated by " | "
       - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
       - Skip deposits, credits, or money IN transactions
-      - Use NOT_FOUND for missing fields
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
