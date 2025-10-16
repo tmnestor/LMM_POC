@@ -41,6 +41,8 @@ prompts:
       CRITICAL: Not every transaction row may be relevant, so it is extremely important not to include extraneous data.
       Extract ONLY DEBIT/WITHDRAWAL (money OUT) transactions rows for expense tracking.
       IGNORE deposits and credits (money IN) transactions rows completely.
+      Every transaction row will have a TRANSACTION_DATES value, but either a TRANSACTION_AMOUNTS_PAID or a TRANSACTION_AMOUNTS_CREDITED value (not both). 
+      The transaction row may also have a running BALANCE value at the end
       When in doubt, the LINE_ITEM_DESCRIPTIONS of the row explain whether the transaction was a debit or credit.
 
       CONVERSATION PROTOCOL:
