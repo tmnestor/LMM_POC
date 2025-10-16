@@ -1092,8 +1092,10 @@ def calculate_field_accuracy_f1(
         if field_name in get_transaction_list_fields():
             match = _transaction_item_matches(extracted, ground_truth, field_name)
         else:
-            # Simplified match for non-transaction fields
-            match = extracted.lower() == ground_truth.lower()
+            # Normalize whitespace for text comparison (collapse multiple spaces)
+            extracted_normalized = " ".join(extracted.split())
+            ground_truth_normalized = " ".join(ground_truth.split())
+            match = extracted_normalized.lower() == ground_truth_normalized.lower()
 
         return {
             "f1_score": 1.0 if match else 0.0,
