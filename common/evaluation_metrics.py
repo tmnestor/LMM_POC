@@ -1101,40 +1101,89 @@ def calculate_field_accuracy_f1(
                 "fn": 0 if match else 1,
             }
         else:
-            # For text fields, use fuzzy matching with Levenshtein distance
             # Normalize whitespace first
             extracted_normalized = " ".join(extracted.split())
             ground_truth_normalized = " ".join(ground_truth.split())
 
-            # Try Levenshtein, fall back to exact match if not available
-            try:
-                from Levenshtein import distance as levenshtein_distance
+            # For single-value monetary fields (GST_AMOUNT, TOTAL_AMOUNT), use monetary comparison with F1-style penalty
+            # This ensures incorrect amounts get 0.0 score (penalizing false positives)
+            # NOTE: List fields like LINE_ITEM_PRICES are handled later by the list F1 logic
+            monetary_single_fields = ["GST_AMOUNT", "TOTAL_AMOUNT", "INVOICE_TOTAL", "SUBTOTAL"]
+            is_monetary_field = field_name in monetary_single_fields
 
-                # Calculate normalized similarity (ANLS-style)
-                edit_dist = levenshtein_distance(
-                    extracted_normalized.lower(),
-                    ground_truth_normalized.lower()
-                )
-                max_len = max(len(extracted_normalized), len(ground_truth_normalized))
+            if is_monetary_field:
+                try:
+                    extracted_num = float(re.sub(r"[^\d.-]", "", extracted_normalized))
+                    ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth_normalized))
 
-                if max_len == 0:
-                    similarity = 1.0
-                else:
-                    similarity = 1.0 - (edit_dist / max_len)
+                    # Allow 1% tolerance for rounding (same as calculate_field_accuracy)
+                    tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+                    match = abs(extracted_num - ground_truth_num) <= tolerance
 
-                # Apply 0.5 threshold like ANLS (standard in DocVQA)
-                # Below 50% similarity = 0.0, above = give partial credit
-                if similarity >= 0.5:
-                    f1_score = similarity
-                else:
-                    f1_score = 0.0
+                    return {
+                        "f1_score": 1.0 if match else 0.0,
+                        "precision": 1.0 if match else 0.0,
+                        "recall": 1.0 if match else 0.0,
+                        "tp": 1 if match else 0,
+                        "fp": 0 if match else 1,
+                        "fn": 0 if match else 1,
+                    }
+                except (ValueError, TypeError):
+                    # Parse error - treat as mismatch
+                    return {
+                        "f1_score": 0.0,
+                        "precision": 0.0,
+                        "recall": 0.0,
+                        "tp": 0,
+                        "fp": 1,
+                        "fn": 1,
+                    }
 
-            except ImportError:
-                # Fallback to exact match if Levenshtein not installed
-                if extracted_normalized.lower() == ground_truth_normalized.lower():
+            # For ID fields (ABN, invoice numbers, etc.), require exact match
+            # These are critical identifiers where fuzzy matching is inappropriate
+            id_field_keywords = ["ABN", "NUMBER", "ID", "REFERENCE", "BSB"]
+            is_id_field = any(keyword in field_name.upper() for keyword in id_field_keywords)
+
+            if is_id_field:
+                # ID fields require exact match (no fuzzy matching)
+                # Remove spaces and formatting for comparison
+                extracted_clean = re.sub(r"[\s\-]", "", extracted_normalized)
+                ground_truth_clean = re.sub(r"[\s\-]", "", ground_truth_normalized)
+
+                if extracted_clean.lower() == ground_truth_clean.lower():
                     f1_score = 1.0
                 else:
                     f1_score = 0.0
+            else:
+                # For text fields (addresses, names), use fuzzy matching with Levenshtein distance
+                try:
+                    from Levenshtein import distance as levenshtein_distance
+
+                    # Calculate normalized similarity (ANLS-style)
+                    edit_dist = levenshtein_distance(
+                        extracted_normalized.lower(),
+                        ground_truth_normalized.lower()
+                    )
+                    max_len = max(len(extracted_normalized), len(ground_truth_normalized))
+
+                    if max_len == 0:
+                        similarity = 1.0
+                    else:
+                        similarity = 1.0 - (edit_dist / max_len)
+
+                    # Apply 0.5 threshold like ANLS (standard in DocVQA)
+                    # Below 50% similarity = 0.0, above = give partial credit
+                    if similarity >= 0.5:
+                        f1_score = similarity
+                    else:
+                        f1_score = 0.0
+
+                except ImportError:
+                    # Fallback to exact match if Levenshtein not installed
+                    if extracted_normalized.lower() == ground_truth_normalized.lower():
+                        f1_score = 1.0
+                    else:
+                        f1_score = 0.0
 
             # For text fields, precision = recall = f1 (single value)
             return {
