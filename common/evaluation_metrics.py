@@ -963,6 +963,7 @@ def _evaluate_transaction_list(
         # For transaction lists, order matters and length should match
         if len(extracted_items) != len(ground_truth_items):
             # Partial credit based on overlap
+            # Check positional matches up to the length of the shorter list
             overlap = min(len(extracted_items), len(ground_truth_items))
             matches = 0
             for i in range(overlap):
@@ -971,9 +972,11 @@ def _evaluate_transaction_list(
                 ):
                     matches += 1
 
-            score = matches / max(len(extracted_items), len(ground_truth_items))
+            # Score based on ground truth length (what we expect to find)
+            # This rewards extracting correct items even if extras are present
+            score = matches / len(ground_truth_items) if ground_truth_items else 0.0
             if debug:
-                print(f"    📊 TRANSACTION: Length mismatch - partial score: {score}")
+                print(f"    📊 TRANSACTION: Length mismatch - partial score: {score} ({matches}/{len(ground_truth_items)} correct)")
             return score
 
         # Full comparison when lengths match

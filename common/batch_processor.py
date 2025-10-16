@@ -383,18 +383,19 @@ class BatchDocumentProcessor:
                     fields_matched = evaluation_result.correct_fields
 
                     # Build field-level scores for detailed comparison display
+                    # Use sophisticated partial matching from evaluation_metrics.py
+                    from common.evaluation_metrics import calculate_field_accuracy
+
                     field_scores = {}
                     for field in filtered_ground_truth.keys():
                         extracted_val = extracted_data.get(field, "NOT_FOUND")
                         ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
 
-                        # Determine field-level accuracy
-                        if self.model_evaluator._values_match(str(extracted_val), str(ground_val)):
-                            field_scores[field] = {"accuracy": 1.0}
-                        elif extracted_val == "NOT_FOUND" or not extracted_val:
-                            field_scores[field] = {"accuracy": 0.0}  # Missing
-                        else:
-                            field_scores[field] = {"accuracy": 0.0}  # Incorrect
+                        # Use calculate_field_accuracy which supports partial matching for lists
+                        accuracy_score = calculate_field_accuracy(
+                            extracted_val, ground_val, field, debug=False
+                        )
+                        field_scores[field] = {"accuracy": accuracy_score}
 
                     evaluation = {
                         "overall_accuracy": evaluation_result.accuracy,
@@ -692,22 +693,43 @@ class BatchDocumentProcessor:
                 f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
             )
 
-            # For mismatches, show full values to debug evaluation issues
-            if status == "❌" and verbose:
-                rprint("[red]  ⚠️ MISMATCH DETAILS:[/red]")
+            # For mismatches and partial matches, show full values and partial scores
+            if (status == "❌" or status == "≈") and verbose:
+                accuracy_pct = score.get("accuracy", 0) * 100
+                rprint(f"[red]  ⚠️ MISMATCH DETAILS (Partial Score: {accuracy_pct:.1f}%):[/red]")
                 rprint(f"[yellow]     Extracted (full): {extracted_val}[/yellow]")
                 rprint(f"[yellow]     Ground Truth (full): {ground_val}[/yellow]")
-                # Show why they don't match
-                if self.model_evaluator._values_match(str(extracted_val), str(ground_val)):
-                    rprint("[cyan]     ⚠️ WARNING: Values actually MATCH but marked as mismatch![/cyan]")
+
+                # Show detailed comparison for list fields
+                if '|' in str(extracted_val) or '|' in str(ground_val):
+                    ext_items = [i.strip() for i in str(extracted_val).split('|') if i.strip()]
+                    gt_items = [i.strip() for i in str(ground_val).split('|') if i.strip()]
+
+                    # Count matching items
+                    matches = 0
+                    for ext_item in ext_items:
+                        if ext_item in gt_items:
+                            matches += 1
+
+                    rprint(f"[yellow]     List comparison: {len(ext_items)} extracted items vs {len(gt_items)} ground truth items[/yellow]")
+                    rprint(f"[cyan]     Matched items: {matches}/{max(len(ext_items), len(gt_items))} ({accuracy_pct:.1f}% partial credit)[/cyan]")
+
+                    # Show which items matched (first 3)
+                    if matches > 0:
+                        matching_items = [item for item in ext_items if item in gt_items][:3]
+                        rprint(f"[green]     ✓ Matches: {' | '.join(matching_items)}{'...' if len(matching_items) < matches else ''}[/green]")
+
+                    # Show what's missing (first 3)
+                    missing_items = [item for item in gt_items if item not in ext_items][:3]
+                    if missing_items:
+                        rprint(f"[red]     ✗ Missing: {' | '.join(missing_items)}{'...' if len(missing_items) > 3 else ''}[/red]")
+
+                    # Show what's extra (first 3)
+                    extra_items = [item for item in ext_items if item not in gt_items][:3]
+                    if extra_items:
+                        rprint(f"[yellow]     + Extra: {' | '.join(extra_items)}{'...' if len(extra_items) > 3 else ''}[/yellow]")
                 else:
-                    # Show what type of comparison failed
-                    if '|' in str(extracted_val) or '|' in str(ground_val):
-                        ext_items = [i.strip() for i in str(extracted_val).split('|')]
-                        gt_items = [i.strip() for i in str(ground_val).split('|')]
-                        rprint(f"[yellow]     List comparison: {len(ext_items)} extracted items vs {len(gt_items)} ground truth items[/yellow]")
-                    else:
-                        rprint("[yellow]     Simple text/value mismatch[/yellow]")
+                    rprint("[yellow]     Simple text/value mismatch[/yellow]")
 
         # Summary section (same format as document-aware system)
         overall_accuracy = evaluation.get("overall_metrics", {}).get(
