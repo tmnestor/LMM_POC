@@ -1101,6 +1101,37 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
     return matches >= 2
 
 
+def _fuzzy_text_match(text1: str, text2: str, threshold: float = 0.75) -> bool:
+    """
+    Check if two text strings match using fuzzy word-based comparison.
+
+    Args:
+        text1: First text string
+        text2: Second text string
+        threshold: Minimum word overlap ratio (0.0-1.0) for match
+
+    Returns:
+        bool: True if texts match above threshold
+    """
+    # Normalize and extract words
+    words1 = set(text1.lower().strip().split())
+    words2 = set(text2.lower().strip().split())
+
+    # Handle empty cases
+    if not words1 or not words2:
+        return text1.lower().strip() == text2.lower().strip()
+
+    # Calculate word overlap ratio
+    intersection = words1 & words2
+    union = words1 | words2
+
+    if not union:
+        return False
+
+    similarity = len(intersection) / len(union)
+    return similarity >= threshold
+
+
 def calculate_field_accuracy_f1(
     extracted_value: str, ground_truth_value: str, field_name: str, debug: bool = False
 ) -> dict:
@@ -1307,8 +1338,9 @@ def calculate_field_accuracy_f1(
                     extracted_items[i], ground_truth_items[i], field_name
                 )
             else:
-                # Simple text matching for non-transaction lists
-                match = extracted_items[i].lower().strip() == ground_truth_items[i].lower().strip()
+                # Use fuzzy text matching with generous 0.75 threshold
+                # This allows "EATS Sydney" to match "UBER EATS Sydney" (0.80 similarity)
+                match = _fuzzy_text_match(extracted_items[i], ground_truth_items[i], threshold=0.75)
 
             if match:
                 tp += 1

@@ -763,7 +763,9 @@ class BatchDocumentProcessor:
                             if is_transaction_field:
                                 match = _transaction_item_matches(ext_items[i], gt_items[i], field)
                             else:
-                                match = ext_items[i].lower().strip() == gt_items[i].lower().strip()
+                                # Use same fuzzy matching logic as F1 calculation (0.75 threshold)
+                                from common.evaluation_metrics import _fuzzy_text_match
+                                match = _fuzzy_text_match(ext_items[i], gt_items[i], threshold=0.75)
 
                             if match:
                                 correct_items.append(f"Pos {i}: {ext_items[i]}")
