@@ -1313,8 +1313,9 @@ def calculate_field_accuracy_f1(
             if match:
                 tp += 1
             else:
-                # Wrong item at this position = FP + FN
-                fp += 1
+                # Substitution error: Wrong item at this position counts as 1 FN only
+                # (We expected GT item but got wrong extraction - that's a false negative)
+                # DO NOT also count FP - that would double-penalize a single mistake
                 fn += 1
         elif i < len(ground_truth_items):
             # Ground truth has item but extraction doesn't (missing)

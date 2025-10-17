@@ -740,20 +740,71 @@ class BatchDocumentProcessor:
                     rprint(f"[yellow]     False Positives (extra): {fp}[/yellow]")
                     rprint(f"[red]     False Negatives (missing): {fn}[/red]")
 
-                    # Show which items matched (first 3 TPs)
-                    if tp > 0:
-                        matching_items = [item for item in ext_items if any(item.lower().strip() == gt.lower().strip() for gt in gt_items)][:3]
-                        rprint(f"[green]     ✓ Correct: {' | '.join(matching_items)}{'...' if len(matching_items) < tp else ''}[/green]")
+                    # POSITION-AWARE matching display (matches F1 calculation logic)
+                    # Determine which comparison method to use
+                    from common.evaluation_metrics import (
+                        _transaction_item_matches,
+                        get_transaction_list_fields,
+                    )
 
-                    # Show what's missing (first 3 FNs)
-                    if fn > 0:
-                        missing_items = [item for item in gt_items if not any(item.lower().strip() == ext.lower().strip() for ext in ext_items)][:3]
-                        rprint(f"[red]     ✗ Missing: {' | '.join(missing_items)}{'...' if len(missing_items) > 3 else ''}[/red]")
+                    is_transaction_field = field in get_transaction_list_fields()
 
-                    # Show what's extra (first 3 FPs)
-                    if fp > 0:
-                        extra_items = [item for item in ext_items if not any(item.lower().strip() == gt.lower().strip() for gt in gt_items)][:3]
-                        rprint(f"[yellow]     + Extra: {' | '.join(extra_items)}{'...' if len(extra_items) > 3 else ''}[/yellow]")
+                    # Track position-aware matches, mismatches, extras, and missing
+                    correct_items = []
+                    wrong_position_items = []
+                    extra_items = []
+                    missing_items = []
+
+                    max_len = max(len(ext_items), len(gt_items))
+
+                    for i in range(max_len):
+                        if i < len(gt_items) and i < len(ext_items):
+                            # Both lists have item at this position - check if match
+                            if is_transaction_field:
+                                match = _transaction_item_matches(ext_items[i], gt_items[i], field)
+                            else:
+                                match = ext_items[i].lower().strip() == gt_items[i].lower().strip()
+
+                            if match:
+                                correct_items.append(f"Pos {i}: {ext_items[i]}")
+                            else:
+                                wrong_position_items.append(f"Pos {i}: '{ext_items[i]}' vs '{gt_items[i]}'")
+
+                        elif i < len(gt_items):
+                            # Ground truth has item but extraction doesn't (missing)
+                            missing_items.append(f"Pos {i}: {gt_items[i]}")
+                        else:
+                            # Extraction has item but ground truth doesn't (extra)
+                            extra_items.append(f"Pos {i}: {ext_items[i]}")
+
+                    # Display position-aware results (first 3 of each type)
+                    if correct_items:
+                        display_correct = correct_items[:3]
+                        more_text = f" (+{len(correct_items) - 3} more)" if len(correct_items) > 3 else ""
+                        rprint(f"[green]     ✓ Correct (position-aware):{more_text}[/green]")
+                        for item in display_correct:
+                            rprint(f"[green]       {item}[/green]")
+
+                    if wrong_position_items:
+                        display_wrong = wrong_position_items[:3]
+                        more_text = f" (+{len(wrong_position_items) - 3} more)" if len(wrong_position_items) > 3 else ""
+                        rprint(f"[yellow]     ≈ Wrong at position:{more_text}[/yellow]")
+                        for item in display_wrong:
+                            rprint(f"[yellow]       {item}[/yellow]")
+
+                    if missing_items:
+                        display_missing = missing_items[:3]
+                        more_text = f" (+{len(missing_items) - 3} more)" if len(missing_items) > 3 else ""
+                        rprint(f"[red]     ✗ Missing (in GT, not extracted):{more_text}[/red]")
+                        for item in display_missing:
+                            rprint(f"[red]       {item}[/red]")
+
+                    if extra_items:
+                        display_extra = extra_items[:3]
+                        more_text = f" (+{len(extra_items) - 3} more)" if len(extra_items) > 3 else ""
+                        rprint(f"[yellow]     + Extra (extracted beyond GT length):{more_text}[/yellow]")
+                        for item in display_extra:
+                            rprint(f"[yellow]       {item}[/yellow]")
                 else:
                     rprint("[yellow]     Simple text/value mismatch[/yellow]")
 
