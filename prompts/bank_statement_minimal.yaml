@@ -1,0 +1,24 @@
+prompts:
+  bank_statement_minimal:
+    name: "Minimal Bank Statement Extraction"
+    description: "Minimal prompt for date-grouped bank statements with merchant branding"
+    prompt: |
+      Extract debit transactions from this bank statement. Output exactly 5 fields.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3 or NOT_FOUND]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | $amount3 or NOT_FOUND]
+
+      Rules:
+      - Extract ONLY debits/withdrawals (amounts with "-" prefix)
+      - NEGATIVE amounts (with "-" sign) = DEBITS = Extract these
+      - POSITIVE amounts (without "-" sign) = CREDITS = Skip these
+      - Skip deposits/credits/salary (money IN)
+      - Use " | " to separate multiple transactions
+      - Use DD/MM/YYYY format for dates
+      - Include $ symbol for amounts (without the "-" sign)
+      - Use NOT_FOUND if field is missing
+
+      Stop after TRANSACTION_AMOUNTS_PAID.
