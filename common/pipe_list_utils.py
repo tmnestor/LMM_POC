@@ -65,7 +65,9 @@ def find_in_pipe_list(s: str, search: str) -> int:
         return -1
 
 
-def format_as_currency(s: str, negative: bool = True, decimals: int = 2) -> str:
+def format_as_currency(
+    s: str, negative: bool = True, decimals: int = 2, thousands_sep: bool = False
+) -> str:
     """
     Convert pipe-separated numeric values to formatted currency strings.
 
@@ -73,6 +75,7 @@ def format_as_currency(s: str, negative: bool = True, decimals: int = 2) -> str:
         s: Pipe-separated numeric values like "4.49 | 23.0 | 25.5"
         negative: If True, prefix with "-$", otherwise just "$"
         decimals: Number of decimal places (default: 2)
+        thousands_sep: If True, add comma separators for thousands (default: False)
 
     Returns:
         Pipe-separated currency strings like "-$4.49 | -$23.00 | -$25.50"
@@ -84,8 +87,34 @@ def format_as_currency(s: str, negative: bool = True, decimals: int = 2) -> str:
         '$4.49 | $23.00 | $25.50'
         >>> format_as_currency("4.49 | 23.0 | 25.5", decimals=3)
         '-$4.490 | -$23.000 | -$25.500'
+        >>> format_as_currency("3000.0 | 1500.5", thousands_sep=True)
+        '-$3,000.00 | -$1,500.50'
     """
     items = s.split(" | ")
     prefix = "-$" if negative else "$"
-    formatted = [f"{prefix}{float(item.strip()):.{decimals}f}" for item in items]
+    format_spec = f",.{decimals}f" if thousands_sep else f".{decimals}f"
+    formatted = [f"{prefix}{float(item.strip()):{format_spec}}" for item in items]
     return " | ".join(formatted)
+
+
+def pipe_list_length(s: str) -> int:
+    """
+    Calculate the number of items in a pipe-separated list.
+
+    Args:
+        s: Pipe-separated string like "item1 | item2 | item3"
+
+    Returns:
+        Number of items in the list
+
+    Example:
+        >>> pipe_list_length("apple | banana | cherry")
+        3
+        >>> pipe_list_length("single")
+        1
+        >>> pipe_list_length("")
+        0
+    """
+    if not s or not s.strip():
+        return 0
+    return len(s.split(" | "))
