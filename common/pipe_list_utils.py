@@ -9,9 +9,12 @@ Functions:
     - reverse_pipe_list(s): Reverse order of items
     - get_pipe_list_item(s, index): Get item at specific position
     - find_in_pipe_list(s, search): Find index of item (exact match)
+    - find_all_by_values(s, searches): Find all indexes of items matching any search term (exact match)
+    - find_all_by_substring(s, substring): Find all indexes containing substring (safe)
     - format_as_currency(s, negative, decimals, thousands_sep): Format as currency
     - pipe_list_length(s): Count number of items
     - delete_by_index(s, index): Delete item at position
+    - delete_by_indexes(s, indexes): Delete multiple items by positions (safe batch delete)
     - delete_by_value(s, search): Delete first occurrence (exact match)
     - delete_all_by_value(s, search): Delete all occurrences (exact match)
     - delete_by_substring(s, substring): Delete all items containing substring (⚠️ dangerous)
@@ -89,6 +92,30 @@ def find_in_pipe_list(s: str, search: str) -> int:
         return items.index(search)
     except ValueError:
         return -1
+
+
+def find_all_by_values(s: str, searches: list[str]) -> list[int]:
+    """
+    Find all indexes of items that exactly match any of the search terms.
+
+    Args:
+        s: Pipe-separated string like "item1 | item2 | item3"
+        searches: List of strings to search for (exact match)
+
+    Returns:
+        List of zero-based indexes where any search term was found (may include duplicates)
+
+    Example:
+        >>> find_all_by_values("apple | banana | cherry | banana", ["banana", "cherry"])
+        [1, 2, 3]
+        >>> find_all_by_values("apple | banana | cherry", ["orange", "grape"])
+        []
+        >>> find_all_by_values("red | blue | red | green", ["red"])
+        [0, 2]
+    """
+    items = [item.strip() for item in s.split(" | ")]
+    search_set = set(searches)
+    return [i for i, item in enumerate(items) if item in search_set]
 
 
 def format_as_currency(
@@ -172,6 +199,39 @@ def delete_by_index(s: str, index: int) -> str:
     return s
 
 
+def delete_by_indexes(s: str, indexes: list[int]) -> str:
+    """
+    Delete multiple items by their positions from pipe-separated list.
+
+    Items are removed in descending order to avoid index shifting issues.
+    Invalid indexes are silently ignored.
+
+    Args:
+        s: Pipe-separated string like "item1 | item2 | item3"
+        indexes: List of zero-based indexes to delete
+
+    Returns:
+        Pipe-separated string with specified items removed
+
+    Example:
+        >>> delete_by_indexes("apple | banana | cherry | date", [1, 3])
+        'apple | cherry'
+        >>> delete_by_indexes("apple | banana | cherry", [0, 2])
+        'banana'
+        >>> # Safe pattern with find_all_by_substring
+        >>> data = "EFTPOS DEBIT | CARD DEBIT | ATM WITHDRAWAL"
+        >>> matches = find_all_by_substring(data, "DEBIT")
+        >>> delete_by_indexes(data, matches)
+        'ATM WITHDRAWAL'
+    """
+    items = s.split(" | ")
+    # Sort descending to avoid index shifting issues during deletion
+    for idx in sorted(set(indexes), reverse=True):
+        if 0 <= idx < len(items):
+            items.pop(idx)
+    return " | ".join(items)
+
+
 def delete_by_value(s: str, search: str) -> str:
     """
     Delete first occurrence of search string from pipe-separated list.
@@ -223,12 +283,38 @@ def delete_all_by_value(s: str, search: str) -> str:
     return " | ".join(filtered)
 
 
+def find_all_by_substring(s: str, substring: str) -> list[int]:
+    """
+    Find all indexes of items containing the substring.
+
+    This is safer than delete_by_substring() as it lets you inspect matches
+    before deletion using delete_by_indexes().
+
+    Args:
+        s: Pipe-separated string like "item1 | item2 | item3"
+        substring: Substring to search for (case-sensitive)
+
+    Returns:
+        List of zero-based indexes where substring was found
+
+    Example:
+        >>> find_all_by_substring("apple pie | banana | cherry pie", "pie")
+        [0, 2]
+        >>> find_all_by_substring("EFTPOS DEBIT | CARD DEBIT | ATM WITHDRAWAL", "DEBIT")
+        [0, 1]
+        >>> find_all_by_substring("apple | banana | cherry", "xyz")
+        []
+    """
+    items = [item.strip() for item in s.split(" | ")]
+    return [i for i, item in enumerate(items) if substring in item]
+
+
 def delete_by_substring(s: str, substring: str) -> str:
     """
     Delete all items containing the substring from pipe-separated list.
 
     WARNING: This function uses substring matching which can be dangerous.
-    Ensure you validate inputs to avoid unintended deletions.
+    Consider using find_all_by_substring() + delete_by_indexes() for safer deletion.
 
     Args:
         s: Pipe-separated string like "item1 | item2 | item3"
