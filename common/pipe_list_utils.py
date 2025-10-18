@@ -63,3 +63,29 @@ def find_in_pipe_list(s: str, search: str) -> int:
         return items.index(search)
     except ValueError:
         return -1
+
+
+def format_as_currency(s: str, negative: bool = True, decimals: int = 2) -> str:
+    """
+    Convert pipe-separated numeric values to formatted currency strings.
+
+    Args:
+        s: Pipe-separated numeric values like "4.49 | 23.0 | 25.5"
+        negative: If True, prefix with "-$", otherwise just "$"
+        decimals: Number of decimal places (default: 2)
+
+    Returns:
+        Pipe-separated currency strings like "-$4.49 | -$23.00 | -$25.50"
+
+    Example:
+        >>> format_as_currency("4.49 | 23.0 | 25.5")
+        '-$4.49 | -$23.00 | -$25.50'
+        >>> format_as_currency("4.49 | 23.0 | 25.5", negative=False)
+        '$4.49 | $23.00 | $25.50'
+        >>> format_as_currency("4.49 | 23.0 | 25.5", decimals=3)
+        '-$4.490 | -$23.000 | -$25.500'
+    """
+    items = s.split(" | ")
+    prefix = "-$" if negative else "$"
+    formatted = [f"{prefix}{float(item.strip()):.{decimals}f}" for item in items]
+    return " | ".join(formatted)
