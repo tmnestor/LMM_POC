@@ -1,0 +1,35 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#E8F4F8','primaryTextColor':'#2C3E50','primaryBorderColor':'#2C3E50','lineColor':'#34495E'}}}%%
+flowchart LR
+    subgraph RawStatement["📄 Raw Bank Statement"]
+        direction TB
+        Raw["<b>Transaction Table:</b><br/>──────────────────────────────────────────<br/>Date | Description | Debit | Credit | Balance<br/>──────────────────────────────────────────<br/>16-Jul | EFTPOS Woolworths | $45.20 | - | $2,954.80<br/>17-Jul | Salary Deposit | - | $3,000 | $5,954.80<br/>18-Jul | EFTPOS Pizza Hut | $28.50 | - | $5,926.30<br/>19-Jul | Refund JB HI-FI | - | $168.34 | $6,094.64<br/>20-Jul | Direct Debit - Utilities | $127.80 | - | $5,966.84"]
+    end
+
+    RawStatement --> Challenge
+
+    subgraph Challenge["⚠️ THE EXTRACTION CHALLENGE"]
+        direction TB
+        C1["<b>Credits (Deposits):</b><br/>✓ Salary: $3,000.00<br/>✓ Refund: $168.34<br/><br/>❌ NOT extracted for evaluation"]
+        C2["<b>Debits (Payments/Withdrawals):</b><br/>✓ EFTPOS Woolworths: $45.20<br/>✓ EFTPOS Pizza Hut: $28.50<br/>✓ Direct Debit - Utilities: $127.80<br/><br/>✅ MUST extract these only!"]
+    end
+
+    Challenge --> Target
+
+    subgraph Target["🎯 EXTRACTION TARGET (Debits Only)"]
+        direction TB
+        T1["<b>Evaluation Fields (3 fields):</b><br/><br/><b>TRANSACTION_DATES</b> ✓<br/>['16-Jul', '18-Jul', '20-Jul']<br/><br/><b>LINE_ITEM_DESCRIPTIONS</b> ✓<br/>['EFTPOS Woolworths', 'EFTPOS<br/>Pizza Hut', 'Direct Debit - Utilities']<br/><br/><b>TRANSACTION_AMOUNTS_PAID</b> ✓<br/>['45.20', '28.50', '127.80']"]
+        T2["<b>Validation-Only Field:</b><br/><br/><b>TRANSACTION_AMOUNTS_RECEIVED</b><br/>['3000.00', '168.34']<br/><br/><i>Used for balance calculation</i><br/><i>but NOT evaluated for accuracy</i>"]
+    end
+
+    Insight["<b>💡 KEY CHALLENGE:</b><br/>1️⃣ Bank statements contain BOTH credits and debits<br/>2️⃣ Only DEBITS (payments) are extracted for evaluation<br/>3️⃣ CREDITS (deposits) used for validation but not scored<br/>4️⃣ Must maintain POSITION alignment across 3 fields"]
+
+    Target --> Insight
+
+    style RawStatement fill:#E8F4F8,stroke:#2C3E50,stroke-width:3px
+    style Challenge fill:#FFF4E6,stroke:#F18F01,stroke-width:2px
+    style C1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style C2 fill:#FFE6E6,stroke:#C73E1D,stroke-width:2px
+    style Target fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style T1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style T2 fill:#FFF4E6,stroke:#F18F01,stroke-width:2px,stroke-dasharray: 5 5
+    style Insight fill:#F0E6FF,stroke:#A23B72,stroke-width:3px

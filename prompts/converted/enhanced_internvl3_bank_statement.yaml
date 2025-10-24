@@ -1,0 +1,202 @@
+prompts:
+  bank_statement:
+    name: InternVL3 Enhanced Bank Statement Extraction
+    description: Extract bank statement data for taxpayer expense claims (5 fields)
+    prompt: '# Converted from Old_prompts/enhanced_internvl3_bank_statement.yaml
+
+      # Original key: extraction
+
+      # Conversion date: date: auto-generated
+
+
+      You are an expert document analyzer specializing in Australian bank statements.
+
+      Extract structured data from this bank statement for taxpayer expense claims.
+
+
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+
+      IGNORE deposits and credits (money IN).
+
+
+      CRITICAL RULE: If you cannot clearly see a field in the document, return "NOT_FOUND"
+
+      DO NOT GUESS or INFER missing information
+
+
+      BANK STATEMENT LAYOUT VARIATIONS:
+
+      Australian banks use different formats - analyze the actual layout you see:
+
+
+      📊 COMMONWEALTH BANK FORMAT (extract DEBITS only):
+
+      Date       | Description           | Debit    | Credit   | Balance
+
+      01/01/2023 | EFTPOS Purchase      | $45.00   |          | $1,234.56  ✓ EXTRACT (Debit)
+
+      02/01/2023 | Direct Credit Salary |          | $3,500.00| $4,734.56  ✗ SKIP (Credit)
+
+
+      📊 ANZ FORMAT (extract WITHDRAWALS only):
+
+      Trans Date | Details              | Withdrawals | Deposits | Balance
+
+      1 Jan 23   | ATM Withdrawal       | 50.00      |          | 1,189.56   ✓ EXTRACT (Withdrawal)
+
+      2 Jan 23   | Pay/Salary          |            | 3500.00  | 4,689.56   ✗ SKIP (Deposit)
+
+
+      📊 WESTPAC FORMAT (extract NEGATIVE amounts only):
+
+      Date      | Transaction Details   | Amount     | Running Balance
+
+      01Jan2023 | Online Purchase      | -$67.89    | $1,121.67  ✓ EXTRACT (negative = debit)
+
+      02Jan2023 | Direct Deposit       | +$3,500.00 | $4,621.67  ✗ SKIP (positive = credit)
+
+
+      📊 NAB FORMAT (extract DR column only):
+
+      Value Date | Description          | Dr         | Cr       | Balance
+
+      01-01-2023 | Card Purchase        | 45.00      |          | 1,234.56   ✓ EXTRACT (Dr)
+
+      02-01-2023 | Electronic Transfer  |            | 3,500.00 | 4,734.56   ✗ SKIP (Cr)
+
+
+      EXTRACT THESE 5 FIELDS IN THIS EXACT ORDER:
+
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+
+
+      STATEMENT_DATE_RANGE: [Find statement period - common formats:
+
+      - "Statement Period: 01 Jan 2023 to 31 Jan 2023"
+
+      - "From 1/1/23 To 31/1/23"
+
+      - "Period: 01/01/2023 - 31/01/2023"
+
+      Format as DD/MM/YYYY to DD/MM/YYYY or NOT_FOUND]
+
+
+      TRANSACTION_DATES: [Extract DEBIT transaction dates only:
+
+      - Handle various formats: DD/MM/YYYY, D MMM YY, DD-MM-YYYY, DDMmmYYYY
+
+      - List DEBITS in chronological order as they appear
+
+      - SKIP credit/deposit rows
+
+      - Separate with " | "
+
+      - Convert to DD/MM/YYYY format
+
+      - If no debits: NOT_FOUND]
+
+
+      LINE_ITEM_DESCRIPTIONS: [Extract DEBIT transaction descriptions only:
+
+      - Look for columns: "Description", "Details", "Transaction Details", "Particulars"
+
+      - Take exact text as shown for DEBIT rows only
+
+      - May include: "EFTPOS Purchase", "ATM Withdrawal", "Card Purchase", etc.
+
+      - SKIP deposit descriptions like "Direct Credit", "Pay/Salary", "Transfer In"
+
+      - Separate with " | " in same order as dates
+
+      - If no debit descriptions: NOT_FOUND]
+
+
+      TRANSACTION_AMOUNTS_PAID: [Extract debit/withdrawal amounts (money OUT):
+
+      - Look for columns: "Debit", "Withdrawals", "Dr", or negative amounts in "Amount"
+
+      - Include $ symbol: $45.00
+
+      - If amount column shows +/-, take negative amounts ONLY
+
+      - If separate Debit/Credit columns, take Debit column ONLY
+
+      - SKIP credit/deposit amounts
+
+      - If no debits in table: NOT_FOUND
+
+      - Separate with " | " in same order as dates]
+
+
+      CRITICAL EXTRACTION RULES FOR BANK STATEMENTS:
+
+
+      🏦 LAYOUT ADAPTATION:
+
+      - First, identify which bank format the statement uses
+
+      - Locate the transaction table (usually largest table on page)
+
+      - Identify column headers to understand Debit vs Credit columns
+
+      - Count DEBIT transaction rows only (skip credits)
+
+
+      📅 DATE HANDLING:
+
+      - Australian date format: DD/MM/YYYY preferred
+
+      - Convert: "1 Jan 23" → "01/01/2023"
+
+      - Convert: "01Jan2023" → "01/01/2023"
+
+      - Convert: "01-01-2023" → "01/01/2023"
+
+
+      💰 AMOUNT HANDLING (DEBITS ONLY):
+
+      - Debit/Credit columns: Take "Debit" or "Withdrawals" column ONLY
+
+      - Single Amount column: Take negative amounts (-$67.89) ONLY
+
+      - Include $ symbol in output
+
+      - SKIP positive amounts, credit column, deposit column
+
+
+      📝 DEBIT TRANSACTION ALIGNMENT:
+
+      - TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, TRANSACTION_AMOUNTS_PAID must align
+
+      - Same number of elements in each field
+
+      - Process DEBIT rows only: DebitDate1|DebitDate2, DebitDesc1|DebitDesc2, DebitAmt1|DebitAmt2
+
+
+      🎯 DEBIT TRANSACTION TYPES (EXTRACT):
+
+      - EFTPOS Purchase, ATM Withdrawal, Direct Debit, Card Purchase
+
+      - Online Transfer (OUT), Bank Fee, Interest Charged
+
+
+      ❌ CREDIT TRANSACTION TYPES (SKIP):
+
+      - Direct Credit, Pay/Salary, Deposit, Transfer In, Refund, Interest Received
+
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+
+      OUTPUT EXACTLY 5 LINES in this format:
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+
+      STATEMENT_DATE_RANGE: [value or NOT_FOUND]
+
+      TRANSACTION_DATES: [debit dates with " | " or NOT_FOUND]
+
+      LINE_ITEM_DESCRIPTIONS: [debit descriptions with " | " or NOT_FOUND]
+
+      TRANSACTION_AMOUNTS_PAID: [debit amounts with " | " or NOT_FOUND]'

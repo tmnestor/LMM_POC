@@ -1,0 +1,1 @@
+"""Common utilities for vision model evaluation."""

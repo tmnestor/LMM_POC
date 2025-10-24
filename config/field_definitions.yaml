@@ -1,0 +1,235 @@
+# Minimal Field Definitions - Simple Reference for Field Validation
+# This replaces the complex unified_schema.yaml with just what's needed
+# NO TEMPLATES - Just field documentation and validation settings
+
+# ============================================================================
+# DOCUMENT FIELD MAPPINGS
+# ============================================================================
+document_fields:
+  invoice:
+    count: 14
+    fields:
+      - DOCUMENT_TYPE
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - BUSINESS_ADDRESS
+      - PAYER_NAME
+      - PAYER_ADDRESS
+      - INVOICE_DATE
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
+      - LINE_ITEM_TOTAL_PRICES
+      - IS_GST_INCLUDED
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+
+  receipt:
+    count: 14
+    fields:
+      - DOCUMENT_TYPE
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - BUSINESS_ADDRESS
+      - PAYER_NAME
+      - PAYER_ADDRESS
+      - INVOICE_DATE  # Transaction date for receipts
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
+      - LINE_ITEM_TOTAL_PRICES
+      - IS_GST_INCLUDED
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+
+  bank_statement:
+    count: 5
+    fields:
+      - DOCUMENT_TYPE
+      - STATEMENT_DATE_RANGE
+      - LINE_ITEM_DESCRIPTIONS  # Transaction descriptions
+      - TRANSACTION_DATES
+      - TRANSACTION_AMOUNTS_PAID
+
+  universal:
+    count: 19
+    fields:
+      - DOCUMENT_TYPE
+      - BUSINESS_ABN
+      - SUPPLIER_NAME
+      - BUSINESS_ADDRESS
+      - PAYER_NAME
+      - PAYER_ADDRESS
+      - INVOICE_DATE
+      - STATEMENT_DATE_RANGE
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
+      - LINE_ITEM_TOTAL_PRICES
+      - IS_GST_INCLUDED
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+      - TRANSACTION_DATES
+      - TRANSACTION_AMOUNTS_PAID
+      - TRANSACTION_AMOUNTS_RECEIVED
+      - ACCOUNT_BALANCE
+
+# ============================================================================
+# FIELD DESCRIPTIONS - Documentation for each field
+# ============================================================================
+field_descriptions:
+  DOCUMENT_TYPE: "Type of document (INVOICE/RECEIPT/STATEMENT)"
+  BUSINESS_ABN: "11-digit Australian Business Number"
+  SUPPLIER_NAME: "Business/company name providing goods/services"
+  BUSINESS_ADDRESS: "Complete supplier business address"
+  PAYER_NAME: "Customer/payer name"
+  PAYER_ADDRESS: "Customer/payer address"
+  INVOICE_DATE: "Invoice/receipt date (DD/MM/YYYY format)"
+  STATEMENT_DATE_RANGE: "Bank statement period (DD/MM/YYYY - DD/MM/YYYY)"
+  LINE_ITEM_DESCRIPTIONS: "Product/service names or transaction descriptions"
+  LINE_ITEM_QUANTITIES: "Quantities for each line item"
+  LINE_ITEM_PRICES: "Unit price per item"
+  LINE_ITEM_TOTAL_PRICES: "Total price per line (quantity × unit price)"
+  IS_GST_INCLUDED: "Whether GST is shown in document (true/false)"
+  GST_AMOUNT: "GST/tax amount in dollars"
+  TOTAL_AMOUNT: "Final total amount"
+  TRANSACTION_DATES: "Bank statement transaction dates"
+  TRANSACTION_AMOUNTS_PAID: "Debit/withdrawal amounts"
+  TRANSACTION_AMOUNTS_RECEIVED: "Credit/deposit amounts"
+  ACCOUNT_BALANCE: "Running balance after each transaction"
+
+# ============================================================================
+# FIELD CATEGORIES - For evaluation reporting
+# ============================================================================
+field_categories:
+  identification:
+    - DOCUMENT_TYPE
+    - BUSINESS_ABN
+
+  business_details:
+    - SUPPLIER_NAME
+    - BUSINESS_ADDRESS
+
+  customer_details:
+    - PAYER_NAME
+    - PAYER_ADDRESS
+
+  temporal:
+    - INVOICE_DATE
+    - STATEMENT_DATE_RANGE
+    - TRANSACTION_DATES
+
+  line_items:
+    - LINE_ITEM_DESCRIPTIONS
+    - LINE_ITEM_QUANTITIES
+    - LINE_ITEM_PRICES
+    - LINE_ITEM_TOTAL_PRICES
+
+  financial:
+    - IS_GST_INCLUDED
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+
+  transactions:
+    - TRANSACTION_AMOUNTS_PAID
+    - TRANSACTION_AMOUNTS_RECEIVED
+    - ACCOUNT_BALANCE
+
+# ============================================================================
+# FIELD USAGE CLASSIFICATION
+# ============================================================================
+field_usage:
+  # Fields used for mathematical validation but excluded from evaluation metrics
+  validation_only:
+    - TRANSACTION_AMOUNTS_RECEIVED  # Used for transaction calculation but not evaluated
+    - ACCOUNT_BALANCE  # Used for balance validation but not evaluated
+
+  # Fields used for both evaluation and validation (default for all other fields)
+  evaluation_and_validation:
+    - DOCUMENT_TYPE
+    - STATEMENT_DATE_RANGE
+    - LINE_ITEM_DESCRIPTIONS
+    - TRANSACTION_DATES
+    - TRANSACTION_AMOUNTS_PAID
+    # All other fields not in validation_only list
+
+# ============================================================================
+# EVALUATION SETTINGS
+# ============================================================================
+evaluation:
+  # Critical fields requiring highest accuracy (only evaluated fields)
+  critical_fields:
+    - BUSINESS_ABN
+    - GST_AMOUNT
+    - TOTAL_AMOUNT
+    - SUPPLIER_NAME
+
+  # Accuracy thresholds
+  accuracy_threshold: 0.85
+  critical_field_threshold: 0.95
+
+  # Fuzzy matching for text fields
+  fuzzy_matching:
+    enabled: true
+    threshold: 0.85
+
+  # Field type handling
+  field_types:
+    monetary:
+      - GST_AMOUNT
+      - TOTAL_AMOUNT
+      - LINE_ITEM_PRICES
+      - LINE_ITEM_TOTAL_PRICES
+      - TRANSACTION_AMOUNTS_PAID
+      - TRANSACTION_AMOUNTS_RECEIVED
+      - ACCOUNT_BALANCE
+
+    boolean:
+      - IS_GST_INCLUDED
+
+    list:
+      - LINE_ITEM_DESCRIPTIONS
+      - LINE_ITEM_QUANTITIES
+      - LINE_ITEM_PRICES
+      - LINE_ITEM_TOTAL_PRICES
+      - TRANSACTION_DATES
+      - TRANSACTION_AMOUNTS_PAID
+      - TRANSACTION_AMOUNTS_RECEIVED
+      - ACCOUNT_BALANCE
+
+    date:
+      - INVOICE_DATE
+      - STATEMENT_DATE_RANGE
+      - TRANSACTION_DATES
+
+# ============================================================================
+# DOCUMENT TYPE ALIASES - For flexible document type detection
+# ============================================================================
+document_type_aliases:
+  invoice:
+    - invoice
+    - tax invoice
+    - bill
+    - estimate
+    - quote
+    - quotation
+
+  receipt:
+    - receipt
+    - purchase receipt
+    - sales receipt
+    - transaction receipt
+
+  bank_statement:
+    - statement
+    - bank statement
+    - account statement
+    - credit card statement
+
+# ============================================================================
+# SUPPORTED DOCUMENT TYPES
+# ============================================================================
+supported_document_types:
+  - invoice
+  - receipt
+  - bank_statement

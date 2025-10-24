@@ -1,0 +1,53 @@
+prompts:
+  bank_statement:
+    name: Date-Grouped Bank Statement Extraction
+    description: Handles complex bank statements with date-grouped transactions - taxpayer expense claims (5 fields)
+    prompt: |
+      CRITICAL: OUTPUT EXACTLY IN THIS FORMAT - DO NOT USE NATURAL LANGUAGE HEADINGS
+
+      Extract transaction data from this date-grouped bank statement for taxpayer expense claims.
+
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+      IGNORE deposits and credits (money IN).
+
+      ## MANDATORY OUTPUT FORMAT (5 FIELDS):
+      Use these EXACT field names with colons. Do not add explanations or comments.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | debit3]
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+      ## DATE-GROUPED STRUCTURE:
+      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+
+      ## SIMPLIFIED PARSING STEPS:
+
+      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      2. Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from under each date header
+      3. SKIP deposits, credits, or salary payments (money IN)
+      4. Combine debits with pipe separators in chronological order
+
+      ## FIELD EXTRACTION RULES:
+
+      LINE_ITEM_DESCRIPTIONS: DEBIT transaction descriptions only, combined with " | "
+      TRANSACTION_DATES: Dates of DEBIT transactions only, in DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts only (money OUT), with $ and " | "
+
+      Use NOT_FOUND for any missing fields.
+
+      ## IDENTIFYING DEBITS:
+      Look for keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      SKIP keywords: deposit, credit, salary, transfer in, interest received
+
+      ## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.

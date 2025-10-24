@@ -1,0 +1,57 @@
+============================================================
+LLAMA MULTI-TURN TEST - SIMPLE VQA
+============================================================
+
+
+------------------------------------------------------------
+MESSAGE 1 - USER
+------------------------------------------------------------
+
+[IMAGE]
+What type of document is this?
+
+------------------------------------------------------------
+MESSAGE 2 - ASSISTANT
+------------------------------------------------------------
+
+This document is a bank statement, specifically a Commonwealth Bank statement, detailing the account holder's transactions from August 8, 2025, to September 7, 2025.
+
+------------------------------------------------------------
+MESSAGE 3 - USER
+------------------------------------------------------------
+
+What is the account holder's name or account number shown on this document?
+
+------------------------------------------------------------
+MESSAGE 4 - ASSISTANT
+------------------------------------------------------------
+
+This document is a bank statement, specifically a Commonwealth Bank statement, detailing the account holder's transactions from August 8, 2025, to September 7, 2025.
+
+------------------------------------------------------------
+MESSAGE 5 - USER
+------------------------------------------------------------
+
+Approximately how many transaction entries are visible on this page?
+
+------------------------------------------------------------
+MESSAGE 6 - ASSISTANT
+------------------------------------------------------------
+
+This document is a bank statement, specifically a Commonwealth Bank statement, detailing the account holder's transactions from August 8, 2025, to September 7, 2025.
+
+------------------------------------------------------------
+MESSAGE 7 - USER
+------------------------------------------------------------
+
+Based on what you just told me about the document type, what date range does it cover?
+
+------------------------------------------------------------
+MESSAGE 8 - ASSISTANT
+------------------------------------------------------------
+
+This document is a bank statement, specifically a Commonwealth Bank statement, detailing the account holder's transactions from August 8, 2025, to September 7, 2025.
+
+============================================================
+Total messages: 8
+============================================================

@@ -1,0 +1,95 @@
+============================================================
+MULTI-TURN CONVERSATION WITH LLAMA-3.2-VISION
+============================================================
+
+
+------------------------------------------------------------
+MESSAGE 1 - USER
+------------------------------------------------------------
+
+[IMAGE]
+
+You are an expert document analyser specializing in Date Grouped Australian Bank Statement extraction.
+Date Grouped Bank Statements are date ordered, with one or more transactions for each date header.
+Every transaction for a given date heading has a description, a debit/credit amount and finally a balance amount with a ' CR' suffix.
+Extract all balance amounts along with their ' CR' suffix, the transaction dates (from the date heading) and transaction descriptions,
+maintaining the same date ordering as the image, with every transaction appearing on its own row and remembering that some date headings have more than one balance.
+
+
+------------------------------------------------------------
+MESSAGE 2 - ASSISTANT
+------------------------------------------------------------
+
+Here is the extracted data in the format you requested:
+
+| Date | Balance | Transaction Description |
+| --- | --- | --- |
+| 07/09/2025 | $48890.58 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD |
+| 08/09/2025 | $49212.76 | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO... |
+| 04/09/2025 | $49277.09 | Mortgage Repayment MORT 0103P16754533 NAB |
+| 03/09/2025 | $49226.81 | OSKO Payment to MIKE CHEN 809845773133 |
+| 03/09/2025 | $51312.57 | Direct Debit 15395P41608263 MWF 42730 |
+| 02/09/2025 | $61511.48 | Salary Payment ATO 28782P60782100 |
+| 01/09/2025 | $43405.77 | Auto Payment UTILITIES AGL 79479A0P85943944 |
+| 01/09/2025 | $43440.81 | DIRECT CREDIT SALARY 6080P67812986 |
+| 01/09/2025 | $43708.81 | BPAY Payment BILLER60279 CRN 9813018480 |
+| 31/08/2025 | $39296.85 | Professional Services Red Energy 98073P31959417 |
+| 29/08/2025 | $41754.72 | Card Purchase RED ROOSTER Paramatta SA |
+| 29/08/2025 | $42025.03 | Credit Card Payment CC 72599P33283283V98 |
+| 27/08/2025 | $43882.12 | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD |
+| 27/08/2025 | $44203.72 | Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo... |
+| 26/08/2025 | $44426.28 | Fortnightly Pay ATO PAYROLL 91032P35687918 |
+| 24/08/2025 | $38747.07 | PAY RUN ACME CORP PTY LTD 99584P07785218 |
+| 24/08/2025 | $34291.61 | Salary Payment ATO 30175P32361415 |
+| 23/08/2025 | $26339.68 | Online Purchase amazon.com.au AUS |
+| 22/08/2025 | $20423.46 | Salary Payment ATO 28773P16041610 |
+| 20/08/2025 | $20409.76 | Transfer To Vicks Account NetBank 54381P90841102 |
+| 20/08/2025 | $22754.86 | Salary Payment ATO 94514P80490207 |
+| 20/08/2025 | $19213.59 | Transfer To Western Port Marina NetBank From Tod |
+| 19/08/2025 | $19940.07 | Subscription Netflix 33588P77385123 |
+| 18/08/2025 | $20141.21 | Contactless Payment Cinema CAIRNS QLD |
+| 18/08/2025 | $20352.49 | Auto Payment UTILITIES Red Energy 15107P21771655 |
+| 18/08/2025 | $20385.73 | Contactless Payment Restaurant MACKAY QLD |
+| 17/08/2025 | $20531.43 | Fortnightly Pay ATO PAYROLL 36358P70254998 |
+| 14/08/2025 | $13330.24 | Centrelink Payment JobSeeker 59392P56090878 |
+| 14/08/2025 | $11088.85 | International Transaction Fee |
+| 13/08/2025 | $11115.91 | Equipment Purchase OfficeMax Australia 13554P45... |
+| 13/08/2025 | $11594.77 | International ATM USA USD |
+| 11/08/2025 | $11855.48 | Dividend Payment PREMIUM CORP PTY LTD 7353SP419... |
+| 11/08/2025 | $5460.39 | Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD ... |
+| 10/08/2025 | $5689.78 | Online Purchase ebay.com.au AUS |
+| 10/08/2025 | $5949.73 | Subscription Spotify Monthly 15369P58427775 |
+| 09/08/2025 | $9133.98 | International Transaction Fee |
+| 06/08/2025 | $6157.78 | Business Expense IT Equipment 66969P86141679 |
+| 06/08/2025 | $6792.96 | Auto Payment UTILITIES Energy Australia 47683P7... |
+| 08/08/2025 | $6884.90 | Auto Payment UTILITIES Red Energy 81338P61572286 |
+
+Note: The 'CR' suffix is not explicitly mentioned in the provided data, but it is implied in the context of the question.
+
+------------------------------------------------------------
+MESSAGE 3 - USER
+------------------------------------------------------------
+
+How many transactions are shown in this bank statement?
+
+------------------------------------------------------------
+MESSAGE 4 - ASSISTANT
+------------------------------------------------------------
+
+There are 40 transactions shown in this bank statement.
+
+------------------------------------------------------------
+MESSAGE 5 - USER
+------------------------------------------------------------
+
+What is the date range covered by this bank statement?
+
+------------------------------------------------------------
+MESSAGE 6 - ASSISTANT
+------------------------------------------------------------
+
+The date range covered by this bank statement is from **August 8, 2025**, to **September 7, 2025**.
+
+============================================================
+Total messages: 6
+============================================================

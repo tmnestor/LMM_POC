@@ -1,0 +1,77 @@
+prompts:
+  # Minimal bank statement prompt (generic fallback)
+  bank_statement:
+    name: "Minimal Bank Statement Extraction"
+    description: "Minimal prompt for bank statement extraction - taxpayer expense claims (5 fields)"
+    prompt: |
+      Extract debit transactions from this bank statement. Output exactly 5 fields.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3 or NOT_FOUND]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | $amount3 or NOT_FOUND]
+
+      Rules:
+      - Extract ONLY debits/withdrawals (amounts with "-" prefix)
+      - NEGATIVE amounts (with "-" sign) = DEBITS = Extract these
+      - POSITIVE amounts (without "-" sign) = CREDITS = Skip these
+      - Skip deposits/credits/salary (money IN)
+      - Use " | " to separate multiple transactions
+      - Use DD/MM/YYYY format for dates
+      - Include $ symbol for amounts (without the "-" sign)
+      - Use NOT_FOUND if field is missing
+
+      Stop after TRANSACTION_AMOUNTS_PAID.
+
+  # Minimal variant for flat table bank statements
+  bank_statement_flat:
+    name: "Minimal Flat Table Bank Statement"
+    description: "Minimal prompt optimized for flat table bank statements"
+    prompt: |
+      Extract debit transactions from this flat table bank statement. Output exactly 5 fields.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3 or NOT_FOUND]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | $amount3 or NOT_FOUND]
+
+      Rules:
+      - Look for transaction table with Date | Description | Debit | Credit | Balance columns
+      - Extract ONLY debits/withdrawals (amounts with "-" prefix)
+      - NEGATIVE amounts (with "-" sign) = DEBITS = Extract these
+      - POSITIVE amounts (without "-" sign) = CREDITS = Skip these
+      - Skip deposits/credits/salary (money IN)
+      - Use " | " to separate multiple transactions
+      - Use DD/MM/YYYY format for dates
+      - Include $ symbol for amounts (without the "-" sign)
+      - Use NOT_FOUND if field is missing
+
+      Stop after TRANSACTION_AMOUNTS_PAID.
+
+  # Minimal variant for date-grouped bank statements
+  bank_statement_date_grouped:
+    name: "Minimal Date-Grouped Bank Statement"
+    description: "Minimal prompt optimized for date-grouped bank statements"
+    prompt: |
+      Extract debit transactions from this date-grouped bank statement. Output exactly 5 fields.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3 or NOT_FOUND]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | $amount3 or NOT_FOUND]
+
+      Rules:
+      - Transactions are grouped under date headers like "Thu 13 Jun 2024"
+      - Extract ONLY debits/withdrawals (amounts with "-" prefix)
+      - NEGATIVE amounts (with "-" sign) = DEBITS = Extract these
+      - POSITIVE amounts (without "-" sign) = CREDITS = Skip these
+      - Skip deposits/credits/salary (money IN)
+      - Use " | " to separate multiple transactions
+      - Use DD/MM/YYYY format for dates
+      - Include $ symbol for amounts (without the "-" sign)
+      - Use NOT_FOUND if field is missing
+
+      Stop after TRANSACTION_AMOUNTS_PAID.

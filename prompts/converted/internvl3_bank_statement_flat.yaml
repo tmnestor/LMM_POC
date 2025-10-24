@@ -1,0 +1,118 @@
+prompts:
+  bank_statement:
+    name: InternVL3 Enhanced Bank Statement Extraction
+    description: Extract bank statement data for taxpayer expense claims (5 fields)
+    prompt: |
+      # Converted from Old_prompts/internvl3_bank_statement_extraction.yaml
+      # Original key: flat
+      # Conversion date: auto-generated
+
+      Extract structured data from this bank statement for taxpayer expense claims.
+
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+      IGNORE deposits and credits (money IN).
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text, explanations, or markdown formatting
+      - Do NOT use bullet points, asterisks, or narrative descriptions
+      - Output ONLY the structured field extraction data
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+
+      ## CRITICAL INSTRUCTIONS:
+      - Extract ONLY what is visible in the document
+      - Use "NOT_FOUND" for any field that is not present
+      - Do not guess or infer missing information
+      - For transaction lists, maintain clear extraction
+
+      ## BANK STATEMENT FIELDS TO EXTRACT (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [Statement period or date range (e.g., "01/01/2024 - 31/01/2024") or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [DEBIT transaction descriptions separated by " | " or NOT_FOUND]
+      TRANSACTION_DATES: [DEBIT transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [DEBIT/WITHDRAWAL amounts separated by " | " with $ symbol or NOT_FOUND]
+
+      ## EXTRACTION INSTRUCTIONS:
+
+      ### STEP 1: Document Type
+      DOCUMENT_TYPE: [Look for "BANK STATEMENT", "ACCOUNT STATEMENT", "STATEMENT" at top or NOT_FOUND]
+
+      ### STEP 2: Statement Period
+      STATEMENT_DATE_RANGE: [Find statement period dates (e.g., "01 Jan 2024 - 31 Jan 2024") or NOT_FOUND]
+
+      ### STEP 3: Transaction Details
+      Look at the transaction table and extract ONLY DEBIT/WITHDRAWAL transactions:
+
+      ROW-BY-ROW PROCESSING METHODOLOGY:
+      Process each DEBIT transaction ROW individually:
+
+      EXAMPLE: If you see these transactions in the bank statement:
+      Row 1: 03/05/2025 | AMAZON PURCHASE | [DEBIT: $288.03] | [CREDIT: empty]
+      Row 2: 04/05/2025 | SALARY DEPOSIT | [DEBIT: empty] | [CREDIT: $3497.47]  ← SKIP (deposit)
+      Row 3: 05/05/2025 | ATM WITHDRAWAL | [DEBIT: $50.00] | [CREDIT: empty]
+
+      CORRECT DEBIT-ONLY PROCESSING:
+      1. Process Row 1 → Extract: Date=03/05/2025, Desc=AMAZON PURCHASE, Paid=$288.03
+      2. SKIP Row 2 → Deposit/Credit (money IN - not needed for expense claims)
+      3. Process Row 3 → Extract: Date=05/05/2025, Desc=ATM WITHDRAWAL, Paid=$50.00
+
+      RESULTING DEBIT-ONLY ARRAYS:
+      TRANSACTION_DATES: 03/05/2025 | 05/05/2025
+      LINE_ITEM_DESCRIPTIONS: AMAZON PURCHASE | ATM WITHDRAWAL
+      TRANSACTION_AMOUNTS_PAID: $288.03 | $50.00
+
+      ## MANDATORY DEBIT-ONLY EXTRACTION PROTOCOL:
+
+      Step 1: Scan transaction table for DEBIT/WITHDRAWAL rows only
+      Step 2: For EACH DEBIT row from top to bottom:
+         - Extract the date → add to TRANSACTION_DATES
+         - Extract the description → add to LINE_ITEM_DESCRIPTIONS
+         - Extract the debit amount → add to TRANSACTION_AMOUNTS_PAID
+      Step 3: SKIP any rows with deposits/credits (money IN)
+      Step 4: Verify all arrays have same number of entries
+
+      LINE_ITEM_DESCRIPTIONS: [List DEBIT transaction descriptions separated by " | " or NOT_FOUND]
+      TRANSACTION_DATES: [List DEBIT transaction dates separated by " | " in DD/MM/YYYY format or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [List DEBIT/WITHDRAWAL amounts separated by " | " with $ symbol or NOT_FOUND]
+
+      ## IDENTIFYING DEBIT TRANSACTIONS:
+
+      Look for these indicators of DEBIT/WITHDRAWAL transactions (money OUT):
+      - Keywords: "payment", "withdrawal", "debit", "fee", "purchase", "transfer out", "ATM", "EFTPOS"
+      - Column headers: "Debit", "Withdrawal", "Paid Out"
+      - Balance decreases after transaction
+
+      SKIP these indicators of CREDIT/DEPOSIT transactions (money IN):
+      - Keywords: "deposit", "credit", "salary", "refund", "transfer in", "payment received"
+      - Column headers: "Credit", "Deposit", "Paid In"
+      - Balance increases after transaction
+
+      ## CRITICAL OUTPUT FORMAT - READ THIS CAREFULLY:
+
+      ABSOLUTELY NO JSON FORMAT ALLOWED
+      DO NOT USE CURLY BRACES { }
+      DO NOT USE QUOTES AROUND FIELD NAMES
+
+      You MUST respond in EXACTLY this simple key-value format (one field per line):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period from document]
+      LINE_ITEM_DESCRIPTIONS: [debit_desc1 | debit_desc2 | debit_desc3]
+      TRANSACTION_DATES: [debit_date1 | debit_date2 | debit_date3]
+      TRANSACTION_AMOUNTS_PAID: [debit_amount1 | debit_amount2 | debit_amount3]
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+      FORBIDDEN FORMATS:
+      NO: {"DOCUMENT_TYPE": "STATEMENT"} - NO JSON
+      NO: **DOCUMENT_TYPE:** STATEMENT - NO MARKDOWN
+      NO: DOCUMENT_TYPE = STATEMENT - NO EQUALS
+      NO: Any format with { } quotes or ** formatting
+
+      REQUIRED FORMAT:
+      YES: DOCUMENT_TYPE: STATEMENT - SIMPLE COLON FORMAT ONLY
+
+      Remember: NO CURLY BRACES, NO QUOTES, NO MARKDOWN - JUST FIELD_NAME: value
+
+      Provide EXACTLY 5 lines in the format shown above.

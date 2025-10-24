@@ -1,0 +1,63 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#E8F4F8','primaryTextColor':'#2C3E50','primaryBorderColor':'#2C3E50','lineColor':'#34495E'}}}%%
+flowchart TB
+    subgraph RawStatement["📄 Raw Bank Statement (Mixed Transactions)"]
+        direction TB
+        Raw["<b>Transaction Table:</b><br/>────────────────────────────────────────────────────<br/>Date | Description | Debit | Credit | Balance<br/>────────────────────────────────────────────────────<br/>16-Jul | EFTPOS Woolworths | <b>$45.20</b> | - | $2,954.80<br/>17-Jul | Salary Deposit | - | <b>$3,000.00</b> | $5,954.80<br/>18-Jul | EFTPOS Pizza Hut | <b>$28.50</b> | - | $5,926.30<br/>19-Jul | Refund JB HI-FI | - | <b>$168.34</b> | $6,094.64<br/>20-Jul | Direct Debit - Utilities | <b>$127.80</b> | - | $5,966.84"]
+    end
+
+    RawStatement --> Challenge
+
+    subgraph Challenge["⚠️ THE CHALLENGE"]
+        direction LR
+        C1["<b>Credits (Deposits):</b><br/>✓ Salary: $3,000.00<br/>✓ Refund: $168.34<br/><br/><i>NOT extracted for evaluation</i>"]
+        C2["<b>Debits (Payments):</b><br/>❌ EFTPOS Woolworths: $45.20<br/>❌ EFTPOS Pizza Hut: $28.50<br/>❌ Utilities: $127.80<br/><br/><i>MUST extract these only!</i>"]
+    end
+
+    Challenge --> Extraction
+
+    subgraph Extraction["🎯 Extraction Target (Debits Only)"]
+        direction TB
+        E1["<b>TRANSACTION_DATES</b> (evaluated ✓)<br/>['16-Jul', '18-Jul', '20-Jul']"]
+        E2["<b>LINE_ITEM_DESCRIPTIONS</b> (evaluated ✓)<br/>['EFTPOS Woolworths', 'EFTPOS Pizza Hut', 'Direct Debit - Utilities']"]
+        E3["<b>TRANSACTION_AMOUNTS_PAID</b> (evaluated ✓)<br/>['45.20', '28.50', '127.80']"]
+        E4["<b>TRANSACTION_AMOUNTS_RECEIVED</b> (validation-only ⚠️)<br/>Used for balance calculation but NOT evaluated<br/>['3000.00', '168.34']"]
+
+        E1 -.Position[0].-> E2
+        E2 -.Position[0].-> E3
+        E1 -.Position[1].-> E2
+        E2 -.Position[1].-> E3
+        E1 -.Position[2].-> E2
+        E2 -.Position[2].-> E3
+    end
+
+    Extraction --> PositionCritical
+
+    subgraph PositionCritical["⚡ WHY POSITION-AWARE F1 IS CRITICAL"]
+        direction TB
+        PC1["<b>Correct Alignment:</b><br/>Date[0]: 16-Jul ↔ Desc[0]: Woolworths ↔ Amount[0]: $45.20 ✓<br/>Date[1]: 18-Jul ↔ Desc[1]: Pizza Hut ↔ Amount[1]: $28.50 ✓<br/>Date[2]: 20-Jul ↔ Desc[2]: Utilities ↔ Amount[2]: $127.80 ✓"]
+        PC2["<b>Position-Aware F1: 100%</b> ✓<br/>All positions semantically aligned"]
+    end
+
+    Extraction --> ErrorScenario
+
+    subgraph ErrorScenario["❌ WRONG: Shuffled Dates (Model Error)"]
+        direction TB
+        ES1["<b>Misaligned Extraction:</b><br/>Date: ['18-Jul', '16-Jul', '20-Jul']<br/>Desc: ['EFTPOS Woolworths', 'EFTPOS Pizza Hut', 'Direct Debit - Utilities']<br/>Amount: ['45.20', '28.50', '127.80']"]
+        ES2["<b>Semantic Corruption:</b><br/>Date[0]: 18-Jul ↔ Desc[0]: Woolworths ↔ Amount[0]: $45.20 ❌<br/><i>Pizza Hut transaction happened on 18-Jul, not Woolworths!</i><br/>Date[1]: 16-Jul ↔ Desc[1]: Pizza Hut ↔ Amount[1]: $28.50 ❌<br/><i>Woolworths transaction happened on 16-Jul, not Pizza Hut!</i>"]
+        ES3["<b>Position-Aware F1: 33%</b> ❌ Correctly detects error<br/><b>Position-Agnostic F1: 100%</b> ❌ FAILS to detect error"]
+    end
+
+    PositionCritical -.Correct extraction.-> Conclusion
+    ErrorScenario -.Common model error.-> Conclusion
+
+    Conclusion["<b>💡 KEY INSIGHTS FOR BANK STATEMENTS:</b><br/><br/>1️⃣ Extract ONLY debit transactions (payments/withdrawals)<br/>2️⃣ Credits used for balance validation but NOT evaluated<br/>3️⃣ Position alignment is CRITICAL - each index must represent same transaction<br/>4️⃣ Position-Aware F1 detects semantic misalignment<br/>5️⃣ Position-Agnostic F1 can score 100% on WRONG data!<br/><br/><b>Evaluation Fields:</b> TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, TRANSACTION_AMOUNTS_PAID<br/><b>Validation-Only:</b> TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE"]
+
+    style RawStatement fill:#E8F4F8,stroke:#2C3E50,stroke-width:3px
+    style Challenge fill:#FFF4E6,stroke:#F18F01,stroke-width:2px
+    style C1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style C2 fill:#FFE6E6,stroke:#C73E1D,stroke-width:2px
+    style Extraction fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style E4 fill:#FFF4E6,stroke:#F18F01,stroke-width:2px,stroke-dasharray: 5 5
+    style PositionCritical fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style ErrorScenario fill:#FFE6E6,stroke:#C73E1D,stroke-width:2px
+    style Conclusion fill:#F0E6FF,stroke:#A23B72,stroke-width:3px

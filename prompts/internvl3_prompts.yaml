@@ -1,0 +1,222 @@
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields"
+    prompt: |
+      Extract ALL data from this invoice image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find supplier: Business name at top
+      - Find customer: "Bill To" section
+      - Find date: Use DD/MM/YYYY format
+      - Find line items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 14 Fields
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 14 receipt-specific fields"
+    prompt: |
+      Extract ALL data from this receipt image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find store: Business name at top
+      - Find transaction date: Use DD/MM/YYYY format
+      - Find purchased items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (5 Fields)
+  # For taxpayer expense claims - DEBIT transactions only
+  # ============================================================================
+
+  # Flat Table Bank Statements (continuous table format)
+  bank_statement_flat:
+    name: "Flat Table Bank Statement Extraction"
+    description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      Extract structured data from this flat table bank statement for taxpayer expense claims.
+
+      STEP 1 - LOCATE TRANSACTION TABLE:
+      Focus on the main transaction table (usually center/body area).
+      Columns: Date | Description | Debit/Withdrawal | Credit/Deposit | Balance
+      Ignore: Headers, footers, summaries, advertisements
+
+      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
+      TARGET COLUMNS: Date + Description + Debit/Withdrawal amount
+
+      For each row check:
+      - Has value in DEBIT/WITHDRAWAL column? → Extract this row
+      - Has value in CREDIT/DEPOSIT column only? → SKIP this row
+      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received
+
+      STEP 3 - EXTRACT ROW-BY-ROW:
+      For EACH debit row:
+      1. Extract DATE (DD/MM/YYYY format)
+      2. Extract DESCRIPTION (exact text)
+      3. Extract AMOUNT (with $ symbol)
+      4. Add to output with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Extract ONLY debits/withdrawals (money OUT)
+      - IGNORE credits/deposits (money IN)
+      - Dates, descriptions, and amounts must have same count
+      - Multiple transactions per date = separate entries
+      - Process chronologically (top to bottom)
+
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any row with value in CREDIT/DEPOSIT column
+      - Any transaction that increases account balance
+
+      Output format (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      Instructions:
+      - Statement period: Date range like "01/01/2025 to 31/01/2025"
+      - Transaction descriptions: DEBIT descriptions only, " | " separator
+      - Transaction dates: DEBIT dates only, DD/MM/YYYY, " | " separator
+      - Amounts paid: Debit amounts with $, " | " separator (money OUT only)
+      - Use NOT_FOUND for missing fields
+
+  # Date-Grouped Bank Statements (transactions grouped under date headers)
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement Extraction"
+    description: "Optimized for date-grouped bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      Extract structured data from this date-grouped bank statement for taxpayer expense claims.
+
+      STEP 1 - LOCATE DATE-GROUPED SECTIONS:
+      Focus on main transaction area in document body.
+      Structure: Date headers (e.g., "Thu 04 Sep 2025") with transactions listed below.
+      Under each date: Description + Amount columns
+      Ignore: Headers, footers, summaries, advertisements
+
+      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
+      For each date header section:
+      TARGET DATA: Transaction description + Amount (negative or explicit debit)
+
+      For each transaction under date header check:
+      - Is this DEBIT/WITHDRAWAL (money OUT)? → Extract
+      - Is this CREDIT/DEPOSIT (money IN)? → SKIP
+      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS, card purchase
+      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received, refund, income
+
+      STEP 3 - EXTRACT TRANSACTION-BY-TRANSACTION:
+      For EACH debit transaction:
+      1. Extract DATE from date header above (DD/MM/YYYY format)
+      2. Extract DESCRIPTION from transaction row (exact text)
+      3. Extract AMOUNT from transaction row (with $ symbol)
+      4. Add to output with " | " separator
+
+      CRITICAL CONSTRAINTS:
+      - Extract ONLY debits/withdrawals (money OUT)
+      - IGNORE credits/deposits (money IN)
+      - Dates, descriptions, and amounts must have same count
+      - Multiple transactions per date = separate entries with same date
+      - Process chronologically (top to bottom through date headers)
+
+      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
+      - Salary deposits or payments (money IN)
+      - Interest received or interest payment (money IN)
+      - Refunds or returns (money IN)
+      - Any credit/deposit transaction
+      - Any transaction that increases account balance
+
+      Output format (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      Instructions:
+      - Statement period: Overall date range like "1 Sep 2025 to 30 Sep 2025"
+      - Transaction descriptions: DEBIT descriptions only, " | " separator
+      - Transaction dates: DEBIT dates only, DD/MM/YYYY, " | " separator
+      - Amounts paid: Debit amounts with $, " | " separator (money OUT only)
+      - Use NOT_FOUND for missing values
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All 19 Fields
+  # ============================================================================
+  universal:
+    name: "Universal Single-Pass Extraction"
+    description: "Extract all 19 fields for any document type"
+    prompt: |
+      Extract information from this business document.
+
+      OUTPUT FORMAT (19 FIELDS):
+
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/BANK_STATEMENT or NOT_FOUND]
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Business name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Business address or NOT_FOUND]
+      PAYER_NAME: [Customer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address or NOT_FOUND]
+      INVOICE_DATE: [Date DD/MM/YYYY or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range for statements or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Items with " | " separator or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Quantities with " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [Unit prices with $ and " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Line totals with $ and " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [true/false or NOT_FOUND]
+      GST_AMOUNT: [GST with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Total with $ or NOT_FOUND]
+      TRANSACTION_DATES: [Dates with " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debits with $ and " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credits with $ and " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
+
+# Configuration
+settings:
+  max_tokens: 600
+  temperature: 0.0

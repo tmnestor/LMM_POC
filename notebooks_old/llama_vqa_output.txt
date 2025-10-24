@@ -1,0 +1,13 @@
+<|begin_of_text|><|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+<|image|>Explain the structure of the transaction table<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+The image presents a transaction table for the Commonwealth Bank of Australia, detailing financial transactions from August 7, 2025, to September 6, 2025. The table is structured into the following columns:
+
+*   **Date**: Displays the date of each transaction.
+*   **Transaction**: Lists the type of transaction, including debit or credit.
+*   **Debit**: Shows the amount deducted from the account balance.
+*   **Credit**: Shows the amount added to the account balance.
+*   **Balance**: Displays the updated account balance after each transaction.
+
+The table provides a clear and organized view of the account's activity during the specified period, allowing users to track their financial transactions and monitor their account balance.<|eot_id|>

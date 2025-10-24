@@ -1,0 +1,43 @@
+prompts:
+  bank_statement:
+    name: Flat Bank Statement Extraction
+    description: Single transaction table - best for simple flat statements like commbank_flat_simple.png
+    prompt: |
+      Extract bank account details and the transaction table from this bank statement.
+
+      ## PART 1: BANK ACCOUNT DETAILS
+      Extract the following information from the statement header/summary:
+
+      BANK_NAME: [bank name (NOT supplier name) or NOT_FOUND]
+      BANK_BSB_NUMBER: [6-digit BSB (NOT ABN) or NOT_FOUND]
+      BANK_ACCOUNT_NUMBER: [account number or NOT_FOUND]
+      BANK_ACCOUNT_HOLDER: [account holder name or NOT_FOUND]
+      ACCOUNT_OPENING_BALANCE: [first value in the Balance column of transaction table (rightmost monetary column) or NOT_FOUND]
+      ACCOUNT_CLOSING_BALANCE: [ending balance at end of statement period (look for 'Closing Balance' or final balance) or NOT_FOUND]
+      EARLIEST_TRANSACTION_DATE: [first transaction date in Date column of transaction table or NOT_FOUND]
+      LATEST_TRANSACTION_DATE: [last transaction date in Date column of transaction table or NOT_FOUND]
+
+      ## PART 2: TRANSACTION TABLE
+      Create a SINGLE markdown table with ALL transactions.
+
+      IMPORTANT: Look at the ACTUAL COLUMNS in the bank statement image:
+      - Column 1: Date
+      - Column 2: Transaction (description)
+      - Column 3: Debit (amount only appears here if money LEAVES account)
+      - Column 4: Credit (amount only appears here if money ENTERS account)
+      - Column 5: Balance (running balance after transaction)
+
+      READ THE VISUAL TABLE CAREFULLY:
+      - If you see an amount in the DEBIT column → put it in Debit, Credit = NOT_FOUND
+      - If you see an amount in the CREDIT column → put it in Credit, Debit = NOT_FOUND
+      - ALWAYS copy the balance value exactly as shown
+
+      Example:
+      | Date | Description | Debit | Credit | Balance |
+      |------|-------------|-------|--------|---------|
+      | 15/05 | Opening Balance | NOT_FOUND | NOT_FOUND | 5000.00 |
+      | 16/05 | Online Purchase | 97.95 | NOT_FOUND | 4902.05 |
+      | 17/05 | Direct Credit | NOT_FOUND | 500.00 | 5402.05 |
+
+      Use NOT_FOUND only for empty debit/credit cells.
+      DO NOT classify based on transaction description - use the ACTUAL column position from the image.

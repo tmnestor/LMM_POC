@@ -1,0 +1,49 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#E8F4F8','primaryTextColor':'#2C3E50','primaryBorderColor':'#2C3E50','lineColor':'#34495E'}}}%%
+flowchart LR
+    GT[(Ground Truth<br/>CSV)]
+    Images[("📁 Document<br/>Images")]
+
+    GT --> Eval
+    Images --> Model
+
+    subgraph Model["🤖 Model Processing"]
+        direction TB
+        M1[Llama-3.2-Vision<br/>or<br/>InternVL3-8B]
+        M2[Extract 14-5 fields<br/>per document]
+        M1 --> M2
+    end
+
+    Model --> Eval
+
+    subgraph Eval["📊 Evaluation Engine"]
+        direction TB
+        E1[Detect Document Type<br/>invoice/receipt/bank_statement]
+        E2[Select Field Set<br/>14 / 14 / 5 fields]
+        E3[Field-Type Comparison<br/>Monetary/Date/ID/Text/List]
+        E4[Calculate Metrics<br/>Position-Aware F1 default]
+        E1 --> E2 --> E3 --> E4
+    end
+
+    Eval --> Results
+
+    subgraph Results["📈 Outputs"]
+        direction TB
+        R1["CSV: Extraction results"]
+        R2["JSON: Detailed metrics"]
+        R3["MD: Executive summary"]
+        R4["PNG: Visualizations"]
+    end
+
+    Results --> Decision{Accuracy ≥ 90%?}
+    Decision -->|Yes ✓| Prod[🚀 Production Ready]
+    Decision -->|80-90%| Pilot[🧪 Pilot Testing]
+    Decision -->|< 80%| Optimize[🔧 Needs Optimization]
+
+    style GT fill:#E8F4F8,stroke:#2C3E50,stroke-width:2px
+    style Images fill:#E8F4F8,stroke:#2C3E50,stroke-width:2px
+    style Model fill:#FFF4E6,stroke:#2C3E50,stroke-width:2px
+    style Eval fill:#F0E6FF,stroke:#2C3E50,stroke-width:2px
+    style Results fill:#E8F5E9,stroke:#2C3E50,stroke-width:2px
+    style Prod fill:#E8F5E9,stroke:#4CAF50,stroke-width:3px
+    style Pilot fill:#FFF4E6,stroke:#F18F01,stroke-width:2px
+    style Optimize fill:#FFE6E6,stroke:#C73E1D,stroke-width:2px

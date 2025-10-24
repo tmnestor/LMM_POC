@@ -1,0 +1,33 @@
+# Bank Statement Structure Classification Prompts
+# Used by vision-based classifier to determine layout structure
+
+prompts:
+  structure_classification:
+    name: "Bank Statement Structure Classification"
+    description: "Classify bank statement layout as flat table or date-grouped"
+    prompt: |
+      Analyze this bank statement image and classify its structural layout.
+
+      Look at how transactions are organized:
+
+      FLAT TABLE: Transactions are in a continuous table format with column headers
+      - All transactions are in one continuous table
+      - Clear column structure throughout
+      - No date section headers breaking up the table
+
+      DATE-GROUPED: Transactions are grouped under date section headers
+      - Date headers separate different transaction sections
+      - Transactions are grouped by date sections
+      - Look for date headers that separate groups of transactions
+
+      Does each transaction have its own date value, or are the transactions grouped by date?
+
+      If each transaction has its own individual date in a table: Respond with "FLAT"
+      If transactions are grouped under shared date headers: Respond with "DATE_GROUPED"
+
+      Response:
+
+# Configuration
+settings:
+  max_tokens: 20
+  temperature: 0.0

@@ -1,0 +1,25 @@
+prompts:
+  bank_statement:
+    name: Minimal Bank Statement Extraction
+    description: Single transaction table - taxpayer expense claims (5 fields)
+    prompt: |
+      Extract structured data from this bank statement for taxpayer expense claims.
+
+      CRITICAL: Extract ONLY the transaction rows having DEBIT/WITHDRAWAL (money OUT) for expense tracking.
+      IGNORE the transaction rows having deposits and credits (money IN).
+
+      Output format (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period from header, format: DD/MM/YYYY to DD/MM/YYYY]
+      TRANSACTION_DATES: [DEBIT transaction dates separated by " | "]
+      LINE_ITEM_DESCRIPTIONS: [DEBIT transaction descriptions separated by " | "]
+      TRANSACTION_AMOUNTS_PAID: [DEBIT/WITHDRAWAL amounts separated by " | "]
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+      Extract from the transaction table:
+      - Process each DEBIT/WITHDRAWAL row only (skip deposits/credits)
+      - For TRANSACTION_DATES: Extract dates of debit transactions
+      - For LINE_ITEM_DESCRIPTIONS: Extract descriptions of debit transactions
+      - For TRANSACTION_AMOUNTS_PAID: Extract amounts from Debit/Withdrawal column
+      - Use " | " to separate multiple values

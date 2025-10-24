@@ -1,0 +1,57 @@
+============================================================
+LLAMA MULTI-TURN - MEDIUM ARTICLE PATTERN
+============================================================
+
+
+------------------------------------------------------------
+MESSAGE 1 - USER
+------------------------------------------------------------
+
+[IMAGE]
+What type of document is this?
+
+------------------------------------------------------------
+MESSAGE 2 - ASSISTANT
+------------------------------------------------------------
+
+This document is a bank statement, specifically a Commonwealth Bank statement, detailing the account holder's transactions from August 8, 2025, to September 7, 2025.
+
+------------------------------------------------------------
+MESSAGE 3 - USER
+------------------------------------------------------------
+
+What is the account holder's name or account number shown on this document?
+
+------------------------------------------------------------
+MESSAGE 4 - ASSISTANT
+------------------------------------------------------------
+
+The account holder's name is Christopher Paul White, and the account number is 457789123.
+
+------------------------------------------------------------
+MESSAGE 5 - USER
+------------------------------------------------------------
+
+How many transaction entries are visible on this page?
+
+------------------------------------------------------------
+MESSAGE 6 - ASSISTANT
+------------------------------------------------------------
+
+There are 40 transaction entries visible on this page. This is indicated by the text at the bottom of the page, which states "Total Transactions: 40".
+
+------------------------------------------------------------
+MESSAGE 7 - USER
+------------------------------------------------------------
+
+Based on what you told me about the document type, what date range does it cover?
+
+------------------------------------------------------------
+MESSAGE 8 - ASSISTANT
+------------------------------------------------------------
+
+The document covers the date range of August 8, 2025, to September 7, 2025. This is indicated by the statement period listed at the top of the document, which reads "Statement Period: 08/08/2025 to 07/09/2025".
+
+============================================================
+Total messages: 8
+============================================================

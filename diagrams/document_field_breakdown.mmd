@@ -1,0 +1,36 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#E8F4F8','primaryTextColor':'#2C3E50','primaryBorderColor':'#2C3E50','lineColor':'#34495E'}}}%%
+flowchart LR
+    subgraph Invoice["📄 INVOICE (14 fields)"]
+        direction TB
+        I1["DOCUMENT_TYPE"]
+        I2["Business: ABN, NAME, ADDRESS"]
+        I3["Customer: NAME, ADDRESS"]
+        I4["Temporal: INVOICE_DATE"]
+        I5["Line Items: DESCRIPTIONS,<br/>QUANTITIES, PRICES, TOTALS"]
+        I6["Financial: GST_INCLUDED,<br/>GST_AMOUNT, TOTAL_AMOUNT"]
+    end
+
+    subgraph Receipt["🧾 RECEIPT (14 fields)"]
+        direction TB
+        R1["DOCUMENT_TYPE"]
+        R2["Business: ABN, NAME, ADDRESS"]
+        R3["Customer: NAME, ADDRESS"]
+        R4["Temporal: INVOICE_DATE"]
+        R5["Line Items: DESCRIPTIONS,<br/>QUANTITIES, PRICES, TOTALS"]
+        R6["Financial: GST_INCLUDED,<br/>GST_AMOUNT, TOTAL_AMOUNT"]
+    end
+
+    subgraph Bank["🏦 BANK STATEMENT (5 eval fields)"]
+        direction TB
+        B1["DOCUMENT_TYPE"]
+        B2["Temporal: STATEMENT_DATE_RANGE"]
+        B3["Transactions: DATES,<br/>DESCRIPTIONS, AMOUNTS_PAID"]
+        B4["<i>Validation-only (not evaluated):</i><br/>AMOUNTS_RECEIVED, ACCOUNT_BALANCE"]
+    end
+
+    Invoice -.Same Fields.-> Receipt
+
+    style Invoice fill:#E8F4F8,stroke:#2C3E50,stroke-width:2px
+    style Receipt fill:#E8F4F8,stroke:#2C3E50,stroke-width:2px
+    style Bank fill:#FFF4E6,stroke:#2C3E50,stroke-width:2px
+    style B4 fill:#FFE6E6,stroke:#C73E1D,stroke-width:1px,stroke-dasharray: 5 5
