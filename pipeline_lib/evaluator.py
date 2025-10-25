@@ -64,13 +64,17 @@ def load_ground_truth(
         print("📄 Sample ground truth data:")
         print(ground_truth_df.head(2).to_string(index=False))
 
-    # Convert to dictionary mapping
+    # Convert to dictionary mapping with stem normalization
+    # Normalize keys to stems (remove extensions) for flexible matching
+    # This allows "image_001", "image_001.png", and "image_001.jpeg" to all match
     ground_truth_map = {}
     for _, row in ground_truth_df.iterrows():
         image_name = row[image_col]
         if pd.isna(image_name):
             continue
-        ground_truth_map[str(image_name)] = row.to_dict()
+        # Normalize to stem (filename without extension)
+        stem_key = Path(str(image_name)).stem
+        ground_truth_map[stem_key] = row.to_dict()
 
     if verbose:
         print(f"✅ Ground truth mapping created for {len(ground_truth_map)} images")
