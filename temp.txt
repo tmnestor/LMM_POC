@@ -1,0 +1,8 @@
+from common.csv_field_accuracy import extract_field_level_accuracy_from_csv
+
+field_df = extract_field_level_accuracy_from_csv(
+    output_dir="output",
+    pattern="llama_batch_*.csv",
+    model_name="Llama-3.2-Vision-11B",
+    ground_truth_path="evaluation_data/ground_truth.csv",
+)
