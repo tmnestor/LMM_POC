@@ -1,0 +1,306 @@
+name: "Bank Statement Structure Classifier"
+version: "1.0"
+task: "classification"
+description: "Classifies bank statement structural layout patterns based on column headers, table organization, and text structure"
+
+instruction: |
+  Analyze the bank statement image and classify its structural layout type.
+  Focus ONLY on:
+  - Column header text and arrangement
+  - Table structure and borders
+  - Text patterns and formatting
+  - Multi-row transaction layouts
+  - Presence/absence of section headers
+
+  DO NOT reference specific transaction details, merchant names, amounts, or account information.
+
+classification_categories:
+
+  mobile_app_dark_theme:
+    identifier: "MOBILE_APP_DARK"
+    description: "Mobile banking app interface with dark background and card-based layout"
+    structural_features:
+      - "No visible column headers or table structure"
+      - "Date displayed as section headers with day names (e.g., 'Wednesday', 'Sunday')"
+      - "Icons or symbols on left side of each transaction"
+      - "Transaction description and amount in horizontal layout"
+      - "May include tab navigation text at top (e.g., 'All', 'Incoming', 'Outgoing')"
+      - "Card-like or tile-like visual separation between transactions"
+
+  mobile_app_light_theme_inline:
+    identifier: "MOBILE_APP_LIGHT_INLINE"
+    description: "Mobile banking app with inline balance display and category labels"
+    structural_features:
+      - "No column headers or table structure"
+      - "Date header at top of section (full date format)"
+      - "Merchant logos or category icons on left"
+      - "Transaction description spans multiple lines"
+      - "Category label below description (e.g., 'Bakery', 'Petrol', 'ATM/EFTPOS Withdrawal')"
+      - "Balance shown inline with text 'bal' prefix (e.g., 'bal $X,XXX.XX')"
+      - "Amount right-aligned"
+
+  mobile_app_light_theme_summary:
+    identifier: "MOBILE_APP_LIGHT_SUMMARY"
+    description: "Mobile banking app with date header showing daily summary and navigation arrows"
+    structural_features:
+      - "No column headers or table structure"
+      - "Date header with total amount for the day at top"
+      - "Transaction list below date header"
+      - "Two-line transaction display: name on first line, additional detail on second line"
+      - "Chevron symbol or arrow (>) on right side"
+      - "Clean, minimalist design with significant whitespace"
+      - "Amount displayed with + or - prefix"
+
+  table_3col_date_desc_amount:
+    identifier: "TABLE_3COL_SIMPLE"
+    description: "Traditional table with 3 columns: Date, Description, Amount"
+    structural_features:
+      - "Three clear column headers visible at top"
+      - "Column headers: 'Date', 'Description' or 'Transaction Details', 'Amount'"
+      - "Single amount column (no separate Debit/Credit)"
+      - "May include section title above table (e.g., 'Transaction summary')"
+      - "Grid or bordered table structure"
+      - "Opening Balance may appear as first row"
+
+  table_4col_date_desc_debit_credit:
+    identifier: "TABLE_4COL_STANDARD"
+    description: "Traditional table with 4 columns: Date, Description, Debit, Credit (standard order)"
+    structural_features:
+      - "Four clear column headers visible"
+      - "Column headers: 'Date', 'Description'/'Transaction'/'Transaction Details', 'Debit', 'Credit'"
+      - "Debit column appears BEFORE Credit column (left to right)"
+      - "May include transaction type sub-lines below description"
+      - "Grid structure with visible borders or lines"
+      - "No Balance column"
+
+  table_4col_date_desc_credit_debit:
+    identifier: "TABLE_4COL_REVERSED"
+    description: "Traditional table with Credits before Debits (reversed column order)"
+    structural_features:
+      - "Four clear column headers visible"
+      - "Column headers: 'Date', 'Description', 'Credits', 'Debits'"
+      - "Credits column appears BEFORE Debits column (reversed from standard)"
+      - "No Balance column"
+      - "Grid or simple line structure"
+
+  table_4col_simple_transaction:
+    identifier: "TABLE_4COL_MINIMAL"
+    description: "Minimal 4-column table with 'Transaction' as middle column header"
+    structural_features:
+      - "Four columns with headers"
+      - "Column header uses 'Transaction' (single word, not 'Description' or 'Details')"
+      - "Columns: 'Date', 'Transaction', 'Debit', 'Credit'"
+      - "Simple, clean layout"
+      - "Transaction description may include sub-line details"
+      - "No Balance column"
+
+  table_5col_date_desc_debit_credit_balance:
+    identifier: "TABLE_5COL_STANDARD"
+    description: "Traditional table with 5 columns including running balance"
+    structural_features:
+      - "Five clear column headers visible"
+      - "Column headers: 'Date', 'Transaction'/'Description', 'Debit', 'Credit', 'Balance'"
+      - "Running balance in rightmost column"
+      - "Grid or bordered structure"
+      - "Sub-lines may include additional details like card numbers or 'Value Date:' text"
+      - "Balance shows running total for each transaction"
+
+  table_5col_multiline_breakdown:
+    identifier: "TABLE_5COL_DETAILED"
+    description: "5-column table with multi-row transaction breakdowns under 'Particulars' column"
+    structural_features:
+      - "Five column headers: 'Date', 'Particulars', 'Debits', 'Credits', 'Balance'"
+      - "Column header 'Particulars' (not 'Description' or 'Transaction')"
+      - "Transactions span multiple rows with breakdown details"
+      - "First line: main transaction description"
+      - "Subsequent lines: reference numbers, sub-transactions, itemized breakdown"
+      - "May include section continuation text (e.g., 'Transaction Details (continued)')"
+      - "Balance may show 'Cr' or 'CR' text suffix"
+      - "Dotted lines or heavy gridlines between entries"
+
+  table_multicolumn_with_location:
+    identifier: "TABLE_EXTENDED_LOCATION"
+    description: "Extended table format with additional columns for location details"
+    structural_features:
+      - "More than 5 column headers visible"
+      - "Standard columns: 'Date' or 'Date of Transaction', 'Description', 'Debits', 'Credits'"
+      - "Additional location columns between description and amounts"
+      - "Location columns may be unlabeled or have headers like city/state/country"
+      - "Heavy black borders or prominent grid structure"
+      - "Opening Balance typically shown as first row"
+      - "Credits column may show '(-)' or 'Credits (-)' in header"
+
+  table_value_date_subline:
+    identifier: "TABLE_WITH_VALUE_DATE"
+    description: "Table format with 'Value Date:' text displayed as sub-line under each transaction"
+    structural_features:
+      - "Four columns: 'Date', 'Transaction details', 'Amount', 'Balance'"
+      - "Each transaction entry spans 2-3 rows"
+      - "First line: main transaction description"
+      - "Second line: card reference number or identifier"
+      - "Third line: text 'Value Date:' followed by a date"
+      - "Grid structure with clear row divisions"
+
+output_format: |
+  Provide your classification in the following format:
+
+  STRUCTURE_TYPE: [identifier from above]
+  CONFIDENCE: [HIGH/MEDIUM/LOW]
+
+  COLUMN_HEADERS_OBSERVED:
+  - [List exact column header text visible in image, left to right]
+  - [If no headers: "NO COLUMN HEADERS - Mobile interface"]
+
+  KEY_STRUCTURAL_OBSERVATIONS:
+  - [Column count and arrangement]
+  - [Presence of table borders/gridlines]
+  - [Date presentation format (section headers vs table column)]
+  - [Balance display method (inline text, separate column, suffix notation)]
+  - [Multi-line transaction layout (yes/no)]
+
+  DISTINGUISHING_FEATURES:
+  - [Primary feature that identifies this structure]
+  - [Unique text patterns or column arrangements]
+
+  CLASSIFICATION_REASONING:
+  - [Explain why this classification was chosen based on structural evidence]
+
+decision_tree:
+  step_1_interface_type:
+    question: "Are column headers visible at the top of the transaction list?"
+    yes: "Proceed to step_2_table_type (count columns)"
+    no: "Classify as MOBILE_APP variant - proceed to step_2_mobile_type"
+
+  step_2_mobile_type:
+    question: "What text patterns identify the layout?"
+    day_names_as_headers_with_tabs: "MOBILE_APP_DARK"
+    inline_bal_text_with_category_labels: "MOBILE_APP_LIGHT_INLINE"
+    date_with_total_and_chevron_arrows: "MOBILE_APP_LIGHT_SUMMARY"
+
+  step_2_table_type:
+    question: "How many column headers are visible?"
+    three_columns: "TABLE_3COL_SIMPLE"
+    four_columns: "Proceed to step_3_four_column"
+    five_columns: "Proceed to step_3_five_column"
+    more_than_five: "TABLE_EXTENDED_LOCATION"
+
+  step_3_four_column:
+    question: "What is the exact column header order?"
+    date_desc_debit_credit: "TABLE_4COL_STANDARD"
+    date_desc_credit_debit: "TABLE_4COL_REVERSED"
+    date_transaction_debit_credit: "TABLE_4COL_MINIMAL (if middle header is 'Transaction')"
+
+  step_3_five_column:
+    question: "What distinguishes this 5-column structure?"
+    standard_balance_column: "TABLE_5COL_STANDARD"
+    particulars_header_with_multirow: "TABLE_5COL_DETAILED"
+    value_date_text_in_sublines: "TABLE_WITH_VALUE_DATE"
+
+classification_hints:
+  critical_header_keywords:
+    particulars: "Strong indicator of TABLE_5COL_DETAILED"
+    credits_before_debits: "Unique indicator of TABLE_4COL_REVERSED"
+    date_of_transaction: "Often indicates TABLE_EXTENDED_LOCATION"
+    transaction_singular: "Indicator of TABLE_4COL_MINIMAL"
+
+  critical_text_patterns:
+    value_date_colon: "'Value Date:' text indicates TABLE_WITH_VALUE_DATE"
+    bal_prefix: "'bal $X' pattern indicates MOBILE_APP_LIGHT_INLINE"
+    cr_suffix: "'Cr' or 'CR' suffix often in TABLE_5COL_DETAILED"
+    transaction_details_continued: "Section header in TABLE_5COL_DETAILED"
+    plus_minus_amount_prefix: "'+' or '-' prefix indicates MOBILE_APP_LIGHT_SUMMARY"
+
+  structural_cues:
+    no_headers: "Indicates mobile app interface"
+    day_names_as_headers: "Indicates MOBILE_APP_DARK"
+    chevron_or_arrow_symbols: "Indicates MOBILE_APP_LIGHT_SUMMARY"
+    dotted_lines_between_rows: "Common in TABLE_5COL_DETAILED"
+    heavy_borders: "Common in TABLE_EXTENDED_LOCATION"
+    multi_row_breakdown: "Indicates TABLE_5COL_DETAILED"
+
+examples:
+  - structure_type: "MOBILE_APP_DARK"
+    column_headers: "NO COLUMN HEADERS - Mobile interface"
+    key_features:
+      - "Tab navigation text: 'All', 'Incoming', 'Outgoing'"
+      - "Day names as section headers: 'Wednesday', 'Sunday'"
+      - "Icons visible on left side"
+
+  - structure_type: "MOBILE_APP_LIGHT_INLINE"
+    column_headers: "NO COLUMN HEADERS - Mobile interface"
+    key_features:
+      - "Date format: 'Thu 13 Jun 2024'"
+      - "Category labels visible: 'Bakery', 'Petrol'"
+      - "Balance text pattern: 'bal $X,XXX.XX'"
+
+  - structure_type: "MOBILE_APP_LIGHT_SUMMARY"
+    column_headers: "NO COLUMN HEADERS - Mobile interface"
+    key_features:
+      - "Date header with total: 'Friday 07 Jun 2024 + $57.79'"
+      - "Two-line transaction display"
+      - "Chevron '>' symbols on right"
+
+  - structure_type: "TABLE_3COL_SIMPLE"
+    column_headers: "Date | Description | Amount"
+    key_features:
+      - "Section title 'Transaction summary' above table"
+      - "Three columns only"
+      - "Single amount column (no split)"
+
+  - structure_type: "TABLE_4COL_STANDARD"
+    column_headers: "Date | Transaction Details | Debit | Credit"
+    key_features:
+      - "Four columns with Debit before Credit"
+      - "May have sub-lines below description"
+
+  - structure_type: "TABLE_4COL_REVERSED"
+    column_headers: "Date | Description | Credits | Debits"
+    key_features:
+      - "UNIQUE: Credits column appears BEFORE Debits column"
+
+  - structure_type: "TABLE_4COL_MINIMAL"
+    column_headers: "Date | Transaction | Debit | Credit"
+    key_features:
+      - "Middle column header is 'Transaction' (single word)"
+      - "Clean, simple structure"
+
+  - structure_type: "TABLE_5COL_STANDARD"
+    column_headers: "Date | Transaction | Debit | Credit | Balance"
+    key_features:
+      - "Five columns with Balance on right"
+      - "Running balance displayed"
+      - "May include 'Value Date:' sub-lines"
+
+  - structure_type: "TABLE_5COL_DETAILED"
+    column_headers: "Date | Particulars | Debits | Credits | Balance"
+    key_features:
+      - "Header text: 'Particulars' (key identifier)"
+      - "Multi-row transaction breakdown with reference numbers"
+      - "May show 'Transaction Details (continued)' section header"
+      - "Balance with 'Cr' text suffix"
+      - "Dotted lines between entries"
+
+  - structure_type: "TABLE_EXTENDED_LOCATION"
+    column_headers: "Date of Transaction | Description | [location columns] | Debits | Credits (-)"
+    key_features:
+      - "More than 5 columns total"
+      - "Additional location columns visible"
+      - "Heavy table borders"
+      - "May show '(-)' notation in Credits header"
+
+  - structure_type: "TABLE_WITH_VALUE_DATE"
+    column_headers: "Date | Transaction details | Amount | Balance"
+    key_features:
+      - "Each transaction has 3 text lines"
+      - "Second line: card reference number"
+      - "Third line: text 'Value Date:' with date"
+
+notes:
+  - "Column headers are the PRIMARY classification feature for tables"
+  - "Column ORDER matters: Credits before Debits is UNIQUE to TABLE_4COL_REVERSED"
+  - "Header text 'Particulars' definitively indicates TABLE_5COL_DETAILED"
+  - "Absence of column headers indicates mobile app interface"
+  - "Text patterns like 'Value Date:', 'bal $', 'Cr' suffix are secondary but important"
+  - "Multi-row transaction breakdowns indicate TABLE_5COL_DETAILED"
+  - "Section headers like 'Transaction Details (continued)' indicate continuation pages"
+  - "Do NOT rely on color - focus on text and structure only"
