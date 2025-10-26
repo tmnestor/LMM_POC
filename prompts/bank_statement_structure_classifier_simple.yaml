@@ -1,0 +1,34 @@
+name: "Bank Statement Structure Classifier - Simple"
+version: "2.0"
+task: "classification"
+
+instruction: |
+  Look at the bank statement image.
+
+  Find the row of column headers above the transaction data.
+
+  Read the header row from left to right, like reading a sentence.
+  Write down every word or label you see in the header row, in order.
+
+output_format: |
+  HEADER ROW TEXT (reading left to right):
+  [Write all the text you see in the header row, separated by commas or spaces]
+
+  STRUCTURED LIST:
+  Column 1: [leftmost header]
+  Column 2: [next header]
+  Column 3: [next header]
+  Column 4: [next header]
+  Column 5: [next header, if exists]
+  Column 6: [next header, if exists]
+
+  TOTAL COLUMN COUNT: [number]
+
+  STRUCTURE_TYPE:
+  - If 3 columns: TABLE_3COL_SIMPLE
+  - If 4 columns: TABLE_4COL_STANDARD
+  - If 5 columns: TABLE_5COL_STANDARD
+  - If 6+ columns: TABLE_EXTENDED_LOCATION
+  - If no column headers: MOBILE_APP_LIGHT_INLINE
+
+  MY CLASSIFICATION: [identifier based on count above]
