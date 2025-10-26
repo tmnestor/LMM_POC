@@ -150,32 +150,24 @@ classification_categories:
       - "Grid structure with clear row divisions"
 
 output_format: |
-  Provide your classification in this EXACT format:
+  Answer these questions about THIS specific image:
 
-  VISUAL_OBSERVATION:
-  At the top of the image, I observe: [Describe exactly what you see - tabs, search bar, column headers, section headers, etc.]
+  1. WHAT DO YOU SEE AT THE VERY TOP?
+  Describe the actual elements visible: [your description]
 
-  STRUCTURE_TYPE: [Choose ONE identifier from the categories above]
-  CONFIDENCE: [HIGH/MEDIUM/LOW]
+  2. ARE THERE COLUMN HEADERS?
+  Answer: YES or NO
+  If YES, list them: [exact text from image]
+  If NO, what do you see instead?: [tabs, search bar, date header, etc.]
 
-  COLUMN_HEADERS_FOUND: [If table: Write exact header text separated by " | ". If mobile: Write "NONE"]
+  3. HOW MANY COLUMNS?
+  Count: [number, or write "N/A - not a table"]
 
-  REASONING:
-  [Explain how your visual observation led to this classification]
+  4. STRUCTURE_TYPE: [Choose ONE identifier]
 
-  EXAMPLES:
+  5. CONFIDENCE: [HIGH/MEDIUM/LOW]
 
-  For a table:
-  VISUAL_OBSERVATION: At the top of the image, I observe a horizontal row with the text "Date", "Transaction", "Debit", "Credit", "Balance" formatted as column headers.
-  STRUCTURE_TYPE: TABLE_5COL_STANDARD
-  COLUMN_HEADERS_FOUND: Date | Transaction | Debit | Credit | Balance
-  REASONING: Five column headers are clearly visible in a table format, matching the standard 5-column layout.
-
-  For a mobile app:
-  VISUAL_OBSERVATION: At the top of the image, I observe three tabs labeled "All", "Incoming", "Outgoing", followed by a date section header "Wednesday".
-  STRUCTURE_TYPE: MOBILE_APP_DARK
-  COLUMN_HEADERS_FOUND: NONE
-  REASONING: Tab navigation and section headers indicate mobile app interface, not a table structure.
+  Do NOT use example text. Describe ONLY what you actually see in THIS image.
 
 decision_tree:
   step_1_interface_type:
