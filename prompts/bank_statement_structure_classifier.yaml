@@ -185,10 +185,23 @@ output_format: |
 
   STEP 4 - NOW CLASSIFY:
   Based on the [number] headers you listed above, choose the matching category:
+
+  DECISION LOGIC:
+  - If you listed 3 headers → Use TABLE_3COL_*
+  - If you listed 4 headers → Use TABLE_4COL_*
+  - If you listed 5 headers → Use TABLE_5COL_*
+  - If you listed 6+ headers → Use TABLE_EXTENDED_* or TABLE_MULTICOLUMN_*
+  - If you listed NO headers → Use MOBILE_APP_*
+
   STRUCTURE_TYPE: [identifier]
   CONFIDENCE: [HIGH/MEDIUM/LOW]
 
-  CRITICAL: Do NOT invent headers to fit a category. Only list headers you actually see.
+  CRITICAL: The number in the category name (3COL, 4COL, 5COL) must match your count in STEP 3.
+
+  VALIDATION CHECK:
+  My count was [X] headers, and I chose [CATEGORY_NAME].
+  Does the category name match my count? [YES/NO]
+  If NO, revise your classification to match your count.
 
 decision_tree:
   step_1_interface_type:
