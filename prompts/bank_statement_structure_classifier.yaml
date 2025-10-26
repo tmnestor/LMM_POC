@@ -26,8 +26,14 @@ instruction: |
   - May have date section headers (like "Wednesday", "Thu 13 Jun 2024") that group transactions
   - May show "bal $X" inline with amounts
 
-  STEP 3 - COUNT AND READ:
-  If table: Count column headers and read their exact text left-to-right.
+  STEP 3 - COUNT AND READ (critical for tables):
+  If table: Read EVERY column header from left edge to right edge.
+  - Start at the leftmost header
+  - Read each header moving right
+  - Do NOT stop until you reach the rightmost header
+  - Count them all
+  - Common rightmost headers: "Balance", "Credits", "Debits"
+
   If mobile: Describe the layout pattern (cards, tiles, section headers).
 
 classification_categories:
@@ -165,17 +171,21 @@ output_format: |
 
   2. ARE THERE COLUMN HEADERS ABOVE THE TRANSACTIONS?
   Answer: YES or NO
-  If YES, list them exactly as shown: [exact text left-to-right]
-  If NO, describe the layout: [cards, tiles, date section headers, etc.]
+  If YES: Read ALL headers from LEFT edge to RIGHT edge and list them: [exact text]
+  If NO: Describe the layout: [cards, tiles, date section headers, etc.]
 
   3. HOW MANY COLUMN HEADERS?
-  Count: [number, or write "N/A - not a table"]
+  Count the TOTAL number of headers (include rightmost column): [number or "N/A"]
 
-  4. STRUCTURE_TYPE: [Choose ONE identifier]
+  4. LEFTMOST HEADER: [text]
 
-  5. CONFIDENCE: [HIGH/MEDIUM/LOW]
+  5. RIGHTMOST HEADER: [text]
 
-  Focus on the TRANSACTION AREA only. Ignore search bars and navigation at the top.
+  6. STRUCTURE_TYPE: [Choose ONE identifier]
+
+  7. CONFIDENCE: [HIGH/MEDIUM/LOW]
+
+  CRITICAL: Read the ENTIRE header row including the rightmost column.
 
 decision_tree:
   step_1_interface_type:
