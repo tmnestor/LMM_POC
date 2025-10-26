@@ -5,14 +5,15 @@ description: "Classifies bank statement structural layout patterns based on colu
 
 instruction: |
   Analyze the bank statement image and classify its structural layout type.
-  Focus ONLY on:
-  - Column header text and arrangement
-  - Table structure and borders
-  - Text patterns and formatting
-  - Multi-row transaction layouts
-  - Presence/absence of section headers
 
-  DO NOT reference specific transaction details, merchant names, amounts, or account information.
+  CRITICAL CLASSIFICATION STEPS:
+  1. First, determine: Are there column headers at the top? (YES = Table format, NO = Mobile app)
+  2. If table format: Count the column headers and read their exact text
+  3. If mobile format: Look for section headers, icons, and layout patterns
+  4. Select ONE category that best matches
+  5. Provide specific evidence from the image
+
+  Focus on structure ONLY - ignore transaction content.
 
 classification_categories:
 
@@ -142,28 +143,19 @@ classification_categories:
       - "Grid structure with clear row divisions"
 
 output_format: |
-  Provide your classification in the following format:
+  Provide your classification in this EXACT format:
 
-  STRUCTURE_TYPE: [identifier from above]
+  STRUCTURE_TYPE: [Choose ONE identifier]
   CONFIDENCE: [HIGH/MEDIUM/LOW]
 
-  COLUMN_HEADERS_OBSERVED:
-  - [List exact column header text visible in image, left to right]
-  - [If no headers: "NO COLUMN HEADERS - Mobile interface"]
+  COLUMN_HEADERS: [List exact header text left-to-right, or write "NONE - Mobile interface"]
 
-  KEY_STRUCTURAL_OBSERVATIONS:
-  - [Column count and arrangement]
-  - [Presence of table borders/gridlines]
-  - [Date presentation format (section headers vs table column)]
-  - [Balance display method (inline text, separate column, suffix notation)]
-  - [Multi-line transaction layout (yes/no)]
+  EVIDENCE:
+  - [Key structural feature observed]
+  - [Distinguishing characteristic]
+  - [Why this category matches]
 
-  DISTINGUISHING_FEATURES:
-  - [Primary feature that identifies this structure]
-  - [Unique text patterns or column arrangements]
-
-  CLASSIFICATION_REASONING:
-  - [Explain why this classification was chosen based on structural evidence]
+  Keep response concise and specific.
 
 decision_tree:
   step_1_interface_type:
