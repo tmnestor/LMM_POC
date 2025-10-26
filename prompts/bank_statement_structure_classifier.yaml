@@ -175,28 +175,55 @@ output_format: |
   [Describe the layout - table with headers? Mobile cards? Other?]
 
   STEP 2 - LIST EVERY COLUMN HEADER (if table):
-  Scan the header row from LEFT edge to RIGHT edge. For each text label you encounter, write it down.
+  Answer these specific position questions:
 
-  Start at the LEFT edge:
-  1. [What text do you see at the leftmost position?]
-  2. [Moving right, what is the next header text?]
-  3. [Moving right again, what is the next header text?]
-  4. [Continue moving right - is there another header?]
-  5. [Continue moving right - is there another header?]
-  6. [Continue until you reach the right edge]
+  Position 1 (LEFTMOST): What text appears in the leftmost column header? [answer]
 
-  Do NOT skip any header text between the left and right edges.
+  Position 2: Moving right from Position 1, what is the very next column header text? [answer]
+  (Common options: "Transaction", "Description", "Particulars", or "Debit")
+
+  Position 3: Moving right from Position 2, what is the next column header? [answer]
+
+  Position 4: Moving right from Position 3, what is the next column header? [answer]
+
+  Position 5: Moving right from Position 4, is there another column header?
+  If YES: [what text?]
+  If NO: Write "END"
+
+  Position 6: If you wrote text for Position 5, is there another column after that?
+  If YES: [what text?]
+  If NO: Write "END"
+
+  Now write your COMPLETE LIST in order:
+  1. [Position 1 text]
+  2. [Position 2 text]
+  3. [Position 3 text]
+  (continue until END)
 
   If not a table, write: "NO COLUMN HEADERS"
 
-  STEP 3 - COUNT AND VERIFY:
-  Total headers counted: [number]
+  STEP 3 - VERIFY YOUR LIST:
+  Initial count: [number]
 
-  VERIFICATION - Check for commonly-missed middle columns:
-  - Between "Date" and "Debit", is there a description column? [YES/NO - if yes, what text?]
-  - If you see "Date" then immediately "Debit", you may have skipped a middle column. Go back and check.
+  MANDATORY VERIFICATION:
+  Question: In your list above, does item #2 go directly from "Date" to "Debit" or "Credit"?
+  Answer: [YES or NO]
 
-  Final count after verification: [number]
+  If YES (Date → Debit/Credit with nothing between):
+  - You MISSED a middle column
+  - Look at the image again between Date and Debit
+  - There IS text there - read it and INSERT it as item #2
+  - RE-WRITE your complete list with the missing column added:
+    1. [header]
+    2. [THE MISSING MIDDLE COLUMN YOU JUST FOUND]
+    3. [header]
+    4. [header]
+    (continue...)
+
+  If NO (there is already something between Date and Debit):
+  - Your list is complete
+
+  Final verified count: [number]
 
   STEP 4 - NOW CLASSIFY:
   Based on the [number] headers you listed above, choose the matching category:
