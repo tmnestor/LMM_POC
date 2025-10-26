@@ -28,13 +28,16 @@ instruction: |
   - May have date section headers (like "Wednesday", "Thu 13 Jun 2024") that group transactions
   - May show "bal $X" inline with amounts
 
-  STEP 3 - COUNT AND READ (critical for tables):
-  If table: Read EVERY column header from left edge to right edge.
-  - Start at the leftmost header
-  - Read each header moving right
-  - Do NOT stop until you reach the rightmost header
-  - Count them all
-  - Common rightmost headers: "Balance", "Credits", "Debits"
+  STEP 3 - SCANNING INSTRUCTIONS (critical for tables):
+  If table format:
+  - Place your attention at the LEFTMOST text in the header row
+  - Read that text and write it as #1
+  - Move your attention RIGHT to the next column header
+  - Read that text and write it as #2
+  - Move RIGHT again to the next column header
+  - Continue this process until no more headers appear to the right
+  - Do NOT skip over any column headers
+  - Common columns you might encounter: "Date", "Transaction", "Description", "Particulars", "Debit", "Credit", "Balance"
 
   If mobile: Describe the layout pattern (cards, tiles, section headers).
 
@@ -172,16 +175,28 @@ output_format: |
   [Describe the layout - table with headers? Mobile cards? Other?]
 
   STEP 2 - LIST EVERY COLUMN HEADER (if table):
-  Read from left to right and list each one:
-  1. [first header]
-  2. [second header]
-  3. [third header]
-  (continue for all headers you see)
+  Scan the header row from LEFT edge to RIGHT edge. For each text label you encounter, write it down.
+
+  Start at the LEFT edge:
+  1. [What text do you see at the leftmost position?]
+  2. [Moving right, what is the next header text?]
+  3. [Moving right again, what is the next header text?]
+  4. [Continue moving right - is there another header?]
+  5. [Continue moving right - is there another header?]
+  6. [Continue until you reach the right edge]
+
+  Do NOT skip any header text between the left and right edges.
 
   If not a table, write: "NO COLUMN HEADERS"
 
-  STEP 3 - COUNT:
+  STEP 3 - COUNT AND VERIFY:
   Total headers counted: [number]
+
+  VERIFICATION - Check for commonly-missed middle columns:
+  - Between "Date" and "Debit", is there a description column? [YES/NO - if yes, what text?]
+  - If you see "Date" then immediately "Debit", you may have skipped a middle column. Go back and check.
+
+  Final count after verification: [number]
 
   STEP 4 - NOW CLASSIFY:
   Based on the [number] headers you listed above, choose the matching category:
