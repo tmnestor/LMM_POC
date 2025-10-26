@@ -6,6 +6,8 @@ description: "Classifies bank statement structural layout patterns based on colu
 instruction: |
   Classify the bank statement structure by examining how transactions are displayed.
 
+  WARNING: Do NOT hallucinate or invent data to fit a category. Accuracy is critical.
+
   IGNORE: Search bars, filter buttons, navigation tabs at the very top - these are UI chrome.
 
   FOCUS ON: The transaction list area (the body of the document where transactions appear).
@@ -164,28 +166,29 @@ classification_categories:
       - "Grid structure with clear row divisions"
 
 output_format: |
-  Answer these questions about THIS specific image:
+  Do NOT try to match a category yet. First, accurately describe what you see:
 
-  1. TRANSACTION AREA STRUCTURE:
-  Describe what you see in the transaction list area: [your description]
+  STEP 1 - DESCRIBE THE TRANSACTION AREA:
+  [Describe the layout - table with headers? Mobile cards? Other?]
 
-  2. ARE THERE COLUMN HEADERS ABOVE THE TRANSACTIONS?
-  Answer: YES or NO
-  If YES: Read ALL headers from LEFT edge to RIGHT edge and list them: [exact text]
-  If NO: Describe the layout: [cards, tiles, date section headers, etc.]
+  STEP 2 - LIST EVERY COLUMN HEADER (if table):
+  Read from left to right and list each one:
+  1. [first header]
+  2. [second header]
+  3. [third header]
+  (continue for all headers you see)
 
-  3. HOW MANY COLUMN HEADERS?
-  Count the TOTAL number of headers (include rightmost column): [number or "N/A"]
+  If not a table, write: "NO COLUMN HEADERS"
 
-  4. LEFTMOST HEADER: [text]
+  STEP 3 - COUNT:
+  Total headers counted: [number]
 
-  5. RIGHTMOST HEADER: [text]
+  STEP 4 - NOW CLASSIFY:
+  Based on the [number] headers you listed above, choose the matching category:
+  STRUCTURE_TYPE: [identifier]
+  CONFIDENCE: [HIGH/MEDIUM/LOW]
 
-  6. STRUCTURE_TYPE: [Choose ONE identifier]
-
-  7. CONFIDENCE: [HIGH/MEDIUM/LOW]
-
-  CRITICAL: Read the ENTIRE header row including the rightmost column.
+  CRITICAL: Do NOT invent headers to fit a category. Only list headers you actually see.
 
 decision_tree:
   step_1_interface_type:
