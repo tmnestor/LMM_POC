@@ -4,16 +4,22 @@ task: "classification"
 description: "Classifies bank statement structural layout patterns based on column headers, table organization, and text structure"
 
 instruction: |
-  Analyze the bank statement image and classify its structural layout type.
+  Classify the bank statement structure by identifying the column headers and layout pattern.
 
-  CRITICAL CLASSIFICATION STEPS:
-  1. First, determine: Are there column headers at the top? (YES = Table format, NO = Mobile app)
-  2. If table format: Count the column headers and read their exact text
-  3. If mobile format: Look for section headers, icons, and layout patterns
-  4. Select ONE category that best matches
-  5. Provide specific evidence from the image
+  STEP 1 - READ THE COLUMN HEADERS:
+  Look at the TOP of the transaction list. Do you see column header text like:
+  - "Date", "Description", "Amount", "Debit", "Credit", "Balance", "Transaction", "Particulars"?
 
-  Focus on structure ONLY - ignore transaction content.
+  If YES: This is a TABLE format. Count the headers (3, 4, or 5+ columns) and note their exact text.
+  If NO headers visible: This is a MOBILE APP format. Look for section headers with dates or tabs.
+
+  STEP 2 - MATCH TO CATEGORY:
+  Based on the headers you found, select the ONE category that matches.
+
+  STEP 3 - PROVIDE EVIDENCE:
+  State what you observed (column headers or mobile layout features).
+
+  IMPORTANT: Most bank statements are tables with clear column headers at the top!
 
 classification_categories:
 
@@ -145,17 +151,22 @@ classification_categories:
 output_format: |
   Provide your classification in this EXACT format:
 
-  STRUCTURE_TYPE: [Choose ONE identifier]
+  STRUCTURE_TYPE: [Choose ONE identifier from the categories above]
   CONFIDENCE: [HIGH/MEDIUM/LOW]
 
-  COLUMN_HEADERS: [List exact header text left-to-right, or write "NONE - Mobile interface"]
+  COLUMN_HEADERS_FOUND: [Write the exact header text you see at the top, separated by " | "]
+  Example: "Date | Transaction | Debit | Credit | Balance"
+  Or if no headers: "NONE - Mobile interface"
 
-  EVIDENCE:
-  - [Key structural feature observed]
-  - [Distinguishing characteristic]
-  - [Why this category matches]
+  REASONING:
+  - I can see [number] column headers at the top of the transaction table
+  - The headers read: [exact text]
+  - This matches [STRUCTURE_TYPE] because [reason]
 
-  Keep response concise and specific.
+  OR for mobile:
+  - There are no column headers visible
+  - Instead I see [date section headers / tabs / card layout]
+  - This matches [STRUCTURE_TYPE] because [reason]
 
 decision_tree:
   step_1_interface_type:
