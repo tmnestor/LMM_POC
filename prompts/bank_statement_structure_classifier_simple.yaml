@@ -15,6 +15,11 @@ instruction: |
   Find the row of column headers that labels the transaction columns.
   This header row appears DIRECTLY ABOVE the transaction data.
 
+  IMPORTANT - Column header wrapping:
+  A column header can span multiple text lines within a single column cell.
+  Count the number of COLUMNS (separated by vertical lines or spacing), NOT the number of text lines.
+  Example: If one column contains text on two lines, that is still ONE column header.
+
   IMPORTANT - What IS a header vs what is NOT:
   ✓ Headers are GENERIC LABELS like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
   ✗ Headers are NOT specific transaction data like: actual dates, merchant names, dollar amounts, transaction descriptions
