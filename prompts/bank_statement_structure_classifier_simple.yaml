@@ -15,8 +15,6 @@ instruction: |
 
 output_format: |
   TRANSACTION TABLE HEADERS (reading left to right):
-  [Write each header you see, separated by commas]
-
-  Example format: Date, Transaction Details, Debit, Credit
+  [Write ONLY the headers you actually see in the image, separated by commas]
 
   If no table headers visible, write: NO_HEADERS
