@@ -12,23 +12,25 @@ instruction: |
 
 output_format: |
   HEADER ROW TEXT (reading left to right):
-  [Write all the text you see in the header row, separated by commas or spaces]
+  [Write all the text you see in the header row, separated by commas]
 
-  STRUCTURED LIST:
-  Column 1: [leftmost header]
-  Column 2: [next header]
-  Column 3: [next header]
-  Column 4: [next header]
-  Column 5: [next header, if exists]
-  Column 6: [next header, if exists]
+  STRUCTURED LIST (number each one):
+  1. [leftmost header]
+  2. [next header]
+  3. [next header]
+  4. [next header]
+  5. [next header, if exists, otherwise write "NONE"]
+  6. [next header, if exists, otherwise write "NONE"]
 
-  TOTAL COLUMN COUNT: [number]
+  COUNTING:
+  Count how many items above are NOT "NONE": [write the count]
 
   STRUCTURE_TYPE:
-  - If 3 columns: TABLE_3COL_SIMPLE
-  - If 4 columns: TABLE_4COL_STANDARD
-  - If 5 columns: TABLE_5COL_STANDARD
-  - If 6+ columns: TABLE_EXTENDED_LOCATION
-  - If no column headers: MOBILE_APP_LIGHT_INLINE
+  Based on the count above:
+  - If count is 3: TABLE_3COL_SIMPLE
+  - If count is 4: TABLE_4COL_STANDARD
+  - If count is 5: TABLE_5COL_STANDARD
+  - If count is 6 or more: TABLE_EXTENDED_LOCATION
+  - If count is 0: MOBILE_APP_LIGHT_INLINE
 
   MY CLASSIFICATION: [identifier based on count above]
