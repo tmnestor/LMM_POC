@@ -1,68 +1,38 @@
 name: "Bank Statement Structure Classifier - Simple"
-version: "2.0"
+version: "2.1"
 task: "classification"
 
 instruction: |
   Look at the bank statement image.
 
-  IGNORE these areas:
-  - Page numbers, account numbers at the top
-  - Logo, bank name, address information
-  - Summary sections, footer information
+  Find the transaction table - this is where individual transactions are listed.
 
-  FOCUS ON the transaction list area - this is where individual transactions are shown.
+  Look at the column headers at the top of the transaction table.
+  These are labels like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
 
-  Find the row of column headers that labels the transaction columns.
-  This header row appears DIRECTLY ABOVE the transaction data.
-
-  IMPORTANT - What IS a header vs what is NOT:
-  ✓ Headers are GENERIC LABELS like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
-  ✗ Headers are NOT specific transaction data like: actual dates, merchant names, dollar amounts, transaction descriptions
-
-  MOBILE APP CHECK:
-  If you see transaction cards/tiles with NO row of labels above them, this is a MOBILE APP.
-  Mobile apps show transactions as cards with icons and do NOT have column headers.
-  If mobile app: Write "NO COLUMN HEADERS - MOBILE INTERFACE"
-
-  If you find a table with column headers:
-  Read the header row from left to right, like reading a sentence.
-  Write down every label word you see in that header row, in order.
+  Read each column header from left to right and count them.
 
 output_format: |
-  STEP 1 - INTERFACE CHECK:
-  Is this a mobile app interface (cards/tiles with icons, NO column headers)?
-  Answer: [YES or NO]
+  TRANSACTION TABLE HEADERS (reading left to right):
+  [Write the header text you see, separated by commas]
 
-  === IF YOU ANSWERED YES ===
-  Write ONLY the following two lines, then STOP:
+  STRUCTURED LIST (number each header):
+  1. [first header]
+  2. [second header]
+  3. [third header]
+  4. [fourth header]
+  5. [fifth header, or write "NONE"]
+  6. [sixth header, or write "NONE"]
 
-  NO COLUMN HEADERS - MOBILE INTERFACE
-  MY CLASSIFICATION: MOBILE_APP_LIGHT_INLINE
+  TOTAL COLUMN COUNT:
+  Count how many headers above are NOT "NONE": [write number]
 
-  Do NOT write anything else. Do NOT do the structured list. Do NOT count. STOP NOW.
+  CLASSIFICATION:
+  Based on count:
+  - 3 columns: TABLE_3COL_SIMPLE
+  - 4 columns: TABLE_4COL_STANDARD
+  - 5 columns: TABLE_5COL_STANDARD
+  - 6+ columns: TABLE_EXTENDED_LOCATION
+  - 0 columns: MOBILE_APP_LIGHT_INLINE
 
-  === IF YOU ANSWERED NO (table format) ===
-  Continue below:
-
-  HEADER ROW TEXT (reading left to right):
-  [Write all the text you see in the header row, separated by commas]
-
-  STRUCTURED LIST (number each one):
-  1. [leftmost header]
-  2. [next header]
-  3. [next header]
-  4. [next header]
-  5. [next header, if exists, otherwise write "NONE"]
-  6. [next header, if exists, otherwise write "NONE"]
-
-  COUNTING:
-  Count how many items above are NOT "NONE": [write the count]
-
-  STRUCTURE_TYPE:
-  Based on the count above:
-  - If count is 3: TABLE_3COL_SIMPLE
-  - If count is 4: TABLE_4COL_STANDARD
-  - If count is 5: TABLE_5COL_STANDARD
-  - If count is 6 or more: TABLE_EXTENDED_LOCATION
-
-  MY CLASSIFICATION: [identifier based on count above]
+  MY CLASSIFICATION: [identifier]
