@@ -33,12 +33,15 @@ output_format: |
   Is this a mobile app interface (cards/tiles with icons, NO column headers)?
   Answer: [YES or NO]
 
-  If YES (mobile app):
-  Write: "NO COLUMN HEADERS - MOBILE INTERFACE"
-  MY CLASSIFICATION: MOBILE_APP_LIGHT_INLINE
-  [STOP HERE - do not continue to table analysis]
+  === IF YOU ANSWERED YES ===
+  Write ONLY the following two lines, then STOP:
 
-  If NO (table format):
+  NO COLUMN HEADERS - MOBILE INTERFACE
+  MY CLASSIFICATION: MOBILE_APP_LIGHT_INLINE
+
+  Do NOT write anything else. Do NOT do the structured list. Do NOT count. STOP NOW.
+
+  === IF YOU ANSWERED NO (table format) ===
   Continue below:
 
   HEADER ROW TEXT (reading left to right):
