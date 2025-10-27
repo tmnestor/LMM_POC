@@ -14,25 +14,8 @@ instruction: |
 
 output_format: |
   TRANSACTION TABLE HEADERS (reading left to right):
-  [Write the header text you see, separated by commas]
+  [Write each header you see, separated by commas]
 
-  STRUCTURED LIST (number each header):
-  1. [first header]
-  2. [second header]
-  3. [third header]
-  4. [fourth header]
-  5. [fifth header, or write "NONE"]
-  6. [sixth header, or write "NONE"]
+  Example format: Date, Transaction Details, Debit, Credit
 
-  TOTAL COLUMN COUNT:
-  Count how many headers above are NOT "NONE": [write number]
-
-  CLASSIFICATION:
-  Based on count:
-  - 3 columns: TABLE_3COL_SIMPLE
-  - 4 columns: TABLE_4COL_STANDARD
-  - 5 columns: TABLE_5COL_STANDARD
-  - 6+ columns: TABLE_EXTENDED_LOCATION
-  - 0 columns: MOBILE_APP_LIGHT_INLINE
-
-  MY CLASSIFICATION: [identifier]
+  If no table headers visible, write: NO_HEADERS
