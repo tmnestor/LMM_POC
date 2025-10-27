@@ -14,13 +14,33 @@ instruction: |
 
   Find the row of column headers that labels the transaction columns.
   This header row appears DIRECTLY ABOVE the transaction data.
-  Common transaction headers include: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
 
-  Once you find the transaction header row:
-  Read it from left to right, like reading a sentence.
-  Write down every word or label you see in that header row, in order.
+  IMPORTANT - What IS a header vs what is NOT:
+  ✓ Headers are GENERIC LABELS like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
+  ✗ Headers are NOT specific transaction data like: actual dates, merchant names, dollar amounts, transaction descriptions
+
+  MOBILE APP CHECK:
+  If you see transaction cards/tiles with NO row of labels above them, this is a MOBILE APP.
+  Mobile apps show transactions as cards with icons and do NOT have column headers.
+  If mobile app: Write "NO COLUMN HEADERS - MOBILE INTERFACE"
+
+  If you find a table with column headers:
+  Read the header row from left to right, like reading a sentence.
+  Write down every label word you see in that header row, in order.
 
 output_format: |
+  STEP 1 - INTERFACE CHECK:
+  Is this a mobile app interface (cards/tiles with icons, NO column headers)?
+  Answer: [YES or NO]
+
+  If YES (mobile app):
+  Write: "NO COLUMN HEADERS - MOBILE INTERFACE"
+  MY CLASSIFICATION: MOBILE_APP_LIGHT_INLINE
+  [STOP HERE - do not continue to table analysis]
+
+  If NO (table format):
+  Continue below:
+
   HEADER ROW TEXT (reading left to right):
   [Write all the text you see in the header row, separated by commas]
 
@@ -41,6 +61,5 @@ output_format: |
   - If count is 4: TABLE_4COL_STANDARD
   - If count is 5: TABLE_5COL_STANDARD
   - If count is 6 or more: TABLE_EXTENDED_LOCATION
-  - If count is 0: MOBILE_APP_LIGHT_INLINE
 
   MY CLASSIFICATION: [identifier based on count above]
