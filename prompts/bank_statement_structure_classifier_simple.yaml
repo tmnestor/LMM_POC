@@ -10,7 +10,9 @@ instruction: |
   Look at the column headers at the top of the transaction table.
   These are labels like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
 
-  Read each column header from left to right and count them.
+  Read EVERY column header starting from the LEFTMOST column.
+  Move right and read each header until you reach the RIGHTMOST column.
+  Do not skip any columns.
 
 output_format: |
   TRANSACTION TABLE HEADERS (reading left to right):
