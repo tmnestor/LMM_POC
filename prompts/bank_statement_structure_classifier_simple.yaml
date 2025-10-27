@@ -15,11 +15,6 @@ instruction: |
   Find the row of column headers that labels the transaction columns.
   This header row appears DIRECTLY ABOVE the transaction data.
 
-  IMPORTANT - Column header wrapping:
-  A column header can span multiple text lines within a single column cell.
-  Count the number of COLUMNS (separated by vertical lines or spacing), NOT the number of text lines.
-  Example: If one column contains text on two lines, that is still ONE column header.
-
   IMPORTANT - What IS a header vs what is NOT:
   ✓ Headers are GENERIC LABELS like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
   ✗ Headers are NOT specific transaction data like: actual dates, merchant names, dollar amounts, transaction descriptions
@@ -30,10 +25,8 @@ instruction: |
   If mobile app: Write "NO COLUMN HEADERS - MOBILE INTERFACE"
 
   If you find a table with column headers:
-  Read the header row spatially, moving from one column to the next.
-  For each column position, read ALL the text in that column cell as ONE header label.
-  Move to the next column position (usually separated by vertical lines or significant spacing).
-  Do not extract individual words from multi-word headers as separate columns.
+  Read the header row from left to right, like reading a sentence.
+  Write down every label word you see in that header row, in order.
 
 output_format: |
   STEP 1 - INTERFACE CHECK:
