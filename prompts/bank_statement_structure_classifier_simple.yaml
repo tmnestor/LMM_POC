@@ -5,14 +5,13 @@ task: "classification"
 instruction: |
   Look at the bank statement image.
 
-  Find the transaction table - this is where individual transactions are listed.
+  Find the transaction table where transactions are listed.
 
-  Look at the column headers at the top of the transaction table.
-  These are labels like: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
+  At the top of this table, there is a row of column headers.
 
-  Read EVERY column header starting from the LEFTMOST column.
-  Move right and read each header until you reach the RIGHTMOST column.
-  Do not skip any columns.
+  Your task: List ALL the column headers from this table, starting from the left edge and moving to the right edge.
+
+  Include EVERY header you see. Do not skip any.
 
 output_format: |
   TRANSACTION TABLE HEADERS (reading left to right):
