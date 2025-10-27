@@ -11,6 +11,8 @@ instruction: |
 
   Your task: List ALL the column headers from this table, starting from the left edge and moving to the right edge.
 
+  IMPORTANT: The leftmost column is usually "Date" or "Date of Transaction". Start there and read every header moving right.
+
   Include EVERY header you see. Do not skip any.
 
 output_format: |
