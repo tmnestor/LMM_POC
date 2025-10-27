@@ -30,8 +30,10 @@ instruction: |
   If mobile app: Write "NO COLUMN HEADERS - MOBILE INTERFACE"
 
   If you find a table with column headers:
-  Read the header row from left to right, like reading a sentence.
-  Write down every label word you see in that header row, in order.
+  Read the header row spatially, moving from one column to the next.
+  For each column position, read ALL the text in that column cell as ONE header label.
+  Move to the next column position (usually separated by vertical lines or significant spacing).
+  Do not extract individual words from multi-word headers as separate columns.
 
 output_format: |
   STEP 1 - INTERFACE CHECK:
