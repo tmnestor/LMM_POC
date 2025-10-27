@@ -5,10 +5,20 @@ task: "classification"
 instruction: |
   Look at the bank statement image.
 
-  Find the row of column headers above the transaction data.
+  IGNORE these areas:
+  - Page numbers, account numbers at the top
+  - Logo, bank name, address information
+  - Summary sections, footer information
 
-  Read the header row from left to right, like reading a sentence.
-  Write down every word or label you see in the header row, in order.
+  FOCUS ON the transaction list area - this is where individual transactions are shown.
+
+  Find the row of column headers that labels the transaction columns.
+  This header row appears DIRECTLY ABOVE the transaction data.
+  Common transaction headers include: "Date", "Transaction", "Description", "Amount", "Debit", "Credit", "Balance"
+
+  Once you find the transaction header row:
+  Read it from left to right, like reading a sentence.
+  Write down every word or label you see in that header row, in order.
 
 output_format: |
   HEADER ROW TEXT (reading left to right):
