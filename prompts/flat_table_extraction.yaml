@@ -54,3 +54,14 @@ output_format: |
   LINE_ITEM_DESCRIPTIONS: [ {desc1} | {desc2} | {desc3} | ... ]
 
   TRANSACTION_AMOUNTS_PAID: [ {amount1} | {amount2} | {amount3} | ... ]
+
+  Example output:
+  DOCUMENT_TYPE: BANK_STATEMENT
+
+  STATEMENT_DATE_RANGE: [ 01/06/2024 - 30/06/2024 ]
+
+  TRANSACTION_DATES: [ 01/06/2024 | 01/06/2024 | 02/06/2024 | 05/06/2024 ]
+
+  LINE_ITEM_DESCRIPTIONS: [ EFTPOS Purchase - WOOLWORTHS | ATM Withdrawal | Direct Debit - ELECTRICITY | Online Transfer ]
+
+  TRANSACTION_AMOUNTS_PAID: [ 45.60 | 100.00 | 156.78 | 250.00 ]

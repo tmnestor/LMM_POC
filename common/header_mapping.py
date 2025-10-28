@@ -334,11 +334,10 @@ def generate_flat_table_prompt(mapping: dict[str, str | None], headers_pipe_sepa
     credit_col = mapping.get('CREDIT', 'Deposit')
     balance_col = mapping.get('BALANCE', 'Balance')
 
-    # Get instruction and output format from YAML
+    # Get instruction from YAML
     instruction_template = yaml_config.get('instruction', '')
-    output_format_template = yaml_config.get('output_format', '')
 
-    # Replace placeholders in instruction
+    # Replace placeholders in instruction with actual column names
     instruction = instruction_template.format(
         headers_pipe_separated=headers_pipe_separated,
         date_column=date_col,
@@ -348,7 +347,4 @@ def generate_flat_table_prompt(mapping: dict[str, str | None], headers_pipe_sepa
         balance_column=balance_col
     )
 
-    # Combine instruction and output format
-    full_prompt = f"{instruction}\n\n{output_format_template}"
-
-    return full_prompt
+    return instruction
