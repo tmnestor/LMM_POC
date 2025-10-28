@@ -6,6 +6,13 @@ description: "Template for extracting specific columns from bank statement trans
 # Note: The instruction field will be dynamically generated using header_mapping.generate_extraction_instruction()
 # This template defines the output format only
 
+anti_hallucination_rules: |
+  ANTI-HALLUCINATION RULES:
+  - YOU MUST NOT GUESS values you are unsure of
+  - Rows may have missing values
+  - Rows NEVER HAVE REPEATED AMOUNTS, SO YOU MUST NOT REPEAT VALUES THAT YOU ARE UNSURE OF
+  - If a value is unclear or missing, leave that field empty
+
 output_format: |
   Return as pipe-separated values with exactly these headers:
   Date | Description | Debit

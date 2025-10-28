@@ -1,0 +1,55 @@
+name: "Flat Table Extraction - 5 Column Format"
+version: "1.0"
+task: "extraction"
+description: "Basic flat 5-column bank statement extraction (Date, Description, Withdrawal, Credit, Balance)"
+
+instruction: |
+  You are an expert document analyzer specializing in bank statement extraction.
+  Extract structured data from this flat table bank statement for taxpayer expense claims.
+
+  CONVERSATION PROTOCOL:
+  - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
+  - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+  - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+  - Output ONLY the structured extraction data below
+  - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+  - NO explanations, NO comments, NO additional text
+
+  CRITICAL:
+  - The transaction table in the image has a "Date", a "Description", a "Withdrawal", a "Deposit" and a "Balance" column
+
+  ANTI-HALLUCINATION RULES:
+  - YOU MUST NOT GUESS values you are unsure of
+  - Rows may have missing values
+  - Rows NEVER HAVE REPEATED AMOUNTS, SO YOU MUST NOT REPEAT VALUES THAT YOU ARE UNSURE OF
+  - If a value is unclear or missing, use "NOT_FOUND" instead of guessing
+
+  STEP 1:
+  - Extract the Transaction Table formatted as markdown.
+
+  STEP 2:
+  - Extract the earliest and latest date in the "Date" column from the extracted Transaction Table in STEP 1
+  - Format as STATEMENT_DATE_RANGE: [ First date in "Date" column - Last date in "Date" column ]
+
+  STEP 3:
+  - Extract the "Date" column from the extracted Transaction Table in STEP 1
+  - Format as TRANSACTION_DATES: [ All "Date" column dates, each separated by " | " ] on a single line
+
+  STEP 4:
+  - Extract the "Description" column from the extracted Transaction Table in STEP 1
+  - Format as LINE_ITEM_DESCRIPTIONS: [ All "Description" column descriptions, each separated by " | " ] on a single line
+
+  STEP 5:
+  - Extract the "Withdrawal" column from the extracted Transaction Table in STEP 1, replacing missing values with "NOT_FOUND".
+  - Format as TRANSACTION_AMOUNTS_PAID: [ All "Withdrawal" column amounts each separated by " | " ] on a single line
+
+output_format: |
+  DOCUMENT_TYPE: BANK_STATEMENT
+
+  STATEMENT_DATE_RANGE: [ {first_date} - {last_date} ]
+
+  TRANSACTION_DATES: [ {date1} | {date2} | {date3} | ... ]
+
+  LINE_ITEM_DESCRIPTIONS: [ {desc1} | {desc2} | {desc3} | ... ]
+
+  TRANSACTION_AMOUNTS_PAID: [ {amount1} | {amount2} | {amount3} | ... ]

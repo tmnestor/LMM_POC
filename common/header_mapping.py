@@ -150,6 +150,12 @@ IMPORTANT:
 - Skip the header row
 - Extract EVERY transaction row you see
 - For the {debit_col} column, only extract if there is a value (ignore if blank or zero)
-- If a transaction is a credit/deposit (not a debit), leave the {debit_col} field blank"""
+- If a transaction is a credit/deposit (not a debit), leave the {debit_col} field blank
+
+ANTI-HALLUCINATION RULES:
+- YOU MUST NOT GUESS values you are unsure of
+- Rows may have missing values
+- Rows NEVER HAVE REPEATED AMOUNTS, SO YOU MUST NOT REPEAT VALUES THAT YOU ARE UNSURE OF
+- If a value is unclear or missing, leave that field empty"""
 
     return instruction
