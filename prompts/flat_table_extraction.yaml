@@ -16,7 +16,8 @@ instruction: |
   - NO explanations, NO comments, NO additional text
 
   CRITICAL:
-  - The transaction table in the image has a "Date", a "Description", a "Withdrawal", a "Deposit" and a "Balance" column
+  - The transaction table in the image has the following columns: {headers_pipe_separated}
+  - Specifically, it has a "{date_column}", a "{description_column}", a "{debit_column}", a "{credit_column}" and a "{balance_column}" column
 
   ANTI-HALLUCINATION RULES:
   - YOU MUST NOT GUESS values you are unsure of
@@ -28,20 +29,20 @@ instruction: |
   - Extract the Transaction Table formatted as markdown.
 
   STEP 2:
-  - Extract the earliest and latest date in the "Date" column from the extracted Transaction Table in STEP 1
-  - Format as STATEMENT_DATE_RANGE: [ First date in "Date" column - Last date in "Date" column ]
+  - Extract the earliest and latest date in the "{date_column}" column from the extracted Transaction Table in STEP 1
+  - Format as STATEMENT_DATE_RANGE: [ First date in "{date_column}" column - Last date in "{date_column}" column ]
 
   STEP 3:
-  - Extract the "Date" column from the extracted Transaction Table in STEP 1
-  - Format as TRANSACTION_DATES: [ All "Date" column dates, each separated by " | " ] on a single line
+  - Extract the "{date_column}" column from the extracted Transaction Table in STEP 1
+  - Format as TRANSACTION_DATES: [ All "{date_column}" column dates, each separated by " | " ] on a single line
 
   STEP 4:
-  - Extract the "Description" column from the extracted Transaction Table in STEP 1
-  - Format as LINE_ITEM_DESCRIPTIONS: [ All "Description" column descriptions, each separated by " | " ] on a single line
+  - Extract the "{description_column}" column from the extracted Transaction Table in STEP 1
+  - Format as LINE_ITEM_DESCRIPTIONS: [ All "{description_column}" column descriptions, each separated by " | " ] on a single line
 
   STEP 5:
-  - Extract the "Withdrawal" column from the extracted Transaction Table in STEP 1, replacing missing values with "NOT_FOUND".
-  - Format as TRANSACTION_AMOUNTS_PAID: [ All "Withdrawal" column amounts each separated by " | " ] on a single line
+  - Extract the "{debit_column}" column from the extracted Transaction Table in STEP 1, replacing missing values with "NOT_FOUND".
+  - Format as TRANSACTION_AMOUNTS_PAID: [ All "{debit_column}" column amounts each separated by " | " ] on a single line
 
 output_format: |
   DOCUMENT_TYPE: BANK_STATEMENT
