@@ -2,12 +2,22 @@
 
 <|image|>Explain the structure of the transaction table<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-The image presents a transaction table for the Commonwealth Bank of Australia, detailing financial transactions from August 7, 2025, to September 6, 2025. The table is structured into the following columns:
+The table has seven columns and six rows, with a header row at the top and a footer row at the bottom. The columns are labeled as follows:
 
-*   **Date**: Displays the date of each transaction.
-*   **Transaction**: Lists the type of transaction, including debit or credit.
-*   **Debit**: Shows the amount deducted from the account balance.
-*   **Credit**: Shows the amount added to the account balance.
-*   **Balance**: Displays the updated account balance after each transaction.
+*   **Date**: This column displays the date of each transaction, formatted as "DD/MM/YYYY".
+*   **Description**: This column provides a brief description of each transaction.
+*   **Withdrawal**: This column shows the amount withdrawn from the account for each transaction.
+*   **Deposit**: This column shows the amount deposited into the account for each transaction.
+*   **Balance**: This column displays the current balance of the account after each transaction.
 
-The table provides a clear and organized view of the account's activity during the specified period, allowing users to track their financial transactions and monitor their account balance.<|eot_id|>
+The footer row contains additional information about the account, including:
+
+*   **Transaction Types**: This section lists the different types of transactions that can be performed on the account, such as EFTPOS PURCHASE WOOLWORTHS, INTEREST PAYMENT, REFUND PROCESSED, DIRECT CREDIT SALARY, and ATM WITHDRAWAL ANZ ATM.
+*   **Interest Payment**: This section shows the interest payment amount for the account.
+*   **Refund Processed**: This section shows the refund amount for the account.
+*   **Direct Credit Salary**: This section shows the direct credit salary amount for the account.
+*   **ATM Withdrawal ANZ ATM**: This section shows the ATM withdrawal amount for the account.
+*   **Phone**: This section provides the phone number for the bank.
+*   **Text**: This section provides the text version of the statement.
+
+Overall, the table provides a clear and organized summary of the account's transactions and current balance, along with additional information about the account and its features.<|eot_id|>
