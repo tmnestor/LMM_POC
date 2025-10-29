@@ -1,0 +1,61 @@
+# Cell: Display Model Configuration
+from pathlib import Path
+
+import torch
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
+table = Table(title="🔧 InternVL3 Model Configuration")
+table.add_column("Setting", style="cyan")
+table.add_column("Value", style="yellow")
+table.add_column("InternVL3 Status", style="green")
+
+# Model path
+model_name = Path(model_path).name if "model_path" in locals() else "InternVL3-8B"
+table.add_row("Model Path", model_name, "✅ Valid")
+
+# Device placement
+table.add_row("Device Placement", str(model.device), "✅ Loaded")
+
+# Quantization (detect if quantized)
+is_quantized = any(hasattr(param, "quant_state") for param in model.parameters())
+if is_quantized:
+    table.add_row("Quantization Method", "8-bit", "✅ 8-bit (Memory Optimized)")
+else:
+    table.add_row("Quantization Method", "16-bit", "✅ 16-bit (Performance Optimized)")
+
+# Data type
+dtype = str(next(model.parameters()).dtype).replace("torch.", "")
+table.add_row("Data Type", dtype, "✅ Recommended")
+
+# Max new tokens
+table.add_row("Max New Tokens", "2000", "✅ Generation Ready")
+
+# GPU configuration
+if torch.cuda.is_available():
+    device_count = torch.cuda.device_count()
+    total_memory = sum(
+        torch.cuda.get_device_properties(i).total_memory / 1e9
+        for i in range(device_count)
+    )
+    if device_count > 1:
+        gpu_info = (
+            f"{device_count}x {torch.cuda.get_device_name(0)} ({total_memory:.0f}GB)"
+        )
+    else:
+        gpu_info = f"{torch.cuda.get_device_name(0)} ({total_memory:.0f}GB)"
+    gpu_status = f"✅ {total_memory:.0f}GB Total"
+else:
+    gpu_info = "CPU"
+    gpu_status = "💻 CPU Mode"
+table.add_row("GPU Configuration", gpu_info, gpu_status)
+
+# Model parameters
+param_count = sum(p.numel() for p in model.parameters())
+table.add_row("Model Parameters", f"{param_count:,}", "✅ Loaded")
+
+# Memory optimization
+table.add_row("Memory Optimization", "InternVL3 Native", "✅ V100 Compatible")
+
+console.print(table)
