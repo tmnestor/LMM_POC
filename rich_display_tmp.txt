@@ -1,73 +1,16 @@
-# Cell: Comprehensive Model Precision Verification
-import torch
-from rich.console import Console
-from rich.table import Table
+print("🔧 Loading InternVL3-8B in pure float16...")
+model = AutoModel.from_pretrained(
+    model_path,
+    torch_dtype=torch.float16,           # Target dtype
+    device_map="auto",                    # Auto GPU distribution
+    low_cpu_mem_usage=True,               # Optional: reduces CPU RAM during loading
+    trust_remote_code=True                # Required for InternVL3
+).eval()
 
-console = Console()
+tokenizer = AutoTokenizer.from_pretrained(
+    model_path,
+    trust_remote_code=True,
+    use_fast=False
+)
 
-print("🔍 COMPREHENSIVE MODEL PRECISION VERIFICATION\n")
-
-# 1. Check parameter dtype
-param_dtype = next(model.parameters()).dtype
-print(f"1️⃣ Model parameter dtype: {param_dtype}")
-
-# 2. Check all unique dtypes
-unique_dtypes = set(param.dtype for param in model.parameters())
-print(f"2️⃣ All unique dtypes in model: {unique_dtypes}")
-
-# 3. Check for quantization config
-has_quant_config = hasattr(model, 'config') and hasattr(model.config, 'quantization_config')
-print(f"3️⃣ Has quantization config: {has_quant_config}")
-if has_quant_config:
-    print(f"   Config: {model.config.quantization_config}")
-
-# 4. Check for bitsandbytes quantization
-has_quant_state = any(hasattr(param, 'quant_state') for param in model.parameters())
-print(f"4️⃣ Has quantized parameters (bitsandbytes): {has_quant_state}")
-
-# 5. Memory verification
-total_params = sum(p.numel() for p in model.parameters())
-bytes_per_param = {
-    torch.float16: 2,
-    torch.bfloat16: 2,
-    torch.float32: 4,
-    torch.int8: 1,
-}
-expected_size = (total_params * bytes_per_param.get(param_dtype, 2)) / 1e9
-actual_allocated = sum(torch.cuda.memory_allocated(i) for i in range(torch.cuda.device_count())) / 1e9
-
-print(f"5️⃣ Memory verification:")
-print(f"   Total parameters: {total_params:,}")
-print(f"   Bytes per param: {bytes_per_param.get(param_dtype, 'unknown')}")
-print(f"   Expected size: {expected_size:.2f} GB")
-print(f"   Actual allocated: {actual_allocated:.2f} GB")
-
-# Final verdict
-print("\n" + "="*60)
-if param_dtype == torch.float16:
-    print("✅ CONFIRMED: Model is using float16 (16-bit precision)")
-elif param_dtype == torch.bfloat16:
-    print("✅ CONFIRMED: Model is using bfloat16 (16-bit precision)")
-elif param_dtype == torch.int8:
-    print("❌ WARNING: Model is using int8 (8-bit quantized)")
-else:
-    print(f"⚠️ Model is using: {param_dtype}")
-
-if not has_quant_config and not has_quant_state:
-    print("✅ CONFIRMED: No quantization detected")
-print("="*60)
-
-# Display summary table
-table = Table(title="🔍 Precision Verification Summary")
-table.add_column("Check", style="cyan")
-table.add_column("Result", style="yellow")
-table.add_column("Status", style="green")
-
-table.add_row("Parameter dtype", str(param_dtype), "✅" if param_dtype in [torch.float16, torch.bfloat16] else
-"❌")
-table.add_row("Quantization config", str(has_quant_config), "✅" if not has_quant_config else "❌")
-table.add_row("Quantized parameters", str(has_quant_state), "✅" if not has_quant_state else "❌")
-table.add_row("Expected size (GB)", f"{expected_size:.2f}", "✅")
-table.add_row("Actual allocated (GB)", f"{actual_allocated:.2f}", "✅")
-
-console.print(table)
+print("✅ Model loaded in float16 (no quantization)")
