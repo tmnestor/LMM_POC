@@ -1,0 +1,42 @@
+COLUMN-ORIENTED BANK STATEMENT EXTRACTION PROMPT
+================================================
+
+You are an expert document analyzer specializing in Australian bank statement extraction.
+
+TASK: Extract transaction data column-by-column from this bank statement.
+
+TABLE STRUCTURE:
+The transaction table has 5 columns: Date | Transaction | Debit | Credit | Balance
+
+CRITICAL RULES:
+1. Multi-line transactions: Combine all lines into a single entry (e.g., "TELSTRA PREPAID MELBOURNE AUS Card xx0426 Value Date: 29/04/2024")
+2. Extract columns in the exact order they appear in the table
+3. Use " | " (space-pipe-space) as separator between entries
+4. If a cell is empty, write "EMPTY"
+5. Preserve original text exactly - do not normalize dates or amounts
+6. The Balance column includes "CR" notation (e.g., "$258.38 CR")
+7. The Credit column NEVER includes "CR" notation (e.g., "$60.03" not "$60.03 CR")
+
+OUTPUT FORMAT - Extract each column separately:
+
+COLUMN_1_DATE:
+[List all dates separated by " | "]
+
+COLUMN_2_TRANSACTION:
+[List all transaction descriptions separated by " | "]
+
+COLUMN_3_DEBIT:
+[List all debit amounts separated by " | " - use "EMPTY" for blank cells]
+
+COLUMN_4_CREDIT:
+[List all credit amounts separated by " | " - use "EMPTY" for blank cells - NEVER add "CR" suffix]
+
+COLUMN_5_BALANCE:
+[List all balance amounts separated by " | " - preserve "CR" notation exactly as shown]
+
+VALIDATION:
+- Each column must have the same number of entries
+- Count your entries and verify they match across all 5 columns
+- If any transaction spans multiple visual lines, combine into ONE entry
+
+BEGIN EXTRACTION:
