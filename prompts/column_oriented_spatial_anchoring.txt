@@ -1,0 +1,70 @@
+COLUMN-ORIENTED BANK STATEMENT EXTRACTION WITH SPATIAL ANCHORING
+================================================================
+
+You are an expert at extracting data from Australian bank statements.
+
+TASK: Extract each column separately by reading DIRECTLY UNDER each column header.
+
+STEP 1 - IDENTIFY COLUMN HEADERS:
+Look at the table header row. You should see 5 column headers:
+- Column header 1: "Date" or "Date of Transaction"
+- Column header 2: "Transaction" or "Description"
+- Column header 3: "Debit" or "Withdrawal"
+- Column header 4: "Credit" or "Deposit"
+- Column header 5: "Balance"
+
+STEP 2 - EXTRACT COLUMN BY COLUMN USING SPATIAL POSITION:
+
+For DATE column (Column 1):
+- Read ONLY the text positioned DIRECTLY UNDER the "Date" header
+- This is typically SHORT text like "15 Mar" or "15 Mar 2024"
+- Do NOT include text that extends into the next column
+
+For TRANSACTION column (Column 2):
+- Read ONLY the text positioned DIRECTLY UNDER the "Transaction" or "Description" header
+- This is typically LONGER text describing the transaction
+- If the description spans multiple lines vertically, combine them
+- Do NOT include the date from the previous column
+
+For DEBIT column (Column 3):
+- Read amounts positioned DIRECTLY UNDER the "Debit" or "Withdrawal" header
+- If empty, write "EMPTY"
+
+For CREDIT column (Column 4):
+- Read amounts positioned DIRECTLY UNDER the "Credit" or "Deposit" header
+- If empty, write "EMPTY"
+- NEVER add "CR" suffix
+
+For BALANCE column (Column 5):
+- Read amounts positioned DIRECTLY UNDER the "Balance" header
+- Preserve "CR" notation exactly as shown
+
+CRITICAL SPATIAL RULE:
+Think of each column as a VERTICAL strip under its header. Only extract text within that vertical strip.
+
+Example of CORRECT spatial extraction:
+```
+Headers:  | Date    | Transaction              | Debit   | Credit  | Balance      |
+Row 1:    | 15 Mar  | SUPERMARKET PAYMENT      | $45.00  | EMPTY   | $1,200.00 CR |
+```
+DATE_COLUMN: "15 Mar" (NOT "15 Mar SUPERMARKET PAYMENT")
+TRANSACTION_COLUMN: "SUPERMARKET PAYMENT" (NOT "Card details" if that's on next line)
+
+OUTPUT FORMAT:
+
+DATE_COLUMN:
+[First date] | [Second date] | [Third date] | ...
+
+TRANSACTION_COLUMN:
+[First description] | [Second description] | [Third description] | ...
+
+DEBIT_COLUMN:
+[First amount or EMPTY] | [Second amount or EMPTY] | ...
+
+CREDIT_COLUMN:
+[First amount or EMPTY] | [Second amount or EMPTY] | ...
+
+BALANCE_COLUMN:
+[First balance] | [Second balance] | ...
+
+Begin extraction by first identifying the column headers, then extract each column's data.
