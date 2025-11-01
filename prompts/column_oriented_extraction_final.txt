@@ -1,0 +1,64 @@
+COLUMN-ORIENTED BANK STATEMENT EXTRACTION PROMPT
+==================================================
+
+You are an expert at extracting data from Australian bank statements.
+
+TASK: Extract each column separately from the transaction table.
+
+TABLE STRUCTURE:
+Column 1: DATE (just the date portion)
+Column 2: TRANSACTION (the description text)
+Column 3: DEBIT (withdrawal amounts, may be empty)
+Column 4: CREDIT (deposit amounts, may be empty)
+Column 5: BALANCE (running balance with "CR" notation)
+
+CRITICAL INSTRUCTIONS:
+
+For DATE column:
+- Extract ONLY the date portion from the leftmost column
+- Do NOT include any transaction description text
+- Example format: "15 Mar" or "16 Mar" (NOT "15 Mar WOOLWORTHS PAYMENT")
+
+For TRANSACTION column:
+- Extract ONLY the description text (everything after the date)
+- If the description spans multiple lines, combine them with spaces
+- Example: "WOOLWORTHS PAYMENT Card xx1234 Value Date: 20/03/2024"
+
+For DEBIT column:
+- Extract amounts from the Debit/Withdrawal column
+- If cell is empty, write "EMPTY"
+- Example: "$45.00" or "EMPTY"
+
+For CREDIT column:
+- Extract amounts from the Credit/Deposit column
+- If cell is empty, write "EMPTY"
+- NEVER add "CR" suffix to these amounts
+- Example: "$120.50" or "EMPTY" (NOT "$120.50 CR")
+
+For BALANCE column:
+- Extract amounts from the Balance column
+- Keep "CR" notation exactly as shown in the image
+- Example: "$1,234.56 CR"
+
+OUTPUT FORMAT:
+
+Extract each column using " | " as separator between entries.
+
+DATE_COLUMN:
+[First date] | [Second date] | [Third date] | ...
+
+TRANSACTION_COLUMN:
+[First description] | [Second description] | [Third description] | ...
+
+DEBIT_COLUMN:
+[First amount or EMPTY] | [Second amount or EMPTY] | [Third amount or EMPTY] | ...
+
+CREDIT_COLUMN:
+[First amount or EMPTY] | [Second amount or EMPTY] | [Third amount or EMPTY] | ...
+
+BALANCE_COLUMN:
+[First balance] | [Second balance] | [Third balance] | ...
+
+VALIDATION:
+- All 5 columns must have the same number of entries
+- Count and verify the entry count matches across all columns
