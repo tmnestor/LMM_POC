@@ -1,0 +1,131 @@
+SINGLE-COLUMN MULTI-TURN EXTRACTION WORKFLOW
+============================================
+
+This workflow extracts one column at a time across 5 separate conversation turns.
+
+---
+
+TURN 1: EXTRACT DATE COLUMN ONLY
+=================================
+
+Look at the transaction table in this bank statement.
+
+Find the leftmost column with the header "Date" or "Date of Transaction".
+
+Extract ONLY the date values from this column, ignoring all other columns.
+
+Important:
+- Extract ONLY dates (e.g., "15 Mar 2024")
+- Do NOT include transaction descriptions
+- Do NOT include amounts
+- List one date per line
+
+Output format:
+[First date]
+[Second date]
+[Third date]
+...
+
+---
+
+TURN 2: EXTRACT TRANSACTION COLUMN ONLY
+========================================
+
+Look at the transaction table in this bank statement.
+
+Find the column with the header "Transaction" or "Description".
+
+This column is located IMMEDIATELY TO THE RIGHT of the Date column.
+
+Extract ONLY the transaction descriptions from this column, ignoring all other columns.
+
+Important:
+- Extract ONLY transaction descriptions
+- If a description spans multiple lines, combine them
+- Do NOT include dates
+- Do NOT include amounts
+- List one description per line
+
+Output format:
+[First description]
+[Second description]
+[Third description]
+...
+
+---
+
+TURN 3: EXTRACT DEBIT COLUMN ONLY
+==================================
+
+Look at the transaction table in this bank statement.
+
+Find the column with the header "Debit" or "Withdrawal".
+
+Extract ONLY the debit amounts from this column, ignoring all other columns.
+
+Important:
+- Extract ONLY debit amounts with currency symbols
+- If a cell is empty, write "EMPTY"
+- Do NOT extract credit amounts or balance amounts
+- List one amount per line
+
+Output format:
+[First amount or EMPTY]
+[Second amount or EMPTY]
+[Third amount or EMPTY]
+...
+
+---
+
+TURN 4: EXTRACT CREDIT COLUMN ONLY
+===================================
+
+Look at the transaction table in this bank statement.
+
+Find the column with the header "Credit" or "Deposit".
+
+Extract ONLY the credit amounts from this column, ignoring all other columns.
+
+Important:
+- Extract ONLY credit amounts with currency symbols
+- If a cell is empty, write "EMPTY"
+- NEVER add "CR" suffix to these amounts
+- Do NOT extract debit amounts or balance amounts
+- List one amount per line
+
+Output format:
+[First amount or EMPTY]
+[Second amount or EMPTY]
+[Third amount or EMPTY]
+...
+
+---
+
+TURN 5: EXTRACT BALANCE COLUMN ONLY
+====================================
+
+Look at the transaction table in this bank statement.
+
+Find the rightmost column with the header "Balance".
+
+Extract ONLY the balance amounts from this column, ignoring all other columns.
+
+Important:
+- Extract ONLY balance amounts
+- Preserve "CR" notation exactly as shown
+- Do NOT extract debit or credit amounts
+- List one balance per line
+
+Output format:
+[First balance]
+[Second balance]
+[Third balance]
+...
+
+---
+
+IMPLEMENTATION NOTES:
+- Each turn is a separate conversation with the image
+- Use chat_with_mllm() for each turn
+- Combine results programmatically after all 5 turns complete
+- Validate that all 5 columns have the same row count
