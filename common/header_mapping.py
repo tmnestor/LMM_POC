@@ -348,3 +348,106 @@ def generate_flat_table_prompt(mapping: dict[str, str | None], headers_pipe_sepa
     )
 
     return instruction
+
+
+def parse_5_column_headers(turn0_response: str) -> dict[str, str]:
+    """Parse Turn 0 response from multi-turn extraction to extract 5-column bank statement headers.
+
+    Designed for standard 5-column bank statement structure:
+    - Position 1 (index 0) = Date column
+    - Position 2 (index 1) = Description/Transaction column
+    - Position 3 (index 2) = Debit/Withdrawal column
+    - Position 4 (index 3) = Credit/Deposit column
+    - Position 5 (index 4) = Balance column
+
+    Args:
+        turn0_response: String response from Turn 0 header identification
+
+    Returns:
+        Dictionary mapping semantic field names to actual column names:
+        {'date': str, 'description': str, 'debit': str, 'credit': str, 'balance': str}
+
+    Note:
+        Falls back to intelligent defaults if parsing fails or returns != 5 columns.
+        Uses keyword matching to assign extracted headers to appropriate positions.
+    """
+    # Default column mapping (fallback for standard bank statements)
+    DEFAULT_COLUMNS = {
+        'date': 'Date',
+        'description': 'Description',
+        'debit': 'Debit',
+        'credit': 'Credit',
+        'balance': 'Balance'
+    }
+
+    # Extract the header line from the response
+    lines = turn0_response.strip().split('\n')
+    header_line = None
+
+    for line in lines:
+        # Look for line with commas (likely the headers)
+        if ',' in line and 'HEADERS' not in line.upper():
+            header_line = line
+            break
+
+    if header_line is None:
+        print("⚠️  Failed to parse headers from Turn 0 response. Using defaults.")
+        print(f"Response was:\n{turn0_response}\n")
+        return DEFAULT_COLUMNS
+
+    # Parse comma-separated headers and strip whitespace
+    headers = [h.strip() for h in header_line.split(',')]
+
+    # Remove markdown bullet points from first header
+    if headers and headers[0].startswith(('- ', '* ')):
+        headers[0] = headers[0][2:]
+
+    # If we got exactly 5 headers, use position-based mapping
+    if len(headers) == 5:
+        column_map = {
+            'date': headers[0],
+            'description': headers[1],
+            'debit': headers[2],
+            'credit': headers[3],
+            'balance': headers[4]
+        }
+        print("✅ Successfully parsed 5 column headers")
+        return column_map
+
+    # If not exactly 5, try to infer positions intelligently
+    print(f"⚠️  Expected 5 column headers, but found {len(headers)}.")
+    print(f"Headers found: {headers}")
+    print("Applying intelligent defaults with keyword matching...")
+
+    # Start with defaults
+    column_map = DEFAULT_COLUMNS.copy()
+
+    # Try to match extracted headers to positions based on keywords
+    for header in headers:
+        header_lower = header.lower()
+
+        # Date column
+        if any(kw in header_lower for kw in ['date', 'day']):
+            column_map['date'] = header
+
+        # Description column
+        elif any(kw in header_lower for kw in ['description', 'transaction', 'details', 'particulars']):
+            column_map['description'] = header
+
+        # Debit column
+        elif any(kw in header_lower for kw in ['debit', 'withdrawal', 'dr']):
+            column_map['debit'] = header
+
+        # Credit column
+        elif any(kw in header_lower for kw in ['credit', 'deposit', 'cr']):
+            column_map['credit'] = header
+
+        # Balance column
+        elif any(kw in header_lower for kw in ['balance', 'bal']):
+            column_map['balance'] = header
+
+    print("✅ Applied column mapping with defaults:")
+    for key, value in column_map.items():
+        print(f"   {key}: {value}")
+
+    return column_map
