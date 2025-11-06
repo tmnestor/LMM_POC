@@ -1679,10 +1679,17 @@ def calculate_field_accuracy_f1(
 
             if is_id_field:
                 # ID fields require exact match (no fuzzy matching)
-                # Remove spaces and formatting for comparison
-                extracted_clean = re.sub(r"[\s\-]", "", extracted_normalized)
-                ground_truth_clean = re.sub(r"[\s\-]", "", ground_truth_normalized)
+                # ROBUST NORMALIZATION: Handle variations in both extracted and ground truth
+                # Step 1: Remove field label prefixes (ABN, ABN:, BSB, BSB:, etc.)
+                id_label_pattern = r"^(ABN|BSB|ACN|GST|TAX|ID|NUMBER|NO\.?|#)\s*:?\s*"
+                extracted_clean = re.sub(id_label_pattern, "", extracted_normalized, flags=re.IGNORECASE)
+                ground_truth_clean = re.sub(id_label_pattern, "", ground_truth_normalized, flags=re.IGNORECASE)
 
+                # Step 2: Remove ALL spaces, dashes, and formatting
+                extracted_clean = re.sub(r"[\s\-]", "", extracted_clean)
+                ground_truth_clean = re.sub(r"[\s\-]", "", ground_truth_clean)
+
+                # Step 3: Case-insensitive comparison
                 if extracted_clean.lower() == ground_truth_clean.lower():
                     f1_score = 1.0
                 else:

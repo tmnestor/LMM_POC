@@ -332,6 +332,7 @@ class ExtractionCleaner:
         Clean ID fields (ABN, account numbers, etc.).
 
         Handles:
+        - Remove field label prefixes (ABN, BSB, GST, etc.)
         - Normalize spacing in formatted numbers
         - Clean up extra characters
         - Preserve number grouping where appropriate
@@ -341,16 +342,23 @@ class ExtractionCleaner:
 
         cleaned = value.strip()
 
-        # For ABN and similar formatted numbers, normalize spacing
-        if re.match(r"^\d{2}\s+\d{3}\s+\d{3}\s+\d{3}$", cleaned):
-            # ABN format: XX XXX XXX XXX
-            parts = cleaned.split()
-            cleaned = " ".join(parts)
-        elif re.match(r"^\d{3}-\d{3}$", cleaned):
-            # BSB format: XXX-XXX
+        # CRITICAL: Remove field label prefixes that VLMs often include
+        # Common patterns: "ABN 12345", "ABN: 12345", "GST 12345", "BSB 123-456"
+        id_label_pattern = r"^(ABN|BSB|ACN|GST|TAX|ID|NUMBER|NO\.?|#)\s*:?\s*"
+        cleaned = re.sub(id_label_pattern, "", cleaned, flags=re.IGNORECASE).strip()
+
+        # For ABN: Remove ALL spaces to match ground truth format
+        # Ground truth stores ABN as: "96723184640" (no spaces)
+        # VLMs extract as: "ABN 9672 3184 640" or "96 723 184 640"
+        # After prefix removal: "9672 3184 640" -> "96723184640"
+        if re.match(r"^\d+(\s+\d+)+$", cleaned) and len(cleaned.replace(" ", "")) == 11:
+            # This is an 11-digit ABN with spaces - remove all spaces
             cleaned = cleaned.replace(" ", "")
+        elif re.match(r"^\d{3}-\d{3}$", cleaned):
+            # BSB format: XXX-XXX - keep the dash
+            pass
         else:
-            # General ID cleaning - remove extra spaces but preserve structure
+            # General ID cleaning - normalize whitespace
             cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
         return cleaned if cleaned else "NOT_FOUND"
@@ -386,11 +394,14 @@ class ExtractionCleaner:
         if self.debug and original_cleaned != cleaned and "*" in original_cleaned:
             print(f"🧹 CLEANER DEBUG: '{original_cleaned}' → '{cleaned}'")
 
-        # Normalize whitespace
+        # Normalize whitespace - collapse multiple spaces to single space
         cleaned = re.sub(r"\s+", " ", cleaned)
 
         # Remove trailing punctuation that might be artifacts
         cleaned = re.sub(r"\s*[,;]\s*$", "", cleaned)
+
+        # Final trim to remove any leading/trailing whitespace
+        cleaned = cleaned.strip()
 
         return cleaned if cleaned else "NOT_FOUND"
 
@@ -461,7 +472,12 @@ class ExtractionCleaner:
         # Clean up any trailing punctuation left after removals
         cleaned = re.sub(r"\s*[;\-]\s*$", "", cleaned)
 
-        # Normalize whitespace (multiple spaces to single space)
+        # Remove spaces around slashes (for unit numbers like "1 / 92" -> "1/92")
+        cleaned = re.sub(r"\s*/\s*", "/", cleaned)
+
+        # CRITICAL: Aggressive whitespace normalization - MUST be last step
+        # Replace ANY sequence of whitespace (spaces, tabs, non-breaking spaces, Unicode spaces) with single space
+        # This handles double spaces, triple spaces, tabs, etc.
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
         if self.debug and cleaned != value.strip():
