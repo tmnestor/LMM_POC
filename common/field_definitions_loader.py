@@ -60,6 +60,23 @@ class SimpleFieldLoader:
         evaluation = config.get("evaluation", {})
         return evaluation.get("critical_fields", ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT"])
 
+    def get_field_types(self) -> Dict[str, List[str]]:
+        """
+        Get field type classifications from YAML config.
+
+        Returns:
+            Dict mapping type name to list of fields:
+            {
+                'boolean': ['IS_GST_INCLUDED'],
+                'monetary': ['GST_AMOUNT', 'TOTAL_AMOUNT', ...],
+                'list': ['LINE_ITEM_DESCRIPTIONS', ...],
+                ...
+            }
+        """
+        config = self._load_config()
+        evaluation = config.get("evaluation", {})
+        return evaluation.get("field_types", {})
+
 
 # Convenience functions for backward compatibility
 def get_document_field_list(document_type: str = "invoice") -> List[str]:

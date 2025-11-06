@@ -212,19 +212,22 @@ def _get_config():
                 self.field_count = len(self.extraction_fields)
                 self.active_field_count = len(self.extraction_fields)
 
+                # Load field type classifications from YAML
+                field_types_from_yaml = loader.get_field_types()
+
                 # Simplified field types - all text for simplicity
                 self.field_types = {field: "text" for field in self.extraction_fields}
 
-                # Simplified field classifications - minimal for compatibility
+                # Load field classifications from YAML config
                 self.phone_fields = []
-                self.list_fields = []
-                self.monetary_fields = []
+                self.list_fields = field_types_from_yaml.get("list", [])
+                self.monetary_fields = field_types_from_yaml.get("monetary", [])
                 self.numeric_id_fields = []
-                self.date_fields = []
-                self.text_fields = self.extraction_fields  # All fields are text by default
-                self.boolean_fields = []
-                self.calculated_fields = []
-                self.transaction_list_fields = []
+                self.date_fields = field_types_from_yaml.get("date", [])
+                self.text_fields = field_types_from_yaml.get("text", self.extraction_fields)
+                self.boolean_fields = field_types_from_yaml.get("boolean", [])
+                self.calculated_fields = field_types_from_yaml.get("calculated", [])
+                self.transaction_list_fields = field_types_from_yaml.get("transaction_list", [])
 
         _config = SimpleConfig(loader)
     return _config
