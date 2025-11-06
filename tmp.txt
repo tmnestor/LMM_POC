@@ -1,9 +1,10 @@
-  # After the fuzzy ground truth lookup block (after line 285)
-  if verbose:
-      rprint(f"[yellow]🔍 GT LOOKUP DEBUG for {image_name}:[/yellow]")
-      rprint(f"  Image name: {image_name}")
-      rprint(f"  Image stem: {Path(image_path).stem}")
-      rprint(f"  GT keys available: {list(self.ground_truth_data.keys())[:5]}")  # First 5
-      rprint(f"  GT found: {bool(ground_truth)}")
-      if ground_truth:
-          rprint(f"  GT document_type: {ground_truth.get('DOCUMENT_TYPE', 'MISSING')}")
+# Test if boolean field checking works
+from common.evaluation_metrics import calculate_field_accuracy_f1
+from common.config import get_boolean_fields
+
+print("Boolean fields:", get_boolean_fields())
+print("IS_GST_INCLUDED in boolean fields?", "IS_GST_INCLUDED" in get_boolean_fields())
+
+# Test the evaluation directly
+result = calculate_field_accuracy_f1("false", "False", "IS_GST_INCLUDED", debug=True)
+print("Test result:", result)
