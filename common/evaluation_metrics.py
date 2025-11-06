@@ -1621,6 +1621,30 @@ def calculate_field_accuracy_f1(
             extracted_normalized = " ".join(extracted.split())
             ground_truth_normalized = " ".join(ground_truth.split())
 
+            # For boolean fields (IS_GST_INCLUDED), use case-insensitive boolean comparison
+            if field_name in get_boolean_fields():
+                # Parse both values to boolean (handles "true"/"True"/"TRUE", "false"/"False"/"FALSE")
+                extracted_bool = _parse_boolean_value(extracted_normalized)
+                ground_truth_bool = _parse_boolean_value(ground_truth_normalized)
+
+                # Business logic: If ground truth is NOT_FOUND and extracted is "false", that's correct
+                # Rationale: No GST field on document means IS_GST_INCLUDED = false
+                if ground_truth.upper() == "NOT_FOUND" and extracted_bool is False:
+                    match = True
+                elif extracted_bool is not None and ground_truth_bool is not None:
+                    match = extracted_bool == ground_truth_bool
+                else:
+                    match = False
+
+                return {
+                    "f1_score": 1.0 if match else 0.0,
+                    "precision": 1.0 if match else 0.0,
+                    "recall": 1.0 if match else 0.0,
+                    "tp": 1 if match else 0,
+                    "fp": 0 if match else 1,
+                    "fn": 0 if match else 1,
+                }
+
             # For date fields, use date-aware comparison that normalizes formats
             # This handles cases like "16/07/2025" vs "16-Jul-25" (same date, different format)
             date_field_keywords = ["DATE", "DUE_DATE", "INVOICE_DATE", "STATEMENT_DATE"]
