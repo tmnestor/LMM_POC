@@ -215,6 +215,10 @@ def _get_config():
                 # Load field type classifications from YAML
                 field_types_from_yaml = loader.get_field_types()
 
+                # DEBUG: Print what was loaded
+                print(f"DEBUG: field_types_from_yaml = {field_types_from_yaml}")
+                print(f"DEBUG: boolean fields from YAML = {field_types_from_yaml.get('boolean', [])}")
+
                 # Simplified field types - all text for simplicity
                 self.field_types = {field: "text" for field in self.extraction_fields}
 
@@ -228,6 +232,9 @@ def _get_config():
                 self.boolean_fields = field_types_from_yaml.get("boolean", [])
                 self.calculated_fields = field_types_from_yaml.get("calculated", [])
                 self.transaction_list_fields = field_types_from_yaml.get("transaction_list", [])
+
+                # DEBUG: Print what was set
+                print(f"DEBUG: self.boolean_fields = {self.boolean_fields}")
 
         _config = SimpleConfig(loader)
     return _config
@@ -323,6 +330,9 @@ def _ensure_fields_loaded():
         BOOLEAN_FIELDS = config.boolean_fields
         CALCULATED_FIELDS = config.calculated_fields
         TRANSACTION_LIST_FIELDS = config.transaction_list_fields
+
+        # DEBUG: Print what was set
+        print(f"DEBUG _ensure_fields_loaded: BOOLEAN_FIELDS = {BOOLEAN_FIELDS}")
 
 
 # Initialize fields on module import for backward compatibility
