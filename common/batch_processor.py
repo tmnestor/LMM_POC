@@ -213,6 +213,9 @@ class BatchDocumentProcessor:
                 rprint(
                     f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]"
                 )
+                # DEBUG: Show sample GT keys to verify loading
+                sample_keys = list(self.ground_truth_data.keys())[:3]
+                rprint(f"[cyan]📋 Sample GT keys: {sample_keys}[/cyan]")
         except Exception as e:
             if verbose:
                 rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
@@ -283,6 +286,16 @@ class BatchDocumentProcessor:
                             if Path(gt_key).stem == image_stem or gt_key == image_stem:
                                 ground_truth = self.ground_truth_data[gt_key]
                                 break
+
+                # DEBUG: Show ground truth lookup results
+                if verbose:
+                    rprint(f"[yellow]🔍 GT LOOKUP DEBUG for {image_name}:[/yellow]")
+                    rprint(f"  Image name: {image_name}")
+                    rprint(f"  Image stem: {Path(image_path).stem}")
+                    rprint(f"  GT keys available: {list(self.ground_truth_data.keys())[:5]}")  # First 5
+                    rprint(f"  GT found: {bool(ground_truth)}")
+                    if ground_truth:
+                        rprint(f"  GT document_type: {ground_truth.get('DOCUMENT_TYPE', 'MISSING')}")
 
                 if ground_truth:
                     # Extract data using working DocumentAwareLlamaProcessor format
