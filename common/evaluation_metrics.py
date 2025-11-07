@@ -53,7 +53,9 @@ def load_ground_truth(
         raise FileNotFoundError(f"Ground truth file not found: {csv_path}")
 
     try:
-        ground_truth_df = pd.read_csv(csv_path)
+        # CRITICAL: Use dtype=str to prevent pandas from converting "False" strings to bool False
+        # This was causing type mismatch: extracted='False' (str) vs ground_truth=False (bool)
+        ground_truth_df = pd.read_csv(csv_path, dtype=str)
         if verbose:
             print(
                 f"📊 Ground truth CSV loaded with {len(ground_truth_df)} rows and {len(ground_truth_df.columns)} columns"
