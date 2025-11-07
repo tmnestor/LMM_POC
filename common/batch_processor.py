@@ -436,8 +436,10 @@ class BatchDocumentProcessor:
 
                             # Use configurable F1-based scoring (default: order_aware_f1)
                             # Available methods: 'order_aware_f1', 'f1', 'kieval', 'correlation'
+                            # DEBUG: Enable debug for IS_GST_INCLUDED
+                            is_debug = field == "IS_GST_INCLUDED" and verbose
                             f1_metrics = calculate_field_accuracy_with_method(
-                                extracted_val, ground_val, field, method=evaluation_method, debug=False
+                                extracted_val, ground_val, field, method=evaluation_method, debug=is_debug
                             )
                             field_scores[field] = f1_metrics
                             total_f1_score += f1_metrics["f1_score"]

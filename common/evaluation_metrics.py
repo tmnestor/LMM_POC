@@ -1623,9 +1623,18 @@ def calculate_field_accuracy_f1(
 
             # For boolean fields (IS_GST_INCLUDED), use case-insensitive boolean comparison
             if field_name in get_boolean_fields():
+                if debug:
+                    print(f"🔵 BOOLEAN FIELD DETECTED: {field_name}")
+                    print(f"   Extracted: {extracted_normalized}")
+                    print(f"   Ground truth: {ground_truth_normalized}")
+
                 # Parse both values to boolean (handles "true"/"True"/"TRUE", "false"/"False"/"FALSE")
                 extracted_bool = _parse_boolean_value(extracted_normalized)
                 ground_truth_bool = _parse_boolean_value(ground_truth_normalized)
+
+                if debug:
+                    print(f"   Parsed extracted: {extracted_bool}")
+                    print(f"   Parsed ground truth: {ground_truth_bool}")
 
                 # Business logic: If ground truth is NOT_FOUND and extracted is "false", that's correct
                 # Rationale: No GST field on document means IS_GST_INCLUDED = false
@@ -1635,6 +1644,9 @@ def calculate_field_accuracy_f1(
                     match = extracted_bool == ground_truth_bool
                 else:
                     match = False
+
+                if debug:
+                    print(f"   Match: {match}")
 
                 return {
                     "f1_score": 1.0 if match else 0.0,
