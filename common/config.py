@@ -297,6 +297,19 @@ def _get_transaction_list_fields():
 # Module-level access via function calls (no module-level initialization)
 EXTRACTION_FIELDS = []  # Will be set on first access
 
+# Initialize module-level variables (will be populated by _ensure_fields_loaded)
+FIELD_COUNT = None
+FIELD_TYPES = None
+PHONE_FIELDS = None
+LIST_FIELDS = None
+MONETARY_FIELDS = None
+NUMERIC_ID_FIELDS = None
+DATE_FIELDS = None
+TEXT_FIELDS = None
+BOOLEAN_FIELDS = None
+CALCULATED_FIELDS = None
+TRANSACTION_LIST_FIELDS = None
+
 
 def _ensure_fields_loaded():
     """Ensure field data is loaded from schema."""
@@ -337,18 +350,6 @@ def _ensure_fields_loaded():
 
 # Initialize fields on module import for backward compatibility
 _ensure_fields_loaded()
-
-FIELD_COUNT = None
-FIELD_TYPES = None
-PHONE_FIELDS = None
-LIST_FIELDS = None
-MONETARY_FIELDS = None
-NUMERIC_ID_FIELDS = None
-DATE_FIELDS = None
-TEXT_FIELDS = None
-BOOLEAN_FIELDS = None
-CALCULATED_FIELDS = None
-TRANSACTION_LIST_FIELDS = None
 
 
 def _ensure_initialized():
