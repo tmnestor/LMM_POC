@@ -438,9 +438,20 @@ class BatchDocumentProcessor:
                             # Available methods: 'order_aware_f1', 'f1', 'kieval', 'correlation'
                             # DEBUG: Enable debug for IS_GST_INCLUDED
                             is_debug = field == "IS_GST_INCLUDED" and verbose
+                            if is_debug:
+                                rprint("[yellow]🔍 BEFORE EVALUATION:[/yellow]")
+                                rprint(f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})")
+                                rprint(f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})")
+                                rprint(f"  Are they equal? {extracted_val == ground_val}")
+
                             f1_metrics = calculate_field_accuracy_with_method(
                                 extracted_val, ground_val, field, method=evaluation_method, debug=is_debug
                             )
+
+                            if is_debug:
+                                rprint("[yellow]🔍 AFTER EVALUATION:[/yellow]")
+                                rprint(f"  f1_score = {f1_metrics['f1_score']}")
+
                             field_scores[field] = f1_metrics
                             total_f1_score += f1_metrics["f1_score"]
                             total_precision += f1_metrics["precision"]
