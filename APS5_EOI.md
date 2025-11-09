@@ -3,35 +3,20 @@
 
 ## What Inspires My Passion for Data Science
 
-Minimising the "Tax Gap" will ensure that the Federal Government has the financial resources to implement its stated programs. 
-This is a worthwhile and rewarding way for me to spend my final decade in the work place. 
-Using my well developed analytical skills to ensure that the Australian Taxation System is applied fairly 
-is what motivates me to work at the Australian Taxation Office.
+The ATO's AI Strategy vision to "industrialise responsible AI with scale and speed to enable lawful, transparent, and efficient tax collection" represents a transformative opportunity to modernise how we serve government and taxpayers. I am particularly motivated by the Document Understanding initiative—the ability to automatically read, understand, and analyse taxpayer documents, saving significant human hours while improving accuracy. My recent work evaluating vision-language models for document extraction demonstrates my commitment to advancing this vision. Contributing my analytical skills to ensure the Australian Taxation System is applied fairly through scalable AI solutions is what drives me to work at the ATO during this pivotal period of technological transformation.
 
 ## Relevant Experience - STAR Examples
 
 ### Analytical Solution Development & Stakeholder Liaison (Duties 2, 4)
 
-**Situation:** ATO needed a feasibility assessment for a new generation of AI (vision-language) model. 
-This class of model promises the potential for extracting information from documents provided by tax payers such as invoices and bank statements. However, vision-language models have never been deployed at the ATO before so, an assessment of accuracy and speed was required to inform investment decisions. This assessment was required to be completed within a strict timeframe. 
+**Situation:** ATO required an urgent feasibility assessment of vision-language AI models for extracting information from taxpayer documents (invoices, receipts and bank statements) to facilitate the substantiation of work related expense claims. As this technology had never been deployed at ATO, the Document Understanding Group needed an assessment of extraction accuracy and processing speed to inform investment decisions. 
 
 **Task:** Design and implement a comprehensive evaluation system to measure the accuracy and throughput of two vision-language models over 195 documents.
 
 
-**Action:** 
+**Action:** I pioneered ATO's first vision-language model deployment: liaising with data engineers to establish the environment, configuring AAP within resource constraints, and designing the evaluation framework with senior data scientists (17 fields, matching strategies, batch processing). As sole developer, I implemented the system, completed technical documentation and security assessments, and met all milestones through regular demonstrations.
 
-The first challenge of this task was to set up the environment to run two brand new vision-language models as this had not been attempted before at the ATO. 
-I liaised with data engineers to ensure all the model files and software packages were available and up-to-date. 
-I configured the environment to run the large vision-language models on our Advanced Analytics Platform (AAP) within the constraints of its limited resources.
-
-Secondly, I worked closely with the senior data scientists to design the evaluation framework including defining 17 key fields, multiple matching strategies, and batch processing. 
-
-Thirdly, I implemented the evaluation as the sole developer.
-During this process, I completed technical documentation and security assessments for model deployment and met all milestone deadlines through regular progress demonstrations.
-
-**Result:**  I identified which field types (monetary amounts, dates) performed well versus those requiring development (complex transaction tables). 
-I provided data-driven recommendations on model selection and highlighted technical constraints (120 documents/hour processing speed), 
-enabling evidence-based decisions on next-phase investment.
+**Result:** Findings enabled the team to prioritize development efforts: monetary amounts and dates showed production-ready accuracy while transaction tables required further work. By providing data-driven model comparisons and throughput constraints (120 documents/hour), I equipped stakeholders with evidence to guide ATO's Document Understanding investment strategy.
 
 ### Technical Reporting & Data Visualization (Duty 5)
 
@@ -41,4 +26,4 @@ enabling evidence-based decisions on next-phase investment.
 
 **Action:** I designed the reporting interface to visualise  performance by document type and field category. Created executive summaries in plain language and comparative visualisations showing which documents suited automated extraction versus manual review. Implementing the visualisation solution through a dashboard. Built the process and corresponding data so it can be displayed in an automated manner.
 
-**Result:** Dashboards enabled quick assessment of the model evaluation including showing certain fields (GST amounts, total amounts) achieved viable accuracy while others (transaction tables) required development. Visualisations communicated that models showed promise for pre-screening but constraints meant extraction should augment, not replace, human verification. This honest assessment enabled realistic planning for incremental improvements.
+**Result:** Dashboards enabled quick assessment of the model evaluation including showing certain fields (GST amounts, total amounts) achieved viable accuracy while others (transaction tables) required development. Visualisations communicated that models showed promise for pre-screening but constraints meant extraction should augment, not replace, human verification. This data-driven assessment enabled realistic planning for incremental improvements.
