@@ -293,8 +293,7 @@ def calculate_field_accuracy(
         return 0.0
 
     elif field_name in get_list_fields():
-        # List fields - check overlap
-        # These fields may contain multiple items
+        # List fields - type-aware comparison
         extracted_items = [
             item.strip() for item in re.split(r"[,;|\n]", extracted) if item.strip()
         ]
@@ -310,15 +309,63 @@ def calculate_field_accuracy(
                 )
             return score
 
-        # Calculate overlap
-        matches = sum(
-            1
-            for item in extracted_items
-            if any(
-                item.lower() in gt_item.lower() or gt_item.lower() in item.lower()
-                for gt_item in ground_truth_items
+        # Type-aware matching based on field type
+        if field_name in get_monetary_fields():
+            # MONETARY LISTS (LINE_ITEM_PRICES, LINE_ITEM_TOTAL_PRICES)
+            # Use float comparison with 1% tolerance
+            # NOTE: Strips "-" prefix because ground truth from previous model
+            # ignored negative signs in currency values. This causes false negatives
+            # when current model correctly extracts negative amounts (debits/withdrawals).
+            # Consider this limitation when interpreting results.
+            matches = 0
+            for ext_item in extracted_items:
+                for gt_item in ground_truth_items:
+                    try:
+                        # Strip "-" prefix and other formatting
+                        ext_clean = re.sub(r"[^\d.]", "", ext_item.lstrip('-'))
+                        gt_clean = re.sub(r"[^\d.]", "", gt_item.lstrip('-'))
+                        ext_num = float(ext_clean) if ext_clean else 0
+                        gt_num = float(gt_clean) if gt_clean else 0
+                        tolerance = abs(gt_num * 0.01) if gt_num != 0 else 0.01
+                        if abs(ext_num - gt_num) <= tolerance:
+                            matches += 1
+                            break  # Count each extracted item at most once
+                    except (ValueError, AttributeError):
+                        continue
+
+            list_type = "MONETARY"
+
+        elif field_name == "LINE_ITEM_QUANTITIES":
+            # QUANTITY LISTS (LINE_ITEM_QUANTITIES)
+            # Convert floats to integers: 2.0 → 2, 1.0 → 1
+            # Exact integer match required
+            matches = 0
+            for ext_item in extracted_items:
+                for gt_item in ground_truth_items:
+                    try:
+                        ext_num = int(float(re.sub(r"[^\d.-]", "", ext_item)))
+                        gt_num = int(float(re.sub(r"[^\d.-]", "", gt_item)))
+                        if ext_num == gt_num:
+                            matches += 1
+                            break  # Count each extracted item at most once
+                    except (ValueError, AttributeError):
+                        continue
+
+            list_type = "QUANTITY"
+
+        else:
+            # TEXT LISTS (LINE_ITEM_DESCRIPTIONS)
+            # Substring matching for text fields
+            matches = sum(
+                1
+                for item in extracted_items
+                if any(
+                    item.lower() in gt_item.lower() or gt_item.lower() in item.lower()
+                    for gt_item in ground_truth_items
+                )
             )
-        )
+
+            list_type = "TEXT"
 
         score = (
             matches / max(len(ground_truth_items), len(extracted_items))
@@ -327,7 +374,7 @@ def calculate_field_accuracy(
         )
         if debug:
             print(
-                f"    📋 LIST: {matches}/{max(len(ground_truth_items), len(extracted_items))} matches - score: {score}"
+                f"    📋 LIST ({list_type}): {matches}/{max(len(ground_truth_items), len(extracted_items))} matches - score: {score}"
             )
         return score
 
