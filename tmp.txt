@@ -1,10 +1,24 @@
-# Test if boolean field checking works
-from common.evaluation_metrics import calculate_field_accuracy_f1
-from common.config import get_boolean_fields
+import pandas as pd
+import numpy as np
 
-print("Boolean fields:", get_boolean_fields())
-print("IS_GST_INCLUDED in boolean fields?", "IS_GST_INCLUDED" in get_boolean_fields())
+def clean_quantities(value):
+    """Convert float quantities to integers, preserving pipe-separated format."""
+    # Handle NaN, None, or NOT_FOUND
+    if pd.isna(value) or value == 'NOT_FOUND' or value == '':
+        return value
 
-# Test the evaluation directly
-result = calculate_field_accuracy_f1("false", "False", "IS_GST_INCLUDED", debug=True)
-print("Test result:", result)
+    try:
+        if isinstance(value, str) and '|' in value:
+            # Split by pipe, convert each part to int, rejoin
+            parts = value.split('|')
+            cleaned_parts = [str(int(float(part.strip()))) for part in parts if part.strip()]
+            return ' | '.join(cleaned_parts)
+        else:
+            # Single value - convert to int
+            return int(float(value))
+    except (ValueError, TypeError):
+        # If conversion fails, return original value
+        return value
+
+# Apply the function to the column
+df['LINE_ITEM_QUANTITIES'] = df['LINE_ITEM_QUANTITIES'].apply(clean_quantities)
