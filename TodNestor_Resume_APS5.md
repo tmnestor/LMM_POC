@@ -8,7 +8,7 @@ Ferntree Gully, Victoria
 
 ## Professional Summary
 
-Data scientist with extensive academic preparation and scientific research experience. Began scientific programming in the mid-80's, progressing to scientific applications software development by the late 80's. Expertise in machine learning, natural language processing, and statistical modeling with a keen interest in the application of Data Science based solutions to complex business problems.
+Data scientist with a solid academic preparation and scientific research experience. Began scientific programming in the mid-80's, progressing to scientific applications software development by the late 80's. Expertise in machine learning, natural language processing, and statistical modeling with a keen interest in the training and application of Neural Networks.
 
 ---
 
@@ -18,18 +18,21 @@ Data scientist with extensive academic preparation and scientific research exper
 
 - **Document Understanding Group** (2025)
   - Vision-language model evaluation for automated document information extraction
-  - Comparative framework development for model performance assessment
+  - Comparative framework development for model performance assessment (Llama-3.2-Vision-11B, InternVL3-2B/8B)
   - Technical liaison with data engineering for production model deployment
+  - Ground truth dataset preparation using a purpose designed, Microsoft Excel multi-annotator management system to facilitate mapping structured information from invoices, receipts, bank statements into 57 standardised fields
 
-- **Individual Investor Group** (2024)
-  - Machine learning solutions for taxpayer compliance verification
-  - Model development and evaluation for classification tasks
+- **Individual Investor Portfolio Group** (April 2024 - March 2025)
+  - Designed and implemented a "Free Text Categorisation" system to map in excess of 1 million Property Manager Claims from a SPAD Teradata Table into the ATO Rental Schedule categories
+    - Modular architecture with contrastive learning (triplet-loss on all-mpnet-base-v2), Bayesian optimisation, and conformal prediction
+    - Improved macro F1 from 72% (baseline) to 96% through advanced ML techniques
+    - Deployed to KFP Staging with comprehensive GitLab Wiki documentation
 
 - **Data Graduate Program** (2023)
   - Fraud detection using gradient boosted models (< 1% fraud prevalence dataset)
   - Contrastive learning for ANZSCO occupation classification
   - Large Language Model ITAF submission and approval
-  - Shiny dashboard modularization for improved code maintainability
+  - Shiny dashboard modularisation for improved code maintainability
 
 **Accounts Clerk** | Pay&Advice | November 2020 – June 2021
 
@@ -61,7 +64,7 @@ Data scientist with extensive academic preparation and scientific research exper
 **Version Control:** Git
 **Development Tools:** RStudio, Visual Studio Code, VIM
 **Frameworks:** Scikit-learn, Pandas, PyTorch, Transformers, Snorkel AI
-**Specializations:** Machine learning, NLP, contrastive learning, time series forecasting, explainable AI
+**Specialisations:** Machine learning, NLP, contrastive learning, time series forecasting, explainable AI
 
 ---
 
