@@ -1,25 +1,15 @@
-import re
+# Debug: Check first result
+if batch_results:
+    result = batch_results[0]
 
-def derive_is_gst_included(gst_amount_str):
-    """
-    Derive IS_GST_INCLUDED from GST_AMOUNT string value.
-    
-    Rules:
-    - GST_AMOUNT = "NOT_FOUND" or empty → "NOT_FOUND"
-    - GST_AMOUNT = "$0.00" or "0.0" → "False"
-    - GST_AMOUNT > $0 → "True"
-    """
-    if not gst_amount_str or gst_amount_str.strip().upper() == "NOT_FOUND":
-        return "NOT_FOUND"
+    print("\n=== EXTRACTED DATA ===")
+    for field, value in result['extracted_data'].items():
+        print(f"  {field}: {value}")
 
-    try:
-        # Remove $ and other formatting, parse to float
-        amount = float(re.sub(r"[^\d.-]", "", gst_amount_str))
+    print("\n=== GROUND TRUTH ===")
+    gt = ground_truth.get(result['image_name'], {})
+    for field, value in gt.items():
+        print(f"  {field}: {value}")
 
-        return "False" if amount == 0.0 else "True"
-    except (ValueError, TypeError):
-        # Can't parse - return NOT_FOUND
-        return "NOT_FOUND"
-
-# Apply to ground truth DataFrame
-df['IS_GST_INCLUDED'] = df['GST_AMOUNT'].apply(derive_is_gst_included)
+    print("\n=== RAW RESPONSE (first 500 chars) ===")
+    print(result.get('raw_response', '')[:500])
