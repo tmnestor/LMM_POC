@@ -1,24 +1,25 @@
-import pandas as pd
-import numpy as np
+import re
 
-def clean_quantities(value):
-    """Convert float quantities to integers, preserving pipe-separated format."""
-    # Handle NaN, None, or NOT_FOUND
-    if pd.isna(value) or value == 'NOT_FOUND' or value == '':
-        return value
+def derive_is_gst_included(gst_amount_str):
+    """
+    Derive IS_GST_INCLUDED from GST_AMOUNT string value.
+    
+    Rules:
+    - GST_AMOUNT = "NOT_FOUND" or empty → "NOT_FOUND"
+    - GST_AMOUNT = "$0.00" or "0.0" → "False"
+    - GST_AMOUNT > $0 → "True"
+    """
+    if not gst_amount_str or gst_amount_str.strip().upper() == "NOT_FOUND":
+        return "NOT_FOUND"
 
     try:
-        if isinstance(value, str) and '|' in value:
-            # Split by pipe, convert each part to int, rejoin
-            parts = value.split('|')
-            cleaned_parts = [str(int(float(part.strip()))) for part in parts if part.strip()]
-            return ' | '.join(cleaned_parts)
-        else:
-            # Single value - convert to int
-            return int(float(value))
-    except (ValueError, TypeError):
-        # If conversion fails, return original value
-        return value
+        # Remove $ and other formatting, parse to float
+        amount = float(re.sub(r"[^\d.-]", "", gst_amount_str))
 
-# Apply the function to the column
-df['LINE_ITEM_QUANTITIES'] = df['LINE_ITEM_QUANTITIES'].apply(clean_quantities)
+        return "False" if amount == 0.0 else "True"
+    except (ValueError, TypeError):
+        # Can't parse - return NOT_FOUND
+        return "NOT_FOUND"
+
+# Apply to ground truth DataFrame
+df['IS_GST_INCLUDED'] = df['GST_AMOUNT'].apply(derive_is_gst_included)
