@@ -27,18 +27,68 @@ extracted_data = parse_extraction_response(response)
 # Result: {'DOCUMENT_TYPE': 'INVOICE', 'BUSINESS_ABN': '12 345 678 901', ...}
 ```
 
-### 2. Call Evaluation Function
+### 2. Load Document-Specific Field Mappings
 
 ```python
-evaluation = evaluate_extraction(
-    extracted_data=extracted_data,  # What model extracted
-    ground_truth=gt_data,           # What it should have extracted
-    document_type=gt_doc_type,      # 'invoice', 'receipt', or 'bank_statement'
-    verbose=CONFIG['VERBOSE']
-)
+# Load field mappings from YAML
+field_defs_path = Path('config/field_definitions.yaml')
+with open(field_defs_path, 'r') as f:
+    field_defs = yaml.safe_load(f)
+
+DOC_TYPE_FIELDS = {
+    'invoice': field_defs['document_fields']['invoice']['fields'],
+    'receipt': field_defs['document_fields']['receipt']['fields'],
+    'bank_statement': field_defs['document_fields']['bank_statement']['fields'],
+    'statement': field_defs['document_fields']['bank_statement']['fields'],  # Alias
+}
 ```
 
-### 3. Field-by-Field Comparison
+### 3. Manual Field-by-Field Evaluation
+
+```python
+# Get relevant fields for this document type
+relevant_fields = DOC_TYPE_FIELDS.get(doc_type, [])
+
+# Evaluate each field
+field_scores = {}
+total_f1 = 0.0
+fields_evaluated = 0
+fields_matched = 0
+
+for field in relevant_fields:
+    extracted_value = extracted_data.get(field, "NOT_FOUND")
+    gt_value = ground_truth.get(field, "NOT_FOUND")
+
+    # Skip if both are NOT_FOUND
+    if extracted_value == "NOT_FOUND" and gt_value == "NOT_FOUND":
+        continue
+
+    fields_evaluated += 1
+
+    # Calculate field accuracy using type-specific logic
+    metrics = calculate_field_accuracy_with_method(
+        extracted_value, gt_value, field,
+        method='order_aware_f1'
+    )
+
+    field_scores[field] = metrics
+    total_f1 += metrics['f1_score']
+
+    if metrics['f1_score'] > 0.9:
+        fields_matched += 1
+
+# Calculate overall accuracy
+overall_accuracy = total_f1 / fields_evaluated if fields_evaluated > 0 else 0.0
+
+# Store evaluation results
+evaluation = {
+    'overall_accuracy': overall_accuracy,
+    'fields_evaluated': fields_evaluated,
+    'fields_matched': fields_matched,
+    'total_fields': len(relevant_fields),
+    'field_scores': field_scores
+}
+```
 
 For each field, the system uses type-specific comparison logic:
 
@@ -330,12 +380,15 @@ The system supports multiple evaluation methods (configured via `EVALUATION_METH
 
 **Key Functions**:
 - `load_ground_truth()`: Load GT from CSV with `dtype=str`
-- `evaluate_extraction()`: Main evaluation entry point
-- `calculate_field_accuracy_with_method()`: Field comparison router
+- `calculate_field_accuracy_with_method()`: Field comparison router (main evaluation function)
+- `calculate_field_accuracy()`: Legacy accuracy calculation (0.0 to 1.0)
 - `calculate_field_accuracy_f1()`: Position-aware F1 implementation
+- `calculate_field_accuracy_f1_position_agnostic()`: Position-agnostic F1
+- `calculate_field_accuracy_kieval()`: KIEval correction cost metric
 - `_parse_boolean_value()`: Boolean string parsing
 - `_compare_dates_fuzzy()`: Date normalization and comparison
 - `_transaction_item_matches()`: Transaction field matching
+- `_fuzzy_text_match()`: Text similarity with Levenshtein distance
 
 ## Ground Truth Requirements
 
@@ -357,16 +410,60 @@ Both `llama_batch_universal.ipynb` and `llama_batch_oracle.ipynb` use:
 # Set evaluation method
 os.environ['EVALUATION_METHOD'] = 'order_aware_f1'
 
-# Load ground truth
+# Load ground truth (with dtype=str to prevent bool conversion)
 ground_truth = load_ground_truth(ground_truth_path, dtype=str)
 
-# Evaluate each extraction
-evaluation = evaluate_extraction(
-    extracted_data=extracted_data,
-    ground_truth=gt_data,
-    document_type=doc_type,
-    verbose=True
-)
+# Load document-specific field mappings
+field_defs_path = Path('config/field_definitions.yaml')
+with open(field_defs_path, 'r') as f:
+    field_defs = yaml.safe_load(f)
+
+DOC_TYPE_FIELDS = {
+    'invoice': field_defs['document_fields']['invoice']['fields'],
+    'receipt': field_defs['document_fields']['receipt']['fields'],
+    'bank_statement': field_defs['document_fields']['bank_statement']['fields'],
+}
+
+# Get relevant fields for this document type
+relevant_fields = DOC_TYPE_FIELDS.get(doc_type, [])
+
+# Manual field-by-field evaluation
+field_scores = {}
+total_f1 = 0.0
+fields_evaluated = 0
+fields_matched = 0
+
+for field in relevant_fields:
+    extracted_value = extracted_data.get(field, "NOT_FOUND")
+    gt_value = gt_data.get(field, "NOT_FOUND")
+
+    if extracted_value == "NOT_FOUND" and gt_value == "NOT_FOUND":
+        continue
+
+    fields_evaluated += 1
+
+    metrics = calculate_field_accuracy_with_method(
+        extracted_value, gt_value, field,
+        method=os.environ.get('EVALUATION_METHOD', 'order_aware_f1')
+    )
+
+    field_scores[field] = metrics
+    total_f1 += metrics['f1_score']
+
+    if metrics['f1_score'] > 0.9:
+        fields_matched += 1
+
+# Calculate overall accuracy
+overall_accuracy = total_f1 / fields_evaluated if fields_evaluated > 0 else 0.0
+
+# Create evaluation results dictionary
+evaluation = {
+    'overall_accuracy': overall_accuracy,
+    'fields_evaluated': fields_evaluated,
+    'fields_matched': fields_matched,
+    'total_fields': len(relevant_fields),
+    'field_scores': field_scores
+}
 
 # Access results
 accuracy = evaluation['overall_accuracy'] * 100
