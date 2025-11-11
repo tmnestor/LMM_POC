@@ -1,12 +1,3 @@
-# Quick check
-import pandas as pd
-
-gt = pd.read_csv('bank_gt.csv', dtype=str)
-
-# Check for weekday prefixes in dates
-for col in ['TRANSACTION_DATES', 'INVOICE_DATE', 'STATEMENT_DATE_RANGE']:
-    if col in gt.columns:
-        sample = gt[col].dropna().head(5)
-        print(f"\n{col} samples:")
-        for val in sample:
-            print(f"  {repr(val)}")
+if 'TRANSACTION_AMOUNTS_PAID' in field:
+    print(f"\n  Extracted: {repr(extracted_value)}")
+    print(f"  GT:        {repr(gt_value)}")
