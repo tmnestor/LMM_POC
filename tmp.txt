@@ -1,0 +1,12 @@
+# DEBUG: Check what we're actually passing
+rprint(f"[yellow]DEBUG - Before merge:[/yellow]")
+rprint(f"  ground_truth shape: {ground_truth.shape}")
+rprint(f"  ground_truth doc types: 
+{ground_truth['DOCUMENT_TYPE'].value_counts().to_dict()}")
+rprint(f"  llama_batch_df shape: {llama_batch_df.shape}")
+if 'document_type' in llama_batch_df.columns:
+    rprint(f"  llama doc types (pred): 
+{llama_batch_df['document_type'].value_counts().to_dict()}")
+if 'DOCUMENT_TYPE' in llama_batch_df.columns:
+    rprint(f"  llama DOCUMENT_TYPE: 
+{llama_batch_df['DOCUMENT_TYPE'].value_counts().to_dict()}")
