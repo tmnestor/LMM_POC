@@ -4,6 +4,7 @@ import pandas as pd
 
 field_accuracy_data = []
 
+
 for result in batch_results:
     evaluation = result.get('evaluation', {})
     field_scores = evaluation.get('field_scores', {})
