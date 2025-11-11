@@ -1,12 +1,31 @@
-# DEBUG: Check what we're actually passing
-rprint(f"[yellow]DEBUG - Before merge:[/yellow]")
-rprint(f"  ground_truth shape: {ground_truth.shape}")
-rprint(f"  ground_truth doc types: 
-{ground_truth['DOCUMENT_TYPE'].value_counts().to_dict()}")
-rprint(f"  llama_batch_df shape: {llama_batch_df.shape}")
-if 'document_type' in llama_batch_df.columns:
-    rprint(f"  llama doc types (pred): 
-{llama_batch_df['document_type'].value_counts().to_dict()}")
-if 'DOCUMENT_TYPE' in llama_batch_df.columns:
-    rprint(f"  llama DOCUMENT_TYPE: 
-{llama_batch_df['DOCUMENT_TYPE'].value_counts().to_dict()}")
+import pandas as pd
+
+# Load ground truth
+gt_path = '/home/jovyan/_LMM_POC/evaluation_data/lmm_poc_gt_20251111.csv'
+gt_df = pd.read_csv(gt_path, dtype=str)
+
+# Filter for the 3 rare document types
+rare_types = [
+    'Mobile App Screenshot',
+    'Compulsory Third Party Personal Injury Insurance GREEN SLIP CERTIFICATE',
+    'E-Ticket Itinerary, Receipt and Tax Invoice'
+]
+
+print('Image names for rare document types:\n')
+for doc_type in rare_types:
+    matches = gt_df[gt_df['DOCUMENT_TYPE'] == doc_type]
+    if len(matches) > 0:
+        print(f'\n{doc_type}:')
+        for _, row in matches.iterrows():
+            # Show image_name column
+            if 'image_name' in gt_df.columns:
+                print(f'  {row["image_name"]}')
+            elif 'image_file' in gt_df.columns:
+                print(f'  {row["image_file"]}')
+
+Or even simpler:
+
+gt_df[gt_df['DOCUMENT_TYPE'].isin([
+    'Mobile App Screenshot',
+    'Compulsory Third Party Personal Injury Insurance GREEN SLIP CERTIFICATE',
+    'E-Ticket Itinerary, Receipt and Tax Invoice'])][['image_name', 'DOCUMENT_TYPE']]
