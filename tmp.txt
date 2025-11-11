@@ -1,39 +1,12 @@
-#Cell 8.5
-# Debug: Analyze field-level accuracy
+# Quick check
 import pandas as pd
 
-field_accuracy_data = []
+gt = pd.read_csv('bank_gt.csv', dtype=str)
 
-
-for result in batch_results:
-    evaluation = result.get('evaluation', {})
-    field_scores = evaluation.get('field_scores', {})
-
-    for field, metrics in field_scores.items():
-        field_accuracy_data.append({
-            'image': result['image_name'],
-            'field': field,
-            'f1_score': metrics.get('f1_score', 0),
-            'extracted': result['extracted_data'].get(field, 'NOT_FOUND')[:50],  # First 50
-chars
-            'ground_truth': result.get('evaluation', {}).get('field_scores', {}).get(field,
-{}).get('ground_truth', 'N/A')[:50] if 'ground_truth' in metrics else 'N/A'
-        })
-
-# Create DataFrame
-field_df = pd.DataFrame(field_accuracy_data)
-
-# Show average accuracy per field
-print("\n=== AVERAGE ACCURACY BY FIELD ===")
-field_avg = field_df.groupby('field')['f1_score'].agg(['mean',
-'count']).sort_values('mean')
-print(field_avg)
-
-# Show worst performing images
-print("\n=== WORST PERFORMING IMAGES ===")
-for result in sorted(batch_results, key=lambda x: x['evaluation']['overall_accuracy'])[:5]:
-    print(f"\n{result['image_name']}: {result['evaluation']['overall_accuracy']*100:.1f}%")
-    for field, metrics in result['evaluation']['field_scores'].items():
-        if metrics['f1_score'] < 0.5:
-            extracted = result['extracted_data'].get(field, 'NOT_FOUND')[:80]
-            print(f"  ❌ {field}: {metrics['f1_score']:.2f} - {extracted}")
+# Check for weekday prefixes in dates
+for col in ['TRANSACTION_DATES', 'INVOICE_DATE', 'STATEMENT_DATE_RANGE']:
+    if col in gt.columns:
+        sample = gt[col].dropna().head(5)
+        print(f"\n{col} samples:")
+        for val in sample:
+            print(f"  {repr(val)}")
