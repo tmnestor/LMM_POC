@@ -1,3 +1,17 @@
-if 'TRANSACTION_AMOUNTS_PAID' in field:
-    print(f"\n  Extracted: {repr(extracted_value)}")
-    print(f"  GT:        {repr(gt_value)}")
+#Cell 8.5
+# Load field columns for CSV export
+field_defs_path = Path('config/field_definitions.yaml')
+
+with open(field_defs_path, 'r') as f:
+field_defs = yaml.safe_load(f)
+
+# Get universal fields from YAML (19 total)
+all_universal_fields = field_defs['document_fields']['universal']['fields']
+
+# Remove fields no longer extracted (TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE)
+# Final 17 fields for CSV columns
+EXCLUDED_FIELDS = ['TRANSACTION_AMOUNTS_RECEIVED', 'ACCOUNT_BALANCE']
+FIELD_COLUMNS = [f for f in all_universal_fields if f not in EXCLUDED_FIELDS]
+
+rprint(f"[green]✅ Loaded {len(FIELD_COLUMNS)} field columns for CSV export[/green]")
+rprint(f"[cyan]Excluded: {', '.join(EXCLUDED_FIELDS)}[/cyan]")
