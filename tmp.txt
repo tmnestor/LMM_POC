@@ -1,16 +1,2 @@
-# Add save functionality
-from IPython.display import HTML, display
-save_button = HTML('''
-<button onclick="
-    var table = document.querySelector('table');
-    var canvas = document.createElement('canvas');
-    html2canvas(table).then(canvas => {
-        var link = document.createElement('a');
-        link.download = 'field_accuracy_table.png';
-        link.href = canvas.toDataURL();
-        link.click();
-    });
-">💾 Save Table as Image</button>
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-''')
-display(save_button)
+1. output/visualizations/*.png → your-repo/visualizations/
+2. output/reports/executive_report.md → your-repo/
