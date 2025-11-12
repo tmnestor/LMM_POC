@@ -5,7 +5,7 @@
 This document presents a comprehensive technical comparison of three vision-language models evaluated for business document information extraction:
 
 - **Llama-3.2-Vision-11B** (11B parameters, non-quantized)
-- **InternVL3-Quantized-8B** (8B parameters, AWQ quantized)
+- **InternVL3-Quantized-8B** (8B parameters, 8-bit quantized)
 - **InternVL3-NonQuantized-2B** (2B parameters, non-quantized)
 
 ### Overall Performance Rankings
@@ -23,6 +23,19 @@ This document presents a comprehensive technical comparison of three vision-lang
 - **Llama-11B**: 9 fields (52.9%)
 - **InternVL3-8B**: 8 fields (47.1%)
 - **InternVL3-2B**: 0 fields (0%)
+
+### Primary Application Priorities
+
+1. **Document Type Classification** (MOST IMPORTANT)
+   - Llama-11B: 70.8% accuracy (best overall)
+   - InternVL3-8B: 69.2% accuracy
+   - InternVL3-2B: 59.0% accuracy
+   - Critical for routing documents to correct workflows
+
+2. **Financial Auditing** (SECONDARY)
+   - Track what was spent, when it was spent, how much was spent
+   - Llama-11B recommended: Highest precision (0.2624) for accurate spend tracking
+   - Requires minimal false positives on monetary fields
 
 ### Key Technical Findings
 
@@ -167,7 +180,7 @@ The aggressive model has **lower accuracy but higher F1** because F1 focuses on 
 **Recall Advantage: Llama-11B**
 - 78% vs 44% (InternVL3-8B) vs 39% (InternVL3-2B)
 - Llama extracts **78% more fields** than InternVL3-2B
-- Critical for data warehouse population
+- Critical for comprehensive document mining
 
 **Precision Disadvantage: All Models**
 - Best precision: 27% (InternVL3-2B)
@@ -489,7 +502,7 @@ Based on average accuracy across all models:
 - **17.3% std dev** - consistent but slow
 
 **Paradox**: 8B model slower than 11B model
-- **Reason**: AWQ quantization overhead
+- **Reason**: 8-bit quantization overhead
 - Quantization adds decoding latency
 - Trade memory for speed (opposite of goal)
 
@@ -559,26 +572,33 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
    - 13% better than InternVL3-2B
    - Best overall extraction quality
 
-2. **Exceptional Recall (0.7797)**
+2. **Highest Precision (0.2624)**
+   - Best precision among all 3 models
+   - 18% better than InternVL3-8B (0.2228)
+   - **Critical for financial auditing**: accurate tracking of what was spent, when, and how much
+   - Fewer false positives when extraction is attempted
+   - Best model for spend analysis and budget reconciliation
+
+3. **Exceptional Recall (0.7797)**
    - Extracts 78% of all extractable fields
    - 79% higher recall than InternVL3-8B
    - 101% higher recall than InternVL3-2B
 
-3. **Boolean Field Extraction**
+4. **Boolean Field Extraction**
    - **Only model capable of IS_GST_INCLUDED** (62% accuracy)
    - InternVL3 models: 0% accuracy
    - Critical for tax/compliance workflows
 
-4. **Complex Field Mastery**
+5. **Complex Field Mastery**
    - TRANSACTION_DATES: 34% (vs 14% for InternVL3-8B)
    - STATEMENT_DATE_RANGE: 33% (vs 11% for InternVL3-8B)
    - LINE_ITEM_DESCRIPTIONS: 57% (vs 26% for InternVL3-8B)
 
-5. **Document Type Classification**
-   - 70.8% accuracy (highest)
-   - Best for rare document types (extracts CTP_INSUR, E-TICKET, MOBILE_SS)
+6. **Document Type Classification**
+   - 70.8% accuracy (highest among all models)
+   - Best overall classification performance for standard document types
 
-6. **Processing Speed**
+7. **Processing Speed**
    - 34.0s median (acceptable)
    - 1.8 docs/min throughput
    - Only 23% slower than fastest model
@@ -625,7 +645,7 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
 **Architecture Benefits:**
 - 11B parameters enable complex reasoning
 - Better at ambiguous fields
-- Handles rare document types
+- Highest document type classification accuracy (70.8%)
 
 **Deployment Considerations:**
 - Requires high-memory GPU (A100, H100, V100 with 32GB)
@@ -636,11 +656,11 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
 
 | Use Case | Suitability | Rationale |
 |----------|-------------|-----------|
-| **Data Warehouse Population** | ⭐⭐⭐⭐⭐ | Maximize extraction (78% recall) |
+| **Comprehensive Document Mining** | ⭐⭐⭐⭐⭐ | Maximize extraction (78% recall) |
 | **Boolean Field Extraction** | ⭐⭐⭐⭐⭐ | Only functional model (IS_GST_INCLUDED) |
 | **Complex Text Fields** | ⭐⭐⭐⭐⭐ | Best for descriptions, dates |
 | **High-Volume Processing** | ⭐⭐⭐ | Acceptable speed (1.8 docs/min) |
-| **Financial Auditing** | ⭐⭐ | High hallucination rate risky |
+| **Financial Auditing** | ⭐⭐⭐⭐⭐ | Highest precision (0.2624) - best for accurate spend tracking |
 | **Quantity Extraction** | ⭐ | Poor performance vs InternVL3 |
 
 ---
@@ -650,7 +670,7 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
 #### Architecture & Specifications
 
 - **Parameters**: 8 billion
-- **Quantization**: AWQ (Activation-aware Weight Quantization)
+- **Quantization**: 8-bit (BitsAndBytes / load_in_8bit)
 - **Memory**: ~8GB VRAM
 - **Preprocessing**: Dynamic with tile-based approach
 - **Context Window**: Moderate
@@ -710,7 +730,7 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
    - 3.4× slower than InternVL3-2B
    - 2.7× slower than Llama
    - **0.6 docs/min** throughput (unacceptable for production)
-   - AWQ quantization overhead paradox
+   - 8-bit quantization overhead paradox
 
 5. **Poor Text Field Performance**
    - LINE_ITEM_DESCRIPTIONS: 26% (115% worse than Llama)
@@ -725,7 +745,7 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
 - Prioritizes precision over recall
 
 **Strengths:**
-- AWQ quantization (8GB VRAM)
+- 8-bit quantization (8GB VRAM)
 - Specialized for numeric/structured data
 - Reliable for name/address extraction
 
@@ -1192,6 +1212,8 @@ F1 focuses on **actual extraction performance**:
 
 | Requirement | Recommended Model | Alternative | Reasoning |
 |-------------|------------------|-------------|-----------|
+| **Document Type Classification** | Llama-11B | InternVL3-8B | PRIMARY - 70.8% accuracy (best) |
+| **Financial Auditing** | Llama-11B | - | SECONDARY - Highest precision (26.24%) for accurate spend tracking |
 | **Maximum F1** | Llama-11B | - | Highest quality (0.3379) |
 | **Maximum Recall** | Llama-11B | - | Best coverage (77.97%) |
 | **Maximum Accuracy** | InternVL3-8B | InternVL3-2B | Conservative strategy (54.42%) |
@@ -1227,7 +1249,9 @@ F1 focuses on **actual extraction performance**:
 - 11B parameters (22GB VRAM)
 
 **Recommended For:**
-- Data warehouse population
+- Document type classification (PRIMARY - 70.8% accuracy)
+- Financial auditing (what/when/how much spent - highest precision)
+- Comprehensive document mining
 - Exploratory extraction
 - Human-in-the-loop workflows
 
@@ -1264,7 +1288,8 @@ F1 focuses on **actual extraction performance**:
 - Requires field-specific routing logic
 
 **Recommended For:**
-- Financial auditing
+- Document type classification (maximum accuracy)
+- Financial auditing (precision-critical tracking)
 - Compliance workflows
 - High-value document processing
 
@@ -1462,7 +1487,7 @@ START: What is your primary constraint?
    - Document complexity affects processing time
 
 3. **Quantization Effects**:
-   - InternVL3-8B uses AWQ quantization
+   - InternVL3-8B uses 8-bit quantization (BitsAndBytes)
    - Accuracy impact unknown (no non-quantized 8B baseline)
    - Quantization paradoxically slows inference (overhead)
 
@@ -1491,7 +1516,7 @@ START: What is your primary constraint?
    - No known fix without ensemble
 
 2. **InternVL3-8B Speed Penalty**:
-   - AWQ quantization slows inference (paradox)
+   - 8-bit quantization slows inference (paradox)
    - 3.4× slower than InternVL3-2B
    - Not production-viable for high-volume
 
@@ -1639,13 +1664,15 @@ where xi = model accuracy, μ = mean accuracy across models
 
 ### Deployment Recommendation Summary
 
-| Scenario | Recommended Model | F1 | Speed | Memory |
-|----------|------------------|-----|-------|--------|
-| **Production (General)** | Llama-11B | 0.3379 | 1.8 docs/min | 22GB |
-| **Production (Maximum Quality)** | Ensemble (InternVL3-8B + Llama-11B) | ~0.40* | 0.3 docs/min | 30GB |
-| **High-Volume Processing** | InternVL3-2B | 0.2984 | 2.2 docs/min | 4GB |
-| **Cost-Optimized** | InternVL3-2B | 0.2984 | 2.2 docs/min | 4GB |
-| **Quantity Extraction** | InternVL3-8B (if not speed-limited) | 0.2611 | 0.6 docs/min | 8GB |
+| Scenario | Recommended Model | F1 | Speed | Priority |
+|----------|------------------|-----|-------|----------|
+| **Document Type Classification** | Llama-11B | 0.3379 | 1.8 docs/min | PRIMARY (70.8% accuracy) |
+| **Financial Auditing** | Llama-11B | 0.3379 | 1.8 docs/min | SECONDARY (highest precision: 0.2624) |
+| **Production (General)** | Llama-11B | 0.3379 | 1.8 docs/min | Document classification + financial tracking |
+| **Production (Maximum Quality)** | Ensemble (InternVL3-8B + Llama-11B) | ~0.40* | 0.3 docs/min | All high-precision applications |
+| **High-Volume Processing** | InternVL3-2B | 0.2984 | 2.2 docs/min | Cost-optimized extraction |
+| **Cost-Optimized** | InternVL3-2B | 0.2984 | 2.2 docs/min | Consumer GPU deployable |
+| **Quantity Extraction** | InternVL3-8B (if not speed-limited) | 0.2611 | 0.6 docs/min | Invoice line item specialization |
 
 *Estimated ensemble F1 based on field-specific routing
 

@@ -155,7 +155,7 @@ Llama-11B         X.XXXX    X.XXXX    X.XXXX    X.XXXX
 | Old Name | New Name | Description |
 |----------|----------|-------------|
 | Llama | Llama-11B | Llama-3.2-Vision-11B |
-| InternVL3 | InternVL3-8B | InternVL3-8B-AWQ (quantized) |
+| InternVL3 | InternVL3-8B | InternVL3-8B (8-bit quantized) |
 | (missing) | InternVL3-2B | InternVL3-2B (non-quantized) |
 
 ---
