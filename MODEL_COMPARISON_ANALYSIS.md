@@ -39,31 +39,44 @@ This document presents a comprehensive technical comparison of three vision-lang
 ### Dataset Composition
 
 - **Total Documents**: 195
-  - Bank Statements: 75 (38.5%)
-  - Invoices: 100 (51.3%)
-  - Receipts: 20 (10.3%)
+  - Bank Statements: 30 (15.4%)
+  - Invoices: 61 (31.3%)
+  - Receipts: 104 (53.3%)
 
 ### Fields Evaluated
 
-**17 fields across all document types:**
+**17 fields total, with document-type-specific applicability:**
 
-1. DOCUMENT_TYPE
+**Invoice/Receipt Fields (14 fields):**
+- Both document types share the same 14 fields
+- Different document structures but same field extraction requirements
+
+1. DOCUMENT_TYPE (shared with bank statements)
 2. BUSINESS_ABN
 3. SUPPLIER_NAME
 4. BUSINESS_ADDRESS
 5. PAYER_NAME
 6. PAYER_ADDRESS
 7. INVOICE_DATE
-8. LINE_ITEM_DESCRIPTIONS
+8. LINE_ITEM_DESCRIPTIONS (shared with bank statements)
 9. LINE_ITEM_QUANTITIES
 10. LINE_ITEM_PRICES
 11. LINE_ITEM_TOTAL_PRICES
 12. IS_GST_INCLUDED
 13. GST_AMOUNT
 14. TOTAL_AMOUNT
-15. STATEMENT_DATE_RANGE
-16. TRANSACTION_DATES
-17. TRANSACTION_AMOUNTS_PAID
+
+**Bank Statement Fields (5 fields, 2 shared with Invoice/Receipt):**
+1. DOCUMENT_TYPE (shared)
+2. LINE_ITEM_DESCRIPTIONS (shared)
+3. STATEMENT_DATE_RANGE (bank statement only)
+4. TRANSACTION_DATES (bank statement only)
+5. TRANSACTION_AMOUNTS_PAID (bank statement only)
+
+**Field Structure:**
+- Invoice/Receipt documents: 14 fields evaluated
+- Bank Statement documents: 5 fields evaluated
+- Total unique fields: 17 (12 invoice/receipt-only + 2 shared + 3 bank statement-only)
 
 ### Evaluation Metrics
 
@@ -807,10 +820,11 @@ Low Quality, Fast: InternVL3-2B (F1: 0.30, 28s)
    - Unpredictable quality across documents
    - Less reliable than larger models
 
-6. **Receipt Classification Failure**
-   - Only 33% recall (worst)
-   - 67% of receipts misclassified
-   - 17 receipts marked NOT_FOUND (unique failure mode)
+6. **Receipt Classification Failure (CRITICAL - Majority Class)**
+   - Only 33% recall on 104 receipts (worst performance on majority class)
+   - **70 out of 104 receipts misclassified** (67% failure rate)
+   - 17 receipts marked NOT_FOUND (16% of all receipts - unique failure mode)
+   - **Most severe weakness**: Cannot correctly classify 53% of production documents
 
 #### Technical Characteristics
 
@@ -1000,10 +1014,15 @@ For invoice line item extraction, **InternVL3-8B is clearly superior**:
 
 All models struggle to differentiate **RECEIPT** from **INVOICE**, leading to systematic misclassification.
 
-**Receipt → Invoice Misclassifications:**
-- **Llama-11B**: 50 receipts → invoice (48% of receipts)
-- **InternVL3-8B**: 47 receipts → invoice (45% of receipts)
-- **InternVL3-2B**: 34 receipts → invoice (33% of receipts)
+**Receipt → Invoice Misclassifications (Major Issue - 104 receipts total):**
+- **Llama-11B**: 50 receipts → invoice (48% of all receipts)
+- **InternVL3-8B**: 47 receipts → invoice (45% of all receipts)
+- **InternVL3-2B**: 34 receipts → invoice (33% of all receipts)
+
+**Impact**: With receipts being the majority class (53% of dataset), this means:
+- Llama: 48% of production documents potentially misrouted
+- InternVL3-8B: 45% of production documents potentially misrouted
+- InternVL3-2B: 33% of production documents potentially misrouted
 
 **Receipt Recall (ability to detect receipts):**
 - **Llama-11B**: 57% recall (43% missed)
@@ -1014,11 +1033,13 @@ All models struggle to differentiate **RECEIPT** from **INVOICE**, leading to sy
 
 **Visual Similarity:**
 
-Receipts and invoices share similar visual features:
+Receipts and invoices share identical field structures:
+- **Same 14 fields** extracted from both document types
 - Both have vendor names, dates, amounts
 - Both contain line items (goods/services)
 - Both have totals, subtotals, tax amounts
-- Layout differences subtle (heading text, formatting)
+- **Key difference**: Document structure and visual layout, not fields
+- Layout differences subtle (heading text, "RECEIPT" vs "INVOICE" labels)
 
 **Semantic Overlap:**
 
@@ -1049,12 +1070,13 @@ Receipts and invoices share similar visual features:
 
 #### Business Impact
 
-**False Positives:**
+**Business Impact (Critical - Affects 53% of Documents):**
 
-Receipts misclassified as invoices create:
-- Incorrect payment tracking
-- Duplicate invoice entries
-- Accounting reconciliation errors
+With receipts being the majority class, misclassification creates widespread issues:
+- **Payment tracking errors**: 33-48% of receipts marked as unpaid invoices
+- **Duplicate invoice entries**: Paid receipts added to accounts payable
+- **Accounting reconciliation failures**: Majority of documents misrouted
+- **Workflow disruption**: 53% of production volume incorrectly classified
 
 **Mitigation Strategies:**
 
@@ -1391,15 +1413,15 @@ START: What is your primary constraint?
 ### Dataset Limitations
 
 1. **Limited Sample Size**: 195 documents
-   - Bank Statements: 75 (38.5%)
-   - Invoices: 100 (51.3%)
-   - Receipts: 20 (10.3%) - **small sample**
-   - Statistical significance concerns for rare types
+   - Bank Statements: 30 (15.4%)
+   - Invoices: 61 (31.3%)
+   - Receipts: 104 (53.3%)
+   - Statistical significance concerns for bank statement classification
 
 2. **Imbalanced Document Types**:
-   - Receipts underrepresented (10%)
-   - May bias model comparison
-   - Receipt classification metrics less reliable
+   - Receipts are majority class (53%)
+   - Bank statements underrepresented (15%)
+   - Bank statement classification metrics less reliable due to small sample
 
 3. **Ground Truth Quality**:
    - Human-annotated (potential errors)
@@ -1420,10 +1442,10 @@ START: What is your primary constraint?
    - Line item fields particularly sensitive
 
 3. **Document-Aware Evaluation**:
-   - Invoice/Receipt: 14 fields evaluated
-   - Bank Statement: 5 fields evaluated (+ 2 validation-only)
+   - Invoice/Receipt: 14 fields evaluated (same fields for both document types)
+   - Bank Statement: 5 fields evaluated (DOCUMENT_TYPE, LINE_ITEM_DESCRIPTIONS shared; STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID unique)
    - Prevents NOT_FOUND penalties for legitimate absences
-   - May inflate accuracy for document-specific models
+   - Receipts and invoices have same fields but different document structures
 
 ### Model Deployment Caveats
 
@@ -1669,13 +1691,13 @@ where xi = model accuracy, μ = mean accuracy across models
 - Performance visualizations (9 images provided)
 - Ground truth CSV: `evaluation_data/lmm_poc_gt_20251111.csv`
 - Model batch extraction CSVs from notebook output
-- 195 documents: 75 bank statements, 100 invoices, 20 receipts
+- 195 documents: 30 bank statements, 61 invoices, 104 receipts
 
 ---
 
 **Document Version**: 1.0
 **Date**: 2025-11-12
 **Models Evaluated**: Llama-3.2-Vision-11B, InternVL3-Quantized-8B, InternVL3-NonQuantized-2B
-**Fields Analyzed**: 17 business document fields
-**Evaluation Dataset**: 195 documents (75 bank statements, 100 invoices, 20 receipts)
+**Fields Analyzed**: 17 business document fields (14 invoice/receipt, 5 bank statement, 2 shared)
+**Evaluation Dataset**: 195 documents (30 bank statements, 61 invoices, 104 receipts)
 **Primary Metric**: Position-Aware F1 Score
