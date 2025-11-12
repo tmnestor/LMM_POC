@@ -1,31 +1,16 @@
-import pandas as pd
-
-# Load ground truth
-gt_path = '/home/jovyan/_LMM_POC/evaluation_data/lmm_poc_gt_20251111.csv'
-gt_df = pd.read_csv(gt_path, dtype=str)
-
-# Filter for the 3 rare document types
-rare_types = [
-    'Mobile App Screenshot',
-    'Compulsory Third Party Personal Injury Insurance GREEN SLIP CERTIFICATE',
-    'E-Ticket Itinerary, Receipt and Tax Invoice'
-]
-
-print('Image names for rare document types:\n')
-for doc_type in rare_types:
-    matches = gt_df[gt_df['DOCUMENT_TYPE'] == doc_type]
-    if len(matches) > 0:
-        print(f'\n{doc_type}:')
-        for _, row in matches.iterrows():
-            # Show image_name column
-            if 'image_name' in gt_df.columns:
-                print(f'  {row["image_name"]}')
-            elif 'image_file' in gt_df.columns:
-                print(f'  {row["image_file"]}')
-
-Or even simpler:
-
-gt_df[gt_df['DOCUMENT_TYPE'].isin([
-    'Mobile App Screenshot',
-    'Compulsory Third Party Personal Injury Insurance GREEN SLIP CERTIFICATE',
-    'E-Ticket Itinerary, Receipt and Tax Invoice'])][['image_name', 'DOCUMENT_TYPE']]
+# Add save functionality
+from IPython.display import HTML, display
+save_button = HTML('''
+<button onclick="
+    var table = document.querySelector('table');
+    var canvas = document.createElement('canvas');
+    html2canvas(table).then(canvas => {
+        var link = document.createElement('a');
+        link.download = 'field_accuracy_table.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    });
+">💾 Save Table as Image</button>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+''')
+display(save_button)
