@@ -1,2 +1,6 @@
-1. output/visualizations/*.png → your-repo/visualizations/
-2. output/reports/executive_report.md → your-repo/
+import inspect
+source = inspect.getsource(create_field_level_visualizations)
+# Find the text_color line
+for line in source.split('\n'):
+    if 'text_color' in line and 'white' in line:
+        print(line)
