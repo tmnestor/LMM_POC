@@ -1,6 +1,2 @@
-import inspect
-source = inspect.getsource(create_field_level_visualizations)
-# Find the text_color line
-for line in source.split('\n'):
-    if 'text_color' in line and 'white' in line:
-        print(line)
+if i == 0 and j == 0:  # Debug first cell only
+    print(f"DEBUG: value={value}, type={type(value)}, threshold=0.45, will use {'white' if value < 0.45 else 'black'}")
