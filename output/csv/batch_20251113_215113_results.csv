@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+image_001.png,RECEIPT,100.0,14,14,14,11.84654712677002,llama_receipt_prompt_receipt_prompt,False
+image_002.png,RECEIPT,100.0,14,14,14,8.417444229125977,llama_receipt_prompt_receipt_prompt,False
+image_003.png,BANK_STATEMENT,72.72727272727273,5,2,5,8.059136629104614,llama_bank_statement_prompt_bank_statement_flat_prompt,False
+image_004.png,RECEIPT,100.0,14,14,14,7.193942546844482,llama_receipt_prompt_receipt_prompt,False
+image_005.png,INVOICE,100.0,14,14,14,7.391499042510986,llama_invoice_prompt_invoice_prompt,False
+image_006.png,INVOICE,96.80504680504681,14,12,14,9.606194496154785,llama_invoice_prompt_invoice_prompt,False
+image_007.png,INVOICE,92.85714285714286,14,13,14,7.916327714920044,llama_invoice_prompt_invoice_prompt,False
+image_008.png,BANK_STATEMENT,62.33333333333333,5,2,5,30.914156436920166,llama_bank_statement_prompt_bank_statement_flat_prompt,False
+image_009.png,BANK_STATEMENT,67.43315508021391,5,2,5,13.877816438674927,llama_bank_statement_prompt_bank_statement_date_grouped_prompt,False
