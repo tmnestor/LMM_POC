@@ -1,0 +1,11 @@
+```markdown
+| Date       | Description                        | Withdrawal | Deposit | Balance  |
+|----------|------------------------------------|-------------|---------|----------|
+| 0303/2025 | ONLINE PURCHASE AMAZON AU          | $288.03     |         | $13337.44 |
+| 0305/2025 | EFTPOS PURCHASE COLES EXP          | $22.60      |         | $11333.44 |
+| 04/05/2025 | DIRECT CREDIT SALARY               |             | $33497.77 | $116777.74 |
+| 05/05/2025 | ATM WITHDRAWAL ANZ ATM             | $187.59     |         | $11645.01 |
+| 07/05/2025 | DIRECT CREDIT COLES EXP            |             | $112.50 | $11842.81 |
+| 09/05/2025 | INTEREST PAYMENT                   |             | $5.16   | $11842.81 |
+| 10/05/2025 | ATM WITHDRAWAL ANZ ATM            | $146.72     |         | $11628.08 |
+```
