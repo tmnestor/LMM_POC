@@ -144,17 +144,138 @@ All visualizations are generated in `output/visualizations/`:
 
 Based on the analysis above:
 
-1. **Document Classification (PRIMARY)**: Use the model with highest document type classification accuracy
-2. **Field Extraction (SECONDARY)**: Consider ensemble approach leveraging each model's field specialization
-3. **High-Volume Processing**: Balance speed vs quality based on throughput requirements
-4. **Hallucination Sensitivity**: Choose model based on tolerance for false positives vs false negatives
+### 1. Document Classification (PRIMARY)
+Use the model with highest document type classification accuracy for initial routing and categorization.
+
+### 2. Field Extraction Strategy (SECONDARY)
+Consider an ensemble approach leveraging each model's field specialization:
+- Use model-specific strengths for particular fields
+- Implement confidence-based routing
+- Fall back to best overall performer for general fields
+
+### 3. High-Volume Processing
+Balance speed vs quality based on throughput requirements:
+- **Fastest processing**: InternVL3-NonQuantized-2B (~8.2s/doc)
+- **Best accuracy**: Llama-3.2-Vision-11B (88.02% overall)
+- **Best balance**: Consider throughput constraints and acceptable accuracy threshold
+
+### 4. Hallucination Sensitivity: Critical Business Decision
+
+#### Understanding Hallucination in Document Extraction
+
+**Hallucination** = Model extracts a value when ground truth is `NOT_FOUND`
+
+**Example:**
+- Ground Truth: `BUSINESS_ABN = NOT_FOUND` (field doesn't exist in document)
+- Model Output: `BUSINESS_ABN = "12345678901"` ← **HALLUCINATION** (invented data)
+
+#### The Tradeoff: Precision vs Recall
+
+**High Precision (Low Hallucination)**
+- Model only extracts when very confident
+- **Few false positives** (hallucinations)
+- **Many false negatives** (missed fields)
+- Conservative approach: "Only extract what you're sure about"
+
+**High Recall (Risk of Hallucination)**
+- Model extracts aggressively to catch all fields
+- **Few false negatives** (catches most fields)
+- **More false positives** (risk of hallucinations)
+- Aggressive approach: "Extract everything, review later"
+
+#### Relationship to Metrics
+
+```
+Precision = Correct Extractions / All Extractions
+  → High precision = Low hallucination rate
+  → Model is cautious, only extracts when confident
+
+Recall = Correct Extractions / All Fields That Should Be Extracted
+  → High recall = Catches more fields
+  → Risk: May hallucinate to achieve higher coverage
+
+Hallucination Rate = Hallucinations / NOT_FOUND Opportunities
+  → Direct measure of false positive risk
+  → Critical for production reliability
+```
+
+#### Model Selection Guide Based on Use Case
+
+**Choose HIGH PRECISION Model (InternVL3-Quantized-8B: 80.38%) if:**
+- ✅ Processing financial/regulatory data (invoices, tax documents)
+- ✅ Automated processing with no human review
+- ✅ **False data is worse than missing data**
+- ✅ You can afford to manually review `NOT_FOUND` fields
+- ✅ Compliance and audit requirements
+- ✅ Low tolerance for hallucinations
+
+**Example**: Bank reconciliation where a hallucinated amount could cause financial errors.
+
+**Choose HIGH RECALL Model (Llama-3.2-Vision-11B: 77.62%) if:**
+- ✅ Comprehensive data capture is critical
+- ✅ Human review pipeline can catch errors
+- ✅ **Missing data is worse than wrong data**
+- ✅ Initial screening/discovery use case
+- ✅ Maximizing field coverage is priority
+- ✅ Can tolerate some false positives
+
+**Example**: Legal document discovery where missing a field could have serious consequences.
+
+**Choose BALANCED Model (InternVL3-NonQuantized-2B) if:**
+- ✅ High-volume processing requirements
+- ✅ Need reasonable precision and recall
+- ✅ Speed is a critical factor (8.2s vs 27.7s)
+- ✅ Standard business document processing
+
+**Example**: Receipt processing for expense management with human spot-checking.
+
+#### Your Model Performance Profile
+
+Based on the analysis:
+
+| Model | Precision | Recall | F1 | Hallucination Rate | Best For |
+|-------|-----------|--------|----|--------------------|----------|
+| **Llama-3.2-Vision-11B** | 77.62% | 77.62% | 0.7762 | Low | Comprehensive extraction |
+| **InternVL3-Quantized-8B** | **80.38%** | 67.78% | 0.7354 | **Lowest** | Accuracy-critical tasks |
+| **InternVL3-NonQuantized-2B** | 70.53% | 66.67% | 0.6854 | Low | High-volume processing |
+
+**Key Insights:**
+- **All models show conservative behavior** (low hallucination rates)
+- **Trade precision for recall**: Higher precision models miss more fields
+- **Speed vs accuracy**: Fastest model has lower precision/recall
+
+#### Production Deployment Strategy
+
+**Phase 1: Initial Deployment**
+1. Choose model based on your primary business constraint:
+   - Financial accuracy → InternVL3-Quantized-8B (high precision)
+   - Data completeness → Llama-3.2-Vision-11B (high recall)
+   - High volume → InternVL3-NonQuantized-2B (fast processing)
+
+**Phase 2: Monitoring**
+2. Track in production:
+   - Hallucination rate on `NOT_FOUND` fields
+   - Manual review costs (false negatives)
+   - Error correction costs (false positives)
+
+**Phase 3: Optimization**
+3. Adjust strategy based on actual costs:
+   - If missing fields cost more → Switch to higher recall model
+   - If hallucinations cost more → Switch to higher precision model
+   - If volume is issue → Consider faster model with review pipeline
+
+**Phase 4: Advanced Optimization**
+4. Consider ensemble approaches:
+   - Use high-precision model for critical fields (amounts, dates)
+   - Use high-recall model for descriptive fields (line items)
+   - Route by document confidence scores
 
 ---
 
 ## Related Documentation
 
 - [three_model_field_comparison.md](three_model_field_comparison.md) - Detailed field-by-field analysis
-- [ACCURACY_PARADOX_EXPLAINED.md](ACCURACY_PARADOX_EXPLAINED.md) - Why F1 > Accuracy for extraction
+- [ACCURACY_PARADOX_EXPLAINED.md](ACCURACY_PARADOX_EXPLAINED.md) - Why Accuracy > F1 for extraction
 - [HALLUCINATION_ANALYSIS_ADDED.md](HALLUCINATION_ANALYSIS_ADDED.md) - Hallucination analysis methodology
 
 ---
