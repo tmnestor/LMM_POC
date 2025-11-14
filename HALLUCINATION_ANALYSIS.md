@@ -1,8 +1,8 @@
-# Hallucination Analysis Added to model_comparison.ipynb
+# Hallucination Analysis Added to model_comparison_reporter.ipynb
 
 ## Summary
 
-Added comprehensive hallucination analysis to `model_comparison.ipynb` as **Section 5.7** (Cells 23-24).
+Added comprehensive hallucination analysis to `model_comparison_reporter.ipynb` as **Section 5.7** (Cells 23-24).
 
 **Hallucination Definition**: Model extracts a value when ground truth is NOT_FOUND (inventing non-existent data)
 
@@ -248,7 +248,7 @@ for each field in document:
 
 ## Files Modified
 
-- **model_comparison.ipynb**
+- **model_comparison_reporter.ipynb**
   - Added Cell 23 (markdown): Section header
   - Added Cell 24 (code): Hallucination analysis (318 lines)
   - Total cells: 28 → 30
@@ -281,8 +281,8 @@ for each field in document:
 ## References
 
 - `ACCURACY_PARADOX_EXPLAINED.md` - Why low accuracy can mean high hallucination
-- `MODEL_COMPARISON_ANALYSIS.md` - Comprehensive 3-model comparison
-- `model_comparison.ipynb` Cells 16-22 - Prior analysis sections
+- `MODEL_COMPARISON_REPORT.md` - Comprehensive 3-model comparison
+- `model_comparison_reporter.ipynb` Cells 16-22 - Prior analysis sections
 
 ---
 
