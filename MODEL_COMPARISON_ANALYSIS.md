@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-14 01:54:13
+**Auto-Generated from Notebook**: 2025-11-14 02:40:08
 **Source**: `model_comparison.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -245,6 +245,46 @@ Based on the analysis:
 - **F1 Leader**: Llama-3.2-Vision-11B (0.7762)
 - **Speed vs Accuracy Tradeoff**: Consider throughput requirements against quality needs
 
+#### Efficiency Analysis
+
+**Performance Efficiency Score** = Accuracy × Throughput (docs/min)
+
+| Model | Avg Accuracy | Avg Speed | Throughput | Efficiency Score |
+|-------|--------------|-----------|------------|------------------|
+| **Llama-3.2-Vision-11B** | 88.02% | 8.4s | 7.1 docs/min | 627.4 |
+| **InternVL3-Quantized-8B** | 76.05% | 27.7s | 2.2 docs/min | 165.0 |
+| **InternVL3-NonQuantized-2B** | 73.97% | 8.2s | 7.3 docs/min | 543.0 |
+
+**Highest Efficiency**: Llama-3.2-Vision-11B
+
+
+
+
+
+#### Document-Type Specific Recommendations
+
+**Best Model by Document Type:**
+
+- **Bank Statement**: Llama-3.2-Vision-11B (67.50% accuracy)
+- **Invoice**: Llama-3.2-Vision-11B (96.55% accuracy)
+- **Receipt**: Llama-3.2-Vision-11B (100.00% accuracy)
+
+#### Field Performance Insights
+
+**Fields with Significant Model Performance Differences (>20% spread):**
+
+- **IS_GST_INCLUDED**: Use Llama-3.2-Vision (100% vs 0%, +100% advantage)
+- **LINE_ITEM_PRICES**: Use Llama-3.2-Vision (100% vs 17%, +83% advantage)
+- **LINE_ITEM_DESCRIPTIONS**: Use Llama-3.2-Vision (88% vs 51%, +36% advantage)
+- **LINE_ITEM_TOTAL_PRICES**: Use Llama-3.2-Vision (100% vs 67%, +33% advantage)
+- **TRANSACTION_DATES**: Use Llama-3.2-Vision (74% vs 48%, +26% advantage)
+
+**⚠️ Problematic Fields Requiring Attention (<50% avg accuracy):**
+
+- **IS_GST_INCLUDED**: 33% average accuracy - Consider prompt optimization or additional fine tuning
+- **TRANSACTION_AMOUNTS_PAID**: 0% average accuracy - Consider prompt optimization or additional fine tuning
+
+
 #### Production Deployment Strategy
 
 **Phase 1: Initial Deployment**
@@ -281,7 +321,8 @@ Based on the analysis:
 
 ---
 
-**Report Auto-Generated**: 2025-11-14 01:54:13
+**Report Auto-Generated**: {timestamp}
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
+    
