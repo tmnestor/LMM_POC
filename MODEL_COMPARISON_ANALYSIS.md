@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-14 01:42:10
+**Auto-Generated from Notebook**: 2025-11-14 01:54:13
 **Source**: `model_comparison.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -281,7 +281,7 @@ Based on the analysis:
 
 ---
 
-**Report Auto-Generated**: 2025-11-14 01:42:10
+**Report Auto-Generated**: 2025-11-14 01:54:13
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
