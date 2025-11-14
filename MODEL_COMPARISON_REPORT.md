@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-14 02:40:08
+**Auto-Generated from Notebook**: 2025-11-14 02:51:42
 **Source**: `model_comparison_reporter.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
