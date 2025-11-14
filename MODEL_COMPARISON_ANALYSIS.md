@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-14 01:05:02
+**Auto-Generated from Notebook**: 2025-11-14 01:42:10
 **Source**: `model_comparison.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -221,10 +221,10 @@ Hallucination Rate = Hallucinations / NOT_FOUND Opportunities
 
 **Example**: Legal document discovery where missing a field could have serious consequences.
 
-**Choose BALANCED Model (InternVL3-NonQuantized-2B) if:**
+**Choose BALANCED Model (for high-volume processing) if:**
 - ✅ High-volume processing requirements
 - ✅ Need reasonable precision and recall
-- ✅ Speed is a critical factor (8.2s vs 27.7s)
+- ✅ Speed is a critical factor
 - ✅ Standard business document processing
 
 **Example**: Receipt processing for expense management with human spot-checking.
@@ -233,24 +233,25 @@ Hallucination Rate = Hallucinations / NOT_FOUND Opportunities
 
 Based on the analysis:
 
-| Model | Precision | Recall | F1 | Hallucination Rate | Best For |
-|-------|-----------|--------|----|--------------------|----------|
-| **Llama-3.2-Vision-11B** | 77.62% | 77.62% | 0.7762 | Low | Comprehensive extraction |
-| **InternVL3-Quantized-8B** | **80.38%** | 67.78% | 0.7354 | **Lowest** | Accuracy-critical tasks |
-| **InternVL3-NonQuantized-2B** | 70.53% | 66.67% | 0.6854 | Low | High-volume processing |
+| Model | Precision | Recall | F1 | Best For |
+|-------|-----------|--------|----|----|
+| **Llama-3.2-Vision-11B** | 77.62% | 77.62% | 0.7762 | 🏆 Best Recall🏆 Best F1 |
+| **InternVL3-Quantized-8B** | 80.38% | 67.78% | 0.7354 | 🏆 Best Precision |
+| **InternVL3-NonQuantized-2B** | 70.53% | 66.67% | 0.6854 |  |
 
 **Key Insights:**
-- **All models show conservative behavior** (low hallucination rates)
-- **Trade precision for recall**: Higher precision models miss more fields
-- **Speed vs accuracy**: Fastest model has lower precision/recall
+- **Precision Leader**: InternVL3-Quantized-8B (80.38%)
+- **Recall Leader**: Llama-3.2-Vision-11B (77.62%)
+- **F1 Leader**: Llama-3.2-Vision-11B (0.7762)
+- **Speed vs Accuracy Tradeoff**: Consider throughput requirements against quality needs
 
 #### Production Deployment Strategy
 
 **Phase 1: Initial Deployment**
 1. Choose model based on your primary business constraint:
-   - Financial accuracy → InternVL3-Quantized-8B (high precision)
-   - Data completeness → Llama-3.2-Vision-11B (high recall)
-   - High volume → InternVL3-NonQuantized-2B (fast processing)
+   - **Financial accuracy** → Highest precision model
+   - **Data completeness** → Highest recall model
+   - **High volume** → Fastest processing model
 
 **Phase 2: Monitoring**
 2. Track in production:
@@ -280,7 +281,7 @@ Based on the analysis:
 
 ---
 
-**Report Auto-Generated**: 2025-11-14 01:05:02
+**Report Auto-Generated**: 2025-11-14 01:42:10
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
