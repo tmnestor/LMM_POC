@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-14 01:01:24
+**Auto-Generated from Notebook**: 2025-11-14 01:05:02
 **Source**: `model_comparison.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -69,7 +69,16 @@ All visualizations are generated in `output/visualizations/`:
 - Recall by field
 - Accuracy by field
 
-### 5. Hallucination Analysis
+
+### 5. Field-Level Accuracy Analysis
+![Field-Level Accuracy](output/visualizations/field_level_accuracy.png)
+
+**3-panel comprehensive view:**
+- Field accuracy comparison (horizontal bar chart across all models)
+- Field accuracy heatmap (color-coded performance matrix)
+- Model specialization distribution (fields where each model performs best)
+
+### 6. Hallucination Analysis
 ![Hallucination Analysis](output/visualizations/hallucination_analysis.png)
 
 **9-panel breakdown:**
@@ -150,7 +159,7 @@ Based on the analysis above:
 
 ---
 
-**Report Auto-Generated**: 2025-11-14 01:01:24
+**Report Auto-Generated**: 2025-11-14 01:05:02
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
