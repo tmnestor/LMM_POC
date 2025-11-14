@@ -275,9 +275,9 @@ Based on the analysis:
 
 ## Related Documentation
 
-- [three_model_field_comparison.md](three_model_field_comparison.md) - Detailed field-by-field analysis
+- [FIELD_COMPARISON.md](FIELD_COMPARISON.md) - Detailed field-by-field analysis
 - [ACCURACY_PARADOX_EXPLAINED.md](ACCURACY_PARADOX_EXPLAINED.md) - Why Accuracy > F1 for extraction
-- [HALLUCINATION_ANALYSIS_ADDED.md](HALLUCINATION_ANALYSIS_ADDED.md) - Hallucination analysis methodology
+- [HALLUCINATION_ANALYSIS.md](HALLUCINATION_ANALYSIS.md) - Hallucination analysis methodology
 
 ---
 
