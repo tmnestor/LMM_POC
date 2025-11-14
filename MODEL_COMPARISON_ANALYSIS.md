@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-13 23:14:38
+**Auto-Generated from Notebook**: 2025-11-13 23:57:49
 **Source**: `model_comparison.ipynb`
 **Dataset**: 195 documents (30 bank statements, 61 invoices, 104 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -13,19 +13,19 @@
 
 | Model | F1 Score | Precision | Recall | Accuracy | Median Speed | Throughput |
 |-------|----------|-----------|--------|----------|--------------|------------|
-| **Llama-3.2-Vision-11B** | 0.0000 | 0.0000 | 0.0000 | 0.00% | 0.0s | 0.0 docs/min |
-| **InternVL3-Quantized-8B** | 0.0000 | 0.0000 | 0.0000 | 0.00% | 0.0s | 0.0 docs/min |
-| **InternVL3-NonQuantized-2B** | 0.0000 | 0.0000 | 0.0000 | 0.00% | 0.0s | 0.0 docs/min |
+| **Llama-3.2-Vision-11B** | 0.7762 | 0.7762 | 0.7762 | 88.02% | 8.4s | 7.1 docs/min |
+| **InternVL3-Quantized-8B** | 0.7354 | 0.8038 | 0.6778 | 76.05% | 27.7s | 2.2 docs/min |
+| **InternVL3-NonQuantized-2B** | 0.6854 | 0.7053 | 0.6667 | 73.97% | 8.2s | 7.3 docs/min |
 
 ### Key Findings
 
-**Winner (F1 Score)**: InternVL3-NonQuantized-2B
+**Winner (F1 Score)**: Llama-3.2-Vision-11B
 
-**Highest Precision**: InternVL3-NonQuantized-2B (0.0000)
+**Highest Precision**: InternVL3-Quantized-8B (0.8038)
 
-**Highest Recall**: InternVL3-NonQuantized-2B (0.0000)
+**Highest Recall**: Llama-3.2-Vision-11B (0.7762)
 
-**Fastest**: InternVL3-NonQuantized-2B (0.0s)
+**Fastest**: InternVL3-NonQuantized-2B (8.2s)
 
 ---
 
@@ -87,22 +87,22 @@ All visualizations are generated in `output/visualizations/`:
 
 | Field | Llama-11B | InternVL3-8B | InternVL3-2B | Best Model | Best Score |
 |-------|-----------|--------------|--------------|------------|------------|
-| DOCUMENT_TYPE | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 1.0% |
-| TOTAL_AMOUNT | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 1.0% |
-| GST_AMOUNT | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 1.0% |
-| PAYER_ADDRESS | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 1.0% |
-| STATEMENT_DATE_RANGE | 0.0% | 0.0% | 0.0% | InternVL3-Quantized-8B | 1.0% |
-| LINE_ITEM_QUANTITIES | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 1.0% |
-| BUSINESS_ABN | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 1.0% |
-| LINE_ITEM_TOTAL_PRICES | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 1.0% |
-| INVOICE_DATE | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 0.8% |
-| BUSINESS_ADDRESS | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 0.8% |
-| PAYER_NAME | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 0.7% |
-| SUPPLIER_NAME | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 0.7% |
-| LINE_ITEM_DESCRIPTIONS | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 0.9% |
-| TRANSACTION_DATES | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 0.7% |
-| LINE_ITEM_PRICES | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 1.0% |
-| IS_GST_INCLUDED | 0.0% | 0.0% | 0.0% | Llama-3.2-Vision | 1.0% |
+| DOCUMENT_TYPE | 100.0% | 100.0% | 100.0% | InternVL3-NonQuantized-2B | 100.0% |
+| TOTAL_AMOUNT | 100.0% | 100.0% | 100.0% | InternVL3-NonQuantized-2B | 100.0% |
+| GST_AMOUNT | 100.0% | 100.0% | 100.0% | InternVL3-NonQuantized-2B | 100.0% |
+| PAYER_ADDRESS | 100.0% | 97.2% | 100.0% | InternVL3-NonQuantized-2B | 100.0% |
+| STATEMENT_DATE_RANGE | 100.0% | 100.0% | 94.4% | InternVL3-Quantized-8B | 100.0% |
+| LINE_ITEM_QUANTITIES | 100.0% | 83.3% | 97.6% | Llama-3.2-Vision | 100.0% |
+| BUSINESS_ABN | 100.0% | 83.3% | 83.3% | Llama-3.2-Vision | 100.0% |
+| LINE_ITEM_TOTAL_PRICES | 100.0% | 66.7% | 83.3% | Llama-3.2-Vision | 100.0% |
+| INVOICE_DATE | 83.3% | 83.3% | 83.3% | InternVL3-NonQuantized-2B | 83.3% |
+| BUSINESS_ADDRESS | 81.7% | 80.6% | 81.7% | InternVL3-NonQuantized-2B | 81.7% |
+| PAYER_NAME | 66.7% | 66.7% | 66.7% | InternVL3-NonQuantized-2B | 66.7% |
+| SUPPLIER_NAME | 66.7% | 66.7% | 66.7% | InternVL3-NonQuantized-2B | 66.7% |
+| LINE_ITEM_DESCRIPTIONS | 87.5% | 51.1% | 59.3% | Llama-3.2-Vision | 87.5% |
+| TRANSACTION_DATES | 74.2% | 67.9% | 48.3% | Llama-3.2-Vision | 74.2% |
+| LINE_ITEM_PRICES | 100.0% | 16.7% | 66.7% | Llama-3.2-Vision | 100.0% |
+| IS_GST_INCLUDED | 100.0% | 0.0% | 0.0% | Llama-3.2-Vision | 100.0% |
 | TRANSACTION_AMOUNTS_PAID | 0.0% | 0.0% | 0.0% | InternVL3-NonQuantized-2B | 0.0% |
 
 ---
@@ -113,9 +113,9 @@ All visualizations are generated in `output/visualizations/`:
 
 | Model | Best-Performing Fields | Percentage | Count |
 |-------|----------------------|------------|-------|
-| **Llama-3.2-Vision-11B** | 0.0% | 0/17 | SECONDARY |
-| **InternVL3-Quantized-8B** | 0.0% | 0/17 | SECONDARY |
-| **InternVL3-NonQuantized-2B** | 0.0% | 0/17 | NO SPECIALIZATION |
+| **Llama-3.2-Vision-11B** | 41.2% | 7/17 | SECONDARY |
+| **InternVL3-Quantized-8B** | 5.9% | 1/17 | SECONDARY |
+| **InternVL3-NonQuantized-2B** | 52.9% | 9/17 | PRIMARY |
 
 ---
 
@@ -138,7 +138,7 @@ Based on the analysis above:
 
 ---
 
-**Report Auto-Generated**: 2025-11-13 23:14:38
+**Report Auto-Generated**: 2025-11-13 23:57:49
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
