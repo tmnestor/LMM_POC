@@ -1,8 +1,8 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-11-13 23:57:49
+**Auto-Generated from Notebook**: 2025-11-14 00:35:42
 **Source**: `model_comparison.ipynb`
-**Dataset**: 195 documents (30 bank statements, 61 invoices, 104 receipts)
+**Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
 
 ---
@@ -48,9 +48,9 @@ All visualizations are generated in `output/visualizations/`:
 ![Document Type Confusion](output/visualizations/doctype_confusion_matrix.png)
 
 **3-model confusion matrices** showing classification performance for:
-- Bank Statements (30 docs, 15.4%)
-- Invoices (61 docs, 31.3%)
-- Receipts (104 docs, 53.3%)
+- Bank Statements (3 docs, 33.3%)
+- Invoices (3 docs, 33.3%)
+- Receipts (3 docs, 33.3%)
 
 ### 3. Field Extraction Status
 ![Field Confusion Heatmap](output/visualizations/field_confusion_heatmap.png)
@@ -78,6 +78,18 @@ All visualizations are generated in `output/visualizations/`:
 - Hallucination-recall tradeoff
 - Per-field hallucination (3 models)
 - Document-level distribution (3 models)
+
+### Hallucination Rates
+
+| Model | Hallucination Rate | Correct NOT_FOUND Rate | Total Hallucinations |
+|-------|-------------------|------------------------|----------------------|
+| **Llama-11B** | 0.0% | 100.0% | 0 |
+| **InternVL3-8B** | 0.0% | 100.0% | 0 |
+| **InternVL3-2B** | 0.0% | 100.0% | 0 |
+
+**Interpretation:**
+- **Hallucination Rate**: % of NOT_FOUND fields where model invented a value
+- **Correct NOT_FOUND Rate**: % of NOT_FOUND fields correctly identified as absent
 
 ---
 
@@ -138,7 +150,7 @@ Based on the analysis above:
 
 ---
 
-**Report Auto-Generated**: 2025-11-13 23:57:49
+**Report Auto-Generated**: 2025-11-14 00:35:42
 **Source Notebook**: `model_comparison.ipynb`
 **Visualizations**: `output/visualizations/`
 **Next Update**: Re-run notebook to refresh all metrics and visualizations
