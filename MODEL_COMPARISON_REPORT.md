@@ -11,7 +11,7 @@
 Tested 5 vision-language models for document extraction accuracy and performance:
 - **Winner (Accuracy)**: Llama-4-Scout (91.3% overall)
 - **Winner (Speed)**: Llama-3.2-11B (11.25s/image)
-- **Best Value**: InternVL3.5-8B (83.6% accuracy, same memory as Llama-3.2-11B)
+- **Best Value**: InternVL3.5-8B (83.6% accuracy, 17GB memory - 20% less than Llama-3.2-11B)
 - **Most Efficient**: InternVL3-2B (2.3GB memory, 12.66s/image)
 - **Best for Bank Statements**: Llama-4-Scout (78.8% accuracy)
 
@@ -22,7 +22,7 @@ Tested 5 vision-language models for document extraction accuracy and performance
 | Model | Size | Speed (s/img) | Throughput (img/min) | Overall Accuracy | Memory Usage |
 |-------|------|---------------|---------------------|-----------------|--------------|
 | **Llama-4-Scout** | 17B active (109B total) | 39.20 | 1.5 | **91.3%** 🥇 | ~217GB (multi-GPU) |
-| **Llama-3.2-11B** | 11B | **11.25** ⚡ | **5.3** | **88.4%** 🥈 | ~17GB (multi-GPU) |
+| **Llama-3.2-11B** | 11B | **11.25** ⚡ | **5.3** | **88.4%** 🥈 | ~21GB (multi-GPU) |
 | **InternVL3.5-8B** | 8.5B | 14.76 | 4.1 | **83.6%** 🥉 | ~17GB (multi-GPU) |
 | **InternVL3-2B** | 2B | 12.66 | 4.7 | 74.1% | **~2.3GB** 💾 |
 | **InternVL3-8B (Q)** | 8B | 34.96 | 1.7 | 64.1% | ~2.4GB |
@@ -100,16 +100,16 @@ Llama-4-Scout    █████████████████████
 InternVL3-2B     ██ 2.3GB  (Most efficient) 💾
 InternVL3-8B (Q) ██ 2.4GB  (Quantized)
 InternVL3.5-8B   █████████████████ 17GB (Multi-GPU)
-Llama-3.2-11B    █████████████████ 17GB (Multi-GPU)
+Llama-3.2-11B    █████████████████████ 21GB (Multi-GPU)
 Llama-4-Scout    ████████████████████████████████████████████████████████████████████████████ 217GB (MoE Multi-GPU)
 ```
 
 **Analysis**:
-- InternVL3-2B is the **most memory efficient** at only 2.3GB (7x more efficient than Llama-3.2-11B)
-- InternVL3.5-8B and Llama-3.2-11B both use **~17GB** with multi-GPU distribution
+- InternVL3-2B is the **most memory efficient** at only 2.3GB (9x more efficient than Llama-3.2-11B)
+- InternVL3.5-8B uses **~17GB** while Llama-3.2-11B uses **~21GB** with multi-GPU distribution
 - Llama-4-Scout requires **massive memory** (217GB across 2x H200) due to 109B MoE architecture
 - Quantization saves minimal memory but **severely impacts speed** for InternVL3-8B
-- **Surprise finding**: InternVL3.5-8B requires same memory as Llama-3.2-11B (both ~17GB)
+- **Memory efficiency finding**: InternVL3.5-8B uses 20% less memory than Llama-3.2-11B (17GB vs 21GB) while maintaining competitive accuracy
 
 ![Memory Usage Comparison](output/visualizations/model_memory_comparison.png)
 
@@ -159,7 +159,7 @@ Llama-4-Scout    █████████████████████
 **Strengths**:
 - ✅ Third-best accuracy (83.6%)
 - ✅ Second-best for bank statements (72.3%)
-- ✅ Same memory footprint as Llama-3.2-11B (~17GB multi-GPU)
+- ✅ 20% lower memory footprint than Llama-3.2-11B (~17GB vs ~21GB multi-GPU)
 - ✅ Cascade RL improves reasoning
 - ✅ Visual Resolution Router helps with tables
 - ✅ Competitive speed (14.76s)
@@ -295,7 +295,7 @@ Average accuracy by document type:
 | Model | Allocated | Reserved | Total | GPUs |
 |-------|-----------|----------|-------|------|
 | Llama-4-Scout | 217.28 GB | 217.29 GB | 300 GB | 2x H200 |
-| Llama-3.2-11B | 17.06 GB | 17.11 GB | 300 GB | 2x H200 |
+| Llama-3.2-11B | 21.3 GB | 21.4 GB | 300 GB | 2x H200 |
 | InternVL3.5-8B | 17.06 GB | 17.11 GB | 300 GB | 2x H200 |
 | InternVL3-2B | 2.29 GB | 2.32 GB | 150 GB | 1x H200 |
 | InternVL3-8B (Q) | 2.38 GB | 2.41 GB | 150 GB | 1x H200 |
@@ -321,16 +321,16 @@ Average accuracy by document type:
 
 1. **Llama-4-Scout** is the **new accuracy leader** (91.3% overall, 78.8% bank statements) with MoE architecture
 2. **Llama-3.2-11B** remains the **speed champion** (11.25s/image) with excellent accuracy (88.4%)
-3. **InternVL3.5-8B** offers **good value** (83.6% accuracy, same 17GB memory as Llama-3.2-11B)
+3. **InternVL3.5-8B** offers **good value** (83.6% accuracy, 20% less memory than Llama-3.2-11B at 17GB)
 4. **InternVL3-2B** is the **efficiency champion** (2.3GB, 12.66s/image) for simple documents
 5. **Bank statements** remain challenging (avg 63.4%) but Llama-4-Scout achieves 78.8%
 6. **Quantization hurts** InternVL3-8B (3x slower, lowest accuracy) - avoid
-7. **Memory surprise**: InternVL3.5-8B uses same memory as Llama-3.2-11B (both ~17GB), not 2.4GB as initially expected
+7. **Memory efficiency**: InternVL3.5-8B uses 20% less memory than Llama-3.2-11B (17GB vs 21GB), making it more memory-efficient
 
 **Production Recommendation**:
 - Use **Llama-4-Scout** if you have high-end infrastructure (2x H200) and need maximum accuracy
 - Use **Llama-3.2-11B** if you need balanced speed/accuracy with standard multi-GPU setup
-- Use **InternVL3.5-8B** as alternative to Llama-3.2-11B (similar memory, 5% lower accuracy, 31% slower)
+- Use **InternVL3.5-8B** as alternative to Llama-3.2-11B (20% less memory at 17GB, 5% lower accuracy, 31% slower)
 - Use **InternVL3-2B** if you need true memory efficiency (2.3GB) with acceptable accuracy (74%)
 - Avoid InternVL3-8B quantized - use InternVL3-2B or InternVL3.5-8B instead
 

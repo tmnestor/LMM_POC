@@ -46,11 +46,11 @@ MODELS = {
 
 # Memory usage data (from MODEL_COMPARISON_REPORT.md)
 MEMORY_USAGE = {
-    "Llama-3.2-11B": 17.06,  # GB
+    "Llama-3.2-11B": 21.3,  # GB (21.3GB allocated across 2x H200)
     "Llama-4-Scout": 217.28,  # GB (MoE multi-GPU)
     "InternVL3-2B": 2.29,
     "InternVL3-8B (Q)": 2.38,
-    "InternVL3.5-8B": 17.06,  # GB (same as Llama-3.2-11B)
+    "InternVL3.5-8B": 17.06,  # GB (17.06GB allocated across 2x H200)
 }
 
 
