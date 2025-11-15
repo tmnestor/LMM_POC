@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+image_001.png,RECEIPT,92.85714285714286,14,13,14,10.751792430877686,internvl3_receipt,False
+image_002.png,RECEIPT,92.85714285714286,14,13,14,11.83652663230896,internvl3_receipt,False
+image_003.png,INVOICE,71.42857142857143,0,10,14,4.695992469787598,internvl3_invoice,False
+image_004.png,INVOICE,0.0,0,0,14,3.767115354537964,internvl3_invoice,False
+image_005.png,INVOICE,0.0,0,0,14,3.3488898277282715,internvl3_invoice,False
+image_006.png,INVOICE,0.0,0,0,14,3.3095428943634033,internvl3_invoice,False
+image_007.png,INVOICE,0.0,0,0,14,4.077372789382935,internvl3_invoice,False
+image_008.png,INVOICE,71.42857142857143,0,10,14,2.953404426574707,internvl3_invoice,False
+image_009.png,INVOICE,71.42857142857143,0,10,14,2.751248598098755,internvl3_invoice,False
