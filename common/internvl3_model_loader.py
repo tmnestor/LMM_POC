@@ -13,7 +13,9 @@ import torch
 from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
+
+from .extraction_cleaner import sanitize_for_rich
 
 
 def load_internvl3_model(
@@ -109,6 +111,7 @@ def load_internvl3_model(
     )  # V100-compatible fallback
 
     # Intelligent quantization based on available GPU memory (V100 multi-GPU setup)
+    # BitsAndBytesConfig will be created if quantization is enabled
     quantization_config = None
     if torch.cuda.is_available():
         # Use robust GPU memory detection for bulletproof memory analysis
@@ -183,10 +186,11 @@ def load_internvl3_model(
                     f"[blue]💾 Available Memory: {total_available_memory:.1f}GB across {working_gpus} GPU(s)[/blue]"
                 )
 
-                # Show any warnings from robust detection
+                # Show any warnings from robust detection (sanitized for Rich safety)
                 if memory_result.warnings:
                     for warning in memory_result.warnings:
-                        rprint(f"[yellow]⚠️ {warning}[/yellow]")
+                        safe_warning = sanitize_for_rich(warning, max_length=300)
+                        rprint(f"[yellow]⚠️ {safe_warning}[/yellow]")
             else:
                 rprint(
                     "[blue]📊 GPU Hardware: CPU fallback (robust detection failed)[/blue]"
@@ -300,11 +304,12 @@ def load_internvl3_model(
                         f"[yellow]⚠️ Using quantization due to limited memory ({total_available_memory:.0f}GB available)[/yellow]"
                     )
 
-        # Log robust detection warnings if any
+        # Log robust detection warnings if any (sanitized for Rich safety)
         if verbose and memory_result.warnings:
             rprint("[yellow]🔍 Robust Detection Warnings:[/yellow]")
             for warning in memory_result.warnings:
-                rprint(f"[yellow]   • {warning}[/yellow]")
+                safe_warning = sanitize_for_rich(warning, max_length=300)
+                rprint(f"[yellow]   • {safe_warning}[/yellow]")
 
     # CRITICAL: Enhanced final quantization decision with robust detection data
     if verbose:
@@ -324,11 +329,14 @@ def load_internvl3_model(
                 v100_count = len(v100_gpus)
                 v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
                 rprint(
-                    f"[cyan]   V100 Configuration: {v100_count}x V100 = {v100_total_memory:.0f}GB total[/cyan]"
+                    f"[cyan]   Multi-V100 setup: {v100_count}x V100 = {v100_total_memory:.1f}GB total V100 memory[/cyan]"
                 )
-                rprint(
-                    "[yellow]   ⚠️ CRITICAL: 8-bit quantization is REQUIRED for V100 GPUs[/yellow]"
-                )
+                # Memory sufficiency check for full precision
+                full_precision_memory_needed = 20.0  # InternVL3-8B float32 estimate
+                if v100_total_memory >= full_precision_memory_needed and not use_quantization:
+                    rprint(
+                        f"[green]   ✅ V100 memory sufficient for full precision InternVL3-8B: {v100_total_memory:.1f}GB >= {full_precision_memory_needed}GB needed[/green]"
+                    )
 
             # Show any critical warnings
             if memory_result.warnings:
@@ -336,15 +344,20 @@ def load_internvl3_model(
                     f"[yellow]   Warnings: {len(memory_result.warnings)} detected (see above)[/yellow]"
                 )
 
-    # Simple quantization status logging (actual config handled in model loading)
+    # Configure quantization with BitsAndBytesConfig (replaces deprecated load_in_8bit)
     if use_quantization:
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            llm_int8_skip_modules=None,  # Process all modules normally for InternVL3
+        )
         if verbose:
             rprint(
-                "[yellow]🔧 Using 8-bit quantization (load_in_8bit=True) as per official docs[/yellow]"
+                "[yellow]🔧 Using 8-bit quantization (BitsAndBytesConfig) as per official docs[/yellow]"
             )
     else:
+        quantization_config = None
         if verbose:
-            rprint("[green]🚀 Using 16-bit precision mode[/green]")
+            rprint("[green]🚀 Using full precision mode[/green]")
 
     # Load model with InternVL3-optimized parameters and multi-GPU distribution
     try:
@@ -359,7 +372,7 @@ def load_internvl3_model(
         # https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
         model_kwargs = {
             "torch_dtype": torch_dtype_obj,
-            "load_in_8bit": use_quantization,  # Official parameter name
+            "quantization_config": quantization_config,  # BitsAndBytesConfig (replaces deprecated load_in_8bit)
             "low_cpu_mem_usage": low_cpu_mem_usage,
             "trust_remote_code": True,
             "device_map": device_map,
