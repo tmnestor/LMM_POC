@@ -1,0 +1,5 @@
+Configuration,GPU,Model,Precision,Flash_Attn,Total_Images,Successful_Extractions,Failed_Extractions,Avg_Accuracy,Median_Accuracy,Min_Accuracy,Max_Accuracy,Avg_Processing_Time_s,Total_Processing_Time_s,Throughput_img_per_min,Fields_Evaluated
+V100 Quantized,V100,InternVL3-8B,8-bit,No,9,9,0,74.50,83.33,30.99,90.53,108.71,978.36,0.55,19
+H200 Quantized,H200,InternVL3-8B,8-bit,No,9,9,0,75.33,80.00,43.28,92.06,42.16,379.44,1.42,19
+H200 bfloat16,H200,InternVL3-8B,bfloat16,Yes,9,9,0,75.77,87.86,24.33,92.06,13.98,125.86,4.29,14
+H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,Yes,9,9,0,83.60,92.86,34.23,100.00,15.06,135.52,3.98,14

@@ -1,0 +1,5 @@
+Configuration,GPU,Model,Precision,Avg_Accuracy,Median_Accuracy,Min_Accuracy,Max_Accuracy,Accuracy_Range
+V100 Quantized,V100,InternVL3-8B,8-bit,74.50,83.33,30.99,90.53,59.54
+H200 Quantized,H200,InternVL3-8B,8-bit,75.33,80.00,43.28,92.06,48.78
+H200 bfloat16,H200,InternVL3-8B,bfloat16,75.77,87.86,24.33,92.06,67.73
+H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,83.60,92.86,34.23,100.00,65.77

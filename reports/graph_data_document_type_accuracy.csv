@@ -1,0 +1,13 @@
+Configuration,GPU,Model,Precision,Document_Type,Accuracy,Sample_Count
+V100 Quantized,V100,InternVL3-8B,8-bit,RECEIPT,85.4,3
+V100 Quantized,V100,InternVL3-8B,8-bit,INVOICE,80.2,3
+V100 Quantized,V100,InternVL3-8B,8-bit,BANK_STATEMENT,58.0,3
+H200 Quantized,H200,InternVL3-8B,8-bit,RECEIPT,83.57,3
+H200 Quantized,H200,InternVL3-8B,8-bit,INVOICE,80.36,3
+H200 Quantized,H200,InternVL3-8B,8-bit,BANK_STATEMENT,62.05,3
+H200 bfloat16,H200,InternVL3-8B,bfloat16,RECEIPT,90.06,3
+H200 bfloat16,H200,InternVL3-8B,bfloat16,INVOICE,81.94,3
+H200 bfloat16,H200,InternVL3-8B,bfloat16,BANK_STATEMENT,55.30,3
+H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,RECEIPT,92.86,3
+H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,INVOICE,85.66,3
+H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,BANK_STATEMENT,72.29,3

@@ -1,0 +1,5 @@
+Configuration,GPU,Model,Avg_Accuracy,Throughput_img_per_min,Efficiency_Score
+V100 Quantized,V100,InternVL3-8B,74.50,0.55,40.98
+H200 Quantized,H200,InternVL3-8B,75.33,1.42,106.97
+H200 bfloat16,H200,InternVL3-8B,75.77,4.29,325.05
+H200 InternVL3.5,H200,InternVL3.5-8B,83.60,3.98,332.73
