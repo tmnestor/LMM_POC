@@ -30,7 +30,7 @@ def sanitize_for_rich(content: str, max_length: int = 200) -> str:
         return content
 
     # Escape Rich markup characters that cause recursion
-    safe_content = str(content).replace('[', '\\[').replace(']', '\\]')
+    safe_content = str(content).replace("[", "\\[").replace("]", "\\]")
 
     # Truncate if too long to prevent overwhelming output
     if len(safe_content) > max_length:
@@ -254,6 +254,7 @@ class ExtractionCleaner:
         - Remove price suffixes from price lists
         - Convert to standard pipe-separated format
         - Normalize whitespace and separators
+        - Issue #5: Fix missing pipe separators in amount lists
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
@@ -263,6 +264,16 @@ class ExtractionCleaner:
             r"^\s*\*+\s*", "", value
         )  # Remove leading whitespace + asterisks + spaces
         value = value.replace("**", "")  # Remove any double asterisks
+
+        # Issue #5: Fix missing pipe separators between currency amounts
+        # Pattern: "$XX.XX $YY.YY" → "$XX.XX | $YY.YY"
+        # Only apply to monetary list fields (TRANSACTION_AMOUNTS, LINE_ITEM_PRICES, etc.)
+        if any(
+            pattern in field_name.upper()
+            for pattern in ["AMOUNT", "PRICE", "COST", "FEE"]
+        ):
+            # Fix concatenated amounts: "$251.33 $98.53" → "$251.33 | $98.53"
+            value = re.sub(r"(\$\d+\.\d{2})\s+(\$\d+\.\d{2})", r"\1 | \2", value)
 
         # Split by comma or pipe and clean each item
         if "|" in value:
@@ -287,7 +298,10 @@ class ExtractionCleaner:
 
             # PRESERVE POSITIONAL ARRAY STRUCTURE: Keep NOT_FOUND values for bank statement arrays
             # This is critical for TRANSACTION_AMOUNTS_* fields where position matters
-            if field_name.upper().startswith('TRANSACTION_AMOUNTS') or field_name.upper() == 'ACCOUNT_BALANCE':
+            if (
+                field_name.upper().startswith("TRANSACTION_AMOUNTS")
+                or field_name.upper() == "ACCOUNT_BALANCE"
+            ):
                 # For bank statement transaction arrays, preserve ALL positions including NOT_FOUND
                 cleaned_items.append(cleaned_item if cleaned_item else "NOT_FOUND")
             else:
@@ -412,6 +426,7 @@ class ExtractionCleaner:
         Handles:
         - STATEMENT → BANK_STATEMENT (common model output vs ground truth mismatch)
         - BILL → INVOICE (models sometimes classify invoices as bills)
+        - TAX INVOICE → INVOICE (Issue #4: Llama 4 outputs "Tax Invoice")
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
@@ -423,6 +438,7 @@ class ExtractionCleaner:
         document_type_mappings = {
             "STATEMENT": "BANK_STATEMENT",
             "BILL": "INVOICE",
+            "TAX INVOICE": "INVOICE",  # Issue #4: Handle "Tax Invoice" variant
         }
 
         return document_type_mappings.get(normalized, normalized)
@@ -519,6 +535,7 @@ class ExtractionCleaner:
         - LINE_ITEM_PRICES = unit prices (price per individual item)
         - LINE_ITEM_TOTAL_PRICES = quantity × unit price
         - GST calculations must be consistent
+        - Issue #6: Bank statement transaction counts must match
         """
         validated_dict = cleaned_dict.copy()
 
@@ -538,6 +555,10 @@ class ExtractionCleaner:
                 # No special validation needed
                 pass
 
+        # Issue #6: Validate bank statement transaction count consistency
+        if self._is_bank_statement(cleaned_dict):
+            validated_dict = self._validate_transaction_counts(validated_dict)
+
         return validated_dict
 
     def _has_line_items(self, data: Dict[str, str]) -> bool:
@@ -555,6 +576,11 @@ class ExtractionCleaner:
         """Check if document has GST-related fields."""
         gst_fields = ["GST_AMOUNT", "IS_GST_INCLUDED", "LINE_ITEM_GST_AMOUNTS"]
         return any(data.get(field, "NOT_FOUND") != "NOT_FOUND" for field in gst_fields)
+
+    def _is_bank_statement(self, data: Dict[str, str]) -> bool:
+        """Check if document is a bank statement."""
+        doc_type = data.get("DOCUMENT_TYPE", "").upper()
+        return "BANK" in doc_type or "STATEMENT" in doc_type
 
     def _validate_line_item_pricing(self, data: Dict[str, str]) -> Dict[str, str]:
         """
@@ -654,6 +680,48 @@ class ExtractionCleaner:
             case _:
                 # Insufficient data for GST validation
                 pass
+
+        return data
+
+    def _validate_transaction_counts(self, data: Dict[str, str]) -> Dict[str, str]:
+        """
+        Validate that bank statement transaction field counts match.
+
+        Issue #6: Detects when transaction descriptions, dates, and amounts
+        have mismatched counts, which indicates merged transactions.
+
+        Args:
+            data: Cleaned field dictionary
+
+        Returns:
+            Same dictionary (validation only, no modifications)
+        """
+        # Get transaction fields
+        descriptions = data.get("LINE_ITEM_DESCRIPTIONS", "NOT_FOUND")
+        dates = data.get("TRANSACTION_DATES", "NOT_FOUND")
+        amounts_paid = data.get("TRANSACTION_AMOUNTS_PAID", "NOT_FOUND")
+
+        # Count items in each field (split by pipe)
+        counts = {}
+        for field_name, value in [
+            ("LINE_ITEM_DESCRIPTIONS", descriptions),
+            ("TRANSACTION_DATES", dates),
+            ("TRANSACTION_AMOUNTS_PAID", amounts_paid),
+        ]:
+            if value != "NOT_FOUND":
+                counts[field_name] = len(
+                    [x.strip() for x in value.split("|") if x.strip()]
+                )
+
+        # Check if all counts match
+        if counts and len(set(counts.values())) > 1:
+            if self.debug:
+                print(
+                    "⚠️  Issue #6: Bank statement transaction count mismatch detected:"
+                )
+                for field_name, count in counts.items():
+                    print(f"   {field_name}: {count} items")
+                print("   → This may indicate merged transactions in extraction")
 
         return data
 
