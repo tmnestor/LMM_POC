@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "batch_id": "20251115_012034",
+    "timestamp": "2025-11-15T01:23:24.439503",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 9,
+    "successful_extractions": 9,
+    "average_accuracy": 88.01732786700109,
+    "total_processing_time": 105.78749442100525,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "/home/jovyan/nfs_share/tod/evaluation_data",
+    "ground_truth": "/home/jovyan/nfs_share/tod/evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": false,
+      "device_map": "auto",
+      "max_new_tokens": 2000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 9.0,
+    "Successful Extractions": 9.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 88.01732786700109,
+    "Median Accuracy (%)": 96.80504680504681,
+    "Min Accuracy (%)": 62.33333333333333,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 11.75416604677836,
+    "Total Processing Time (s)": 105.78749442100525,
+    "Throughput (images/min)": 5.104573115712032
+  },
+  "document_type_distribution": {
+    "RECEIPT": 3,
+    "BANK_STATEMENT": 3,
+    "INVOICE": 3
+  },
+  "results": [
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "llama_receipt_prompt_receipt_prompt",
+      "processing_time": 9.933017492294312,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "llama_receipt_prompt_receipt_prompt",
+      "processing_time": 8.615403413772583,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "llama_bank_statement_prompt_bank_statement_flat_prompt",
+      "processing_time": 8.238834857940674,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7272727272727273,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "llama_receipt_prompt_receipt_prompt",
+      "processing_time": 7.34257435798645,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "llama_invoice_prompt_invoice_prompt",
+      "processing_time": 7.612556457519531,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "llama_invoice_prompt_invoice_prompt",
+      "processing_time": 9.949002981185913,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9680504680504681,
+        "fields_extracted": 14,
+        "fields_matched": 12,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "INVOICE",
+      "prompt_used": "llama_invoice_prompt_invoice_prompt",
+      "processing_time": 8.030956983566284,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "llama_bank_statement_prompt_bank_statement_flat_prompt",
+      "processing_time": 31.90659475326538,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6233333333333333,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "llama_bank_statement_prompt_bank_statement_date_grouped_prompt",
+      "processing_time": 14.158553123474121,
+      "evaluation_summary": {
+        "overall_accuracy": 0.674331550802139,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}
