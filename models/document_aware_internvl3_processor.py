@@ -170,12 +170,11 @@ class DocumentAwareInternVL3HybridProcessor:
 
     def _configure_generation(self):
         """Configure generation parameters for InternVL3."""
-        # InternVL3 generation config (adapted from Llama logic)
+        # InternVL3 generation config - chat() method only accepts max_new_tokens and do_sample
+        # NOTE: temperature and top_p are NOT valid for InternVL3 chat() and cause warnings
         self.generation_config = {
             "max_new_tokens": get_max_new_tokens("internvl3", self.field_count),
-            "temperature": 0.0,
-            "do_sample": False,
-            "top_p": 0.9,
+            "do_sample": False,  # Greedy decoding for consistent extraction
             "use_cache": True,
         }
 
@@ -188,8 +187,7 @@ class DocumentAwareInternVL3HybridProcessor:
             )
             print(
                 f"🎯 Generation config: max_new_tokens={self.generation_config['max_new_tokens']}, "
-                f"temperature={self.generation_config['temperature']}, "
-                f"do_sample={self.generation_config['do_sample']}"
+                f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
             )
 
     def _get_model_device(self):
@@ -776,15 +774,13 @@ class DocumentAwareInternVL3HybridProcessor:
         # Don't limit extraction tokens as aggressively - let the model complete its response
         # The recursion detection will catch any infinite loops
 
+        # InternVL3 chat() method only accepts specific parameters
+        # temperature and top_p are not valid - they cause warnings
         clean_generation_kwargs = {
             "max_new_tokens": max_tokens,
-            "temperature": generation_kwargs.get(
-                "temperature", self.generation_config["temperature"]
-            ),
             "do_sample": generation_kwargs.get(
                 "do_sample", self.generation_config["do_sample"]
             ),
-            "top_p": generation_kwargs.get("top_p", self.generation_config["top_p"]),
             "pad_token_id": self.tokenizer.eos_token_id,  # Suppress pad_token_id warnings
         }
 
