@@ -35,7 +35,13 @@ except ImportError:
     ) from None
 
 # Import GPU optimization utilities
+# Configure torch dynamo for Llama 4 flex_attention compatibility
+# This prevents compilation errors with flex_attention and falls back to eager execution
+import torch._dynamo
+
 from .gpu_optimization import configure_cuda_memory_allocation
+
+torch._dynamo.config.suppress_errors = True
 
 
 def load_llama4_model(
