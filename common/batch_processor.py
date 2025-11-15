@@ -455,8 +455,8 @@ class BatchDocumentProcessor:
                             )
 
                             if is_debug:
-                                rprint("[yellow]🔍 AFTER EVALUATION:[/yellow]")
-                                rprint(f"  f1_score = {f1_metrics['f1_score']}")
+                                rprint(f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]")
+                                rprint(f"  Field '{field}' f1_score = {f1_metrics['f1_score']}")
 
                             field_scores[field] = f1_metrics
                             total_f1_score += f1_metrics["f1_score"]
@@ -506,8 +506,13 @@ class BatchDocumentProcessor:
                     # Show evaluation summary
                     if verbose and evaluation:
                         accuracy = evaluation.get("overall_accuracy", 0) * 100
+                        precision = evaluation.get("overall_precision", 0) * 100
+                        recall = evaluation.get("overall_recall", 0) * 100
                         rprint(
-                            f"[cyan]✓ Accuracy: {accuracy:.1f}% for {image_name}[/cyan]"
+                            f"[cyan]✓ Overall F1 Score (Accuracy): {accuracy:.1f}% for {image_name}[/cyan]"
+                        )
+                        rprint(
+                            f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]"
                         )
 
                     # Debug: Show why detailed comparison might not be displayed
