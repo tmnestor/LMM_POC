@@ -749,7 +749,7 @@ def get_document_type_fields(document_type: str) -> list:
     try:
         from .unified_schema import DocumentTypeFieldSchema
 
-        loader = DocumentTypeFieldSchema("config/fields.yaml")
+        loader = DocumentTypeFieldSchema("config/field_definitions.yaml")
 
         # Map common document type variations
         doc_type_mapping = {
@@ -778,13 +778,15 @@ def get_document_type_fields(document_type: str) -> list:
                 if isinstance(field, dict) and "name" in field
             ]
 
-        return field_names
+        # CRITICAL: Filter out validation-only fields (TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE)
+        # These fields are used for mathematical validation but NOT for accuracy evaluation
+        return filter_evaluation_fields(field_names)
 
     except Exception as e:
         # Fallback to full field list if document-specific filtering fails
         print(f"⚠️ Document-specific field filtering failed for '{document_type}': {e}")
-        print("🔄 Falling back to full V4 field list (49 fields)")
-        return get_v4_field_list()
+        print("🔄 Falling back to full V4 field list (filtered for evaluation)")
+        return filter_evaluation_fields(get_v4_field_list())
 
 
 def get_v4_field_count() -> int:
