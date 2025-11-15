@@ -31,15 +31,18 @@ def load_internvl3_model(
 
     Based on https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
 
-    CRITICAL: InternVL3 models REQUIRE 8-bit quantization on V100 GPUs to function properly.
-    Without quantization, the model produces gibberish responses on V100 hardware.
+    V100 GPU Guidance:
+    - V100 lacks native bfloat16 support (compute capability 7.0, needs ≥8.0)
+    - bfloat16→float16 conversion produces gibberish output
+    - RECOMMENDED: use_quantization=False + torch_dtype='float32' for stable inference
+    - ALTERNATIVE: use_quantization=True (8-bit) if memory constrained
 
     Args:
         model_path: Path to InternVL3 model
-        use_quantization: Use 8-bit quantization (REQUIRED for V100, recommended for other GPUs)
+        use_quantization: Use 8-bit quantization (optional, enables memory savings)
         device_map: Device mapping strategy
         max_new_tokens: Maximum tokens for generation
-        torch_dtype: Data type (bfloat16 recommended)
+        torch_dtype: Data type ('float32' recommended for V100, 'bfloat16' for modern GPUs)
         low_cpu_mem_usage: Enable low CPU memory usage
         use_flash_attn: Enable Flash Attention (NOT supported on V100, use False for V100)
         verbose: Enable detailed logging
@@ -209,22 +212,32 @@ def load_internvl3_model(
             v100_count = len(v100_gpus)
             v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
 
-            # CRITICAL: InternVL3 models MUST use 8-bit quantization on V100 GPUs
-            # Without quantization, the model produces gibberish responses
-            if not use_quantization:
-                if verbose:
+            # V100 GPU Configuration Guidance:
+            # - V100 lacks native bfloat16 support (compute capability 7.0, needs ≥8.0)
+            # - bfloat16→float16 conversion produces gibberish output
+            # - Recommended: use_quantization=False + torch_dtype='float32' for stable inference
+            # - Alternative: use_quantization=True (8-bit) if memory constrained
+            if verbose:
+                if use_quantization:
                     rprint(
-                        f"[yellow]⚠️ {v100_count}x V100 detected ({v100_total_memory:.0f}GB) - FORCING 8-bit quantization for InternVL3[/yellow]"
+                        f"[cyan]🔧 {v100_count}x V100 detected ({v100_total_memory:.0f}GB) - using 8-bit quantization[/cyan]"
                     )
+                else:
+                    # User chose full precision (float32 recommended for V100)
                     rprint(
-                        "[yellow]📝 Note: 8-bit quantization is REQUIRED for InternVL3 on V100 GPUs[/yellow]"
+                        f"[green]✅ {v100_count}x V100 detected ({v100_total_memory:.0f}GB) - using full precision[/green]"
                     )
-                use_quantization = True
-            else:
-                if verbose:
-                    rprint(
-                        f"[green]✅ {v100_count}x V100 with {v100_total_memory:.0f}GB - using required 8-bit quantization[/green]"
-                    )
+                    if torch_dtype == 'bfloat16':
+                        rprint(
+                            "[yellow]⚠️  WARNING: bfloat16 with V100 may cause gibberish output[/yellow]"
+                        )
+                        rprint(
+                            "[yellow]💡 Recommended: Set torch_dtype='float32' for V100 production[/yellow]"
+                        )
+                    elif torch_dtype == 'float32':
+                        rprint(
+                            "[green]✅ Using torch.float32 - optimal for V100 (solves gibberish issue)[/green]"
+                        )
         elif gpu_config and gpu_config.is_high_memory:
             # High-memory GPUs (H200, H100, L40, etc.) - allow configuration choice
             # L40 and other modern GPUs can handle both modes
