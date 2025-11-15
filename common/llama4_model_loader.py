@@ -6,11 +6,14 @@ Based on llama_model_loader_robust.py but updated for Llama 4 compatibility.
 
 Key Features:
 - Llama4ForConditionalGeneration support
-- flex_attention implementation for MoE
+- SDPA (scaled dot-product attention) for efficiency
 - Robust multi-GPU memory detection
 - Intelligent quantization decisions
 - V100-specific optimizations
 - Comprehensive error handling and fallbacks
+
+Note: Uses SDPA instead of flex_attention due to known bug in flex_attention
+with Llama 4 Scout (GitHub issue huggingface/transformers#37352)
 """
 
 import gc
@@ -35,13 +38,7 @@ except ImportError:
     ) from None
 
 # Import GPU optimization utilities
-# Configure torch dynamo for Llama 4 flex_attention compatibility
-# This prevents compilation errors with flex_attention and falls back to eager execution
-import torch._dynamo
-
 from .gpu_optimization import configure_cuda_memory_allocation
-
-torch._dynamo.config.suppress_errors = True
 
 
 def load_llama4_model(
@@ -84,7 +81,7 @@ def load_llama4_model(
             "[bold blue]🚀 Loading Llama 4 model with robust multi-GPU optimization...[/bold blue]"
         )
         rprint(
-            "[cyan]Features: MoE architecture, flex_attention, memory management[/cyan]"
+            "[cyan]Features: MoE architecture, SDPA attention, memory management[/cyan]"
         )
 
     try:
@@ -217,7 +214,7 @@ def load_llama4_model(
 
         model = Llama4ForConditionalGeneration.from_pretrained(
             model_path,
-            attn_implementation="flex_attention",  # Required for Llama 4 MoE
+            attn_implementation="sdpa",  # Use SDPA instead of flex_attention (known bug in flex_attention for Llama 4 Scout)
             torch_dtype=torch_dtype_obj,
             low_cpu_mem_usage=low_cpu_mem_usage,
             trust_remote_code=True,
@@ -313,7 +310,7 @@ def load_llama4_model(
 
             table.add_row("Data Type", str(torch_dtype), "✅ Recommended")
             table.add_row("Max New Tokens", str(max_new_tokens), "✅ Generation Ready")
-            table.add_row("Attention", "flex_attention", "✅ MoE Optimized")
+            table.add_row("Attention", "sdpa", "✅ Efficient SDPA")
 
             if torch.cuda.is_available():
                 gpu_info = (
@@ -365,7 +362,7 @@ def load_llama4_model(
         rprint("[bold green]🎉 Llama 4 model loading complete![/bold green]")
         quant_info = "8-bit quantization" if use_quantization else "16-bit precision"
         rprint(
-            f"[blue]🔧 Llama 4 optimizations active: MoE, flex_attention, {quant_info}[/blue]"
+            f"[blue]🔧 Llama 4 optimizations active: MoE, SDPA attention, {quant_info}[/blue]"
         )
 
     return model, processor
