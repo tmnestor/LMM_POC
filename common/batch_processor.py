@@ -16,8 +16,8 @@ from rich.progress import track
 
 from .evaluation_metrics import load_ground_truth
 
-# Import Rich content sanitization to prevent recursion errors
-from .extraction_cleaner import sanitize_for_rich
+# Import Rich content sanitization to prevent recursion errors and ExtractionCleaner
+from .extraction_cleaner import ExtractionCleaner, sanitize_for_rich
 from .simple_model_evaluator import SimpleModelEvaluator
 from .simple_prompt_loader import SimplePromptLoader
 
@@ -287,23 +287,16 @@ class BatchDocumentProcessor:
                                 ground_truth = self.ground_truth_data[gt_key]
                                 break
 
-                # DEBUG: Show ground truth lookup results
-                if verbose:
-                    rprint(f"[yellow]🔍 GT LOOKUP DEBUG for {image_name}:[/yellow]")
-                    rprint(f"  Image name: {image_name}")
-                    rprint(f"  Image stem: {Path(image_path).stem}")
-                    rprint(f"  GT keys available: {list(self.ground_truth_data.keys())[:5]}")  # First 5
-                    rprint(f"  GT found: {bool(ground_truth)}")
-                    if ground_truth:
-                        rprint(f"  GT document_type: {ground_truth.get('DOCUMENT_TYPE', 'MISSING')}")
-
                 if ground_truth:
                     # Extract data using working DocumentAwareLlamaProcessor format
                     # DocumentAwareLlamaProcessor returns extracted_data at top level
                     extracted_data = extraction_result.get("extracted_data", {})
 
                     # Apply mathematical enhancement for bank statements
-                    if document_type.upper() == "BANK_STATEMENT" and self.enable_math_enhancement:
+                    if (
+                        document_type.upper() == "BANK_STATEMENT"
+                        and self.enable_math_enhancement
+                    ):
                         from .bank_statement_calculator import (
                             enhance_bank_statement_extraction,
                         )
@@ -404,7 +397,10 @@ class BatchDocumentProcessor:
                         calculate_correlation_aware_f1,
                         calculate_field_accuracy_with_method,
                     )
-                    evaluation_method = os.environ.get('EVALUATION_METHOD', 'order_aware_f1')
+
+                    evaluation_method = os.environ.get(
+                        "EVALUATION_METHOD", "order_aware_f1"
+                    )
 
                     field_scores = {}
                     total_f1_score = 0.0
@@ -418,7 +414,7 @@ class BatchDocumentProcessor:
                             extracted_data,
                             filtered_ground_truth,
                             document_type,
-                            debug=False
+                            debug=False,
                         )
 
                         # Use the correlation metrics for all field scores
@@ -440,12 +436,22 @@ class BatchDocumentProcessor:
                             is_debug = field == "IS_GST_INCLUDED" and verbose
                             if is_debug:
                                 rprint("[yellow]🔍 BEFORE EVALUATION:[/yellow]")
-                                rprint(f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})")
-                                rprint(f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})")
-                                rprint(f"  Are they equal? {extracted_val == ground_val}")
+                                rprint(
+                                    f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})"
+                                )
+                                rprint(
+                                    f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})"
+                                )
+                                rprint(
+                                    f"  Are they equal? {extracted_val == ground_val}"
+                                )
 
                             f1_metrics = calculate_field_accuracy_with_method(
-                                extracted_val, ground_val, field, method=evaluation_method, debug=is_debug
+                                extracted_val,
+                                ground_val,
+                                field,
+                                method=evaluation_method,
+                                debug=is_debug,
                             )
 
                             if is_debug:
@@ -459,8 +465,12 @@ class BatchDocumentProcessor:
 
                     # Calculate overall metrics from F1 scores
                     num_fields = len(field_scores)
-                    overall_accuracy = total_f1_score / num_fields if num_fields else 0.0
-                    overall_precision = total_precision / num_fields if num_fields else 0.0
+                    overall_accuracy = (
+                        total_f1_score / num_fields if num_fields else 0.0
+                    )
+                    overall_precision = (
+                        total_precision / num_fields if num_fields else 0.0
+                    )
                     overall_recall = total_recall / num_fields if num_fields else 0.0
 
                     # Count perfect matches for compatibility
@@ -503,7 +513,9 @@ class BatchDocumentProcessor:
                     # Debug: Show why detailed comparison might not be displayed
                     if verbose:
                         has_field_scores = "field_scores" in evaluation
-                        rprint(f"[dim]🔍 DEBUG: model_type={self.model_type}, has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]")
+                        rprint(
+                            f"[dim]🔍 DEBUG: model_type={self.model_type}, has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]"
+                        )
 
                     # Only show detailed comparison for Llama - InternVL3 has its own display logic
                     if (
@@ -779,17 +791,25 @@ class BatchDocumentProcessor:
 
             # For mismatches and partial matches, show full values and F1 metrics
             if (status == "❌" or status == "≈") and verbose:
-                rprint(f"[red]  ⚠️ MISMATCH DETAILS (F1={f1_score:.1%}, P={precision:.1%}, R={recall:.1%}):[/red]")
+                rprint(
+                    f"[red]  ⚠️ MISMATCH DETAILS (F1={f1_score:.1%}, P={precision:.1%}, R={recall:.1%}):[/red]"
+                )
                 rprint(f"[yellow]     Extracted (full): {extracted_val}[/yellow]")
                 rprint(f"[yellow]     Ground Truth (full): {ground_val}[/yellow]")
                 rprint(f"[cyan]     Metrics: TP={tp}, FP={fp}, FN={fn}[/cyan]")
 
                 # Show detailed comparison for list fields
-                if '|' in str(extracted_val) or '|' in str(ground_val):
-                    ext_items = [i.strip() for i in str(extracted_val).split('|') if i.strip()]
-                    gt_items = [i.strip() for i in str(ground_val).split('|') if i.strip()]
+                if "|" in str(extracted_val) or "|" in str(ground_val):
+                    ext_items = [
+                        i.strip() for i in str(extracted_val).split("|") if i.strip()
+                    ]
+                    gt_items = [
+                        i.strip() for i in str(ground_val).split("|") if i.strip()
+                    ]
 
-                    rprint(f"[yellow]     List comparison: {len(ext_items)} extracted vs {len(gt_items)} ground truth[/yellow]")
+                    rprint(
+                        f"[yellow]     List comparison: {len(ext_items)} extracted vs {len(gt_items)} ground truth[/yellow]"
+                    )
                     rprint(f"[cyan]     True Positives (correct): {tp}[/cyan]")
                     rprint(f"[yellow]     False Positives (extra): {fp}[/yellow]")
                     rprint(f"[red]     False Negatives (missing): {fn}[/red]")
@@ -815,16 +835,23 @@ class BatchDocumentProcessor:
                         if i < len(gt_items) and i < len(ext_items):
                             # Both lists have item at this position - check if match
                             if is_transaction_field:
-                                match = _transaction_item_matches(ext_items[i], gt_items[i], field)
+                                match = _transaction_item_matches(
+                                    ext_items[i], gt_items[i], field
+                                )
                             else:
                                 # Use same fuzzy matching logic as F1 calculation (0.75 threshold)
                                 from common.evaluation_metrics import _fuzzy_text_match
-                                match = _fuzzy_text_match(ext_items[i], gt_items[i], threshold=0.75)
+
+                                match = _fuzzy_text_match(
+                                    ext_items[i], gt_items[i], threshold=0.75
+                                )
 
                             if match:
                                 correct_items.append(f"Pos {i}: {ext_items[i]}")
                             else:
-                                wrong_position_items.append(f"Pos {i}: '{ext_items[i]}' vs '{gt_items[i]}'")
+                                wrong_position_items.append(
+                                    f"Pos {i}: '{ext_items[i]}' vs '{gt_items[i]}'"
+                                )
 
                         elif i < len(gt_items):
                             # Ground truth has item but extraction doesn't (missing)
@@ -836,29 +863,51 @@ class BatchDocumentProcessor:
                     # Display position-aware results (first 3 of each type)
                     if correct_items:
                         display_correct = correct_items[:3]
-                        more_text = f" (+{len(correct_items) - 3} more)" if len(correct_items) > 3 else ""
-                        rprint(f"[green]     ✓ Correct (position-aware):{more_text}[/green]")
+                        more_text = (
+                            f" (+{len(correct_items) - 3} more)"
+                            if len(correct_items) > 3
+                            else ""
+                        )
+                        rprint(
+                            f"[green]     ✓ Correct (position-aware):{more_text}[/green]"
+                        )
                         for item in display_correct:
                             rprint(f"[green]       {item}[/green]")
 
                     if wrong_position_items:
                         display_wrong = wrong_position_items[:3]
-                        more_text = f" (+{len(wrong_position_items) - 3} more)" if len(wrong_position_items) > 3 else ""
+                        more_text = (
+                            f" (+{len(wrong_position_items) - 3} more)"
+                            if len(wrong_position_items) > 3
+                            else ""
+                        )
                         rprint(f"[yellow]     ≈ Wrong at position:{more_text}[/yellow]")
                         for item in display_wrong:
                             rprint(f"[yellow]       {item}[/yellow]")
 
                     if missing_items:
                         display_missing = missing_items[:3]
-                        more_text = f" (+{len(missing_items) - 3} more)" if len(missing_items) > 3 else ""
-                        rprint(f"[red]     ✗ Missing (in GT, not extracted):{more_text}[/red]")
+                        more_text = (
+                            f" (+{len(missing_items) - 3} more)"
+                            if len(missing_items) > 3
+                            else ""
+                        )
+                        rprint(
+                            f"[red]     ✗ Missing (in GT, not extracted):{more_text}[/red]"
+                        )
                         for item in display_missing:
                             rprint(f"[red]       {item}[/red]")
 
                     if extra_items:
                         display_extra = extra_items[:3]
-                        more_text = f" (+{len(extra_items) - 3} more)" if len(extra_items) > 3 else ""
-                        rprint(f"[yellow]     + Extra (extracted beyond GT length):{more_text}[/yellow]")
+                        more_text = (
+                            f" (+{len(extra_items) - 3} more)"
+                            if len(extra_items) > 3
+                            else ""
+                        )
+                        rprint(
+                            f"[yellow]     + Extra (extracted beyond GT length):{more_text}[/yellow]"
+                        )
                         for item in display_extra:
                             rprint(f"[yellow]       {item}[/yellow]")
                 else:
@@ -1103,14 +1152,14 @@ class BatchDocumentProcessor:
             doc_type_upper = document_type.upper()
 
             # Get the prompt file path from config
-            extraction_files = self.prompt_config.get('extraction_files', {})
+            extraction_files = self.prompt_config.get("extraction_files", {})
             extraction_file = extraction_files.get(
                 doc_type_upper,
-                'prompts/llama_prompts.yaml'  # fallback
+                "prompts/llama_prompts.yaml",  # fallback
             )
 
             # Get the prompt key from config (or derive from document type if not specified)
-            extraction_keys = self.prompt_config.get('extraction_keys', {})
+            extraction_keys = self.prompt_config.get("extraction_keys", {})
 
             if doc_type_upper in extraction_keys:
                 # Use explicitly configured key
@@ -1122,14 +1171,17 @@ class BatchDocumentProcessor:
             # For bank statements ONLY: if key doesn't include structure suffix, append it
             # This allows config to override by specifying full key like "bank_statement_flat"
             if document_type == "BANK_STATEMENT" and bank_structure:
-                if "_flat" not in extraction_key and "_date_grouped" not in extraction_key:
+                if (
+                    "_flat" not in extraction_key
+                    and "_date_grouped" not in extraction_key
+                ):
                     extraction_key = f"{extraction_key}_{bank_structure}"
 
             # Load using config values (pass full path - loader handles normalization)
             from pathlib import Path
+
             extraction_prompt = prompt_loader.load_prompt(
-                extraction_file,
-                extraction_key
+                extraction_file, extraction_key
             )
             prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
 
@@ -1183,7 +1235,11 @@ class BatchDocumentProcessor:
             rprint("\n[bold yellow]📋 EXTRACTION PROMPT:[/bold yellow]")
             rprint("[cyan]━" * 80 + "[/cyan]")
             # Truncate prompt if too long
-            prompt_display = extraction_prompt[:1500] + "..." if len(extraction_prompt) > 1500 else extraction_prompt
+            prompt_display = (
+                extraction_prompt[:1500] + "..."
+                if len(extraction_prompt) > 1500
+                else extraction_prompt
+            )
             safe_prompt = sanitize_for_rich(prompt_display, max_length=2000)
             rprint(f"[dim]{safe_prompt}[/dim]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
@@ -1267,10 +1323,14 @@ class BatchDocumentProcessor:
             response, clean_conversation_artifacts=False, expected_fields=field_list
         )
 
+        # Apply ExtractionCleaner to clean and normalize field values
+        cleaner = ExtractionCleaner(debug=False)
+        cleaned_data = cleaner.clean_extraction_dict(parsed_data)
+
         # Show parsed/cleaned data when verbose
         if verbose:
             rprint("[bold green]✅ PARSED EXTRACTION DATA:[/bold green]")
-            for field, value in parsed_data.items():
+            for field, value in cleaned_data.items():
                 if value != "NOT_FOUND":
                     # Truncate long values for readability
                     display_value = (
@@ -1280,7 +1340,7 @@ class BatchDocumentProcessor:
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
         extraction_result = {
-            "extracted_data": parsed_data,
+            "extracted_data": cleaned_data,
             "raw_response": response,
             "field_list": field_list,
         }
