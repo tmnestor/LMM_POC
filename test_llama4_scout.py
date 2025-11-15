@@ -4,8 +4,9 @@ Run this on H200 machine to verify Llama 4 compatibility
 """
 
 import sys
-import torch
 from pathlib import Path
+
+import torch
 
 print("=" * 80)
 print("LLAMA 4 SCOUT COMPATIBILITY TEST")
@@ -26,10 +27,10 @@ try:
     # Parse version
     major, minor, patch = version.split('.')[:3]
     if int(major) >= 5 or (int(major) == 4 and int(minor) >= 51):
-        print(f"✅ Version check passed (>= 4.51.0 required)")
+        print("✅ Version check passed (>= 4.51.0 required)")
     else:
         print(f"❌ Version too old! Need >= 4.51.0, have {version}")
-        print(f"   Run: pip install --upgrade transformers")
+        print("   Run: pip install --upgrade transformers")
         sys.exit(1)
 except Exception as e:
     print(f"❌ Error checking transformers: {e}")
@@ -42,7 +43,7 @@ try:
     LLAMA4_AVAILABLE = True
 except ImportError as e:
     print(f"❌ Llama4ForConditionalGeneration not available: {e}")
-    print(f"   Upgrade transformers: pip install --upgrade transformers")
+    print("   Upgrade transformers: pip install --upgrade transformers")
     LLAMA4_AVAILABLE = False
     sys.exit(1)
 
@@ -108,7 +109,7 @@ try:
         total_allocated = 0
         total_reserved = 0
 
-        print(f"\n   GPU Memory Usage:")
+        print("\n   GPU Memory Usage:")
         for gpu_id in range(device_count):
             allocated = torch.cuda.memory_allocated(gpu_id) / 1e9
             reserved = torch.cuda.memory_reserved(gpu_id) / 1e9
@@ -165,8 +166,8 @@ try:
         skip_special_tokens=True
     )[0]
 
-    print(f"✅ Text inference successful!")
-    print(f"   Prompt: What is 2+2? Answer in one word.")
+    print("✅ Text inference successful!")
+    print("   Prompt: What is 2+2? Answer in one word.")
     print(f"   Response: {response.strip()}")
 
 except Exception as e:
@@ -182,9 +183,10 @@ print("-" * 80)
 
 try:
     # Try to load a test image from evaluation data
-    from PIL import Image
-    import requests
     from io import BytesIO
+
+    import requests
+    from PIL import Image
 
     # Use a simple test image URL
     test_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
@@ -227,12 +229,12 @@ try:
         skip_special_tokens=True
     )[0]
 
-    print(f"✅ Vision inference successful!")
+    print("✅ Vision inference successful!")
     print(f"   Response: {response.strip()}")
 
 except Exception as e:
     print(f"⚠️  Vision inference test skipped or failed: {e}")
-    print(f"   (This is optional - text inference works)")
+    print("   (This is optional - text inference works)")
 
 # ============================================================================
 # PHASE 5: Summary
@@ -249,11 +251,11 @@ print("   - Processor loading successful")
 print("   - Text inference working")
 
 print("\n📋 Model Information:")
-print(f"   - Model: Llama 4 Scout (17B active, 109B total)")
+print("   - Model: Llama 4 Scout (17B active, 109B total)")
 print(f"   - Parameters: {total_params:,}")
 print(f"   - Memory usage: {total_allocated:.1f}GB")
-print(f"   - Architecture: Mixture of Experts (16 experts)")
-print(f"   - Attention: flex_attention")
+print("   - Architecture: Mixture of Experts (16 experts)")
+print("   - Attention: flex_attention")
 
 print("\n✅ READY FOR INTEGRATION")
 print("   Llama 4 Scout is working correctly on your H200 machine!")

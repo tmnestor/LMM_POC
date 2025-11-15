@@ -1,2 +1,0 @@
-if i == 0 and j == 0:  # Debug first cell only
-    print(f"DEBUG: value={value}, type={type(value)}, threshold=0.45, will use {'white' if value < 0.45 else 'black'}")
