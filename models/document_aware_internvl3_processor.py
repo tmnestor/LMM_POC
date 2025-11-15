@@ -361,21 +361,23 @@ class DocumentAwareInternVL3HybridProcessor:
                 if self.debug:
                     print(f"🔧 TENSOR_DTYPE: Using parameter dtype {model_dtype}")
         except Exception as e:
-            # Determine dtype based on model type and configuration
-            # For 8-bit quantized models, use float16; otherwise use bfloat16
-            if "8B" in self.model_path and hasattr(self.model, 'config'):
-                # 8B models with quantization typically use float16
-                pixel_values = pixel_values.to(dtype=torch.float16)
+            # Fallback dtype detection - check actual model parameter dtype
+            # CRITICAL: Must detect float32 models correctly for V100 compatibility
+            try:
+                # Get dtype from any model parameter
+                first_param = next(iter(self.model.parameters()))
+                detected_dtype = first_param.dtype
+                pixel_values = pixel_values.to(dtype=detected_dtype)
                 if self.debug:
-                    print("🔧 TENSOR_DTYPE: Using float16 for 8B model (quantized)")
-            else:
-                # 2B models or non-quantized models use bfloat16
-                pixel_values = pixel_values.to(dtype=torch.bfloat16)
+                    print(f"🔧 TENSOR_DTYPE: Using detected parameter dtype {detected_dtype}")
+            except Exception:
+                # Last resort fallback: use float32 for safety (V100 compatible)
+                pixel_values = pixel_values.to(dtype=torch.float32)
                 if self.debug:
-                    print("🔧 TENSOR_DTYPE: Using bfloat16 fallback")
+                    print("🔧 TENSOR_DTYPE: Using float32 fallback (V100 safe)")
 
             if self.debug:
-                print(f"⚠️ Dtype detection exception: {e}")
+                print(f"⚠️ Primary dtype detection failed: {e}")
 
         # Move to model's device
         if self.model is not None:
@@ -384,6 +386,19 @@ class DocumentAwareInternVL3HybridProcessor:
                 pixel_values = pixel_values.to(model_device)
                 if self.debug:
                     print(f"🔧 DEVICE_MOVE: Moved tensor from {pixel_values.device} to {model_device}")
+            elif self.debug:
+                print(f"✅ DEVICE_OK: Tensor already on {model_device}")
+
+        # CRITICAL V100 DEBUGGING: Verify dtype and device match
+        if self.debug:
+            try:
+                model_param = next(iter(self.model.parameters()))
+                print(f"🔍 DTYPE_CHECK: pixel_values={pixel_values.dtype}, model_param={model_param.dtype}")
+                print(f"🔍 DEVICE_CHECK: pixel_values={pixel_values.device}, model_param={model_param.device}")
+                if pixel_values.dtype != model_param.dtype:
+                    print(f"⚠️ DTYPE_MISMATCH: pixel_values ({pixel_values.dtype}) != model ({model_param.dtype})")
+            except Exception as debug_err:
+                print(f"⚠️ Debug check failed: {debug_err}")
 
         if self.debug:
             print(
