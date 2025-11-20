@@ -1,0 +1,7 @@
+**Transaction Table Column Headers:**
+
+*   **Date**
+*   **Description**
+*   **Withdrawal**
+*   **Deposit**
+*   **Balance**
