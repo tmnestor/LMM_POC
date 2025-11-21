@@ -1,10 +1,18 @@
-| Date | Transaction | Debit | Credit | Balance |
-| --- | --- | --- | --- | --- |
-| 21 Mar | Direct Credit 890543 FOOD DELIVERY |  | 458.20 | $6,842.15 CR |
-| 23 Mar | Salary CORPORATION PTY LTD BANK ACCOUNT |  | 4,696.35 | $5,546.35 CR |
-| 24 Mar | Salary OpenMinds 456789 ASP345678 |  | 850.00 | $5,546.35 CR |
-| 27 Mar | Direct Credit 678901 LOGISTICS CO (A Paid by didi |  | 325.45 | $5,871.80 CR |
-| 28 Mar | Direct Credit 890432 RIDESHARE BV Store ID: ABC_J | 178.90 |  | $6,050.70 CR |
-| 30 Mar | Salary ENTERPRISE WAGES |  | 1,285.65 | $7,336.35 CR |
-| 02 Apr | Transfer to xx9876 CommBank app | 4,200.00 |  | $3,136.35 CR |
-| 03 Apr 2024 | CLOSING BALANCE |  |  | $3,136.35 CR |
+| Date | Description | Credits | Debits |
+| --- | --- | --- | --- |
+| 05 Sep 2023 | Otr Supermarket 9876 Sydney Aus |  | 45.80 |
+| 06 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 28.45 |
+| 06 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 15.90 |
+| 07 Sep 2023 | Retailstore 8765 Perth Aus |  | 12.35 |
+| 07 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 34.60 |
+| 07 Sep 2023 | Valley Shopping Ct Brisbane Aus |  | 67.00 |
+| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 89.00 |  |
+| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 23.50 |  |
+| 07 Sep 2023 | Department Store Pl Adelaide Aus | 156.95 |  |
+| 07 Sep 2023 | Plaza Motorcycl Brisbane Aus | 245.00 |  |
+| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 389.00 |  |
+| 07 Sep 2023 | Value Retail Pty Newcastle South Aus | 12.80 |  |
+| 08 Sep 2023 | Office Supplies Brisbane Aus | 78.45 |  |
+| 08 Sep 2023 | Valley Shop Brisbane Aus | 45.30 |  |
+| 09 Sep 2023 | Brisbane Store Brisbane Aus | 23.90 |  |
+| 10 Sep 2023 | Value Family Trust Brisbane Aus | 890.00 |  |
