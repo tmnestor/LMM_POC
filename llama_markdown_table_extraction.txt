@@ -1,18 +1,18 @@
-| Date | Description | Credits | Debits |
-| --- | --- | --- | --- |
-| 05 Sep 2023 | Otr Supermarket 9876 Sydney Aus |  | 45.80 |
-| 06 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 28.45 |
-| 06 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 15.90 |
-| 07 Sep 2023 | Retailstore 8765 Perth Aus |  | 12.35 |
-| 07 Sep 2023 | Otr Convenience 4321 Melbourne Aus |  | 34.60 |
-| 07 Sep 2023 | Valley Shopping Ct Brisbane Aus |  | 67.00 |
-| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 89.00 |  |
-| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 23.50 |  |
-| 07 Sep 2023 | Department Store Pl Adelaide Aus | 156.95 |  |
-| 07 Sep 2023 | Plaza Motorcycl Brisbane Aus | 245.00 |  |
-| 07 Sep 2023 | Plaza Hotel Sydney Sydney Cre Aus | 389.00 |  |
-| 07 Sep 2023 | Value Retail Pty Newcastle South Aus | 12.80 |  |
-| 08 Sep 2023 | Office Supplies Brisbane Aus | 78.45 |  |
-| 08 Sep 2023 | Valley Shop Brisbane Aus | 45.30 |  |
-| 09 Sep 2023 | Brisbane Store Brisbane Aus | 23.90 |  |
-| 10 Sep 2023 | Value Family Trust Brisbane Aus | 890.00 |  |
+| Date | Transaction | Debit | Credit |
+| :--- | :--- | ---: | ---: |
+| 20 May | Direct Debit 987654 Loan Repayment | 178.50 |  |
+| 21 May | RETAIL STORE SUBURB AU | 245.00 |  |
+| 21 May | SUPERMARKET SHOPPING SUBURB AU | 89.95 |  |
+| 21 May | SHOPPING SUBURB SUBURB AU | 34.50 |  |
+| 21 May | SHOPPING SUBURB SUBURB AU | 67.00 |  |
+| 21 May | Store RSL Suburb0 AU | 145.80 |  |
+| 21 May | Transfer To financially sorted CommBank App Tax | 450.00 |  |
+| 22 May | GROCERY STORE SUBURB AU | 124.00 |  |
+| 22 May | PETROL STATION SUBURB VICAU | 78.90 |  |
+| 22 May | RETAIL STORES SUBURB VICAU | 56.40 |  |
+| 23 May | DEPARTMENT STORE PTY LTD SUBURB VIC AU | 1,456.80 |  |
+| 23 May | RETAIL STORES EASTLINK VIC SUBURB AU | 67.75 |  |
+| 23 May | RETAIL STORE PTY LTD Suburb VICAU | 89.25 |  |
+| 23 May | RETAIL STORE PTY LTD Suburb VICAU | 45.80 |  |
+| 23 May | Direct Credit 876543 Wage Payment Wagstaff Pilling |  | 3,450.00 |
+| 24 May | Afterpay afterpay.com AU AUS |  | 234.90 |

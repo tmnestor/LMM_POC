@@ -1,6 +1,6 @@
-**Transaction Table Column Headers:**
+**Column Header Names:**
 
 *   **Date**
-*   **Description**
-*   **Credits**
-*   **Debits**
+*   **Transaction**
+*   **Debit**
+*   **Credit**
