@@ -1,25 +1,26 @@
-| Date | Description | Withdrawal |
-| --- | --- | --- |
-| 07/09/2025 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | $322.18 |
-| 08/09/2025 | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO... | $64.33 |
-| 04/09/2025 | Mortgage Repayment MORT 0103P16754533 NAB | $649.79 |
-| 03/09/2025 | OSKO Payment to MIKE CHEN 809845773133 | $1365.43 |
-| 02/09/2025 | Direct Debit 15395P41608263 MWF 42730 | $199.17 |
-| 27/08/2025 | Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo... | $222.56 |
-| 26/08/2025 | Fortnightly Pay ATO PAYROLL 91032P35687918 | $5679.21 |
-| 24/08/2025 | PAY RUN ACME CORP PTY LTD 99584P07785218 | $4455.46 |
-| 23/08/2025 | Online Purchase amazon.com.au AUS | $83.78 |
-| 22/08/2025 | Salary Payment ATO 28773P16041610 | $2345.10 |
-| 20/08/2025 | Salary Payment ATO 94514P80490207 | $3541.27 |
-| 20/08/2025 | Transfer To Western Port Marina NetBank From Tod | $728.48 |
-| 18/08/2025 | Contactless Payment Cinema CAIRNS QLD | $211.28 |
-| 18/08/2025 | Auto Payment UTILITIES Red Energy 15107P21771655 | $33.24 |
-| 17/08/2025 | Fortnightly Pay ATO PAYROLL 36358P70254998 | $7201.19 |
-| 14/08/2025 | Centrelink Payment JobSeeker 59392P56090878 | $2241.39 |
-| 13/08/2025 | Equipment Purchase OfficeMax Australia 13554P45... | $478.86 |
-| 11/08/2025 | Dividend Payment PREMIUM CORP PTY LTD 73535P419... | $6395.09 |
-| 10/08/2025 | Online Purchase ebay.com.au AUS | $257.95 |
-| 09/08/2025 | International Transaction Fee | $33.83 |
-| 06/08/2025 | Business Expense IT Equipment 66969P86141679 | $62.53 |
-| 06/08/2025 | Auto Payment UTILITIES Energy Australia 47683P7... | $91.04 |
-| 08/08/2025 | Auto Payment UTILITIES Red Energy 81338P61572286 | $389.57 |
+Here is the data from the image in markdown format:
+
+* **21 Mar**
+	+ Transaction: Direct Credit 890543 FOOD DELIVERY
+	+ Debit: 2,145.80
+* **23 Mar**
+	+ Transaction: Salary CORPORATION PTY LTD BANK ACCOUNT
+	+ Debit: 2,145.80
+* **24 Mar**
+	+ Transaction: Salary OpenMinds 456789 ASP345678
+	+ Debit: 850.00
+* **27 Mar**
+	+ Transaction: Direct Credit 678901 LOGISTICS CO (A Paid by didi
+	+ Debit: 325.45
+* **28 Mar**
+	+ Transaction: Direct Credit 890432 RIDESHARE BV Store ID: ABC_J
+	+ Debit: 178.90
+* **30 Mar**
+	+ Transaction: Salary ENTERPRISE WAGES
+	+ Debit: 1,285.65
+* **02 Apr**
+	+ Transaction: Transfer to xx9876 CommBank app
+	+ Debit: 4,200.00
+* **03 Apr 2024**
+	+ Transaction: CLOSING BALANCE
+	+ Debit: 3,136.35

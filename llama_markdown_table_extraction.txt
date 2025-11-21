@@ -1,42 +1,10 @@
-| Date | Description | Withdrawal | Deposit | Balance |
+| Date | Transaction | Debit | Credit | Balance |
 | --- | --- | --- | --- | --- |
-| 07/09/2025 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | $322.18 |  | $48890.58 |
-| 08/09/2025 | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO... | $64.33 |  | $49212.76 |
-| 04/09/2025 | Mortgage Repayment MORT 0103P16754533 NAB | $649.79 |  | $49277.09 |
-| 03/09/2025 | OSKO Payment to MIKE CHEN 809845773133 | $1365.43 |  | $49226.68 |
-| 03/09/2025 | Direct Debit 15395P41608263 MWF 42730 | $199.17 |  | $51312.57 |
-| 02/09/2025 | Salary Payment ATO 28782P60782100 |  | $8105.71 | $51511.48 |
-| 01/09/2025 | DD INSURANCE ACME CORP PTY LTD 82321942151853 |  |  | $41511.48 |
-| 01/09/2025 | Auto Payment UTILITIES AGL 7240P85943944 |  | $257.50 | $43405.77 |
-| 01/09/2025 | DIRECT CREDIT SALARY 6080P67812986 |  |  | $43440.81 |
-| 01/09/2025 | BPAY Payment BILLER60279 CRN 9813018480 |  | $4449.44 | $43708.81 |
-| 31/08/2025 | Professional Services Red Energy 98073P31959417 |  |  | $39296.85 |
-| 29/08/2025 | Card Purchase RED ROOSTER Paramatta SA |  | $270.31 | $41754.72 |
-| 29/08/2025 | Credit Card Payment CC 72599P33283283 |  | $1957.09 | $42025.03 |
-| 27/08/2025 | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD |  | $221.60 | $43882.12 |
-| 27/08/2025 | Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo... |  | $222.56 | $44203.72 |
-| 26/08/2025 | Fortnightly Pay ATO PAYROLL 91032P35687918 |  | $5679.21 | $44426.28 |
-| 24/08/2025 | PAY RUN ACME CORP PTY LTD 99584P07785218 |  | $4455.46 | $38747.07 |
-| 24/08/2025 | Salary Payment ATO 30175P32361415 |  | $7951.93 | $34291.61 |
-| 23/08/2025 | Online Purchase amazon.com.au AUS |  | $83.78 | $26339.68 |
-| 22/08/2025 | Salary Payment ATO 28773P16041610 |  | $6013.70 | $20423.46 |
-| 20/08/2025 | Transfer To Vicks Account NetBank 54381P90841102 |  | $2345.10 | $20409.76 |
-| 20/08/2025 | Salary Payment ATO 94514P80490207 |  | $3541.27 | $22754.86 |
-| 20/08/2025 | Transfer To Western Port Marina NetBank From Tod |  | $728.48 | $19213.59 |
-| 19/08/2025 | Subscription Netflix 33588P77385123 |  | $201.14 | $19940.07 |
-| 18/08/2025 | Contactless Payment Cinema CAIRNS QLD |  | $211.28 | $20141.21 |
-| 18/08/2025 | Auto Payment UTILITIES Red Energy 15107P21771655 |  | $33.24 | $20352.49 |
-| 18/08/2025 | Contactless Payment Restaurant MACKAY QLD |  | $145.70 | $20385.73 |
-| 17/08/2025 | Fortnightly Pay ATO PAYROLL 36358P70254998 |  | $7201.19 | $20531.43 |
-| 14/08/2025 | Centrelink Payment JobSeeker 59392P56090878 |  | $2241.39 | $13330.24 |
-| 14/08/2025 | International Transaction Fee |  | $27.06 | $11088.85 |
-| 13/08/2025 | Equipment Purchase OfficeMax Australia 13554P45... |  | $478.86 | $11115.91 |
-| 13/08/2025 | International ATM USA USD |  | $260.71 | $11594.77 |
-| 11/08/2025 | Dividend Payment PREMIUM CORP PTY LTD 73535P419... |  | $6395.09 | $11855.48 |
-| 11/08/2025 | Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD ... |  |  | $5460.39 |
-| 10/08/2025 | Online Purchase ebay.com.au AUS |  | $257.95 | $5889.78 |
-| 10/08/2025 | Subscription Spotify Monthly 15369P58427775 |  | $166.22 | $5949.73 |
-| 09/08/2025 | International Transaction Fee |  | $33.83 | $6133.86 |
-| 06/08/2025 | Business Expense IT Equipment 66969P86141679 |  | $62.53 | $6167.78 |
-| 06/08/2025 | Auto Payment UTILITIES Energy Australia 47683P7... |  | $91.04 | $6792.06 |
-| 08/08/2025 | Auto Payment UTILITIES Red Energy 81338P61572286 |  | $389.57 | $6884.90 |
+| 21 Mar | Direct Credit 890543 FOOD DELIVERY |  | 458.20 | $6,842.15 CR |
+| 23 Mar | Salary CORPORATION PTY LTD BANK ACCOUNT | 2,145.80 |  | $4,696.35 CR |
+| 24 Mar | Salary OpenMinds 456789 ASP345678 |  | 850.00 | $5,546.35 CR |
+| 27 Mar | Direct Credit 678901 LOGISTICS CO (A Paid by didi |  | 325.45 | $5,871.80 CR |
+| 28 Mar | Direct Credit 890432 RIDESHARE BV Store ID: ABC_J | 178.90 |  | $6,050.70 CR |
+| 30 Mar | Salary ENTERPRISE WAGES |  | 1,285.65 | $7,336.35 CR |
+| 02 Apr | Transfer to xx9876 CommBank app | 4,200.00 |  | $3,136.35 CR |
+| 03 Apr 2024 | CLOSING BALANCE |  |  | $3,136.35 CR |
