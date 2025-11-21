@@ -1,7 +1,7 @@
 | Date | Transaction | Debit | Credit | Balance |
 | --- | --- | --- | --- | --- |
 | 21 Mar | Direct Credit 890543 FOOD DELIVERY |  | 458.20 | $6,842.15 CR |
-| 23 Mar | Salary CORPORATION PTY LTD BANK ACCOUNT | 2,145.80 |  | $4,696.35 CR |
+| 23 Mar | Salary CORPORATION PTY LTD BANK ACCOUNT |  | 4,696.35 | $5,546.35 CR |
 | 24 Mar | Salary OpenMinds 456789 ASP345678 |  | 850.00 | $5,546.35 CR |
 | 27 Mar | Direct Credit 678901 LOGISTICS CO (A Paid by didi |  | 325.45 | $5,871.80 CR |
 | 28 Mar | Direct Credit 890432 RIDESHARE BV Store ID: ABC_J | 178.90 |  | $6,050.70 CR |
