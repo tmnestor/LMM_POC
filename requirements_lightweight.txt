@@ -1,0 +1,11 @@
+# Lightweight extraction dependencies
+# Replaces langchain, langchain-core, langchain-community
+
+instructor>=1.0.0      # Pydantic validation for LLM outputs
+jinja2>=3.1.0         # Prompt templating (usually already installed)
+pydantic>=2.0.0       # Type-safe schemas (usually already installed)
+
+# Your existing dependencies (already in environment.yml)
+# transformers>=4.45.2
+# torch>=2.0.0
+# pillow
