@@ -1,9 +1,9 @@
 """
-Lightweight document extractor using Instructor + Jinja2
-Replaces ~2000 lines of LangChain code with ~150 lines
+Lightweight document extractor using Pydantic + Jinja2
+Replaces ~2000 lines of LangChain code with ~280 lines
 
 Dependencies:
-    pip install instructor jinja2 pydantic
+    pip install jinja2 pydantic
 """
 
 from decimal import Decimal

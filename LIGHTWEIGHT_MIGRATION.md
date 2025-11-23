@@ -11,7 +11,7 @@
 
 **Lightweight approach:**
 - ✅ ~280 lines in 1 file
-- ✅ 3 dependencies (instructor, jinja2, pydantic)
+- ✅ 2 dependencies (jinja2, pydantic)
 - ✅ Simple, direct code
 - ✅ Easy to debug and customize
 - ✅ Same functionality, 93% less code
@@ -19,8 +19,9 @@
 ## Installation
 
 ```bash
-pip install instructor jinja2 pydantic
+pip install jinja2 pydantic
 # or add to environment.yml
+# (likely already installed)
 ```
 
 ## Quick Start
@@ -82,7 +83,7 @@ result = extractor.extract_structured("unknown_doc.png", doc_type)
 | **Type Safety** | ✅ Full validation | ✅ Full validation | Tie |
 | **Dynamic Prompts** | ✅ Template system | ✅ Jinja2 templates | Lightweight (simpler) |
 | **Lines of Code** | ~2000 | ~280 | **Lightweight (93% less)** |
-| **Dependencies** | 10+ | 3 | **Lightweight** |
+| **Dependencies** | 10+ | 2 | **Lightweight** |
 | **Debuggability** | ❌ Complex stack | ✅ Direct code | **Lightweight** |
 | **Customization** | ❌ Fight abstractions | ✅ Edit directly | **Lightweight** |
 | **Breaking Changes** | ❌ Frequent | ✅ Stable | **Lightweight** |
@@ -126,7 +127,7 @@ result = extractor.extract_structured("invoice.png", "invoice")
 
 ### Step 1: Install Dependencies
 ```bash
-pip install instructor jinja2 pydantic
+pip install jinja2 pydantic
 ```
 
 ### Step 2: Replace Imports
@@ -236,7 +237,7 @@ class InvoiceExtraction(BaseModel):
 The lightweight approach gives you:
 - Same functionality as LangChain
 - 93% less code
-- 70% fewer dependencies
+- 80% fewer dependencies (2 vs 10+)
 - Easier to understand and modify
 - Better performance
 
