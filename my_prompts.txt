@@ -65,7 +65,23 @@ for idx, prompt in enumerate(questions, 1):
         {"question_num": idx, "question": prompt, "response": format_response}
     )
 
-# Summary of all results
+# Save results to answers.txt
+output_path = Path("answers.txt")
+with output_path.open("w", encoding="utf-8") as f:
+    f.write("=" * 80 + "\n")
+    f.write("LLAMA VISION - QUESTION & ANSWER RESULTS\n")
+    f.write("=" * 80 + "\n\n")
+
+    for result in results:
+        f.write(f"QUESTION {result['question_num']}:\n")
+        f.write("-" * 80 + "\n")
+        f.write(result["question"] + "\n")
+        f.write("\n")
+        f.write(f"ANSWER {result['question_num']}:\n")
+        f.write("-" * 80 + "\n")
+        f.write(result["response"] + "\n")
+        f.write("\n" + "=" * 80 + "\n\n")
+
 print("\n" + "=" * 80)
 print("SUMMARY - ALL QUESTIONS AND RESPONSES:")
 print("=" * 80)
@@ -73,3 +89,6 @@ for result in results:
     print(f"\nQ{result['question_num']}: {result['question'][:60]}...")
     print(f"A{result['question_num']}: {result['response']}")
     print("-" * 80)
+
+print(f"\n✅ Results saved to: {output_path}")
+print(f"📊 Total questions processed: {len(results)}")
