@@ -2,15 +2,20 @@ name: ivl35_env
 
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - defaults
 
 dependencies:
   - python=3.11
+  - pandas
+  - seaborn
+  - matplotlib
+  - rich
   - pip
-  - pytorch>=2.0.0
-  - torchvision>=0.15.0
-  - cudatoolkit=11.8
+  - pytorch::pytorch>=2.0.0
+  - pytorch::torchvision>=0.15.0
+  - pytorch::pytorch-cuda=11.8
   - numpy>=1.24.0
 
   # Pip dependencies
