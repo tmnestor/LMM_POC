@@ -1,0 +1,93 @@
+# Define list of questions to test
+questions = [
+    """What debit transactions occurred on **25 Sep, 2023**?""",
+    """If multiple transactions are GROUPED under a common date respond with "Date-grouped",
+    BUT if every transaction has a clearly identified date at the start of its OWN row respond with 
+"Date-per-row".
+    Response:""",
+    """Is the transaction table "Date Grouped"?""",
+    """What are the date, details, debits, credits, and balance of the first transaction?
+    If any of these values are unknown, you must use "NOT_FOUND" in your answer""",
+    """What debit transactions occurred on **Thur 21 Aug, 2025**?""",
+]
+
+# Store results for analysis
+results = []
+
+# Process each question
+for idx, prompt in enumerate(questions, 1):
+    print("\n" + "=" * 60)
+    print(f"QUESTION {idx}/{len(questions)}:")
+    print("=" * 60)
+    print(prompt)
+    print("=" * 60 + "\n")
+
+    print(f"💬 Processing question {idx}...")
+    print("🤖 Generating response with InternVL3-8B (8-bit quantized)...")
+
+    # CRITICAL: Load image for fresh context (independent turn)
+    pixel_values = load_image(imageName, input_size=448, max_num=12)
+
+    # Move to correct device and dtype for InternVL3-8B with 8-bit quantization
+    # CRITICAL: Use float16 for 8-bit quantized models (not bfloat16)
+    pixel_values = pixel_values.to(dtype=torch.float16, device="cuda:0")
+
+    # Generate response using chat() method
+    format_response = model.chat(
+        tokenizer=tokenizer,
+        pixel_values=pixel_values,
+        question=prompt,
+        generation_config={"max_new_tokens": 100, "do_sample": False},
+    )
+
+    # Clean InternVL3 artifacts (image markdown, code fences)
+    lines = format_response.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("!["):
+            continue
+        if stripped in ["```markdown", "```", "```md"]:
+            continue
+        cleaned_lines.append(line)
+
+    format_response = "\n".join(cleaned_lines).strip()
+
+    print("\n" + "=" * 60)
+    print(f"✅ RESPONSE {idx}:")
+    print("=" * 60)
+    print(format_response)
+    print("=" * 60)
+
+    # Store result
+    results.append(
+        {"question_num": idx, "question": prompt, "response": format_response}
+    )
+
+# Save results to ivl3_8BQ_vqa.txt
+output_path = Path("ivl3_8BQ_vqa.txt")
+with output_path.open("w", encoding="utf-8") as f:
+    f.write("=" * 80 + "\n")
+    f.write("InternVL3-8B - QUESTION & ANSWER RESULTS\n")
+    f.write("=" * 80 + "\n\n")
+
+    for result in results:
+        f.write(f"QUESTION {result['question_num']}:\n")
+        f.write("-" * 80 + "\n")
+        f.write(result["question"] + "\n")
+        f.write("\n")
+        f.write(f"ANSWER {result['question_num']}:\n")
+        f.write("-" * 80 + "\n")
+        f.write(result["response"] + "\n")
+        f.write("\n" + "=" * 80 + "\n\n")
+
+print("\n" + "=" * 80)
+print("SUMMARY - ALL QUESTIONS AND RESPONSES:")
+print("=" * 80)
+for result in results:
+    print(f"\nQ{result['question_num']}: {result['question'][:60]}...")
+    print(f"A{result['question_num']}: {result['response']}")
+    print("-" * 80)
+
+print(f"\n✅ Results saved to: {output_path}")
+print(f"📊 Total questions processed: {len(results)}")
