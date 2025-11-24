@@ -74,57 +74,15 @@ prompts:
     name: "Flat Table Bank Statement Extraction"
     description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
     prompt: |
-      Extract structured data from this flat table bank statement for taxpayer expense claims.
+      Extract information from this Bank Statement document.
 
-      STEP 1 - LOCATE TRANSACTION TABLE:
-      Focus on the main transaction table (usually center/body area).
-      Columns: Date | Description | Debit/Withdrawal | Credit/Deposit | Balance
-      Ignore: Headers, footers, summaries, advertisements
-
-      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
-      TARGET COLUMNS: Date + Description + Debit/Withdrawal amount
-
-      For each row check:
-      - Has value in DEBIT/WITHDRAWAL column? → Extract this row
-      - Has value in CREDIT/DEPOSIT column only? → SKIP this row
-      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
-      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received
-
-      STEP 3 - EXTRACT ROW-BY-ROW:
-      For EACH debit row:
-      1. Extract DATE (DD/MM/YYYY format)
-      2. Extract DESCRIPTION (exact text)
-      3. Extract AMOUNT (with $ symbol)
-      4. Add to output with " | " separator
-
-      CRITICAL CONSTRAINTS:
-      - Extract ONLY debits/withdrawals (money OUT)
-      - IGNORE credits/deposits (money IN)
-      - Dates, descriptions, and amounts must have same count
-      - Multiple transactions per date = separate entries
-      - Process chronologically (top to bottom)
-
-      EXPLICIT EXCLUSIONS (DO NOT EXTRACT):
-      - Salary deposits or payments (money IN)
-      - Interest received or interest payment (money IN)
-      - Refunds or returns (money IN)
-      - Any row with value in CREDIT/DEPOSIT column
-      - Any transaction that increases account balance
-
-      Output format (5 FIELDS):
+      OUTPUT FORMAT (5 FIELDS):
 
       DOCUMENT_TYPE: BANK_STATEMENT
-      STATEMENT_DATE_RANGE: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
-      TRANSACTION_DATES: NOT_FOUND
-      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
-
-      Instructions:
-      - Statement period: Date range like "01/01/2025 to 31/01/2025"
-      - Transaction descriptions: DEBIT descriptions only, " | " separator
-      - Transaction dates: DEBIT dates only, DD/MM/YYYY, " | " separator
-      - Amounts paid: Debit amounts with $, " | " separator (money OUT only)
-      - Use NOT_FOUND for missing fields
+      TRANSACTION_DATES: [Dates with " | "]
+      LINE_ITEM_DESCRIPTIONS: [Descriptions with " | "]
+      TRANSACTION_AMOUNTS_PAID: [Debits with $ and " | "]
+      STATEMENT_DATE_RANGE: [Earliest Date Column Value - Latest Date Column Value]
 
   # Date-Grouped Bank Statements (transactions grouped under date headers)
   bank_statement_date_grouped:
