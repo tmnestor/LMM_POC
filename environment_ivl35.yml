@@ -1,0 +1,35 @@
+name: ivl35_env
+
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - pip
+  - pytorch>=2.0.0
+  - torchvision>=0.15.0
+  - cudatoolkit=11.8
+  - numpy>=1.24.0
+
+  # Pip dependencies
+  - pip:
+    - transformers>=4.52.1
+    - pillow>=10.0.0
+    - timm>=0.9.0
+    - einops>=0.6.0
+    - accelerate>=0.27.0
+    - flash-attn>=2.0.0
+    - pyyaml>=6.0.0
+    - jupyter>=1.0.0
+    - ipython>=8.0.0
+
+# Installation:
+# conda env create -f environment_ivl35.yml
+# conda activate ivl35_env
+#
+# H200 GPU Optimized:
+# - 8B model fits easily on single H200 (80GB HBM3)
+# - Use torch_dtype=torch.bfloat16
+# - Enable use_flash_attn=True
