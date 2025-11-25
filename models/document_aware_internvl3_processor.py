@@ -28,8 +28,6 @@ from common.config import (
     DEFAULT_IMAGE_SIZE,
     IMAGENET_MEAN,
     IMAGENET_STD,
-    INTERNVL3_MAX_TILES_2B,
-    INTERNVL3_MAX_TILES_8B,
     INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
@@ -78,7 +76,7 @@ class DocumentAwareInternVL3HybridProcessor:
             skip_model_loading (bool): Skip loading model (for reusing existing model)
             pre_loaded_model: Pre-loaded InternVL3 model (avoids reloading)
             pre_loaded_tokenizer: Pre-loaded InternVL3 tokenizer (avoids reloading)
-            max_tiles (int): Max image tiles for preprocessing (None uses config defaults)
+            max_tiles (int): Max image tiles for preprocessing (REQUIRED - set in notebook CONFIG)
         """
         self.field_list = field_list
         self.field_count = len(field_list)
@@ -86,7 +84,7 @@ class DocumentAwareInternVL3HybridProcessor:
         self.device = device
         self.debug = debug
         self.prompt_config = prompt_config  # Single source of truth for prompt configuration
-        self.max_tiles = max_tiles  # Notebook-configurable tile count (None uses config defaults)
+        self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
 
         # Initialize components (InternVL3 specific)
         self.model = pre_loaded_model
@@ -320,10 +318,21 @@ class DocumentAwareInternVL3HybridProcessor:
         if max_num is None:
             if self.max_tiles is not None:
                 max_num = self.max_tiles  # Use notebook-configured value
-            elif self.is_8b_model:
-                max_num = INTERNVL3_MAX_TILES_8B  # Fallback to config (V100: 14 tiles)
             else:
-                max_num = INTERNVL3_MAX_TILES_2B  # Fallback to config (2B: 18 tiles)
+                # FAIL FAST: Require explicit max_tiles configuration
+                raise ValueError(
+                    "❌ FATAL: max_tiles not configured!\n"
+                    "💡 Add MAX_TILES to your notebook CONFIG:\n"
+                    "   CONFIG = {\n"
+                    "       ...\n"
+                    "       'MAX_TILES': 36,  # H200: 36, V100-8B: 14, 2B: 18\n"
+                    "   }\n"
+                    "💡 Pass to processor initialization:\n"
+                    "   hybrid_processor = DocumentAwareInternVL3HybridProcessor(\n"
+                    "       ...\n"
+                    "       max_tiles=CONFIG['MAX_TILES']\n"
+                    "   )"
+                )
 
         if self.debug:
             print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
