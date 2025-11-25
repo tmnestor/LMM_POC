@@ -1,0 +1,304 @@
+{
+  "metadata": {
+    "batch_id": "20251125_223232",
+    "timestamp": "2025-11-25T22:40:40.070333",
+    "model": "/home/jovyan/nfs_share/models/InternVL3_5-8B",
+    "total_images": 20,
+    "successful_extractions": 20,
+    "average_accuracy": 61.14233637657661,
+    "total_processing_time": 482.01190066337585,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data",
+    "ground_truth": "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/ground_truth.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": false,
+      "device_map": "auto",
+      "max_new_tokens": 1000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 20.0,
+    "Successful Extractions": 20.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 61.14233637657661,
+    "Median Accuracy (%)": 63.5974025974026,
+    "Min Accuracy (%)": 0.0,
+    "Max Accuracy (%)": 92.85714285714286,
+    "Average Processing Time (s)": 24.100595033168794,
+    "Total Processing Time (s)": 482.01190066337585,
+    "Throughput (images/min)": 2.4895650882239266
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 13,
+    "RECEIPT": 3,
+    "INVOICE": 4
+  },
+  "results": [
+    {
+      "image_name": "cba_amount_balance.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 24.8425931930542,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8,
+        "fields_extracted": 5,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_date_grouped.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 24.583123445510864,
+      "evaluation_summary": {
+        "overall_accuracy": 0.48235294117647065,
+        "fields_extracted": 5,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_date_grouped_cont.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 24.384275436401367,
+      "evaluation_summary": {
+        "overall_accuracy": 0.378,
+        "fields_extracted": 4,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 27.115558862686157,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7526436781609196,
+        "fields_extracted": 4,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 23.465240001678467,
+      "evaluation_summary": {
+        "overall_accuracy": 0.2,
+        "fields_extracted": 3,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_home_loan.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 20.13705849647522,
+      "evaluation_summary": {
+        "overall_accuracy": 0.629090909090909,
+        "fields_extracted": 5,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 12.659112930297852,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 13.548967838287354,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 18.913514375686646,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5272727272727272,
+        "fields_extracted": 5,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 11.032321453094482,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 15.643753051757812,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 20.8333523273468,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8571428571428571,
+        "fields_extracted": 14,
+        "fields_matched": 12,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 13.250701427459717,
+      "evaluation_summary": {
+        "overall_accuracy": 0.6428571428571429,
+        "fields_extracted": 11,
+        "fields_matched": 9,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_008.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 41.797967195510864,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5172932330827067,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 25.36454486846924,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8264031620553359,
+        "fields_extracted": 5,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_010.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 20.573920965194702,
+      "evaluation_summary": {
+        "overall_accuracy": 0,
+        "fields_extracted": 0,
+        "fields_matched": 0,
+        "total_fields": 0,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "low_contrast.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 27.594802618026733,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7728587319243604,
+        "fields_extracted": 4,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "nab_classic_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 38.74448227882385,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5846153846153846,
+        "fields_extracted": 4,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "transaction_summary.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 25.23356866836548,
+      "evaluation_summary": {
+        "overall_accuracy": 0.22222222222222224,
+        "fields_extracted": 4,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "westpac_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "internvl3_bank_statement",
+      "processing_time": 52.29304122924805,
+      "evaluation_summary": {
+        "overall_accuracy": 0.32142857142857145,
+        "fields_extracted": 4,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}
