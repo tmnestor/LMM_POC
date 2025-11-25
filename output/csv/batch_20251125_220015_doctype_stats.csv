@@ -1,0 +1,2 @@
+document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
+INVOICE,53.01,71.43,37.37,0.0,85.71,2.48,2.31,19
