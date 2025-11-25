@@ -192,9 +192,25 @@ class DocumentAwareInternVL3HybridProcessor:
             )
 
     def _get_model_device(self):
-        """Get the device of the model for tensor placement."""
+        """Get the device for pixel_values tensor placement.
+
+        For multi-GPU models with device_map="auto", pixel_values must be placed
+        on the device where the vision model's embedding layer resides, since
+        that's where image tensors enter the model.
+        """
+        # For multi-GPU device_map models, get the vision model embedding device
+        # This is critical: pixel_values enter through vision_model.embeddings
+        if hasattr(self.model, 'vision_model') and hasattr(self.model.vision_model, 'embeddings'):
+            try:
+                vision_embed_device = next(self.model.vision_model.embeddings.parameters()).device
+                return vision_embed_device
+            except (StopIteration, AttributeError):
+                pass
+
+        # Fallback: check model.device attribute
         if hasattr(self.model, 'device'):
             return self.model.device
+
         try:
             # Get device from first parameter
             return next(self.model.parameters()).device
