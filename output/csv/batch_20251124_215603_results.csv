@@ -1,0 +1,11 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+cba_amount_balance.png,BANK_STATEMENT,80.0,5,4,5,24.916080951690674,internvl3_bank_statement,False
+cba_date_grouped.png,BANK_STATEMENT,54.853801169590646,5,1,5,20.820601224899292,internvl3_bank_statement,False
+cba_date_grouped_cont.png,BANK_STATEMENT,37.8,4,1,5,24.67575716972351,internvl3_bank_statement,False
+cba_debit_credit.png,BANK_STATEMENT,75.26436781609196,4,1,5,27.078608989715576,internvl3_bank_statement,False
+cba_highligted.png,BANK_STATEMENT,20.0,3,1,5,14.609772443771362,internvl3_bank_statement,False
+cba_home_loan.png,BANK_STATEMENT,62.90909090909091,5,1,5,20.244171619415283,internvl3_bank_statement,False
+low_contrast.png,BANK_STATEMENT,77.28587319243604,4,2,5,27.56857466697693,internvl3_bank_statement,False
+nab_classic_highligted.png,BANK_STATEMENT,31.428571428571434,4,1,5,26.84361696243286,internvl3_bank_statement,False
+transaction_summary.png,BANK_STATEMENT,22.222222222222225,4,1,5,23.410805463790894,internvl3_bank_statement,False
+westpac_debit_credit.png,BANK_STATEMENT,30.384615384615387,4,1,5,38.32780337333679,internvl3_bank_statement,False
