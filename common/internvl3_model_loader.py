@@ -3,19 +3,74 @@ InternVL3-Specific Model Loader
 
 Optimized model loading for InternVL3 based on official documentation.
 No vision module skipping - processes all components normally.
+
+Multi-GPU Support:
+Uses official split_model() function from InternVL3 documentation to ensure
+the first and last layers of the language model stay on the same device,
+preventing tensor placement mismatches during generation.
+https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
 """
 
 import gc
+import math
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Dict, Tuple
 
 import torch
 from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
-from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 from .extraction_cleaner import sanitize_for_rich
+
+
+def split_model(model_path: str) -> Dict[str, int]:
+    """
+    Official InternVL3 multi-GPU device mapping function.
+
+    Creates a custom device map that ensures the first and last layers of the
+    language model stay on the same device (GPU 0) to prevent tensor placement
+    mismatches during generation.
+
+    From: https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
+
+    Args:
+        model_path: Path to InternVL3 model
+
+    Returns:
+        Dictionary mapping model components to GPU indices
+    """
+    device_map = {}
+    world_size = torch.cuda.device_count()
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    num_layers = config.llm_config.num_hidden_layers
+
+    # Since the first GPU will be used for ViT, treat it as half a GPU
+    num_layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
+    num_layers_per_gpu = [num_layers_per_gpu] * world_size
+    num_layers_per_gpu[0] = math.ceil(num_layers_per_gpu[0] * 0.5)
+
+    layer_cnt = 0
+    for i, num_layer in enumerate(num_layers_per_gpu):
+        for _j in range(num_layer):
+            device_map[f'language_model.model.layers.{layer_cnt}'] = i
+            layer_cnt += 1
+
+    # Critical components must stay on GPU 0
+    device_map['vision_model'] = 0
+    device_map['mlp1'] = 0
+    device_map['language_model.model.tok_embeddings'] = 0
+    device_map['language_model.model.embed_tokens'] = 0
+    device_map['language_model.output'] = 0
+    device_map['language_model.model.norm'] = 0
+    device_map['language_model.model.rotary_emb'] = 0
+    device_map['language_model.lm_head'] = 0
+
+    # CRITICAL: Force last layer back to GPU 0 to prevent device mismatch
+    device_map[f'language_model.model.layers.{num_layers - 1}'] = 0
+
+    return device_map
 
 
 def load_internvl3_model(
@@ -361,12 +416,33 @@ def load_internvl3_model(
 
     # Load model with InternVL3-optimized parameters and multi-GPU distribution
     try:
+        # Determine device map for multi-GPU setups
+        # CRITICAL: Use split_model() for multi-GPU to prevent device mismatch errors
+        # https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
+        actual_device_map = device_map
+        world_size = torch.cuda.device_count() if torch.cuda.is_available() else 0
+
         if verbose:
             rprint("[cyan]Loading InternVL3 model...[/cyan]")
-            if device_map == "auto" and torch.cuda.device_count() > 1:
+            rprint(f"[cyan]🖥️  Detected {world_size} GPU(s)[/cyan]")
+
+        if device_map == "auto" and world_size > 1:
+            # Multi-GPU: Use official split_model() function to prevent device mismatch
+            if verbose:
                 rprint(
-                    f"[blue]🔄 Auto-distributing model across {torch.cuda.device_count()} GPUs...[/blue]"
+                    f"[blue]🔄 Using official split_model() for {world_size}-GPU distribution...[/blue]"
                 )
+            actual_device_map = split_model(model_path)
+            if verbose:
+                rprint(f"[blue]🔄 Custom device map created with {len(actual_device_map)} entries[/blue]")
+                rprint("[blue]✅ First and last LLM layers anchored to GPU 0 (prevents device mismatch)[/blue]")
+        elif world_size == 1:
+            if verbose:
+                rprint("[cyan]📥 Loading model on single GPU...[/cyan]")
+            actual_device_map = {"": 0}
+        else:
+            if verbose:
+                rprint(f"[cyan]📥 Using device_map='{device_map}'...[/cyan]")
 
         # Load model according to official InternVL3 documentation format
         # https://internvl.readthedocs.io/en/latest/internvl3.0/quick_start.html
@@ -375,7 +451,7 @@ def load_internvl3_model(
             "quantization_config": quantization_config,  # BitsAndBytesConfig (replaces deprecated load_in_8bit)
             "low_cpu_mem_usage": low_cpu_mem_usage,
             "trust_remote_code": True,
-            "device_map": device_map,
+            "device_map": actual_device_map,
         }
 
         # Add Flash Attention only if requested (not supported on V100)
