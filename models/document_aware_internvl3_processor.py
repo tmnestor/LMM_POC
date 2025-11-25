@@ -60,6 +60,7 @@ class DocumentAwareInternVL3HybridProcessor:
         pre_loaded_model=None,
         pre_loaded_tokenizer=None,
         prompt_config: Dict = None,
+        max_tiles: int = None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
@@ -77,6 +78,7 @@ class DocumentAwareInternVL3HybridProcessor:
             skip_model_loading (bool): Skip loading model (for reusing existing model)
             pre_loaded_model: Pre-loaded InternVL3 model (avoids reloading)
             pre_loaded_tokenizer: Pre-loaded InternVL3 tokenizer (avoids reloading)
+            max_tiles (int): Max image tiles for preprocessing (None uses config defaults)
         """
         self.field_list = field_list
         self.field_count = len(field_list)
@@ -84,6 +86,7 @@ class DocumentAwareInternVL3HybridProcessor:
         self.device = device
         self.debug = debug
         self.prompt_config = prompt_config  # Single source of truth for prompt configuration
+        self.max_tiles = max_tiles  # Notebook-configurable tile count (None uses config defaults)
 
         # Initialize components (InternVL3 specific)
         self.model = pre_loaded_model
@@ -312,13 +315,15 @@ class DocumentAwareInternVL3HybridProcessor:
             processed_images.append(thumbnail_img)
         return processed_images
 
-    def load_image(self, image_file, input_size=448, max_num=12):
+    def load_image(self, image_file, input_size=448, max_num=None):
         """Complete InternVL3 image loading and preprocessing pipeline."""
         if max_num is None:
-            if self.is_8b_model:
-                max_num = INTERNVL3_MAX_TILES_8B  # Configurable: default 20 tiles
+            if self.max_tiles is not None:
+                max_num = self.max_tiles  # Use notebook-configured value
+            elif self.is_8b_model:
+                max_num = INTERNVL3_MAX_TILES_8B  # Fallback to config (V100: 14 tiles)
             else:
-                max_num = INTERNVL3_MAX_TILES_2B  # Configurable: default 24 tiles
+                max_num = INTERNVL3_MAX_TILES_2B  # Fallback to config (2B: 18 tiles)
 
         if self.debug:
             print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
