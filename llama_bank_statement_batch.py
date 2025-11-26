@@ -1,0 +1,1025 @@
+#!/usr/bin/env python
+"""
+Llama Bank Statement Batch Extraction and Evaluation
+
+This script runs batch extraction on bank statement images using the
+Llama-3.2-Vision model with the independent single-turn approach.
+
+Features:
+- Batch processing of all bank statement images
+- Configurable evaluation methods (order_aware_f1, position_agnostic_f1, kieval, correlation)
+- Full report generation (CSV, JSON, Markdown)
+
+Usage:
+    python llama_bank_statement_batch.py [OPTIONS]
+
+Options:
+    --max-images N      Limit to N images (default: all)
+    --method METHOD     Evaluation method (default: order_aware_f1)
+    --verbose           Enable verbose output
+    --dry-run           Show what would be processed without running
+"""
+
+import argparse
+import json as json_module
+import time
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from PIL import Image
+
+from common.evaluation_metrics import (
+    calculate_correlation_aware_f1,
+    calculate_field_accuracy_f1,
+    calculate_field_accuracy_f1_position_agnostic,
+    calculate_field_accuracy_kieval,
+    load_ground_truth,
+)
+from common.llama_model_loader_robust import load_llama_model_robust
+from common.reproducibility import set_seed
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+CONFIG = {
+    # Data paths
+    "DATA_DIR": Path("/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data"),
+    "GROUND_TRUTH": Path(
+        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/ground_truth.csv"
+    ),
+    "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
+    # Model path
+    "MODEL_PATH": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    # Filtering
+    "DOCUMENT_TYPE_FILTER": "BANK_STATEMENT",
+    "MAX_IMAGES": None,
+    # Evaluation
+    "EVALUATION_METHOD": "order_aware_f1",
+    "VERBOSE": True,
+    # Reports
+    "GENERATE_CSV": True,
+    "GENERATE_JSON": True,
+    "GENERATE_MARKDOWN": True,
+}
+
+BATCH_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# Bank statement fields to evaluate
+BANK_STATEMENT_FIELDS = [
+    "DOCUMENT_TYPE",
+    "STATEMENT_DATE_RANGE",
+    "TRANSACTION_DATES",
+    "LINE_ITEM_DESCRIPTIONS",
+    "TRANSACTION_AMOUNTS_PAID",
+]
+
+# ============================================================================
+# PATTERN MATCHING (from notebook Cell 13)
+# ============================================================================
+DATE_PATTERNS = ["date", "day", "transaction date", "trans date"]
+DESCRIPTION_PATTERNS = [
+    "description",
+    "details",
+    "transaction details",
+    "trans details",
+    "particulars",
+    "narrative",
+    "transaction",
+    "trans",
+]
+DEBIT_PATTERNS = [
+    "debit",
+    "withdrawal",
+    "withdrawals",
+    "paid",
+    "paid out",
+    "spent",
+    "dr",
+]
+CREDIT_PATTERNS = ["credit", "deposit", "deposits", "received", "cr"]
+BALANCE_PATTERNS = ["balance", "bal", "running balance"]
+AMOUNT_PATTERNS = ["amount", "amt", "value", "total"]
+
+
+def match_header(headers, patterns, fallback=None):
+    """Match a header using pattern keywords."""
+    headers_lower = [h.lower() for h in headers]
+
+    for pattern in patterns:
+        for i, header_lower in enumerate(headers_lower):
+            if pattern == header_lower:
+                return headers[i]
+
+    for pattern in patterns:
+        if len(pattern) > 2:
+            for i, header_lower in enumerate(headers_lower):
+                if pattern in header_lower:
+                    return headers[i]
+
+    return fallback
+
+
+# ============================================================================
+# EXTRACTION FUNCTIONS (from notebook cells)
+# ============================================================================
+def parse_headers_from_response(response_text):
+    """Parse column headers from Turn 0 response."""
+    header_lines = [line.strip() for line in response_text.split("\n") if line.strip()]
+    identified_headers = []
+
+    for line in header_lines:
+        cleaned = line.lstrip("0123456789.-•* ").strip()
+        cleaned = cleaned.replace("**", "").replace("__", "")
+
+        if cleaned.endswith(":"):
+            continue
+        if len(cleaned) > 40:
+            continue
+        if cleaned and len(cleaned) > 2:
+            identified_headers.append(cleaned)
+
+    return identified_headers
+
+
+def format_aligned_table(rows_data, headers):
+    """Format table with aligned vertical pipes."""
+    if not rows_data or not headers:
+        return "No data"
+
+    num_cols = len(headers)
+    col_widths = [len(h) for h in headers]
+
+    for row in rows_data:
+        for col_idx, val in enumerate(row):
+            if col_idx < num_cols:
+                col_widths[col_idx] = max(col_widths[col_idx], len(str(val)))
+
+    formatted = []
+    header_parts = [headers[i].ljust(col_widths[i]) for i in range(num_cols)]
+    formatted.append("| " + " | ".join(header_parts) + " |")
+
+    for row in rows_data:
+        row_parts = [str(row[i]).ljust(col_widths[i]) for i in range(num_cols)]
+        formatted.append("| " + " | ".join(row_parts) + " |")
+
+    return "\n".join(formatted)
+
+
+def build_date_per_row_example(headers):
+    """Build example for date-per-row format."""
+    rows = []
+    for date, desc, deb, cred, bal in [
+        ("15 Jan", "ATM Withdrawal", "200.00", "", "$1,500.00 CR"),
+        ("16 Jan", "Salary Payment", "", "3,500.00", "$5,000.00 CR"),
+        ("17 Jan", "Online Purchase", "150.00", "", "$4,850.00 CR"),
+    ]:
+        row = []
+        for h in headers:
+            hl = h.lower()
+            if hl in ["date", "day"]:
+                row.append(date)
+            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
+                row.append(desc)
+            elif any(p in hl for p in ["debit", "withdrawal"]):
+                row.append(deb)
+            elif any(p in hl for p in ["credit", "deposit"]):
+                row.append(cred)
+            elif "balance" in hl:
+                row.append(bal)
+            elif "amount" in hl:
+                row.append(deb if deb else cred)
+            else:
+                row.append("")
+        rows.append("| " + " | ".join(row) + " |")
+    return rows
+
+
+def build_date_grouped_source(headers):
+    """Show how date-grouped appears in the image."""
+    rows = []
+    for date, desc, deb, cred, bal in [
+        ("22 Mar", "", "", "", ""),
+        ("", "Auto Services", "580.00", "", "$8,721.15 CR"),
+        ("", "EFTPOS Grocers", "125.00", "", "$8,596.15 CR"),
+        ("23 Mar", "", "", "", ""),
+        ("", "VISA Markets", "89.75", "", "$8,506.40 CR"),
+    ]:
+        row = []
+        for h in headers:
+            hl = h.lower()
+            if hl in ["date", "day"]:
+                row.append(date)
+            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
+                row.append(desc)
+            elif any(p in hl for p in ["debit", "withdrawal"]):
+                row.append(deb)
+            elif any(p in hl for p in ["credit", "deposit"]):
+                row.append(cred)
+            elif "balance" in hl:
+                row.append(bal)
+            elif "amount" in hl:
+                row.append(deb if deb else cred)
+            else:
+                row.append("")
+        rows.append(row)
+    return rows
+
+
+def build_date_grouped_target(headers):
+    """Show how to extract date-grouped."""
+    rows = []
+    for date, desc, deb, cred, bal in [
+        ("22 Mar", "Auto Services", "580.00", "", "$8,721.15 CR"),
+        ("22 Mar", "EFTPOS Grocers", "125.00", "", "$8,596.15 CR"),
+        ("23 Mar", "VISA Markets", "89.75", "", "$8,506.40 CR"),
+    ]:
+        row = []
+        for h in headers:
+            hl = h.lower()
+            if hl in ["date", "day"]:
+                row.append(date)
+            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
+                row.append(desc)
+            elif any(p in hl for p in ["debit", "withdrawal"]):
+                row.append(deb)
+            elif any(p in hl for p in ["credit", "deposit"]):
+                row.append(cred)
+            elif "balance" in hl:
+                row.append(bal)
+            elif "amount" in hl:
+                row.append(deb if deb else cred)
+            else:
+                row.append("")
+        rows.append(row)
+    return rows
+
+
+def parse_markdown_table(markdown_text):
+    """Parse markdown table into list of dictionaries."""
+    lines = [line.strip() for line in markdown_text.strip().split("\n") if line.strip()]
+
+    header_idx = None
+    for i, line in enumerate(lines):
+        if "|" in line:
+            cleaned = line.replace("|", "").replace("-", "").replace(" ", "")
+            if cleaned:
+                header_idx = i
+                break
+
+    if header_idx is None:
+        return []
+
+    header_line = lines[header_idx]
+    header_parts = [h.strip() for h in header_line.split("|")]
+    if header_parts and header_parts[0] == "":
+        header_parts = header_parts[1:]
+    if header_parts and header_parts[-1] == "":
+        header_parts = header_parts[:-1]
+    headers = [h for h in header_parts if h]
+
+    rows = []
+    for line in lines[header_idx + 1 :]:
+        if "|" not in line:
+            continue
+
+        cleaned = (
+            line.replace("|", "").replace("-", "").replace(" ", "").replace(":", "")
+        )
+        if not cleaned:
+            continue
+
+        value_parts = [v.strip() for v in line.split("|")]
+        if value_parts and value_parts[0] == "":
+            value_parts = value_parts[1:]
+        if value_parts and value_parts[-1] == "":
+            value_parts = value_parts[:-1]
+
+        if len(value_parts) == len(headers):
+            rows.append(dict(zip(headers, value_parts, strict=False)))
+
+    return rows
+
+
+def parse_amount(value):
+    """Extract numeric value from formatted currency string."""
+    if not value or value.strip() == "":
+        return 0.0
+    cleaned = (
+        value.replace("$", "")
+        .replace(",", "")
+        .replace("CR", "")
+        .replace("DR", "")
+        .strip()
+    )
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
+
+
+def is_balance_row(row, desc_col):
+    """Check if this row is an opening/closing balance row."""
+    desc = row.get(desc_col, "").upper()
+    return "OPENING BALANCE" in desc or "CLOSING BALANCE" in desc
+
+
+def validate_and_correct_alignment(rows, balance_col, debit_col, credit_col, desc_col):
+    """Use balance changes to validate and correct debit/credit alignment."""
+    if not rows or balance_col not in rows[0]:
+        return rows
+
+    corrected_rows = []
+    corrections_made = 0
+    start_idx = 0
+
+    if rows and is_balance_row(rows[0], desc_col):
+        start_idx = 1
+    elif rows:
+        corrected_rows.append(rows[0].copy())
+        start_idx = 1
+
+    for i in range(start_idx, len(rows)):
+        current_row = rows[i].copy()
+
+        if is_balance_row(current_row, desc_col):
+            continue
+
+        prev_idx = i - 1
+        while prev_idx >= 0 and is_balance_row(rows[prev_idx], desc_col):
+            prev_idx -= 1
+
+        if prev_idx < 0:
+            corrected_rows.append(current_row)
+            continue
+
+        prev_balance = parse_amount(rows[prev_idx].get(balance_col, "0"))
+        curr_balance = parse_amount(current_row.get(balance_col, "0"))
+        balance_change = curr_balance - prev_balance
+
+        debit_value = parse_amount(current_row.get(debit_col, ""))
+        credit_value = parse_amount(current_row.get(credit_col, ""))
+
+        if balance_change > 0.01:
+            if debit_value > 0 and credit_value == 0:
+                current_row[credit_col] = current_row[debit_col]
+                current_row[debit_col] = ""
+                corrections_made += 1
+        elif balance_change < -0.01:
+            if credit_value > 0 and debit_value == 0:
+                current_row[debit_col] = current_row[credit_col]
+                current_row[credit_col] = ""
+                corrections_made += 1
+
+        corrected_rows.append(current_row)
+
+    return corrected_rows
+
+
+def filter_debit_transactions(rows, debit_col):
+    """Filter rows to only those with debit (purchase) amounts."""
+    debit_rows = []
+    for row in rows:
+        debit_value = row.get(debit_col, "").strip()
+        if debit_value:
+            debit_rows.append(row)
+    return debit_rows
+
+
+def extract_schema_fields(rows, date_col, desc_col, debit_col):
+    """Extract fields in universal.yaml schema format."""
+    if not rows:
+        return {
+            "DOCUMENT_TYPE": "BANK_STATEMENT",
+            "STATEMENT_DATE_RANGE": "NOT_FOUND",
+            "TRANSACTION_DATES": "NOT_FOUND",
+            "LINE_ITEM_DESCRIPTIONS": "NOT_FOUND",
+            "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND",
+        }
+
+    dates = []
+    descriptions = []
+    amounts = []
+
+    for row in rows:
+        date = row.get(date_col, "").strip()
+        desc = row.get(desc_col, "").strip()
+        amount = row.get(debit_col, "").strip()
+
+        if date:
+            dates.append(date)
+        if desc:
+            descriptions.append(desc)
+        if amount:
+            amounts.append(amount)
+
+    date_range = "NOT_FOUND"
+    if dates:
+        date_range = f"{dates[0]} - {dates[-1]}"
+
+    return {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": date_range,
+        "TRANSACTION_DATES": " | ".join(dates) if dates else "NOT_FOUND",
+        "LINE_ITEM_DESCRIPTIONS": " | ".join(descriptions)
+        if descriptions
+        else "NOT_FOUND",
+        "TRANSACTION_AMOUNTS_PAID": " | ".join(amounts) if amounts else "NOT_FOUND",
+    }
+
+
+# ============================================================================
+# EVALUATION FUNCTIONS
+# ============================================================================
+def evaluate_field(extracted_value, gt_value, field_name, method):
+    """Route to appropriate evaluation function."""
+    if method == "order_aware_f1":
+        return calculate_field_accuracy_f1(extracted_value, gt_value, field_name)
+    elif method == "position_agnostic_f1":
+        return calculate_field_accuracy_f1_position_agnostic(
+            extracted_value, gt_value, field_name
+        )
+    elif method == "kieval":
+        return calculate_field_accuracy_kieval(extracted_value, gt_value, field_name)
+    elif method == "correlation":
+        return None
+    else:
+        raise ValueError(f"Unknown evaluation method: {method}")
+
+
+def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
+    """Evaluate extracted schema fields against ground truth."""
+    gt_data = ground_truth_map.get(image_name, {})
+
+    if not gt_data:
+        return {"error": "No ground truth found", "image_name": image_name}
+
+    if method == "correlation":
+        result = calculate_correlation_aware_f1(
+            extracted_data=schema_fields,
+            ground_truth_data=gt_data,
+            document_type="bank_statement",
+            debug=CONFIG["VERBOSE"],
+        )
+        return {
+            "image_name": image_name,
+            "method": method,
+            "overall_accuracy": result.get("combined_f1", 0.0),
+            "standard_f1": result.get("standard_f1", 0.0),
+            "alignment_score": result.get("alignment_score", 0.0),
+            "field_scores": result.get("field_f1_scores", {}),
+        }
+
+    field_scores = {}
+    total_f1 = 0.0
+
+    for field in BANK_STATEMENT_FIELDS:
+        extracted_value = schema_fields.get(field, "NOT_FOUND")
+        gt_value = gt_data.get(field, "NOT_FOUND")
+
+        if pd.isna(gt_value):
+            gt_value = "NOT_FOUND"
+
+        result = evaluate_field(extracted_value, str(gt_value), field, method)
+
+        if result:
+            field_scores[field] = {
+                "f1_score": result.get("f1_score", 0.0),
+                "precision": result.get("precision", 0.0),
+                "recall": result.get("recall", 0.0),
+                "extracted": str(extracted_value)[:100],
+                "ground_truth": str(gt_value)[:100],
+            }
+            total_f1 += result.get("f1_score", 0.0)
+
+    overall_accuracy = (
+        total_f1 / len(BANK_STATEMENT_FIELDS) if BANK_STATEMENT_FIELDS else 0.0
+    )
+
+    return {
+        "image_name": image_name,
+        "method": method,
+        "overall_accuracy": overall_accuracy,
+        "field_scores": field_scores,
+    }
+
+
+# ============================================================================
+# MAIN EXTRACTION PIPELINE
+# ============================================================================
+def extract_bank_statement(image_path, model, processor, verbose=False):
+    """
+    Extract fields from a single bank statement image.
+
+    This implements the full independent single-turn pipeline:
+    - Turn 0: Header detection
+    - Turn 0.5: Date format classification
+    - Turn 1: Table extraction
+    - Balance validation
+    - Python parsing and filtering
+
+    Returns:
+        tuple: (schema_fields dict, metadata dict)
+    """
+    metadata = {
+        "headers_detected": [],
+        "date_format": None,
+        "corrections_made": 0,
+        "total_rows": 0,
+        "debit_rows": 0,
+    }
+
+    # Load image
+    image = Image.open(image_path)
+    images = [image]
+
+    # ========== TURN 0: Header Detection ==========
+    turn0_prompt = """
+Look at the transaction table in this bank statement image.
+
+IMPORTANT STRUCTURAL NOTE:
+Some bank statements show dates as section headings with multiple transactions underneath.
+If you see this structure, remember that each transaction needs its explicit date in the final output.
+
+What are the exact column header names used in the transaction table?
+
+List each column header exactly as it appears, in order from left to right.
+Do not interpret or rename them - use the EXACT text from the image.
+"""
+
+    message_turn0 = [
+        {
+            "role": "user",
+            "content": [{"type": "image"}, {"type": "text", "text": turn0_prompt}],
+        }
+    ]
+
+    text_input = processor.apply_chat_template(
+        message_turn0, add_generation_prompt=True
+    )
+    inputs = processor(images=images, text=text_input, return_tensors="pt").to(
+        model.device
+    )
+
+    output = model.generate(
+        **inputs,
+        max_new_tokens=500,
+        do_sample=False,
+        temperature=None,
+        top_p=None,
+    )
+
+    generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
+    turn0_response = processor.decode(
+        generate_ids[0], clean_up_tokenization_spaces=False
+    )
+
+    table_headers = parse_headers_from_response(turn0_response)
+    metadata["headers_detected"] = table_headers
+
+    if verbose:
+        print(f"  Turn 0: {len(table_headers)} headers detected")
+
+    # Pattern matching
+    amount_col = match_header(table_headers, AMOUNT_PATTERNS, fallback=None)
+    date_col = match_header(
+        table_headers,
+        DATE_PATTERNS,
+        fallback=table_headers[0] if table_headers else "Date",
+    )
+    desc_col = match_header(
+        table_headers,
+        DESCRIPTION_PATTERNS,
+        fallback=table_headers[1] if len(table_headers) > 1 else "Description",
+    )
+    debit_col = match_header(
+        table_headers, DEBIT_PATTERNS, fallback=amount_col if amount_col else "Debit"
+    )
+    credit_col = match_header(
+        table_headers, CREDIT_PATTERNS, fallback=amount_col if amount_col else "Credit"
+    )
+    balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
+
+    # ========== TURN 0.5: Date Format Classification ==========
+    format_prompt = """Analyze this bank statement image and classify its structural layout.
+
+Does each transaction have its own date value, or are transactions grouped under date section headers?
+
+If each transaction has its own individual date in a table: Respond with "Date-per-row"
+If transactions are grouped under shared date headers: Respond with "Date-grouped"
+
+Response:"""
+
+    message_format = [
+        {
+            "role": "user",
+            "content": [{"type": "image"}, {"type": "text", "text": format_prompt}],
+        }
+    ]
+
+    text_input = processor.apply_chat_template(
+        message_format, add_generation_prompt=True
+    )
+    inputs = processor(images=images, text=text_input, return_tensors="pt").to(
+        model.device
+    )
+
+    output = model.generate(
+        **inputs,
+        max_new_tokens=100,
+        do_sample=False,
+        temperature=None,
+        top_p=None,
+    )
+
+    generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
+    format_response = processor.decode(
+        generate_ids[0], clean_up_tokenization_spaces=False
+    ).strip()
+
+    date_format = "Date-per-row"
+    if "Date-grouped" in format_response or "date-grouped" in format_response:
+        date_format = "Date-grouped"
+
+    metadata["date_format"] = date_format
+
+    if verbose:
+        print(f"  Turn 0.5: {date_format} format detected")
+
+    # ========== Build Extraction Prompt ==========
+    if date_format == "Date-grouped":
+        source_rows = build_date_grouped_source(table_headers)
+        target_rows = build_date_grouped_target(table_headers)
+        source_table = format_aligned_table(source_rows, table_headers)
+        target_table = format_aligned_table(target_rows, table_headers)
+
+        extraction_prompt = f"""Extract the transaction table as markdown.
+
+If you see this structure (dates as section headers with empty cells):
+{source_table}
+
+Extract as (distribute date to every transaction row):
+{target_table}
+
+Output: Markdown table only."""
+    else:
+        example_rows = build_date_per_row_example(table_headers)
+        header_row = "| " + " | ".join(table_headers) + " |"
+        example_table = header_row + "\n" + "\n".join(example_rows)
+
+        extraction_prompt = f"""Extract the transaction table as markdown.
+
+Example format:
+{example_table}
+
+Extract ALL transactions.
+
+Output: Markdown table only."""
+
+    # ========== TURN 1: Table Extraction ==========
+    message_turn1 = [
+        {
+            "role": "user",
+            "content": [{"type": "image"}, {"type": "text", "text": extraction_prompt}],
+        }
+    ]
+
+    text_input = processor.apply_chat_template(
+        message_turn1, add_generation_prompt=True
+    )
+    inputs = processor(images=images, text=text_input, return_tensors="pt").to(
+        model.device
+    )
+
+    output = model.generate(
+        **inputs,
+        max_new_tokens=2000,
+        do_sample=False,
+        temperature=None,
+        top_p=None,
+    )
+
+    generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
+    markdown_table = processor.decode(
+        generate_ids[0], clean_up_tokenization_spaces=False
+    )
+
+    if verbose:
+        print("  Turn 1: Table extraction complete")
+
+    # ========== Parse and Validate ==========
+    all_rows = parse_markdown_table(markdown_table)
+    metadata["total_rows"] = len(all_rows)
+
+    if all_rows and balance_col in all_rows[0]:
+        all_rows = validate_and_correct_alignment(
+            all_rows, balance_col, debit_col, credit_col, desc_col
+        )
+
+    debit_rows = filter_debit_transactions(all_rows, debit_col)
+    metadata["debit_rows"] = len(debit_rows)
+
+    if verbose:
+        print(f"  Parsed: {len(all_rows)} rows, {len(debit_rows)} debits")
+
+    # Extract schema fields
+    schema_fields = extract_schema_fields(debit_rows, date_col, desc_col, debit_col)
+
+    return schema_fields, metadata
+
+
+# ============================================================================
+# REPORT GENERATION
+# ============================================================================
+def generate_reports(batch_results, output_dir):
+    """Generate CSV, JSON, and Markdown reports."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    successful = [r for r in batch_results if "error" not in r]
+
+    # CSV Report
+    if CONFIG["GENERATE_CSV"] and successful:
+        csv_data = []
+        for result in successful:
+            row = {
+                "image_file": result["image_name"],
+                "overall_accuracy": result["evaluation"]["overall_accuracy"],
+                "processing_time": result["processing_time"],
+                "date_format": result["metadata"].get("date_format", ""),
+                "total_rows": result["metadata"].get("total_rows", 0),
+                "debit_rows": result["metadata"].get("debit_rows", 0),
+            }
+
+            # Add extracted fields
+            for field, value in result["extracted_fields"].items():
+                row[field] = value
+
+            # Add field-level scores
+            field_scores = result["evaluation"].get("field_scores", {})
+            for field, scores in field_scores.items():
+                if isinstance(scores, dict):
+                    row[f"{field}_f1"] = scores.get("f1_score", 0.0)
+                else:
+                    row[f"{field}_f1"] = scores
+
+            csv_data.append(row)
+
+        results_df = pd.DataFrame(csv_data)
+        csv_path = output_dir / f"llama_bank_statement_batch_{BATCH_TIMESTAMP}.csv"
+        results_df.to_csv(csv_path, index=False)
+        print(f"✅ CSV saved: {csv_path}")
+
+    # JSON Report
+    if CONFIG["GENERATE_JSON"]:
+        processing_times = [r["processing_time"] for r in successful]
+
+        json_report = {
+            "metadata": {
+                "batch_id": BATCH_TIMESTAMP,
+                "model": "Llama-3.2-11B-Vision-Instruct",
+                "evaluation_method": CONFIG["EVALUATION_METHOD"],
+                "total_images": len(batch_results),
+                "successful": len(successful),
+                "failed": len(batch_results) - len(successful),
+            },
+            "summary": {
+                "avg_accuracy": float(
+                    np.mean([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "min_accuracy": float(
+                    min([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "max_accuracy": float(
+                    max([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "avg_processing_time": float(np.mean(processing_times))
+                if processing_times
+                else 0.0,
+            },
+            "results": batch_results,
+        }
+
+        json_path = (
+            output_dir / f"llama_bank_statement_evaluation_{BATCH_TIMESTAMP}.json"
+        )
+        with json_path.open("w") as f:
+            json_module.dump(json_report, f, indent=2, default=str)
+        print(f"✅ JSON saved: {json_path}")
+
+    # Markdown Report
+    if CONFIG["GENERATE_MARKDOWN"] and successful:
+        processing_times = [r["processing_time"] for r in successful]
+
+        md_lines = [
+            "# Llama Bank Statement Batch Evaluation Report",
+            "",
+            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"**Batch ID:** {BATCH_TIMESTAMP}",
+            "**Model:** Llama-3.2-11B-Vision-Instruct",
+            f"**Evaluation Method:** {CONFIG['EVALUATION_METHOD']}",
+            "",
+            "## Executive Summary",
+            "",
+            f"- **Total Images:** {len(batch_results)}",
+            f"- **Successful:** {len(successful)} ({len(successful) / len(batch_results) * 100:.1f}%)",
+            f"- **Failed:** {len(batch_results) - len(successful)}",
+            "",
+        ]
+
+        if successful:
+            avg_acc = np.mean([r["evaluation"]["overall_accuracy"] for r in successful])
+            min_acc = min([r["evaluation"]["overall_accuracy"] for r in successful])
+            max_acc = max([r["evaluation"]["overall_accuracy"] for r in successful])
+
+            md_lines.extend(
+                [
+                    f"- **Average Accuracy:** {avg_acc:.1%}",
+                    f"- **Min Accuracy:** {min_acc:.1%}",
+                    f"- **Max Accuracy:** {max_acc:.1%}",
+                    f"- **Avg Processing Time:** {np.mean(processing_times):.2f}s",
+                    "",
+                    "## Per-Image Results",
+                    "",
+                    "| Image | Accuracy | Date Format | Rows | Time |",
+                    "|-------|----------|-------------|------|------|",
+                ]
+            )
+
+            for r in successful:
+                acc = r["evaluation"]["overall_accuracy"]
+                fmt = r["metadata"].get("date_format", "N/A")
+                rows = r["metadata"].get("debit_rows", 0)
+                time_s = r["processing_time"]
+                md_lines.append(
+                    f"| {r['image_name']} | {acc:.1%} | {fmt} | {rows} | {time_s:.1f}s |"
+                )
+
+        md_path = output_dir / f"llama_bank_statement_summary_{BATCH_TIMESTAMP}.md"
+        with md_path.open("w") as f:
+            f.write("\n".join(md_lines))
+        print(f"✅ Markdown saved: {md_path}")
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+def main():
+    parser = argparse.ArgumentParser(
+        description="Batch extraction and evaluation of bank statements with Llama-3.2-Vision"
+    )
+    parser.add_argument(
+        "--max-images", type=int, default=None, help="Limit to N images"
+    )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="order_aware_f1",
+        choices=["order_aware_f1", "position_agnostic_f1", "kieval", "correlation"],
+        help="Evaluation method",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be processed"
+    )
+
+    args = parser.parse_args()
+
+    CONFIG["MAX_IMAGES"] = args.max_images
+    CONFIG["EVALUATION_METHOD"] = args.method
+    CONFIG["VERBOSE"] = args.verbose
+
+    set_seed(42)
+
+    print("=" * 60)
+    print("LLAMA BANK STATEMENT BATCH EXTRACTION")
+    print("=" * 60)
+    print(f"Evaluation Method: {CONFIG['EVALUATION_METHOD']}")
+
+    # Load ground truth
+    print("\n📊 Loading ground truth...")
+    ground_truth_map = load_ground_truth(str(CONFIG["GROUND_TRUTH"]), verbose=True)
+
+    # Discover bank statement images
+    bank_images = []
+    for img_name, gt_data in ground_truth_map.items():
+        doc_type = str(gt_data.get("DOCUMENT_TYPE", "")).upper()
+        if doc_type == CONFIG["DOCUMENT_TYPE_FILTER"]:
+            img_path = CONFIG["DATA_DIR"] / img_name
+            if img_path.exists():
+                bank_images.append(str(img_path))
+            else:
+                print(f"⚠️  Image not found: {img_path}")
+
+    if CONFIG["MAX_IMAGES"]:
+        bank_images = bank_images[: CONFIG["MAX_IMAGES"]]
+
+    print(f"\n✅ Found {len(bank_images)} bank statement images")
+
+    if args.dry_run:
+        print("\n🔍 DRY RUN - Images that would be processed:")
+        for img in bank_images:
+            print(f"  - {Path(img).name}")
+        return
+
+    # Load model
+    print("\n🔧 Loading Llama-3.2-Vision model...")
+    model, processor = load_llama_model_robust(
+        model_path=CONFIG["MODEL_PATH"],
+        use_quantization=False,
+        device_map="auto",
+        max_new_tokens=2000,
+        torch_dtype="bfloat16",
+        low_cpu_mem_usage=True,
+        verbose=True,
+    )
+
+    try:
+        model.tie_weights()
+    except Exception:
+        pass
+
+    # Process images
+    print("\n" + "=" * 60)
+    print("BATCH PROCESSING")
+    print("=" * 60)
+
+    batch_results = []
+
+    for idx, image_path in enumerate(bank_images, 1):
+        image_name = Path(image_path).name
+        print(f"\n[{idx}/{len(bank_images)}] Processing: {image_name}")
+
+        start_time = time.time()
+
+        try:
+            schema_fields, metadata = extract_bank_statement(
+                image_path, model, processor, verbose=CONFIG["VERBOSE"]
+            )
+
+            processing_time = time.time() - start_time
+
+            eval_result = evaluate_extraction(
+                schema_fields, image_name, ground_truth_map, CONFIG["EVALUATION_METHOD"]
+            )
+
+            result = {
+                "image_name": image_name,
+                "image_path": image_path,
+                "extracted_fields": schema_fields,
+                "metadata": metadata,
+                "evaluation": eval_result,
+                "processing_time": processing_time,
+            }
+
+            batch_results.append(result)
+
+            print(f"  ✅ Accuracy: {eval_result.get('overall_accuracy', 0.0):.1%}")
+            print(f"  ⏱️  Time: {processing_time:.2f}s")
+
+        except Exception as e:
+            print(f"  ❌ ERROR: {e}")
+            batch_results.append(
+                {
+                    "image_name": image_name,
+                    "image_path": image_path,
+                    "error": str(e),
+                    "processing_time": time.time() - start_time,
+                }
+            )
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("BATCH SUMMARY")
+    print("=" * 60)
+
+    successful = [r for r in batch_results if "error" not in r]
+    print(f"Total: {len(batch_results)} images")
+    print(f"Successful: {len(successful)}")
+    print(f"Failed: {len(batch_results) - len(successful)}")
+
+    if successful:
+        accuracies = [r["evaluation"]["overall_accuracy"] for r in successful]
+        print("\nAccuracy Statistics:")
+        print(f"  Average: {np.mean(accuracies):.1%}")
+        print(f"  Min: {min(accuracies):.1%}")
+        print(f"  Max: {max(accuracies):.1%}")
+
+    # Generate reports
+    print("\n" + "=" * 60)
+    print("GENERATING REPORTS")
+    print("=" * 60)
+    generate_reports(batch_results, CONFIG["OUTPUT_BASE"])
+
+    print("\n✅ Batch processing complete!")
+
+
+if __name__ == "__main__":
+    main()
