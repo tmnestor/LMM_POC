@@ -991,6 +991,10 @@ Do not interpret or rename them - use the EXACT text from the image.
         generation_config={"max_new_tokens": 500, "do_sample": False},
     )
 
+    # Free Turn 0 pixel values immediately
+    del pixel_values
+    torch.cuda.empty_cache()
+
     turn0_response = clean_internvl3_response(turn0_response)
     table_headers = parse_headers_from_response(turn0_response)
     metadata["headers_detected"] = table_headers
@@ -1036,6 +1040,10 @@ Do not interpret or rename them - use the EXACT text from the image.
             "do_sample": False,
         },
     )
+
+    # Free Turn 1 pixel values immediately
+    del pixel_values
+    torch.cuda.empty_cache()
 
     turn1_response = clean_internvl3_response(turn1_response)
 
@@ -1276,6 +1284,10 @@ def main():
     for idx, image_path in enumerate(bank_images, 1):
         image_name = Path(image_path).name
         print(f"\n[{idx}/{len(bank_images)}] Processing: {image_name}")
+
+        # Clear GPU memory before each image to prevent fragmentation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         start_time = time.time()
 

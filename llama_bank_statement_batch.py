@@ -29,6 +29,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 from dateutil import parser as date_parser
 from PIL import Image
 
@@ -595,7 +596,11 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
     field_scores = eval_result.get("field_scores", {})
 
     # Fields that get normalized for comparison
-    normalized_fields = {"TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "STATEMENT_DATE_RANGE"}
+    normalized_fields = {
+        "TRANSACTION_DATES",
+        "TRANSACTION_AMOUNTS_PAID",
+        "STATEMENT_DATE_RANGE",
+    }
 
     print("\n" + "=" * 80)
     print("FIELD COMPARISON (semantic matching enabled)")
@@ -797,6 +802,10 @@ Do not interpret or rename them - use the EXACT text from the image.
         generate_ids[0], clean_up_tokenization_spaces=False
     )
 
+    # Free Turn 0 tensors immediately
+    del inputs, output, generate_ids
+    torch.cuda.empty_cache()
+
     table_headers = parse_headers_from_response(turn0_response)
     metadata["headers_detected"] = table_headers
 
@@ -859,6 +868,10 @@ Response:"""
     format_response = processor.decode(
         generate_ids[0], clean_up_tokenization_spaces=False
     ).strip()
+
+    # Free Turn 0.5 tensors immediately
+    del inputs, output, generate_ids
+    torch.cuda.empty_cache()
 
     date_format = "Date-per-row"
     if "Date-grouped" in format_response or "date-grouped" in format_response:
@@ -926,6 +939,10 @@ Output: Markdown table only."""
     markdown_table = processor.decode(
         generate_ids[0], clean_up_tokenization_spaces=False
     )
+
+    # Free Turn 1 tensors immediately
+    del inputs, output, generate_ids
+    torch.cuda.empty_cache()
 
     if verbose:
         print("  Turn 1: Table extraction complete")
@@ -1179,6 +1196,10 @@ def main():
         image_name = Path(image_path).name
         print(f"\n[{idx}/{len(bank_images)}] Processing: {image_name}")
 
+        # Clear GPU memory before each image to prevent fragmentation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         start_time = time.time()
 
         try:
@@ -1207,7 +1228,9 @@ def main():
             print(f"  ⏱️  Time: {processing_time:.2f}s")
 
             # Display extracted vs ground truth comparison
-            display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result)
+            display_field_comparison(
+                schema_fields, ground_truth_map, image_name, eval_result
+            )
 
         except Exception as e:
             print(f"  ❌ ERROR: {e}")
