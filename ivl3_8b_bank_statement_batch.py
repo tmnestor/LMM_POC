@@ -856,19 +856,9 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
         else:
             status = "[red]✗ FAIL[/red]"
 
-        # Truncate long values for display
-        ext_display = (
-            str(extracted_val)[:80] + "..."
-            if len(str(extracted_val)) > 80
-            else str(extracted_val)
+        table.add_row(
+            status, field, f"{f1_score:.1%}", str(extracted_val), str(ground_val)
         )
-        gt_display = (
-            str(ground_val)[:80] + "..."
-            if len(str(ground_val)) > 80
-            else str(ground_val)
-        )
-
-        table.add_row(status, field, f"{f1_score:.1%}", ext_display, gt_display)
 
     console.print(table)
 
