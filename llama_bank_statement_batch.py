@@ -498,13 +498,53 @@ def validate_and_correct_alignment(rows, balance_col, debit_col, credit_col, des
     return corrected_rows
 
 
-def filter_debit_transactions(rows, debit_col):
-    """Filter rows to only those with debit (purchase) amounts."""
+def is_non_transaction_row(row, desc_col):
+    """
+    Check if this row is NOT an actual transaction.
+
+    Excludes:
+    - Opening/Closing Balance rows
+    - Payment rows (credits, not debits)
+    - Instalment Payment rows
+    """
+    desc = row.get(desc_col, "").upper()
+
+    non_transaction_keywords = [
+        "OPENING BALANCE",
+        "CLOSING BALANCE",
+        "PAYMENT",  # Covers "Payment" and "Instalment Payment"
+    ]
+
+    for keyword in non_transaction_keywords:
+        if keyword in desc:
+            return True
+
+    return False
+
+
+def filter_debit_transactions(rows, debit_col, desc_col=None):
+    """
+    Filter rows to only those with actual debit (purchase) transactions.
+
+    Excludes:
+    - Rows without debit amounts
+    - Opening/Closing Balance rows
+    - Payment rows (based on description, not amount sign)
+    """
     debit_rows = []
     for row in rows:
         debit_value = row.get(debit_col, "").strip()
-        if debit_value:
-            debit_rows.append(row)
+
+        # Must have a debit value
+        if not debit_value:
+            continue
+
+        # Skip non-transaction rows if desc_col provided
+        if desc_col and is_non_transaction_row(row, desc_col):
+            continue
+
+        debit_rows.append(row)
+
     return debit_rows
 
 
@@ -903,7 +943,7 @@ Output: Markdown table only."""
             all_rows, balance_col, debit_col, credit_col, desc_col
         )
 
-    debit_rows = filter_debit_transactions(all_rows, debit_col)
+    debit_rows = filter_debit_transactions(all_rows, debit_col, desc_col)
     metadata["debit_rows"] = len(debit_rows)
 
     if verbose:
