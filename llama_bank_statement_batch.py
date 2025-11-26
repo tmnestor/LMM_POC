@@ -45,9 +45,9 @@ from common.reproducibility import set_seed
 # ============================================================================
 CONFIG = {
     # Data paths
-    "DATA_DIR": Path("/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data"),
+    "DATA_DIR": Path("/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank"),
     "GROUND_TRUTH": Path(
-        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/ground_truth.csv"
+        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/ground_truth_bank.csv"
     ),
     "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
     # Model path
