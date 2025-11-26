@@ -34,6 +34,8 @@ import torch
 import torchvision.transforms as T
 from dateutil import parser as date_parser
 from PIL import Image
+from rich.console import Console
+from rich.table import Table
 from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
 
@@ -45,6 +47,9 @@ from common.evaluation_metrics import (
     load_ground_truth,
 )
 from common.reproducibility import set_seed
+
+# Rich console for styled output
+console = Console()
 
 # ============================================================================
 # CONFIGURATION
@@ -820,19 +825,17 @@ For EACH transaction, you must check which column the amount appears under:
 # DISPLAY FUNCTIONS
 # ============================================================================
 def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result):
-    """Display stacked comparison of extracted vs ground truth fields."""
+    """Display stacked comparison of extracted vs ground truth fields using Rich."""
     gt_data = ground_truth_map.get(image_name, {})
     field_scores = eval_result.get("field_scores", {})
 
-    normalized_fields = {
-        "TRANSACTION_DATES",
-        "TRANSACTION_AMOUNTS_PAID",
-        "STATEMENT_DATE_RANGE",
-    }
-
-    print("\n" + "=" * 80)
-    print("FIELD COMPARISON (semantic matching enabled)")
-    print("=" * 80)
+    # Create Rich table for field comparison
+    table = Table(title="Field Comparison (semantic matching)", show_header=True)
+    table.add_column("Status", style="bold", width=8)
+    table.add_column("Field", style="cyan")
+    table.add_column("F1", justify="right", width=8)
+    table.add_column("Extracted", overflow="fold")
+    table.add_column("Ground Truth", overflow="fold")
 
     for field in BANK_STATEMENT_FIELDS:
         extracted_val = schema_fields.get(field, "NOT_FOUND")
@@ -847,23 +850,27 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
             f1_score = field_scores.get(field, 0.0)
 
         if f1_score == 1.0:
-            status = "OK"
+            status = "[green]✓ OK[/green]"
         elif f1_score >= 0.5:
-            status = "PARTIAL"
+            status = "[yellow]~ PART[/yellow]"
         else:
-            status = "FAIL"
+            status = "[red]✗ FAIL[/red]"
 
-        print(f"\n{status} {field} (F1={f1_score:.1%})")
-        print(f"   Extracted: {extracted_val}")
-        print(f"   GT:        {ground_val}")
+        # Truncate long values for display
+        ext_display = (
+            str(extracted_val)[:80] + "..."
+            if len(str(extracted_val)) > 80
+            else str(extracted_val)
+        )
+        gt_display = (
+            str(ground_val)[:80] + "..."
+            if len(str(ground_val)) > 80
+            else str(ground_val)
+        )
 
-        if field in normalized_fields and f1_score < 1.0:
-            norm_ext = normalize_field_for_comparison(field, extracted_val)
-            norm_gt = normalize_field_for_comparison(field, ground_val)
-            print(f"   Normalized Extracted: {norm_ext}")
-            print(f"   Normalized GT:        {norm_gt}")
+        table.add_row(status, field, f"{f1_score:.1%}", ext_display, gt_display)
 
-    print("\n" + "=" * 80)
+    console.print(table)
 
 
 # ============================================================================
@@ -1239,13 +1246,12 @@ def main():
 
     set_seed(42)
 
-    print("=" * 60)
-    print("INTERNVL3-8B BANK STATEMENT BATCH EXTRACTION")
-    print("=" * 60)
-    print(f"Evaluation Method: {CONFIG['EVALUATION_METHOD']}")
+    console.rule("[bold blue]INTERNVL3-8B BANK STATEMENT BATCH EXTRACTION")
+    console.print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
+    console.print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (V100 optimized)")
 
     # Load ground truth
-    print("\nLoading ground truth...")
+    console.print("\n[yellow]Loading ground truth...[/yellow]")
     ground_truth_map = load_ground_truth(str(CONFIG["GROUND_TRUTH"]), verbose=True)
 
     # Discover bank statement images
@@ -1257,33 +1263,35 @@ def main():
             if img_path.exists():
                 bank_images.append(str(img_path))
             else:
-                print(f"  Warning: Image not found: {img_path}")
+                console.print(
+                    f"  [yellow]Warning: Image not found: {img_path}[/yellow]"
+                )
 
     if CONFIG["MAX_IMAGES"]:
         bank_images = bank_images[: CONFIG["MAX_IMAGES"]]
 
-    print(f"\nFound {len(bank_images)} bank statement images")
+    console.print(f"\n[green]✓ Found {len(bank_images)} bank statement images[/green]")
 
     if args.dry_run:
-        print("\nDRY RUN - Images that would be processed:")
+        console.print("\n[yellow]DRY RUN - Images that would be processed:[/yellow]")
         for img in bank_images:
-            print(f"  - {Path(img).name}")
+            console.print(f"  - {Path(img).name}")
         return
 
     # Load model
-    print("\nLoading InternVL3-8B model...")
+    console.print("\n[yellow]Loading InternVL3-8B model...[/yellow]")
     model, tokenizer, model_dtype = load_internvl3_model(verbose=True)
 
     # Process images
-    print("\n" + "=" * 60)
-    print("BATCH PROCESSING")
-    print("=" * 60)
+    console.rule("[bold blue]BATCH PROCESSING")
 
     batch_results = []
 
     for idx, image_path in enumerate(bank_images, 1):
         image_name = Path(image_path).name
-        print(f"\n[{idx}/{len(bank_images)}] Processing: {image_name}")
+        console.print(
+            f"\n[bold cyan][{idx}/{len(bank_images)}][/bold cyan] Processing: [white]{image_name}[/white]"
+        )
 
         # Clear GPU memory before each image to prevent fragmentation
         if torch.cuda.is_available():
@@ -1313,15 +1321,20 @@ def main():
 
             batch_results.append(result)
 
-            print(f"  Accuracy: {eval_result.get('overall_accuracy', 0.0):.1%}")
-            print(f"  Time: {processing_time:.2f}s")
+            accuracy = eval_result.get("overall_accuracy", 0.0)
+            acc_color = (
+                "green" if accuracy >= 0.8 else "yellow" if accuracy >= 0.5 else "red"
+            )
+            console.print(
+                f"  [{acc_color}]✓ Accuracy: {accuracy:.1%}[/{acc_color}]  ⏱ {processing_time:.2f}s"
+            )
 
             display_field_comparison(
                 schema_fields, ground_truth_map, image_name, eval_result
             )
 
         except Exception as e:
-            print(f"  ERROR: {e}")
+            console.print(f"  [red]✗ ERROR: {e}[/red]")
             batch_results.append(
                 {
                     "image_name": image_name,
@@ -1332,29 +1345,33 @@ def main():
             )
 
     # Summary
-    print("\n" + "=" * 60)
-    print("BATCH SUMMARY")
-    print("=" * 60)
+    console.rule("[bold blue]BATCH SUMMARY")
 
     successful = [r for r in batch_results if "error" not in r]
-    print(f"Total: {len(batch_results)} images")
-    print(f"Successful: {len(successful)}")
-    print(f"Failed: {len(batch_results) - len(successful)}")
+    failed_count = len(batch_results) - len(successful)
+
+    console.print(f"[cyan]Total:[/cyan] {len(batch_results)} images")
+    console.print(f"[green]Successful:[/green] {len(successful)}")
+    if failed_count > 0:
+        console.print(f"[red]Failed:[/red] {failed_count}")
+    else:
+        console.print("[dim]Failed:[/dim] 0")
 
     if successful:
         accuracies = [r["evaluation"]["overall_accuracy"] for r in successful]
-        print("\nAccuracy Statistics:")
-        print(f"  Average: {np.mean(accuracies):.1%}")
-        print(f"  Min: {min(accuracies):.1%}")
-        print(f"  Max: {max(accuracies):.1%}")
+        avg_acc = np.mean(accuracies)
+        console.print("\n[bold]Accuracy Statistics:[/bold]")
+        console.print(
+            f"  Average: [{'green' if avg_acc >= 0.8 else 'yellow'}]{avg_acc:.1%}[/]"
+        )
+        console.print(f"  Min: {min(accuracies):.1%}")
+        console.print(f"  Max: {max(accuracies):.1%}")
 
     # Generate reports
-    print("\n" + "=" * 60)
-    print("GENERATING REPORTS")
-    print("=" * 60)
+    console.rule("[bold blue]GENERATING REPORTS")
     generate_reports(batch_results, CONFIG["OUTPUT_BASE"])
 
-    print("\nBatch processing complete!")
+    console.print("\n[bold green]✓ Batch processing complete![/bold green]")
 
 
 if __name__ == "__main__":
