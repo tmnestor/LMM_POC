@@ -112,10 +112,10 @@ def normalize_amount(amount_str):
     Normalize amount string for semantic comparison.
 
     Handles formats like:
-    - "$48.50" → "48.50"
-    - "2,000.00" → "2000.00"
-    - "$2000.00" → "2000.00"
-    - "48.50" → "48.50"
+    - "$48.50" → "48.5"
+    - "2,000.00" → "2000"
+    - "$2000.00" → "2000"
+    - "-78.90" → "78.9" (sign ignored for matching)
     """
     if not amount_str or pd.isna(amount_str):
         return ""
@@ -133,6 +133,8 @@ def normalize_amount(amount_str):
     # Try to parse as float and format consistently
     try:
         value = float(cleaned)
+        # Use absolute value - ignore sign for matching
+        value = abs(value)
         # Format with 2 decimal places, removing trailing zeros
         return f"{value:.2f}".rstrip("0").rstrip(".")
     except ValueError:
