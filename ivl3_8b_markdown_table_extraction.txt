@@ -1,0 +1,16 @@
+| Date | Transaction | Debit | Credit | Balance |
+| :--- | :--- | ---: | ---: | :--- |
+| 15 Mar 2024 | OPENING BALANCE |  | 3,156.28 CR | $3,156.28 CR |
+| 18 Mar 2024 | TELSTRA MOBILE SERVICES SYDNEY AUS | 48.50 |  | $3,107.78 CR |
+| 19 Mar 2024 | WOOLWORTHS 28477 MELBOURNE VIC AUS | 127.35 |  | $2,980.43 CR |
+| 20 Mar 2024 | SHELL SERVICE STATION RICHMOND VIC | 89.60 |  | $2,890.83 CR |
+| 22 Mar 2024 | NETFLIX SUBSCRIPTION | 22.99 |  | $2,867.84 CR |
+| 25 Mar 2024 | Transfer from xx8765 CommBank app |  | 500.00 CR | $3,337.84 CR |
+| 28 Mar 2024 | CAFE LATTE FITZROY VIC AUS | 18.50 |  | $3,349.34 CR |
+| 01 Apr 2024 | SALARY DEPOSIT ACME PTY LTD |  | 3,500.00 CR | $6,849.34 CR |
+| 03 Apr 2024 | Transfer to xx2468 CommBank app | 2,000.00 |  | $4,849.34 CR |
+| 05 Apr 2024 | COLES SUPERMARKET CARLTON VIC | 156.78 |  | $4,692.56 CR |
+| 08 Apr 2024 | PARKING METERS MELBOURNE VIC | 15.00 |  | $4,677.56 CR |
+| 10 Apr 2024 | RENT PAYMENT REAL ESTATE |  | 1,850.00 CR | $2,827.56 CR |
+| 12 Apr 2024 | Transfer from xx8765 CommBank app |  | 75.00 CR | $2,902.56 CR |
+| 14 Apr 2024 | CHEMIST WAREHOUSE MELBOURNE VIC | 54.64 |  | $2,847.92 CR |
