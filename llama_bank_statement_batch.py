@@ -22,12 +22,14 @@ Options:
 
 import argparse
 import json as json_module
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from dateutil import parser as date_parser
 from PIL import Image
 
 from common.evaluation_metrics import (
@@ -74,6 +76,125 @@ BANK_STATEMENT_FIELDS = [
     "LINE_ITEM_DESCRIPTIONS",
     "TRANSACTION_AMOUNTS_PAID",
 ]
+
+# ============================================================================
+# SEMANTIC NORMALIZATION (for evaluation comparison only)
+# ============================================================================
+
+
+def normalize_date(date_str):
+    """
+    Normalize date string to canonical format YYYY-MM-DD for semantic comparison.
+
+    Handles formats like:
+    - "18 Mar 2024", "18 March 2024"
+    - "18/03/2024", "18-03-2024"
+    - "2024-03-18"
+    """
+    if not date_str or pd.isna(date_str):
+        return ""
+
+    date_str = str(date_str).strip()
+    if not date_str:
+        return ""
+
+    try:
+        # Use dateutil parser with dayfirst=True for DD/MM/YYYY formats
+        parsed = date_parser.parse(date_str, dayfirst=True)
+        return parsed.strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        # Return original if parsing fails
+        return date_str
+
+
+def normalize_amount(amount_str):
+    """
+    Normalize amount string for semantic comparison.
+
+    Handles formats like:
+    - "$48.50" → "48.50"
+    - "2,000.00" → "2000.00"
+    - "$2000.00" → "2000.00"
+    - "48.50" → "48.50"
+    """
+    if not amount_str or pd.isna(amount_str):
+        return ""
+
+    amount_str = str(amount_str).strip()
+    if not amount_str:
+        return ""
+
+    # Remove currency symbols and whitespace
+    cleaned = re.sub(r"[$£€¥₹\s]", "", amount_str)
+
+    # Remove thousand separators (commas)
+    cleaned = cleaned.replace(",", "")
+
+    # Try to parse as float and format consistently
+    try:
+        value = float(cleaned)
+        # Format with 2 decimal places, removing trailing zeros
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    except ValueError:
+        return cleaned
+
+
+def normalize_pipe_delimited(value, normalizer_fn):
+    """
+    Apply normalizer function to each item in a pipe-delimited string.
+
+    Args:
+        value: Pipe-delimited string like "item1 | item2 | item3"
+        normalizer_fn: Function to apply to each item (normalize_date or normalize_amount)
+
+    Returns:
+        Normalized pipe-delimited string
+    """
+    if not value or pd.isna(value):
+        return ""
+
+    value = str(value).strip()
+    if not value:
+        return ""
+
+    items = [item.strip() for item in value.split("|")]
+    normalized = [normalizer_fn(item) for item in items]
+    return " | ".join(normalized)
+
+
+def normalize_field_for_comparison(field_name, value):
+    """
+    Normalize a field value based on its type for semantic comparison.
+
+    Args:
+        field_name: Name of the field (e.g., "TRANSACTION_DATES")
+        value: The field value to normalize
+
+    Returns:
+        Normalized value for comparison
+    """
+    if not value or pd.isna(value):
+        return ""
+
+    value = str(value).strip()
+
+    if field_name == "TRANSACTION_DATES":
+        return normalize_pipe_delimited(value, normalize_date)
+    elif field_name == "TRANSACTION_AMOUNTS_PAID":
+        return normalize_pipe_delimited(value, normalize_amount)
+    elif field_name == "STATEMENT_DATE_RANGE":
+        # Handle "18 Mar 2024 - 14 Apr 2024" format
+        if " - " in value:
+            parts = value.split(" - ")
+            if len(parts) == 2:
+                start = normalize_date(parts[0].strip())
+                end = normalize_date(parts[1].strip())
+                return f"{start} - {end}"
+        return value
+    else:
+        # For other fields (DOCUMENT_TYPE, LINE_ITEM_DESCRIPTIONS), return as-is
+        return value
+
 
 # ============================================================================
 # PATTERN MATCHING (from notebook Cell 13)
@@ -437,8 +558,11 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
     gt_data = ground_truth_map.get(image_name, {})
     field_scores = eval_result.get("field_scores", {})
 
+    # Fields that get normalized for comparison
+    normalized_fields = {"TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "STATEMENT_DATE_RANGE"}
+
     print("\n" + "=" * 80)
-    print("FIELD COMPARISON")
+    print("FIELD COMPARISON (semantic matching enabled)")
     print("=" * 80)
 
     for field in BANK_STATEMENT_FIELDS:
@@ -466,6 +590,13 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
         print(f"\n{status} {field} (F1={f1_score:.1%})")
         print(f"   Extracted: {extracted_val}")
         print(f"   GT:        {ground_val}")
+
+        # Show normalized values for fields that use semantic comparison
+        if field in normalized_fields and f1_score < 1.0:
+            norm_ext = normalize_field_for_comparison(field, extracted_val)
+            norm_gt = normalize_field_for_comparison(field, ground_val)
+            print(f"   Normalized Extracted: {norm_ext}")
+            print(f"   Normalized GT:        {norm_gt}")
 
     print("\n" + "=" * 80)
 
@@ -497,9 +628,19 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
         return {"error": "No ground truth found", "image_name": image_name}
 
     if method == "correlation":
+        # Normalize fields for semantic comparison
+        normalized_extracted = {
+            field: normalize_field_for_comparison(field, schema_fields.get(field, ""))
+            for field in BANK_STATEMENT_FIELDS
+        }
+        normalized_gt = {
+            field: normalize_field_for_comparison(field, gt_data.get(field, ""))
+            for field in BANK_STATEMENT_FIELDS
+        }
+
         result = calculate_correlation_aware_f1(
-            extracted_data=schema_fields,
-            ground_truth_data=gt_data,
+            extracted_data=normalized_extracted,
+            ground_truth_data=normalized_gt,
             document_type="bank_statement",
             debug=CONFIG["VERBOSE"],
         )
@@ -522,7 +663,11 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
         if pd.isna(gt_value):
             gt_value = "NOT_FOUND"
 
-        result = evaluate_field(extracted_value, str(gt_value), field, method)
+        # Normalize values for semantic comparison (dates, amounts)
+        normalized_extracted = normalize_field_for_comparison(field, extracted_value)
+        normalized_gt = normalize_field_for_comparison(field, gt_value)
+
+        result = evaluate_field(normalized_extracted, normalized_gt, field, method)
 
         if result:
             field_scores[field] = {
