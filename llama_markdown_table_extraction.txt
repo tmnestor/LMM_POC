@@ -1,18 +1,16 @@
-| Date | Transaction | Debit | Credit |
-| :--- | :--- | ---: | ---: |
-| 20 May | Direct Debit 987654 Loan Repayment | 178.50 |  |
-| 21 May | RETAIL STORE SUBURB AU | 245.00 |  |
-| 21 May | SUPERMARKET SHOPPING SUBURB AU | 89.95 |  |
-| 21 May | SHOPPING SUBURB SUBURB AU | 34.50 |  |
-| 21 May | SHOPPING SUBURB SUBURB AU | 67.00 |  |
-| 21 May | Store RSL Suburb0 AU | 145.80 |  |
-| 21 May | Transfer To financially sorted CommBank App Tax | 450.00 |  |
-| 22 May | GROCERY STORE SUBURB AU | 124.00 |  |
-| 22 May | PETROL STATION SUBURB VICAU | 78.90 |  |
-| 22 May | RETAIL STORES SUBURB VICAU | 56.40 |  |
-| 23 May | DEPARTMENT STORE PTY LTD SUBURB VIC AU | 1,456.80 |  |
-| 23 May | RETAIL STORES EASTLINK VIC SUBURB AU | 67.75 |  |
-| 23 May | RETAIL STORE PTY LTD Suburb VICAU | 89.25 |  |
-| 23 May | RETAIL STORE PTY LTD Suburb VICAU | 45.80 |  |
-| 23 May | Direct Credit 876543 Wage Payment Wagstaff Pilling |  | 3,450.00 |
-| 24 May | Afterpay afterpay.com AU AUS |  | 234.90 |
+| Date | Transaction | Debit | Credit | Balance |
+| --- | --- | --- | --- | --- |
+| 15 Mar 2024 | OPENING BALANCE |  |  | $3,156.28 CR |
+| 18 Mar 2024 | TELSTRA MOBILE SERVICES SYDNEY AUS | 48.50 |  | $3,107.78 CR |
+| 19 Mar 2024 | WOOLWORTHS 2847 MELBOURNE VIC AUS | 127.35 |  | $2,980.43 CR |
+| 20 Mar 2024 | SHELL SERVICE STATION RICHMOND VIC | 89.60 |  | $2,890.83 CR |
+| 22 Mar 2024 | NETFLIX SUBSCRIPTION | 22.99 |  | $2,867.84 CR |
+| 25 Mar 2024 | Transfer from xx8765 CommBank app |  | 500.00 | $3,367.84 CR |
+| 28 Mar 2024 | CAFE LATTE FITZROY VIC AUS | 10.50 |  | $3,349.34 CR |
+| 01 Apr 2024 | SALARY DEPOSIT ACME PTY LTD |  | 3,500.00 | $6,849.34 CR |
+| 03 Apr 2024 | Transfer to xx2468 CommBank app |  | 2,000.00 | $4,849.34 CR |
+| 05 Apr 2024 | COLES SUPERMARKET CARLTON VIC | 156.78 |  | $4,692.56 CR |
+| 08 Apr 2024 | PARKING METERS MELBOURNE VIC | 15.00 |  | $4,677.56 CR |
+| 10 Apr 2024 | RENT PAYMENT REAL ESTATE | 1,850.00 |  | $2,827.56 CR |
+| 12 Apr 2024 | Transfer from xx8765 CommBank app |  | 75.00 | $2,902.56 CR |
+| 14 Apr 2024 | CHEMIST WAREHOUSE MELBOURNE VIC | 54.64 |  | $2,847.92 CR |
