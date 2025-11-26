@@ -48,8 +48,31 @@ from common.evaluation_metrics import (
 )
 from common.reproducibility import set_seed
 
-# Rich console for styled output
+# Rich console for styled output - will be initialized in main() with optional file logging
 console = Console()
+file_console = None  # Will be set if --log-file is specified
+
+
+def log_print(msg: str = "", style: str | None = None):
+    """Print to both terminal and log file if configured."""
+    console.print(msg, style=style)
+    if file_console:
+        file_console.print(msg, style=style)
+
+
+def log_rule(title: str):
+    """Print rule to both terminal and log file if configured."""
+    console.rule(title)
+    if file_console:
+        file_console.rule(title)
+
+
+def log_table(table):
+    """Print table to both terminal and log file if configured."""
+    console.print(table)
+    if file_console:
+        file_console.print(table)
+
 
 # ============================================================================
 # CONFIGURATION
@@ -908,7 +931,7 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
             status, field, f"{f1_score:.1%}", str(extracted_val), str(ground_val)
         )
 
-    console.print(table)
+    log_table(table)
 
 
 # ============================================================================
@@ -1282,8 +1305,21 @@ def main():
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be processed"
     )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Path to log file (will tee output to both terminal and file)",
+    )
 
     args = parser.parse_args()
+
+    # Set up file logging if requested
+    global file_console
+    if args.log_file:
+        log_path = Path(args.log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        file_console = Console(file=log_path.open("w"), force_terminal=True, width=200)
 
     CONFIG["MAX_IMAGES"] = args.max_images
     CONFIG["EVALUATION_METHOD"] = args.method
@@ -1291,13 +1327,13 @@ def main():
 
     set_seed(42)
 
-    console.rule("[bold blue]INTERNVL3.5-8B BANK STATEMENT BATCH EXTRACTION")
-    console.print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
-    console.print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (H200 optimized)")
-    console.print("[cyan]Precision:[/cyan] bfloat16 with Flash Attention")
+    log_rule("[bold blue]INTERNVL3.5-8B BANK STATEMENT BATCH EXTRACTION")
+    log_print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
+    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (H200 optimized)")
+    log_print("[cyan]Precision:[/cyan] bfloat16 with Flash Attention")
 
     # Load ground truth
-    console.print("\n[yellow]Loading ground truth...[/yellow]")
+    log_print("\n[yellow]Loading ground truth...[/yellow]")
     ground_truth_map = load_ground_truth(str(CONFIG["GROUND_TRUTH"]), verbose=True)
 
     # Discover bank statement images
@@ -1309,33 +1345,31 @@ def main():
             if img_path.exists():
                 bank_images.append(str(img_path))
             else:
-                console.print(
-                    f"  [yellow]Warning: Image not found: {img_path}[/yellow]"
-                )
+                log_print(f"  [yellow]Warning: Image not found: {img_path}[/yellow]")
 
     if CONFIG["MAX_IMAGES"]:
         bank_images = bank_images[: CONFIG["MAX_IMAGES"]]
 
-    console.print(f"\n[green]✓ Found {len(bank_images)} bank statement images[/green]")
+    log_print(f"\n[green]✓ Found {len(bank_images)} bank statement images[/green]")
 
     if args.dry_run:
-        console.print("\n[yellow]DRY RUN - Images that would be processed:[/yellow]")
+        log_print("\n[yellow]DRY RUN - Images that would be processed:[/yellow]")
         for img in bank_images:
-            console.print(f"  - {Path(img).name}")
+            log_print(f"  - {Path(img).name}")
         return
 
     # Load model
-    console.print("\n[yellow]Loading InternVL3.5-8B model...[/yellow]")
+    log_print("\n[yellow]Loading InternVL3.5-8B model...[/yellow]")
     model, tokenizer = load_internvl3_5_model(verbose=True)
 
     # Process images
-    console.rule("[bold blue]BATCH PROCESSING")
+    log_rule("[bold blue]BATCH PROCESSING")
 
     batch_results = []
 
     for idx, image_path in enumerate(bank_images, 1):
         image_name = Path(image_path).name
-        console.print(
+        log_print(
             f"\n[bold cyan][{idx}/{len(bank_images)}][/bold cyan] Processing: [white]{image_name}[/white]"
         )
 
@@ -1371,7 +1405,7 @@ def main():
             acc_color = (
                 "green" if accuracy >= 0.8 else "yellow" if accuracy >= 0.5 else "red"
             )
-            console.print(
+            log_print(
                 f"  [{acc_color}]✓ Accuracy: {accuracy:.1%}[/{acc_color}]  ⏱ {processing_time:.2f}s"
             )
 
@@ -1380,7 +1414,7 @@ def main():
             )
 
         except Exception as e:
-            console.print(f"  [red]✗ ERROR: {e}[/red]")
+            log_print(f"  [red]✗ ERROR: {e}[/red]")
             batch_results.append(
                 {
                     "image_name": image_name,
@@ -1391,33 +1425,33 @@ def main():
             )
 
     # Summary
-    console.rule("[bold blue]BATCH SUMMARY")
+    log_rule("[bold blue]BATCH SUMMARY")
 
     successful = [r for r in batch_results if "error" not in r]
     failed_count = len(batch_results) - len(successful)
 
-    console.print(f"[cyan]Total:[/cyan] {len(batch_results)} images")
-    console.print(f"[green]Successful:[/green] {len(successful)}")
+    log_print(f"[cyan]Total:[/cyan] {len(batch_results)} images")
+    log_print(f"[green]Successful:[/green] {len(successful)}")
     if failed_count > 0:
-        console.print(f"[red]Failed:[/red] {failed_count}")
+        log_print(f"[red]Failed:[/red] {failed_count}")
     else:
-        console.print("[dim]Failed:[/dim] 0")
+        log_print("[dim]Failed:[/dim] 0")
 
     if successful:
         accuracies = [r["evaluation"]["overall_accuracy"] for r in successful]
         avg_acc = np.mean(accuracies)
-        console.print("\n[bold]Accuracy Statistics:[/bold]")
-        console.print(
+        log_print("\n[bold]Accuracy Statistics:[/bold]")
+        log_print(
             f"  Average: [{'green' if avg_acc >= 0.8 else 'yellow'}]{avg_acc:.1%}[/]"
         )
-        console.print(f"  Min: {min(accuracies):.1%}")
-        console.print(f"  Max: {max(accuracies):.1%}")
+        log_print(f"  Min: {min(accuracies):.1%}")
+        log_print(f"  Max: {max(accuracies):.1%}")
 
     # Generate reports
-    console.rule("[bold blue]GENERATING REPORTS")
+    log_rule("[bold blue]GENERATING REPORTS")
     generate_reports(batch_results, CONFIG["OUTPUT_BASE"])
 
-    console.print("\n[bold green]✓ Batch processing complete![/bold green]")
+    log_print("\n[bold green]✓ Batch processing complete![/bold green]")
 
 
 if __name__ == "__main__":
