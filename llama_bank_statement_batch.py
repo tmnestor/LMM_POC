@@ -536,12 +536,18 @@ def is_non_transaction_row(row, desc_col):
     Excludes:
     - Opening Balance rows
     - Closing Balance rows
+    - Brought Forward rows (NAB)
+    - Carried Forward rows (NAB)
     """
     desc = row.get(desc_col, "").strip().upper()
 
     if "OPENING BALANCE" in desc:
         return True
     if "CLOSING BALANCE" in desc:
+        return True
+    if "BROUGHT FORWARD" in desc:
+        return True
+    if "CARRIED FORWARD" in desc:
         return True
 
     return False
@@ -573,9 +579,17 @@ def filter_debit_transactions(rows, debit_col, desc_col=None):
     return debit_rows
 
 
-def extract_schema_fields(rows, date_col, desc_col, debit_col):
-    """Extract fields in universal.yaml schema format."""
-    if not rows:
+def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=None):
+    """Extract fields in universal.yaml schema format.
+
+    Args:
+        debit_rows: Filtered rows containing only debit transactions
+        date_col: Column name for dates
+        desc_col: Column name for descriptions
+        debit_col: Column name for debit amounts
+        all_rows: All transaction rows (for date range calculation). If None, uses debit_rows.
+    """
+    if not debit_rows:
         return {
             "DOCUMENT_TYPE": "BANK_STATEMENT",
             "STATEMENT_DATE_RANGE": "NOT_FOUND",
@@ -584,30 +598,35 @@ def extract_schema_fields(rows, date_col, desc_col, debit_col):
             "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND",
         }
 
-    dates = []
+    # Extract debit transaction fields
+    debit_dates = []
     descriptions = []
     amounts = []
 
-    for row in rows:
+    for row in debit_rows:
         date = row.get(date_col, "").strip()
         desc = row.get(desc_col, "").strip()
         amount = row.get(debit_col, "").strip()
 
         if date:
-            dates.append(date)
+            debit_dates.append(date)
         if desc:
             descriptions.append(desc)
         if amount:
             amounts.append(amount)
 
+    # Calculate date range from ALL transactions (not just debits)
     date_range = "NOT_FOUND"
-    if dates:
-        date_range = f"{dates[0]} - {dates[-1]}"
+    rows_for_range = all_rows if all_rows is not None else debit_rows
+    all_dates = [row.get(date_col, "").strip() for row in rows_for_range]
+    all_dates = [d for d in all_dates if d]  # Filter empty dates
+    if all_dates:
+        date_range = f"{all_dates[0]} - {all_dates[-1]}"
 
     return {
         "DOCUMENT_TYPE": "BANK_STATEMENT",
         "STATEMENT_DATE_RANGE": date_range,
-        "TRANSACTION_DATES": " | ".join(dates) if dates else "NOT_FOUND",
+        "TRANSACTION_DATES": " | ".join(debit_dates) if debit_dates else "NOT_FOUND",
         "LINE_ITEM_DESCRIPTIONS": " | ".join(descriptions)
         if descriptions
         else "NOT_FOUND",
@@ -980,8 +999,10 @@ Output: Markdown table only."""
     if verbose:
         print(f"  Parsed: {len(all_rows)} rows, {len(debit_rows)} debits")
 
-    # Extract schema fields
-    schema_fields = extract_schema_fields(debit_rows, date_col, desc_col, debit_col)
+    # Extract schema fields (pass all_rows for date range calculation)
+    schema_fields = extract_schema_fields(
+        debit_rows, date_col, desc_col, debit_col, all_rows=all_rows
+    )
 
     return schema_fields, metadata
 
