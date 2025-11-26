@@ -503,21 +503,15 @@ def is_non_transaction_row(row, desc_col):
     Check if this row is NOT an actual transaction.
 
     Excludes:
-    - Opening/Closing Balance rows
-    - Payment rows (credits, not debits)
-    - Instalment Payment rows
+    - Opening Balance rows
+    - Closing Balance rows
     """
-    desc = row.get(desc_col, "").upper()
+    desc = row.get(desc_col, "").strip().upper()
 
-    non_transaction_keywords = [
-        "OPENING BALANCE",
-        "CLOSING BALANCE",
-        "PAYMENT",  # Covers "Payment" and "Instalment Payment"
-    ]
-
-    for keyword in non_transaction_keywords:
-        if keyword in desc:
-            return True
+    if "OPENING BALANCE" in desc:
+        return True
+    if "CLOSING BALANCE" in desc:
+        return True
 
     return False
 
