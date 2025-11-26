@@ -430,6 +430,47 @@ def extract_schema_fields(rows, date_col, desc_col, debit_col):
 
 
 # ============================================================================
+# DISPLAY FUNCTIONS
+# ============================================================================
+def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result):
+    """Display stacked comparison of extracted vs ground truth fields (full values)."""
+    gt_data = ground_truth_map.get(image_name, {})
+    field_scores = eval_result.get("field_scores", {})
+
+    print("\n" + "=" * 80)
+    print("FIELD COMPARISON")
+    print("=" * 80)
+
+    for field in BANK_STATEMENT_FIELDS:
+        extracted_val = schema_fields.get(field, "NOT_FOUND")
+        ground_val = gt_data.get(field, "NOT_FOUND")
+
+        # Handle NaN
+        if pd.isna(ground_val):
+            ground_val = "NOT_FOUND"
+
+        # Get F1 score
+        if isinstance(field_scores.get(field), dict):
+            f1_score = field_scores[field].get("f1_score", 0.0)
+        else:
+            f1_score = field_scores.get(field, 0.0)
+
+        # Determine status symbol
+        if f1_score == 1.0:
+            status = "✅"
+        elif f1_score >= 0.5:
+            status = "⚠️"
+        else:
+            status = "❌"
+
+        print(f"\n{status} {field} (F1={f1_score:.1%})")
+        print(f"   Extracted: {extracted_val}")
+        print(f"   GT:        {ground_val}")
+
+    print("\n" + "=" * 80)
+
+
+# ============================================================================
 # EVALUATION FUNCTIONS
 # ============================================================================
 def evaluate_field(extracted_value, gt_value, field_name, method):
@@ -983,6 +1024,9 @@ def main():
 
             print(f"  ✅ Accuracy: {eval_result.get('overall_accuracy', 0.0):.1%}")
             print(f"  ⏱️  Time: {processing_time:.2f}s")
+
+            # Display extracted vs ground truth comparison
+            display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result)
 
         except Exception as e:
             print(f"  ❌ ERROR: {e}")
