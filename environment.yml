@@ -23,6 +23,8 @@ dependencies:
     - einops>=0.6.0
     - accelerate>=0.27.0
     - pyyaml>=6.0.0
+    # FlashAttention 2.x (optional - GPU machines only)
+    # Install manually on L40S/A10G: pip install flash-attn --no-build-isolation
     - jupyter>=1.0.0
     - ipython>=8.0.0
     - ipykernel
@@ -52,11 +54,15 @@ dependencies:
 #
 # Step 4: Install PyTorch with CUDA support
 # -----------------------------------------
-# For V100 production (CUDA 11.x):
-# conda install pytorch==2.0.1 torchvision==0.15.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+# For A10G production (CUDA 11.8 - Ampere architecture):
+# conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
 #
-# For H200 development (CUDA 12.x):
+# For 2x L40S development (CUDA 12.x - Ada Lovelace architecture):
 # conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia
+#
+# Step 4b: Install FlashAttention 2 (A10G/L40S only - requires compilation)
+# -------------------------------------------------------------------------
+# pip install flash-attn --no-build-isolation
 #
 # Step 5: Register the environment as a Jupyter kernel
 # ---------------------------------------------------
@@ -122,4 +128,5 @@ dependencies:
 # - ipykernel is included for Jupyter notebook support
 # - KMP_DUPLICATE_LIB_OK=TRUE fixes OpenMP library conflicts
 # - Tesseract OCR binary must be installed separately on the system
-# - Designed for Mac M1 → 2x H200 → single V100 deployment pipeline
+# - Designed for Mac M1 → 2x L40S (dev) → A10G (production) deployment pipeline
+# - FlashAttention 2.x supported on L40S (Ada) and A10G (Ampere)
