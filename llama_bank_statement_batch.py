@@ -870,14 +870,32 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    format_prompt = """Analyze this bank statement image and classify its structural layout.
+    format_prompt = """Analyze the transaction table structure in this bank statement.
 
-Does each transaction have its own date value, or are transactions grouped under date section headers?
+Look at how DATES relate to TRANSACTIONS:
 
-If each transaction has its own individual date in a table: Respond with "Date-per-row"
-If transactions are grouped under shared date headers: Respond with "Date-grouped"
+**DATE-PER-ROW format:**
+- Every transaction row has its own date in a Date column
+- Example: Each row shows "22 Mar | Description | $100.00"
 
-Response:"""
+**DATE-GROUPED format:**
+- Dates appear as section headers or separator rows
+- Multiple transactions are listed BELOW each date WITHOUT repeating the date
+- The date row often has empty cells for Description/Amount
+- Example:
+  "22 Mar | | |" (date header row - no transaction)
+  " | Auto Services | $580.00 |" (transaction without date)
+  " | EFTPOS Grocers | $125.00 |" (another transaction under same date)
+
+INDICATORS of DATE-GROUPED:
+- Date appears alone in a row with other cells empty
+- Transaction rows have blank/empty Date column
+- Visual grouping or indentation under dates
+
+Examine the table carefully. Which format does this document use?
+
+Answer with ONLY one of: "Date-per-row" or "Date-grouped"
+"""
 
     message_format = [
         {
