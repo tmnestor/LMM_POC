@@ -411,11 +411,15 @@ def is_non_transaction_row(row, desc_col):
 
 
 def filter_debit_transactions(rows, debit_col, desc_col=None):
-    """Filter rows to only those with actual debit transactions."""
+    """Filter rows to only those with actual debit transactions (amount > 0)."""
     debit_rows = []
     for row in rows:
         debit_value = row.get(debit_col, "").strip()
         if not debit_value:
+            continue
+        # Parse amount and check if > 0
+        amount = parse_amount(debit_value)
+        if amount <= 0:
             continue
         if desc_col and is_non_transaction_row(row, desc_col):
             continue
@@ -742,10 +746,15 @@ Output: Markdown table only."""
 
     # ========== Parse Response ==========
     if has_balance:
-        # Parse balance-description format
+        # Try balance-description format first
         all_rows = parse_balance_description_response(
             extraction_response, date_col, desc_col, debit_col, credit_col, balance_col
         )
+        # Fallback to markdown table if balance-description parsing failed
+        if not all_rows and "|" in extraction_response:
+            if verbose:
+                print("  Fallback: parsing as markdown table")
+            all_rows = parse_markdown_table(extraction_response)
     else:
         # Parse markdown table format
         all_rows = parse_markdown_table(extraction_response)
