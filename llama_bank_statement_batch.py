@@ -889,9 +889,8 @@ DATE-PER-ROW indicators:
 - Number of dates equals number of transactions
 - Dates are in a regular table column, not section headers
 
-Which format does this document use?
-
-Respond with ONLY: "Date-per-row" or "Date-grouped"
+First, count the transactions and dates. Then explain which indicators you see.
+Finally, state your answer: "Date-per-row" or "Date-grouped"
 """
 
     message_format = [
@@ -910,7 +909,7 @@ Respond with ONLY: "Date-per-row" or "Date-grouped"
 
     output = model.generate(
         **inputs,
-        max_new_tokens=100,
+        max_new_tokens=300,
         do_sample=False,
         temperature=None,
         top_p=None,
@@ -926,7 +925,18 @@ Respond with ONLY: "Date-per-row" or "Date-grouped"
     torch.cuda.empty_cache()
 
     date_format = "Date-per-row"
-    if "Date-grouped" in format_response or "date-grouped" in format_response:
+    response_lower = format_response.lower()
+    # Check for Date-grouped indicators in response
+    grouped_indicators = [
+        "date-grouped",
+        "grouped",
+        "section header",
+        "multiple transactions",
+        "share the same date",
+        "transactions under",
+        "more transactions than dates",
+    ]
+    if any(indicator in response_lower for indicator in grouped_indicators):
         date_format = "Date-grouped"
 
     metadata["date_format"] = date_format
