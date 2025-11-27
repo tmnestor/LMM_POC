@@ -942,41 +942,17 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    # Use balance column if detected for more reliable counting
-    has_balance = balance_col in table_headers
+    format_prompt = """Look at the Date column in this bank statement table.
 
-    if has_balance:
-        format_prompt = f"""Count the {balance_col} column values and the date headers in this bank statement.
+DATE-PER-ROW: Every transaction row has a date value in the Date column.
+(Dates may repeat - that's fine. What matters is every row HAS a date.)
 
-BALANCES: Count every value in the {balance_col} column.
-DATE HEADERS: Count the unique dates shown.
+DATE-GROUPED: Dates appear as section headers or on separate rows.
+Transaction rows have EMPTY or BLANK date cells.
 
-RULE:
-BALANCES > DATE HEADERS → "Date-grouped"
-BALANCES = DATE HEADERS → "Date-per-row"
+Look at the transaction rows. Do they each have a date, or are the date cells empty?
 
-State your counts then your answer.
-"""
-    else:
-        format_prompt = """Look at the transaction table in this bank statement.
-
-Count how many TRANSACTION ROWS exist vs how many unique DATES are shown.
-
-DECISION RULE:
-- If MORE transactions than dates → answer "Date-grouped"
-- If transactions EQUALS dates (1:1 ratio) → answer "Date-per-row"
-
-DATE-GROUPED characteristics:
-- Multiple transactions share one date
-- Dates appear as section headers or on their own row
-- Transaction rows may have empty date cells
-
-DATE-PER-ROW characteristics:
-- Every transaction row has its own date value
-- Number of dates equals number of transactions
-
-Count the transactions and dates, then apply the decision rule.
-State your answer: "Date-per-row" or "Date-grouped"
+Answer: "Date-per-row" or "Date-grouped"
 """
 
     message_format = [
