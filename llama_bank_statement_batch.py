@@ -946,19 +946,16 @@ Do not interpret or rename them - use the EXACT text from the image.
     has_balance = balance_col in table_headers
 
     if has_balance:
-        format_prompt = f"""Look at the transaction table in this bank statement.
+        format_prompt = f"""Count the {balance_col} column values and the date headers in this bank statement.
 
-Count how many BALANCE values exist in the {balance_col} column.
-Count how many unique DATES are shown.
+BALANCES: Count every value in the {balance_col} column.
+DATE HEADERS: Count the unique dates shown.
 
-DECISION RULE:
-- If MORE balances than dates → answer "Date-grouped"
-- If balances EQUALS dates (1:1 ratio) → answer "Date-per-row"
+RULE:
+BALANCES > DATE HEADERS → "Date-grouped"
+BALANCES = DATE HEADERS → "Date-per-row"
 
-Each transaction produces a new balance, so counting balances = counting transactions.
-
-Count the balances and dates, then apply the decision rule.
-State your answer: "Date-per-row" or "Date-grouped"
+State your counts then your answer.
 """
     else:
         format_prompt = """Look at the transaction table in this bank statement.
