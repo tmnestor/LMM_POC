@@ -946,19 +946,21 @@ Do not interpret or rename them - use the EXACT text from the image.
 
 Count how many TRANSACTION ROWS exist vs how many unique DATES are shown.
 
-DATE-GROUPED indicators:
-- More transactions than dates (multiple transactions share one date)
-- Dates appear as section headers with colored/shaded backgrounds
-- Dates appear on their own row with no transaction details
-- Transaction rows have empty or blank date cells
+DECISION RULE:
+- If MORE transactions than dates → answer "Date-grouped"
+- If transactions EQUALS dates (1:1 ratio) → answer "Date-per-row"
 
-DATE-PER-ROW indicators:
+DATE-GROUPED characteristics:
+- Multiple transactions share one date
+- Dates appear as section headers or on their own row
+- Transaction rows may have empty date cells
+
+DATE-PER-ROW characteristics:
 - Every transaction row has its own date value
 - Number of dates equals number of transactions
-- Dates are in a regular table column, not section headers
 
-First, count the transactions and dates. Then explain which indicators you see.
-Finally, state your answer: "Date-per-row" or "Date-grouped"
+Count the transactions and dates, then apply the decision rule.
+State your answer: "Date-per-row" or "Date-grouped"
 """
 
     message_format = [
@@ -1012,7 +1014,7 @@ Finally, state your answer: "Date-per-row" or "Date-grouped"
 
     if verbose:
         print(f"  Turn 0.5 Format: {date_format}")
-        print(f"  Turn 0.5 Response: {format_response[:500]}")
+        print(f"  Turn 0.5 Response: {format_response}")
 
     # ========== Build Extraction Prompt ==========
     if date_format == "Date-grouped":
