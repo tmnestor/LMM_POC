@@ -942,15 +942,15 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    format_prompt = """Look at the Date column in this bank statement table.
+    format_prompt = """Look at the rows that have transaction DESCRIPTIONS (like store names, payments, transfers).
 
-DATE-PER-ROW: Every transaction row has a date value in the Date column.
-(Dates may repeat - that's fine. What matters is every row HAS a date.)
+For each row with a transaction description, check: does that SAME row have a date?
 
-DATE-GROUPED: Dates appear as section headers or on separate rows.
-Transaction rows have EMPTY or BLANK date cells.
+DATE-PER-ROW: The row with "Store Name $50.00" ALSO has a date like "01 Jan" on the same row.
 
-Look at the transaction rows. Do they each have a date, or are the date cells empty?
+DATE-GROUPED: The row with "Store Name $50.00" has NO date - the date appears on a SEPARATE row above it as a section header.
+
+Check several transaction description rows. Do they have dates on the SAME row, or is the date cell empty/blank?
 
 Answer: "Date-per-row" or "Date-grouped"
 """
