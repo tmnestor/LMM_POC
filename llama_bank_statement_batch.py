@@ -76,7 +76,9 @@ def log_table(table):
 # ============================================================================
 CONFIG = {
     # Data paths
-    "DATA_DIR": Path("/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank"),
+    "DATA_DIR": Path(
+        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/date_grouped"
+    ),
     "GROUND_TRUTH": Path(
         "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/ground_truth_bank.csv"
     ),
@@ -353,7 +355,9 @@ def _classify_header(header):
     hl = header.lower()
     if hl in ["date", "day"] or "date" in hl:
         return "date"
-    elif any(p in hl for p in ["desc", "particular", "detail", "transaction", "narration"]):
+    elif any(
+        p in hl for p in ["desc", "particular", "detail", "transaction", "narration"]
+    ):
         return "desc"
     elif any(p in hl for p in ["debit", "withdrawal", "dr"]):
         return "debit"
@@ -373,15 +377,55 @@ def build_date_grouped_source(headers):
     # Build example rows showing date-grouped structure (dates as section headers)
     example_data = [
         # Row 1: Date header only
-        {"date": "[DATE_1]", "desc": "", "debit": "", "credit": "", "balance": "", "amount": "", "other": ""},
+        {
+            "date": "[DATE_1]",
+            "desc": "",
+            "debit": "",
+            "credit": "",
+            "balance": "",
+            "amount": "",
+            "other": "",
+        },
         # Row 2: Transaction under DATE_1
-        {"date": "", "desc": "[DESC_A]", "debit": "[AMT_A]", "credit": "", "balance": "[BAL_A]", "amount": "[AMT_A]", "other": ""},
+        {
+            "date": "",
+            "desc": "[DESC_A]",
+            "debit": "[AMT_A]",
+            "credit": "",
+            "balance": "[BAL_A]",
+            "amount": "[AMT_A]",
+            "other": "",
+        },
         # Row 3: Another transaction under DATE_1
-        {"date": "", "desc": "[DESC_B]", "debit": "[AMT_B]", "credit": "", "balance": "[BAL_B]", "amount": "[AMT_B]", "other": ""},
+        {
+            "date": "",
+            "desc": "[DESC_B]",
+            "debit": "[AMT_B]",
+            "credit": "",
+            "balance": "[BAL_B]",
+            "amount": "[AMT_B]",
+            "other": "",
+        },
         # Row 4: New date header
-        {"date": "[DATE_2]", "desc": "", "debit": "", "credit": "", "balance": "", "amount": "", "other": ""},
+        {
+            "date": "[DATE_2]",
+            "desc": "",
+            "debit": "",
+            "credit": "",
+            "balance": "",
+            "amount": "",
+            "other": "",
+        },
         # Row 5: Transaction under DATE_2
-        {"date": "", "desc": "[DESC_C]", "debit": "[AMT_C]", "credit": "", "balance": "[BAL_C]", "amount": "[AMT_C]", "other": ""},
+        {
+            "date": "",
+            "desc": "[DESC_C]",
+            "debit": "[AMT_C]",
+            "credit": "",
+            "balance": "[BAL_C]",
+            "amount": "[AMT_C]",
+            "other": "",
+        },
     ]
 
     rows = []
@@ -398,10 +442,34 @@ def build_date_grouped_target(headers):
     # Build example rows showing correct extraction (date propagated to each row)
     example_data = [
         # DATE_1 propagated to both transactions
-        {"date": "[DATE_1]", "desc": "[DESC_A]", "debit": "[AMT_A]", "credit": "", "balance": "[BAL_A]", "amount": "[AMT_A]", "other": ""},
-        {"date": "[DATE_1]", "desc": "[DESC_B]", "debit": "[AMT_B]", "credit": "", "balance": "[BAL_B]", "amount": "[AMT_B]", "other": ""},
+        {
+            "date": "[DATE_1]",
+            "desc": "[DESC_A]",
+            "debit": "[AMT_A]",
+            "credit": "",
+            "balance": "[BAL_A]",
+            "amount": "[AMT_A]",
+            "other": "",
+        },
+        {
+            "date": "[DATE_1]",
+            "desc": "[DESC_B]",
+            "debit": "[AMT_B]",
+            "credit": "",
+            "balance": "[BAL_B]",
+            "amount": "[AMT_B]",
+            "other": "",
+        },
         # DATE_2 propagated
-        {"date": "[DATE_2]", "desc": "[DESC_C]", "debit": "[AMT_C]", "credit": "", "balance": "[BAL_C]", "amount": "[AMT_C]", "other": ""},
+        {
+            "date": "[DATE_2]",
+            "desc": "[DESC_C]",
+            "debit": "[AMT_C]",
+            "credit": "",
+            "balance": "[BAL_C]",
+            "amount": "[AMT_C]",
+            "other": "",
+        },
     ]
 
     rows = []
