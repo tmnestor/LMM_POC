@@ -742,7 +742,11 @@ Output: Markdown table only."""
 
     if verbose:
         print(f"  Turn 1: Extraction complete ({len(extraction_response)} chars)")
-        print(f"  Turn 1 Response:\n{extraction_response[:2000]}")
+        # Show full response if under 4000 chars, otherwise truncate
+        if len(extraction_response) <= 4000:
+            print(f"  Turn 1 Response:\n{extraction_response}")
+        else:
+            print(f"  Turn 1 Response (truncated):\n{extraction_response[:4000]}...")
 
     # ========== Parse Response ==========
     if has_balance:
