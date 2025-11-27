@@ -328,6 +328,9 @@ def parse_balance_description_response(response_text, date_col, desc_col, debit_
         if not date_match:
             # Also try without day name: "1. **04 Sep 2025**"
             date_match = re.match(r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line)
+        if not date_match:
+            # Also try DD/MM/YYYY format: "1. **03/05/2025**"
+            date_match = re.match(r"^\d+\.\s*\*?\*?(\d{1,2}/\d{1,2}/\d{4})\*?\*?", line)
 
         if date_match:
             # Save previous transaction if exists
@@ -681,15 +684,11 @@ Do not interpret or rename them - use the EXACT text from the image.
         # Use balance-description prompt (works for both date formats)
         metadata["extraction_method"] = "balance-description"
 
-        extraction_prompt = f"""For each balance in the {balance_col} column, list:
-
-1. **[DATE]**
-   - Description: [transaction description]
-   - {debit_col}: [amount if debit]
-   - {credit_col}: [amount if credit]
-   - Balance: [balance value]
-
-List ALL transactions. Use the exact format above."""
+        extraction_prompt = f"""List all the balances in the {balance_col} column, including:
+- Date from the Date Header of the balance
+- {desc_col}
+- {debit_col} Amount
+- {credit_col} Amount"""
 
         if verbose:
             print(f"  Extraction Method: balance-description (balance column: {balance_col})")
