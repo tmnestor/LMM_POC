@@ -874,14 +874,25 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    format_prompt = """Analyze this bank statement image and classify its structural layout.
+    format_prompt = """Look at the transaction table in this bank statement.
 
-Does each transaction have its own date value, or are transactions grouped under date section headers?
+Count how many TRANSACTION ROWS exist vs how many unique DATES are shown.
 
-If each transaction has its own individual date in a table: Respond with "Date-per-row"
-If transactions are grouped under shared date headers: Respond with "Date-grouped"
+DATE-GROUPED indicators:
+- More transactions than dates (multiple transactions share one date)
+- Dates appear as section headers with colored/shaded backgrounds
+- Dates appear on their own row with no transaction details
+- Transaction rows have empty or blank date cells
 
-Response:"""
+DATE-PER-ROW indicators:
+- Every transaction row has its own date value
+- Number of dates equals number of transactions
+- Dates are in a regular table column, not section headers
+
+Which format does this document use?
+
+Respond with ONLY: "Date-per-row" or "Date-grouped"
+"""
 
     message_format = [
         {
