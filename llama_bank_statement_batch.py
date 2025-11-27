@@ -943,7 +943,7 @@ Do not interpret or rename them - use the EXACT text from the image.
 
     # ========== TURN 0.5: Date Format Classification ==========
     # Use balance column if detected for more reliable counting
-    has_balance = balance_col and balance_col != "Balance"
+    has_balance = balance_col in table_headers
 
     if has_balance:
         format_prompt = f"""Look at the transaction table in this bank statement.
