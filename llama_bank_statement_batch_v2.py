@@ -685,6 +685,7 @@ Do not interpret or rename them - use the EXACT text from the image.
 
         if verbose:
             print(f"  Extraction Method: balance-description (balance column: {balance_col})")
+            print(f"  Extraction Prompt:\n{extraction_prompt}")
 
     else:
         # Use table extraction prompt (4-column tables without balance)
@@ -733,6 +734,7 @@ Output: Markdown table only."""
 
     if verbose:
         print(f"  Turn 1: Extraction complete ({len(extraction_response)} chars)")
+        print(f"  Turn 1 Response:\n{extraction_response[:2000]}")
 
     # ========== Parse Response ==========
     if has_balance:
