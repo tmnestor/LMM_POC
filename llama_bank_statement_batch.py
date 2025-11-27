@@ -979,7 +979,7 @@ State your answer: "Date-per-row" or "Date-grouped"
 
     output = model.generate(
         **inputs,
-        max_new_tokens=300,
+        max_new_tokens=1024,
         do_sample=False,
         temperature=None,
         top_p=None,
