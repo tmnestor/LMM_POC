@@ -357,10 +357,10 @@ def parse_balance_description_response(response_text, date_col, desc_col, debit_
                     current_transaction = {}
                 current_transaction[desc_col] = field_value
 
-            elif field_name == "debit":
+            elif field_name == "debit" or field_name == debit_col.lower() or field_name == "withdrawal":
                 current_transaction[debit_col] = field_value
 
-            elif field_name == "credit":
+            elif field_name == "credit" or field_name == credit_col.lower() or field_name == "deposit":
                 current_transaction[credit_col] = field_value
 
             elif field_name == "balance":
@@ -677,11 +677,15 @@ Do not interpret or rename them - use the EXACT text from the image.
         # Use balance-description prompt (works for both date formats)
         metadata["extraction_method"] = "balance-description"
 
-        extraction_prompt = f"""Describe all the balances in the {balance_col} column, including:
-- date from the Date Header
-- {desc_col}
-- amount
-- whether it was a {debit_col} or a {credit_col}"""
+        extraction_prompt = f"""For each balance in the {balance_col} column, list:
+
+1. **[DATE]**
+   - Description: [transaction description]
+   - {debit_col}: [amount if debit]
+   - {credit_col}: [amount if credit]
+   - Balance: [balance value]
+
+List ALL transactions. Use the exact format above."""
 
         if verbose:
             print(f"  Extraction Method: balance-description (balance column: {balance_col})")
