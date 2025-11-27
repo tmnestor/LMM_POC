@@ -1011,7 +1011,8 @@ Finally, state your answer: "Date-per-row" or "Date-grouped"
     metadata["turn05_raw_response"] = format_response
 
     if verbose:
-        print(f"  Turn 0.5 Format: {date_format} (raw: {format_response[:100]})")
+        print(f"  Turn 0.5 Format: {date_format}")
+        print(f"  Turn 0.5 Response: {format_response[:500]}")
 
     # ========== Build Extraction Prompt ==========
     if date_format == "Date-grouped":
