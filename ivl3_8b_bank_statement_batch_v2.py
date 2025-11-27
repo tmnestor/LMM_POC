@@ -1,18 +1,22 @@
 #!/usr/bin/env python
 """
-Llama Bank Statement Batch Extraction and Evaluation - V2
+InternVL3-8B Bank Statement Batch Extraction and Evaluation - V2
 
 This script uses a balance-description extraction approach that works
 for both date-per-row and date-grouped bank statements.
 
 Key changes from v1:
-- Removed Turn 0.5 (date format classification)
 - Turn 0: Header detection (determines extraction method)
 - If balance column detected: Use balance-description prompt
 - If no balance column: Use table extraction prompt (4-column tables)
 
+Features:
+- Batch processing of all bank statement images
+- Configurable evaluation methods (order_aware_f1, position_agnostic_f1, kieval, correlation)
+- Full report generation (CSV, JSON, Markdown)
+
 Usage:
-    python llama_bank_statement_batch_v2.py [OPTIONS]
+    python ivl3_8b_bank_statement_batch_v2.py [OPTIONS]
 
 Options:
     --max-images N      Limit to N images (default: all)
@@ -23,6 +27,7 @@ Options:
 
 import argparse
 import json as json_module
+import math
 import re
 import time
 from datetime import datetime
@@ -31,10 +36,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import torchvision.transforms as T
 from dateutil import parser as date_parser
 from PIL import Image
 from rich.console import Console
 from rich.table import Table
+from torchvision.transforms.functional import InterpolationMode
+from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 from common.evaluation_metrics import (
     calculate_correlation_aware_f1,
@@ -43,12 +51,11 @@ from common.evaluation_metrics import (
     calculate_field_accuracy_kieval,
     load_ground_truth,
 )
-from common.llama_model_loader_robust import load_llama_model_robust
 from common.reproducibility import set_seed
 
-# Rich console for styled output
+# Rich console for styled output - will be initialized in main() with optional file logging
 console = Console()
-file_console = None
+file_console = None  # Will be set if --log-file is specified
 
 
 def log_print(msg: str = "", style: str | None = None):
@@ -76,6 +83,7 @@ def log_table(table):
 # CONFIGURATION
 # ============================================================================
 CONFIG = {
+    # Data paths
     "DATA_DIR": Path(
         "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/date_grouped"
     ),
@@ -83,11 +91,21 @@ CONFIG = {
         "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/ground_truth_bank.csv"
     ),
     "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
-    "MODEL_PATH": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    # Model path
+    "MODEL_PATH": "/home/jovyan/nfs_share/models/InternVL3-8B",
+    # V100 TILE CONFIGURATION
+    "MAX_TILES": 14,  # V100 optimized - InternVL3-8B config default
+    # Generation settings
+    "MAX_NEW_TOKENS": 4096,  # Increased for balance-description output
+    # V100 precision settings
+    "USE_QUANTIZATION": True,
+    # Filtering
     "DOCUMENT_TYPE_FILTER": "BANK_STATEMENT",
     "MAX_IMAGES": None,
+    # Evaluation
     "EVALUATION_METHOD": "order_aware_f1",
     "VERBOSE": True,
+    # Reports
     "GENERATE_CSV": True,
     "GENERATE_JSON": True,
     "GENERATE_MARKDOWN": True,
@@ -95,6 +113,7 @@ CONFIG = {
 
 BATCH_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+# Bank statement fields to evaluate
 BANK_STATEMENT_FIELDS = [
     "DOCUMENT_TYPE",
     "STATEMENT_DATE_RANGE",
@@ -104,17 +123,285 @@ BANK_STATEMENT_FIELDS = [
 ]
 
 # ============================================================================
-# SEMANTIC NORMALIZATION
+# INTERNVL3 IMAGE PREPROCESSING (from notebook)
 # ============================================================================
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.229)
 
 
+def build_transform(input_size):
+    """Build image transformation pipeline with ImageNet normalization."""
+    transform = T.Compose(
+        [
+            T.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+            T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+            T.ToTensor(),
+            T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ]
+    )
+    return transform
+
+
+def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+    """Find the closest aspect ratio from target ratios based on image dimensions."""
+    best_ratio_diff = float("inf")
+    best_ratio = (1, 1)
+    area = width * height
+    for ratio in target_ratios:
+        target_aspect_ratio = ratio[0] / ratio[1]
+        ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+        if ratio_diff < best_ratio_diff:
+            best_ratio_diff = ratio_diff
+            best_ratio = ratio
+        elif ratio_diff == best_ratio_diff:
+            if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
+                best_ratio = ratio
+    return best_ratio
+
+
+def dynamic_preprocess(
+    image, min_num=1, max_num=None, image_size=448, use_thumbnail=False
+):
+    """
+    Dynamically preprocess image by splitting into tiles based on aspect ratio.
+    """
+    if max_num is None:
+        max_num = CONFIG["MAX_TILES"]
+
+    orig_width, orig_height = image.size
+    aspect_ratio = orig_width / orig_height
+
+    # Generate target aspect ratios
+    target_ratios = set(
+        (i, j)
+        for n in range(min_num, max_num + 1)
+        for i in range(1, n + 1)
+        for j in range(1, n + 1)
+        if i * j <= max_num and i * j >= min_num
+    )
+    target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+
+    # Find best aspect ratio
+    target_aspect_ratio = find_closest_aspect_ratio(
+        aspect_ratio, target_ratios, orig_width, orig_height, image_size
+    )
+
+    # Calculate target dimensions
+    target_width = image_size * target_aspect_ratio[0]
+    target_height = image_size * target_aspect_ratio[1]
+    blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
+
+    # Resize and split into tiles
+    resized_img = image.resize((target_width, target_height))
+    processed_images = []
+    for i in range(blocks):
+        box = (
+            (i % (target_width // image_size)) * image_size,
+            (i // (target_width // image_size)) * image_size,
+            ((i % (target_width // image_size)) + 1) * image_size,
+            ((i // (target_width // image_size)) + 1) * image_size,
+        )
+        split_img = resized_img.crop(box)
+        processed_images.append(split_img)
+
+    # Add thumbnail if requested
+    if use_thumbnail and len(processed_images) != 1:
+        thumbnail_img = image.resize((image_size, image_size))
+        processed_images.append(thumbnail_img)
+
+    return processed_images
+
+
+def load_image(image_file, input_size=448, max_num=None):
+    """Load and preprocess image for InternVL3."""
+    if max_num is None:
+        max_num = CONFIG["MAX_TILES"]
+
+    # Handle both path string and PIL Image
+    if isinstance(image_file, str):
+        image = Image.open(image_file).convert("RGB")
+    else:
+        image = image_file
+
+    # Build transform and preprocess
+    transform = build_transform(input_size=input_size)
+    images = dynamic_preprocess(
+        image, image_size=input_size, use_thumbnail=True, max_num=max_num
+    )
+    pixel_values = [transform(img) for img in images]
+    pixel_values = torch.stack(pixel_values)
+
+    return pixel_values
+
+
+# ============================================================================
+# INTERNVL3 MODEL LOADING
+# ============================================================================
+def split_model(model_path):
+    """
+    Official InternVL3 multi-GPU device mapping function.
+
+    Creates a custom device map that ensures the first and last layers of the
+    language model stay on the same device (GPU 0) to prevent tensor placement
+    mismatches during generation.
+    """
+    device_map = {}
+    world_size = torch.cuda.device_count()
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    num_layers = config.llm_config.num_hidden_layers
+
+    # Since the first GPU will be used for ViT, treat it as half a GPU
+    num_layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
+    num_layers_per_gpu = [num_layers_per_gpu] * world_size
+    num_layers_per_gpu[0] = math.ceil(num_layers_per_gpu[0] * 0.5)
+
+    layer_cnt = 0
+    for i, num_layer in enumerate(num_layers_per_gpu):
+        for _j in range(num_layer):
+            device_map[f"language_model.model.layers.{layer_cnt}"] = i
+            layer_cnt += 1
+
+    # Critical components must stay on GPU 0
+    device_map["vision_model"] = 0
+    device_map["mlp1"] = 0
+    device_map["language_model.model.tok_embeddings"] = 0
+    device_map["language_model.model.embed_tokens"] = 0
+    device_map["language_model.output"] = 0
+    device_map["language_model.model.norm"] = 0
+    device_map["language_model.model.rotary_emb"] = 0
+    device_map["language_model.lm_head"] = 0
+
+    # CRITICAL: Force last layer back to GPU 0 to prevent device mismatch
+    device_map[f"language_model.model.layers.{num_layers - 1}"] = 0
+
+    return device_map
+
+
+def get_gpu_free_memory(gpu_id=0):
+    """Get free GPU memory in GB."""
+    if not torch.cuda.is_available():
+        return 0
+    free_mem = torch.cuda.get_device_properties(
+        gpu_id
+    ).total_memory - torch.cuda.memory_allocated(gpu_id)
+    return free_mem / 1e9
+
+
+def load_internvl3_model(verbose=True):
+    """Load InternVL3-8B model with memory-aware strategy."""
+    if verbose:
+        print("Loading InternVL3-8B with memory-aware strategy...")
+
+    world_size = torch.cuda.device_count()
+    if verbose:
+        print(f"  Detected {world_size} GPU(s)")
+
+    gpu0_free = get_gpu_free_memory(0)
+    gpu1_free = get_gpu_free_memory(1) if world_size > 1 else 0
+    total_free = gpu0_free + gpu1_free
+
+    if verbose:
+        print(f"  GPU 0 free memory: {gpu0_free:.1f} GB")
+        if world_size > 1:
+            print(f"  GPU 1 free memory: {gpu1_free:.1f} GB")
+        print(f"  Total free memory: {total_free:.1f} GB")
+
+    BFLOAT16_REQUIRED = 16.0
+    QUANTIZED_REQUIRED = 10.0
+
+    if total_free >= BFLOAT16_REQUIRED and world_size > 1:
+        # Multi-GPU bfloat16 mode
+        if verbose:
+            print("  Using bfloat16 multi-GPU mode")
+        device_map = split_model(CONFIG["MODEL_PATH"])
+
+        model = AutoModel.from_pretrained(
+            CONFIG["MODEL_PATH"],
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
+            use_flash_attn=False,  # V100 compatible
+            trust_remote_code=True,
+            device_map=device_map,
+        ).eval()
+
+        model_dtype = torch.bfloat16
+
+    elif total_free >= QUANTIZED_REQUIRED:
+        # Single-GPU 8-bit quantization mode
+        if verbose:
+            print("  Using 8-bit quantization on single GPU")
+
+        target_gpu = 1 if (world_size > 1 and gpu1_free > gpu0_free) else 0
+
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=False
+        )
+
+        model = AutoModel.from_pretrained(
+            CONFIG["MODEL_PATH"],
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            use_flash_attn=False,
+            trust_remote_code=True,
+            quantization_config=quantization_config,
+            device_map={"": target_gpu},
+        ).eval()
+
+        model_dtype = torch.float16
+
+    else:
+        raise RuntimeError(
+            f"Insufficient GPU memory! Available: {total_free:.1f} GB, "
+            f"Required: {QUANTIZED_REQUIRED:.1f} GB minimum"
+        )
+
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(
+        CONFIG["MODEL_PATH"], trust_remote_code=True, use_fast=False
+    )
+
+    # Set generation config
+    model.config.max_new_tokens = CONFIG["MAX_NEW_TOKENS"]
+
+    # Fix pad_token_id to suppress warnings
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
+    if verbose:
+        param_count = sum(p.numel() for p in model.parameters())
+        print(f"  Model parameters: {param_count:,}")
+        print(f"  Data type: {model_dtype}")
+        print(f"  Max Tiles: {CONFIG['MAX_TILES']}")
+
+    return model, tokenizer, model_dtype
+
+
+def clean_internvl3_response(response):
+    """Remove InternVL3 markdown artifacts."""
+    lines = response.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("!["):  # Skip image markdown
+            continue
+        if stripped in ["```markdown", "```", "```md"]:  # Skip code fences
+            continue
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
+
+
+# ============================================================================
+# SEMANTIC NORMALIZATION (for evaluation comparison only)
+# ============================================================================
 def normalize_date(date_str):
-    """Normalize date string to canonical format YYYY-MM-DD."""
+    """Normalize date string to canonical format YYYY-MM-DD for semantic comparison."""
     if not date_str or pd.isna(date_str):
         return ""
+
     date_str = str(date_str).strip()
     if not date_str:
         return ""
+
     try:
         parsed = date_parser.parse(date_str, dayfirst=True)
         return parsed.strftime("%Y-%m-%d")
@@ -126,13 +413,18 @@ def normalize_amount(amount_str):
     """Normalize amount string for semantic comparison."""
     if not amount_str or pd.isna(amount_str):
         return ""
+
     amount_str = str(amount_str).strip()
     if not amount_str:
         return ""
+
+    # Remove currency symbols and whitespace
     cleaned = re.sub(r"[$£€¥₹\s]", "", amount_str)
     cleaned = cleaned.replace(",", "")
+
     try:
-        value = abs(float(cleaned))
+        value = float(cleaned)
+        value = abs(value)  # Ignore sign for matching
         return f"{value:.2f}".rstrip("0").rstrip(".")
     except ValueError:
         return cleaned
@@ -142,9 +434,11 @@ def normalize_pipe_delimited(value, normalizer_fn):
     """Apply normalizer function to each item in a pipe-delimited string."""
     if not value or pd.isna(value):
         return ""
+
     value = str(value).strip()
     if not value:
         return ""
+
     items = [item.strip() for item in value.split("|")]
     normalized = [normalizer_fn(item) for item in items]
     return " | ".join(normalized)
@@ -154,7 +448,9 @@ def normalize_field_for_comparison(field_name, value):
     """Normalize a field value based on its type for semantic comparison."""
     if not value or pd.isna(value):
         return ""
+
     value = str(value).strip()
+
     if field_name == "TRANSACTION_DATES":
         return normalize_pipe_delimited(value, normalize_date)
     elif field_name == "TRANSACTION_AMOUNTS_PAID":
@@ -203,15 +499,18 @@ AMOUNT_PATTERNS = ["amount", "amt", "value", "total"]
 def match_header(headers, patterns, fallback=None):
     """Match a header using pattern keywords."""
     headers_lower = [h.lower() for h in headers]
+
     for pattern in patterns:
         for i, header_lower in enumerate(headers_lower):
             if pattern == header_lower:
                 return headers[i]
+
     for pattern in patterns:
         if len(pattern) > 2:
             for i, header_lower in enumerate(headers_lower):
                 if pattern in header_lower:
                     return headers[i]
+
     return fallback
 
 
@@ -222,15 +521,18 @@ def parse_headers_from_response(response_text):
     """Parse column headers from Turn 0 response."""
     header_lines = [line.strip() for line in response_text.split("\n") if line.strip()]
     identified_headers = []
+
     for line in header_lines:
         cleaned = line.lstrip("0123456789.-•* ").strip()
         cleaned = cleaned.replace("**", "").replace("__", "")
+
         if cleaned.endswith(":"):
             continue
         if len(cleaned) > 40:
             continue
         if cleaned and len(cleaned) > 2:
             identified_headers.append(cleaned)
+
     return identified_headers
 
 
@@ -264,6 +566,7 @@ def build_date_per_row_example(headers):
 def parse_markdown_table(markdown_text):
     """Parse markdown table into list of dictionaries."""
     lines = [line.strip() for line in markdown_text.strip().split("\n") if line.strip()]
+
     header_idx = None
     for i, line in enumerate(lines):
         if "|" in line:
@@ -271,8 +574,10 @@ def parse_markdown_table(markdown_text):
             if cleaned:
                 header_idx = i
                 break
+
     if header_idx is None:
         return []
+
     header_line = lines[header_idx]
     header_parts = [h.strip() for h in header_line.split("|")]
     if header_parts and header_parts[0] == "":
@@ -280,26 +585,33 @@ def parse_markdown_table(markdown_text):
     if header_parts and header_parts[-1] == "":
         header_parts = header_parts[:-1]
     headers = [h for h in header_parts if h]
+
     rows = []
     for line in lines[header_idx + 1 :]:
         if "|" not in line:
             continue
+
         cleaned = (
             line.replace("|", "").replace("-", "").replace(" ", "").replace(":", "")
         )
         if not cleaned:
             continue
+
         value_parts = [v.strip() for v in line.split("|")]
         if value_parts and value_parts[0] == "":
             value_parts = value_parts[1:]
         if value_parts and value_parts[-1] == "":
             value_parts = value_parts[:-1]
+
         if len(value_parts) == len(headers):
             rows.append(dict(zip(headers, value_parts, strict=False)))
+
     return rows
 
 
-def parse_balance_description_response(response_text, date_col, desc_col, debit_col, credit_col, balance_col):
+def parse_balance_description_response(
+    response_text, date_col, desc_col, debit_col, credit_col, balance_col
+):
     """
     Parse the hierarchical balance-description response into transaction rows.
 
@@ -324,13 +636,19 @@ def parse_balance_description_response(response_text, date_col, desc_col, debit_
 
         # Check for date header (numbered item with bold date)
         # Pattern: "1. **Thu 04 Sep 2025**" or "1. Thu 04 Sep 2025"
-        date_match = re.match(r"^\d+\.\s*\*?\*?([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line)
+        date_match = re.match(
+            r"^\d+\.\s*\*?\*?([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+        )
         if not date_match:
             # Also try without day name: "1. **04 Sep 2025**"
-            date_match = re.match(r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line)
+            date_match = re.match(
+                r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+            )
         if not date_match:
             # Also try DD/MM/YYYY format: "1. **03/05/2025**"
-            date_match = re.match(r"^\d+\.\s*\*?\*?(\d{1,2}/\d{1,2}/\d{4})\*?\*?", line)
+            date_match = re.match(
+                r"^\d+\.\s*\*?\*?(\d{1,2}/\d{1,2}/\d{4})\*?\*?", line
+            )
 
         if date_match:
             # Save previous transaction if exists
@@ -360,10 +678,18 @@ def parse_balance_description_response(response_text, date_col, desc_col, debit_
                     current_transaction = {}
                 current_transaction[desc_col] = field_value
 
-            elif field_name == "debit" or field_name == debit_col.lower() or field_name == "withdrawal":
+            elif (
+                field_name == "debit"
+                or field_name == debit_col.lower()
+                or field_name == "withdrawal"
+            ):
                 current_transaction[debit_col] = field_value
 
-            elif field_name == "credit" or field_name == credit_col.lower() or field_name == "deposit":
+            elif (
+                field_name == "credit"
+                or field_name == credit_col.lower()
+                or field_name == "deposit"
+            ):
                 current_transaction[credit_col] = field_value
 
             elif field_name == "balance":
@@ -402,6 +728,7 @@ def parse_amount(value):
 def is_non_transaction_row(row, desc_col):
     """Check if this row is NOT an actual transaction."""
     desc = row.get(desc_col, "").strip().upper()
+
     if "OPENING BALANCE" in desc:
         return True
     if "CLOSING BALANCE" in desc:
@@ -410,6 +737,7 @@ def is_non_transaction_row(row, desc_col):
         return True
     if "CARRIED FORWARD" in desc:
         return True
+
     return False
 
 
@@ -418,15 +746,20 @@ def filter_debit_transactions(rows, debit_col, desc_col=None):
     debit_rows = []
     for row in rows:
         debit_value = row.get(debit_col, "").strip()
+
         if not debit_value:
             continue
+
         # Parse amount and check if > 0
         amount = parse_amount(debit_value)
         if amount <= 0:
             continue
+
         if desc_col and is_non_transaction_row(row, desc_col):
             continue
+
         debit_rows.append(row)
+
     return debit_rows
 
 
@@ -441,6 +774,7 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
             "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND",
         }
 
+    # Extract debit transaction fields
     debit_dates = []
     descriptions = []
     amounts = []
@@ -449,6 +783,7 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
         date = row.get(date_col, "").strip()
         desc = row.get(desc_col, "").strip()
         amount = row.get(debit_col, "").strip()
+
         if date:
             debit_dates.append(date)
         if desc:
@@ -456,10 +791,11 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
         if amount:
             amounts.append(amount)
 
+    # Calculate date range from ALL transactions (not just debits)
     date_range = "NOT_FOUND"
     rows_for_range = all_rows if all_rows is not None else debit_rows
     all_dates = [row.get(date_col, "").strip() for row in rows_for_range]
-    all_dates = [d for d in all_dates if d]
+    all_dates = [d for d in all_dates if d]  # Filter empty dates
     if all_dates:
         date_range = f"{all_dates[0]} - {all_dates[-1]}"
 
@@ -467,7 +803,9 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
         "DOCUMENT_TYPE": "BANK_STATEMENT",
         "STATEMENT_DATE_RANGE": date_range,
         "TRANSACTION_DATES": " | ".join(debit_dates) if debit_dates else "NOT_FOUND",
-        "LINE_ITEM_DESCRIPTIONS": " | ".join(descriptions) if descriptions else "NOT_FOUND",
+        "LINE_ITEM_DESCRIPTIONS": " | ".join(descriptions)
+        if descriptions
+        else "NOT_FOUND",
         "TRANSACTION_AMOUNTS_PAID": " | ".join(amounts) if amounts else "NOT_FOUND",
     }
 
@@ -476,10 +814,11 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
 # DISPLAY FUNCTIONS
 # ============================================================================
 def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result):
-    """Display stacked comparison of extracted vs ground truth fields."""
+    """Display stacked comparison of extracted vs ground truth fields using Rich."""
     gt_data = ground_truth_map.get(image_name, {})
     field_scores = eval_result.get("field_scores", {})
 
+    # Create Rich table for field comparison
     table = Table(title="Field Comparison (semantic matching)", show_header=True)
     table.add_column("Status", style="bold", width=8)
     table.add_column("Field", style="cyan")
@@ -490,6 +829,7 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
     for field in BANK_STATEMENT_FIELDS:
         extracted_val = schema_fields.get(field, "NOT_FOUND")
         ground_val = gt_data.get(field, "NOT_FOUND")
+
         if pd.isna(ground_val):
             ground_val = "NOT_FOUND"
 
@@ -505,7 +845,9 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
         else:
             status = "[red]FAIL[/red]"
 
-        table.add_row(status, field, f"{f1_score:.1%}", str(extracted_val), str(ground_val))
+        table.add_row(
+            status, field, f"{f1_score:.1%}", str(extracted_val), str(ground_val)
+        )
 
     log_table(table)
 
@@ -518,7 +860,9 @@ def evaluate_field(extracted_value, gt_value, field_name, method):
     if method == "order_aware_f1":
         return calculate_field_accuracy_f1(extracted_value, gt_value, field_name)
     elif method == "position_agnostic_f1":
-        return calculate_field_accuracy_f1_position_agnostic(extracted_value, gt_value, field_name)
+        return calculate_field_accuracy_f1_position_agnostic(
+            extracted_value, gt_value, field_name
+        )
     elif method == "kieval":
         return calculate_field_accuracy_kieval(extracted_value, gt_value, field_name)
     elif method == "correlation":
@@ -530,6 +874,7 @@ def evaluate_field(extracted_value, gt_value, field_name, method):
 def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
     """Evaluate extracted schema fields against ground truth."""
     gt_data = ground_truth_map.get(image_name, {})
+
     if not gt_data:
         return {"error": "No ground truth found", "image_name": image_name}
 
@@ -542,6 +887,7 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
             field: normalize_field_for_comparison(field, gt_data.get(field, ""))
             for field in BANK_STATEMENT_FIELDS
         }
+
         result = calculate_correlation_aware_f1(
             extracted_data=normalized_extracted,
             ground_truth_data=normalized_gt,
@@ -563,11 +909,13 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
     for field in BANK_STATEMENT_FIELDS:
         extracted_value = schema_fields.get(field, "NOT_FOUND")
         gt_value = gt_data.get(field, "NOT_FOUND")
+
         if pd.isna(gt_value):
             gt_value = "NOT_FOUND"
 
         normalized_extracted = normalize_field_for_comparison(field, extracted_value)
         normalized_gt = normalize_field_for_comparison(field, gt_value)
+
         result = evaluate_field(normalized_extracted, normalized_gt, field, method)
 
         if result:
@@ -580,7 +928,9 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
             }
             total_f1 += result.get("f1_score", 0.0)
 
-    overall_accuracy = total_f1 / len(BANK_STATEMENT_FIELDS) if BANK_STATEMENT_FIELDS else 0.0
+    overall_accuracy = (
+        total_f1 / len(BANK_STATEMENT_FIELDS) if BANK_STATEMENT_FIELDS else 0.0
+    )
 
     return {
         "image_name": image_name,
@@ -593,9 +943,9 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
 # ============================================================================
 # MAIN EXTRACTION PIPELINE
 # ============================================================================
-def extract_bank_statement(image_path, model, processor, verbose=False):
+def extract_bank_statement(image_path, model, tokenizer, model_dtype, verbose=False):
     """
-    Extract fields from a single bank statement image.
+    Extract fields from a single bank statement image using InternVL3-8B.
 
     V2 Pipeline:
     - Turn 0: Header detection
@@ -603,9 +953,6 @@ def extract_bank_statement(image_path, model, processor, verbose=False):
       - YES: Use balance-description prompt (works for all formats)
       - NO: Use table extraction prompt (4-column tables)
     - Parse response and extract schema fields
-
-    Returns:
-        tuple: (schema_fields dict, metadata dict)
     """
     metadata = {
         "headers_detected": [],
@@ -613,9 +960,6 @@ def extract_bank_statement(image_path, model, processor, verbose=False):
         "total_rows": 0,
         "debit_rows": 0,
     }
-
-    image = Image.open(image_path)
-    images = [image]
 
     # ========== TURN 0: Header Detection ==========
     turn0_prompt = """Look at the transaction table in this bank statement image.
@@ -626,30 +970,21 @@ List each column header exactly as it appears, in order from left to right.
 Do not interpret or rename them - use the EXACT text from the image.
 """
 
-    message_turn0 = [
-        {
-            "role": "user",
-            "content": [{"type": "image"}, {"type": "text", "text": turn0_prompt}],
-        }
-    ]
+    pixel_values = load_image(str(image_path), input_size=448)
+    pixel_values = pixel_values.to(dtype=model_dtype, device="cuda:0")
 
-    text_input = processor.apply_chat_template(message_turn0, add_generation_prompt=True)
-    inputs = processor(images=images, text=text_input, return_tensors="pt").to(model.device)
-
-    output = model.generate(
-        **inputs,
-        max_new_tokens=500,
-        do_sample=False,
-        temperature=None,
-        top_p=None,
+    turn0_response = model.chat(
+        tokenizer=tokenizer,
+        pixel_values=pixel_values,
+        question=turn0_prompt,
+        generation_config={"max_new_tokens": 500, "do_sample": False},
     )
 
-    generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
-    turn0_response = processor.decode(generate_ids[0], clean_up_tokenization_spaces=False)
-
-    del inputs, output, generate_ids
+    # Free Turn 0 pixel values immediately
+    del pixel_values
     torch.cuda.empty_cache()
 
+    turn0_response = clean_internvl3_response(turn0_response)
     table_headers = parse_headers_from_response(turn0_response)
     metadata["headers_detected"] = table_headers
     metadata["turn0_raw_response"] = turn0_response
@@ -691,7 +1026,9 @@ Do not interpret or rename them - use the EXACT text from the image.
 - {credit_col} Amount or "NOT_FOUND" """
 
         if verbose:
-            print(f"  Extraction Method: balance-description (balance column: {balance_col})")
+            print(
+                f"  Extraction Method: balance-description (balance column: {balance_col})"
+            )
             print(f"  Extraction Prompt:\n{extraction_prompt}")
 
     else:
@@ -715,29 +1052,25 @@ Output: Markdown table only."""
             print("  Extraction Method: table-extraction (no balance column)")
 
     # ========== TURN 1: Extraction ==========
-    message_turn1 = [
-        {
-            "role": "user",
-            "content": [{"type": "image"}, {"type": "text", "text": extraction_prompt}],
-        }
-    ]
+    # Reload image for fresh context
+    pixel_values = load_image(str(image_path), input_size=448)
+    pixel_values = pixel_values.to(dtype=model_dtype, device="cuda:0")
 
-    text_input = processor.apply_chat_template(message_turn1, add_generation_prompt=True)
-    inputs = processor(images=images, text=text_input, return_tensors="pt").to(model.device)
-
-    output = model.generate(
-        **inputs,
-        max_new_tokens=4096,  # Increased for balance-description output
-        do_sample=False,
-        temperature=None,
-        top_p=None,
+    extraction_response = model.chat(
+        tokenizer=tokenizer,
+        pixel_values=pixel_values,
+        question=extraction_prompt,
+        generation_config={
+            "max_new_tokens": CONFIG["MAX_NEW_TOKENS"],
+            "do_sample": False,
+        },
     )
 
-    generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
-    extraction_response = processor.decode(generate_ids[0], clean_up_tokenization_spaces=False)
-
-    del inputs, output, generate_ids
+    # Free Turn 1 pixel values immediately
+    del pixel_values
     torch.cuda.empty_cache()
+
+    extraction_response = clean_internvl3_response(extraction_response)
 
     if verbose:
         print(f"  Turn 1: Extraction complete ({len(extraction_response)} chars)")
@@ -775,7 +1108,9 @@ Output: Markdown table only."""
         print(f"  Filtered: {len(debit_rows)} debit transactions")
 
     # Extract schema fields
-    schema_fields = extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=all_rows)
+    schema_fields = extract_schema_fields(
+        debit_rows, date_col, desc_col, debit_col, all_rows=all_rows
+    )
 
     return schema_fields, metadata
 
@@ -802,28 +1137,32 @@ def generate_reports(batch_results, output_dir):
                 "total_rows": result["metadata"].get("total_rows", 0),
                 "debit_rows": result["metadata"].get("debit_rows", 0),
             }
+
             for field, value in result["extracted_fields"].items():
                 row[field] = value
+
             field_scores = result["evaluation"].get("field_scores", {})
             for field, scores in field_scores.items():
                 if isinstance(scores, dict):
                     row[f"{field}_f1"] = scores.get("f1_score", 0.0)
                 else:
                     row[f"{field}_f1"] = scores
+
             csv_data.append(row)
 
         results_df = pd.DataFrame(csv_data)
-        csv_path = output_dir / f"llama_bank_v2_{BATCH_TIMESTAMP}.csv"
+        csv_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.csv"
         results_df.to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 
     # JSON Report
     if CONFIG["GENERATE_JSON"]:
         processing_times = [r["processing_time"] for r in successful]
+
         json_report = {
             "metadata": {
                 "batch_id": BATCH_TIMESTAMP,
-                "model": "Llama-3.2-11B-Vision-Instruct",
+                "model": "InternVL3-8B",
                 "version": "v2-balance-description",
                 "evaluation_method": CONFIG["EVALUATION_METHOD"],
                 "total_images": len(batch_results),
@@ -831,14 +1170,29 @@ def generate_reports(batch_results, output_dir):
                 "failed": len(batch_results) - len(successful),
             },
             "summary": {
-                "avg_accuracy": float(np.mean([r["evaluation"]["overall_accuracy"] for r in successful])) if successful else 0.0,
-                "min_accuracy": float(min([r["evaluation"]["overall_accuracy"] for r in successful])) if successful else 0.0,
-                "max_accuracy": float(max([r["evaluation"]["overall_accuracy"] for r in successful])) if successful else 0.0,
-                "avg_processing_time": float(np.mean(processing_times)) if processing_times else 0.0,
+                "avg_accuracy": float(
+                    np.mean([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "min_accuracy": float(
+                    min([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "max_accuracy": float(
+                    max([r["evaluation"]["overall_accuracy"] for r in successful])
+                )
+                if successful
+                else 0.0,
+                "avg_processing_time": float(np.mean(processing_times))
+                if processing_times
+                else 0.0,
             },
             "results": batch_results,
         }
-        json_path = output_dir / f"llama_bank_v2_{BATCH_TIMESTAMP}.json"
+
+        json_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.json"
         with json_path.open("w") as f:
             json_module.dump(json_report, f, indent=2, default=str)
         print(f"JSON saved: {json_path}")
@@ -846,12 +1200,13 @@ def generate_reports(batch_results, output_dir):
     # Markdown Report
     if CONFIG["GENERATE_MARKDOWN"] and successful:
         processing_times = [r["processing_time"] for r in successful]
+
         md_lines = [
-            "# Llama Bank Statement V2 Evaluation Report",
+            "# InternVL3-8B Bank Statement V2 Evaluation Report",
             "",
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"**Batch ID:** {BATCH_TIMESTAMP}",
-            "**Model:** Llama-3.2-11B-Vision-Instruct",
+            "**Model:** InternVL3-8B",
             "**Version:** v2-balance-description",
             f"**Evaluation Method:** {CONFIG['EVALUATION_METHOD']}",
             "",
@@ -868,26 +1223,30 @@ def generate_reports(batch_results, output_dir):
             min_acc = min([r["evaluation"]["overall_accuracy"] for r in successful])
             max_acc = max([r["evaluation"]["overall_accuracy"] for r in successful])
 
-            md_lines.extend([
-                f"- **Average Accuracy:** {avg_acc:.1%}",
-                f"- **Min Accuracy:** {min_acc:.1%}",
-                f"- **Max Accuracy:** {max_acc:.1%}",
-                f"- **Avg Processing Time:** {np.mean(processing_times):.2f}s",
-                "",
-                "## Per-Image Results",
-                "",
-                "| Image | Accuracy | Method | Rows | Time |",
-                "|-------|----------|--------|------|------|",
-            ])
+            md_lines.extend(
+                [
+                    f"- **Average Accuracy:** {avg_acc:.1%}",
+                    f"- **Min Accuracy:** {min_acc:.1%}",
+                    f"- **Max Accuracy:** {max_acc:.1%}",
+                    f"- **Avg Processing Time:** {np.mean(processing_times):.2f}s",
+                    "",
+                    "## Per-Image Results",
+                    "",
+                    "| Image | Accuracy | Method | Rows | Time |",
+                    "|-------|----------|--------|------|------|",
+                ]
+            )
 
             for r in successful:
                 acc = r["evaluation"]["overall_accuracy"]
                 method = r["metadata"].get("extraction_method", "N/A")
                 rows = r["metadata"].get("debit_rows", 0)
                 time_s = r["processing_time"]
-                md_lines.append(f"| {r['image_name']} | {acc:.1%} | {method} | {rows} | {time_s:.1f}s |")
+                md_lines.append(
+                    f"| {r['image_name']} | {acc:.1%} | {method} | {rows} | {time_s:.1f}s |"
+                )
 
-        md_path = output_dir / f"llama_bank_v2_{BATCH_TIMESTAMP}.md"
+        md_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.md"
         with md_path.open("w") as f:
             f.write("\n".join(md_lines))
         print(f"Markdown saved: {md_path}")
@@ -898,9 +1257,11 @@ def generate_reports(batch_results, output_dir):
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="Batch extraction and evaluation of bank statements with Llama-3.2-Vision (V2)"
+        description="Batch extraction and evaluation of bank statements with InternVL3-8B (V2)"
     )
-    parser.add_argument("--max-images", type=int, default=None, help="Limit to N images")
+    parser.add_argument(
+        "--max-images", type=int, default=None, help="Limit to N images"
+    )
     parser.add_argument(
         "--method",
         type=str,
@@ -909,30 +1270,40 @@ def main():
         help="Evaluation method",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be processed")
-    parser.add_argument("--log-file", type=str, default=None, help="Path to log file")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be processed"
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Path to log file (will tee output to both terminal and file)",
+    )
 
     args = parser.parse_args()
 
-    CONFIG["MAX_IMAGES"] = args.max_images
-    CONFIG["EVALUATION_METHOD"] = args.method
-    CONFIG["VERBOSE"] = args.verbose
-
+    # Set up file logging if requested
     global file_console
     if args.log_file:
         log_path = Path(args.log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         file_console = Console(file=log_path.open("w"), force_terminal=True, width=200)
-        log_print(f"[dim]Logging to: {log_path}[/dim]")
+
+    CONFIG["MAX_IMAGES"] = args.max_images
+    CONFIG["EVALUATION_METHOD"] = args.method
+    CONFIG["VERBOSE"] = args.verbose
 
     set_seed(42)
 
-    log_rule("[bold blue]LLAMA BANK STATEMENT V2 - BALANCE DESCRIPTION")
+    log_rule("[bold blue]INTERNVL3-8B BANK STATEMENT V2 - BALANCE DESCRIPTION")
     log_print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
+    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (V100 optimized)")
 
+    # Load ground truth
     log_print("\n[yellow]Loading ground truth...[/yellow]")
     ground_truth_map = load_ground_truth(str(CONFIG["GROUND_TRUTH"]), verbose=True)
 
+    # Discover bank statement images
     bank_images = []
     for img_name, gt_data in ground_truth_map.items():
         doc_type = str(gt_data.get("DOCUMENT_TYPE", "")).upper()
@@ -954,30 +1325,22 @@ def main():
             log_print(f"  - {Path(img).name}")
         return
 
-    log_print("\n[yellow]Loading Llama-3.2-Vision model...[/yellow]")
-    model, processor = load_llama_model_robust(
-        model_path=CONFIG["MODEL_PATH"],
-        use_quantization=False,
-        device_map="auto",
-        max_new_tokens=4096,
-        torch_dtype="bfloat16",
-        low_cpu_mem_usage=True,
-        verbose=True,
-    )
+    # Load model
+    log_print("\n[yellow]Loading InternVL3-8B model...[/yellow]")
+    model, tokenizer, model_dtype = load_internvl3_model(verbose=True)
 
-    try:
-        model.tie_weights()
-    except Exception:
-        pass
-
+    # Process images
     log_rule("[bold blue]BATCH PROCESSING")
 
     batch_results = []
 
     for idx, image_path in enumerate(bank_images, 1):
         image_name = Path(image_path).name
-        log_print(f"\n[bold cyan][{idx}/{len(bank_images)}][/bold cyan] Processing: [white]{image_name}[/white]")
+        log_print(
+            f"\n[bold cyan][{idx}/{len(bank_images)}][/bold cyan] Processing: [white]{image_name}[/white]"
+        )
 
+        # Clear GPU memory before each image to prevent fragmentation
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -985,7 +1348,7 @@ def main():
 
         try:
             schema_fields, metadata = extract_bank_statement(
-                image_path, model, processor, verbose=CONFIG["VERBOSE"]
+                image_path, model, tokenizer, model_dtype, verbose=CONFIG["VERBOSE"]
             )
 
             processing_time = time.time() - start_time
@@ -1006,20 +1369,29 @@ def main():
             batch_results.append(result)
 
             accuracy = eval_result.get("overall_accuracy", 0.0)
-            acc_color = "green" if accuracy >= 0.8 else "yellow" if accuracy >= 0.5 else "red"
-            log_print(f"  [{acc_color}]Accuracy: {accuracy:.1%}[/{acc_color}]  {processing_time:.2f}s")
+            acc_color = (
+                "green" if accuracy >= 0.8 else "yellow" if accuracy >= 0.5 else "red"
+            )
+            log_print(
+                f"  [{acc_color}]Accuracy: {accuracy:.1%}[/{acc_color}]  {processing_time:.2f}s"
+            )
 
-            display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result)
+            display_field_comparison(
+                schema_fields, ground_truth_map, image_name, eval_result
+            )
 
         except Exception as e:
             log_print(f"  [red]ERROR: {e}[/red]")
-            batch_results.append({
-                "image_name": image_name,
-                "image_path": image_path,
-                "error": str(e),
-                "processing_time": time.time() - start_time,
-            })
+            batch_results.append(
+                {
+                    "image_name": image_name,
+                    "image_path": image_path,
+                    "error": str(e),
+                    "processing_time": time.time() - start_time,
+                }
+            )
 
+    # Summary
     log_rule("[bold blue]BATCH SUMMARY")
 
     successful = [r for r in batch_results if "error" not in r]
@@ -1036,10 +1408,13 @@ def main():
         accuracies = [r["evaluation"]["overall_accuracy"] for r in successful]
         avg_acc = np.mean(accuracies)
         log_print("\n[bold]Accuracy Statistics:[/bold]")
-        log_print(f"  Average: [{'green' if avg_acc >= 0.8 else 'yellow'}]{avg_acc:.1%}[/]")
+        log_print(
+            f"  Average: [{'green' if avg_acc >= 0.8 else 'yellow'}]{avg_acc:.1%}[/]"
+        )
         log_print(f"  Min: {min(accuracies):.1%}")
         log_print(f"  Max: {max(accuracies):.1%}")
 
+    # Generate reports
     log_rule("[bold blue]GENERATING REPORTS")
     generate_reports(batch_results, CONFIG["OUTPUT_BASE"])
 
