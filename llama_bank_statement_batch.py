@@ -348,62 +348,65 @@ def build_date_per_row_example(headers):
     return rows
 
 
+def _classify_header(header):
+    """Classify a header into a column type."""
+    hl = header.lower()
+    if hl in ["date", "day"] or "date" in hl:
+        return "date"
+    elif any(p in hl for p in ["desc", "particular", "detail", "transaction", "narration"]):
+        return "desc"
+    elif any(p in hl for p in ["debit", "withdrawal", "dr"]):
+        return "debit"
+    elif any(p in hl for p in ["credit", "deposit", "cr"]):
+        return "credit"
+    elif "balance" in hl:
+        return "balance"
+    elif "amount" in hl:
+        return "amount"
+    return "other"
+
+
 def build_date_grouped_source(headers):
-    """Show how date-grouped appears in the image."""
+    """Show how date-grouped appears in the image - dynamically based on detected headers."""
+    col_types = [_classify_header(h) for h in headers]
+
+    # Build example rows showing date-grouped structure (dates as section headers)
+    example_data = [
+        # Row 1: Date header only
+        {"date": "[DATE_1]", "desc": "", "debit": "", "credit": "", "balance": "", "amount": "", "other": ""},
+        # Row 2: Transaction under DATE_1
+        {"date": "", "desc": "[DESC_A]", "debit": "[AMT_A]", "credit": "", "balance": "[BAL_A]", "amount": "[AMT_A]", "other": ""},
+        # Row 3: Another transaction under DATE_1
+        {"date": "", "desc": "[DESC_B]", "debit": "[AMT_B]", "credit": "", "balance": "[BAL_B]", "amount": "[AMT_B]", "other": ""},
+        # Row 4: New date header
+        {"date": "[DATE_2]", "desc": "", "debit": "", "credit": "", "balance": "", "amount": "", "other": ""},
+        # Row 5: Transaction under DATE_2
+        {"date": "", "desc": "[DESC_C]", "debit": "[AMT_C]", "credit": "", "balance": "[BAL_C]", "amount": "[AMT_C]", "other": ""},
+    ]
+
     rows = []
-    for date, desc, deb, cred, bal in [
-        ("22 Mar", "", "", "", ""),
-        ("", "Auto Services", "580.00", "", "$8,721.15 CR"),
-        ("", "EFTPOS Grocers", "125.00", "", "$8,596.15 CR"),
-        ("23 Mar", "", "", "", ""),
-        ("", "VISA Markets", "89.75", "", "$8,506.40 CR"),
-    ]:
-        row = []
-        for h in headers:
-            hl = h.lower()
-            if hl in ["date", "day"]:
-                row.append(date)
-            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
-                row.append(desc)
-            elif any(p in hl for p in ["debit", "withdrawal"]):
-                row.append(deb)
-            elif any(p in hl for p in ["credit", "deposit"]):
-                row.append(cred)
-            elif "balance" in hl:
-                row.append(bal)
-            elif "amount" in hl:
-                row.append(deb if deb else cred)
-            else:
-                row.append("")
+    for data in example_data:
+        row = [data.get(ct, "") for ct in col_types]
         rows.append(row)
     return rows
 
 
 def build_date_grouped_target(headers):
-    """Show how to extract date-grouped."""
+    """Show how to extract date-grouped - dates propagated to each transaction row."""
+    col_types = [_classify_header(h) for h in headers]
+
+    # Build example rows showing correct extraction (date propagated to each row)
+    example_data = [
+        # DATE_1 propagated to both transactions
+        {"date": "[DATE_1]", "desc": "[DESC_A]", "debit": "[AMT_A]", "credit": "", "balance": "[BAL_A]", "amount": "[AMT_A]", "other": ""},
+        {"date": "[DATE_1]", "desc": "[DESC_B]", "debit": "[AMT_B]", "credit": "", "balance": "[BAL_B]", "amount": "[AMT_B]", "other": ""},
+        # DATE_2 propagated
+        {"date": "[DATE_2]", "desc": "[DESC_C]", "debit": "[AMT_C]", "credit": "", "balance": "[BAL_C]", "amount": "[AMT_C]", "other": ""},
+    ]
+
     rows = []
-    for date, desc, deb, cred, bal in [
-        ("22 Mar", "Auto Services", "580.00", "", "$8,721.15 CR"),
-        ("22 Mar", "EFTPOS Grocers", "125.00", "", "$8,596.15 CR"),
-        ("23 Mar", "VISA Markets", "89.75", "", "$8,506.40 CR"),
-    ]:
-        row = []
-        for h in headers:
-            hl = h.lower()
-            if hl in ["date", "day"]:
-                row.append(date)
-            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
-                row.append(desc)
-            elif any(p in hl for p in ["debit", "withdrawal"]):
-                row.append(deb)
-            elif any(p in hl for p in ["credit", "deposit"]):
-                row.append(cred)
-            elif "balance" in hl:
-                row.append(bal)
-            elif "amount" in hl:
-                row.append(deb if deb else cred)
-            else:
-                row.append("")
+    for data in example_data:
+        row = [data.get(ct, "") for ct in col_types]
         rows.append(row)
     return rows
 
@@ -845,9 +848,10 @@ Do not interpret or rename them - use the EXACT text from the image.
 
     table_headers = parse_headers_from_response(turn0_response)
     metadata["headers_detected"] = table_headers
+    metadata["turn0_raw_response"] = turn0_response
 
     if verbose:
-        print(f"  Turn 0: {len(table_headers)} headers detected")
+        print(f"  Turn 0 Headers: {table_headers}")
 
     # Pattern matching
     amount_col = match_header(table_headers, AMOUNT_PATTERNS, fallback=None)
@@ -870,32 +874,14 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    format_prompt = """Analyze the transaction table structure in this bank statement.
+    format_prompt = """Analyze this bank statement image and classify its structural layout.
 
-Look at how DATES relate to TRANSACTIONS:
+Does each transaction have its own date value, or are transactions grouped under date section headers?
 
-**DATE-PER-ROW format:**
-- Every transaction row has its own date in a Date column
-- Example: Each row shows "22 Mar | Description | $100.00"
+If each transaction has its own individual date in a table: Respond with "Date-per-row"
+If transactions are grouped under shared date headers: Respond with "Date-grouped"
 
-**DATE-GROUPED format:**
-- Dates appear as section headers or separator rows
-- Multiple transactions are listed BELOW each date WITHOUT repeating the date
-- The date row often has empty cells for Description/Amount
-- Example:
-  "22 Mar | | |" (date header row - no transaction)
-  " | Auto Services | $580.00 |" (transaction without date)
-  " | EFTPOS Grocers | $125.00 |" (another transaction under same date)
-
-INDICATORS of DATE-GROUPED:
-- Date appears alone in a row with other cells empty
-- Transaction rows have blank/empty Date column
-- Visual grouping or indentation under dates
-
-Examine the table carefully. Which format does this document use?
-
-Answer with ONLY one of: "Date-per-row" or "Date-grouped"
-"""
+Response:"""
 
     message_format = [
         {
@@ -933,9 +919,10 @@ Answer with ONLY one of: "Date-per-row" or "Date-grouped"
         date_format = "Date-grouped"
 
     metadata["date_format"] = date_format
+    metadata["turn05_raw_response"] = format_response
 
     if verbose:
-        print(f"  Turn 0.5: {date_format} format detected")
+        print(f"  Turn 0.5 Format: {date_format} (raw: {format_response[:100]})")
 
     # ========== Build Extraction Prompt ==========
     if date_format == "Date-grouped":
