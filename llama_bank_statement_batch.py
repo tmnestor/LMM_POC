@@ -942,7 +942,26 @@ Do not interpret or rename them - use the EXACT text from the image.
     balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
 
     # ========== TURN 0.5: Date Format Classification ==========
-    format_prompt = """Look at the transaction table in this bank statement.
+    # Use balance column if detected for more reliable counting
+    has_balance = balance_col and balance_col != "Balance"
+
+    if has_balance:
+        format_prompt = f"""Look at the transaction table in this bank statement.
+
+Count how many BALANCE values exist in the {balance_col} column.
+Count how many unique DATES are shown.
+
+DECISION RULE:
+- If MORE balances than dates → answer "Date-grouped"
+- If balances EQUALS dates (1:1 ratio) → answer "Date-per-row"
+
+Each transaction produces a new balance, so counting balances = counting transactions.
+
+Count the balances and dates, then apply the decision rule.
+State your answer: "Date-per-row" or "Date-grouped"
+"""
+    else:
+        format_prompt = """Look at the transaction table in this bank statement.
 
 Count how many TRANSACTION ROWS exist vs how many unique DATES are shown.
 
