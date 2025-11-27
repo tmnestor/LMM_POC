@@ -687,8 +687,8 @@ Do not interpret or rename them - use the EXACT text from the image.
         extraction_prompt = f"""List all the balances in the {balance_col} column, including:
 - Date from the Date Header of the balance
 - {desc_col}
-- {debit_col} Amount
-- {credit_col} Amount"""
+- {debit_col} Amount or "NOT_FOUND"
+- {credit_col} Amount or "NOT_FOUND" """
 
         if verbose:
             print(f"  Extraction Method: balance-description (balance column: {balance_col})")
