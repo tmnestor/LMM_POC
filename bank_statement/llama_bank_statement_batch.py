@@ -89,7 +89,7 @@ def log_table(table):
 CONFIG = {
     # Data paths
     "DATA_DIR": Path(
-        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/date_grouped"
+        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/minimal"
     ),
     "GROUND_TRUTH": Path(
         "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/ground_truth_bank.csv"
