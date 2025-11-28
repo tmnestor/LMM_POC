@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# ruff: noqa: E402
 """
 InternVL3-8B Bank Statement Batch Extraction and Evaluation - V2
 
@@ -25,11 +26,16 @@ Options:
     --dry-run           Show what would be processed without running
 """
 
+import os
 import sys
 from pathlib import Path
 
 # Add parent directory to path for common module imports when running from subdirectory
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Change working directory to project root so config/field_definitions.yaml is found
+os.chdir(project_root)
 
 import argparse
 import json as json_module
