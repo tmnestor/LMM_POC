@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 """
-InternVL3-8B Bank Statement Batch Extraction and Evaluation
+InternVL3.5-8B Bank Statement Batch Extraction and Evaluation
 
 This script runs batch extraction on bank statement images using the
-InternVL3-8B model with the independent single-turn approach.
+InternVL3.5-8B model with the independent single-turn approach.
 
 Features:
 - Batch processing of all bank statement images
 - Configurable evaluation methods (order_aware_f1, position_agnostic_f1, kieval, correlation)
 - Full report generation (CSV, JSON, Markdown)
+- H200 GPU optimized (bfloat16, flash attention, MAX_TILES=36)
 
 Usage:
-    python ivl3_8b_bank_statement_batch.py [OPTIONS]
+    python ivl3_5_8b_bank_statement_batch.py [OPTIONS]
 
 Options:
     --max-images N      Limit to N images (default: all)
@@ -20,9 +21,14 @@ Options:
     --dry-run           Show what would be processed without running
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path for common module imports when running from subdirectory
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import argparse
 import json as json_module
-import math
 import re
 import time
 from datetime import datetime
@@ -37,7 +43,7 @@ from PIL import Image
 from rich.console import Console
 from rich.table import Table
 from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModel, AutoTokenizer
 
 from common.evaluation_metrics import (
     calculate_correlation_aware_f1,
@@ -85,13 +91,14 @@ CONFIG = {
     ),
     "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
     # Model path
-    "MODEL_PATH": "/home/jovyan/nfs_share/models/InternVL3-8B",
-    # V100 TILE CONFIGURATION
-    "MAX_TILES": 14,  # V100 optimized - InternVL3-8B config default
+    "MODEL_PATH": "/home/jovyan/nfs_share/models/InternVL3_5-8B",
+    # H200 TILE CONFIGURATION
+    "MAX_TILES": 36,  # H200 optimized - InternVL3.5 training max for dense OCR
     # Generation settings
     "MAX_NEW_TOKENS": 2000,
-    # V100 precision settings
-    "USE_QUANTIZATION": True,
+    # H200 precision settings
+    "TORCH_DTYPE": "bfloat16",
+    "USE_FLASH_ATTN": True,
     # Filtering
     "DOCUMENT_TYPE_FILTER": "BANK_STATEMENT",
     "MAX_IMAGES": None,
@@ -116,7 +123,7 @@ BANK_STATEMENT_FIELDS = [
 ]
 
 # ============================================================================
-# INTERNVL3 IMAGE PREPROCESSING (from notebook)
+# INTERNVL3.5 IMAGE PREPROCESSING (from notebook)
 # ============================================================================
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.229)
@@ -206,7 +213,7 @@ def dynamic_preprocess(
 
 
 def load_image(image_file, input_size=448, max_num=None):
-    """Load and preprocess image for InternVL3."""
+    """Load and preprocess image for InternVL3.5."""
     if max_num is None:
         max_num = CONFIG["MAX_TILES"]
 
@@ -228,125 +235,32 @@ def load_image(image_file, input_size=448, max_num=None):
 
 
 # ============================================================================
-# INTERNVL3 MODEL LOADING
+# INTERNVL3.5 MODEL LOADING (H200 optimized - simpler than V100)
 # ============================================================================
-def split_model(model_path):
+def load_internvl3_5_model(verbose=True):
+    """Load InternVL3.5-8B model optimized for H200 GPU.
+
+    H200 has 80GB HBM3 memory, so we can use:
+    - Full bfloat16 precision (no quantization needed)
+    - Flash Attention for efficiency
+    - Simple device_map="auto"
     """
-    Official InternVL3 multi-GPU device mapping function.
-
-    Creates a custom device map that ensures the first and last layers of the
-    language model stay on the same device (GPU 0) to prevent tensor placement
-    mismatches during generation.
-    """
-    device_map = {}
-    world_size = torch.cuda.device_count()
-    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
-    num_layers = config.llm_config.num_hidden_layers
-
-    # Since the first GPU will be used for ViT, treat it as half a GPU
-    num_layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
-    num_layers_per_gpu = [num_layers_per_gpu] * world_size
-    num_layers_per_gpu[0] = math.ceil(num_layers_per_gpu[0] * 0.5)
-
-    layer_cnt = 0
-    for i, num_layer in enumerate(num_layers_per_gpu):
-        for _j in range(num_layer):
-            device_map[f"language_model.model.layers.{layer_cnt}"] = i
-            layer_cnt += 1
-
-    # Critical components must stay on GPU 0
-    device_map["vision_model"] = 0
-    device_map["mlp1"] = 0
-    device_map["language_model.model.tok_embeddings"] = 0
-    device_map["language_model.model.embed_tokens"] = 0
-    device_map["language_model.output"] = 0
-    device_map["language_model.model.norm"] = 0
-    device_map["language_model.model.rotary_emb"] = 0
-    device_map["language_model.lm_head"] = 0
-
-    # CRITICAL: Force last layer back to GPU 0 to prevent device mismatch
-    device_map[f"language_model.model.layers.{num_layers - 1}"] = 0
-
-    return device_map
-
-
-def get_gpu_free_memory(gpu_id=0):
-    """Get free GPU memory in GB."""
-    if not torch.cuda.is_available():
-        return 0
-    free_mem = torch.cuda.get_device_properties(
-        gpu_id
-    ).total_memory - torch.cuda.memory_allocated(gpu_id)
-    return free_mem / 1e9
-
-
-def load_internvl3_model(verbose=True):
-    """Load InternVL3-8B model with memory-aware strategy."""
     if verbose:
-        print("Loading InternVL3-8B with memory-aware strategy...")
+        print("Loading InternVL3.5-8B for H200 GPU...")
+        print(f"  Model path: {CONFIG['MODEL_PATH']}")
+        print("  Precision: bfloat16")
+        print(f"  Flash Attention: {CONFIG['USE_FLASH_ATTN']}")
+        print(f"  Max Tiles: {CONFIG['MAX_TILES']}")
 
-    world_size = torch.cuda.device_count()
-    if verbose:
-        print(f"  Detected {world_size} GPU(s)")
-
-    gpu0_free = get_gpu_free_memory(0)
-    gpu1_free = get_gpu_free_memory(1) if world_size > 1 else 0
-    total_free = gpu0_free + gpu1_free
-
-    if verbose:
-        print(f"  GPU 0 free memory: {gpu0_free:.1f} GB")
-        if world_size > 1:
-            print(f"  GPU 1 free memory: {gpu1_free:.1f} GB")
-        print(f"  Total free memory: {total_free:.1f} GB")
-
-    BFLOAT16_REQUIRED = 16.0
-    QUANTIZED_REQUIRED = 10.0
-
-    if total_free >= BFLOAT16_REQUIRED and world_size > 1:
-        # Multi-GPU bfloat16 mode
-        if verbose:
-            print("  Using bfloat16 multi-GPU mode")
-        device_map = split_model(CONFIG["MODEL_PATH"])
-
-        model = AutoModel.from_pretrained(
-            CONFIG["MODEL_PATH"],
-            torch_dtype=torch.bfloat16,
-            low_cpu_mem_usage=True,
-            use_flash_attn=False,  # V100 compatible
-            trust_remote_code=True,
-            device_map=device_map,
-        ).eval()
-
-        model_dtype = torch.bfloat16
-
-    elif total_free >= QUANTIZED_REQUIRED:
-        # Single-GPU 8-bit quantization mode
-        if verbose:
-            print("  Using 8-bit quantization on single GPU")
-
-        target_gpu = 1 if (world_size > 1 and gpu1_free > gpu0_free) else 0
-
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=False
-        )
-
-        model = AutoModel.from_pretrained(
-            CONFIG["MODEL_PATH"],
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=True,
-            use_flash_attn=False,
-            trust_remote_code=True,
-            quantization_config=quantization_config,
-            device_map={"": target_gpu},
-        ).eval()
-
-        model_dtype = torch.float16
-
-    else:
-        raise RuntimeError(
-            f"Insufficient GPU memory! Available: {total_free:.1f} GB, "
-            f"Required: {QUANTIZED_REQUIRED:.1f} GB minimum"
-        )
+    # Load model with bfloat16 and flash attention for H200
+    model = AutoModel.from_pretrained(
+        CONFIG["MODEL_PATH"],
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
+        low_cpu_mem_usage=True,
+        use_flash_attn=CONFIG["USE_FLASH_ATTN"],
+    ).eval()
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
@@ -363,10 +277,10 @@ def load_internvl3_model(verbose=True):
     if verbose:
         param_count = sum(p.numel() for p in model.parameters())
         print(f"  Model parameters: {param_count:,}")
-        print(f"  Data type: {model_dtype}")
-        print(f"  Max Tiles: {CONFIG['MAX_TILES']}")
+        print(f"  Device map: {model.hf_device_map}")
+        print("  Model loaded successfully!")
 
-    return model, tokenizer, model_dtype
+    return model, tokenizer
 
 
 def clean_internvl3_response(response):
@@ -461,7 +375,7 @@ def normalize_field_for_comparison(field_name, value):
 
 
 # ============================================================================
-# PATTERN MATCHING (from notebook Cell 13)
+# PATTERN MATCHING (from notebook Cell 14)
 # ============================================================================
 DATE_PATTERNS = ["date", "day", "transaction date", "trans date"]
 DESCRIPTION_PATTERNS = [
@@ -808,6 +722,130 @@ def build_dynamic_example(
     return rows
 
 
+def build_multiline_rule(headers):
+    """Generate multi-line extraction rule using ACTUAL column structure from Turn 0."""
+    num_cols = len(headers)
+
+    # Find actual Debit, Credit, and Balance columns by name
+    debit_idx = None
+    credit_idx = None
+    balance_idx = None
+
+    for i, header in enumerate(headers):
+        h_lower = header.lower()
+        if any(p in h_lower for p in ["debit", "withdrawal", "paid", "spent", "dr"]):
+            debit_idx = i
+        if any(p in h_lower for p in ["credit", "deposit", "received", "cr"]):
+            credit_idx = i
+        if any(p in h_lower for p in ["balance", "bal"]):
+            balance_idx = i
+
+    if debit_idx is None or credit_idx is None:
+        return "Multi-line: combine description lines into single row."
+
+    def format_aligned_table(rows):
+        """Format rows with properly aligned vertical pipes."""
+        if not rows:
+            return []
+
+        num_cols_local = len(rows[0])
+
+        # Calculate max width for each column
+        col_widths = [0] * num_cols_local
+        for row in rows:
+            for i, val in enumerate(row):
+                col_widths[i] = max(col_widths[i], len(val))
+
+        # Find last non-empty column index
+        last_col = 0
+        for row in rows:
+            for i, val in enumerate(row):
+                if val:
+                    last_col = max(last_col, i)
+
+        # Ensure empty MIDDLE columns have minimum width
+        for i in range(1, last_col):  # Skip first column, only middle columns
+            if col_widths[i] == 0:
+                col_widths[i] = 7
+
+        # Format each row with proper alignment
+        formatted = []
+        for row in rows:
+            # Determine how many columns to include
+            end_col = last_col + 2 if last_col < len(row) - 1 else last_col + 1
+            end_col = min(end_col, len(row))
+
+            # Pad each column value to its width
+            parts = []
+            for i in range(end_col):
+                val = row[i] if i < len(row) else ""
+                parts.append(val.ljust(col_widths[i]))
+
+            line = " | ".join(parts)
+
+            # CRITICAL: If first column is empty, add leading spaces to align pipes
+            if not row[0]:
+                line = " " * col_widths[0] + " | " + " | ".join(parts[1:])
+
+            formatted.append(line)
+
+        return formatted
+
+    # Create example rows using ACTUAL column positions
+    # Credit example (amount in credit_idx position)
+    credit_rows = [[""] * num_cols for _ in range(3)]
+    credit_rows[0][0] = "a date"
+    credit_rows[0][1] = "line 1"
+    credit_rows[0][credit_idx] = "85.50"
+    # Add Balance column value if it exists
+    if balance_idx is not None:
+        credit_rows[0][balance_idx] = "$1,085.50 CR"
+    credit_rows[1][0] = ""  # Empty date for continuation
+    credit_rows[1][1] = "line 2"
+    credit_rows[2][0] = "a date"
+    credit_rows[2][1] = "line 1 line 2"
+    credit_rows[2][credit_idx] = "85.50"
+    # Add Balance column value if it exists
+    if balance_idx is not None:
+        credit_rows[2][balance_idx] = "$1,085.50 CR"
+
+    # Debit example (amount in debit_idx position)
+    debit_rows = [[""] * num_cols for _ in range(3)]
+    debit_rows[0][0] = "a date"
+    debit_rows[0][1] = "line 1"
+    debit_rows[0][debit_idx] = "150.00"
+    # Add Balance column value if it exists
+    if balance_idx is not None:
+        debit_rows[0][balance_idx] = "$850.00 CR"
+    debit_rows[1][0] = ""  # Empty date for continuation
+    debit_rows[1][1] = "line 2"
+    debit_rows[2][0] = "a date"
+    debit_rows[2][1] = "line 1 line 2"
+    debit_rows[2][debit_idx] = "150.00"
+    # Add Balance column value if it exists
+    if balance_idx is not None:
+        debit_rows[2][balance_idx] = "$850.00 CR"
+
+    # Format both examples
+    credit_fmt = format_aligned_table(credit_rows)
+    debit_fmt = format_aligned_table(debit_rows)
+
+    # Build rule with LABELED examples using actual header names
+    rule = f"""  {headers[credit_idx]} example:
+       {credit_fmt[0]}
+       {credit_fmt[1]}
+    you must extract it as:
+       {credit_fmt[2]}
+
+  {headers[debit_idx]} example:
+       {debit_fmt[0]}
+       {debit_fmt[1]}
+    you must extract it as:
+       {debit_fmt[2]}"""
+
+    return rule
+
+
 def build_extraction_prompt(
     table_headers, date_col, desc_col, debit_col, credit_col, balance_col
 ):
@@ -836,6 +874,9 @@ def build_extraction_prompt(
 | {separator_row} |
 """ + "\n".join([f"| {row} |" for row in example_rows])
 
+    # Build multi-line rule
+    multiline_rule = build_multiline_rule(table_headers)
+
     prompt = f"""
 Extract the transaction table from this bank statement image in markdown format.
 
@@ -863,6 +904,13 @@ For EACH transaction, you must check which column the amount appears under:
 
 **Do NOT guess based on description text. Use visual alignment ONLY.**
 
+## OTHER RULES
+
+**Multi-line transactions:** Combine description lines into single row:
+{multiline_rule}
+
+**Empty columns:** Leave empty (|  |)
+
 **Output:** Markdown table only, no explanations
 """
     return prompt
@@ -875,6 +923,12 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
     """Display stacked comparison of extracted vs ground truth fields using Rich."""
     gt_data = ground_truth_map.get(image_name, {})
     field_scores = eval_result.get("field_scores", {})
+
+    normalized_fields = {
+        "TRANSACTION_DATES",
+        "TRANSACTION_AMOUNTS_PAID",
+        "STATEMENT_DATE_RANGE",
+    }
 
     # Create Rich table for field comparison
     table = Table(title="Field Comparison (semantic matching)", show_header=True)
@@ -1001,9 +1055,9 @@ def evaluate_extraction(schema_fields, image_name, ground_truth_map, method):
 # ============================================================================
 # MAIN EXTRACTION PIPELINE
 # ============================================================================
-def extract_bank_statement(image_path, model, tokenizer, model_dtype, verbose=False):
+def extract_bank_statement(image_path, model, tokenizer, verbose=False):
     """
-    Extract fields from a single bank statement image using InternVL3-8B.
+    Extract fields from a single bank statement image using InternVL3.5-8B.
 
     Two-turn independent extraction with Python post-processing.
     """
@@ -1015,9 +1069,16 @@ def extract_bank_statement(image_path, model, tokenizer, model_dtype, verbose=Fa
         "debit_rows": 0,
     }
 
+    # Determine model dtype (bfloat16 for H200)
+    model_dtype = torch.bfloat16
+
     # ========== TURN 0: Header Detection ==========
     turn0_prompt = """
 Look at the transaction table in this bank statement image.
+
+IMPORTANT STRUCTURAL NOTE:
+Some bank statements show dates as section headings with multiple transactions underneath.
+If you see this structure, remember that each transaction needs its explicit date in the final output.
 
 What are the exact column header names used in the transaction table?
 
@@ -1155,7 +1216,7 @@ def generate_reports(batch_results, output_dir):
             csv_data.append(row)
 
         results_df = pd.DataFrame(csv_data)
-        csv_path = output_dir / f"ivl3_8b_bank_statement_batch_{BATCH_TIMESTAMP}.csv"
+        csv_path = output_dir / f"ivl3_5_8b_bank_statement_batch_{BATCH_TIMESTAMP}.csv"
         results_df.to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 
@@ -1166,7 +1227,7 @@ def generate_reports(batch_results, output_dir):
         json_report = {
             "metadata": {
                 "batch_id": BATCH_TIMESTAMP,
-                "model": "InternVL3-8B",
+                "model": "InternVL3.5-8B",
                 "evaluation_method": CONFIG["EVALUATION_METHOD"],
                 "total_images": len(batch_results),
                 "successful": len(successful),
@@ -1196,7 +1257,7 @@ def generate_reports(batch_results, output_dir):
         }
 
         json_path = (
-            output_dir / f"ivl3_8b_bank_statement_evaluation_{BATCH_TIMESTAMP}.json"
+            output_dir / f"ivl3_5_8b_bank_statement_evaluation_{BATCH_TIMESTAMP}.json"
         )
         with json_path.open("w") as f:
             json_module.dump(json_report, f, indent=2, default=str)
@@ -1207,11 +1268,11 @@ def generate_reports(batch_results, output_dir):
         processing_times = [r["processing_time"] for r in successful]
 
         md_lines = [
-            "# InternVL3-8B Bank Statement Batch Evaluation Report",
+            "# InternVL3.5-8B Bank Statement Batch Evaluation Report",
             "",
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"**Batch ID:** {BATCH_TIMESTAMP}",
-            "**Model:** InternVL3-8B",
+            "**Model:** InternVL3.5-8B",
             f"**Evaluation Method:** {CONFIG['EVALUATION_METHOD']}",
             "",
             "## Executive Summary",
@@ -1250,7 +1311,7 @@ def generate_reports(batch_results, output_dir):
                     f"| {r['image_name']} | {acc:.1%} | {fmt} | {rows} | {time_s:.1f}s |"
                 )
 
-        md_path = output_dir / f"ivl3_8b_bank_statement_summary_{BATCH_TIMESTAMP}.md"
+        md_path = output_dir / f"ivl3_5_8b_bank_statement_summary_{BATCH_TIMESTAMP}.md"
         with md_path.open("w") as f:
             f.write("\n".join(md_lines))
         print(f"Markdown saved: {md_path}")
@@ -1261,7 +1322,7 @@ def generate_reports(batch_results, output_dir):
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="Batch extraction and evaluation of bank statements with InternVL3-8B"
+        description="Batch extraction and evaluation of bank statements with InternVL3.5-8B"
     )
     parser.add_argument(
         "--max-images", type=int, default=None, help="Limit to N images"
@@ -1299,9 +1360,10 @@ def main():
 
     set_seed(42)
 
-    log_rule("[bold blue]INTERNVL3-8B BANK STATEMENT BATCH EXTRACTION")
+    log_rule("[bold blue]INTERNVL3.5-8B BANK STATEMENT BATCH EXTRACTION")
     log_print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
-    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (V100 optimized)")
+    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (H200 optimized)")
+    log_print("[cyan]Precision:[/cyan] bfloat16 with Flash Attention")
 
     # Load ground truth
     log_print("\n[yellow]Loading ground truth...[/yellow]")
@@ -1330,8 +1392,8 @@ def main():
         return
 
     # Load model
-    log_print("\n[yellow]Loading InternVL3-8B model...[/yellow]")
-    model, tokenizer, model_dtype = load_internvl3_model(verbose=True)
+    log_print("\n[yellow]Loading InternVL3.5-8B model...[/yellow]")
+    model, tokenizer = load_internvl3_5_model(verbose=True)
 
     # Process images
     log_rule("[bold blue]BATCH PROCESSING")
@@ -1352,7 +1414,7 @@ def main():
 
         try:
             schema_fields, metadata = extract_bank_statement(
-                image_path, model, tokenizer, model_dtype, verbose=CONFIG["VERBOSE"]
+                image_path, model, tokenizer, verbose=CONFIG["VERBOSE"]
             )
 
             processing_time = time.time() - start_time

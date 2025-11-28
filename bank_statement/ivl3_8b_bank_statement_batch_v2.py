@@ -25,6 +25,12 @@ Options:
     --dry-run           Show what would be processed without running
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path for common module imports when running from subdirectory
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import argparse
 import json as json_module
 import math
