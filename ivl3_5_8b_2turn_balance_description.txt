@@ -1,0 +1,47 @@
+1. **03/05/2025**
+   - Description: ONLINE PURCHASE AMAZON AU
+   - Withdrawal: $288.03
+   - Deposit: NOT_FOUND
+   - Balance: $13367.44
+
+2. **04/05/2025**
+   - Description: EFTPOS PURCHASE COLES EXP
+   - Withdrawal: $22.50
+   - Deposit: NOT_FOUND
+   - Balance: $13344.94
+
+3. **05/05/2025**
+   - Description: EFTPOS PURCHASE COLES EXP
+   - Withdrawal: $114.66
+   - Deposit: NOT_FOUND
+   - Balance: $13230.27
+
+4. **06/05/2025**
+   - Description: DIRECT CREDIT SALARY
+   - Withdrawal: NOT_FOUND
+   - Deposit: $3497.47
+   - Balance: $16727.74
+
+5. **07/05/2025**
+   - Description: ATM WITHDRAWAL ANZ ATM
+   - Withdrawal: $187.59
+   - Deposit: NOT_FOUND
+   - Balance: $16540.15
+
+6. **08/05/2025**
+   - Description: EFTPOS PURCHASE COLES EXP
+   - Withdrawal: $112.50
+   - Deposit: NOT_FOUND
+   - Balance: $16427.65
+
+7. **09/05/2025**
+   - Description: INTEREST PAYMENT
+   - Withdrawal: NOT_FOUND
+   - Deposit: $5.16
+   - Balance: $16432.81
+
+8. **10/05/2025**
+   - Description: ATM WITHDRAWAL ANZ ATM
+   - Withdrawal: $146.72
+   - Deposit: NOT_FOUND
+   - Balance: $16286.08
