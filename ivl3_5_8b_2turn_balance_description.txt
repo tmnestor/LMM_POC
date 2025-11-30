@@ -1,47 +1,101 @@
-1. **03/05/2025**
-   - Description: ONLINE PURCHASE AMAZON AU
-   - Withdrawal: $288.03
-   - Deposit: NOT_FOUND
-   - Balance: $13367.44
+1. **Thu 04 Sep 2025**
+   - Transaction: Direct Debit DOMINO'S PTY LTD
+   - Debit: $117.57
+   - Credit: NOT_FOUND
+   - Balance: $8586.28 CR
 
-2. **04/05/2025**
-   - Description: EFTPOS PURCHASE COLES EXP
-   - Withdrawal: $22.50
-   - Deposit: NOT_FOUND
-   - Balance: $13344.94
+2. **Mon 01 Sep 2025**
+   - Transaction: Monthly Service Fee
+   - Debit: $17.89
+   - Credit: NOT_FOUND
+   - Balance: $8703.85 CR
 
-3. **05/05/2025**
-   - Description: EFTPOS PURCHASE COLES EXP
-   - Withdrawal: $114.66
-   - Deposit: NOT_FOUND
-   - Balance: $13230.27
+3. **Sun 31 Aug 2025**
+   - Transaction: Monthly Service Fee
+   - Debit: $18.87
+   - Credit: NOT_FOUND
+   - Balance: $8721.74 CR
 
-4. **06/05/2025**
-   - Description: DIRECT CREDIT SALARY
-   - Withdrawal: NOT_FOUND
-   - Deposit: $3497.47
-   - Balance: $16727.74
+4. **Fri 29 Aug 2025**
+   - Transaction: Wdl ATM WBC WESTPAC GLEN WAVE
+   - Debit: $241.14
+   - Credit: NOT_FOUND
+   - Balance: $8740.61 CR
 
-5. **07/05/2025**
-   - Description: ATM WITHDRAWAL ANZ ATM
-   - Withdrawal: $187.59
-   - Deposit: NOT_FOUND
-   - Balance: $16540.15
+5. **Wed 27 Aug 2025**
+   - Transaction: Direct Debit 94924P49133289 MHF 75696
+   - Debit: $251.33
+   - Credit: NOT_FOUND
+   - Balance: $9080.28 CR
 
-6. **08/05/2025**
-   - Description: EFTPOS PURCHASE COLES EXP
-   - Withdrawal: $112.50
-   - Deposit: NOT_FOUND
-   - Balance: $16427.65
+6. **Sat 23 Aug 2025**
+   - Transaction: Cash Withdrawal ATM SYDNEY NSW
+   - Debit: $98.53
+   - Credit: NOT_FOUND
+   - Balance: $8981.75 CR
 
-7. **09/05/2025**
-   - Description: INTEREST PAYMENT
-   - Withdrawal: NOT_FOUND
-   - Deposit: $5.16
-   - Balance: $16432.81
+7. **Sat 23 Aug 2025**
+   - Transaction: Home Loan Payment LN REPAY 56052P41706870
+   - Debit: $1918.75
+   - Credit: NOT_FOUND
+   - Balance: $8331.61 CR
 
-8. **10/05/2025**
-   - Description: ATM WITHDRAWAL ANZ ATM
-   - Withdrawal: $146.72
-   - Deposit: NOT_FOUND
-   - Balance: $16286.08
+8. **Thu 21 Aug 2025**
+   - Transaction: Salary - ATO PAYROLL 89278P11488576
+   - Debit: NOT_FOUND
+   - Credit: $7836.75
+   - Balance: $11526.67 CR
+
+9. **Thu 21 Aug 2025**
+   - Transaction: Direct Debit COLES PTY LTD
+   - Debit: $276.31
+   - Credit: NOT_FOUND
+   - Balance: $11250.36 CR
+
+10. **Tue 19 Aug 2025**
+    - Transaction: Cash Withdrawal ATM HOBART TAS
+    - Debit: $61.68
+    - Credit: NOT_FOUND
+    - Balance: $3869.92 CR
+
+11. **Sun 17 Aug 2025**
+    - Transaction: Transfer To Vicks Account NetBank From Tod
+    - Debit: $3775.28
+    - Credit: NOT_FOUND
+    - Balance: $3751.60 CR
+
+12. **Sat 16 Aug 2025**
+    - Transaction: Salary Payment ATO 65208P39971825
+    - Debit: NOT_FOUND
+    - Credit: $5778.51
+    - Balance: $7526.88 CR
+
+13. **Fri 15 Aug 2025**
+    - Transaction: Direct Debit MYER PTY LTD
+    - Debit: $245.00
+    - Credit: NOT_FOUND
+    - Balance: $1748.37 CR
+
+14. **Wed 13 Aug 2025**
+    - Transaction: ATM Withdrawal SYDNEY NSW
+    - Debit: $51.36
+    - Credit: NOT_FOUND
+    - Balance: $2221.48 CR
+
+15. **Wed 13 Aug 2025**
+    - Transaction: Direct Debit 65452P29227883 MHF 11016
+    - Debit: $228.11
+    - Credit: NOT_FOUND
+    - Balance: $1993.37 CR
+
+16. **Mon 11 Aug 2025**
+    - Transaction: Transfer To Western Port Marina NetBank
+    - Debit: $4374.15
+    - Credit: NOT_FOUND
+    - Balance: $4814.35 CR
+
+17. **Mon 11 Aug 2025**
+    - Transaction: Direct Debit 82572P68016423 MHF 62020
+    - Debit: $214.28
+    - Credit: NOT_FOUND
+    - Balance: $4600.09 CR
