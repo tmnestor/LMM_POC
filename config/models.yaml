@@ -1,74 +1,53 @@
 # Model configurations for unified bank statement extraction
-# Each model has specific loading and generation settings
+# EXPLICIT configuration - no silent fallbacks based on hardware detection
 
 models:
+  # ============================================================================
+  # LLAMA MODELS
+  # ============================================================================
   llama_3_2_vision:
     name: "Llama-3.2-11B-Vision-Instruct"
     type: "llama"
     default_path: "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
 
     loading:
-      use_quantization: false
-      device_map: "auto"
+      quantization: "none"  # Options: "none", "8bit"
       torch_dtype: "bfloat16"
+      device_map: "auto"
       low_cpu_mem_usage: true
       tie_weights: true
 
     generation:
       max_new_tokens: 4096
       do_sample: false
-      temperature: null
-      top_p: null
 
-    # Llama-specific: uses processor.apply_chat_template
-    chat_template: true
+  llama_3_2_vision_8bit:
+    name: "Llama-3.2-11B-Vision-Instruct (8-bit)"
+    type: "llama"
+    default_path: "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
 
+    loading:
+      quantization: "8bit"
+      torch_dtype: "float16"
+      device_map: "auto"
+      low_cpu_mem_usage: true
+      tie_weights: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+  # ============================================================================
+  # INTERNVL3-8B MODELS
+  # ============================================================================
   internvl3_8b:
-    name: "InternVL3-8B"
+    name: "InternVL3-8B (bfloat16)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3-8B"
 
     loading:
-      # Single GPU: 8-bit quantization
-      # Multi GPU: bfloat16 with device_map
-      use_flash_attn: false
-      trust_remote_code: true
-      low_cpu_mem_usage: true
-
-    generation:
-      max_new_tokens: 4096
-      do_sample: false
-
-    image_processing:
-      max_tiles: 14  # V100 optimized
-      input_size: 448
-      use_thumbnail: true
-
-  internvl3_2b:
-    name: "InternVL3-2B"
-    type: "internvl3"
-    default_path: "/home/jovyan/nfs_share/models/InternVL3-2B"
-
-    loading:
-      use_flash_attn: false
-      trust_remote_code: true
-      low_cpu_mem_usage: true
-
-    generation:
-      max_new_tokens: 4096
-      do_sample: false
-
-    image_processing:
-      max_tiles: 18
-      input_size: 448
-      use_thumbnail: true
-
-  internvl3_5_8b:
-    name: "InternVL3.5-8B"
-    type: "internvl3"
-    default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
-
-    loading:
+      quantization: "none"
+      torch_dtype: "bfloat16"
       use_flash_attn: false
       trust_remote_code: true
       low_cpu_mem_usage: true
@@ -82,5 +61,113 @@ models:
       input_size: 448
       use_thumbnail: true
 
-# Default model to use if not specified
-default_model: "internvl3_8b"
+  internvl3_8b_8bit:
+    name: "InternVL3-8B (8-bit quantized)"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3-8B"
+
+    loading:
+      quantization: "8bit"
+      torch_dtype: "float16"
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 14
+      input_size: 448
+      use_thumbnail: true
+
+  # ============================================================================
+  # INTERNVL3-2B MODELS
+  # ============================================================================
+  internvl3_2b:
+    name: "InternVL3-2B (bfloat16)"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3-2B"
+
+    loading:
+      quantization: "none"
+      torch_dtype: "bfloat16"
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 18
+      input_size: 448
+      use_thumbnail: true
+
+  internvl3_2b_8bit:
+    name: "InternVL3-2B (8-bit quantized)"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3-2B"
+
+    loading:
+      quantization: "8bit"
+      torch_dtype: "float16"
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 18
+      input_size: 448
+      use_thumbnail: true
+
+  # ============================================================================
+  # INTERNVL3.5-8B MODELS
+  # ============================================================================
+  internvl3_5_8b:
+    name: "InternVL3.5-8B (bfloat16)"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
+
+    loading:
+      quantization: "none"
+      torch_dtype: "bfloat16"
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 14
+      input_size: 448
+      use_thumbnail: true
+
+  internvl3_5_8b_8bit:
+    name: "InternVL3.5-8B (8-bit quantized)"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
+
+    loading:
+      quantization: "8bit"
+      torch_dtype: "float16"
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 14
+      input_size: 448
+      use_thumbnail: true
