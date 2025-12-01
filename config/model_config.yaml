@@ -78,7 +78,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 14
+      max_tiles: 24
       input_size: 448
       use_thumbnail: true
 
@@ -123,7 +123,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 18
+      max_tiles: 36
       input_size: 448
       use_thumbnail: true
 
@@ -147,7 +147,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 14
+      max_tiles: 24
       input_size: 448
       use_thumbnail: true
 
