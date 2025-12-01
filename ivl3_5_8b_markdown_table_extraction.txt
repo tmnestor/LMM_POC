@@ -1,42 +1,15 @@
-| Date | Description | Withdrawal | Deposit | Balance |
-| :--- | :--- | :--- | :--- | ---: |
-| 07/09/2025 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | $322.18 |  | $48890.58 |
-| 06/09/2025 | EFTPOS Purchase OFFICEWORKS3K8175553 RKNHAMPTO... | $64.33 |  | $49212.76 |
-| 04/09/2025 | Mortgage Payment MORTGAGE 619390279 CRN 9813018480 | $6849.79 |  | $42277.09 |
-| 03/09/2025 | OSKO Payment to MIKE CHEN 80884B87571331 | $1385.43 |  | $49026.88 |
-| 02/09/2025 | Direct Debit 15396PA 180823 MFM 42730 | $199.17 |  | $51312.31 |
-| 01/09/2025 | Salary Payment ATO 28787288728109 |  | $8105.71 | $59511.48 |
-| 01/09/2025 | DD INSURANCE ACME CORP PTY LTD 82321242151853 | $45.04 |  | $43405.77 |
-| 01/09/2025 | Auto Payment UTILITIES AGL 678409PS543444 | $287.50 |  | $43445.81 |
-| 01/09/2025 | DIRECT CREDIT SALARY 80800P67612988 |  | $4449.44 | $43708.31 |
-| 31/08/2025 | BPAY Payment BILLER 8002027 CRN 9813018480 | $37.88 |  | $39225.87 |
-| 31/08/2025 | Professional Services Red Energy 6807391594417 | $2457.87 |  | $39296.85 |
-| 29/08/2025 | Card Purchase RED COOSTER Pamaratta SA | $270.31 |  | $34174.72 |
-| 29/08/2025 | Credit Card Purchase 7259693323822 | $1957.09 |  | $49255.03 |
-| 27/08/2025 | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD | $221.60 |  | $43882.12 |
-| 26/08/2025 | Credit Purchase CHEMIST WAREHOUSE DISCOUNT RICHMO... | $222.56 |  | $44203.72 |
-| 24/08/2025 | Fortnightly Pay ATO PAYROLL 103235687818 |  | $5679.21 | $44426.28 |
-| 24/08/2025 | BAY RUN ACME CORP PTY LTD 0056497382518 | $4456.48 |  | $39747.02 |
-| 24/08/2025 | Salary Payment ATO 30175P32361415 |  | $7951.93 | $33429.01 |
-| 23/08/2025 | Online Purchase amazon.com.au AUS | $83.78 |  | $23039.68 |
-| 22/08/2025 | Salary Payment ATO 2877361801616 |  | $68013.70 | $22443.46 |
-| 20/08/2025 | Transfer To Vicks Account NetBank 54381P09841102 | $2345.10 |  | $22049.76 |
-| 20/08/2025 | Salary Payment ATM USA $USD |  | $3541.27 | $22754.86 |
-| 20/08/2025 | Transfer To Western Port Merina NetBank from Tod | $728.48 |  | $19213.59 |
-| 19/08/2025 | Subscription Netflix 33588777381523 | $201.14 |  | $19940.07 |
-| 18/08/2025 | Contactless Payment CHEMIST WAREHOUSE RICHMOND QLD | $211.28 |  | $20141.21 |
-| 18/08/2025 | Auto Payment UTILITIES Red Energy 151072117655 | $33.24 |  | $20352.40 |
-| 17/08/2025 | Contactless Payment STORES MACKAY 100YPL LTD | $145.70 |  | $20385.73 |
-| 17/08/2025 | Fortnightly Pay ATO PAYROLL 363857P252498 |  | $7201.19 | $20531.43 |
-| 14/08/2025 | Centrileink Job Seeker 593022P50008078 |  | $2241.39 | $13330.24 |
-| 14/08/2025 | International Transaction Fee | $27.06 |  | $11088.85 |
-| 13/08/2025 | Equipment Purchase OfficeMax Australia 13554P45... | $478.86 |  | $11115.91 |
-| 13/08/2025 | International ATM USA $USD | $280.71 |  | $11594.77 |
-| 11/08/2025 | Dividend Payment PREMIUM CORP PTY LTD 735354P48... |  | $6395.00 | $11855.48 |
-| 11/08/2025 | Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD. | $229.39 |  | $5450.39 |
-| 10/08/2025 | Online Purchase ebay.com.au AUS | $257.95 |  | $5689.78 |
-| 10/08/2025 | Subscription Spotify Monthly 53590P642775 | $188.22 |  | $5947.73 |
-| 09/08/2025 | International Transaction Fee | $33.83 |  | $5913.95 |
-| 09/08/2025 | Business Expense IT Equipment 66889P8414837 | $625.18 |  | $6167.78 |
-| 08/08/2025 | Auto Payment UTILITIES Australia 87678P1769... | $91.94 |  | $60792.06 |
-| 08/08/2025 | Auto Payment UTILITIES Red Energy 81336P1572266 | $388.57 |  | $6884.00 |
+| Date       | Transaction                                      | Debit   | Credit | Balance   |
+|------------|--------------------------------------------------|---------|--------|-----------|
+| Thu 04 Sep | Direct Debit DOMINO'S PTY LTD                     | $117.57 |        | $8586.28 CR |
+| Mon 01 Sep | Monthly Service Fee                              | $17.89  |        | $8703.85 CR |
+| Sun 31 Aug | Monthly Service Fee                              | $18.87  |        | $8721.74 CR |
+| Fri 29 Aug | Wdl ATM WBC WESTPAC GLEN WAVE                     | $241.14 |        | $8740.61 CR |
+| Wed 27 Aug | Direct Debit 94924P49133289 MHF 75690<br>Cash Withdrawal ATM SYDNEY NSW | $251.33<br>$98.53 |        | $8981.75 CR |
+| Sat 23 Aug | Home Loan Payment LN REPAY 56052P41706870         | $1918.75|        | $9331.61 CR |
+| Thu 21 Aug | Salary - ATO PAYROLL 89278P11488576<br>Direct Debit COLES PTY LTD | $276.31 | $7836.75 | $11526.67 CR |
+| Tue 19 Aug | Cash Withdrawal ATM HOBART TAS                    | $61.68  |        | $3869.92 CR |
+| Sun 17 Aug | Transfer To Vicks Account NetBank From Tod        | $3775.28|        | $3751.60 CR |
+| Sat 16 Aug | Salary Payment ATO 65208P39971825                 |         | $5778.51 | $7526.88 CR |
+| Fri 15 Aug | Direct Debit MYER PTY LTD                         | $245.00 |        | $1748.37 CR |
+| Wed 13 Aug | ATM Withdrawal SYDNEY NSW<br>Direct Debit 65452P29227883 MHF 11016 | $51.36<br>$228.11 |        | $1993.37 CR |
+| Mon 11 Aug | Transfer To Western Port Marina NetBank<br>Direct Debit 82572P68016423 MHF 62020 | $4374.15<br>$214.28 |        | $4860.09 CR |

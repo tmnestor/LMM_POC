@@ -1,7 +1,7 @@
 The exact column header names used in the transaction table are:
 
 1. Date
-2. Description
-3. Withdrawal
-4. Deposit
+2. Transaction
+3. Debit
+4. Credit
 5. Balance

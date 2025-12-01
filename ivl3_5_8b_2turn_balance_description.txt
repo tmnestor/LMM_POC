@@ -1,245 +1,101 @@
-1. **07/09/2025**
-   - Description: EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD
-   - Withdrawal: $322.18
-   - Deposit: NOT_FOUND
-   - Balance: $48890.58
+1. **Thu 04 Sep 2025**
+   - Transaction: Direct Debit DOMINO'S PTY LTD
+   - Debit: $117.57
+   - Credit: NOT_FOUND
+   - Balance: $8586.28 CR
 
-2. **06/09/2025**
-   - Description: EFTPOS Purchase OFFICEWORKS3 KINGS ST KORAHAMPTON
-   - Withdrawal: $64.33
-   - Deposit: NOT_FOUND
-   - Balance: $48912.76
+2. **Mon 01 Sep 2025**
+   - Transaction: Monthly Service Fee
+   - Debit: $17.89
+   - Credit: NOT_FOUND
+   - Balance: $8703.85 CR
 
-3. **04/09/2025**
-   - Description: Mortgage Payment MORTGAGE 6193975553 RON NAB
-   - Withdrawal: $6849.79
-   - Deposit: NOT_FOUND
-   - Balance: $49227.09
+3. **Sun 31 Aug 2025**
+   - Transaction: Monthly Service Fee
+   - Debit: $18.87
+   - Credit: NOT_FOUND
+   - Balance: $8721.74 CR
 
-4. **03/09/2025**
-   - Description: OSKO Payment to MIKE CHEN 080848P5773133
-   - Withdrawal: $1385.43
-   - Deposit: NOT_FOUND
-   - Balance: $48926.88
+4. **Fri 29 Aug 2025**
+   - Transaction: Wdl ATM WBC WESTPAC GLEN WAVE
+   - Debit: $241.14
+   - Credit: NOT_FOUND
+   - Balance: $8740.61 CR
 
-5. **02/09/2025**
-   - Description: Direct Debit 15395PA 180823 MFM 42730
-   - Withdrawal: $199.17
-   - Deposit: NOT_FOUND
-   - Balance: $56132.31
+5. **Wed 27 Aug 2025**
+   - Transaction: Direct Debit 94924P49133289 MHF 75696
+   - Debit: $251.33
+   - Credit: NOT_FOUND
+   - Balance: $9080.28 CR
 
-6. **01/09/2025**
-   - Description: Salary Payment ATO 2878278827812109
-   - Withdrawal: NOT_FOUND
-   - Deposit: $8105.71
-   - Balance: $55111.48
+6. **Sat 23 Aug 2025**
+   - Transaction: Cash Withdrawal ATM SYDNEY NSW
+   - Debit: $98.53
+   - Credit: NOT_FOUND
+   - Balance: $8981.75 CR
 
-7. **01/09/2025**
-   - Description: DD INSURANCE ACME CORP PTY LTD 82321242151853
-   - Withdrawal: $45.04
-   - Deposit: NOT_FOUND
-   - Balance: $54305.77
+7. **Sat 23 Aug 2025**
+   - Transaction: Home Loan Payment LN REPAY 56052P41706870
+   - Debit: $1918.75
+   - Credit: NOT_FOUND
+   - Balance: $8331.61 CR
 
-8. **01/09/2025**
-   - Description: Auto Payment UTILITIES AG1 67840P954344
-   - Withdrawal: $287.50
-   - Deposit: NOT_FOUND
-   - Balance: $54345.01
+8. **Thu 21 Aug 2025**
+   - Transaction: Salary - ATO PAYROLL 89278P11488576
+   - Debit: NOT_FOUND
+   - Credit: $7836.75
+   - Balance: $11526.67 CR
 
-9. **01/09/2025**
-   - Description: DIRECT CREDIT SALARY 80800P67612988
-   - Withdrawal: NOT_FOUND
-   - Deposit: $4449.44
-   - Balance: $43708.31
+9. **Thu 21 Aug 2025**
+   - Transaction: Direct Debit COLES PTY LTD
+   - Debit: $276.31
+   - Credit: NOT_FOUND
+   - Balance: $11250.36 CR
 
-10. **01/09/2025**
-    - Description: BPAY Payment BILLER 800207 CRN 9813018480
-    - Withdrawal: $37.98
-    - Deposit: NOT_FOUND
-    - Balance: $39225.87
+10. **Tue 19 Aug 2025**
+    - Transaction: Cash Withdrawal ATM HOBART TAS
+    - Debit: $61.68
+    - Credit: NOT_FOUND
+    - Balance: $3869.92 CR
 
-11. **31/08/2025**
-    - Description: Professional Services Red Energy 68073P1959417
-    - Withdrawal: $2457.87
-    - Deposit: NOT_FOUND
-    - Balance: $39296.85
+11. **Sun 17 Aug 2025**
+    - Transaction: Transfer To Vicks Account NetBank From Tod
+    - Debit: $3775.28
+    - Credit: NOT_FOUND
+    - Balance: $3751.60 CR
 
-12. **29/08/2025**
-    - Description: Card Purchase RED COOSTER Pamaratta SA
-    - Withdrawal: $270.31
-    - Deposit: NOT_FOUND
-    - Balance: $34174.72
+12. **Sat 16 Aug 2025**
+    - Transaction: Salary Payment ATO 65208P39971825
+    - Debit: NOT_FOUND
+    - Credit: $5778.51
+    - Balance: $7526.88 CR
 
-13. **29/08/2025**
-    - Description: Credit Card Purchase CHEMIST WAREHOUSE DISCOUNT RICHMO
-    - Withdrawal: $1957.09
-    - Deposit: NOT_FOUND
-    - Balance: $49255.03
+13. **Fri 15 Aug 2025**
+    - Transaction: Direct Debit MYER PTY LTD
+    - Debit: $245.00
+    - Credit: NOT_FOUND
+    - Balance: $1748.37 CR
 
-14. **27/08/2025**
-    - Description: EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD
-    - Withdrawal: $221.60
-    - Deposit: NOT_FOUND
-    - Balance: $43892.12
+14. **Wed 13 Aug 2025**
+    - Transaction: ATM Withdrawal SYDNEY NSW
+    - Debit: $51.36
+    - Credit: NOT_FOUND
+    - Balance: $2221.48 CR
 
-15. **26/08/2025**
-    - Description: Credit Purchase UTILITIES RED ENERGY CHICKO RHYTHM
-    - Withdrawal: $222.56
-    - Deposit: NOT_FOUND
-    - Balance: $44203.72
+15. **Wed 13 Aug 2025**
+    - Transaction: Direct Debit 65452P29227883 MHF 11016
+    - Debit: $228.11
+    - Credit: NOT_FOUND
+    - Balance: $1993.37 CR
 
-16. **26/08/2025**
-    - Description: Fortnightly Pay ATO PAYROLL 1013235687818
-    - Withdrawal: NOT_FOUND
-    - Deposit: $5679.21
-    - Balance: $44426.28
+16. **Mon 11 Aug 2025**
+    - Transaction: Transfer To Western Port Marina NetBank
+    - Debit: $4374.15
+    - Credit: NOT_FOUND
+    - Balance: $4814.35 CR
 
-17. **26/08/2025**
-    - Description: BAY RUN ACME CORP PTY LTD 005649738218
-    - Withdrawal: $4456.48
-    - Deposit: NOT_FOUND
-    - Balance: $39747.07
-
-18. **24/08/2025**
-    - Description: Salary Payment ATO 30175P32361415
-    - Withdrawal: NOT_FOUND
-    - Deposit: $7951.93
-    - Balance: $33429.01
-
-19. **23/08/2025**
-    - Description: Online Purchase amazon.com.au AUS
-    - Withdrawal: $83.78
-    - Deposit: NOT_FOUND
-    - Balance: $23039.68
-
-20. **22/08/2025**
-    - Description: Salary Payment ATO 2877361201616
-    - Withdrawal: NOT_FOUND
-    - Deposit: $68013.70
-    - Balance: $22843.46
-
-21. **20/08/2025**
-    - Description: Transfer To Vicks Account NetBank 54381P09841102
-    - Withdrawal: $2345.10
-    - Deposit: NOT_FOUND
-    - Balance: $20409.76
-
-22. **20/08/2025**
-    - Description: Salary Payment ATM USA 94148P409207
-    - Withdrawal: NOT_FOUND
-    - Deposit: $3541.27
-    - Balance: $22754.86
-
-23. **20/08/2025**
-    - Description: Transfer To Western Port Merina NetBank from Tod
-    - Withdrawal: $728.48
-    - Deposit: NOT_FOUND
-    - Balance: $19213.59
-
-24. **19/08/2025**
-    - Description: Subscription Netflix 33588P7738153
-    - Withdrawal: $201.14
-    - Deposit: NOT_FOUND
-    - Balance: $19940.07
-
-25. **18/08/2025**
-    - Description: Contactless Payment CHEMIST WAREHOUSE DISCOUNT RICHMO
-    - Withdrawal: $211.28
-    - Deposit: NOT_FOUND
-    - Balance: $19014.21
-
-26. **18/08/2025**
-    - Description: Auto Payment UTILITIES Red Energy 15107P211655
-    - Withdrawal: $33.24
-    - Deposit: NOT_FOUND
-    - Balance: $20305.40
-
-27. **18/08/2025**
-    - Description: Contactless Payment UTILITIES RED ENERGY MACKAY QLD
-    - Withdrawal: $145.70
-    - Deposit: NOT_FOUND
-    - Balance: $20385.73
-
-28. **17/08/2025**
-    - Description: Fortnightly Pay ATO PAYROLL 363857P252498
-    - Withdrawal: NOT_FOUND
-    - Deposit: $7201.19
-    - Balance: $20531.43
-
-29. **14/08/2025**
-    - Description: Centrelink Payment Job Seeker 59302P58000878
-    - Withdrawal: NOT_FOUND
-    - Deposit: $2241.39
-    - Balance: $13330.24
-
-30. **14/08/2025**
-    - Description: International Transaction Fee
-    - Withdrawal: $27.06
-    - Deposit: NOT_FOUND
-    - Balance: $11088.85
-
-31. **13/08/2025**
-    - Description: Equipment Purchase OfficeMax Australia 13554P45...
-    - Withdrawal: $478.86
-    - Deposit: NOT_FOUND
-    - Balance: $11115.91
-
-32. **13/08/2025**
-    - Description: International ATM USA USD
-    - Withdrawal: $280.71
-    - Deposit: NOT_FOUND
-    - Balance: $11594.77
-
-33. **11/08/2025**
-    - Description: Dividend Payment PREMIUM CORP PTY LTD 73535P418...
-    - Withdrawal: NOT_FOUND
-    - Deposit: $6395.00
-    - Balance: $11855.48
-
-34. **11/08/2025**
-    - Description: Invoice PAYMENT HARVEY NORMAN FLAGSHIP PTY LTD.
-    - Withdrawal: $229.39
-    - Deposit: NOT_FOUND
-    - Balance: $5450.39
-
-35. **10/08/2025**
-    - Description: Online Purchase ebay.com.au AUS
-    - Withdrawal: $257.95
-    - Deposit: NOT_FOUND
-    - Balance: $5689.78
-
-36. **10/08/2025**
-    - Description: Subscription Spotify Monthly 53590P642775
-    - Withdrawal: $188.22
-    - Deposit: NOT_FOUND
-    - Balance: $5947.73
-
-37. **09/08/2025**
-    - Description: International Transaction Fee
-    - Withdrawal: $33.83
-    - Deposit: NOT_FOUND
-    - Balance: $5913.95
-
-38. **09/08/2025**
-    - Description: Business Expense UTIL Equipment 68689P8414879
-    - Withdrawal: $625.18
-    - Deposit: NOT_FOUND
-    - Balance: $6167.78
-
-39. **08/08/2025**
-    - Description: Auto Payment UTILITIES Energy Australia 74786P1763...
-    - Withdrawal: $91.94
-    - Deposit: NOT_FOUND
-    - Balance: $60792.06
-
-40. **08/08/2025**
-    - Description: Auto Payment UTILITIES Red Energy 81336P1572266
-    - Withdrawal: $388.57
-    - Deposit: NOT_FOUND
-    - Balance: $6884.00
-
-41. **Closing Balance:**
-    - Description: 
-    - Withdrawal: NOT_FOUND
-    - Deposit: NOT_FOUND
-    - Balance: $48890.58
+17. **Mon 11 Aug 2025**
+    - Transaction: Direct Debit 82572P68016423 MHF 62020
+    - Debit: $214.28
+    - Credit: NOT_FOUND
+    - Balance: $4600.09 CR
