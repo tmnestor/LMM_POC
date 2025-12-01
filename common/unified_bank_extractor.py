@@ -410,12 +410,18 @@ class UnifiedBankExtractor:
         model_type: str = "internvl3",
         config_dir: str | Path | None = None,
         model_dtype: Any = None,
+        image_processing_config: dict[str, Any] | None = None,
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.processor = processor
         self.model_type = model_type.lower()
         self.model_dtype = model_dtype
+
+        # Image processing config (from model_config.yaml)
+        self.image_processing = image_processing_config or {}
+        self.max_tiles = self.image_processing.get("max_tiles", 14)
+        self.input_size = self.image_processing.get("input_size", 448)
 
         self.config_loader = ConfigLoader(config_dir)
         self.column_matcher = ColumnMatcher()
@@ -632,8 +638,8 @@ class UnifiedBankExtractor:
 
         return response
 
-    def _preprocess_image_internvl3(self, image: Any, max_tiles: int = 14) -> Any:
-        """Preprocess image for InternVL3."""
+    def _preprocess_image_internvl3(self, image: Any) -> Any:
+        """Preprocess image for InternVL3 using config from model_config.yaml."""
 
         import torch
         import torchvision.transforms as T
@@ -642,7 +648,8 @@ class UnifiedBankExtractor:
 
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
-        input_size = 448
+        max_tiles = self.max_tiles
+        input_size = self.input_size
 
         def build_transform(input_size):
             return T.Compose(
