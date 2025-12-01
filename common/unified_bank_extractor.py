@@ -79,47 +79,24 @@ class ExtractionResult:
 
 
 class ConfigLoader:
-    """Load YAML configuration files.
+    """Load YAML configuration files from config/ directory."""
 
-    Uses two config directories:
-    - project_config_dir: Shared configs (models.yaml) at project root
-    - domain_config_dir: Domain-specific configs (prompts, column_patterns)
-    """
+    def __init__(self, config_dir: str | Path | None = None):
+        if config_dir is None:
+            config_dir = Path(__file__).parent.parent / "config"
+        self.config_dir = Path(config_dir)
 
-    def __init__(
-        self,
-        domain_config_dir: str | Path | None = None,
-        project_config_dir: str | Path | None = None,
-    ):
-        project_root = Path(__file__).parent.parent
-
-        # Shared configs at project root: config/
-        if project_config_dir is None:
-            project_config_dir = project_root / "config"
-        self.project_config_dir = Path(project_config_dir)
-
-        # Domain-specific configs: bank_statement/config/
-        if domain_config_dir is None:
-            domain_config_dir = project_root / "bank_statement" / "config"
-        self.domain_config_dir = Path(domain_config_dir)
-
-    def load(self, filename: str, domain_specific: bool = True) -> dict:
-        """Load a YAML config file.
-
-        Args:
-            filename: Name of the config file
-            domain_specific: If True, look in domain config dir; else project config dir
-        """
-        config_dir = self.domain_config_dir if domain_specific else self.project_config_dir
-        path = config_dir / filename
+    def load(self, filename: str) -> dict:
+        """Load a YAML config file."""
+        path = self.config_dir / filename
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         with path.open(encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def get_prompt(self, prompt_key: str) -> str:
-        """Get a prompt template from bank_statement_prompts.yaml."""
-        config = self.load("bank_statement_prompts.yaml", domain_specific=True)
+        """Get a prompt template from bank_prompts.yaml."""
+        config = self.load("bank_prompts.yaml")
         prompts = config.get("prompts", {})
         if prompt_key not in prompts:
             raise KeyError(f"Prompt '{prompt_key}' not found")
@@ -127,7 +104,7 @@ class ConfigLoader:
 
     def get_column_patterns(self) -> dict:
         """Get column pattern configuration."""
-        config = self.load("column_patterns.yaml", domain_specific=True)
+        config = self.load("bank_column_patterns.yaml")
         return config.get("patterns", {})
 
 
