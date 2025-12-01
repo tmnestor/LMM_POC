@@ -60,6 +60,7 @@ class ExtractionResult:
     headers_detected: list[str] = field(default_factory=list)
     column_mapping: ColumnMapping | None = None
     raw_responses: dict[str, str] = field(default_factory=dict)
+    correction_stats: Any = None  # CorrectionStats, uses Any to avoid forward ref
 
     def to_schema_dict(self) -> dict[str, str]:
         """Convert to schema format with pipe-delimited fields."""
@@ -386,6 +387,199 @@ class TransactionFilter:
         return debit_rows
 
 
+@dataclass
+class CorrectionStats:
+    """Statistics from balance correction."""
+
+    total_transactions: int = 0
+    debits_found: int = 0
+    credits_found: int = 0
+    corrections_made: int = 0
+    amount_corrections: int = 0
+    type_corrections: int = 0  # debit<->credit swaps
+    unparseable_balances: int = 0
+
+    def __str__(self) -> str:
+        return (
+            f"Transactions: {self.total_transactions}, "
+            f"Debits: {self.debits_found}, Credits: {self.credits_found}, "
+            f"Corrections: {self.corrections_made} "
+            f"(type: {self.type_corrections}, amount: {self.amount_corrections})"
+        )
+
+
+class BalanceCorrector:
+    """Correct debit/credit classification using balance arithmetic.
+
+    Uses the mathematical relationship between consecutive balances to verify
+    and correct the LLM's classification of transactions as debits or credits.
+
+    Logic:
+        balance_change = current_balance - previous_balance
+        if balance_change < 0: transaction is a DEBIT of abs(balance_change)
+        if balance_change > 0: transaction is a CREDIT of balance_change
+    """
+
+    def __init__(self, tolerance: float = 0.01):
+        """Initialize corrector.
+
+        Args:
+            tolerance: Allowed difference for amount matching (default 0.01)
+        """
+        self.tolerance = tolerance
+
+    @staticmethod
+    def parse_balance(value: str) -> float | None:
+        """Parse balance string to float, return None if unparseable."""
+        if not value or not value.strip():
+            return None
+        cleaned = (
+            value.replace("$", "")
+            .replace(",", "")
+            .replace("CR", "")
+            .replace("DR", "")
+            .strip()
+        )
+        # Handle parentheses for negative (e.g., "(100.00)")
+        if cleaned.startswith("(") and cleaned.endswith(")"):
+            cleaned = "-" + cleaned[1:-1]
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+
+    def correct_transactions(
+        self,
+        rows: list[dict[str, str]],
+        balance_col: str,
+        debit_col: str,
+        credit_col: str,
+        desc_col: str | None = None,
+    ) -> tuple[list[dict[str, str]], CorrectionStats]:
+        """Correct transaction classifications using balance deltas.
+
+        Args:
+            rows: Parsed transaction rows with balance, debit, credit columns
+            balance_col: Name of balance column
+            debit_col: Name of debit column
+            credit_col: Name of credit column
+            desc_col: Name of description column (for skipping non-transactions)
+
+        Returns:
+            Tuple of (corrected_rows, correction_stats)
+        """
+        stats = CorrectionStats(total_transactions=len(rows))
+        corrected_rows = []
+
+        prev_balance: float | None = None
+
+        for row in rows:
+            # Skip non-transaction entries
+            if desc_col and TransactionFilter.is_non_transaction(row, desc_col):
+                continue
+
+            # Parse current balance
+            balance_str = row.get(balance_col, "")
+            current_balance = self.parse_balance(balance_str)
+
+            if current_balance is None:
+                stats.unparseable_balances += 1
+                # Keep original classification if balance unparseable
+                corrected_rows.append(row.copy())
+                prev_balance = None
+                continue
+
+            # Need previous balance to calculate delta
+            if prev_balance is None:
+                prev_balance = current_balance
+                corrected_rows.append(row.copy())
+                # Count based on LLM classification
+                if self._has_amount(row, debit_col):
+                    stats.debits_found += 1
+                elif self._has_amount(row, credit_col):
+                    stats.credits_found += 1
+                continue
+
+            # Calculate balance change
+            balance_delta = current_balance - prev_balance
+            corrected_row = row.copy()
+
+            # Get LLM's classification
+            llm_debit = TransactionFilter.parse_amount(row.get(debit_col, ""))
+            llm_credit = TransactionFilter.parse_amount(row.get(credit_col, ""))
+
+            # Determine correct classification from balance delta
+            if abs(balance_delta) < self.tolerance:
+                # No significant change - keep original
+                pass
+            elif balance_delta < 0:
+                # Balance decreased = DEBIT
+                correct_amount = abs(balance_delta)
+                stats.debits_found += 1
+
+                # Check if LLM classified correctly
+                if llm_debit > 0 and abs(llm_debit - correct_amount) < self.tolerance:
+                    # Correct classification and amount
+                    pass
+                elif llm_credit > 0:
+                    # LLM said credit, but it's a debit - CORRECT IT
+                    corrected_row[debit_col] = f"${correct_amount:.2f}"
+                    corrected_row[credit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
+                    stats.type_corrections += 1
+                elif llm_debit > 0:
+                    # Right type, wrong amount - correct amount
+                    if abs(llm_debit - correct_amount) >= self.tolerance:
+                        corrected_row[debit_col] = f"${correct_amount:.2f}"
+                        stats.corrections_made += 1
+                        stats.amount_corrections += 1
+                else:
+                    # No amount found - add it
+                    corrected_row[debit_col] = f"${correct_amount:.2f}"
+                    corrected_row[credit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
+
+            else:
+                # Balance increased = CREDIT
+                correct_amount = balance_delta
+                stats.credits_found += 1
+
+                # Check if LLM classified correctly
+                if llm_credit > 0 and abs(llm_credit - correct_amount) < self.tolerance:
+                    # Correct classification and amount
+                    pass
+                elif llm_debit > 0:
+                    # LLM said debit, but it's a credit - CORRECT IT
+                    corrected_row[credit_col] = f"${correct_amount:.2f}"
+                    corrected_row[debit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
+                    stats.type_corrections += 1
+                elif llm_credit > 0:
+                    # Right type, wrong amount - correct amount
+                    if abs(llm_credit - correct_amount) >= self.tolerance:
+                        corrected_row[credit_col] = f"${correct_amount:.2f}"
+                        stats.corrections_made += 1
+                        stats.amount_corrections += 1
+                else:
+                    # No amount found - add it
+                    corrected_row[credit_col] = f"${correct_amount:.2f}"
+                    corrected_row[debit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
+
+            corrected_rows.append(corrected_row)
+            prev_balance = current_balance
+
+        return corrected_rows, stats
+
+    @staticmethod
+    def _has_amount(row: dict[str, str], col: str) -> bool:
+        """Check if column has a valid amount."""
+        value = row.get(col, "").strip()
+        if not value or value.upper() == "NOT_FOUND":
+            return False
+        return TransactionFilter.parse_amount(value) > 0
+
+
 class UnifiedBankExtractor:
     """Unified bank statement extractor with automatic strategy selection.
 
@@ -509,7 +703,7 @@ class UnifiedBankExtractor:
         mapping: ColumnMapping,
         turn0_response: str,
     ) -> ExtractionResult:
-        """Execute 2-turn balance-description extraction."""
+        """Execute 2-turn balance-description extraction with balance correction."""
         import torch
 
         # Build Turn 1 prompt with actual column names
@@ -524,36 +718,50 @@ class UnifiedBankExtractor:
         print("Turn 1: Extracting transactions...")
         response = self._generate(image, prompt, max_tokens=4096)
 
+        # Column name shortcuts
+        date_col = mapping.date or "Date"
+        desc_col = mapping.description or "Description"
+        debit_col = mapping.debit or "Debit"
+        credit_col = mapping.credit or "Credit"
+        balance_col = mapping.balance or "Balance"
+
         # Parse response
         all_rows = self.parser.parse_balance_description(
             response,
-            date_col=mapping.date or "Date",
-            desc_col=mapping.description or "Description",
-            debit_col=mapping.debit or "Debit",
-            credit_col=mapping.credit or "Credit",
-            balance_col=mapping.balance or "Balance",
+            date_col=date_col,
+            desc_col=desc_col,
+            debit_col=debit_col,
+            credit_col=credit_col,
+            balance_col=balance_col,
         )
         print(f"  Parsed {len(all_rows)} transactions")
 
-        # Filter for debits
-        debit_rows = self.filter.filter_debits(
+        # Apply balance correction
+        corrector = BalanceCorrector()
+        corrected_rows, correction_stats = corrector.correct_transactions(
             all_rows,
-            debit_col=mapping.debit or "Debit",
-            desc_col=mapping.description,
+            balance_col=balance_col,
+            debit_col=debit_col,
+            credit_col=credit_col,
+            desc_col=desc_col,
+        )
+        print(f"  Balance correction: {correction_stats}")
+
+        # Filter for debits (from corrected rows)
+        debit_rows = self.filter.filter_debits(
+            corrected_rows,
+            debit_col=debit_col,
+            desc_col=desc_col,
         )
         print(f"  Filtered to {len(debit_rows)} debit transactions")
 
         # Extract schema fields
-        date_col = mapping.date or "Date"
-        desc_col = mapping.description or "Description"
-        debit_col = mapping.debit or "Debit"
-
         dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
         descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
         amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
 
         # Calculate date range from all transactions
-        all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
+        all_dates = [r.get(date_col, "") for r in corrected_rows if r.get(date_col)]
         date_range = f"{all_dates[0]} - {all_dates[-1]}" if all_dates else "NOT_FOUND"
 
         # Free memory
@@ -569,6 +777,7 @@ class UnifiedBankExtractor:
             headers_detected=headers,
             column_mapping=mapping,
             raw_responses={"turn0": turn0_response, "turn1": response},
+            correction_stats=correction_stats,
         )
 
     def _generate(self, image: Any, prompt: str, max_tokens: int = 4096) -> str:
