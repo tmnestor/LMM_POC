@@ -1,0 +1,86 @@
+# Model configurations for unified bank statement extraction
+# Each model has specific loading and generation settings
+
+models:
+  llama_3_2_vision:
+    name: "Llama-3.2-11B-Vision-Instruct"
+    type: "llama"
+    default_path: "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct"
+
+    loading:
+      use_quantization: false
+      device_map: "auto"
+      torch_dtype: "bfloat16"
+      low_cpu_mem_usage: true
+      tie_weights: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+      temperature: null
+      top_p: null
+
+    # Llama-specific: uses processor.apply_chat_template
+    chat_template: true
+
+  internvl3_8b:
+    name: "InternVL3-8B"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3-8B"
+
+    loading:
+      # Single GPU: 8-bit quantization
+      # Multi GPU: bfloat16 with device_map
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 14  # V100 optimized
+      input_size: 448
+      use_thumbnail: true
+
+  internvl3_2b:
+    name: "InternVL3-2B"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3-2B"
+
+    loading:
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 18
+      input_size: 448
+      use_thumbnail: true
+
+  internvl3_5_8b:
+    name: "InternVL3.5-8B"
+    type: "internvl3"
+    default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
+
+    loading:
+      use_flash_attn: false
+      trust_remote_code: true
+      low_cpu_mem_usage: true
+
+    generation:
+      max_new_tokens: 4096
+      do_sample: false
+
+    image_processing:
+      max_tiles: 14
+      input_size: 448
+      use_thumbnail: true
+
+# Default model to use if not specified
+default_model: "internvl3_8b"

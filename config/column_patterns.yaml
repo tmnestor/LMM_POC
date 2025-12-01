@@ -1,0 +1,88 @@
+# Column pattern matching configuration for bank statement extraction
+# Used to map detected headers to semantic field types
+
+version: "1.0"
+description: "Column header pattern matching for bank statements"
+
+patterns:
+  date:
+    keywords:
+      - "date"
+      - "day"
+      - "transaction date"
+      - "trans date"
+    priority: 1
+    required: true
+
+  description:
+    keywords:
+      - "description"
+      - "details"
+      - "transaction details"
+      - "trans details"
+      - "particulars"
+      - "narrative"
+      - "transaction"
+      - "trans"
+    priority: 2
+    required: true
+
+  debit:
+    keywords:
+      - "debit"
+      - "debits"
+      - "withdrawal"
+      - "withdrawals"
+      - "paid"
+      - "paid out"
+      - "spent"
+      - "dr"
+    priority: 3
+    required: true
+
+  credit:
+    keywords:
+      - "credit"
+      - "credits"
+      - "deposit"
+      - "deposits"
+      - "received"
+      - "cr"
+    priority: 4
+    required: false
+
+  balance:
+    keywords:
+      - "balance"
+      - "bal"
+      - "running balance"
+    priority: 5
+    required: false  # Not all statements have balance column
+
+  amount:
+    keywords:
+      - "amount"
+      - "amt"
+      - "value"
+      - "total"
+    priority: 6
+    required: false  # Fallback for single-amount-column formats
+
+# Strategy selection based on detected columns
+strategy_selection:
+  balance_description:
+    description: "2-turn balance-anchored extraction"
+    requires:
+      - "balance"
+    turns: 2
+
+  table_extraction:
+    description: "3-turn table extraction with format classification"
+    requires: []  # Works without balance column
+    turns: 3
+
+  # Default strategy when balance column exists
+  default_with_balance: "balance_description"
+
+  # Fallback when no balance column
+  default_without_balance: "table_extraction"

@@ -1,0 +1,100 @@
+# Prompt templates for unified bank statement extraction
+# Uses structure-dynamic approach: column names are injected at runtime
+
+version: "1.0"
+description: "Bank statement extraction prompts for 2-turn balance-description strategy"
+
+prompts:
+  # Turn 0: Header detection (shared across all strategies)
+  turn0_header_detection:
+    name: "Header Detection"
+    description: "Identify exact column headers from bank statement image"
+    template: |
+      Look at the transaction table in this bank statement image.
+
+      What are the exact column header names used in the transaction table?
+
+      List each column header exactly as it appears, in order from left to right.
+      Do not interpret or rename them - use the EXACT text from the image.
+
+  # Turn 1: Balance-description extraction (2-turn strategy)
+  turn1_balance_extraction:
+    name: "Balance-Description Extraction"
+    description: "Extract transactions anchored to balance column"
+    # Placeholders: {balance_col}, {desc_col}, {debit_col}, {credit_col}
+    template: |
+      List all the balances in the {balance_col} column, including:
+      - Date from the Date Header of the balance
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each balance entry like this:
+      1. **[Date]**
+         - {desc_col}: [description text]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY balance entry in order from top to bottom
+      2. EVERY balance entry has a date, either on the same row, or above
+      3. Include the FULL description text, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any transactions
+
+  # Turn 0.5: Format classification (3-turn strategy)
+  turn0_5_format_classification:
+    name: "Date Format Classification"
+    description: "Classify whether dates are per-row or grouped"
+    # Placeholder: {header_string}
+    template: |
+      Look at this bank statement transaction table with columns: {header_string}
+
+      Classify the DATE FORMAT used in this table:
+
+      **Option A: Date-per-row**
+      - Each transaction row has its own date in the first column
+      - Example: Every row shows "15 Jan", "16 Jan", etc.
+
+      **Option B: Date-grouped**
+      - Dates appear as section headers above groups of transactions
+      - Transaction rows may have empty or blank date cells
+      - Multiple transactions share the same date header
+
+      Respond with ONLY: "Date-per-row" or "Date-grouped"
+
+  # Turn 1: Table extraction (3-turn strategy, date-per-row variant)
+  turn1_table_date_per_row:
+    name: "Table Extraction (Date-per-row)"
+    description: "Extract markdown table for date-per-row format"
+    template: |
+      Extract the transaction table as markdown.
+
+      Example format:
+      {example_table}
+
+      Rules:
+      - Include ALL transactions
+      - Use exact column headers from the image
+      - Empty cells should be blank (not "N/A")
+
+  # Turn 1: Table extraction (3-turn strategy, date-grouped variant)
+  turn1_table_date_grouped:
+    name: "Table Extraction (Date-grouped)"
+    description: "Extract markdown table for date-grouped format with date distribution"
+    template: |
+      Extract the transaction table as markdown.
+
+      If you see this structure (dates as section headers with empty cells):
+      {source_table}
+
+      Transform to this format (date on every row):
+      {target_table}
+
+      Rules:
+      - DISTRIBUTE date headers to all transactions under them
+      - Each transaction row MUST have a date
+      - Include ALL transactions
+      - Empty amount cells should be blank
