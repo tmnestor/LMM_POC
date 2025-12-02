@@ -25,6 +25,7 @@ class ExtractionStrategy(Enum):
 
     BALANCE_DESCRIPTION = auto()  # 2-turn: header detection + balance extraction
     AMOUNT_DESCRIPTION = auto()  # 2-turn: header + amount extraction (negative = debit)
+    DEBIT_CREDIT_DESCRIPTION = auto()  # 2-turn: header + debit/credit extraction (no balance)
     TABLE_EXTRACTION = auto()  # 3-turn: header + format classify + table
 
 
@@ -797,6 +798,9 @@ class UnifiedBankExtractor:
             "turn0": self.config_loader.get_prompt("turn0_header_detection"),
             "turn1_balance": self.config_loader.get_prompt("turn1_balance_extraction"),
             "turn1_amount": self.config_loader.get_prompt("turn1_amount_extraction"),
+            "turn1_debit_credit": self.config_loader.get_prompt(
+                "turn1_debit_credit_extraction"
+            ),
         }
 
     def extract(
@@ -840,6 +844,9 @@ class UnifiedBankExtractor:
         elif mapping.amount and not mapping.has_balance:
             strategy = ExtractionStrategy.AMOUNT_DESCRIPTION
             reason = "Amount column detected (no balance)"
+        elif mapping.debit and not mapping.has_balance:
+            strategy = ExtractionStrategy.DEBIT_CREDIT_DESCRIPTION
+            reason = "Debit/Credit columns detected (no balance)"
         else:
             strategy = ExtractionStrategy.TABLE_EXTRACTION
             reason = "Fallback to table extraction"
@@ -853,6 +860,10 @@ class UnifiedBankExtractor:
             )
         elif strategy == ExtractionStrategy.AMOUNT_DESCRIPTION:
             result = self._extract_amount_description(
+                image, headers, mapping, turn0_response
+            )
+        elif strategy == ExtractionStrategy.DEBIT_CREDIT_DESCRIPTION:
+            result = self._extract_debit_credit_description(
                 image, headers, mapping, turn0_response
             )
         else:
@@ -1029,6 +1040,75 @@ class UnifiedBankExtractor:
             line_item_descriptions=descriptions,
             transaction_amounts_paid=amounts,
             strategy_used="amount_description_2turn",
+            turns_executed=2,
+            headers_detected=headers,
+            column_mapping=mapping,
+            raw_responses={"turn0": turn0_response, "turn1": response},
+        )
+
+    def _extract_debit_credit_description(
+        self,
+        image: Any,
+        headers: list[str],
+        mapping: ColumnMapping,
+        turn0_response: str,
+    ) -> ExtractionResult:
+        """Execute 2-turn debit-credit extraction for statements without balance."""
+        import torch
+
+        # Build Turn 1 prompt with actual column names
+        prompt_template = self._prompts["turn1_debit_credit"]
+        prompt = prompt_template.format(
+            debit_col=mapping.debit or "Debit",
+            credit_col=mapping.credit or "Credit",
+            desc_col=mapping.description or "Transaction",
+        )
+
+        print("Turn 1: Extracting transactions (debit-credit)...")
+        response = self._generate(image, prompt, max_tokens=4096)
+
+        # Column name shortcuts
+        date_col = mapping.date or "Date"
+        desc_col = mapping.description or "Transaction"
+        debit_col = mapping.debit or "Debit"
+        credit_col = mapping.credit or "Credit"
+
+        # Parse response - reuse balance-description parser (same format)
+        all_rows = self.parser.parse_balance_description(
+            response,
+            date_col=date_col,
+            desc_col=desc_col,
+            debit_col=debit_col,
+            credit_col=credit_col,
+            balance_col="Balance",  # Placeholder, not used
+        )
+        print(f"  Parsed {len(all_rows)} transactions")
+
+        # Filter for debits
+        debit_rows = self.filter.filter_debits(
+            all_rows,
+            debit_col=debit_col,
+            desc_col=desc_col,
+        )
+        print(f"  Filtered to {len(debit_rows)} debit transactions")
+
+        # Extract schema fields
+        dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
+        descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
+        amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
+
+        # Date range from all transactions
+        all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
+        date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
+
+        torch.cuda.empty_cache()
+
+        return ExtractionResult(
+            statement_date_range=date_range,
+            transaction_dates=dates,
+            line_item_descriptions=descriptions,
+            transaction_amounts_paid=amounts,
+            strategy_used="debit_credit_description_2turn",
             turns_executed=2,
             headers_detected=headers,
             column_mapping=mapping,
