@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "batch_id": "20251202_024543",
+    "model": "InternVL3.5-8B (bfloat16)",
+    "evaluation_method": "order_aware_f1",
+    "total_images": 3,
+    "successful": 3,
+    "failed": 0
+  },
+  "summary": {
+    "avg_accuracy": 0.92889583447177,
+    "min_accuracy": 0.8227028290858079,
+    "max_accuracy": 1.0,
+    "avg_processing_time": 138.30224601427713
+  },
+  "results": [
+    {
+      "image_name": "image_003.png",
+      "image_path": "evaluation_data/bank/minimal/image_003.png",
+      "extracted_fields": {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": "03/05/2025 - 10/05/2025",
+        "TRANSACTION_DATES": "03/05/2025 | 04/05/2025 | 05/05/2025 | 07/05/2025 | 08/05/2025 | 10/05/2025",
+        "LINE_ITEM_DESCRIPTIONS": "ONLINE PURCHASE AMAZON AU | EFTPOS PURCHASE COLES EXP | EFTPOS PURCHASE COLES EXP | ATM WITHDRAWAL ANZ ATM | EFTPOS PURCHASE COLES EXP | ATM WITHDRAWAL ANZ ATM",
+        "TRANSACTION_AMOUNTS_PAID": "$288.03 | $22.50 | $114.66 | $187.59 | $112.50 | $146.72"
+      },
+      "metadata": {
+        "headers_detected": [
+          "Date",
+          "Description",
+          "Withdrawal",
+          "Deposit",
+          "Balance"
+        ],
+        "date_format": "balance_description_2turn",
+        "corrections_made": 0,
+        "total_rows": 6,
+        "debit_rows": 6,
+        "turn0_raw_response": "The exact column header names used in the transaction table are:\n\n1. Date\n2. Description\n3. Withdrawal\n4. Deposit\n5. Balance",
+        "turn1_raw_response": "1. **03/05/2025**\n   - Description: ONLINE PURCHASE AMAZON AU\n   - Withdrawal: $288.03\n   - Deposit: NOT_FOUND\n   - Balance: $13367.44\n\n2. **04/05/2025**\n   - Description: EFTPOS PURCHASE COLES EXP\n   - Withdrawal: $22.50\n   - Deposit: NOT_FOUND\n   - Balance: $13344.94\n\n3. **05/05/2025**\n   - Description: EFTPOS PURCHASE COLES EXP\n   - Withdrawal: $114.66\n   - Deposit: NOT_FOUND\n   - Balance: $13230.27\n\n4. **06/05/2025**\n   - Description: DIRECT CREDIT SALARY\n   - Withdrawal: NOT_FOUND\n   - Deposit: $3497.47\n   - Balance: $16727.74\n\n5. **07/05/2025**\n   - Description: ATM WITHDRAWAL ANZ ATM\n   - Withdrawal: $187.59\n   - Deposit: NOT_FOUND\n   - Balance: $16540.15\n\n6. **08/05/2025**\n   - Description: EFTPOS PURCHASE COLES EXP\n   - Withdrawal: $112.50\n   - Deposit: NOT_FOUND\n   - Balance: $16427.65\n\n7. **09/05/2025**\n   - Description: INTEREST PAYMENT\n   - Withdrawal: NOT_FOUND\n   - Deposit: $5.16\n   - Balance: $16432.81\n\n8. **10/05/2025**\n   - Description: ATM WITHDRAWAL ANZ ATM\n   - Withdrawal: $146.72\n   - Deposit: NOT_FOUND\n   - Balance: $16286.08"
+      },
+      "evaluation": {
+        "image_name": "image_003.png",
+        "method": "order_aware_f1",
+        "overall_accuracy": 1.0,
+        "field_scores": {
+          "DOCUMENT_TYPE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "BANK_STATEMENT",
+            "ground_truth": "BANK_STATEMENT"
+          },
+          "STATEMENT_DATE_RANGE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "03/05/2025 - 10/05/2025",
+            "ground_truth": "03/05/2025 - 10/05/2025"
+          },
+          "TRANSACTION_DATES": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "03/05/2025 | 04/05/2025 | 05/05/2025 | 07/05/2025 | 08/05/2025 | 10/05/2025",
+            "ground_truth": "03/05/2025 | 04/05/2025 | 05/05/2025 | 07/05/2025 | 08/05/2025 | 10/05/2025"
+          },
+          "LINE_ITEM_DESCRIPTIONS": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "ONLINE PURCHASE AMAZON AU | EFTPOS PURCHASE COLES EXP | EFTPOS PURCHASE COLES EXP | ATM WITHDRAWAL A",
+            "ground_truth": "ONLINE PURCHASE AMAZON AU | EFTPOS PURCHASE COLES EXP | EFTPOS PURCHASE COLES EXP | ATM WITHDRAWAL A"
+          },
+          "TRANSACTION_AMOUNTS_PAID": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "$288.03 | $22.50 | $114.66 | $187.59 | $112.50 | $146.72",
+            "ground_truth": "$288.03 | $22.50 | $114.66 | $187.59 | $112.50 | $146.72"
+          }
+        }
+      },
+      "processing_time": 55.4342679977417
+    },
+    {
+      "image_name": "image_009.png",
+      "image_path": "evaluation_data/bank/minimal/image_009.png",
+      "extracted_fields": {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": "11 Aug 2025 - 04 Sep 2025",
+        "TRANSACTION_DATES": "Thu 04 Sep 2025 | Mon 01 Sep 2025 | Sun 31 Aug 2025 | Fri 29 Aug 2025 | Wed 27 Aug 2025 | Sat 23 Aug 2025 | Sat 23 Aug 2025 | Thu 21 Aug 2025 | Tue 19 Aug 2025 | Sun 17 Aug 2025 | Fri 15 Aug 2025 | Wed 13 Aug 2025 | Wed 13 Aug 2025 | Mon 11 Aug 2025 | Mon 11 Aug 2025",
+        "LINE_ITEM_DESCRIPTIONS": "Direct Debit DOMINO'S PTY LTD | Monthly Service Fee | Monthly Service Fee | Wdl ATM WBC WESTPAC GLEN WAVE | Direct Debit 94924P49133289 MHF 75696 | Cash Withdrawal ATM SYDNEY NSW | Home Loan Payment LN REPAY 56052P41706870 | Direct Debit COLES PTY LTD | Cash Withdrawal ATM HOBART TAS | Transfer To Vicks Account NetBank From Tod | Direct Debit MYER PTY LTD | ATM Withdrawal SYDNEY NSW | Direct Debit 65452P29227883 MHF 11016 | Transfer To Western Port Marina NetBank | Direct Debit 82572P68016423 MHF 62020",
+        "TRANSACTION_AMOUNTS_PAID": "$117.57 | $17.89 | $18.87 | $241.14 | $251.33 | $98.53 | $1918.75 | $276.31 | $61.68 | $3775.28 | $245.00 | $51.36 | $228.11 | $4374.15 | $214.28"
+      },
+      "metadata": {
+        "headers_detected": [
+          "Date",
+          "Transaction",
+          "Debit",
+          "Credit",
+          "Balance"
+        ],
+        "date_format": "balance_description_2turn",
+        "corrections_made": 0,
+        "total_rows": 15,
+        "debit_rows": 15,
+        "turn0_raw_response": "The exact column header names used in the transaction table are:\n\n1. Date\n2. Transaction\n3. Debit\n4. Credit\n5. Balance",
+        "turn1_raw_response": "1. **Thu 04 Sep 2025**\n   - Transaction: Direct Debit DOMINO'S PTY LTD\n   - Debit: $117.57\n   - Credit: NOT_FOUND\n   - Balance: $8586.28 CR\n\n2. **Mon 01 Sep 2025**\n   - Transaction: Monthly Service Fee\n   - Debit: $17.89\n   - Credit: NOT_FOUND\n   - Balance: $8703.85 CR\n\n3. **Sun 31 Aug 2025**\n   - Transaction: Monthly Service Fee\n   - Debit: $18.87\n   - Credit: NOT_FOUND\n   - Balance: $8721.74 CR\n\n4. **Fri 29 Aug 2025**\n   - Transaction: Wdl ATM WBC WESTPAC GLEN WAVE\n   - Debit: $241.14\n   - Credit: NOT_FOUND\n   - Balance: $8740.61 CR\n\n5. **Wed 27 Aug 2025**\n   - Transaction: Direct Debit 94924P49133289 MHF 75696\n   - Debit: $251.33\n   - Credit: NOT_FOUND\n   - Balance: $9080.28 CR\n\n6. **Sat 23 Aug 2025**\n   - Transaction: Cash Withdrawal ATM SYDNEY NSW\n   - Debit: $98.53\n   - Credit: NOT_FOUND\n   - Balance: $8981.75 CR\n\n7. **Sat 23 Aug 2025**\n   - Transaction: Home Loan Payment LN REPAY 56052P41706870\n   - Debit: $1918.75\n   - Credit: NOT_FOUND\n   - Balance: $8331.61 CR\n\n8. **Thu 21 Aug 2025**\n   - Transaction: Salary - ATO PAYROLL 89278P11488576\n   - Debit: NOT_FOUND\n   - Credit: $7836.75\n   - Balance: $11526.67 CR\n\n9. **Thu 21 Aug 2025**\n   - Transaction: Direct Debit COLES PTY LTD\n   - Debit: $276.31\n   - Credit: NOT_FOUND\n   - Balance: $11250.36 CR\n\n10. **Tue 19 Aug 2025**\n    - Transaction: Cash Withdrawal ATM HOBART TAS\n    - Debit: $61.68\n    - Credit: NOT_FOUND\n    - Balance: $3869.92 CR\n\n11. **Sun 17 Aug 2025**\n    - Transaction: Transfer To Vicks Account NetBank From Tod\n    - Debit: $3775.28\n    - Credit: NOT_FOUND\n    - Balance: $3751.60 CR\n\n12. **Sat 16 Aug 2025**\n    - Transaction: Salary Payment ATO 65208P39971825\n    - Debit: NOT_FOUND\n    - Credit: $5778.51\n    - Balance: $7526.88 CR\n\n13. **Fri 15 Aug 2025**\n    - Transaction: Direct Debit MYER PTY LTD\n    - Debit: $245.00\n    - Credit: NOT_FOUND\n    - Balance: $1748.37 CR\n\n14. **Wed 13 Aug 2025**\n    - Transaction: ATM Withdrawal SYDNEY NSW\n    - Debit: $51.36\n    - Credit: NOT_FOUND\n    - Balance: $2221.48 CR\n\n15. **Wed 13 Aug 2025**\n    - Transaction: Direct Debit 65452P29227883 MHF 11016\n    - Debit: $228.11\n    - Credit: NOT_FOUND\n    - Balance: $1993.37 CR\n\n16. **Mon 11 Aug 2025**\n    - Transaction: Transfer To Western Port Marina NetBank\n    - Debit: $4374.15\n    - Credit: NOT_FOUND\n    - Balance: $4814.35 CR\n\n17. **Mon 11 Aug 2025**\n    - Transaction: Direct Debit 82572P68016423 MHF 62020\n    - Debit: $214.28\n    - Credit: NOT_FOUND\n    - Balance: $4600.09 CR"
+      },
+      "evaluation": {
+        "image_name": "image_009.png",
+        "method": "order_aware_f1",
+        "overall_accuracy": 0.9639846743295019,
+        "field_scores": {
+          "DOCUMENT_TYPE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "BANK_STATEMENT",
+            "ground_truth": "BANK_STATEMENT"
+          },
+          "STATEMENT_DATE_RANGE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "11 Aug 2025 - 04 Sep 2025",
+            "ground_truth": "11 Aug 2025 - 04 Sep 2025"
+          },
+          "TRANSACTION_DATES": {
+            "f1_score": 0.9655172413793104,
+            "precision": 1.0,
+            "recall": 0.9333333333333333,
+            "extracted": "Thu 04 Sep 2025 | Mon 01 Sep 2025 | Sun 31 Aug 2025 | Fri 29 Aug 2025 | Wed 27 Aug 2025 | Sat 23 Aug",
+            "ground_truth": "04 Sep 2025 | 01 Sep 2025 | 31 Aug 2025 | 29 Aug 2025 | 27 Aug 2025 | 27 Aug 2025 | 23 Aug 2025 | 21"
+          },
+          "LINE_ITEM_DESCRIPTIONS": {
+            "f1_score": 0.888888888888889,
+            "precision": 1.0,
+            "recall": 0.8,
+            "extracted": "Direct Debit DOMINO'S PTY LTD | Monthly Service Fee | Monthly Service Fee | Wdl ATM WBC WESTPAC GLEN",
+            "ground_truth": "Direct Debit DOMINO'S PTY LTD | Monthly Service Fee | Monthly Service Fee | Wdl ATM WBC WESTPAC GLEN"
+          },
+          "TRANSACTION_AMOUNTS_PAID": {
+            "f1_score": 0.9655172413793104,
+            "precision": 1.0,
+            "recall": 0.9333333333333333,
+            "extracted": "$117.57 | $17.89 | $18.87 | $241.14 | $251.33 | $98.53 | $1918.75 | $276.31 | $61.68 | $3775.28 | $2",
+            "ground_truth": "$117.57 | $17.89 | $18.87 | $241.14 | $251.33 | $98.53 | $1918.75 | $276.31 | $61.68 | $3775.28 | $2"
+          }
+        }
+      },
+      "processing_time": 100.10855555534363
+    },
+    {
+      "image_name": "image_008.png",
+      "image_path": "evaluation_data/bank/minimal/image_008.png",
+      "extracted_fields": {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": "08/08/2025 - 07/09/2025",
+        "TRANSACTION_DATES": "07/09/2025 | 06/09/2025 | 04/09/2025 | 03/09/2025 | 02/09/2025 | 01/09/2025 | 01/09/2025 | 01/09/2025 | 31/08/2025 | 29/08/2025 | 29/08/2025 | 27/08/2025 | 26/08/2025 | 23/08/2025 | 20/08/2025 | 20/08/2025 | 19/08/2025 | 18/08/2025 | 18/08/2025 | 18/08/2025 | 14/08/2025 | 13/08/2025 | 13/08/2025 | 11/08/2025 | 10/08/2025 | 10/08/2025 | 09/08/2025 | 09/08/2025 | 08/08/2025 | 08/08/2025",
+        "LINE_ITEM_DESCRIPTIONS": "EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | EFTPOS Purchase OFFICEWORKS3 KIIS553 RONKAPMTO... | Mortgage Payment MORTGAGE 6193978555 RICKHAB | OSKO Payment to MIKE CHEN 080848P5773133 | Direct Debit 15395PA 180823 MFM 42730 | DD INSURANCE ACME CORP PTY LTD 62321242151853 | Auto Payment UTILITIES AG1 67840P954344 | BPAY Payment BILLER 800207 CRN 9813018480 | Professional Services Red Energy 68073P1959417 | Card Purchase RED COOSTER Pamaratta SA | Credit Card Purchase CHEMIST WAREHOUSE DISCOUNT RICH... | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD | BAY RUN ACME CORP PTY LTD 0056459738218 | Online Purchase amazons.com.au AUS | Transfer To Vicks Account NetBank 54381P09841102 | Transfer To Western Port Merina NetBank from Tod | Subscription Netflix 33588P7738153 | Contactless Payment CHEMIST WAREHOUSE DISCOUNT RICH... | Auto Payment UTILITIES Red Energy 15107P211655 | Contactless Payment CHEMIST WAREHOUSE DISCOUNT RICH... | International Transaction Fee | Equipment Purchase OfficeMax Australia 13554P45... | International ATM USA USD | Invoice PAYMENT HARVEY NORMAN FLAGSHIP PTY LTD. | Online Purchase ebay.com.au AUS | Subscription Spotify Monthly 15390P542775 | International Transaction Fee | Business Expense IT Equipment 66889P8414879 | Auto Payment UTILITIES Energy Australia 74786P1763... | Auto Payment UTILITIES Red Energy 81336P1572266",
+        "TRANSACTION_AMOUNTS_PAID": "$322.18 | $64.33 | $6849.79 | $1385.43 | $199.17 | $45.04 | $287.50 | $37.98 | $2457.87 | $270.31 | $1957.09 | $221.60 | $4456.48 | $83.78 | $2345.10 | $728.48 | $201.14 | $211.28 | $33.24 | $145.70 | $27.06 | $478.86 | $280.71 | $229.31 | $257.95 | $188.22 | $33.83 | $625.18 | $91.94 | $388.57"
+      },
+      "metadata": {
+        "headers_detected": [
+          "Date",
+          "Description",
+          "Withdrawal",
+          "Deposit",
+          "Balance"
+        ],
+        "date_format": "balance_description_2turn",
+        "corrections_made": 0,
+        "total_rows": 30,
+        "debit_rows": 30,
+        "turn0_raw_response": "The exact column header names used in the transaction table are:\n\n1. Date\n2. Description\n3. Withdrawal\n4. Deposit\n5. Balance",
+        "turn1_raw_response": "1. **07/09/2025**\n   - Description: EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD\n   - Withdrawal: $322.18\n   - Deposit: NOT_FOUND\n   - Balance: $48890.58\n\n2. **06/09/2025**\n   - Description: EFTPOS Purchase OFFICEWORKS3 KIIS553 RONKAPMTO...\n   - Withdrawal: $64.33\n   - Deposit: NOT_FOUND\n   - Balance: $49212.76\n\n3. **04/09/2025**\n   - Description: Mortgage Payment MORTGAGE 6193978555 RICKHAB\n   - Withdrawal: $6849.79\n   - Deposit: NOT_FOUND\n   - Balance: $42277.09\n\n4. **03/09/2025**\n   - Description: OSKO Payment to MIKE CHEN 080848P5773133\n   - Withdrawal: $1385.43\n   - Deposit: NOT_FOUND\n   - Balance: $40926.88\n\n5. **02/09/2025**\n   - Description: Direct Debit 15395PA 180823 MFM 42730\n   - Withdrawal: $199.17\n   - Deposit: NOT_FOUND\n   - Balance: $51312.31\n\n6. **01/09/2025**\n   - Description: Salary Payment ATO 2878278872109\n   - Withdrawal: NOT_FOUND\n   - Deposit: $8105.71\n   - Balance: $59511.48\n\n7. **01/09/2025**\n   - Description: DD INSURANCE ACME CORP PTY LTD 62321242151853\n   - Withdrawal: $45.04\n   - Deposit: NOT_FOUND\n   - Balance: $54305.77\n\n8. **01/09/2025**\n   - Description: Auto Payment UTILITIES AG1 67840P954344\n   - Withdrawal: $287.50\n   - Deposit: NOT_FOUND\n   - Balance: $54049.81\n\n9. **01/09/2025**\n   - Description: DIRECT CREDIT SALARY 80080P7612988\n   - Withdrawal: NOT_FOUND\n   - Deposit: $4449.44\n   - Balance: $54308.31\n\n10. **01/09/2025**\n    - Description: BPAY Payment BILLER 800207 CRN 9813018480\n    - Withdrawal: $37.98\n    - Deposit: NOT_FOUND\n    - Balance: $53925.87\n\n11. **31/08/2025**\n    - Description: Professional Services Red Energy 68073P1959417\n    - Withdrawal: $2457.87\n    - Deposit: NOT_FOUND\n    - Balance: $39296.85\n\n12. **29/08/2025**\n    - Description: Card Purchase RED COOSTER Pamaratta SA\n    - Withdrawal: $270.31\n    - Deposit: NOT_FOUND\n    - Balance: $34754.72\n\n13. **29/08/2025**\n    - Description: Credit Card Purchase CHEMIST WAREHOUSE DISCOUNT RICH...\n    - Withdrawal: $1957.09\n    - Deposit: NOT_FOUND\n    - Balance: $49255.03\n\n14. **27/08/2025**\n    - Description: EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD\n    - Withdrawal: $221.60\n    - Deposit: NOT_FOUND\n    - Balance: $43892.12\n\n15. **26/08/2025**\n    - Description: Fortnightly Pay ATO PAYROLL 1013235687818\n    - Withdrawal: NOT_FOUND\n    - Deposit: $5679.21\n    - Balance: $44426.28\n\n16. **26/08/2025**\n    - Description: BAY RUN ACME CORP PTY LTD 0056459738218\n    - Withdrawal: $4456.48\n    - Deposit: NOT_FOUND\n    - Balance: $39770.80\n\n17. **24/08/2025**\n    - Description: Salary Payment ATO 30175P32361415\n    - Withdrawal: NOT_FOUND\n    - Deposit: $7951.93\n    - Balance: $33429.01\n\n18. **23/08/2025**\n    - Description: Online Purchase amazons.com.au AUS\n    - Withdrawal: $83.78\n    - Deposit: NOT_FOUND\n    - Balance: $23039.68\n\n19. **22/08/2025**\n    - Description: Salary Payment ATO 2877827361016\n    - Withdrawal: NOT_FOUND\n    - Deposit: $68013.70\n    - Balance: $22843.46\n\n20. **20/08/2025**\n    - Description: Transfer To Vicks Account NetBank 54381P09841102\n    - Withdrawal: $2345.10\n    - Deposit: NOT_FOUND\n    - Balance: $20409.76\n\n21. **20/08/2025**\n    - Description: Salary Payment ATM USA 94154P8409207\n    - Withdrawal: NOT_FOUND\n    - Deposit: $3541.27\n    - Balance: $22754.86\n\n22. **20/08/2025**\n    - Description: Transfer To Western Port Merina NetBank from Tod\n    - Withdrawal: $728.48\n    - Deposit: NOT_FOUND\n    - Balance: $19213.59\n\n23. **19/08/2025**\n    - Description: Subscription Netflix 33588P7738153\n    - Withdrawal: $201.14\n    - Deposit: NOT_FOUND\n    - Balance: $19940.07\n\n24. **18/08/2025**\n    - Description: Contactless Payment CHEMIST WAREHOUSE DISCOUNT RICH...\n    - Withdrawal: $211.28\n    - Deposit: NOT_FOUND\n    - Balance: $19014.21\n\n25. **18/08/2025**\n    - Description: Auto Payment UTILITIES Red Energy 15107P211655\n    - Withdrawal: $33.24\n    - Deposit: NOT_FOUND\n    - Balance: $20305.40\n\n26. **18/08/2025**\n    - Description: Contactless Payment CHEMIST WAREHOUSE DISCOUNT RICH...\n    - Withdrawal: $145.70\n    - Deposit: NOT_FOUND\n    - Balance: $20385.73\n\n27. **17/08/2025**\n    - Description: Fortnightly Pay ATO PAYROLL 36358P7252498\n    - Withdrawal: NOT_FOUND\n    - Deposit: $7201.19\n    - Balance: $20531.43\n\n28. **14/08/2025**\n    - Description: Centrelink Job Seeker 59302P58000878\n    - Withdrawal: NOT_FOUND\n    - Deposit: $2241.39\n    - Balance: $13330.24\n\n29. **14/08/2025**\n    - Description: International Transaction Fee\n    - Withdrawal: $27.06\n    - Deposit: NOT_FOUND\n    - Balance: $11088.85\n\n30. **13/08/2025**\n    - Description: Equipment Purchase OfficeMax Australia 13554P45...\n    - Withdrawal: $478.86\n    - Deposit: NOT_FOUND\n    - Balance: $11115.91\n\n31. **13/08/2025**\n    - Description: International ATM USA USD\n    - Withdrawal: $280.71\n    - Deposit: NOT_FOUND\n    - Balance: $11594.77\n\n32. **11/08/2025**\n    - Description: Dividend Payment PREMIUM CORP PTY LTD 73535P418...\n    - Withdrawal: NOT_FOUND\n    - Deposit: $6395.00\n    - Balance: $11855.48\n\n33. **11/08/2025**\n    - Description: Invoice PAYMENT HARVEY NORMAN FLAGSHIP PTY LTD.\n    - Withdrawal: $229.31\n    - Deposit: NOT_FOUND\n    - Balance: $5450.39\n\n34. **10/08/2025**\n    - Description: Online Purchase ebay.com.au AUS\n    - Withdrawal: $257.95\n    - Deposit: NOT_FOUND\n    - Balance: $5689.78\n\n35. **10/08/2025**\n    - Description: Subscription Spotify Monthly 15390P542775\n    - Withdrawal: $188.22\n    - Deposit: NOT_FOUND\n    - Balance: $5947.73\n\n36. **09/08/2025**\n    - Description: International Transaction Fee\n    - Withdrawal: $33.83\n    - Deposit: NOT_FOUND\n    - Balance: $5913.95\n\n37. **09/08/2025**\n    - Description: Business Expense IT Equipment 66889P8414879\n    - Withdrawal: $625.18\n    - Deposit: NOT_FOUND\n    - Balance: $6167.78\n\n38. **08/08/2025**\n    - Description: Auto Payment UTILITIES Energy Australia 74786P1763...\n    - Withdrawal: $91.94\n    - Deposit: NOT_FOUND\n    - Balance: $60792.06\n\n39. **08/08/2025**\n    - Description: Auto Payment UTILITIES Red Energy 81336P1572266\n    - Withdrawal: $388.57\n    - Deposit: NOT_FOUND\n    - Balance: $6884.00\n\n40. **08/08/2025**\n    - Description: NOT_FOUND\n    - Withdrawal: NOT_FOUND\n    - Deposit: NOT_FOUND\n    - Balance: $48890.58"
+      },
+      "evaluation": {
+        "image_name": "image_008.png",
+        "method": "order_aware_f1",
+        "overall_accuracy": 0.8227028290858079,
+        "field_scores": {
+          "DOCUMENT_TYPE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "BANK_STATEMENT",
+            "ground_truth": "BANK_STATEMENT"
+          },
+          "STATEMENT_DATE_RANGE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "08/08/2025 - 07/09/2025",
+            "ground_truth": "08/08/2025 - 07/09/2025"
+          },
+          "TRANSACTION_DATES": {
+            "f1_score": 0.9285714285714286,
+            "precision": 1.0,
+            "recall": 0.8666666666666667,
+            "extracted": "07/09/2025 | 06/09/2025 | 04/09/2025 | 03/09/2025 | 02/09/2025 | 01/09/2025 | 01/09/2025 | 01/09/202",
+            "ground_truth": "07/09/2025 | 08/09/2025 | 04/09/2025 | 03/09/2025 | 03/09/2025 | 02/09/2025 | 01/09/2025 | 01/09/202"
+          },
+          "LINE_ITEM_DESCRIPTIONS": {
+            "f1_score": 0.4615384615384615,
+            "precision": 1.0,
+            "recall": 0.3,
+            "extracted": "EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | EFTPOS Purchase OFFICEWORKS3 KIIS553 RONKAPMTO... | ",
+            "ground_truth": "EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO | Mo"
+          },
+          "TRANSACTION_AMOUNTS_PAID": {
+            "f1_score": 0.7234042553191489,
+            "precision": 1.0,
+            "recall": 0.5666666666666667,
+            "extracted": "$322.18 | $64.33 | $6849.79 | $1385.43 | $199.17 | $45.04 | $287.50 | $37.98 | $2457.87 | $270.31 | ",
+            "ground_truth": "$322.18 | $64.33 | $649.79 | $1365.43 | $199.17 | $45.04 | $257.50 | $37.98 | $2457.87 | $270.31 | $"
+          }
+        }
+      },
+      "processing_time": 259.3639144897461
+    }
+  ]
+}

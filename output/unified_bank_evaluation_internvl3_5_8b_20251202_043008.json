@@ -1,0 +1,87 @@
+{
+  "metadata": {
+    "batch_id": "20251202_043008",
+    "model": "InternVL3.5-8B (bfloat16)",
+    "evaluation_method": "order_aware_f1",
+    "total_images": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "summary": {
+    "avg_accuracy": 0.7885714285714286,
+    "min_accuracy": 0.7885714285714286,
+    "max_accuracy": 0.7885714285714286,
+    "avg_processing_time": 192.0995969772339
+  },
+  "results": [
+    {
+      "image_name": "nab_classic_highligted.png",
+      "image_path": "evaluation_data/bank/nab_classic_highligted.png",
+      "extracted_fields": {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": "22 Mar 2024 - 25 Mar 2024",
+        "TRANSACTION_DATES": "22 Mar 2024 | 22 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 24 Mar 2024 | 25 Mar 2024",
+        "LINE_ITEM_DESCRIPTIONS": "Auto Service | Ref: 00456789087 | Ref: 98765432168 | Ref: 65434789012 | Ref: 78901234567 | Ref: 89012345678 | Ref: 90123456789 | Ref: 01234567890 | Ref: 12345678901 | Ref: 23456789012 | Ref: 34567890123 | Ref: 45678901234 | Ref: 56789012345 | Ref: 67890123456 | Ref: 78901234569 | Ref: 89012345670 | Ref: 90123456781",
+        "TRANSACTION_AMOUNTS_PAID": "315.60 | 34.85 | 89.75 | 45.50 | 125.00 | 78.40 | 345.60 | 67.80 | 56.90 | 234.50 | 89.60 | 145.80 | 267.40 | 78.90 | 45.80 | 123.60 | 189.50"
+      },
+      "metadata": {
+        "headers_detected": [
+          "Date",
+          "Particulars",
+          "Debits",
+          "Credits",
+          "Balance"
+        ],
+        "date_format": "balance_description_2turn",
+        "corrections_made": 0,
+        "total_rows": 17,
+        "debit_rows": 17,
+        "turn0_raw_response": "The exact column header names used in the transaction table are:\n\n1. Date\n2. Particulars\n3. Debits\n4. Credits\n5. Balance",
+        "turn1_raw_response": "1. **22 Mar 2024**\n   - Particulars: Brought forward\n   - Debits: NOT_FOUND\n   - Credits: NOT_FOUND\n   - Balance: $8,456.75 Cr\n\n2. **22 Mar 2024**\n   - Particulars: Auto Service\n   - Debits: 315.60\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n3. **22 Mar 2024**\n   - Particulars: Ref: 00456789087\n   - Debits: 34.85\n   - Credits: 580.00\n   - Balance: $8,721.15 Cr\n\n4. **23 Mar 2024**\n   - Particulars: EFTPOS 18/06 Fresh Groceries\n   - Debits: NOT_FOUND\n   - Credits: NOT_FOUND\n   - Balance: $8,686.30 Cr\n\n5. **23 Mar 2024**\n   - Particulars: Ref: 98765432168\n   - Debits: 89.75\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n6. **23 Mar 2024**\n   - Particulars: V1056 18/06 Farmland Markets\n   - Debits: NOT_FOUND\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n7. **23 Mar 2024**\n   - Particulars: Ref: 65434789012\n   - Debits: 45.50\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n8. **23 Mar 2024**\n   - Particulars: Pizza Delivery\n   - Debits: NOT_FOUND\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n9. **23 Mar 2024**\n   - Particulars: Ref: 78901234567\n   - Debits: 125.00\n   - Credits: NOT_FOUND\n   - Balance: NOT_FOUND\n\n10. **23 Mar 2024**\n    - Particulars: V1056 18/06 The Restaurant\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n11. **23 Mar 2024**\n    - Particulars: Ref: 89012345678\n    - Debits: 78.40\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n12. **23 Mar 2024**\n    - Particulars: V1056 16/06 Gas Station 890000\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n13. **23 Mar 2024**\n    - Particulars: Ref: 90123456789\n    - Debits: 345.60\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n14. **23 Mar 2024**\n    - Particulars: V1056 Depot\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n15. **23 Mar 2024**\n    - Particulars: Ref: 98765432187\n    - Debits: NOT_FOUND\n    - Credits: 580.00\n    - Balance: $8,926.65 Cr\n\n16. **24 Mar 2024**\n    - Particulars: V1056 20/06 The Restaurant\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n17. **24 Mar 2024**\n    - Particulars: Ref: 01234567890\n    - Debits: 67.80\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n18. **24 Mar 2024**\n    - Particulars: V1056 Farmland Markets\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n19. **24 Mar 2024**\n    - Particulars: Ref: 12345678901\n    - Debits: 56.90\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n20. **24 Mar 2024**\n    - Particulars: V1056 20/06 City Square\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n21. **24 Mar 2024**\n    - Particulars: Ref: 23456789012\n    - Debits: 234.50\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n22. **24 Mar 2024**\n    - Particulars: V1056 20/06 The Restaurant\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n23. **24 Mar 2024**\n    - Particulars: Ref: 34567890123\n    - Debits: 89.60\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n24. **24 Mar 2024**\n    - Particulars: V1056 Depot Retail No\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n25. **24 Mar 2024**\n    - Particulars: Ref: 45678901234\n    - Debits: 145.80\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n26. **24 Mar 2024**\n    - Particulars: V1056 21/06 Shopping Complex\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n27. **24 Mar 2024**\n    - Particulars: Ref: 56789012345\n    - Debits: 267.40\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n28. **24 Mar 2024**\n    - Particulars: V1056 Retail Parkchester Rd Beer\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n29. **24 Mar 2024**\n    - Particulars: Ref: 67890123456\n    - Debits: 78.90\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n30. **24 Mar 2024**\n    - Particulars: V1056 19/06 Fast Food Chain North\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n31. **24 Mar 2024**\n    - Particulars: Ref: 78901234569\n    - Debits: 45.80\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n32. **24 Mar 2024**\n    - Particulars: V1056 22/06 Market Street\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n33. **24 Mar 2024**\n    - Particulars: Ref: 89012345670\n    - Debits: 123.60\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n34. **25 Mar 2024**\n    - Particulars: V1056 24/06 Retail S Fashion\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n35. **25 Mar 2024**\n    - Particulars: Ref: 90123456781\n    - Debits: 189.50\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n36. **25 Mar 2024**\n    - Particulars: V1056 21/06 Department Plaza\n    - Debits: NOT_FOUND\n    - Credits: NOT_FOUND\n    - Balance: NOT_FOUND\n\n37. **25 Mar 2024**\n    - Particulars: Carried forward\n    - Debits: 356.20\n    - Credits: NOT_FOUND\n    - Balance: $6,436.65 Cr"
+      },
+      "evaluation": {
+        "image_name": "nab_classic_highligted.png",
+        "method": "order_aware_f1",
+        "overall_accuracy": 0.7885714285714286,
+        "field_scores": {
+          "DOCUMENT_TYPE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "BANK_STATEMENT",
+            "ground_truth": "BANK_STATEMENT"
+          },
+          "STATEMENT_DATE_RANGE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "22 Mar 2024 - 25 Mar 2024",
+            "ground_truth": "22 Mar 2024 - 25 Mar 2024"
+          },
+          "TRANSACTION_DATES": {
+            "f1_score": 0.9714285714285714,
+            "precision": 1.0,
+            "recall": 0.9444444444444444,
+            "extracted": "22 Mar 2024 | 22 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 24",
+            "ground_truth": "22 Mar 2024 | 22 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 23 Mar 2024 | 24"
+          },
+          "LINE_ITEM_DESCRIPTIONS": {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "extracted": "Auto Service | Ref: 00456789087 | Ref: 98765432168 | Ref: 65434789012 | Ref: 78901234567 | Ref: 8901",
+            "ground_truth": "Auto Services | EFTPOS 18/06 Fresh Grocers | V1056 18/06 Farmland Markets | Pizza Delivery | V1056 1"
+          },
+          "TRANSACTION_AMOUNTS_PAID": {
+            "f1_score": 0.9714285714285714,
+            "precision": 1.0,
+            "recall": 0.9444444444444444,
+            "extracted": "315.60 | 34.85 | 89.75 | 45.50 | 125.00 | 78.40 | 345.60 | 67.80 | 56.90 | 234.50 | 89.60 | 145.80 |",
+            "ground_truth": "$315.60 | $34.85 | $89.75 | $45.50 | $125.00 | $78.40 | $345.60 | $67.80 | $56.90 | $234.50 | $89.60"
+          }
+        }
+      },
+      "processing_time": 192.0995969772339
+    }
+  ]
+}

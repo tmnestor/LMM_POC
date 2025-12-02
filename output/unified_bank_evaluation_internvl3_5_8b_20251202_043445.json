@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "batch_id": "20251202_043445",
+    "model": "InternVL3.5-8B (bfloat16)",
+    "evaluation_method": "order_aware_f1",
+    "total_images": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "summary": {
+    "avg_accuracy": 0.2,
+    "min_accuracy": 0.2,
+    "max_accuracy": 0.2,
+    "avg_processing_time": 4.219655513763428
+  },
+  "results": [
+    {
+      "image_name": "cba_debit_credit.png",
+      "image_path": "evaluation_data/bank/cba_debit_credit.png",
+      "extracted_fields": {
+        "DOCUMENT_TYPE": "BANK_STATEMENT",
+        "STATEMENT_DATE_RANGE": "NOT_FOUND",
+        "TRANSACTION_DATES": "NOT_FOUND",
+        "LINE_ITEM_DESCRIPTIONS": "NOT_FOUND",
+        "TRANSACTION_AMOUNTS_PAID": "NOT_FOUND"
+      },
+      "metadata": {
+        "headers_detected": [
+          "Date",
+          "Transaction",
+          "Debit",
+          "Credit"
+        ],
+        "date_format": "table_extraction_not_implemented",
+        "corrections_made": 0,
+        "total_rows": 0,
+        "debit_rows": 0,
+        "turn0_raw_response": "",
+        "turn1_raw_response": ""
+      },
+      "evaluation": {
+        "image_name": "cba_debit_credit.png",
+        "method": "order_aware_f1",
+        "overall_accuracy": 0.2,
+        "field_scores": {
+          "DOCUMENT_TYPE": {
+            "f1_score": 1.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "extracted": "BANK_STATEMENT",
+            "ground_truth": "BANK_STATEMENT"
+          },
+          "STATEMENT_DATE_RANGE": {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "extracted": "NOT_FOUND",
+            "ground_truth": "20 May - 24 May"
+          },
+          "TRANSACTION_DATES": {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "extracted": "NOT_FOUND",
+            "ground_truth": "20 May | 21 May | 21 May | 21 May | 21 May | 21 May | 21 May | 22 May | 22 May | 22 May | 23 May | 2"
+          },
+          "LINE_ITEM_DESCRIPTIONS": {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "extracted": "NOT_FOUND",
+            "ground_truth": "Direct Debit 987654 Loan Repayment | RETAIL STORE SUBURB AU | SUPERMARKET SHOPPING SUBURB AU | SHOPP"
+          },
+          "TRANSACTION_AMOUNTS_PAID": {
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "extracted": "NOT_FOUND",
+            "ground_truth": "$178.50 | $245.00 | $89.95 | $34.50 | $67.00 | $145.80 | $450.00 | $124.00 | $78.90 | $56.40 | $1456"
+          }
+        }
+      },
+      "processing_time": 4.219655513763428
+    }
+  ]
+}
