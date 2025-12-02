@@ -209,10 +209,10 @@ def load_llama_model_robust(
                             rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
             elif gpu_config and gpu_config.architecture == 'cloud_inference':
                 # Cloud inference GPUs (A10G, A10, L4 - 24GB nominal)
-                # Note: L4 reports ~22GB usable, A10/A10G report ~24GB
+                # Note: L4 reports ~22GB usable (21.95GB actual), A10/A10G report ~24GB
                 # With vision tower on CPU, these GPUs can run full precision
-                # Lower threshold slightly for L4's reported memory
-                cloud_inference_threshold = 22.0  # Lower than full_precision_threshold for L4 compatibility
+                # Lower threshold to account for L4's actual reported memory (21.95GB)
+                cloud_inference_threshold = 21.5  # Account for L4 reporting 21.95GB usable
                 if total_available_memory >= cloud_inference_threshold:
                     if use_quantization:
                         if verbose:
