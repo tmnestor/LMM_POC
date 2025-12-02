@@ -88,6 +88,10 @@ class GPUDetector:
         elif any(gpu in name_upper for gpu in ['L40S', 'L40', 'RTX A6000']):
             return 'workstation_high_memory'
 
+        # Cloud/inference GPUs (A10, A10G - 24GB GDDR6)
+        elif any(gpu in name_upper for gpu in ['A10G', 'A10']):
+            return 'cloud_inference'
+
         # Legacy datacenter GPUs
         elif any(gpu in name_upper for gpu in ['V100', 'P100']):
             return 'legacy_datacenter'
@@ -110,6 +114,8 @@ class GPUDetector:
             return min(20.0, memory_gb * 0.15)  # 15% buffer, max 20GB
         elif architecture in ['workstation_high_memory', 'consumer_high_end']:
             return min(12.0, memory_gb * 0.20)  # 20% buffer, max 12GB
+        elif architecture == 'cloud_inference':
+            return min(4.0, memory_gb * 0.15)   # 15% buffer, max 4GB (A10/A10G optimized for inference)
         elif architecture == 'legacy_datacenter':
             return min(4.0, memory_gb * 0.25)   # 25% buffer, max 4GB
         else:

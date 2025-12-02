@@ -185,7 +185,11 @@ def load_internvl3_model(
         device_count = memory_result.total_gpus
         working_gpus = memory_result.working_gpus
 
-        # InternVL3 memory requirements with H200, L40S, and V100 support
+        # InternVL3 memory requirements with H200, L40S, A10G, L40, and V100 support
+        # GPU Reference (24GB class can run InternVL3-8B in full precision):
+        # - L40: 24GB GDDR6 (workstation)
+        # - A10G: 24GB GDDR6 (AWS G5 instances)
+        # - A10: 24GB GDDR6 (datacenter)
         model_variant = "8B" if "8B" in model_path else "2B"
         estimated_memory_needed = (
             16 if model_variant == "8B" else 4
@@ -297,6 +301,38 @@ def load_internvl3_model(
                         rprint(
                             "[green]✅ Using torch.float32 - optimal for V100 (solves gibberish issue)[/green]"
                         )
+        elif gpu_config and gpu_config.architecture == 'cloud_inference':
+            # Cloud inference GPUs (A10G, A10 - 24GB)
+            # These GPUs have 24GB, sufficient for InternVL3-8B in full precision
+            a10_detected = any(
+                "A10" in gpu.name.upper()
+                for gpu in memory_result.per_gpu_info
+                if gpu.is_available
+            )
+            if a10_detected:
+                # A10/A10G with 24GB can run InternVL3-8B comfortably
+                full_precision_threshold = 20.0  # InternVL3-8B needs ~16GB + buffer
+                if total_available_memory >= full_precision_threshold:
+                    if use_quantization:
+                        if verbose:
+                            rprint(
+                                f"[green]🚀 A10/A10G detected ({total_gpu_memory:.0f}GB), sufficient for full precision[/green]"
+                            )
+                            rprint(
+                                "[cyan]💡 Note: Using quantization as configured, but full precision is possible[/cyan]"
+                            )
+                    else:
+                        if verbose:
+                            rprint(
+                                f"[green]✅ A10/A10G with {total_gpu_memory:.0f}GB - running InternVL3-{model_variant} in full precision[/green]"
+                            )
+                else:
+                    if not use_quantization:
+                        if verbose:
+                            rprint(
+                                f"[yellow]⚠️ A10/A10G with limited available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]"
+                            )
+                        use_quantization = True
         elif gpu_config and gpu_config.is_high_memory:
             # High-memory GPUs (H200, H100, L40, etc.) - allow configuration choice
             # L40 and other modern GPUs can handle both modes

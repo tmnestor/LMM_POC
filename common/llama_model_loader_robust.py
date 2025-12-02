@@ -122,9 +122,14 @@ def load_llama_model_robust(
             # 8-bit quantized: ~11GB (LLM quantized, vision on CPU via llm_int8_skip_modules)
             #
             # Memory thresholds for quantization decision:
-            # - >= 24GB: Full precision (L40, A10, etc.) - 22GB model + 2GB headroom
+            # - >= 24GB: Full precision (L40, A10G, etc.) - 22GB model + 2GB headroom
             # - >= 32GB: Full precision with comfortable buffer (V100x2, L40S, etc.)
             # - < 24GB: Requires 8-bit quantization (single V100 16GB)
+            #
+            # GPU Reference (24GB class):
+            # - L40: 24GB GDDR6 (workstation)
+            # - A10G: 24GB GDDR6 (AWS G5 instances)
+            # - A10: 24GB GDDR6 (datacenter)
             estimated_memory_full_precision = 22.0  # bfloat16 full model
             memory_buffer_minimal = 2.0  # Minimal headroom for inference
             full_precision_threshold = estimated_memory_full_precision + memory_buffer_minimal  # 24GB
@@ -202,8 +207,24 @@ def load_llama_model_robust(
                     else:
                         if verbose:
                             rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
+            elif gpu_config and gpu_config.architecture == 'cloud_inference':
+                # Cloud inference GPUs (A10G, A10 - 24GB)
+                # These GPUs have exactly 24GB, which meets the full_precision_threshold
+                if total_available_memory >= full_precision_threshold:
+                    if use_quantization:
+                        if verbose:
+                            rprint(f"[green]🚀 A10/A10G detected ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
+                        use_quantization = False
+                    else:
+                        if verbose:
+                            rprint(f"[green]✅ A10/A10G with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
+                else:
+                    if not use_quantization:
+                        if verbose:
+                            rprint(f"[yellow]⚠️ A10/A10G with insufficient available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]")
+                        use_quantization = True
             elif gpu_config and gpu_config.is_high_memory:
-                # High-memory GPUs (H200, H100, etc.)
+                # High-memory GPUs (H200, H100, L40S, etc.)
                 if use_quantization:
                     if verbose:
                         rprint(f"[green]🚀 {gpu_architecture} detected with abundant memory ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
