@@ -864,17 +864,22 @@ class UnifiedBankExtractor:
         if len(dates) < 2:
             return dates[0] if dates else "NOT_FOUND"
 
+        import re
         from datetime import datetime
 
         first_str = dates[0].strip()
         last_str = dates[-1].strip()
 
-        # Common date formats to try
+        # Strip day name prefix if present (e.g., "Mon 11 Aug 2025" -> "11 Aug 2025")
+        day_prefix = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+", re.IGNORECASE)
+        first_str_clean = day_prefix.sub("", first_str)
+        last_str_clean = day_prefix.sub("", last_str)
+
+        # Common date formats to try (after stripping day prefix)
         date_formats = [
             "%d/%m/%Y",  # 03/05/2025
             "%d %b %Y",  # 04 Sep 2025
             "%d %B %Y",  # 04 September 2025
-            "%a %d %b %Y",  # Thu 04 Sep 2025
             "%Y-%m-%d",  # 2025-09-04
             "%m/%d/%Y",  # 05/03/2025 (US format)
         ]
@@ -885,24 +890,24 @@ class UnifiedBankExtractor:
         for fmt in date_formats:
             if first_date is None:
                 try:
-                    first_date = datetime.strptime(first_str, fmt)
+                    first_date = datetime.strptime(first_str_clean, fmt)
                 except ValueError:
                     pass
             if last_date is None:
                 try:
-                    last_date = datetime.strptime(last_str, fmt)
+                    last_date = datetime.strptime(last_str_clean, fmt)
                 except ValueError:
                     pass
 
-        # If parsing failed, return as-is (first - last)
+        # If parsing failed, return as-is (first - last) with cleaned strings
         if first_date is None or last_date is None:
-            return f"{first_str} - {last_str}"
+            return f"{first_str_clean} - {last_str_clean}"
 
-        # Return in chronological order (oldest - newest)
+        # Return in chronological order (oldest - newest) using cleaned strings
         if first_date <= last_date:
-            return f"{first_str} - {last_str}"
+            return f"{first_str_clean} - {last_str_clean}"
         else:
-            return f"{last_str} - {first_str}"
+            return f"{last_str_clean} - {first_str_clean}"
 
     def _generate(self, image: Any, prompt: str, max_tokens: int = 4096) -> str:
         """Generate model response."""
