@@ -831,9 +831,9 @@ class UnifiedBankExtractor:
         descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
         amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
 
-        # Calculate date range from all transactions
+        # Calculate date range from all transactions (always oldest - newest)
         all_dates = [r.get(date_col, "") for r in corrected_rows if r.get(date_col)]
-        date_range = f"{all_dates[0]} - {all_dates[-1]}" if all_dates else "NOT_FOUND"
+        date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # Free memory
         torch.cuda.empty_cache()
@@ -850,6 +850,59 @@ class UnifiedBankExtractor:
             raw_responses={"turn0": turn0_response, "turn1": response},
             correction_stats=correction_stats,
         )
+
+    @staticmethod
+    def _compute_date_range(dates: list[str]) -> str:
+        """Compute date range string, always oldest - newest.
+
+        Args:
+            dates: List of date strings from transactions
+
+        Returns:
+            Date range string in format "oldest - newest"
+        """
+        if len(dates) < 2:
+            return dates[0] if dates else "NOT_FOUND"
+
+        from datetime import datetime
+
+        first_str = dates[0].strip()
+        last_str = dates[-1].strip()
+
+        # Common date formats to try
+        date_formats = [
+            "%d/%m/%Y",  # 03/05/2025
+            "%d %b %Y",  # 04 Sep 2025
+            "%d %B %Y",  # 04 September 2025
+            "%a %d %b %Y",  # Thu 04 Sep 2025
+            "%Y-%m-%d",  # 2025-09-04
+            "%m/%d/%Y",  # 05/03/2025 (US format)
+        ]
+
+        first_date = None
+        last_date = None
+
+        for fmt in date_formats:
+            if first_date is None:
+                try:
+                    first_date = datetime.strptime(first_str, fmt)
+                except ValueError:
+                    pass
+            if last_date is None:
+                try:
+                    last_date = datetime.strptime(last_str, fmt)
+                except ValueError:
+                    pass
+
+        # If parsing failed, return as-is (first - last)
+        if first_date is None or last_date is None:
+            return f"{first_str} - {last_str}"
+
+        # Return in chronological order (oldest - newest)
+        if first_date <= last_date:
+            return f"{first_str} - {last_str}"
+        else:
+            return f"{last_str} - {first_str}"
 
     def _generate(self, image: Any, prompt: str, max_tokens: int = 4096) -> str:
         """Generate model response."""
