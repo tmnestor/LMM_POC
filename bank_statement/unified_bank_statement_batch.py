@@ -45,16 +45,15 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from PIL import Image
-from rich.console import Console
-from rich.table import Table
-
 from common.evaluation_metrics import (
     calculate_field_accuracy_f1,
     load_ground_truth,
 )
 from common.reproducibility import set_seed
 from common.unified_bank_extractor import UnifiedBankExtractor
+from PIL import Image
+from rich.console import Console
+from rich.table import Table
 
 # Rich console for styled output
 console = Console()
@@ -90,6 +89,95 @@ BANK_STATEMENT_FIELDS = [
     "LINE_ITEM_DESCRIPTIONS",
     "TRANSACTION_AMOUNTS_PAID",
 ]
+
+
+# ============================================================================
+# SEMANTIC NORMALIZATION (for evaluation comparison)
+# ============================================================================
+def normalize_date(date_str: str) -> str:
+    """Normalize date string to canonical format YYYY-MM-DD for semantic comparison."""
+    from dateutil import parser as date_parser
+
+    if not date_str or pd.isna(date_str):
+        return ""
+
+    date_str = str(date_str).strip()
+    if not date_str:
+        return ""
+
+    try:
+        parsed = date_parser.parse(date_str, dayfirst=True)
+        return parsed.strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        return date_str
+
+
+def normalize_amount(amount_str: str) -> str:
+    """Normalize amount string for semantic comparison.
+
+    Handles: "$48.50" → "48.5", "2,000.00" → "2000", "-78.90" → "78.9"
+    """
+    import re
+
+    if not amount_str or pd.isna(amount_str):
+        return ""
+
+    amount_str = str(amount_str).strip()
+    if not amount_str:
+        return ""
+
+    # Remove currency symbols and whitespace
+    cleaned = re.sub(r"[$£€¥₹\s]", "", amount_str)
+    # Remove thousand separators
+    cleaned = cleaned.replace(",", "")
+
+    try:
+        value = abs(float(cleaned))
+        # Format consistently, removing trailing zeros
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    except ValueError:
+        return cleaned
+
+
+def normalize_pipe_delimited(value: str, normalizer_fn) -> str:
+    """Apply normalizer function to each item in a pipe-delimited string."""
+    if not value or pd.isna(value):
+        return ""
+
+    value = str(value).strip()
+    if not value:
+        return ""
+
+    items = [item.strip() for item in value.split("|")]
+    normalized = [normalizer_fn(item) for item in items]
+    return " | ".join(normalized)
+
+
+def normalize_field_for_comparison(field_name: str, value: str) -> str:
+    """Normalize a field value based on its type for semantic comparison."""
+    if not value or pd.isna(value):
+        return ""
+
+    value = str(value).strip()
+
+    if field_name == "TRANSACTION_DATES":
+        return normalize_pipe_delimited(value, normalize_date)
+    elif field_name == "TRANSACTION_AMOUNTS_PAID":
+        return normalize_pipe_delimited(value, normalize_amount)
+    elif field_name == "STATEMENT_DATE_RANGE":
+        # Handle "18 Mar 2024 - 14 Apr 2024" format
+        if " - " in value:
+            parts = value.split(" - ")
+            if len(parts) == 2:
+                start = normalize_date(parts[0].strip())
+                end = normalize_date(parts[1].strip())
+                return f"{start} - {end}"
+        return value
+    else:
+        # For other fields (DOCUMENT_TYPE, LINE_ITEM_DESCRIPTIONS), return as-is
+        return value
+
+
 
 
 def load_model_from_config(model_key: str, verbose: bool = False):
@@ -239,7 +327,7 @@ def load_model_from_config(model_key: str, verbose: bool = False):
 
 
 def evaluate_extraction(schema_fields: dict, image_name: str, ground_truth_map: dict, method: str = "order_aware_f1") -> dict:
-    """Evaluate extracted schema fields against ground truth."""
+    """Evaluate extracted schema fields against ground truth with semantic normalization."""
     gt_data = ground_truth_map.get(image_name, {})
 
     if not gt_data:
@@ -255,7 +343,11 @@ def evaluate_extraction(schema_fields: dict, image_name: str, ground_truth_map: 
         if pd.isna(gt_value):
             gt_value = "NOT_FOUND"
 
-        result = calculate_field_accuracy_f1(extracted_value, gt_value, field)
+        # Normalize values for semantic comparison (dates, amounts)
+        normalized_extracted = normalize_field_for_comparison(field, extracted_value)
+        normalized_gt = normalize_field_for_comparison(field, gt_value)
+
+        result = calculate_field_accuracy_f1(normalized_extracted, normalized_gt, field)
 
         if result:
             field_scores[field] = {
@@ -583,9 +675,12 @@ def main():
         image_name = Path(image_path).name
         log_print(f"\n[bold cyan][{idx}/{len(bank_images)}][/bold cyan] Processing: [white]{image_name}[/white]")
 
-        # Clear GPU memory before each image
+        # Aggressive GPU memory cleanup before each image
         if torch.cuda.is_available():
+            import gc
+            gc.collect()
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
         start_time = time.time()
 
@@ -596,6 +691,12 @@ def main():
             # Extract using UnifiedBankExtractor
             result = extractor.extract(image)
             schema_fields = result.to_schema_dict()
+
+            # Cleanup after extraction
+            del image
+            if torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
 
             processing_time = time.time() - start_time
 
