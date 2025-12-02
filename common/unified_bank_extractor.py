@@ -243,6 +243,22 @@ class ResponseParser:
                 if date_match:
                     date_found = date_match.group(1).strip()
 
+            # Pattern 6: "1. **[20 May]**" (bracketed date without year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?\[(\d{1,2}\s+[A-Za-z]{3,9})\]\*?\*?", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            # Pattern 7: "1. **20 May**" (date without year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3,9})\*?\*?$", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
             if date_found:
                 # Save previous transaction
                 if current_transaction and current_date:
