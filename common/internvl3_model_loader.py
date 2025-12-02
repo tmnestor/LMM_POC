@@ -302,21 +302,23 @@ def load_internvl3_model(
                             "[green]✅ Using torch.float32 - optimal for V100 (solves gibberish issue)[/green]"
                         )
         elif gpu_config and gpu_config.architecture == 'cloud_inference':
-            # Cloud inference GPUs (A10G, A10 - 24GB)
-            # These GPUs have 24GB, sufficient for InternVL3-8B in full precision
-            a10_detected = any(
-                "A10" in gpu.name.upper()
+            # Cloud inference GPUs (A10G, A10, L4 - 24GB nominal)
+            # Note: L4 reports ~22GB usable, A10/A10G report ~24GB
+            # These GPUs have sufficient memory for InternVL3-8B in full precision
+            cloud_gpu_detected = any(
+                any(gpu_name in gpu.name.upper() for gpu_name in ["A10", "L4"])
                 for gpu in memory_result.per_gpu_info
                 if gpu.is_available
             )
-            if a10_detected:
-                # A10/A10G with 24GB can run InternVL3-8B comfortably
-                full_precision_threshold = 20.0  # InternVL3-8B needs ~16GB + buffer
-                if total_available_memory >= full_precision_threshold:
+            if cloud_gpu_detected:
+                # Cloud inference GPUs can run InternVL3-8B comfortably
+                # Lower threshold for L4 which reports ~22GB
+                cloud_inference_threshold = 18.0  # InternVL3-8B needs ~16GB + 2GB buffer
+                if total_available_memory >= cloud_inference_threshold:
                     if use_quantization:
                         if verbose:
                             rprint(
-                                f"[green]🚀 A10/A10G detected ({total_gpu_memory:.0f}GB), sufficient for full precision[/green]"
+                                f"[green]🚀 Cloud inference GPU detected ({total_gpu_memory:.0f}GB), sufficient for full precision[/green]"
                             )
                             rprint(
                                 "[cyan]💡 Note: Using quantization as configured, but full precision is possible[/cyan]"
@@ -324,13 +326,13 @@ def load_internvl3_model(
                     else:
                         if verbose:
                             rprint(
-                                f"[green]✅ A10/A10G with {total_gpu_memory:.0f}GB - running InternVL3-{model_variant} in full precision[/green]"
+                                f"[green]✅ Cloud inference GPU with {total_gpu_memory:.0f}GB - running InternVL3-{model_variant} in full precision[/green]"
                             )
                 else:
                     if not use_quantization:
                         if verbose:
                             rprint(
-                                f"[yellow]⚠️ A10/A10G with limited available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]"
+                                f"[yellow]⚠️ Cloud inference GPU with limited available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]"
                             )
                         use_quantization = True
         elif gpu_config and gpu_config.is_high_memory:

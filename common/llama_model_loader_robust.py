@@ -208,20 +208,23 @@ def load_llama_model_robust(
                         if verbose:
                             rprint(f"[yellow]⚠️ {v100_count}x V100 with {v100_total_memory:.0f}GB - using quantization due to memory constraints[/yellow]")
             elif gpu_config and gpu_config.architecture == 'cloud_inference':
-                # Cloud inference GPUs (A10G, A10 - 24GB)
-                # These GPUs have exactly 24GB, which meets the full_precision_threshold
-                if total_available_memory >= full_precision_threshold:
+                # Cloud inference GPUs (A10G, A10, L4 - 24GB nominal)
+                # Note: L4 reports ~22GB usable, A10/A10G report ~24GB
+                # With vision tower on CPU, these GPUs can run full precision
+                # Lower threshold slightly for L4's reported memory
+                cloud_inference_threshold = 22.0  # Lower than full_precision_threshold for L4 compatibility
+                if total_available_memory >= cloud_inference_threshold:
                     if use_quantization:
                         if verbose:
-                            rprint(f"[green]🚀 A10/A10G detected ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
+                            rprint(f"[green]🚀 Cloud inference GPU detected ({total_gpu_memory:.0f}GB), disabling quantization for optimal performance[/green]")
                         use_quantization = False
                     else:
                         if verbose:
-                            rprint(f"[green]✅ A10/A10G with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
+                            rprint(f"[green]✅ Cloud inference GPU with {total_gpu_memory:.0f}GB - running in full precision as requested[/green]")
                 else:
                     if not use_quantization:
                         if verbose:
-                            rprint(f"[yellow]⚠️ A10/A10G with insufficient available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]")
+                            rprint(f"[yellow]⚠️ Cloud inference GPU with insufficient available memory ({total_available_memory:.0f}GB), enabling quantization[/yellow]")
                         use_quantization = True
             elif gpu_config and gpu_config.is_high_memory:
                 # High-memory GPUs (H200, H100, L40S, etc.)

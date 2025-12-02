@@ -88,8 +88,9 @@ class GPUDetector:
         elif any(gpu in name_upper for gpu in ['L40S', 'L40', 'RTX A6000']):
             return 'workstation_high_memory'
 
-        # Cloud/inference GPUs (A10, A10G - 24GB GDDR6)
-        elif any(gpu in name_upper for gpu in ['A10G', 'A10']):
+        # Cloud/inference GPUs (A10, A10G, L4 - 24GB GDDR6)
+        # Note: L4 has 24GB nominal but PyTorch reports ~22GB usable
+        elif any(gpu in name_upper for gpu in ['A10G', 'A10', 'NVIDIA L4']):
             return 'cloud_inference'
 
         # Legacy datacenter GPUs
