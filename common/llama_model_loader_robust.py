@@ -118,8 +118,16 @@ def load_llama_model_robust(
             working_gpus = memory_result.working_gpus
 
             # Llama-3.2-11B-Vision memory requirements
-            estimated_memory_needed = 22  # Llama-3.2-11B-Vision is larger than InternVL3-8B
-            memory_buffer = 6.0  # Larger buffer for Llama's complexity
+            # Full precision (bfloat16): ~22GB for LLM + vision
+            # 8-bit quantized: ~11GB (LLM quantized, vision on CPU via llm_int8_skip_modules)
+            #
+            # Memory thresholds for quantization decision:
+            # - >= 24GB: Full precision (L40, A10, etc.) - 22GB model + 2GB headroom
+            # - >= 32GB: Full precision with comfortable buffer (V100x2, L40S, etc.)
+            # - < 24GB: Requires 8-bit quantization (single V100 16GB)
+            estimated_memory_full_precision = 22.0  # bfloat16 full model
+            memory_buffer_minimal = 2.0  # Minimal headroom for inference
+            full_precision_threshold = estimated_memory_full_precision + memory_buffer_minimal  # 24GB
 
             # Use dynamic GPU detection for architecture information
             from .dynamic_gpu_config import get_gpu_detector
@@ -135,7 +143,8 @@ def load_llama_model_robust(
                 gpu_architecture = "unknown"
 
             # Use total available memory for accurate assessment
-            memory_sufficient = total_available_memory >= (estimated_memory_needed + memory_buffer)
+            # Key insight: 24GB GPUs (L40) can run full precision with minimal buffer
+            memory_sufficient = total_available_memory >= full_precision_threshold
 
             if verbose:
                 # Enhanced display with robust detection results
@@ -146,7 +155,7 @@ def load_llama_model_robust(
 
                     rprint(f"[blue]📊 GPU Hardware: {primary_gpu_name} ({working_gpus}x {avg_gpu_memory:.0f}GB = {total_gpu_memory:.0f}GB total)[/blue]")
                     rprint(f"[blue]🏗️ Architecture: {gpu_architecture} (dynamic detection)[/blue]")
-                    rprint(f"[blue]🎯 Model: Llama-3.2-11B-Vision (estimated need: {estimated_memory_needed}GB + {memory_buffer:.1f}GB buffer)[/blue]")
+                    rprint(f"[blue]🎯 Model: Llama-3.2-11B-Vision (full precision: {estimated_memory_full_precision}GB, threshold: {full_precision_threshold}GB)[/blue]")
                     rprint(f"[blue]💾 Available Memory: {total_available_memory:.1f}GB across {working_gpus} GPU(s)[/blue]")
 
                     # Show any warnings from robust detection
@@ -168,12 +177,12 @@ def load_llama_model_robust(
                 v100_total_memory = sum(gpu.total_memory_gb for gpu in v100_gpus)
 
                 # Dynamic V100 memory thresholds for Llama-3.2-11B-Vision:
-                # 1x V100 (16GB): Needs quantization (< 28GB threshold)
-                # 2x V100 (32GB): Can do full precision (>= 28GB threshold)
+                # 1x V100 (16GB): Needs quantization (< 24GB threshold)
+                # 2x V100 (32GB): Can do full precision (>= 24GB threshold)
                 # 3x V100 (48GB): Excellent for full precision
                 # 4x V100 (64GB): Excellent for full precision
 
-                v100_threshold = estimated_memory_needed + memory_buffer  # ~28GB for Llama-3.2-11B-Vision
+                v100_threshold = full_precision_threshold  # 24GB for Llama-3.2-11B-Vision
 
                 if v100_total_memory >= v100_threshold:
                     # Sufficient V100 memory for full precision
@@ -233,7 +242,7 @@ def load_llama_model_robust(
             if torch.cuda.is_available() and 'total_gpu_memory' in locals():
                 rprint(f"[cyan]   Total GPU Memory: {total_gpu_memory:.0f}GB[/cyan]")
                 rprint(f"[cyan]   Available Memory: {total_available_memory:.0f}GB[/cyan]")
-                rprint(f"   Model needs: ~{estimated_memory_needed}GB + {memory_buffer:.1f}GB buffer for Llama-3.2-11B-Vision")
+                rprint(f"   Full precision needs: {estimated_memory_full_precision}GB + {memory_buffer_minimal}GB buffer = {full_precision_threshold}GB threshold")
                 rprint(f"[cyan]   Working GPUs: {working_gpus}/{device_count}[/cyan]")
 
                 # V100-specific final summary
