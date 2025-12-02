@@ -418,6 +418,9 @@ class BalanceCorrector:
         balance_change = current_balance - previous_balance
         if balance_change < 0: transaction is a DEBIT of abs(balance_change)
         if balance_change > 0: transaction is a CREDIT of balance_change
+
+    IMPORTANT: Only works for chronologically ordered statements (oldest first).
+    Use is_chronological_order() to check before applying corrections.
     """
 
     def __init__(self, tolerance: float = 0.01):
@@ -485,8 +488,8 @@ class BalanceCorrector:
             if current_balance is None:
                 stats.unparseable_balances += 1
                 # Keep original classification if balance unparseable
+                # DON'T reset prev_balance - preserve chain for next parseable row
                 corrected_rows.append(row.copy())
-                prev_balance = None
                 continue
 
             # Need previous balance to calculate delta
@@ -519,25 +522,20 @@ class BalanceCorrector:
 
                 # Check if LLM classified correctly
                 if llm_debit > 0 and abs(llm_debit - correct_amount) < self.tolerance:
-                    # Correct classification and amount
+                    # Correct classification and amount - no change needed
                     pass
-                elif llm_credit > 0:
-                    # LLM said credit, but it's a debit - CORRECT IT
-                    corrected_row[debit_col] = f"${correct_amount:.2f}"
-                    corrected_row[credit_col] = "NOT_FOUND"
-                    stats.corrections_made += 1
-                    stats.type_corrections += 1
                 elif llm_debit > 0:
                     # Right type, wrong amount - correct amount
-                    if abs(llm_debit - correct_amount) >= self.tolerance:
-                        corrected_row[debit_col] = f"${correct_amount:.2f}"
-                        stats.corrections_made += 1
-                        stats.amount_corrections += 1
+                    corrected_row[debit_col] = f"${correct_amount:.2f}"
+                    stats.corrections_made += 1
+                    stats.amount_corrections += 1
                 else:
-                    # No amount found - add it
+                    # Wrong type or no amount - set correct debit
                     corrected_row[debit_col] = f"${correct_amount:.2f}"
                     corrected_row[credit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
+                    if llm_credit > 0:
+                        stats.type_corrections += 1
 
             else:
                 # Balance increased = CREDIT
@@ -546,25 +544,20 @@ class BalanceCorrector:
 
                 # Check if LLM classified correctly
                 if llm_credit > 0 and abs(llm_credit - correct_amount) < self.tolerance:
-                    # Correct classification and amount
+                    # Correct classification and amount - no change needed
                     pass
-                elif llm_debit > 0:
-                    # LLM said debit, but it's a credit - CORRECT IT
-                    corrected_row[credit_col] = f"${correct_amount:.2f}"
-                    corrected_row[debit_col] = "NOT_FOUND"
-                    stats.corrections_made += 1
-                    stats.type_corrections += 1
                 elif llm_credit > 0:
                     # Right type, wrong amount - correct amount
-                    if abs(llm_credit - correct_amount) >= self.tolerance:
-                        corrected_row[credit_col] = f"${correct_amount:.2f}"
-                        stats.corrections_made += 1
-                        stats.amount_corrections += 1
+                    corrected_row[credit_col] = f"${correct_amount:.2f}"
+                    stats.corrections_made += 1
+                    stats.amount_corrections += 1
                 else:
-                    # No amount found - add it
+                    # Wrong type or no amount - set correct credit
                     corrected_row[credit_col] = f"${correct_amount:.2f}"
                     corrected_row[debit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
+                    if llm_debit > 0:
+                        stats.type_corrections += 1
 
             corrected_rows.append(corrected_row)
             prev_balance = current_balance
@@ -578,6 +571,68 @@ class BalanceCorrector:
         if not value or value.upper() == "NOT_FOUND":
             return False
         return TransactionFilter.parse_amount(value) > 0
+
+    @staticmethod
+    def is_chronological_order(
+        rows: list[dict[str, str]], date_col: str
+    ) -> tuple[bool, str]:
+        """Determine if transactions are in chronological order (oldest first).
+
+        Args:
+            rows: Transaction rows with date column
+            date_col: Name of the date column
+
+        Returns:
+            Tuple of (is_chronological, reason)
+            - is_chronological: True if oldest transaction is first
+            - reason: Description of the detection result
+        """
+        from datetime import datetime
+
+        if len(rows) < 2:
+            return False, "Not enough rows to determine order"
+
+        # Get first and last dates
+        first_date_str = rows[0].get(date_col, "").strip()
+        last_date_str = rows[-1].get(date_col, "").strip()
+
+        if not first_date_str or not last_date_str:
+            return False, "Missing date values"
+
+        # Try parsing dates with common formats
+        date_formats = [
+            "%d/%m/%Y",  # 03/05/2025
+            "%d %b %Y",  # 04 Sep 2025
+            "%d %B %Y",  # 04 September 2025
+            "%a %d %b %Y",  # Thu 04 Sep 2025
+            "%Y-%m-%d",  # 2025-09-04
+            "%m/%d/%Y",  # 05/03/2025 (US format)
+        ]
+
+        first_date = None
+        last_date = None
+
+        for fmt in date_formats:
+            if first_date is None:
+                try:
+                    first_date = datetime.strptime(first_date_str, fmt)
+                except ValueError:
+                    pass
+            if last_date is None:
+                try:
+                    last_date = datetime.strptime(last_date_str, fmt)
+                except ValueError:
+                    pass
+
+        if first_date is None or last_date is None:
+            return False, f"Could not parse dates: '{first_date_str}', '{last_date_str}'"
+
+        if first_date < last_date:
+            return True, f"Chronological: {first_date_str} → {last_date_str}"
+        elif first_date > last_date:
+            return False, f"Reverse chronological: {first_date_str} → {last_date_str}"
+        else:
+            return False, "Same date for first and last transaction"
 
 
 class UnifiedBankExtractor:
@@ -605,12 +660,14 @@ class UnifiedBankExtractor:
         config_dir: str | Path | None = None,
         model_dtype: Any = None,
         image_processing_config: dict[str, Any] | None = None,
+        use_balance_correction: bool = False,
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.processor = processor
         self.model_type = model_type.lower()
         self.model_dtype = model_dtype
+        self.use_balance_correction = use_balance_correction
 
         # Image processing config (from model_config.yaml)
         self.image_processing = image_processing_config or {}
@@ -736,16 +793,30 @@ class UnifiedBankExtractor:
         )
         print(f"  Parsed {len(all_rows)} transactions")
 
-        # Apply balance correction
-        corrector = BalanceCorrector()
-        corrected_rows, correction_stats = corrector.correct_transactions(
-            all_rows,
-            balance_col=balance_col,
-            debit_col=debit_col,
-            credit_col=credit_col,
-            desc_col=desc_col,
-        )
-        print(f"  Balance correction: {correction_stats}")
+        # Optionally apply balance correction (only for chronological order)
+        correction_stats = None
+        if self.use_balance_correction:
+            # Check if transactions are in chronological order
+            is_chrono, order_reason = BalanceCorrector.is_chronological_order(
+                all_rows, date_col
+            )
+            print(f"  Date order: {order_reason}")
+
+            if is_chrono:
+                corrector = BalanceCorrector()
+                corrected_rows, correction_stats = corrector.correct_transactions(
+                    all_rows,
+                    balance_col=balance_col,
+                    debit_col=debit_col,
+                    credit_col=credit_col,
+                    desc_col=desc_col,
+                )
+                print(f"  Balance correction: {correction_stats}")
+            else:
+                print("  Skipping balance correction (requires chronological order)")
+                corrected_rows = all_rows
+        else:
+            corrected_rows = all_rows
 
         # Filter for debits (from corrected rows)
         debit_rows = self.filter.filter_debits(
