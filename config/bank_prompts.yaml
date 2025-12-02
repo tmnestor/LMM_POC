@@ -151,3 +151,4 @@ prompts:
       - Each transaction row MUST have a date
       - Include ALL transactions
       - Empty amount cells should be blank
+
