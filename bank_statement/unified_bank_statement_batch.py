@@ -45,15 +45,16 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
+from PIL import Image
+from rich.console import Console
+from rich.table import Table
+
 from common.evaluation_metrics import (
     calculate_field_accuracy_f1,
     load_ground_truth,
 )
 from common.reproducibility import set_seed
 from common.unified_bank_extractor import UnifiedBankExtractor
-from PIL import Image
-from rich.console import Console
-from rich.table import Table
 
 # Rich console for styled output
 console = Console()
