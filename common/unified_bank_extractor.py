@@ -24,6 +24,7 @@ class ExtractionStrategy(Enum):
     """Available extraction strategies."""
 
     BALANCE_DESCRIPTION = auto()  # 2-turn: header detection + balance extraction
+    AMOUNT_DESCRIPTION = auto()  # 2-turn: header + amount extraction (negative = debit)
     TABLE_EXTRACTION = auto()  # 3-turn: header + format classify + table
 
 
@@ -325,6 +326,90 @@ class ResponseParser:
 
         return rows
 
+    @staticmethod
+    def parse_amount_description(
+        response: str,
+        date_col: str,
+        desc_col: str,
+        amount_col: str,
+    ) -> list[dict[str, str]]:
+        """Parse amount-description response into transaction rows."""
+        rows = []
+        current_date = None
+        current_transaction: dict[str, str] = {}
+
+        lines = response.strip().split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # DATE DETECTION (same patterns as balance-description)
+            date_found = None
+
+            # Pattern 1: "1. **Date:** 03/05/2025"
+            date_field_match = re.match(
+                r"^\d*\.?\s*\*?\*?Date:?\*?\*?\s*(.+)$", line, re.IGNORECASE
+            )
+            if date_field_match:
+                date_found = date_field_match.group(1).strip().strip("*").strip()
+
+            # Pattern 2: Numbered bold date "1. **03/05/2025**"
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\*?\*?", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            # Pattern 3: "1. **04 Sep 2025**"
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            if date_found:
+                # Save previous transaction
+                if current_transaction and current_date:
+                    current_transaction[date_col] = current_date
+                    rows.append(current_transaction)
+                    current_transaction = {}
+                current_date = date_found
+                continue
+
+            # FIELD DETECTION
+            field_name = None
+            field_value = None
+
+            # Pattern: "- Description: value" or "* Description: value"
+            field_match = re.match(r"^\s*[-*]\s*([^:]+):\s*(.+)$", line)
+            if field_match:
+                field_name = field_match.group(1).strip().lower()
+                field_value = field_match.group(2).strip()
+
+            if field_name and field_value:
+                if field_name in ["description", "details", desc_col.lower()]:
+                    # New transaction under same date
+                    if desc_col in current_transaction and current_transaction[desc_col]:
+                        if current_date:
+                            current_transaction[date_col] = current_date
+                        rows.append(current_transaction)
+                        current_transaction = {}
+                    current_transaction[desc_col] = field_value
+
+                elif field_name in ["amount", amount_col.lower()]:
+                    current_transaction[amount_col] = field_value
+
+        # Don't forget last transaction
+        if current_transaction and current_date:
+            current_transaction[date_col] = current_date
+            rows.append(current_transaction)
+
+        return rows
+
 
 class TransactionFilter:
     """Filter and process extracted transactions."""
@@ -383,6 +468,34 @@ class TransactionFilter:
                 continue
 
             debit_rows.append(row)
+
+        return debit_rows
+
+    @classmethod
+    def filter_negative_amounts(
+        cls,
+        rows: list[dict[str, str]],
+        amount_col: str,
+        desc_col: str | None = None,
+    ) -> list[dict[str, str]]:
+        """Filter to transactions with negative amounts (withdrawals)."""
+        debit_rows = []
+        for row in rows:
+            amount_str = row.get(amount_col, "").strip()
+            if not amount_str:
+                continue
+
+            # Skip non-transaction entries
+            if desc_col and cls.is_non_transaction(row, desc_col):
+                continue
+
+            # Check for negative indicators
+            is_negative = amount_str.startswith("-") or (
+                amount_str.startswith("(") and amount_str.endswith(")")
+            )
+
+            if is_negative:
+                debit_rows.append(row)
 
         return debit_rows
 
@@ -683,6 +796,7 @@ class UnifiedBankExtractor:
         self._prompts = {
             "turn0": self.config_loader.get_prompt("turn0_header_detection"),
             "turn1_balance": self.config_loader.get_prompt("turn1_balance_extraction"),
+            "turn1_amount": self.config_loader.get_prompt("turn1_amount_extraction"),
         }
 
     def extract(
@@ -723,9 +837,12 @@ class UnifiedBankExtractor:
         elif mapping.has_balance:
             strategy = ExtractionStrategy.BALANCE_DESCRIPTION
             reason = "Balance column detected"
+        elif mapping.amount and not mapping.has_balance:
+            strategy = ExtractionStrategy.AMOUNT_DESCRIPTION
+            reason = "Amount column detected (no balance)"
         else:
             strategy = ExtractionStrategy.TABLE_EXTRACTION
-            reason = "No balance column - using table extraction"
+            reason = "Fallback to table extraction"
 
         print(f"Strategy: {strategy.name} ({reason})")
 
@@ -734,19 +851,17 @@ class UnifiedBankExtractor:
             result = self._extract_balance_description(
                 image, headers, mapping, turn0_response
             )
+        elif strategy == ExtractionStrategy.AMOUNT_DESCRIPTION:
+            result = self._extract_amount_description(
+                image, headers, mapping, turn0_response
+            )
         else:
-            # Table extraction not implemented yet - fall back to balance if possible
-            if mapping.has_balance:
-                print("  Falling back to balance-description")
-                result = self._extract_balance_description(
-                    image, headers, mapping, turn0_response
-                )
-            else:
-                result = ExtractionResult(
-                    strategy_used="table_extraction_not_implemented",
-                    headers_detected=headers,
-                    column_mapping=mapping,
-                )
+            # Table extraction not implemented yet
+            result = ExtractionResult(
+                strategy_used="table_extraction_not_implemented",
+                headers_detected=headers,
+                column_mapping=mapping,
+            )
 
         # Free GPU memory
         torch.cuda.empty_cache()
@@ -850,6 +965,83 @@ class UnifiedBankExtractor:
             raw_responses={"turn0": turn0_response, "turn1": response},
             correction_stats=correction_stats,
         )
+
+    def _extract_amount_description(
+        self,
+        image: Any,
+        headers: list[str],
+        mapping: ColumnMapping,
+        turn0_response: str,
+    ) -> ExtractionResult:
+        """Execute 2-turn amount-description extraction for Amount-only statements."""
+        import torch
+
+        # Build Turn 1 prompt with actual column names
+        prompt_template = self._prompts["turn1_amount"]
+        prompt = prompt_template.format(
+            amount_col=mapping.amount or "Amount",
+            desc_col=mapping.description or "Description",
+        )
+
+        print("Turn 1: Extracting transactions (amount-description)...")
+        response = self._generate(image, prompt, max_tokens=4096)
+
+        # Column name shortcuts
+        date_col = mapping.date or "Date"
+        desc_col = mapping.description or "Description"
+        amount_col = mapping.amount or "Amount"
+
+        # Parse response
+        all_rows = self.parser.parse_amount_description(
+            response,
+            date_col=date_col,
+            desc_col=desc_col,
+            amount_col=amount_col,
+        )
+        print(f"  Parsed {len(all_rows)} transactions")
+
+        # Filter for withdrawals (negative amounts)
+        debit_rows = self.filter.filter_negative_amounts(
+            all_rows,
+            amount_col=amount_col,
+            desc_col=desc_col,
+        )
+        print(f"  Filtered to {len(debit_rows)} withdrawal transactions")
+
+        # Extract schema fields
+        dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
+        descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
+        amounts = [
+            self._format_debit_amount(r.get(amount_col, ""))
+            for r in debit_rows
+            if r.get(amount_col)
+        ]
+
+        # Date range from all transactions
+        all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
+        date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
+
+        torch.cuda.empty_cache()
+
+        return ExtractionResult(
+            statement_date_range=date_range,
+            transaction_dates=dates,
+            line_item_descriptions=descriptions,
+            transaction_amounts_paid=amounts,
+            strategy_used="amount_description_2turn",
+            turns_executed=2,
+            headers_detected=headers,
+            column_mapping=mapping,
+            raw_responses={"turn0": turn0_response, "turn1": response},
+        )
+
+    @staticmethod
+    def _format_debit_amount(amount_str: str) -> str:
+        """Format debit amount, preserving negative sign for semantic matching."""
+        if not amount_str:
+            return ""
+        # Keep as-is - semantic normalization in batch script handles matching
+        return amount_str.strip()
 
     @staticmethod
     def _compute_date_range(dates: list[str]) -> str:

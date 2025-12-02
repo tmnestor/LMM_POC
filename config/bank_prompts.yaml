@@ -48,6 +48,29 @@ prompts:
       5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
       6. Do NOT skip any transactions
 
+  # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
+  turn1_amount_extraction:
+    name: "Amount-Description Extraction"
+    description: "Extract transactions anchored to amount column (negative = withdrawal)"
+    # Placeholders: {amount_col}, {desc_col}
+    template: |
+      List all transactions from the {amount_col} column, including:
+      - Date
+      - {desc_col}
+      - {amount_col} (preserve the sign: negative = withdrawal, positive = deposit)
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [description text]
+         - {amount_col}: [amount with sign]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL description text, not abbreviated
+      4. PRESERVE the sign of amounts (negative values are withdrawals)
+      5. Do NOT skip any transactions
+
   # Turn 0.5: Format classification (3-turn strategy)
   turn0_5_format_classification:
     name: "Date Format Classification"
