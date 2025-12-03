@@ -40,15 +40,16 @@ models:
   # ============================================================================
   # INTERNVL3-8B MODELS
   # ============================================================================
+  # L40/A10G - bfloat16 with flash attention (24GB VRAM)
   internvl3_8b:
-    name: "InternVL3-8B (bfloat16)"
+    name: "InternVL3-8B (bfloat16, L40/A10G)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3-8B"
 
     loading:
       quantization: "none"
       torch_dtype: "bfloat16"
-      use_flash_attn: false
+      use_flash_attn: true  # L40/A10G support flash attention
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -57,19 +58,20 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 14
+      max_tiles: 24  # L40/A10G optimized
       input_size: 448
       use_thumbnail: true
 
+  # V100 - 8-bit quantized (16GB VRAM, no flash attention)
   internvl3_8b_8bit:
-    name: "InternVL3-8B (8-bit quantized)"
+    name: "InternVL3-8B (8-bit quantized, V100)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3-8B"
 
     loading:
       quantization: "8bit"
       torch_dtype: "float16"
-      use_flash_attn: false
+      use_flash_attn: false  # V100 doesn't support flash attention
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -78,13 +80,14 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 12
+      max_tiles: 14  # V100 optimized (memory constrained)
       input_size: 448
       use_thumbnail: true
 
   # ============================================================================
   # INTERNVL3-2B MODELS
   # ============================================================================
+  # Small model - works on most GPUs with bfloat16
   internvl3_2b:
     name: "InternVL3-2B (bfloat16)"
     type: "internvl3"
@@ -93,7 +96,7 @@ models:
     loading:
       quantization: "none"
       torch_dtype: "bfloat16"
-      use_flash_attn: false
+      use_flash_attn: true  # Enable for modern GPUs
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -102,19 +105,20 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 36
+      max_tiles: 18  # Good balance for 2B model
       input_size: 448
       use_thumbnail: true
 
+  # V100 - 8-bit quantized (for memory-constrained scenarios)
   internvl3_2b_8bit:
-    name: "InternVL3-2B (8-bit quantized)"
+    name: "InternVL3-2B (8-bit quantized, V100)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3-2B"
 
     loading:
       quantization: "8bit"
       torch_dtype: "float16"
-      use_flash_attn: false
+      use_flash_attn: false  # V100 doesn't support flash attention
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -123,22 +127,23 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 12
+      max_tiles: 18  # 2B model is small enough for decent tiles
       input_size: 448
       use_thumbnail: true
 
   # ============================================================================
   # INTERNVL3.5-8B MODELS
   # ============================================================================
+  # H200 - bfloat16 with flash attention (80GB HBM3)
   internvl3_5_8b:
-    name: "InternVL3.5-8B (bfloat16)"
+    name: "InternVL3.5-8B (bfloat16, H200)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
 
     loading:
       quantization: "none"
       torch_dtype: "bfloat16"
-      use_flash_attn: false
+      use_flash_attn: true  # H200 supports flash attention
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -147,19 +152,20 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 12
+      max_tiles: 36  # H200 can handle more tiles
       input_size: 448
       use_thumbnail: true
 
+  # V100 - 8-bit quantized (for memory-constrained GPUs)
   internvl3_5_8b_8bit:
-    name: "InternVL3.5-8B (8-bit quantized)"
+    name: "InternVL3.5-8B (8-bit quantized, V100)"
     type: "internvl3"
     default_path: "/home/jovyan/nfs_share/models/InternVL3_5-8B"
 
     loading:
       quantization: "8bit"
       torch_dtype: "float16"
-      use_flash_attn: false
+      use_flash_attn: false  # V100 doesn't support flash attention
       trust_remote_code: true
       low_cpu_mem_usage: true
 
@@ -168,6 +174,6 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 36
+      max_tiles: 14  # V100 memory constrained
       input_size: 448
       use_thumbnail: true
