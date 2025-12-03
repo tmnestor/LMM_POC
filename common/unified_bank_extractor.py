@@ -525,7 +525,6 @@ class CorrectionStats:
     debits_found: int = 0
     credits_found: int = 0
     corrections_made: int = 0
-    amount_corrections: int = 0
     type_corrections: int = 0  # debit<->credit swaps
     unparseable_balances: int = 0
 
@@ -533,8 +532,7 @@ class CorrectionStats:
         return (
             f"Transactions: {self.total_transactions}, "
             f"Debits: {self.debits_found}, Credits: {self.credits_found}, "
-            f"Corrections: {self.corrections_made} "
-            f"(type: {self.type_corrections}, amount: {self.amount_corrections})"
+            f"Corrections: {self.corrections_made} (type swaps: {self.type_corrections})"
         )
 
 
@@ -642,56 +640,40 @@ class BalanceCorrector:
             llm_credit = TransactionFilter.parse_amount(row.get(credit_col, ""))
 
             # Determine correct classification from balance delta
+            # IMPORTANT: Only SWAP values between columns - never recalculate amounts
+            # This matches the llama notebook's validate_and_correct_alignment behavior
             if abs(balance_delta) < self.tolerance:
                 # No significant change - keep original
                 pass
             elif balance_delta < 0:
-                # Balance decreased = DEBIT
-                correct_amount = abs(balance_delta)
+                # Balance decreased = should be DEBIT
                 stats.debits_found += 1
 
-                # ALWAYS clear credit column when transaction is a debit
-                corrected_row[credit_col] = ""
-
-                # Check if LLM classified correctly
-                if llm_debit > 0 and abs(llm_debit - correct_amount) < self.tolerance:
-                    # Correct classification and amount - no change needed
-                    pass
-                elif llm_debit > 0:
-                    # Right type, wrong amount - correct amount
-                    corrected_row[debit_col] = f"${correct_amount:.2f}"
+                # If LLM misclassified (put amount in credit instead of debit), swap it
+                if llm_credit > 0 and llm_debit == 0:
+                    # Move credit value to debit column
+                    corrected_row[debit_col] = row.get(credit_col, "")
+                    corrected_row[credit_col] = ""
                     stats.corrections_made += 1
-                    stats.amount_corrections += 1
+                    stats.type_corrections += 1
                 else:
-                    # Wrong type or no amount - set correct debit
-                    corrected_row[debit_col] = f"${correct_amount:.2f}"
-                    stats.corrections_made += 1
-                    if llm_credit > 0:
-                        stats.type_corrections += 1
+                    # LLM classified correctly as debit - keep amount, just clear credit
+                    corrected_row[credit_col] = ""
 
             else:
-                # Balance increased = CREDIT
-                correct_amount = balance_delta
+                # Balance increased = should be CREDIT
                 stats.credits_found += 1
 
-                # ALWAYS clear debit column when transaction is a credit
-                corrected_row[debit_col] = ""
-
-                # Check if LLM classified correctly
-                if llm_credit > 0 and abs(llm_credit - correct_amount) < self.tolerance:
-                    # Correct classification and amount - no change needed
-                    pass
-                elif llm_credit > 0:
-                    # Right type, wrong amount - correct amount
-                    corrected_row[credit_col] = f"${correct_amount:.2f}"
+                # If LLM misclassified (put amount in debit instead of credit), swap it
+                if llm_debit > 0 and llm_credit == 0:
+                    # Move debit value to credit column
+                    corrected_row[credit_col] = row.get(debit_col, "")
+                    corrected_row[debit_col] = ""
                     stats.corrections_made += 1
-                    stats.amount_corrections += 1
+                    stats.type_corrections += 1
                 else:
-                    # Wrong type or no amount - set correct credit
-                    corrected_row[credit_col] = f"${correct_amount:.2f}"
-                    stats.corrections_made += 1
-                    if llm_debit > 0:
-                        stats.type_corrections += 1
+                    # LLM classified correctly as credit - keep amount, just clear debit
+                    corrected_row[debit_col] = ""
 
             corrected_rows.append(corrected_row)
             prev_balance = current_balance
