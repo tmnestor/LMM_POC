@@ -1,16 +1,17 @@
-| Date | Transaction | Debit | Credit | Balance |
-| :--- | :--- | ---: | ---: | :--- |
-| 15 Mar 2024 | OPENING BALANCE |  | 3,156.28 CR | $3,156.28 CR |
-| 18 Mar 2024 | TELSTRA MOBILE SERVICES SYDNEY AUS | 48.50 |  | $3,107.78 CR |
-| 19 Mar 2024 | WOOLWORTHS 28477 MELBOURNE VIC AUS | 127.35 |  | $2,980.43 CR |
-| 20 Mar 2024 | SHELL SERVICE STATION RICHMOND VIC | 89.60 |  | $2,890.83 CR |
-| 22 Mar 2024 | NETFLIX SUBSCRIPTION | 22.99 |  | $2,867.84 CR |
-| 25 Mar 2024 | Transfer from xx8765 CommBank app |  | 500.00 CR | $3,337.84 CR |
-| 28 Mar 2024 | CAFE LATTE FITZROY VIC AUS | 18.50 |  | $3,349.34 CR |
-| 01 Apr 2024 | SALARY DEPOSIT ACME PTY LTD |  | 3,500.00 CR | $6,849.34 CR |
-| 03 Apr 2024 | Transfer to xx2468 CommBank app | 2,000.00 |  | $4,849.34 CR |
-| 05 Apr 2024 | COLES SUPERMARKET CARLTON VIC | 156.78 |  | $4,692.56 CR |
-| 08 Apr 2024 | PARKING METERS MELBOURNE VIC | 15.00 |  | $4,677.56 CR |
-| 10 Apr 2024 | RENT PAYMENT REAL ESTATE |  | 1,850.00 CR | $2,827.56 CR |
-| 12 Apr 2024 | Transfer from xx8765 CommBank app |  | 75.00 CR | $2,902.56 CR |
-| 14 Apr 2024 | CHEMIST WAREHOUSE MELBOURNE VIC | 54.64 |  | $2,847.92 CR |
+| Date       | Transaction                          | Withdrawal | Deposit  | Balance    |
+| :--------- | :----------------------------------- | :--------- | :------- | :--------- |
+| 08/08/2025 | Card Purchase KMART PERTH WA         |            |          | $8511.73   |
+| 08/08/2025 | ATM Withdrawal WESTPAC ATM PERTH WA  | $79.00     |          | $8432.73   |
+| 09/08/2025 | Contactless Payment BUNNINGS CANBERRA ACT |           | $850.65  | $7582.08   |
+| 12/08/2025 | Interest Payment Ref: 23396P22448136 |           | $1750.42 | $9332.50   |
+| 15/08/2025 | EFTPOS Purchase WOOLWORTHS SYDNEY NSW |           | $1215.38 | $8117.12   |
+| 15/08/2025 | Direct Debit ACME CORP PTY LTD Ref: 35203P19335534 |           | $1662.22 | $6454.90   |
+| 18/08/2025 | Interest Payment Ref: 5982347308985  |           | $4933.50 | $11388.40  |
+| 18/08/2025 | EFTPOS Purchase WOOLWORTHS MOBART TAS | $342.06   |          | $11046.34  |
+| 20/08/2025 | EFTPOS Purchase COLES SUPERMARKET PERTH WA |           | $1077.60 | $9968.74   |
+| 22/08/2025 | Refund BIG W Ref: 40021P143084211    |           | $1488.27 | $11457.01  |
+| 25/08/2025 | Insurance Premium AGL Policy 9509P77005685 |           | $437.75  | $11019.26  |
+| 27/08/2025 | Direct Credit SALARY Ref: 83579P823403907 |           | $1142.92 | $12162.18  |
+| 30/08/2025 | Direct Credit SALARY Ref: 38746P28566572 |           | $4540.20 | $16702.38  |
+| 30/08/2025 | ATM Withdrawal WESTPAC ATM BRISBANE OLD | $1724.98  |          | $14977.40  |
+| 30/08/2025 | Subscription Spotify Monthly 82512P11540956 |           | $1992.32 | $12985.08  |
