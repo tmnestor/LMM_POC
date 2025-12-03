@@ -1,101 +1,89 @@
-1. **Thu 04 Sep 2025**
-   - Transaction: Direct Debit DOMINO'S PTY LTD
-   - Debit: $117.57
-   - Credit: NOT_FOUND
-   - Balance: $8586.28 CR
+1. **08/08/2025**
+   - Transaction: Card Purchase K MART
+   - Withdrawal: $1488.27
+   - Deposit: NOT_FOUND
+   - Balance: $8511.73
 
-2. **Mon 01 Sep 2025**
-   - Transaction: Monthly Service Fee
-   - Debit: $17.89
-   - Credit: NOT_FOUND
-   - Balance: $8703.85 CR
+2. **08/08/2025**
+   - Transaction: ATM Withdrawal WESTPAC ATM
+   - Withdrawal: $79.00
+   - Deposit: NOT_FOUND
+   - Balance: $8432.73
 
-3. **Sun 31 Aug 2025**
-   - Transaction: Monthly Service Fee
-   - Debit: $18.87
-   - Credit: NOT_FOUND
-   - Balance: $8721.74 CR
+3. **09/08/2025**
+   - Transaction: Contactless Payment BUNNINGS
+   - Withdrawal: $850.65
+   - Deposit: NOT_FOUND
+   - Balance: $7582.08
 
-4. **Fri 29 Aug 2025**
-   - Transaction: Wdl ATM WBC WESTPAC GLEN WAVE
-   - Debit: $241.14
-   - Credit: NOT_FOUND
-   - Balance: $8740.61 CR
+4. **12/08/2025**
+   - Transaction: Interest Payment
+   - Withdrawal: NOT_FOUND
+   - Deposit: $1750.42
+   - Balance: $9332.50
 
-5. **Wed 27 Aug 2025**
-   - Transaction: Direct Debit 94924P49133289 MHF 75696
-   - Debit: $251.33
-   - Credit: NOT_FOUND
-   - Balance: $9080.28 CR
+5. **15/08/2025**
+   - Transaction: EFTPOS Purchase WOOLWORTHS
+   - Withdrawal: $1215.38
+   - Deposit: NOT_FOUND
+   - Balance: $8117.12
 
-6. **Sat 23 Aug 2025**
-   - Transaction: Cash Withdrawal ATM SYDNEY NSW
-   - Debit: $98.53
-   - Credit: NOT_FOUND
-   - Balance: $8981.75 CR
+6. **15/08/2025**
+   - Transaction: Direct Debit ACME CORP PTY LTD
+   - Withdrawal: $1662.22
+   - Deposit: NOT_FOUND
+   - Balance: $6454.90
 
-7. **Sat 23 Aug 2025**
-   - Transaction: Home Loan Payment LN REPAY 56052P41706870
-   - Debit: $1918.75
-   - Credit: NOT_FOUND
-   - Balance: $8331.61 CR
+7. **18/08/2025**
+   - Transaction: Interest Payment
+   - Withdrawal: NOT_FOUND
+   - Deposit: $4933.50
+   - Balance: $11388.40
 
-8. **Thu 21 Aug 2025**
-   - Transaction: Salary - ATO PAYROLL 89278P11488576
-   - Debit: NOT_FOUND
-   - Credit: $7836.75
-   - Balance: $11526.67 CR
+8. **18/08/2025**
+   - Transaction: EFTPOS Purchase WOOLWORTHS
+   - Withdrawal: $342.06
+   - Deposit: NOT_FOUND
+   - Balance: $11046.34
 
-9. **Thu 21 Aug 2025**
-   - Transaction: Direct Debit COLES PTY LTD
-   - Debit: $276.31
-   - Credit: NOT_FOUND
-   - Balance: $11250.36 CR
+9. **20/08/2025**
+   - Transaction: EFTPOS Purchase COLES SUPERMARKET
+   - Withdrawal: $1077.60
+   - Deposit: NOT_FOUND
+   - Balance: $9968.74
 
-10. **Tue 19 Aug 2025**
-    - Transaction: Cash Withdrawal ATM HOBART TAS
-    - Debit: $61.68
-    - Credit: NOT_FOUND
-    - Balance: $3869.92 CR
+10. **22/08/2025**
+    - Transaction: Refund BIG W
+    - Withdrawal: NOT_FOUND
+    - Deposit: $1488.27
+    - Balance: $11457.01
 
-11. **Sun 17 Aug 2025**
-    - Transaction: Transfer To Vicks Account NetBank From Tod
-    - Debit: $3775.28
-    - Credit: NOT_FOUND
-    - Balance: $3751.60 CR
+11. **25/08/2025**
+    - Transaction: Insurance Premium AGL
+    - Withdrawal: $437.75
+    - Deposit: NOT_FOUND
+    - Balance: $11019.26
 
-12. **Sat 16 Aug 2025**
-    - Transaction: Salary Payment ATO 65208P39971825
-    - Debit: NOT_FOUND
-    - Credit: $5778.51
-    - Balance: $7526.88 CR
+12. **27/08/2025**
+    - Transaction: Direct Credit SALARY
+    - Withdrawal: NOT_FOUND
+    - Deposit: $1142.92
+    - Balance: $12162.18
 
-13. **Fri 15 Aug 2025**
-    - Transaction: Direct Debit MYER PTY LTD
-    - Debit: $245.00
-    - Credit: NOT_FOUND
-    - Balance: $1748.37 CR
+13. **30/08/2025**
+    - Transaction: Direct Credit SALARY
+    - Withdrawal: NOT_FOUND
+    - Deposit: $4540.20
+    - Balance: $16702.38
 
-14. **Wed 13 Aug 2025**
-    - Transaction: ATM Withdrawal SYDNEY NSW
-    - Debit: $51.36
-    - Credit: NOT_FOUND
-    - Balance: $2221.48 CR
+14. **30/08/2025**
+    - Transaction: ATM Withdrawal WESTPAC ATM
+    - Withdrawal: $1724.98
+    - Deposit: NOT_FOUND
+    - Balance: $14977.40
 
-15. **Wed 13 Aug 2025**
-    - Transaction: Direct Debit 65452P29227883 MHF 11016
-    - Debit: $228.11
-    - Credit: NOT_FOUND
-    - Balance: $1993.37 CR
-
-16. **Mon 11 Aug 2025**
-    - Transaction: Transfer To Western Port Marina NetBank
-    - Debit: $4374.15
-    - Credit: NOT_FOUND
-    - Balance: $4814.35 CR
-
-17. **Mon 11 Aug 2025**
-    - Transaction: Direct Debit 82572P68016423 MHF 62020
-    - Debit: $214.28
-    - Credit: NOT_FOUND
-    - Balance: $4600.09 CR
+15. **30/08/2025**
+    - Transaction: Subscription Spotify
+    - Withdrawal: $1992.32
+    - Deposit: NOT_FOUND
+    - Balance: $12985.08
