@@ -54,7 +54,7 @@ from PIL import Image
 from rich.console import Console
 from rich.table import Table
 from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from common.evaluation_metrics import (
     calculate_correlation_aware_f1,
@@ -105,11 +105,11 @@ CONFIG = {
     "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
     # Model path
     "MODEL_PATH": "/home/jovyan/nfs_share/models/InternVL3-8B",
-    # V100 TILE CONFIGURATION
-    "MAX_TILES": 14,  # V100 optimized - InternVL3-8B config default
+    # L40 TILE CONFIGURATION
+    "MAX_TILES": 14,  # L40 optimized - InternVL3-8B config default
     # Generation settings
     "MAX_NEW_TOKENS": 4096,  # Increased for balance-description output
-    # V100 precision settings
+    # L40 precision settings
     "USE_QUANTIZATION": True,
     # Filtering
     "DOCUMENT_TYPE_FILTER": "BANK_STATEMENT",
@@ -331,7 +331,7 @@ def load_internvl3_model(verbose=True):
             CONFIG["MODEL_PATH"],
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            use_flash_attn=False,  # V100 compatible
+            use_flash_attn=False,  # L40 compatible
             trust_remote_code=True,
             device_map=device_map,
         ).eval()
@@ -339,27 +339,23 @@ def load_internvl3_model(verbose=True):
         model_dtype = torch.bfloat16
 
     elif total_free >= QUANTIZED_REQUIRED:
-        # Single-GPU 8-bit quantization mode
+        # Single-GPU bfloat16 precision mode
         if verbose:
-            print("  Using 8-bit quantization on single GPU")
+            print("  Using bfloat16 precision on single GPU")
 
         target_gpu = 1 if (world_size > 1 and gpu1_free > gpu0_free) else 0
 
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=False
-        )
-
+        # L40: Native bfloat16 without quantization
         model = AutoModel.from_pretrained(
             CONFIG["MODEL_PATH"],
-            torch_dtype=torch.float16,
+            torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            use_flash_attn=False,
+            use_flash_attn=True,  # L40 supports flash attention
             trust_remote_code=True,
-            quantization_config=quantization_config,
             device_map={"": target_gpu},
         ).eval()
 
-        model_dtype = torch.float16
+        model_dtype = torch.bfloat16
 
     else:
         raise RuntimeError(
@@ -1309,7 +1305,7 @@ def main():
 
     log_rule("[bold blue]INTERNVL3-8B BANK STATEMENT V2 - BALANCE DESCRIPTION")
     log_print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
-    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (V100 optimized)")
+    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (L40 optimized)")
 
     # Load ground truth
     log_print("\n[yellow]Loading ground truth...[/yellow]")

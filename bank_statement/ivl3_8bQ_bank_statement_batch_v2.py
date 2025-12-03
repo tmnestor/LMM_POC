@@ -1,10 +1,15 @@
 #!/usr/bin/env python
 # ruff: noqa: E402
 """
-InternVL3-8B Bank Statement Batch Extraction and Evaluation
+InternVL3-8B Bank Statement Batch Extraction and Evaluation - V2
 
-This script runs batch extraction on bank statement images using the
-InternVL3-8B model with the independent single-turn approach.
+This script uses a balance-description extraction approach that works
+for both date-per-row and date-grouped bank statements.
+
+Key changes from v1:
+- Turn 0: Header detection (determines extraction method)
+- If balance column detected: Use balance-description prompt
+- If no balance column: Use table extraction prompt (4-column tables)
 
 Features:
 - Batch processing of all bank statement images
@@ -12,7 +17,7 @@ Features:
 - Full report generation (CSV, JSON, Markdown)
 
 Usage:
-    python ivl3_8b_bank_statement_batch.py [OPTIONS]
+    python ivl3_8b_bank_statement_batch_v2.py [OPTIONS]
 
 Options:
     --max-images N      Limit to N images (default: all)
@@ -49,7 +54,7 @@ from PIL import Image
 from rich.console import Console
 from rich.table import Table
 from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoConfig, AutoModel, AutoTokenizer
+from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 from common.evaluation_metrics import (
     calculate_correlation_aware_f1,
@@ -91,18 +96,20 @@ def log_table(table):
 # ============================================================================
 CONFIG = {
     # Data paths
-    "DATA_DIR": Path("/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank"),
+    "DATA_DIR": Path(
+        "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/date_grouped"
+    ),
     "GROUND_TRUTH": Path(
         "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/bank/ground_truth_bank.csv"
     ),
     "OUTPUT_BASE": Path("/home/jovyan/nfs_share/tod/LMM_POC/output"),
     # Model path
     "MODEL_PATH": "/home/jovyan/nfs_share/models/InternVL3-8B",
-    # L40 TILE CONFIGURATION
-    "MAX_TILES": 14,  # L40 optimized - InternVL3-8B config default
+    # V100 TILE CONFIGURATION
+    "MAX_TILES": 14,  # V100 optimized - InternVL3-8B config default
     # Generation settings
-    "MAX_NEW_TOKENS": 2000,
-    # L40 precision settings
+    "MAX_NEW_TOKENS": 4096,  # Increased for balance-description output
+    # V100 precision settings
     "USE_QUANTIZATION": True,
     # Filtering
     "DOCUMENT_TYPE_FILTER": "BANK_STATEMENT",
@@ -324,7 +331,7 @@ def load_internvl3_model(verbose=True):
             CONFIG["MODEL_PATH"],
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            use_flash_attn=False,  # L40 compatible
+            use_flash_attn=False,  # V100 compatible
             trust_remote_code=True,
             device_map=device_map,
         ).eval()
@@ -332,23 +339,27 @@ def load_internvl3_model(verbose=True):
         model_dtype = torch.bfloat16
 
     elif total_free >= QUANTIZED_REQUIRED:
-        # Single-GPU bfloat16 precision mode
+        # Single-GPU 8-bit quantization mode
         if verbose:
-            print("  Using bfloat16 precision on single GPU")
+            print("  Using 8-bit quantization on single GPU")
 
         target_gpu = 1 if (world_size > 1 and gpu1_free > gpu0_free) else 0
 
-        # L40: Native bfloat16 without quantization
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=False
+        )
+
         model = AutoModel.from_pretrained(
             CONFIG["MODEL_PATH"],
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.float16,
             low_cpu_mem_usage=True,
-            use_flash_attn=True,  # L40 supports flash attention
+            use_flash_attn=False,
             trust_remote_code=True,
+            quantization_config=quantization_config,
             device_map={"": target_gpu},
         ).eval()
 
-        model_dtype = torch.bfloat16
+        model_dtype = torch.float16
 
     else:
         raise RuntimeError(
@@ -469,7 +480,7 @@ def normalize_field_for_comparison(field_name, value):
 
 
 # ============================================================================
-# PATTERN MATCHING (from notebook Cell 13)
+# PATTERN MATCHING
 # ============================================================================
 DATE_PATTERNS = ["date", "day", "transaction date", "trans date"]
 DESCRIPTION_PATTERNS = [
@@ -484,6 +495,7 @@ DESCRIPTION_PATTERNS = [
 ]
 DEBIT_PATTERNS = [
     "debit",
+    "debits",
     "withdrawal",
     "withdrawals",
     "paid",
@@ -491,7 +503,7 @@ DEBIT_PATTERNS = [
     "spent",
     "dr",
 ]
-CREDIT_PATTERNS = ["credit", "deposit", "deposits", "received", "cr"]
+CREDIT_PATTERNS = ["credit", "credits", "deposit", "deposits", "received", "cr"]
 BALANCE_PATTERNS = ["balance", "bal", "running balance"]
 AMOUNT_PATTERNS = ["amount", "amt", "value", "total"]
 
@@ -534,6 +546,33 @@ def parse_headers_from_response(response_text):
             identified_headers.append(cleaned)
 
     return identified_headers
+
+
+def build_date_per_row_example(headers):
+    """Build example for date-per-row format (4-column tables)."""
+    rows = []
+    for date, desc, deb, cred in [
+        ("15 Jan", "ATM Withdrawal", "200.00", ""),
+        ("16 Jan", "Salary Payment", "", "3,500.00"),
+        ("17 Jan", "Online Purchase", "150.00", ""),
+    ]:
+        row = []
+        for h in headers:
+            hl = h.lower()
+            if hl in ["date", "day"]:
+                row.append(date)
+            elif any(p in hl for p in ["desc", "particular", "detail", "transaction"]):
+                row.append(desc)
+            elif any(p in hl for p in ["debit", "withdrawal"]):
+                row.append(deb)
+            elif any(p in hl for p in ["credit", "deposit"]):
+                row.append(cred)
+            elif "amount" in hl:
+                row.append(deb if deb else cred)
+            else:
+                row.append("")
+        rows.append("| " + " | ".join(row) + " |")
+    return rows
 
 
 def parse_markdown_table(markdown_text):
@@ -582,6 +621,105 @@ def parse_markdown_table(markdown_text):
     return rows
 
 
+def parse_balance_description_response(
+    response_text, date_col, desc_col, debit_col, credit_col, balance_col
+):
+    """
+    Parse the hierarchical balance-description response into transaction rows.
+
+    Handles format like:
+    1. **Thu 04 Sep 2025**
+       - Description: Direct Debit DOMINO'S PTY LTD
+       - Debit: $117.57
+       - Balance: $8586.28 CR
+
+    Returns list of dicts with standardized column names.
+    """
+    rows = []
+    current_date = None
+    current_transaction = {}
+
+    lines = response_text.strip().split("\n")
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Check for date header (numbered item with bold date)
+        # Pattern: "1. **Thu 04 Sep 2025**" or "1. Thu 04 Sep 2025"
+        date_match = re.match(
+            r"^\d+\.\s*\*?\*?([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+        )
+        if not date_match:
+            # Also try without day name: "1. **04 Sep 2025**"
+            date_match = re.match(
+                r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+            )
+        if not date_match:
+            # Also try DD/MM/YYYY format: "1. **03/05/2025**"
+            date_match = re.match(
+                r"^\d+\.\s*\*?\*?(\d{1,2}/\d{1,2}/\d{4})\*?\*?", line
+            )
+
+        if date_match:
+            # Save previous transaction if exists
+            if current_transaction and current_date:
+                current_transaction[date_col] = current_date
+                rows.append(current_transaction)
+                current_transaction = {}
+
+            current_date = date_match.group(1).strip()
+            continue
+
+        # Check for field lines
+        # Pattern: "- Description: ..." or "   - Debit: ..."
+        field_match = re.match(r"^\s*-\s*(\w+):\s*(.+)$", line)
+        if field_match:
+            field_name = field_match.group(1).strip().lower()
+            field_value = field_match.group(2).strip()
+
+            # Map field names to column names
+            if field_name == "description":
+                # If we already have a description, this is a new transaction under same date
+                if desc_col in current_transaction and current_transaction[desc_col]:
+                    # Save current transaction
+                    if current_date:
+                        current_transaction[date_col] = current_date
+                    rows.append(current_transaction)
+                    current_transaction = {}
+                current_transaction[desc_col] = field_value
+
+            elif (
+                field_name == "debit"
+                or field_name == debit_col.lower()
+                or field_name == "withdrawal"
+            ):
+                current_transaction[debit_col] = field_value
+
+            elif (
+                field_name == "credit"
+                or field_name == credit_col.lower()
+                or field_name == "deposit"
+            ):
+                current_transaction[credit_col] = field_value
+
+            elif field_name == "balance":
+                current_transaction[balance_col] = field_value
+
+            elif field_name == "amount":
+                # Generic amount - put in debit by default
+                if debit_col not in current_transaction:
+                    current_transaction[debit_col] = field_value
+
+    # Don't forget the last transaction
+    if current_transaction and current_date:
+        current_transaction[date_col] = current_date
+        rows.append(current_transaction)
+
+    return rows
+
+
 def parse_amount(value):
     """Extract numeric value from formatted currency string."""
     if not value or value.strip() == "":
@@ -599,73 +737,8 @@ def parse_amount(value):
         return 0.0
 
 
-def is_balance_row(row, desc_col):
-    """Check if this row is an opening/closing balance row."""
-    desc = row.get(desc_col, "").upper()
-    return "OPENING BALANCE" in desc or "CLOSING BALANCE" in desc
-
-
-def validate_and_correct_alignment(rows, balance_col, debit_col, credit_col, desc_col):
-    """Use balance changes to validate and correct debit/credit alignment."""
-    if not rows or balance_col not in rows[0]:
-        return rows, 0
-
-    corrected_rows = []
-    corrections_made = 0
-    start_idx = 0
-
-    if rows and is_balance_row(rows[0], desc_col):
-        start_idx = 1
-    elif rows:
-        corrected_rows.append(rows[0].copy())
-        start_idx = 1
-
-    for i in range(start_idx, len(rows)):
-        current_row = rows[i].copy()
-
-        if is_balance_row(current_row, desc_col):
-            continue
-
-        prev_idx = i - 1
-        while prev_idx >= 0 and is_balance_row(rows[prev_idx], desc_col):
-            prev_idx -= 1
-
-        if prev_idx < 0:
-            corrected_rows.append(current_row)
-            continue
-
-        prev_balance = parse_amount(rows[prev_idx].get(balance_col, "0"))
-        curr_balance = parse_amount(current_row.get(balance_col, "0"))
-        balance_change = curr_balance - prev_balance
-
-        debit_value = parse_amount(current_row.get(debit_col, ""))
-        credit_value = parse_amount(current_row.get(credit_col, ""))
-
-        if balance_change > 0.01:
-            if debit_value > 0 and credit_value == 0:
-                current_row[credit_col] = current_row[debit_col]
-                current_row[debit_col] = ""
-                corrections_made += 1
-        elif balance_change < -0.01:
-            if credit_value > 0 and debit_value == 0:
-                current_row[debit_col] = current_row[credit_col]
-                current_row[credit_col] = ""
-                corrections_made += 1
-
-        corrected_rows.append(current_row)
-
-    return corrected_rows, corrections_made
-
-
 def is_non_transaction_row(row, desc_col):
-    """Check if this row is NOT an actual transaction.
-
-    Excludes:
-    - Opening Balance rows
-    - Closing Balance rows
-    - Brought Forward rows (NAB)
-    - Carried Forward rows (NAB)
-    """
+    """Check if this row is NOT an actual transaction."""
     desc = row.get(desc_col, "").strip().upper()
 
     if "OPENING BALANCE" in desc:
@@ -681,12 +754,17 @@ def is_non_transaction_row(row, desc_col):
 
 
 def filter_debit_transactions(rows, debit_col, desc_col=None):
-    """Filter rows to only those with actual debit (purchase) transactions."""
+    """Filter rows to only those with actual debit transactions (amount > 0)."""
     debit_rows = []
     for row in rows:
         debit_value = row.get(debit_col, "").strip()
 
         if not debit_value:
+            continue
+
+        # Parse amount and check if > 0
+        amount = parse_amount(debit_value)
+        if amount <= 0:
             continue
 
         if desc_col and is_non_transaction_row(row, desc_col):
@@ -698,15 +776,7 @@ def filter_debit_transactions(rows, debit_col, desc_col=None):
 
 
 def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=None):
-    """Extract fields in universal.yaml schema format.
-
-    Args:
-        debit_rows: Filtered rows containing only debit transactions
-        date_col: Column name for dates
-        desc_col: Column name for descriptions
-        debit_col: Column name for debit amounts
-        all_rows: All transaction rows (for date range calculation). If None, uses debit_rows.
-    """
+    """Extract fields in universal.yaml schema format."""
     if not debit_rows:
         return {
             "DOCUMENT_TYPE": "BANK_STATEMENT",
@@ -753,130 +823,6 @@ def extract_schema_fields(debit_rows, date_col, desc_col, debit_col, all_rows=No
 
 
 # ============================================================================
-# PROMPT BUILDING
-# ============================================================================
-def build_dynamic_example(
-    headers, date_col, desc_col, debit_col, credit_col, balance_col
-):
-    """Generate example rows matching detected column structure."""
-    has_separate_debit_credit = (
-        debit_col in headers and credit_col in headers and debit_col != credit_col
-    )
-
-    rows = []
-
-    if has_separate_debit_credit:
-        # 5-column format
-        for date, desc, deb, cred, bal in [
-            ("15 Jan", "ATM Withdrawal City Branch", "200.00", "", "$1,500.00 CR"),
-            (
-                "16 Jan",
-                "Salary Employer Name Ref 12345",
-                "",
-                "3,500.00",
-                "$5,000.00 CR",
-            ),
-            ("17 Jan", "Online Purchase Store Name", "150.00", "", "$4,850.00 CR"),
-        ]:
-            row = []
-            for h in headers:
-                if h == date_col:
-                    row.append(date)
-                elif h == desc_col:
-                    row.append(desc)
-                elif h == debit_col:
-                    row.append(deb)
-                elif h == credit_col:
-                    row.append(cred)
-                elif h == balance_col:
-                    row.append(bal)
-                else:
-                    row.append("")
-            rows.append(" | ".join(row))
-    else:
-        # 4-column format
-        for date, desc, amt, bal in [
-            ("15 Jan", "ATM Withdrawal City Branch", "200.00", "$1,500.00 CR"),
-            ("16 Jan", "Salary Employer Name Ref 12345", "3,500.00", "$5,000.00 CR"),
-        ]:
-            row = []
-            for h in headers:
-                if h == date_col:
-                    row.append(date)
-                elif h == desc_col:
-                    row.append(desc)
-                elif h == debit_col:
-                    row.append(amt)
-                elif h == balance_col:
-                    row.append(bal)
-                else:
-                    row.append("")
-            rows.append(" | ".join(row))
-
-    return rows
-
-
-def build_extraction_prompt(
-    table_headers, date_col, desc_col, debit_col, credit_col, balance_col
-):
-    """Build the Turn 1 extraction prompt with dynamic examples."""
-    header_string = " | ".join(table_headers)
-
-    # Build separator row
-    separator_parts = []
-    for h in table_headers:
-        h_lower = h.lower()
-        if any(
-            keyword in h_lower
-            for keyword in ["debit", "credit", "balance", "amount", "total"]
-        ):
-            separator_parts.append("---:")
-        else:
-            separator_parts.append(":---")
-    separator_row = " | ".join(separator_parts)
-
-    # Build example rows
-    example_rows = build_dynamic_example(
-        table_headers, date_col, desc_col, debit_col, credit_col, balance_col
-    )
-
-    example_table = f"""| {header_string} |
-| {separator_row} |
-""" + "\n".join([f"| {row} |" for row in example_rows])
-
-    prompt = f"""
-Extract the transaction table from this bank statement image in markdown format.
-
-Example showing the format I want:
-
-{example_table}
-
-## CRITICAL: COLUMN ALIGNMENT
-
-Before extracting ANY row, locate the header row with these column names:
-{" | ".join(table_headers)}
-
-For EACH transaction, you must check which column the amount appears under:
-
-**Step-by-step process:**
-1. Find the header row
-2. Look at the transaction row
-3. Draw an imaginary vertical line from the amount UP to the header
-4. Read which header the amount aligns with
-5. Put the amount in that SAME column in your markdown table
-
-**Column placement rules:**
-- Amount aligns with "{debit_col}" header → put amount in {debit_col} column, leave {credit_col} EMPTY
-- Amount aligns with "{credit_col}" header → put amount in {credit_col} column, leave {debit_col} EMPTY
-
-**Do NOT guess based on description text. Use visual alignment ONLY.**
-
-**Output:** Markdown table only, no explanations
-"""
-    return prompt
-
-
-# ============================================================================
 # DISPLAY FUNCTIONS
 # ============================================================================
 def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_result):
@@ -905,11 +851,11 @@ def display_field_comparison(schema_fields, ground_truth_map, image_name, eval_r
             f1_score = field_scores.get(field, 0.0)
 
         if f1_score == 1.0:
-            status = "[green]✓ OK[/green]"
+            status = "[green]OK[/green]"
         elif f1_score >= 0.5:
             status = "[yellow]~ PART[/yellow]"
         else:
-            status = "[red]✗ FAIL[/red]"
+            status = "[red]FAIL[/red]"
 
         table.add_row(
             status, field, f"{f1_score:.1%}", str(extracted_val), str(ground_val)
@@ -1013,19 +959,22 @@ def extract_bank_statement(image_path, model, tokenizer, model_dtype, verbose=Fa
     """
     Extract fields from a single bank statement image using InternVL3-8B.
 
-    Two-turn independent extraction with Python post-processing.
+    V2 Pipeline:
+    - Turn 0: Header detection
+    - Check if balance column exists:
+      - YES: Use balance-description prompt (works for all formats)
+      - NO: Use table extraction prompt (4-column tables)
+    - Parse response and extract schema fields
     """
     metadata = {
         "headers_detected": [],
-        "date_format": "Date-per-row",
-        "corrections_made": 0,
+        "extraction_method": None,
         "total_rows": 0,
         "debit_rows": 0,
     }
 
     # ========== TURN 0: Header Detection ==========
-    turn0_prompt = """
-Look at the transaction table in this bank statement image.
+    turn0_prompt = """Look at the transaction table in this bank statement image.
 
 What are the exact column header names used in the transaction table?
 
@@ -1050,11 +999,12 @@ Do not interpret or rename them - use the EXACT text from the image.
     turn0_response = clean_internvl3_response(turn0_response)
     table_headers = parse_headers_from_response(turn0_response)
     metadata["headers_detected"] = table_headers
+    metadata["turn0_raw_response"] = turn0_response
 
     if verbose:
-        print(f"  Turn 0: {len(table_headers)} headers detected")
+        print(f"  Turn 0 Headers: {table_headers}")
 
-    # Pattern matching
+    # Pattern matching for column names
     amount_col = match_header(table_headers, AMOUNT_PATTERNS, fallback=None)
     date_col = match_header(
         table_headers,
@@ -1072,18 +1022,53 @@ Do not interpret or rename them - use the EXACT text from the image.
     credit_col = match_header(
         table_headers, CREDIT_PATTERNS, fallback=amount_col if amount_col else "Credit"
     )
-    balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback="Balance")
+    balance_col = match_header(table_headers, BALANCE_PATTERNS, fallback=None)
 
-    # ========== TURN 1: Table Extraction (fresh context) ==========
-    extraction_prompt = build_extraction_prompt(
-        table_headers, date_col, desc_col, debit_col, credit_col, balance_col
-    )
+    # ========== Decide Extraction Method Based on Balance Column ==========
+    has_balance = balance_col is not None and balance_col in table_headers
 
+    if has_balance:
+        # Use balance-description prompt (works for both date formats)
+        metadata["extraction_method"] = "balance-description"
+
+        extraction_prompt = f"""List all the balances in the {balance_col} column, including:
+- Date from the Date Header of the balance
+- {desc_col}
+- {debit_col} Amount or "NOT_FOUND"
+- {credit_col} Amount or "NOT_FOUND" """
+
+        if verbose:
+            print(
+                f"  Extraction Method: balance-description (balance column: {balance_col})"
+            )
+            print(f"  Extraction Prompt:\n{extraction_prompt}")
+
+    else:
+        # Use table extraction prompt (4-column tables without balance)
+        metadata["extraction_method"] = "table-extraction"
+
+        example_rows = build_date_per_row_example(table_headers)
+        header_row = "| " + " | ".join(table_headers) + " |"
+        example_table = header_row + "\n" + "\n".join(example_rows)
+
+        extraction_prompt = f"""Extract the transaction table as markdown.
+
+Example format:
+{example_table}
+
+Extract ALL transactions.
+
+Output: Markdown table only."""
+
+        if verbose:
+            print("  Extraction Method: table-extraction (no balance column)")
+
+    # ========== TURN 1: Extraction ==========
     # Reload image for fresh context
     pixel_values = load_image(str(image_path), input_size=448)
     pixel_values = pixel_values.to(dtype=model_dtype, device="cuda:0")
 
-    turn1_response = model.chat(
+    extraction_response = model.chat(
         tokenizer=tokenizer,
         pixel_values=pixel_values,
         question=extraction_prompt,
@@ -1097,29 +1082,44 @@ Do not interpret or rename them - use the EXACT text from the image.
     del pixel_values
     torch.cuda.empty_cache()
 
-    turn1_response = clean_internvl3_response(turn1_response)
+    extraction_response = clean_internvl3_response(extraction_response)
 
     if verbose:
-        print("  Turn 1: Table extraction complete")
+        print(f"  Turn 1: Extraction complete ({len(extraction_response)} chars)")
+        # Show full response if under 4000 chars, otherwise truncate
+        if len(extraction_response) <= 4000:
+            print(f"  Turn 1 Response:\n{extraction_response}")
+        else:
+            print(f"  Turn 1 Response (truncated):\n{extraction_response[:4000]}...")
 
-    # ========== Parse and Validate ==========
-    all_rows = parse_markdown_table(turn1_response)
+    # ========== Parse Response ==========
+    if has_balance:
+        # Try balance-description format first
+        all_rows = parse_balance_description_response(
+            extraction_response, date_col, desc_col, debit_col, credit_col, balance_col
+        )
+        # Fallback to markdown table if balance-description parsing failed
+        if not all_rows and "|" in extraction_response:
+            if verbose:
+                print("  Fallback: parsing as markdown table")
+            all_rows = parse_markdown_table(extraction_response)
+    else:
+        # Parse markdown table format
+        all_rows = parse_markdown_table(extraction_response)
+
     metadata["total_rows"] = len(all_rows)
 
-    corrections = 0
-    if all_rows and balance_col in all_rows[0]:
-        all_rows, corrections = validate_and_correct_alignment(
-            all_rows, balance_col, debit_col, credit_col, desc_col
-        )
-    metadata["corrections_made"] = corrections
+    if verbose:
+        print(f"  Parsed: {len(all_rows)} rows")
 
+    # Filter to debit transactions only
     debit_rows = filter_debit_transactions(all_rows, debit_col, desc_col)
     metadata["debit_rows"] = len(debit_rows)
 
     if verbose:
-        print(f"  Parsed: {len(all_rows)} rows, {len(debit_rows)} debits")
+        print(f"  Filtered: {len(debit_rows)} debit transactions")
 
-    # Extract schema fields (pass all_rows for date range calculation)
+    # Extract schema fields
     schema_fields = extract_schema_fields(
         debit_rows, date_col, desc_col, debit_col, all_rows=all_rows
     )
@@ -1145,7 +1145,7 @@ def generate_reports(batch_results, output_dir):
                 "image_file": result["image_name"],
                 "overall_accuracy": result["evaluation"]["overall_accuracy"],
                 "processing_time": result["processing_time"],
-                "date_format": result["metadata"].get("date_format", ""),
+                "extraction_method": result["metadata"].get("extraction_method", ""),
                 "total_rows": result["metadata"].get("total_rows", 0),
                 "debit_rows": result["metadata"].get("debit_rows", 0),
             }
@@ -1163,7 +1163,7 @@ def generate_reports(batch_results, output_dir):
             csv_data.append(row)
 
         results_df = pd.DataFrame(csv_data)
-        csv_path = output_dir / f"ivl3_8b_bank_statement_batch_{BATCH_TIMESTAMP}.csv"
+        csv_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.csv"
         results_df.to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 
@@ -1175,6 +1175,7 @@ def generate_reports(batch_results, output_dir):
             "metadata": {
                 "batch_id": BATCH_TIMESTAMP,
                 "model": "InternVL3-8B",
+                "version": "v2-balance-description",
                 "evaluation_method": CONFIG["EVALUATION_METHOD"],
                 "total_images": len(batch_results),
                 "successful": len(successful),
@@ -1203,9 +1204,7 @@ def generate_reports(batch_results, output_dir):
             "results": batch_results,
         }
 
-        json_path = (
-            output_dir / f"ivl3_8b_bank_statement_evaluation_{BATCH_TIMESTAMP}.json"
-        )
+        json_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.json"
         with json_path.open("w") as f:
             json_module.dump(json_report, f, indent=2, default=str)
         print(f"JSON saved: {json_path}")
@@ -1215,11 +1214,12 @@ def generate_reports(batch_results, output_dir):
         processing_times = [r["processing_time"] for r in successful]
 
         md_lines = [
-            "# InternVL3-8B Bank Statement Batch Evaluation Report",
+            "# InternVL3-8B Bank Statement V2 Evaluation Report",
             "",
             f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"**Batch ID:** {BATCH_TIMESTAMP}",
             "**Model:** InternVL3-8B",
+            "**Version:** v2-balance-description",
             f"**Evaluation Method:** {CONFIG['EVALUATION_METHOD']}",
             "",
             "## Executive Summary",
@@ -1244,21 +1244,21 @@ def generate_reports(batch_results, output_dir):
                     "",
                     "## Per-Image Results",
                     "",
-                    "| Image | Accuracy | Date Format | Rows | Time |",
-                    "|-------|----------|-------------|------|------|",
+                    "| Image | Accuracy | Method | Rows | Time |",
+                    "|-------|----------|--------|------|------|",
                 ]
             )
 
             for r in successful:
                 acc = r["evaluation"]["overall_accuracy"]
-                fmt = r["metadata"].get("date_format", "N/A")
+                method = r["metadata"].get("extraction_method", "N/A")
                 rows = r["metadata"].get("debit_rows", 0)
                 time_s = r["processing_time"]
                 md_lines.append(
-                    f"| {r['image_name']} | {acc:.1%} | {fmt} | {rows} | {time_s:.1f}s |"
+                    f"| {r['image_name']} | {acc:.1%} | {method} | {rows} | {time_s:.1f}s |"
                 )
 
-        md_path = output_dir / f"ivl3_8b_bank_statement_summary_{BATCH_TIMESTAMP}.md"
+        md_path = output_dir / f"ivl3_8b_bank_v2_{BATCH_TIMESTAMP}.md"
         with md_path.open("w") as f:
             f.write("\n".join(md_lines))
         print(f"Markdown saved: {md_path}")
@@ -1269,7 +1269,7 @@ def generate_reports(batch_results, output_dir):
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="Batch extraction and evaluation of bank statements with InternVL3-8B"
+        description="Batch extraction and evaluation of bank statements with InternVL3-8B (V2)"
     )
     parser.add_argument(
         "--max-images", type=int, default=None, help="Limit to N images"
@@ -1307,9 +1307,9 @@ def main():
 
     set_seed(42)
 
-    log_rule("[bold blue]INTERNVL3-8B BANK STATEMENT BATCH EXTRACTION")
+    log_rule("[bold blue]INTERNVL3-8B BANK STATEMENT V2 - BALANCE DESCRIPTION")
     log_print(f"[cyan]Evaluation Method:[/cyan] {CONFIG['EVALUATION_METHOD']}")
-    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (L40 optimized)")
+    log_print(f"[cyan]Max Tiles:[/cyan] {CONFIG['MAX_TILES']} (V100 optimized)")
 
     # Load ground truth
     log_print("\n[yellow]Loading ground truth...[/yellow]")
@@ -1329,7 +1329,7 @@ def main():
     if CONFIG["MAX_IMAGES"]:
         bank_images = bank_images[: CONFIG["MAX_IMAGES"]]
 
-    log_print(f"\n[green]✓ Found {len(bank_images)} bank statement images[/green]")
+    log_print(f"\n[green]Found {len(bank_images)} bank statement images[/green]")
 
     if args.dry_run:
         log_print("\n[yellow]DRY RUN - Images that would be processed:[/yellow]")
@@ -1385,7 +1385,7 @@ def main():
                 "green" if accuracy >= 0.8 else "yellow" if accuracy >= 0.5 else "red"
             )
             log_print(
-                f"  [{acc_color}]✓ Accuracy: {accuracy:.1%}[/{acc_color}]  ⏱ {processing_time:.2f}s"
+                f"  [{acc_color}]Accuracy: {accuracy:.1%}[/{acc_color}]  {processing_time:.2f}s"
             )
 
             display_field_comparison(
@@ -1393,7 +1393,7 @@ def main():
             )
 
         except Exception as e:
-            log_print(f"  [red]✗ ERROR: {e}[/red]")
+            log_print(f"  [red]ERROR: {e}[/red]")
             batch_results.append(
                 {
                     "image_name": image_name,
@@ -1430,7 +1430,7 @@ def main():
     log_rule("[bold blue]GENERATING REPORTS")
     generate_reports(batch_results, CONFIG["OUTPUT_BASE"])
 
-    log_print("\n[bold green]✓ Batch processing complete![/bold green]")
+    log_print("\n[bold green]Batch processing complete![/bold green]")
 
 
 if __name__ == "__main__":
