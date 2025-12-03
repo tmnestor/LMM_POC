@@ -650,6 +650,9 @@ class BalanceCorrector:
                 correct_amount = abs(balance_delta)
                 stats.debits_found += 1
 
+                # ALWAYS clear credit column when transaction is a debit
+                corrected_row[credit_col] = ""
+
                 # Check if LLM classified correctly
                 if llm_debit > 0 and abs(llm_debit - correct_amount) < self.tolerance:
                     # Correct classification and amount - no change needed
@@ -662,7 +665,6 @@ class BalanceCorrector:
                 else:
                     # Wrong type or no amount - set correct debit
                     corrected_row[debit_col] = f"${correct_amount:.2f}"
-                    corrected_row[credit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
                     if llm_credit > 0:
                         stats.type_corrections += 1
@@ -671,6 +673,9 @@ class BalanceCorrector:
                 # Balance increased = CREDIT
                 correct_amount = balance_delta
                 stats.credits_found += 1
+
+                # ALWAYS clear debit column when transaction is a credit
+                corrected_row[debit_col] = ""
 
                 # Check if LLM classified correctly
                 if llm_credit > 0 and abs(llm_credit - correct_amount) < self.tolerance:
@@ -684,7 +689,6 @@ class BalanceCorrector:
                 else:
                     # Wrong type or no amount - set correct credit
                     corrected_row[credit_col] = f"${correct_amount:.2f}"
-                    corrected_row[debit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
                     if llm_debit > 0:
                         stats.type_corrections += 1
