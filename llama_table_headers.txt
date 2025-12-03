@@ -1,9 +1,9 @@
 The transaction table in the bank statement image has the following column header names, in order from left to right:
 
 *   **Date**
-*   **Description**
+*   **Transaction**
 *   **Withdrawal**
 *   **Deposit**
 *   **Balance**
 
-These column headers are used to organize and display the various transactions listed in the table.
+These column headers are used to organize and display the various transactions made on the account.

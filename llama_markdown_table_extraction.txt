@@ -1,42 +1,37 @@
-| Date | Description | Withdrawal | Deposit | Balance |
+| Date | Transaction | Withdrawal | Deposit | Balance |
 | --- | --- | --- | --- | --- |
-| 07/09/2025 | EFTPOS Cash Out PRICELINE PHARMACY MACKAY QLD | $322.18 |  | $48890.58 |
-| 08/09/2025 | EFTPOS Purchase OFFICEWORKS BUSINESS ROCKHAMPTO... | $64.33 |  | $49212.76 |
-| 04/09/2025 | Mortgage Repayment MORT 0103P16754533 NAB | $649.79 |  | $49277.09 |
-| 03/09/2025 | OSKO Payment to MIKE CHEN 809845773133 | $1365.43 |  | $49226.68 |
-| 03/09/2025 | Direct Debit 15395P41608263 MWF 42730 | $199.17 |  | $51312.67 |
-| 02/09/2025 | Salary Payment ATO 28782P6782109 |  | $6105.71 | $51511.48 |
-| 01/09/2025 | DD INSURANCE ACME CORP PTY LTD 82321942151853 | $45.04 |  | $43405.77 |
-| 01/09/2025 | Auto Payment UTILITIES AGL 7240P85943944 | $257.50 |  | $43440.81 |
-| 01/09/2025 | DIRECT CREDIT SALARY 6080P67812986 |  | $4449.44 | $43708.81 |
-| 01/09/2025 | BPAY Payment BILLER60279 CRN 9813018480 | $37.68 |  | $43758.87 |
-| 31/08/2025 | Professional Services Red Energy 98073P31959417 | $2457.87 |  | $39296.85 |
-| 29/08/2025 | Card Purchase RED ROOSTER Paramatta SA | $270.31 |  | $41754.72 |
-| 29/08/2025 | Credit Card Payment CC 72599P33283283 | $1957.09 |  | $42025.03 |
-| 27/08/2025 | EFTPOS Cash Out PRICELINE PHARMACY BRISBANE QLD | $221.60 |  | $43882.12 |
-| 27/08/2025 | Card Purchase CHEMIST WAREHOUSE DISCOUNT Richmo... | $222.56 |  | $44203.72 |
-| 26/08/2025 | Fortnightly Pay ATO PAYROLL 91032P35687918 |  | $5679.21 | $44426.28 |
-| 24/08/2025 | PAY RUN ACME CORP PTY LTD 99584P07785218 | $4455.46 |  | $38747.07 |
-| 24/08/2025 | Salary Payment ATO 30175P32361415 |  | $7951.93 | $34291.61 |
-| 23/08/2025 | Online Purchase amazon.com.au AUS | $83.78 |  | $26339.68 |
-| 22/08/2025 | Salary Payment ATO 28773P16041610 |  | $6013.70 | $20423.46 |
-| 20/08/2025 | Transfer To Vicks Account NetBank 54381P90841102 | $2345.10 |  | $20409.76 |
-| 20/08/2025 | Salary Payment ATO 94514P80490207 |  | $3541.27 | $22754.86 |
-| 20/08/2025 | Transfer To Western Port Marina NetBank From Tod | $728.48 |  | $19213.59 |
-| 19/08/2025 | Subscription Netflix 33588P77385123 | $201.14 |  | $19940.07 |
-| 18/08/2025 | Contactless Payment Cinema CAIRNS QLD | $211.28 |  | $20141.21 |
-| 18/08/2025 | Auto Payment UTILITIES Red Energy 15107P21771655 | $33.24 |  | $20352.49 |
-| 18/08/2025 | Contactless Payment Restaurant MACKAY QLD | $145.70 |  | $20385.73 |
-| 17/08/2025 | Fortnightly Pay ATO PAYROLL 36358P70254998 |  | $7201.19 | $20531.43 |
-| 14/08/2025 | Centrelink Payment JobSeeker 59392P56090878 | $2241.39 |  | $13330.24 |
-| 14/08/2025 | International Transaction Fee | $27.06 |  | $11088.85 |
-| 13/08/2025 | Equipment Purchase OfficeMax Australia 13554P45... | $478.86 |  | $11115.91 |
-| 13/08/2025 | International ATM USA USD | $200.71 |  | $11594.77 |
-| 11/08/2025 | Dividend Payment PREMIUM CORP PTY LTD 7353SP419... |  | $6395.09 | $11855.48 |
-| 11/08/2025 | Invoice Payment HARVEY NORMAN FLAGSHIP PTY LTD ... |  | $5460.39 | $5460.39 |
-| 10/08/2025 | Online Purchase ebay.com.au AUS | $257.95 |  | $5889.78 |
-| 10/08/2025 | Subscription Spotify Monthly 15369P58427775 | $166.22 |  | $5949.73 |
-| 09/08/2025 | International Transaction Fee | $33.83 |  | $6133.86 |
-| 06/08/2025 | Business Expense IT Equipment 66969P86141679 |  | $623.18 | $6167.78 |
-| 06/08/2025 | Auto Payment UTILITIES Energy Australia 47683P7... | $91.04 |  | $6792.06 |
-| 08/08/2025 | Auto Payment UTILITIES Red Energy 81338P61572286 | $389.57 |  | $6884.90 |
+| 08/08/2025 | Card Purchase MMART | $183.50 |  | $6701.40 |
+| 08/08/2025 | ATM Withdrawal WESTPAC ATM | $1406.36 |  | $5295.04 |
+| 11/08/2025 | Insurance Premium AGL Policy 493698987118 | $261.24 |  | $5833.80 |
+| 14/08/2025 | Auto Payment UTILITIES SIMPLY ENERGY | $1221.72 |  | $3822.08 |
+| 17/08/2025 | Mortgage Repayment MORT 9264MPS2958077 SUNCORP | $73.36 |  | $3738.72 |
+| 17/08/2025 | EFTPOS Purchase COLES SUPERMARKET PERTH WA | $1559.69 |  | $2179.83 |
+| 18/08/2025 | Mortgage Repayment MORT 79463925252889 BDO | $1983.67 |  | $195.36 |
+| 18/08/2025 | Mortgage Repayment MORT 1020GP78494020 SUNCORP | $51.81 |  | $143.55 |
+| 20/08/2025 | Mortgage Repayment MORT 71539P14431366 WESTPAC | $1795.98 |  | $-1652.43 |
+| 23/08/2025 | Online Purchase gumtree.com.au | $57.35 |  | $-1709.78 |
+| 26/08/2025 | Online Purchase gumtree.com.au | $300.82 |  | $-2010.60 |
+| 27/08/2025 | Contactless Payment DAVID JONES SYDNEY NSW | $1485.31 |  | $-3495.91 |
+| 30/08/2025 | EFTPOS Cash Out OFFICEMORKS HOBART TAS | $218.51 |  | $-3714.42 |
+| 01/09/2025 | Direct Debit AIME CORP PTY LTD Ref: 88656P52580805 | $1066.09 |  | $-4720.51 |
+| 02/09/2025 | Insurance Premium AGL Policy 73716P55704854 | $275.68 |  | $-4996.11 |
+| 05/09/2025 | Salary Payment AGL Ref: 70392P85654886 |  | $4632.30 | $-363.81 |
+| 08/09/2025 | Contactless Payment KMART HOBART TAS | $441.02 |  | $-804.83 |
+| 11/09/2025 | EFTPOS Purchase MOOLWORTHS ADELAIDE SA | $1844.15 |  | $-2640.98 |
+| 13/09/2025 | Transfer To DAVID CHEN NetBank 42568P71134322 | $1926.62 |  | $-4575.60 |
+| 15/09/2025 | EFTPOS Purchase MOOLWORTHS SYDNEY NSW | $187.45 |  | $-4682.65 |
+| 15/09/2025 | Fortnightly Pay AGL PAYROLL 52624P61875269 |  | $4468.51 | $-214.14 |
+| 16/09/2025 | Interest Payment Ref: 15118P4656438 |  | $1496.95 | $1282.81 |
+| 18/09/2025 | Fortnightly Pay AGL PAYROLL 52624P61875269 |  | $4641.78 | $5924.59 |
+| 19/09/2025 | Direct Credit SALARY Ref: 71348779325897 |  | $2651.46 | $8576.05 |
+| 19/09/2025 | Direct Debit TELSTRA PTY LTD Ref: 640 8000825377 |  | $396.98 | $8179.07 |
+| 19/09/2025 | EFTPOS Cash Out JB HIFI Dandenong VIC |  | $1883.52 | $6295.55 |
+| 19/09/2025 | Refund BIG W Ref: 01120620343974 |  | $3951.78 | $10247.33 |
+| 21/09/2025 | EFTPOS Cash Out KMART MELBOURNE VIC |  | $956.53 | $9290.80 |
+| 24/09/2025 | EFTPOS Purchase COLES SUPERMARKET MELBOURNE VIC |  | $787.27 | $8503.53 |
+| 27/09/2025 | Credit Card Payment CC Ref: 6979PE7741184 |  | $955.50 | $747.95 |
+| 28/09/2025 | Contactless Payment BUNNINGS MELBOURNE VIC |  | $311.86 | $7287.08 |
+| 29/09/2025 | Transfer To DAVID CHEN NetBank 24460P43511018 |  | $28.99 | $7287.08 |
+| 29/09/2025 | Mortgage Repayment MORT 9206JP227481997 SUNCORP |  | $1587.32 | $5619.76 |
+| 01/10/2025 | EFTPOS Cash Out DAVID JONES SYDNEY NSW |  | $706.21 | $4913.55 |
+| 02/10/2025 | Subscription Spotify Monthly 66816P74548736 |  | $218.19 | $4695.36 |
