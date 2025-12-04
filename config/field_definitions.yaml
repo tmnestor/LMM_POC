@@ -202,6 +202,13 @@ evaluation:
       - STATEMENT_DATE_RANGE
       - TRANSACTION_DATES
 
+    # Transaction list fields - trigger type-aware matching (monetary/date)
+    transaction_list:
+      - TRANSACTION_DATES
+      - TRANSACTION_AMOUNTS_PAID
+      - TRANSACTION_AMOUNTS_RECEIVED
+      - ACCOUNT_BALANCE
+
 # ============================================================================
 # DOCUMENT TYPE ALIASES - For flexible document type detection
 # ============================================================================
