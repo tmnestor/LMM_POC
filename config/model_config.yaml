@@ -152,7 +152,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 36  # H200 can handle more tiles
+      max_tiles: 18  # H200 can handle more tiles
       input_size: 448
       use_thumbnail: true
 
