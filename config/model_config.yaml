@@ -58,7 +58,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 24  # L40/A10G optimized
+      max_tiles: 18  # L40/A10G optimized
       input_size: 448
       use_thumbnail: true
 
@@ -80,7 +80,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 14  # V100 optimized (memory constrained)
+      max_tiles: 36  # V100 optimized (memory constrained)
       input_size: 448
       use_thumbnail: true
 
@@ -105,7 +105,7 @@ models:
       do_sample: false
 
     image_processing:
-      max_tiles: 18  # Good balance for 2B model
+      max_tiles: 36  # Good balance for 2B model
       input_size: 448
       use_thumbnail: true
 
