@@ -1075,8 +1075,9 @@ class UnifiedBankExtractor:
         descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
         amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
 
-        # Calculate date range from all transactions (always oldest - newest)
-        all_dates = [r.get(date_col, "") for r in corrected_rows if r.get(date_col)]
+        # Calculate date range from ALL parsed transactions (including opening/closing balance)
+        # Use all_rows, not corrected_rows, to include full statement period
+        all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # Free memory
