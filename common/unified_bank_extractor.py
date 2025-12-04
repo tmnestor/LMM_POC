@@ -190,10 +190,17 @@ class ResponseParser:
         credit_col: str,
         balance_col: str,
     ) -> list[dict[str, str]]:
-        """Parse balance-description response into transaction rows."""
+        """Parse balance-description response into transaction rows.
+
+        Handles multi-line descriptions where continuation lines appear as:
+            - Transaction: Card Purchase K MART
+              - Perth WA
+        These are joined with a space to form: "Card Purchase K MART Perth WA"
+        """
         rows = []
         current_date = None
         current_transaction: dict[str, str] = {}
+        last_field_was_description = False  # Track if we should append continuations
 
         lines = response.strip().split("\n")
 
@@ -266,6 +273,7 @@ class ResponseParser:
                     rows.append(current_transaction)
                     current_transaction = {}
                 current_date = date_found
+                last_field_was_description = False
                 continue
 
             # FIELD DETECTION
@@ -316,6 +324,7 @@ class ResponseParser:
                         rows.append(current_transaction)
                         current_transaction = {}
                     current_transaction[desc_col] = field_value
+                    last_field_was_description = True
 
                 elif field_name in [
                     "debit",
@@ -325,16 +334,32 @@ class ResponseParser:
                     debit_col.lower(),
                 ]:
                     current_transaction[debit_col] = field_value
+                    last_field_was_description = False
 
                 elif field_name in ["credit", "deposit", "cr", credit_col.lower()]:
                     current_transaction[credit_col] = field_value
+                    last_field_was_description = False
 
                 elif field_name == "balance":
                     current_transaction[balance_col] = field_value
+                    last_field_was_description = False
 
                 elif field_name == "amount":
                     if debit_col not in current_transaction:
                         current_transaction[debit_col] = field_value
+                    last_field_was_description = False
+
+            else:
+                # CONTINUATION LINE DETECTION (no field name, just "- value")
+                # Handles InternVL3.5 format like:
+                #   - Transaction: Card Purchase K MART
+                #     - Perth WA
+                continuation_match = re.match(r"^\s*-\s+(.+)$", line)
+                if continuation_match and last_field_was_description:
+                    continuation_text = continuation_match.group(1).strip()
+                    # Append to existing description with a space
+                    if desc_col in current_transaction:
+                        current_transaction[desc_col] += " " + continuation_text
 
         # Don't forget last transaction
         if current_transaction and current_date:
