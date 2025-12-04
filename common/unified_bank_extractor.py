@@ -905,6 +905,12 @@ class UnifiedBankExtractor:
         has_debit_or_credit = mapping.debit or mapping.credit
         has_amount = mapping.amount is not None
 
+        # DEBUG: Show column detection
+        print(f"  Amount column: {mapping.amount or 'NOT FOUND'}")
+        print(f"  Debit column: {mapping.debit or 'NOT FOUND'}")
+        print(f"  Credit column: {mapping.credit or 'NOT FOUND'}")
+        print(f"  has_balance={mapping.has_balance}, has_amount={has_amount}, has_debit_or_credit={has_debit_or_credit}")
+
         if force_strategy:
             strategy = force_strategy
             reason = "Manual override"
