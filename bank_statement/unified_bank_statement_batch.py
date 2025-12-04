@@ -423,6 +423,7 @@ def generate_reports(batch_results: list, output_dir: Path, model_key: str, mode
         for result in successful:
             row = {
                 "image_file": result["image_name"],
+                "document_type": result["extracted_fields"].get("DOCUMENT_TYPE", "BANK_STATEMENT"),
                 "overall_accuracy": result["evaluation"]["overall_accuracy"],
                 "processing_time": result["processing_time"],
                 "date_format": result["metadata"].get("date_format", ""),
