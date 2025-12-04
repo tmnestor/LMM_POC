@@ -827,6 +827,49 @@ class BalanceCorrector:
         else:
             return False, "Same date for first and last transaction"
 
+    @staticmethod
+    def sort_by_date(
+        rows: list[dict[str, str]], date_col: str
+    ) -> list[dict[str, str]]:
+        """Sort rows chronologically by date (oldest first).
+
+        Args:
+            rows: Transaction rows with date column
+            date_col: Name of the date column
+
+        Returns:
+            Rows sorted by date (oldest first). Unparseable dates go to end.
+        """
+        from datetime import datetime
+
+        date_formats = [
+            "%d/%m/%Y",  # 03/05/2025
+            "%d %b %Y",  # 04 Sep 2025
+            "%d %B %Y",  # 04 September 2025
+            "%a %d %b %Y",  # Thu 04 Sep 2025
+            "%Y-%m-%d",  # 2025-09-04
+            "%m/%d/%Y",  # 05/03/2025 (US format)
+        ]
+
+        def parse_date(date_str: str) -> datetime | None:
+            """Parse date string to datetime object."""
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(date_str.strip(), fmt)
+                except ValueError:
+                    continue
+            return None
+
+        def sort_key(row: dict[str, str]) -> tuple[int, datetime | None]:
+            """Return sort key: (parseable flag, datetime)."""
+            date_str = row.get(date_col, "")
+            parsed = parse_date(date_str)
+            if parsed:
+                return (0, parsed)  # Parseable dates first, sorted by date
+            return (1, None)  # Unparseable dates at end
+
+        return sorted(rows, key=sort_key)
+
 
 class UnifiedBankExtractor:
     """Unified bank statement extractor with automatic strategy selection.
@@ -1037,7 +1080,7 @@ class UnifiedBankExtractor:
         )
         print(f"  Parsed {len(all_rows)} transactions")
 
-        # Optionally apply balance correction (only for chronological order)
+        # Optionally apply balance correction (sort to chronological order first)
         correction_stats = None
         if self.use_balance_correction:
             # Check if transactions are in chronological order
@@ -1046,19 +1089,23 @@ class UnifiedBankExtractor:
             )
             print(f"  Date order: {order_reason}")
 
+            # Sort to chronological order if not already
             if is_chrono:
-                corrector = BalanceCorrector()
-                corrected_rows, correction_stats = corrector.correct_transactions(
-                    all_rows,
-                    balance_col=balance_col,
-                    debit_col=debit_col,
-                    credit_col=credit_col,
-                    desc_col=desc_col,
-                )
-                print(f"  Balance correction: {correction_stats}")
+                sorted_rows = all_rows
             else:
-                print("  Skipping balance correction (requires chronological order)")
-                corrected_rows = all_rows
+                sorted_rows = BalanceCorrector.sort_by_date(all_rows, date_col)
+                print("  Sorted to chronological order for balance correction")
+
+            # Apply balance correction on sorted (chronological) rows
+            corrector = BalanceCorrector()
+            corrected_rows, correction_stats = corrector.correct_transactions(
+                sorted_rows,
+                balance_col=balance_col,
+                debit_col=debit_col,
+                credit_col=credit_col,
+                desc_col=desc_col,
+            )
+            print(f"  Balance correction: {correction_stats}")
         else:
             corrected_rows = all_rows
 
