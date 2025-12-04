@@ -45,26 +45,29 @@ prompts:
       6. Do NOT skip any transactions
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
+  # Used when statement has Amount column (signed values) instead of separate Debit/Credit
   turn1_amount_extraction:
     name: "Amount-Description Extraction"
     description: "Extract transactions anchored to amount column (negative = withdrawal)"
-    # Placeholders: {amount_col}, {desc_col}
+    # Placeholders: {amount_col}, {desc_col}, {balance_col} (balance_col may be empty)
     template: |
-      List all transactions from the {amount_col} column, including:
+      List all transactions from this bank statement, including:
       - Date
       - {desc_col}
       - {amount_col} (preserve the sign: negative = withdrawal, positive = deposit)
+      {balance_line}
 
       Format each entry like this:
       1. **[Date]**
-         - {desc_col}: [description text]
-         - {amount_col}: [amount with sign]
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {amount_col}: [amount with sign preserved]
+         {balance_format}
 
       CRITICAL RULES:
       1. List EVERY transaction in order from top to bottom
       2. EVERY entry has a date, either on the same row, or above
-      3. Include the FULL description text, not abbreviated
-      4. PRESERVE the sign of amounts (negative values are withdrawals)
+      3. Include the FULL {desc_col} text - capture ALL rows, not abbreviated
+      4. PRESERVE the sign of amounts (negative = withdrawal, positive = deposit)
       5. Do NOT skip any transactions
 
   # Turn 1: Debit-Credit extraction (2-turn strategy for separate Debit/Credit columns)

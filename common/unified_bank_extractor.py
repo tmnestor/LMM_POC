@@ -25,7 +25,9 @@ class ExtractionStrategy(Enum):
 
     BALANCE_DESCRIPTION = auto()  # 2-turn: header detection + balance extraction
     AMOUNT_DESCRIPTION = auto()  # 2-turn: header + amount extraction (negative = debit)
-    DEBIT_CREDIT_DESCRIPTION = auto()  # 2-turn: header + debit/credit extraction (no balance)
+    DEBIT_CREDIT_DESCRIPTION = (
+        auto()
+    )  # 2-turn: header + debit/credit extraction (no balance)
     TABLE_EXTRACTION = auto()  # 3-turn: header + format classify + table
 
 
@@ -131,9 +133,9 @@ class ColumnMatcher:
             if matched:
                 setattr(mapping, col_type, matched)
 
-        # Fallback: use amount column for debit if no debit found
-        if not mapping.debit and mapping.amount:
-            mapping.debit = mapping.amount
+        # NOTE: Removed fallback that set debit=amount
+        # Strategy selection now properly handles Amount-only statements
+        # using AMOUNT_DESCRIPTION strategy instead of pretending Amount is Debit
 
         return mapping
 
@@ -374,11 +376,18 @@ class ResponseParser:
         date_col: str,
         desc_col: str,
         amount_col: str,
+        balance_col: str | None = None,
     ) -> list[dict[str, str]]:
-        """Parse amount-description response into transaction rows."""
+        """Parse amount-description response into transaction rows.
+
+        Handles statements with signed Amount column (negative = withdrawal).
+        Optionally parses Balance column if provided.
+        Supports multi-line descriptions with continuation lines.
+        """
         rows = []
         current_date = None
         current_transaction: dict[str, str] = {}
+        last_field_was_description = False
 
         lines = response.strip().split("\n")
 
@@ -397,7 +406,7 @@ class ResponseParser:
             if date_field_match:
                 date_found = date_field_match.group(1).strip().strip("*").strip()
 
-            # Pattern 2: Numbered bold date "1. **03/05/2025**"
+            # Pattern 2: Numbered bold date "1. **03/05/2025**" or "1. **03 Jun 2023**"
             if not date_found:
                 date_match = re.match(
                     r"^\d+\.\s*\*?\*?(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\*?\*?", line
@@ -405,7 +414,7 @@ class ResponseParser:
                 if date_match:
                     date_found = date_match.group(1).strip()
 
-            # Pattern 3: "1. **04 Sep 2025**"
+            # Pattern 3: "1. **04 Sep 2025**" or "1. **03 Jun 2023**"
             if not date_found:
                 date_match = re.match(
                     r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
@@ -420,6 +429,7 @@ class ResponseParser:
                     rows.append(current_transaction)
                     current_transaction = {}
                 current_date = date_found
+                last_field_was_description = False
                 continue
 
             # FIELD DETECTION
@@ -433,17 +443,42 @@ class ResponseParser:
                 field_value = field_match.group(2).strip()
 
             if field_name and field_value:
-                if field_name in ["description", "details", desc_col.lower()]:
+                # Description/Transaction details
+                if field_name in [
+                    "description",
+                    "details",
+                    "transaction details",
+                    desc_col.lower(),
+                ]:
                     # New transaction under same date
-                    if desc_col in current_transaction and current_transaction[desc_col]:
+                    if (
+                        desc_col in current_transaction
+                        and current_transaction[desc_col]
+                    ):
                         if current_date:
                             current_transaction[date_col] = current_date
                         rows.append(current_transaction)
                         current_transaction = {}
                     current_transaction[desc_col] = field_value
+                    last_field_was_description = True
 
+                # Amount (signed value)
                 elif field_name in ["amount", amount_col.lower()]:
                     current_transaction[amount_col] = field_value
+                    last_field_was_description = False
+
+                # Balance (optional)
+                elif balance_col and field_name in ["balance", balance_col.lower()]:
+                    current_transaction[balance_col] = field_value
+                    last_field_was_description = False
+
+            else:
+                # CONTINUATION LINE DETECTION (no field name, just "- value")
+                continuation_match = re.match(r"^\s*-\s+(.+)$", line)
+                if continuation_match and last_field_was_description:
+                    continuation_text = continuation_match.group(1).strip()
+                    if desc_col in current_transaction:
+                        current_transaction[desc_col] += " " + continuation_text
 
         # Don't forget last transaction
         if current_transaction and current_date:
@@ -766,7 +801,10 @@ class BalanceCorrector:
                     pass
 
         if first_date is None or last_date is None:
-            return False, f"Could not parse dates: '{first_date_str}', '{last_date_str}'"
+            return (
+                False,
+                f"Could not parse dates: '{first_date_str}', '{last_date_str}'",
+            )
 
         if first_date < last_date:
             return True, f"Chronological: {first_date_str} → {last_date_str}"
@@ -861,17 +899,33 @@ class UnifiedBankExtractor:
         mapping = self.column_matcher.match(headers)
         print(f"  Balance column: {mapping.balance or 'NOT FOUND'}")
 
-        # Select strategy
+        # Select strategy based on detected columns
+        # Key insight: Some statements have Amount+Balance (signed values),
+        # others have Debit/Credit/Balance (separate columns)
+        has_debit_or_credit = mapping.debit or mapping.credit
+        has_amount = mapping.amount is not None
+
         if force_strategy:
             strategy = force_strategy
             reason = "Manual override"
-        elif mapping.has_balance:
+        elif mapping.has_balance and has_debit_or_credit and not has_amount:
+            # Standard format: Debit/Credit columns with Balance
             strategy = ExtractionStrategy.BALANCE_DESCRIPTION
-            reason = "Balance column detected"
-        elif mapping.amount and not mapping.has_balance:
+            reason = "Balance + Debit/Credit columns detected"
+        elif mapping.has_balance and has_amount and not has_debit_or_credit:
+            # CBA-style format: Single Amount column (signed) with Balance
+            strategy = ExtractionStrategy.AMOUNT_DESCRIPTION
+            reason = "Balance + Amount column detected (signed values)"
+        elif mapping.has_balance and has_debit_or_credit:
+            # Has both Amount and Debit/Credit - prefer Debit/Credit
+            strategy = ExtractionStrategy.BALANCE_DESCRIPTION
+            reason = "Balance + Debit/Credit columns detected"
+        elif has_amount:
+            # Amount column without balance
             strategy = ExtractionStrategy.AMOUNT_DESCRIPTION
             reason = "Amount column detected (no balance)"
-        elif mapping.debit and not mapping.has_balance:
+        elif has_debit_or_credit:
+            # Debit/Credit without balance
             strategy = ExtractionStrategy.DEBIT_CREDIT_DESCRIPTION
             reason = "Debit/Credit columns detected (no balance)"
         else:
@@ -1028,23 +1082,56 @@ class UnifiedBankExtractor:
         mapping: ColumnMapping,
         turn0_response: str,
     ) -> ExtractionResult:
-        """Execute 2-turn amount-description extraction for Amount-only statements."""
+        """Execute 2-turn amount-description extraction for Amount-only statements.
+
+        Used when statement has a single Amount column with signed values
+        (negative = withdrawal, positive = deposit) instead of separate Debit/Credit.
+        Optionally includes Balance column for validation.
+        """
         import torch
-
-        # Build Turn 1 prompt with actual column names
-        prompt_template = self._prompts["turn1_amount"]
-        prompt = prompt_template.format(
-            amount_col=mapping.amount or "Amount",
-            desc_col=mapping.description or "Description",
-        )
-
-        print("Turn 1: Extracting transactions (amount-description)...")
-        response = self._generate(image, prompt, max_tokens=4096)
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
         desc_col = mapping.description or "Description"
         amount_col = mapping.amount or "Amount"
+        balance_col = mapping.balance  # May be None
+
+        # Build Turn 1 prompt with optional balance
+        prompt_template = self._prompts["turn1_amount"]
+        if balance_col:
+            balance_line = f"- {balance_col}"
+            balance_format = f"- {balance_col}: [balance amount]"
+        else:
+            balance_line = ""
+            balance_format = ""
+
+        prompt = prompt_template.format(
+            amount_col=amount_col,
+            desc_col=desc_col,
+            balance_line=balance_line,
+            balance_format=balance_format,
+        )
+
+        print("Turn 1: Extracting transactions (amount-description)...")
+        # DEBUG: Show GPU and prompt being sent
+        if torch.cuda.is_available():
+            print(f"DEBUG: Running on GPU: {torch.cuda.get_device_name(0)}")
+        print("=" * 60)
+        print("DEBUG: TURN 1 PROMPT BEING SENT")
+        print("=" * 60)
+        print(prompt)
+        print("=" * 60)
+
+        response = self._generate(image, prompt, max_tokens=4096)
+
+        # DEBUG: Show the raw response
+        print("=" * 60)
+        print("DEBUG: RAW TURN 1 RESPONSE (first 2000 chars)")
+        print("=" * 60)
+        print(response[:2000])
+        if len(response) > 2000:
+            print(f"... [{len(response) - 2000} more chars]")
+        print("=" * 60)
 
         # Parse response
         all_rows = self.parser.parse_amount_description(
@@ -1052,6 +1139,7 @@ class UnifiedBankExtractor:
             date_col=date_col,
             desc_col=desc_col,
             amount_col=amount_col,
+            balance_col=balance_col,
         )
         print(f"  Parsed {len(all_rows)} transactions")
 
@@ -1161,11 +1249,28 @@ class UnifiedBankExtractor:
 
     @staticmethod
     def _format_debit_amount(amount_str: str) -> str:
-        """Format debit amount, preserving negative sign for semantic matching."""
+        """Format debit amount, converting negative to positive.
+
+        For Amount-only statements, withdrawals are negative (e.g., "-$78.90").
+        This converts them to positive format (e.g., "$78.90") for output.
+        """
         if not amount_str:
             return ""
-        # Keep as-is - semantic normalization in batch script handles matching
-        return amount_str.strip()
+        amount = amount_str.strip()
+
+        # Remove negative sign - these are already filtered as withdrawals
+        if amount.startswith("-"):
+            amount = amount[1:]
+
+        # Handle parentheses notation for negative: ($78.90) -> $78.90
+        if amount.startswith("(") and amount.endswith(")"):
+            amount = amount[1:-1]
+
+        # Ensure $ prefix for consistency
+        if amount and not amount.startswith("$"):
+            amount = "$" + amount
+
+        return amount
 
     @staticmethod
     def _compute_date_range(dates: list[str]) -> str:
