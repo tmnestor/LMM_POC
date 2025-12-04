@@ -472,13 +472,27 @@ class ResponseParser:
                     current_transaction[balance_col] = field_value
                     last_field_was_description = False
 
+                # Skip other labeled fields (Card, Value Date, etc.) - not description continuation
+                else:
+                    last_field_was_description = False
+
             else:
-                # CONTINUATION LINE DETECTION (no field name, just "- value")
-                continuation_match = re.match(r"^\s*-\s+(.+)$", line)
-                if continuation_match and last_field_was_description:
-                    continuation_text = continuation_match.group(1).strip()
-                    if desc_col in current_transaction:
-                        current_transaction[desc_col] += " " + continuation_text
+                # UNLABELED LINE DETECTION (no colon, just "- value")
+                # Handles LLM format where description has no label:
+                #   1. **03 Jun 2023**
+                #      - GROCERY MARKET SUBURB NSW AUS  ← First unlabeled = description
+                #      - Card xx5678                     ← Could be continuation
+                unlabeled_match = re.match(r"^\s*-\s+(.+)$", line)
+                if unlabeled_match:
+                    unlabeled_text = unlabeled_match.group(1).strip()
+
+                    # If no description yet, this IS the description
+                    if desc_col not in current_transaction or not current_transaction.get(desc_col):
+                        current_transaction[desc_col] = unlabeled_text
+                        last_field_was_description = True
+                    # If we already have description and last field was description, append
+                    elif last_field_was_description:
+                        current_transaction[desc_col] += " " + unlabeled_text
 
         # Don't forget last transaction
         if current_transaction and current_date:
@@ -1255,26 +1269,33 @@ class UnifiedBankExtractor:
 
     @staticmethod
     def _format_debit_amount(amount_str: str) -> str:
-        """Format debit amount, converting negative to positive.
+        """Format debit amount, preserving negative sign for Amount strategy.
 
-        For Amount-only statements, withdrawals are negative (e.g., "-$78.90").
-        This converts them to positive format (e.g., "$78.90") for output.
+        For Amount-based statements (signed values), ground truth expects
+        negative amounts (e.g., "-$78.90") to remain negative.
+        This preserves the sign while normalizing format.
         """
         if not amount_str:
             return ""
         amount = amount_str.strip()
 
-        # Remove negative sign - these are already filtered as withdrawals
+        # Check if negative
+        is_negative = False
         if amount.startswith("-"):
+            is_negative = True
             amount = amount[1:]
-
-        # Handle parentheses notation for negative: ($78.90) -> $78.90
-        if amount.startswith("(") and amount.endswith(")"):
+        elif amount.startswith("(") and amount.endswith(")"):
+            # Handle parentheses notation for negative: ($78.90) -> -$78.90
+            is_negative = True
             amount = amount[1:-1]
 
         # Ensure $ prefix for consistency
         if amount and not amount.startswith("$"):
             amount = "$" + amount
+
+        # Restore negative sign if original was negative
+        if is_negative:
+            amount = "-" + amount
 
         return amount
 
