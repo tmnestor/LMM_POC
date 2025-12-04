@@ -294,11 +294,13 @@ def calculate_field_accuracy(
 
     elif field_name in get_list_fields():
         # List fields - type-aware comparison
+        # Use pipe "|" as primary delimiter (standard format)
+        # Avoid splitting on comma which breaks monetary values like "1,456.80"
         extracted_items = [
-            item.strip() for item in re.split(r"[,;|\n]", extracted) if item.strip()
+            item.strip() for item in re.split(r"\s*\|\s*", extracted) if item.strip()
         ]
         ground_truth_items = [
-            item.strip() for item in re.split(r"[,;|\n]", ground_truth) if item.strip()
+            item.strip() for item in re.split(r"\s*\|\s*", ground_truth) if item.strip()
         ]
 
         if not ground_truth_items:
