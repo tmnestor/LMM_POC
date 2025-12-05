@@ -1,0 +1,29 @@
+[2mLogging to: output/batch_internvl3_5_8b.log[0m
+[92m─────────────────────────────────────────────────────────────────────────────── [0m[1;34mUNIFIED BANK STATEMENT BATCH EXTRACTION[0m[92m ────────────────────────────────────────────────────────────────────────────────[0m
+[36mModel:[0m internvl3_5_8b
+[36mData directory:[0m evaluation_data/bank
+[36mBalance correction:[0m enabled
+
+[33mLoading ground truth[0m[33m...[0m
+  [33mWarning: Image not found: evaluation_data/bank/nab_classic_highligted.png[0m
+  [33mWarning: Image not found: evaluation_data/bank/westpac_debit_credit.png[0m
+  [33mWarning: Image not found: evaluation_data/bank/cba_home_loan.png[0m
+
+[32mFound [0m[1;32m12[0m[32m bank statement images[0m
+
+[33mLoading model[0m[33m...[0m
+[36mLoading model:[0m InternVL3.[1;36m5[0m-8B [1m([0mbfloat16, H200[1m)[0m
+  Path: [35m/home/jovyan/nfs_share/models/[0m[95mInternVL3_5-8B[0m
+  Type: internvl3
+  Quantization: none
+  Dtype: bfloat16
+[32mModel loaded successfully![0m
+[32mExtractor created:[0m [33mmax_tiles[0m=[1;36m18[0m, [33minput_size[0m=[1;36m448[0m
+[92m─────────────────────────────────────────────────────────────────────────────────────────── [0m[1;34mBATCH PROCESSING[0m[92m ───────────────────────────────────────────────────────────────────────────────────────────[0m
+
+[1;36m[[0m[1;36m1[0m[1;36m/[0m[1;36m12[0m[1;36m][0m Processing: [37mcba_date_grouped.png[0m
+  [31mERROR: CUDA out of memory. Tried to allocate [0m[1;31m2.10[0m[31m GiB. GPU [0m[1;31m0[0m[31m has a total capacity of [0m[1;31m21.95[0m[31m GiB of which [0m[1;31m240.12[0m[31m MiB is free. Process [0m[1;31m107494[0m[31m has [0m[1;31m21.71[0m[31m GiB memory in use. Of the allocated memory [0m[1;31m19.36[0m[31m [0m
+[31mGiB is allocated by PyTorch, and [0m[1;31m2.12[0m[31m GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting [0m[31mPYTORCH_CUDA_ALLOC_CONF[0m[31m=[0m[31mexpandable_segments[0m[31m:[0m[3;31mTrue[0m[31m to avoid [0m
+[31mfragmentation.  See documentation for Memory Management  [0m[1;31m([0m[4;31mhttps://pytorch.org/docs/stable/notes/cuda.html#environment-variables[0m[4;31m)[0m
+
+[1;36m[[0m[1;36m2[0m[1;36m/[0m[1;36m12[0m[1;36m][0m Processing: [37mcba_date_grouped_cont.png[0m

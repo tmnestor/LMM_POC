@@ -148,7 +148,7 @@ models:
       low_cpu_mem_usage: true
 
     generation:
-      max_new_tokens: 4096
+      max_new_tokens: 2048
       do_sample: false
 
     image_processing:
