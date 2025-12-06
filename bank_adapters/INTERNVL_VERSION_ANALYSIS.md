@@ -314,3 +314,7 @@ The 28-point accuracy gap between InternVL3 and InternVL3.5 on bank statements, 
 3. **Reasoning improvements (MMMU +10.7) translate to structured extraction gains**
 
 For production bank statement extraction, InternVL3.5-8B offers the optimal balance of accuracy (84.3%), speed (106.6s), and reliability (24.4% std dev).
+
+---
+
+*This analysis was generated from `bank_statement/bank_model_comparison.ipynb` using the CBA-specific synthetic bank statement dataset.*

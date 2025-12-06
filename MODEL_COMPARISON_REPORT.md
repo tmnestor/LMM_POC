@@ -338,3 +338,5 @@ Average accuracy by document type:
 
 *Report generated from automated comparison of batch processing results*
 *For detailed field-level analysis, see individual model CSV outputs*
+
+**See also**: [Appendix A: Bank Statement-Specific Investigation](MODEL_COMPARISON_APPENDIX_A.md) — CBA-specific testing with InternVL3.5 Cascade RL
