@@ -167,12 +167,11 @@ Documents where at least one model scored below 85%:
 
 ---
 
-## A.10 Technical References
+## A.10 References
 
-- [InternVL3.5 Technical Report](https://arxiv.org/abs/2508.18265) — Cascade RL, Visual Resolution Router
-- [InternVL3 Technical Report](https://arxiv.org/abs/2504.10479) — Native Multimodal Pre-training, V2PE
-- [Bank Adapter Design](bank_adapters/DESIGN_NOTES.md) — Strategy pattern for bank-specific extraction
-- [VLM Inductive Bias Analysis](bank_adapters/VLM_INDUCTIVE_BIAS.md) — Why VLMs struggle with structured documents
+Wang, W., Gao, Z., Gu, L., Pu, H., Cui, L., Wei, X., Liu, Z., Jing, L., Ye, S., Shao, J., Wang, Z., Chen, Z., Zhang, H., Yang, G., Wang, H., Wei, Q., et al. (2025). InternVL3.5: Advancing Open-Source Multimodal Models in Versatility, Reasoning, and Efficiency. *arXiv preprint arXiv:2508.18265*.
+
+Zhu, J., Wang, W., Chen, Z., Liu, Z., Ye, S., Gu, L., Tian, H., Duang, Y., Su, W., Shao, J., Gao, Z., Cui, E., Wang, X., Cao, Y., Liu, Y., Wei, X., et al. (2025). InternVL3: Exploring Advanced Training and Test-Time Recipes for Open-Source Multimodal Models. *arXiv preprint arXiv:2504.10479*.
 
 ---
 
