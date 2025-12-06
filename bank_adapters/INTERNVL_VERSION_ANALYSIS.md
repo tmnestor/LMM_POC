@@ -179,21 +179,109 @@ While DocVQA scores are comparable, our real-world bank extraction shows InternV
 
 **InternVL3.5-8B offers the best accuracy-per-second ratio**—nearly matching Llama's accuracy at 2.5× the speed.
 
+## How Does Qwen2.5-VL Compare?
+
+Qwen2.5-VL from Alibaba is a strong contender in the document understanding space. Here's how it compares to our tested models at the ~7-8B scale:
+
+### Qwen2.5-VL-7B Benchmark Performance
+
+| Benchmark | Qwen2.5-VL-7B | InternVL3.5-8B | InternVL3-8B | Llama-3.2-11B |
+|-----------|---------------|----------------|--------------|---------------|
+| DocVQA | ~95.7% | 92.3% | 92.7% | 70.7% |
+| ChartQA | ~85% | ~87% | ~84% | ~83% |
+| OCRBench | ~850+ | ~840 | ~835 | N/A |
+| MMMU | ~56% | 73.4% | 62.7% | ~49% |
+
+Sources: [Qwen2.5-VL Model Card](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct), [Open Laboratory](https://openlaboratory.ai/models/qwen2_5-vl-7b-instruct), [Analytics Vidhya](https://www.analyticsvidhya.com/blog/2025/01/qwen2-5-vl-vision-model/)
+
+### Qwen2.5-VL's Document Strengths
+
+Qwen2.5-VL was specifically optimized for document understanding:
+
+1. **Superior OCR**: Achieves ~75% accuracy on JSON extraction tasks, matching GPT-4o and outperforming specialized OCR models like Mistral-OCR (72.2%)
+
+2. **Bounding Box Support**: Unlike most VLMs, Qwen2.5-VL provides text localization with bounding boxes—useful for verification workflows
+
+3. **Multilingual OCR**: Strong support for English, Japanese, Arabic, and 10+ languages
+
+4. **Structured Output**: Native support for JSON/CSV extraction from documents
+
+Source: [OmniAI OCR Benchmark](https://apidog.com/blog/qwen-2-5-72b-open-source-ocr/)
+
+### Why Qwen2.5-VL May Excel at Bank Statements
+
+| Capability | Relevance to Bank Statements |
+|------------|------------------------------|
+| High DocVQA score (95.7%) | Strong document understanding baseline |
+| Bounding box output | Verify column alignment visually |
+| JSON extraction | Direct structured output |
+| Multilingual OCR | Handle international transactions |
+
+### Why We Haven't Tested Qwen2.5-VL Yet
+
+Our current benchmark focuses on models we have deployed. Qwen2.5-VL-7B is a **strong candidate for future testing** based on:
+
+1. **DocVQA leadership**: 95.7% vs InternVL3.5's 92.3%
+2. **OCR specialization**: Explicitly trained for document extraction
+3. **Structured output**: Native JSON support reduces post-processing
+
+### Predicted Performance
+
+Based on benchmark analysis, Qwen2.5-VL-7B would likely:
+
+| Metric | Predicted Range | Rationale |
+|--------|-----------------|-----------|
+| Accuracy | 82-88% | Higher DocVQA suggests strong extraction |
+| Variance | 20-25% | OCR focus implies consistency |
+| Speed | 80-120s | Similar architecture to InternVL |
+
+**Recommendation**: Add Qwen2.5-VL-7B to the next benchmark round. Its document-specialized training may outperform InternVL3.5-8B on bank statement extraction, despite lower MMMU scores.
+
+### The MMMU vs DocVQA Trade-off
+
+Interestingly, Qwen2.5-VL-7B and InternVL3.5-8B show opposite strengths:
+
+| Model | DocVQA | MMMU | Specialization |
+|-------|--------|------|----------------|
+| Qwen2.5-VL-7B | 95.7% | ~56% | Document-focused |
+| InternVL3.5-8B | 92.3% | 73.4% | Reasoning-focused |
+
+For bank statements, which matters more?
+- **DocVQA** tests: Can you answer questions about documents?
+- **MMMU** tests: Can you reason across complex multi-step problems?
+
+Bank statement extraction requires **both**:
+- OCR accuracy (DocVQA-like)
+- Structural reasoning (MMMU-like)
+
+InternVL3.5's MMMU advantage may explain why it beats InternVL3 despite similar DocVQA scores. Qwen2.5-VL's DocVQA advantage may compensate for lower reasoning scores through better raw extraction.
+
+**The only way to know is to test.**
+
 ## Recommendations
 
 ### For Bank Statement Extraction
 
-1. **Use InternVL3.5-8B** for production workloads—best accuracy/speed tradeoff
+1. **Use InternVL3.5-8B** for production workloads—best accuracy/speed tradeoff among tested models
 2. **Use Llama-3.2-Vision** when accuracy is paramount and latency is acceptable
-3. **Avoid InternVL3-8B** for structured extraction—high variance causes unreliable outputs
+3. **Test Qwen2.5-VL-7B** as a priority—benchmark scores suggest it may be the best option
+4. **Avoid InternVL3-8B** for structured extraction—high variance causes unreliable outputs
 
 ### For Model Selection Generally
 
 1. **Don't trust benchmark saturation**: 92% vs 93% on DocVQA hides real capability differences
 2. **Measure variance**: Standard deviation matters for production reliability
 3. **Test your actual task**: Bank extraction exposed a 28-point gap invisible to DocVQA
+4. **Consider both OCR and reasoning**: High DocVQA alone doesn't guarantee extraction success
 
 ## Technical References
+
+### Qwen2.5-VL
+- [Qwen2.5-VL-72B Model Card](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) — Hugging Face
+- [Qwen2.5-VL Technical Overview](https://www.analyticsvidhya.com/blog/2025/01/qwen2-5-vl-vision-model/) — Analytics Vidhya
+- [Qwen2.5-VL OCR Benchmark](https://apidog.com/blog/qwen-2-5-72b-open-source-ocr/) — OmniAI comparison
+- [Qwen2.5-VL-7B Details](https://openlaboratory.ai/models/qwen2_5-vl-7b-instruct) — Open Laboratory
+- [QwenLM GitHub](https://github.com/QwenLM/Qwen3-VL) — Official repository
 
 ### InternVL3.5
 - [InternVL3.5 Technical Report](https://arxiv.org/abs/2508.18265) — "Advancing Open-Source Multimodal Models in Versatility, Reasoning, and Efficiency" (August 2025)
