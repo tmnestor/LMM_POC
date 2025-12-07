@@ -1,0 +1,17 @@
+graph TB
+    A[Image] --> B[Detect Table Boundaries]
+    B --> C[Parse Column Headers]
+    C --> D[Map Column Semantics]
+    D --> E[Extract Row Data]
+    E --> F[Maintain Row Alignment]
+    F --> G[Handle Exceptions]
+    G --> H[Structured Output]
+
+    style A fill:#4a90d9,color:#fff
+    style B fill:#ffcccc
+    style C fill:#fff
+    style D fill:#ffcccc
+    style E fill:#fff
+    style F fill:#ffcccc
+    style G fill:#fff
+    style H fill:#4a90d9,color:#fff

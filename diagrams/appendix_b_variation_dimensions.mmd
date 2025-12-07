@@ -1,0 +1,48 @@
+graph TB
+    A[Bank Statement Image]
+
+    A --> T0[Turn 0: Header Identification]
+    T0 --> T0a[Detect column headers]
+    T0a --> T0b[Map to Debit/Credit columns]
+    T0b --> T0c[Identify date format]
+
+    T0c --> V[Variation Handling Required]
+
+    V --> B[Spatial: Where data appears]
+    B --> B1[ANZ: Dense multi-column]
+    B --> B2[CBA: Single-flow]
+    B --> B3[NAB/Westpac: Variable headers]
+
+    B3 --> C[Syntactic: How data is formatted]
+    C --> C1[Dates: DD/MM/YYYY vs DD MMM]
+    C --> C2[Amounts: $1,234.56 vs 1234.56 CR]
+    C --> C3[Structure: Payee-first vs Ref-first]
+
+    C3 --> D[Semantic: What data means]
+    D --> D1[Debit vs Withdrawal vs DR]
+    D --> D2[Credit vs Deposit vs CR]
+    D --> D3[Opening Balance vs Balance B/F]
+
+    D3 --> T1[Turn 1: Balance-Anchored Extraction]
+    T1 --> OUT[Unified Output Schema]
+
+    style A fill:#4a90d9,color:#fff
+    style T0 fill:#90EE90
+    style T0a fill:#d4edda
+    style T0b fill:#d4edda
+    style T0c fill:#d4edda
+    style V fill:#ffcccc
+    style B fill:#f9d77e
+    style C fill:#f9d77e
+    style D fill:#f9d77e
+    style B1 fill:#fff
+    style B2 fill:#fff
+    style B3 fill:#fff
+    style C1 fill:#fff
+    style C2 fill:#fff
+    style C3 fill:#fff
+    style D1 fill:#fff
+    style D2 fill:#fff
+    style D3 fill:#fff
+    style T1 fill:#90EE90
+    style OUT fill:#4a90d9,color:#fff

@@ -2,18 +2,23 @@
 
 ## Problem Statement
 
-VLM-based bank statement extraction faces two types of variation across Australia's Big Four banks:
+VLM-based bank statement extraction faces three types of variation across Australia's Big Four banks:
 
 1. **Spatial variation**: Where data appears on the page
    - ANZ: Dense multi-column layouts
    - CommBank: Cleaner single-flow statements
    - NAB/Westpac: Variable header/footer structures
 
-2. **Semantic variation**: How data is formatted
+2. **Syntactic variation**: How data is formatted
    - Date formats: DD/MM/YYYY vs DD MMM vs mixed
+   - Amount formats: $1,234.56 vs 1234.56 vs (1234.56) vs 1234.56 CR
    - Transaction structure: Payee first vs reference first
-   - Credit/debit representation: Signed, columned, or CR/DR suffixed
-   - Balance labeling inconsistency
+
+3. **Semantic variation**: What data means
+   - "Withdrawal" vs "Debit" vs "DR" (same meaning, different terms)
+   - "Credit" vs "Deposit" vs "CR" (same meaning, different terms)
+   - Balance labeling: "Opening Balance" vs "Balance B/F" vs "Previous Balance"
+   - Transaction categorization differences across banks
 
 ## Key Finding
 
@@ -69,7 +74,8 @@ Bank detector (classifier or rule-based on header/logo)
         ↓
 Bank-specific adapter
     ├── spatial normalizer (expected regions → canonical positions)
-    └── semantic parser (date/amount/description patterns)
+    ├── syntactic parser (date/amount formats → standard formats)
+    └── semantic mapper (bank terminology → canonical terms)
         ↓
 Unified output schema (BalanceResult)
 ```

@@ -67,9 +67,9 @@ Balance extraction is a simpler task with clearer visual anchors:
 
 ## The Big Four Challenge
 
-Australian Big Four bank statements compound the problem with variation across two dimensions:
+Australian Big Four bank statements compound the problem with variation across three dimensions:
 
-### Spatial Variation
+### Spatial Variation (where data appears)
 | Bank | Layout Characteristics |
 |------|----------------------|
 | ANZ | Dense multi-column layouts |
@@ -77,13 +77,21 @@ Australian Big Four bank statements compound the problem with variation across t
 | NAB | Variable header/footer structures |
 | Westpac | Multiple format versions in circulation |
 
-### Semantic Variation
-| Element | Variations |
-|---------|-----------|
+### Syntactic Variation (how data is formatted)
+| Element | Format Variations |
+|---------|-------------------|
 | Dates | DD/MM/YYYY, DD MMM YYYY, DD-MM-YY |
 | Amounts | $1,234.56, 1234.56, (1234.56), 1234.56 CR |
 | Debits/Credits | Separate columns, signed values, CR/DR suffix |
 | Descriptions | Payee first, reference first, mixed |
+
+### Semantic Variation (what data means)
+| Concept | Terminology Variations |
+|---------|------------------------|
+| Money out | "Withdrawal", "Debit", "DR", "Payment" |
+| Money in | "Credit", "Deposit", "CR", "Receipt" |
+| Starting balance | "Opening Balance", "Balance B/F", "Previous Balance" |
+| Ending balance | "Closing Balance", "Balance C/F", "Current Balance" |
 
 A VLM trained on natural images has no prior knowledge of these conventions. Every statement is essentially a new puzzle.
 
@@ -113,8 +121,9 @@ VLM extraction (bank-agnostic, plays to strengths)
 Bank detector (rule-based or classifier)
         ↓
 Bank-specific adapter
-    ├── Spatial normalizer (this bank's layout → canonical)
-    └── Semantic parser (this bank's formats → standard)
+    ├── Spatial normalizer (this bank's layout → canonical positions)
+    ├── Syntactic parser (this bank's formats → standard formats)
+    └── Semantic mapper (this bank's terminology → canonical terms)
         ↓
 Unified output schema
 ```
