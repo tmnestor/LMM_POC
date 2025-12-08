@@ -10,6 +10,7 @@ Usage:
     schema_fields, metadata = adapter.extract_bank_statement(image_path)
 """
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,21 @@ from .unified_bank_extractor import (
     ExtractionStrategy,
     UnifiedBankExtractor,
 )
+
+
+def _safe_print(msg: str) -> None:
+    """Print without triggering Rich console recursion in Jupyter.
+
+    Writes directly to sys.__stdout__ to bypass Rich's file proxy
+    which can cause RecursionError in Jupyter notebooks.
+    """
+    try:
+        # Use original stdout to bypass Rich's file proxy
+        sys.__stdout__.write(msg + "\n")
+        sys.__stdout__.flush()
+    except Exception:
+        # Fallback: silently ignore if even this fails
+        pass
 
 
 class BankStatementAdapter:
@@ -85,7 +101,7 @@ class BankStatementAdapter:
               column_mapping, raw_responses, correction_stats
         """
         if self.verbose:
-            print(f"\n[BankStatementAdapter] Processing: {Path(image_path).name}")
+            _safe_print(f"\n[BankStatementAdapter] Processing: {Path(image_path).name}")
 
         # Load image
         image = Image.open(image_path).convert("RGB")
@@ -112,9 +128,9 @@ class BankStatementAdapter:
             metadata["correction_stats"] = str(result.correction_stats)
 
         if self.verbose:
-            print(f"  Strategy: {result.strategy_used}")
-            print(f"  Turns: {result.turns_executed}")
-            print(f"  Transactions extracted: {len(result.transaction_dates)}")
+            _safe_print(f"  Strategy: {result.strategy_used}")
+            _safe_print(f"  Turns: {result.turns_executed}")
+            _safe_print(f"  Transactions extracted: {len(result.transaction_dates)}")
 
         return schema_fields, metadata
 
