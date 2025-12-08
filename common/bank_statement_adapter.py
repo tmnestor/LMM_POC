@@ -11,6 +11,7 @@ Usage:
 """
 
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,25 @@ def _safe_print(msg: str) -> None:
     except Exception:
         # Fallback: silently ignore if even this fails
         pass
+
+
+@contextmanager
+def _bypass_rich_stdout():
+    """Context manager to temporarily bypass Rich's stdout proxy.
+
+    UnifiedBankExtractor uses print() statements internally which can
+    cause RecursionError when Rich's console file proxy intercepts them.
+    This context manager redirects stdout to the original sys.__stdout__
+    during extraction to prevent the recursion.
+    """
+    original_stdout = sys.stdout
+    try:
+        # Redirect stdout to original (bypasses Rich's file proxy)
+        sys.stdout = sys.__stdout__
+        yield
+    finally:
+        # Restore original stdout (Rich's proxy)
+        sys.stdout = original_stdout
 
 
 class BankStatementAdapter:
@@ -106,11 +126,13 @@ class BankStatementAdapter:
         # Load image
         image = Image.open(image_path).convert("RGB")
 
-        # Execute extraction
-        result: ExtractionResult = self.extractor.extract(
-            image=image,
-            force_strategy=force_strategy,
-        )
+        # Execute extraction with stdout bypass to prevent Rich console recursion
+        # UnifiedBankExtractor uses print() internally which conflicts with Rich
+        with _bypass_rich_stdout():
+            result: ExtractionResult = self.extractor.extract(
+                image=image,
+                force_strategy=force_strategy,
+            )
 
         # Convert to schema dict
         schema_fields = result.to_schema_dict()
