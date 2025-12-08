@@ -3,10 +3,19 @@
 Bridges BatchDocumentProcessor with UnifiedBankExtractor for sophisticated
 multi-turn bank statement extraction.
 
-Usage:
+Supports both Llama and InternVL3 models.
+
+Usage (Llama):
     from common.bank_statement_adapter import BankStatementAdapter
 
-    adapter = BankStatementAdapter(model, processor)
+    adapter = BankStatementAdapter(model, processor, model_type="llama")
+    schema_fields, metadata = adapter.extract_bank_statement(image_path)
+
+Usage (InternVL3):
+    from common.bank_statement_adapter import BankStatementAdapter
+
+    # Pass the hybrid processor - adapter extracts model/tokenizer automatically
+    adapter = BankStatementAdapter(hybrid_processor, None, model_type="internvl3")
     schema_fields, metadata = adapter.extract_bank_statement(image_path)
 """
 
@@ -15,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import torch
 from PIL import Image
 
 from .unified_bank_extractor import (
@@ -64,6 +74,8 @@ class BankStatementAdapter:
     This adapter bridges the batch processing notebook with the sophisticated
     multi-turn bank statement extraction in UnifiedBankExtractor.
 
+    Supports both Llama and InternVL3 models.
+
     Features:
         - Turn 0: Header detection (identifies actual column names)
         - Turn 1: Adaptive extraction with structure-dynamic prompts
@@ -78,29 +90,73 @@ class BankStatementAdapter:
         config_dir: str | Path | None = None,
         verbose: bool = True,
         use_balance_correction: bool = False,
+        model_type: str = "llama",
+        model_dtype: Any = None,
     ):
-        """Initialize adapter with Llama model components.
+        """Initialize adapter with model components.
 
         Args:
-            model: Loaded Llama model
-            processor: Loaded Llama processor
+            model: Loaded model. For Llama: the model object. For InternVL3: the hybrid processor.
+            processor: For Llama: the processor. For InternVL3: can be None.
             config_dir: Path to config directory (default: project config/)
             verbose: Enable verbose output during extraction
             use_balance_correction: Enable mathematical balance correction
+            model_type: "llama" or "internvl3"
+            model_dtype: Optional dtype override (e.g., torch.bfloat16, torch.float32)
         """
-        self.model = model
-        self.processor = processor
         self.verbose = verbose
+        self.model_type = model_type.lower()
 
-        # Initialize UnifiedBankExtractor for Llama
-        self.extractor = UnifiedBankExtractor(
-            model=model,
-            tokenizer=processor,  # Llama processor serves as tokenizer
-            processor=processor,
-            model_type="llama",
-            config_dir=config_dir,
-            use_balance_correction=use_balance_correction,
-        )
+        # Extract model components based on model type
+        if self.model_type == "internvl3":
+            # For InternVL3, model parameter is the hybrid processor
+            # Extract the actual model and tokenizer from it
+            if hasattr(model, "model") and hasattr(model, "tokenizer"):
+                actual_model = model.model
+                actual_tokenizer = model.tokenizer
+            else:
+                # Direct model/tokenizer passed
+                actual_model = model
+                actual_tokenizer = processor
+
+            # Auto-detect dtype from model parameters if not specified
+            if model_dtype is None:
+                try:
+                    model_dtype = next(actual_model.parameters()).dtype
+                except (StopIteration, AttributeError):
+                    model_dtype = torch.bfloat16  # Default for InternVL3
+
+            self.model = actual_model
+            self.tokenizer = actual_tokenizer
+            self.processor = None
+            self.model_dtype = model_dtype
+
+            # Initialize UnifiedBankExtractor for InternVL3
+            self.extractor = UnifiedBankExtractor(
+                model=actual_model,
+                tokenizer=actual_tokenizer,
+                processor=None,
+                model_type="internvl3",
+                config_dir=config_dir,
+                model_dtype=model_dtype,
+                use_balance_correction=use_balance_correction,
+            )
+        else:
+            # Llama model
+            self.model = model
+            self.processor = processor
+            self.tokenizer = processor  # Llama processor serves as tokenizer
+            self.model_dtype = model_dtype
+
+            # Initialize UnifiedBankExtractor for Llama
+            self.extractor = UnifiedBankExtractor(
+                model=model,
+                tokenizer=processor,
+                processor=processor,
+                model_type="llama",
+                config_dir=config_dir,
+                use_balance_correction=use_balance_correction,
+            )
 
     def extract_bank_statement(
         self,
@@ -173,17 +229,21 @@ class BankStatementAdapter:
 
 def create_bank_adapter(
     model: Any,
-    processor: Any,
+    processor: Any = None,
     verbose: bool = True,
     use_balance_correction: bool = False,
+    model_type: str = "llama",
+    model_dtype: Any = None,
 ) -> BankStatementAdapter:
     """Factory function to create BankStatementAdapter.
 
     Args:
-        model: Loaded Llama model
-        processor: Loaded Llama processor
+        model: For Llama: model object. For InternVL3: hybrid processor or model.
+        processor: For Llama: processor. For InternVL3: can be None.
         verbose: Enable verbose output
         use_balance_correction: Enable balance-based correction
+        model_type: "llama" or "internvl3"
+        model_dtype: Optional dtype override
 
     Returns:
         Configured BankStatementAdapter instance
@@ -193,4 +253,6 @@ def create_bank_adapter(
         processor=processor,
         verbose=verbose,
         use_balance_correction=use_balance_correction,
+        model_type=model_type,
+        model_dtype=model_dtype,
     )
