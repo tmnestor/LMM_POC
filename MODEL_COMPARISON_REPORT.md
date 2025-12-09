@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-12-09 13:43:53
+**Auto-Generated from Notebook**: 2025-12-09 16:09:31
 **Source**: `model_comparison_reporter.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -13,19 +13,19 @@
 
 | Model | F1 Score | Precision | Recall | Accuracy | Median Speed | Throughput |
 |-------|----------|-----------|--------|----------|--------------|------------|
-| **Llama-3.2-Vision-11B** | 0.9032 | 0.9032 | 0.9032 | 97.64% | 142.0s | 0.4 docs/min |
-| **InternVL3-8B** | 0.6741 | 0.7664 | 0.6016 | 67.06% | 66.3s | 0.9 docs/min |
-| **InternVL3.5-8B** | 0.8858 | 0.8957 | 0.8762 | 90.48% | 55.4s | 1.1 docs/min |
+| **Llama-3.2-Vision-11B** | 0.8862 | 0.8698 | 0.9032 | 97.64% | 74.6s | 0.8 docs/min |
+| **InternVL3-8B** | 0.6697 | 0.7553 | 0.6016 | 67.06% | 33.2s | 1.8 docs/min |
+| **InternVL3.5-8B** | 0.8692 | 0.8623 | 0.8762 | 90.48% | 27.7s | 2.2 docs/min |
 
 ### Key Findings
 
 **Winner (F1 Score)**: Llama-3.2-Vision-11B
 
-**Highest Precision**: Llama-3.2-Vision-11B (0.9032)
+**Highest Precision**: Llama-3.2-Vision-11B (0.8698)
 
 **Highest Recall**: Llama-3.2-Vision-11B (0.9032)
 
-**Fastest**: InternVL3.5-8B (55.4s)
+**Fastest**: InternVL3.5-8B (27.7s)
 
 ---
 
@@ -155,7 +155,7 @@ Consider an ensemble approach leveraging each model's field specialization:
 
 ### 3. High-Volume Processing
 Balance speed vs quality based on throughput requirements:
-- **Fastest processing**: InternVL3.5-8B (~55.4s/doc)
+- **Fastest processing**: InternVL3.5-8B (~27.7s/doc)
 - **Best accuracy**: Llama-3.2-Vision-11B (97.64% overall)
 - **Best balance**: Consider throughput constraints and acceptable accuracy threshold
 
@@ -201,7 +201,7 @@ Hallucination Rate = Hallucinations / NOT_FOUND Opportunities
 
 #### Model Selection Guide Based on Use Case
 
-**Choose HIGH PRECISION Model (Llama-3.2-Vision-11B: 90.32%) if:**
+**Choose HIGH PRECISION Model (Llama-3.2-Vision-11B: 86.98%) if:**
 - ✅ Processing financial/regulatory data (invoices, tax documents)
 - ✅ Automated processing with no human review
 - ✅ **False data is worse than missing data**
@@ -235,14 +235,14 @@ Based on the analysis:
 
 | Model | Precision | Recall | F1 | Best For |
 |-------|-----------|--------|----|----|
-| **Llama-3.2-Vision-11B** | 90.32% | 90.32% | 0.9032 | 🏆 Best Precision🏆 Best Recall🏆 Best F1 |
-| **InternVL3-8B** | 76.64% | 60.16% | 0.6741 |  |
-| **InternVL3.5-8B** | 89.57% | 87.62% | 0.8858 |  |
+| **Llama-3.2-Vision-11B** | 86.98% | 90.32% | 0.8862 | 🏆 Best Precision🏆 Best Recall🏆 Best F1 |
+| **InternVL3-8B** | 75.53% | 60.16% | 0.6697 |  |
+| **InternVL3.5-8B** | 86.23% | 87.62% | 0.8692 |  |
 
 **Key Insights:**
-- **Precision Leader**: Llama-3.2-Vision-11B (90.32%)
+- **Precision Leader**: Llama-3.2-Vision-11B (86.98%)
 - **Recall Leader**: Llama-3.2-Vision-11B (90.32%)
-- **F1 Leader**: Llama-3.2-Vision-11B (0.9032)
+- **F1 Leader**: Llama-3.2-Vision-11B (0.8862)
 - **Speed vs Accuracy Tradeoff**: Consider throughput requirements against quality needs
 
 #### Efficiency Analysis
@@ -251,9 +251,9 @@ Based on the analysis:
 
 | Model | Avg Accuracy | Avg Speed | Throughput | Efficiency Score |
 |-------|--------------|-----------|------------|------------------|
-| **Llama-3.2-Vision-11B** | 97.64% | 142.0s | 0.4 docs/min | 41.3 |
-| **InternVL3-8B** | 67.06% | 66.3s | 0.9 docs/min | 60.7 |
-| **InternVL3.5-8B** | 90.48% | 55.4s | 1.1 docs/min | 98.0 |
+| **Llama-3.2-Vision-11B** | 97.64% | 74.6s | 0.8 docs/min | 78.6 |
+| **InternVL3-8B** | 67.06% | 33.2s | 1.8 docs/min | 121.2 |
+| **InternVL3.5-8B** | 90.48% | 27.7s | 2.2 docs/min | 196.1 |
 
 **Highest Efficiency**: InternVL3.5-8B
 
