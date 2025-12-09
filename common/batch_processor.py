@@ -640,16 +640,34 @@ class BatchDocumentProcessor:
                     )
                 return extracted_data
 
+            # Split arrays
+            desc_list = descriptions.split(" | ")
+            date_list = dates.split(" | ")
+            paid_list = paid.split(" | ")
+            balance_list = balances.split(" | ")
+            received_list = received.split(" | ") if received and received != "NOT_FOUND" else None
+
+            # DEBUG: Show array lengths before DataFrame creation
+            if verbose:
+                rprint(f"[dim]Array lengths: desc={len(desc_list)}, date={len(date_list)}, paid={len(paid_list)}, balance={len(balance_list)}[/dim]")
+                if received_list:
+                    rprint(f"[dim]  received={len(received_list)}[/dim]")
+
+            # Verify arrays have same length
+            lengths = [len(desc_list), len(date_list), len(paid_list), len(balance_list)]
+            if len(set(lengths)) > 1:
+                if verbose:
+                    rprint(f"[yellow]⚠️ Array length mismatch: {lengths} - skipping debit filtering[/yellow]")
+                return extracted_data
+
             # Create DataFrame from transaction data
             transactions_df = pd.DataFrame(
                 {
-                    "description": descriptions.split(" | "),
-                    "date": dates.split(" | "),
-                    "paid": paid.split(" | "),
-                    "received": received.split(" | ")
-                    if received != "NOT_FOUND"
-                    else None,
-                    "balance": balances.split(" | "),
+                    "description": desc_list,
+                    "date": date_list,
+                    "paid": paid_list,
+                    "received": received_list,
+                    "balance": balance_list,
                 }
             )
 
