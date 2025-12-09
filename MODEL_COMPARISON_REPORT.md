@@ -1,6 +1,6 @@
 # Model Comparison Analysis Report
 
-**Auto-Generated from Notebook**: 2025-12-09 12:51:37
+**Auto-Generated from Notebook**: 2025-12-09 13:43:53
 **Source**: `model_comparison_reporter.ipynb`
 **Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
 **Evaluation Fields**: 17 business document fields
@@ -15,7 +15,7 @@
 |-------|----------|-----------|--------|----------|--------------|------------|
 | **Llama-3.2-Vision-11B** | 0.9032 | 0.9032 | 0.9032 | 97.64% | 142.0s | 0.4 docs/min |
 | **InternVL3-8B** | 0.6741 | 0.7664 | 0.6016 | 67.06% | 66.3s | 0.9 docs/min |
-| **InternVL3.5-8B** | 0.8858 | 0.8957 | 0.8762 | 90.48% | 55.3s | 1.1 docs/min |
+| **InternVL3.5-8B** | 0.8858 | 0.8957 | 0.8762 | 90.48% | 55.4s | 1.1 docs/min |
 
 ### Key Findings
 
@@ -25,7 +25,7 @@
 
 **Highest Recall**: Llama-3.2-Vision-11B (0.9032)
 
-**Fastest**: InternVL3.5-8B (55.3s)
+**Fastest**: InternVL3.5-8B (55.4s)
 
 ---
 
@@ -116,15 +116,15 @@ All visualizations are generated in `output/visualizations/`:
 | TOTAL_AMOUNT | 100.0% | 83.3% | 100.0% | InternVL3.5-8B | 100.0% |
 | LINE_ITEM_DESCRIPTIONS | 99.3% | 69.0% | 99.1% | Llama-3.2-Vision-11B | 99.3% |
 | LINE_ITEM_QUANTITIES | 100.0% | 83.3% | 83.3% | Llama-3.2-Vision-11B | 100.0% |
+| STATEMENT_DATE_RANGE | 100.0% | 66.7% | 100.0% | InternVL3.5-8B | 100.0% |
 | SUPPLIER_NAME | 85.7% | 85.7% | 85.7% | InternVL3-8B | 85.7% |
 | INVOICE_DATE | 83.3% | 83.3% | 83.3% | InternVL3-8B | 83.3% |
-| STATEMENT_DATE_RANGE | 100.0% | 66.7% | nan% | Llama-3.2-Vision-11B | 100.0% |
 | BUSINESS_ADDRESS | 83.3% | 78.9% | 83.3% | InternVL3.5-8B | 83.3% |
 | LINE_ITEM_PRICES | 100.0% | 33.3% | 100.0% | InternVL3.5-8B | 100.0% |
+| TRANSACTION_DATES | 97.8% | 33.3% | 100.0% | InternVL3.5-8B | 100.0% |
 | LINE_ITEM_TOTAL_PRICES | 100.0% | 33.3% | 83.3% | Llama-3.2-Vision-11B | 100.0% |
-| TRANSACTION_DATES | 97.8% | 33.3% | nan% | Llama-3.2-Vision-11B | 97.8% |
+| TRANSACTION_AMOUNTS_PAID | 66.7% | 0.0% | 100.0% | InternVL3.5-8B | 100.0% |
 | IS_GST_INCLUDED | 100.0% | 0.0% | 0.0% | Llama-3.2-Vision-11B | 100.0% |
-| TRANSACTION_AMOUNTS_PAID | 66.7% | 0.0% | nan% | Llama-3.2-Vision-11B | 66.7% |
 
 ---
 
@@ -134,9 +134,9 @@ All visualizations are generated in `output/visualizations/`:
 
 | Model | Best-Performing Fields | Percentage | Count |
 |-------|----------------------|------------|-------|
-| **Llama-3.2-Vision-11B** | 41.2% | 7/17 | PRIMARY |
+| **Llama-3.2-Vision-11B** | 23.5% | 4/17 | SECONDARY |
 | **InternVL3-8B** | 23.5% | 4/17 | SECONDARY |
-| **InternVL3.5-8B** | 35.3% | 6/17 | SECONDARY |
+| **InternVL3.5-8B** | 52.9% | 9/17 | PRIMARY |
 
 ---
 
@@ -155,7 +155,7 @@ Consider an ensemble approach leveraging each model's field specialization:
 
 ### 3. High-Volume Processing
 Balance speed vs quality based on throughput requirements:
-- **Fastest processing**: InternVL3.5-8B (~55.3s/doc)
+- **Fastest processing**: InternVL3.5-8B (~55.4s/doc)
 - **Best accuracy**: Llama-3.2-Vision-11B (97.64% overall)
 - **Best balance**: Consider throughput constraints and acceptable accuracy threshold
 
@@ -253,7 +253,7 @@ Based on the analysis:
 |-------|--------------|-----------|------------|------------------|
 | **Llama-3.2-Vision-11B** | 97.64% | 142.0s | 0.4 docs/min | 41.3 |
 | **InternVL3-8B** | 67.06% | 66.3s | 0.9 docs/min | 60.7 |
-| **InternVL3.5-8B** | 90.48% | 55.3s | 1.1 docs/min | 98.2 |
+| **InternVL3.5-8B** | 90.48% | 55.4s | 1.1 docs/min | 98.0 |
 
 **Highest Efficiency**: InternVL3.5-8B
 
@@ -273,16 +273,15 @@ Based on the analysis:
 
 **Fields with Significant Model Performance Differences (>20% spread):**
 
+- **TRANSACTION_AMOUNTS_PAID**: Use InternVL3.5-8B (100% vs 0%, +100% advantage)
 - **IS_GST_INCLUDED**: Use Llama-3.2-Vision-11B (100% vs 0%, +100% advantage)
 - **LINE_ITEM_PRICES**: Use InternVL3.5-8B (100% vs 33%, +67% advantage)
+- **TRANSACTION_DATES**: Use InternVL3.5-8B (100% vs 33%, +67% advantage)
 - **LINE_ITEM_TOTAL_PRICES**: Use Llama-3.2-Vision-11B (100% vs 33%, +67% advantage)
-- **TRANSACTION_AMOUNTS_PAID**: Use Llama-3.2-Vision-11B (67% vs 0%, +67% advantage)
-- **TRANSACTION_DATES**: Use Llama-3.2-Vision-11B (98% vs 33%, +64% advantage)
 
 **⚠️ Problematic Fields Requiring Attention (<50% avg accuracy):**
 
 - **IS_GST_INCLUDED**: 33% average accuracy - Consider prompt optimization or additional fine tuning
-- **TRANSACTION_AMOUNTS_PAID**: 33% average accuracy - Consider prompt optimization or additional fine tuning
 
 
 #### Production Deployment Strategy
