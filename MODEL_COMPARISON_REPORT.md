@@ -1,342 +1,328 @@
-# Vision-Language Model Comparison Report
+# Model Comparison Analysis Report
 
-**Date**: November 15, 2024
-**Dataset**: 9 synthetic business documents (3 receipts, 3 invoices, 3 bank statements)
-**Test Environment**: H200 GPU cluster
+**Auto-Generated from Notebook**: 2025-12-09 12:51:37
+**Source**: `model_comparison_reporter.ipynb`
+**Dataset**: 9 documents (3 bank statements, 3 invoices, 3 receipts)
+**Evaluation Fields**: 17 business document fields
 
 ---
 
 ## Executive Summary
 
-Tested 5 vision-language models for document extraction accuracy and performance:
-- **Winner (Accuracy)**: Llama-4-Scout (91.3% overall)
-- **Winner (Speed)**: Llama-3.2-11B (11.25s/image)
-- **Best Value**: InternVL3.5-8B (83.6% accuracy, 17GB memory - 20% less than Llama-3.2-11B)
-- **Most Efficient**: InternVL3-2B (2.3GB memory, 12.66s/image)
-- **Best for Bank Statements**: Llama-4-Scout (78.8% accuracy)
+### Overall Performance Metrics
+
+| Model | F1 Score | Precision | Recall | Accuracy | Median Speed | Throughput |
+|-------|----------|-----------|--------|----------|--------------|------------|
+| **Llama-3.2-Vision-11B** | 0.9032 | 0.9032 | 0.9032 | 97.64% | 142.0s | 0.4 docs/min |
+| **InternVL3-8B** | 0.6741 | 0.7664 | 0.6016 | 67.06% | 66.3s | 0.9 docs/min |
+| **InternVL3.5-8B** | 0.8858 | 0.8957 | 0.8762 | 90.48% | 55.3s | 1.1 docs/min |
+
+### Key Findings
+
+**Winner (F1 Score)**: Llama-3.2-Vision-11B
+
+**Highest Precision**: Llama-3.2-Vision-11B (0.9032)
+
+**Highest Recall**: Llama-3.2-Vision-11B (0.9032)
+
+**Fastest**: InternVL3.5-8B (55.3s)
 
 ---
 
-## Overall Comparison
+## Visualizations
 
-| Model | Size | Speed (s/img) | Throughput (img/min) | Overall Accuracy | Memory Usage |
-|-------|------|---------------|---------------------|-----------------|--------------|
-| **Llama-4-Scout** | 17B active (109B total) | 39.20 | 1.5 | **91.3%** 🥇 | ~217GB (multi-GPU) |
-| **Llama-3.2-11B** | 11B | **11.25** ⚡ | **5.3** | **88.4%** 🥈 | ~21GB (multi-GPU) |
-| **InternVL3.5-8B** | 8.5B | 14.76 | 4.1 | **83.6%** 🥉 | ~17GB (multi-GPU) |
-| **InternVL3-2B** | 2B | 12.66 | 4.7 | 74.1% | **~2.3GB** 💾 |
-| **InternVL3-8B (Q)** | 8B | 34.96 | 1.7 | 64.1% | ~2.4GB |
+All visualizations are generated in `output/visualizations/`:
 
-**Legend**: 🥇 1st place | 🥈 2nd place | 🥉 3rd place | ⚡ Fastest | 💾 Most efficient
+### 1. Executive Performance Dashboard
+![Executive Dashboard](output/visualizations/executive_comparison.png)
 
-![Model Accuracy Comparison](output/visualizations/model_accuracy_comparison.png)
+**6-panel comprehensive view:**
+- Overall accuracy distribution (box plots)
+- Processing speed comparison
+- Accuracy by document type
+- Processing time by document type
+- Efficiency analysis (accuracy vs speed)
+- Performance summary table
 
-![Model Speed Comparison](output/visualizations/model_speed_comparison.png)
+### 2. Document Type Classification
+![Document Type Confusion](output/visualizations/doctype_confusion_matrix.png)
 
-![Speed vs Accuracy Trade-off](output/visualizations/model_speed_accuracy_tradeoff.png)
+**3-model confusion matrices** showing classification performance for:
+- Bank Statements (3 docs, 33.3%)
+- Invoices (3 docs, 33.3%)
+- Receipts (3 docs, 33.3%)
+
+### 3. Field Extraction Status
+![Field Confusion Heatmap](output/visualizations/field_confusion_heatmap.png)
+
+**Breakdown of extraction status:**
+- Correct extractions (matches ground truth)
+- Incorrect extractions (wrong value)
+- Not Found (field not extracted)
+
+### 4. Per-Field Metrics
+![Per-Field Metrics](output/visualizations/per_field_metrics.png)
+
+**4-panel analysis:**
+- F1 Score by field
+- Precision by field
+- Recall by field
+- Accuracy by field
+
+
+### 5. Field-Level Accuracy Analysis
+![Field-Level Accuracy](output/visualizations/field_level_accuracy.png)
+
+**3-panel comprehensive view:**
+- Field accuracy comparison (horizontal bar chart across all models)
+- Field accuracy heatmap (color-coded performance matrix)
+- Model specialization distribution (fields where each model performs best)
+
+### 6. Hallucination Analysis
+![Hallucination Analysis](output/visualizations/hallucination_analysis.png)
+
+**9-panel breakdown:**
+- Overall hallucination rates
+- Hallucinations vs correct NOT_FOUND
+- Hallucination-recall tradeoff
+- Per-field hallucination (3 models)
+- Document-level distribution (3 models)
+
+### Hallucination Rates
+
+| Model | Hallucination Rate | Correct NOT_FOUND Rate | Total Hallucinations |
+|-------|-------------------|------------------------|----------------------|
+| **Llama-11B** | 0.0% | 100.0% | 0 |
+| **InternVL3-8B** | 0.0% | 100.0% | 0 |
+| **InternVL3-2B** | 0.0% | 100.0% | 0 |
+
+**Interpretation:**
+- **Hallucination Rate**: % of NOT_FOUND fields where model invented a value
+- **Correct NOT_FOUND Rate**: % of NOT_FOUND fields correctly identified as absent
 
 ---
 
-## Accuracy Breakdown by Document Type
+## Per-Field Performance Summary
 
-### Receipts (n=3)
+### Field-Level Accuracy by Model
 
-| Rank | Model | Accuracy | Notes |
-|------|-------|----------|-------|
-| 🥇 | **Llama-4-Scout** | **100.0%** | Perfect extraction |
-| 🥇 | **Llama-3.2-11B** | **100.0%** | Perfect extraction |
-| 3rd | InternVL3-2B | 92.9% | Very good |
-| 3rd | InternVL3.5-8B | 92.9% | Very good |
-| 5th | InternVL3-8B (Q) | 83.6% | Good |
-
-### Invoices (n=3)
-
-| Rank | Model | Accuracy | Notes |
-|------|-------|----------|-------|
-| 🥇 | **Llama-3.2-11B** | **97.6%** | Near perfect |
-| 🥈 | **Llama-4-Scout** | **95.2%** | Excellent |
-| 🥉 | InternVL3.5-8B | 85.7% | Good |
-| 4th | InternVL3-2B | 84.0% | Good |
-| 5th | InternVL3-8B (Q) | 55.1% | Needs improvement |
-
-### Bank Statements (n=3)
-
-| Rank | Model | Accuracy | Notes |
-|------|-------|----------|-------|
-| 🥇 | **Llama-4-Scout** | **78.8%** | Best for complex tables |
-| 🥈 | InternVL3.5-8B | 72.3% | Excellent |
-| 🥉 | Llama-3.2-11B | 67.5% | Good |
-| 4th | InternVL3-8B (Q) | 53.1% | Moderate |
-| 5th | InternVL3-2B | 45.4% | Struggles with tables |
-
-**Key Finding**: Bank statements are the hardest document type (avg: 63.4% across all models). Llama-4-Scout's MoE architecture provides the best performance (78.8%), followed by InternVL3.5's Visual Resolution Router (ViR) at 72.3%.
-
-![Document Type Accuracy Comparison](output/visualizations/model_doctype_accuracy_comparison.png)
+| Field | Llama-11B | InternVL3-8B | InternVL3-2B | Best Model | Best Score |
+|-------|-----------|--------------|--------------|------------|------------|
+| DOCUMENT_TYPE | 100.0% | 100.0% | 100.0% | InternVL3-8B | 100.0% |
+| GST_AMOUNT | 100.0% | 100.0% | 100.0% | InternVL3-8B | 100.0% |
+| PAYER_NAME | 100.0% | 98.3% | 100.0% | InternVL3.5-8B | 100.0% |
+| PAYER_ADDRESS | 100.0% | 94.8% | 100.0% | InternVL3.5-8B | 100.0% |
+| BUSINESS_ABN | 100.0% | 83.3% | 100.0% | InternVL3.5-8B | 100.0% |
+| TOTAL_AMOUNT | 100.0% | 83.3% | 100.0% | InternVL3.5-8B | 100.0% |
+| LINE_ITEM_DESCRIPTIONS | 99.3% | 69.0% | 99.1% | Llama-3.2-Vision-11B | 99.3% |
+| LINE_ITEM_QUANTITIES | 100.0% | 83.3% | 83.3% | Llama-3.2-Vision-11B | 100.0% |
+| SUPPLIER_NAME | 85.7% | 85.7% | 85.7% | InternVL3-8B | 85.7% |
+| INVOICE_DATE | 83.3% | 83.3% | 83.3% | InternVL3-8B | 83.3% |
+| STATEMENT_DATE_RANGE | 100.0% | 66.7% | nan% | Llama-3.2-Vision-11B | 100.0% |
+| BUSINESS_ADDRESS | 83.3% | 78.9% | 83.3% | InternVL3.5-8B | 83.3% |
+| LINE_ITEM_PRICES | 100.0% | 33.3% | 100.0% | InternVL3.5-8B | 100.0% |
+| LINE_ITEM_TOTAL_PRICES | 100.0% | 33.3% | 83.3% | Llama-3.2-Vision-11B | 100.0% |
+| TRANSACTION_DATES | 97.8% | 33.3% | nan% | Llama-3.2-Vision-11B | 97.8% |
+| IS_GST_INCLUDED | 100.0% | 0.0% | 0.0% | Llama-3.2-Vision-11B | 100.0% |
+| TRANSACTION_AMOUNTS_PAID | 66.7% | 0.0% | nan% | Llama-3.2-Vision-11B | 66.7% |
 
 ---
 
-## Performance Analysis
+## Model Specialization
 
-### Speed Comparison
+### Fields Where Each Model Performs Best
+
+| Model | Best-Performing Fields | Percentage | Count |
+|-------|----------------------|------------|-------|
+| **Llama-3.2-Vision-11B** | 41.2% | 7/17 | PRIMARY |
+| **InternVL3-8B** | 23.5% | 4/17 | SECONDARY |
+| **InternVL3.5-8B** | 35.3% | 6/17 | SECONDARY |
+
+---
+
+## Deployment Recommendations
+
+Based on the analysis above:
+
+### 1. Document Classification (PRIMARY)
+Use the model with highest document type classification accuracy for initial routing and categorization.
+
+### 2. Field Extraction Strategy (SECONDARY)
+Consider an ensemble approach leveraging each model's field specialization:
+- Use model-specific strengths for particular fields
+- Implement confidence-based routing
+- Fall back to best overall performer for general fields
+
+### 3. High-Volume Processing
+Balance speed vs quality based on throughput requirements:
+- **Fastest processing**: InternVL3.5-8B (~55.3s/doc)
+- **Best accuracy**: Llama-3.2-Vision-11B (97.64% overall)
+- **Best balance**: Consider throughput constraints and acceptable accuracy threshold
+
+### 4. Hallucination Sensitivity: Critical Business Decision
+
+#### Understanding Hallucination in Document Extraction
+
+**Hallucination** = Model extracts a value when ground truth is `NOT_FOUND`
+
+**Example:**
+- Ground Truth: `BUSINESS_ABN = NOT_FOUND` (field doesn't exist in document)
+- Model Output: `BUSINESS_ABN = "12345678901"` ← **HALLUCINATION** (invented data)
+
+#### The Tradeoff: Precision vs Recall
+
+**High Precision (Low Hallucination)**
+- Model only extracts when very confident
+- **Few false positives** (hallucinations)
+- **Many false negatives** (missed fields)
+- Conservative approach: "Only extract what you're sure about"
+
+**High Recall (Risk of Hallucination)**
+- Model extracts aggressively to catch all fields
+- **Few false negatives** (catches most fields)
+- **More false positives** (risk of hallucinations)
+- Aggressive approach: "Extract everything, review later"
+
+#### Relationship to Metrics
 
 ```
-Llama-3.2-11B    ████████████████ 11.25s  (5.3 img/min) 🥇
-InternVL3-2B     █████████████████ 12.66s (4.7 img/min) 🥈
-InternVL3.5-8B   ███████████████████ 14.76s (4.1 img/min) 🥉
-InternVL3-8B (Q) ████████████████████████████████████ 34.96s (1.7 img/min)
-Llama-4-Scout    ███████████████████████████████████████ 39.20s (1.5 img/min)
+Precision = Correct Extractions / All Extractions
+  → High precision = Low hallucination rate
+  → Model is cautious, only extracts when confident
+
+Recall = Correct Extractions / All Fields That Should Be Extracted
+  → High recall = Catches more fields
+  → Risk: May hallucinate to achieve higher coverage
+
+Hallucination Rate = Hallucinations / NOT_FOUND Opportunities
+  → Direct measure of false positive risk
+  → Critical for production reliability
 ```
 
-**Analysis**:
-- Llama-3.2-11B is **fastest** despite being 11B parameters (optimized multi-GPU distribution)
-- InternVL3-2B is **competitive** at 12.66s with only 2B parameters
-- InternVL3.5-8B adds **31% overhead** vs 3.5-2B but delivers **12.8% accuracy gain**
-- InternVL3-8B quantized is **3x slower** than non-quantized 2B (quantization penalty)
-- Llama-4-Scout is **slowest** (39.20s) but delivers **highest accuracy** (91.3%) - clear speed/accuracy trade-off
+#### Model Selection Guide Based on Use Case
 
-### Memory Efficiency
+**Choose HIGH PRECISION Model (Llama-3.2-Vision-11B: 90.32%) if:**
+- ✅ Processing financial/regulatory data (invoices, tax documents)
+- ✅ Automated processing with no human review
+- ✅ **False data is worse than missing data**
+- ✅ You can afford to manually review `NOT_FOUND` fields
+- ✅ Compliance and audit requirements
+- ✅ Low tolerance for hallucinations
 
-```
-InternVL3-2B     ██ 2.3GB  (Most efficient) 💾
-InternVL3-8B (Q) ██ 2.4GB  (Quantized)
-InternVL3.5-8B   █████████████████ 17GB (Multi-GPU)
-Llama-3.2-11B    █████████████████████ 21GB (Multi-GPU)
-Llama-4-Scout    ████████████████████████████████████████████████████████████████████████████ 217GB (MoE Multi-GPU)
-```
+**Example**: Bank reconciliation where a hallucinated amount could cause financial errors.
 
-**Analysis**:
-- InternVL3-2B is the **most memory efficient** at only 2.3GB (9x more efficient than Llama-3.2-11B)
-- InternVL3.5-8B uses **~17GB** while Llama-3.2-11B uses **~21GB** with multi-GPU distribution
-- Llama-4-Scout requires **massive memory** (217GB across 2x H200) due to 109B MoE architecture
-- Quantization saves minimal memory but **severely impacts speed** for InternVL3-8B
-- **Memory efficiency finding**: InternVL3.5-8B uses 20% less memory than Llama-3.2-11B (17GB vs 21GB) while maintaining competitive accuracy
+**Choose HIGH RECALL Model (Llama-3.2-Vision-11B: 90.32%) if:**
+- ✅ Comprehensive data capture is critical
+- ✅ Human review pipeline can catch errors
+- ✅ **Missing data is worse than wrong data**
+- ✅ Initial screening/discovery use case
+- ✅ Maximizing field coverage is priority
+- ✅ Can tolerate some false positives
 
-![Memory Usage Comparison](output/visualizations/model_memory_comparison.png)
+**Example**: Legal document discovery where missing a field could have serious consequences.
 
----
+**Choose BALANCED Model (for high-volume processing) if:**
+- ✅ High-volume processing requirements
+- ✅ Need reasonable precision and recall
+- ✅ Speed is a critical factor
+- ✅ Standard business document processing
 
-## Detailed Findings
+**Example**: Receipt processing for expense management with human spot-checking.
 
-### 1. Accuracy Leader: **Llama-4-Scout**
+#### Your Model Performance Profile
 
-**Strengths**:
-- ✅ **Highest overall accuracy** (91.3%)
-- ✅ **Best for bank statements** (78.8%)
-- ✅ Perfect receipt extraction (100%)
-- ✅ Excellent invoice extraction (95.2%)
-- ✅ MoE architecture with 109B total parameters (17B active)
-- ✅ Production-ready for complex documents
+Based on the analysis:
 
-**Weaknesses**:
-- ❌ **Massive memory usage** (217GB across 2x H200 GPUs)
-- ❌ **Slowest inference** (39.20s/image)
-- ❌ Requires high-end GPU infrastructure
+| Model | Precision | Recall | F1 | Best For |
+|-------|-----------|--------|----|----|
+| **Llama-3.2-Vision-11B** | 90.32% | 90.32% | 0.9032 | 🏆 Best Precision🏆 Best Recall🏆 Best F1 |
+| **InternVL3-8B** | 76.64% | 60.16% | 0.6741 |  |
+| **InternVL3.5-8B** | 89.57% | 87.62% | 0.8858 |  |
 
-**Best for**: Complex documents (especially bank statements), maximum accuracy requirements, high-end GPU infrastructure
+**Key Insights:**
+- **Precision Leader**: Llama-3.2-Vision-11B (90.32%)
+- **Recall Leader**: Llama-3.2-Vision-11B (90.32%)
+- **F1 Leader**: Llama-3.2-Vision-11B (0.9032)
+- **Speed vs Accuracy Tradeoff**: Consider throughput requirements against quality needs
 
----
+#### Efficiency Analysis
 
-### 2. Speed Leader: **Llama-3.2-11B**
+**Performance Efficiency Score** = Accuracy × Throughput (docs/min)
 
-**Strengths**:
-- ✅ Second-best accuracy (88.4%)
-- ✅ Perfect receipt extraction (100%)
-- ✅ Best invoice extraction (97.6%)
-- ✅ **Fastest inference** (11.25s/image)
-- ✅ Production-ready performance
-- ✅ Reasonable memory usage (17GB multi-GPU)
+| Model | Avg Accuracy | Avg Speed | Throughput | Efficiency Score |
+|-------|--------------|-----------|------------|------------------|
+| **Llama-3.2-Vision-11B** | 97.64% | 142.0s | 0.4 docs/min | 41.3 |
+| **InternVL3-8B** | 67.06% | 66.3s | 0.9 docs/min | 60.7 |
+| **InternVL3.5-8B** | 90.48% | 55.3s | 1.1 docs/min | 98.2 |
 
-**Weaknesses**:
-- ❌ Bank statement accuracy could be better (67.5%)
-- ❌ 3% lower accuracy than Llama-4-Scout
+**Highest Efficiency**: InternVL3.5-8B
 
-**Best for**: Production deployments requiring both speed and accuracy, standard GPU infrastructure
 
----
 
-### 3. Best Value: **InternVL3.5-8B**
 
-**Strengths**:
-- ✅ Third-best accuracy (83.6%)
-- ✅ Second-best for bank statements (72.3%)
-- ✅ 20% lower memory footprint than Llama-3.2-11B (~17GB vs ~21GB multi-GPU)
-- ✅ Cascade RL improves reasoning
-- ✅ Visual Resolution Router helps with tables
-- ✅ Competitive speed (14.76s)
 
-**Weaknesses**:
-- ❌ 31% slower than InternVL3-2B
-- ❌ 8% lower accuracy than Llama-3.2-11B
-- ❌ 6% lower bank statement accuracy than Llama-4-Scout
-- ❌ Higher memory usage than expected (17GB, not 2.4GB)
+#### Document-Type Specific Recommendations
 
-**Best for**: Balanced accuracy/efficiency with standard multi-GPU infrastructure, cost-effective alternative to Llama-3.2-11B
+**Best Model by Document Type:**
 
----
+- **Bank Statement**: Llama-3.2-Vision-11B (95.31% accuracy)
+- **Invoice**: Llama-3.2-Vision-11B (97.62% accuracy)
+- **Receipt**: Llama-3.2-Vision-11B (100.00% accuracy)
 
-### 4. Most Efficient: **InternVL3-2B**
+#### Field Performance Insights
 
-**Strengths**:
-- ✅ Smallest memory footprint (2.3GB)
-- ✅ Fast inference (12.66s/image)
-- ✅ Good receipt accuracy (92.9%)
-- ✅ Good invoice accuracy (84.0%)
-- ✅ Second-fastest model
+**Fields with Significant Model Performance Differences (>20% spread):**
 
-**Weaknesses**:
-- ❌ Struggles with bank statements (45.4%)
-- ❌ Lower overall accuracy (74.1%)
+- **IS_GST_INCLUDED**: Use Llama-3.2-Vision-11B (100% vs 0%, +100% advantage)
+- **LINE_ITEM_PRICES**: Use InternVL3.5-8B (100% vs 33%, +67% advantage)
+- **LINE_ITEM_TOTAL_PRICES**: Use Llama-3.2-Vision-11B (100% vs 33%, +67% advantage)
+- **TRANSACTION_AMOUNTS_PAID**: Use Llama-3.2-Vision-11B (67% vs 0%, +67% advantage)
+- **TRANSACTION_DATES**: Use Llama-3.2-Vision-11B (98% vs 33%, +64% advantage)
 
-**Best for**: Resource-constrained environments, simple documents (receipts/invoices)
+**⚠️ Problematic Fields Requiring Attention (<50% avg accuracy):**
 
----
+- **IS_GST_INCLUDED**: 33% average accuracy - Consider prompt optimization or additional fine tuning
+- **TRANSACTION_AMOUNTS_PAID**: 33% average accuracy - Consider prompt optimization or additional fine tuning
 
-### 5. Needs Improvement: **InternVL3-8B (Quantized)**
 
-**Strengths**:
-- ✅ Low memory usage (2.4GB)
-- ✅ Decent receipt accuracy (83.6%)
+#### Production Deployment Strategy
 
-**Weaknesses**:
-- ❌ **Second-slowest model** (34.96s/image) - 3x slower than 2B
-- ❌ **Lowest accuracy** (64.1%)
-- ❌ Poor invoice extraction (55.1%)
-- ❌ Quantization severely impacts performance
+**Phase 1: Initial Deployment**
+1. Choose model based on your primary business constraint:
+   - **Financial accuracy** → Highest precision model
+   - **Data completeness** → Highest recall model
+   - **High volume** → Fastest processing model
 
-**Best for**: *Not recommended* - use InternVL3-2B or InternVL3.5-8B instead
+**Phase 2: Monitoring**
+2. Track in production:
+   - Hallucination rate on `NOT_FOUND` fields
+   - Manual review costs (false negatives)
+   - Error correction costs (false positives)
 
-**Note**: Quantization appears to harm both speed and accuracy for InternVL3-8B. Non-quantized version may perform better.
+**Phase 3: Optimization**
+3. Adjust strategy based on actual costs:
+   - If missing fields cost more → Switch to higher recall model
+   - If hallucinations cost more → Switch to higher precision model
+   - If volume is issue → Consider faster model with review pipeline
+
+**Phase 4: Advanced Optimization**
+4. Consider ensemble approaches:
+   - Use high-precision model for critical fields (amounts, dates)
+   - Use high-recall model for descriptive fields (line items)
+   - Route by document confidence scores
 
 ---
 
-## Document Type Challenges
+## Related Documentation
 
-### Why Bank Statements Are Hard
-
-Average accuracy by document type:
-- **Receipts**: 92.4% ✅ (easiest)
-- **Invoices**: 80.6% ✅ (moderate)
-- **Bank Statements**: 59.6% ⚠️ (hardest)
-
-**Challenges**:
-1. **Complex tabular structure** (dates, descriptions, amounts in columns)
-2. **Multiple transactions** requiring position-aware extraction
-3. **Date-grouped vs flat table** layout variations
-4. **Transaction descriptions** with variable formats
-5. **Credit/debit distinction** not always clear
-
-**Solution**: Llama-4-Scout's MoE architecture achieves **78.8%** accuracy (best in class), with InternVL3.5-8B's Visual Resolution Router (ViR) providing a memory-efficient alternative at **72.3%**.
+- [FIELD_COMPARISON.md](FIELD_COMPARISON.md) - Detailed field-by-field analysis
+- [ACCURACY_PARADOX_EXPLAINED.md](ACCURACY_PARADOX_EXPLAINED.md) - Why Accuracy > F1 for extraction
+- [HALLUCINATION_ANALYSIS.md](HALLUCINATION_ANALYSIS.md) - Hallucination analysis methodology
 
 ---
 
-## Recommendations
-
-### For Production Deployment
-
-**Maximum accuracy priority**:
-- **Use**: Llama-4-Scout
-- **Why**: 91.3% overall, 100% receipts, 95.2% invoices, 78.8% bank statements
-- **Requirement**: High-end multi-GPU setup (2x H200 with 217GB total memory)
-- **Trade-off**: Slowest inference (39.20s/image), massive memory requirements
-
-**Balanced speed/accuracy**:
-- **Use**: Llama-3.2-11B
-- **Why**: 88.4% overall, 100% receipts, 97.6% invoices, fastest (11.25s/image)
-- **Requirement**: Multi-GPU setup (2x H200/A100 with 17GB total memory)
-- **Trade-off**: 3% lower accuracy than Llama-4-Scout, 11% lower bank statement accuracy
-
-**Balanced accuracy/efficiency**:
-- **Use**: InternVL3.5-8B
-- **Why**: 83.6% overall, second-best for bank statements (72.3%), same memory as Llama-3.2-11B
-- **Requirement**: Multi-GPU setup (2x H200/A100 with 17GB total memory)
-- **Trade-off**: 8% lower accuracy than Llama-3.2-11B, higher memory than InternVL3-2B
-
-**Resource-constrained**:
-- **Use**: InternVL3-2B
-- **Why**: 74.1% accuracy, 2.3GB memory, fast inference (12.66s/image)
-- **Requirement**: Any GPU with 4GB+ VRAM
-- **Trade-off**: Lower accuracy, poor bank statement performance (45.4%)
-
-### For Specific Document Types
-
-| Document Type | Recommended Model | Accuracy | Alternative |
-|---------------|-------------------|----------|-------------|
-| **Receipts** | Llama-4-Scout / Llama-3.2-11B | 100.0% | InternVL3.5-8B (92.9%) |
-| **Invoices** | Llama-3.2-11B | 97.6% | Llama-4-Scout (95.2%) |
-| **Bank Statements** | Llama-4-Scout | 78.8% | InternVL3.5-8B (72.3%) |
-| **Mixed (all types)** | Llama-4-Scout | 91.3% | Llama-3.2-11B (88.4%) |
-
-### Avoid
-
-❌ **InternVL3-8B (Quantized)**: Slow (34.96s) and low accuracy (64.1%)
-💡 **Instead use**: InternVL3-2B (faster, similar memory) or InternVL3.5-8B (better accuracy)
-
----
-
-## Technical Notes
-
-### Test Configuration
-
-**Models tested**:
-- Llama-4-Scout-17B-16E-Instruct (transformers 4.52.1, torch 2.5.1, SDPA attention, MoE)
-- Llama-3.2-11B-Vision-Instruct (transformers 4.45.2, torch 2.5.1)
-- InternVL3-2B (non-quantized, bfloat16)
-- InternVL3-8B (8-bit quantized)
-- InternVL3.5-8B (transformers 4.52.1, torch 2.5.1, Cascade RL enabled)
-
-**Evaluation method**: Order-aware F1 score (position-sensitive)
-
-**Hardware**: H200 GPU cluster (2x 150GB H200)
-
-**Preprocessing**: Adaptive (enabled for Llama models only)
-
-### Memory Usage Details
-
-| Model | Allocated | Reserved | Total | GPUs |
-|-------|-----------|----------|-------|------|
-| Llama-4-Scout | 217.28 GB | 217.29 GB | 300 GB | 2x H200 |
-| Llama-3.2-11B | 21.3 GB | 21.4 GB | 300 GB | 2x H200 |
-| InternVL3.5-8B | 17.06 GB | 17.11 GB | 300 GB | 2x H200 |
-| InternVL3-2B | 2.29 GB | 2.32 GB | 150 GB | 1x H200 |
-| InternVL3-8B (Q) | 2.38 GB | 2.41 GB | 150 GB | 1x H200 |
-
----
-
-## Future Tests
-
-### Recommended Next Steps
-
-1. ✅ **Test Llama-4-Scout** - COMPLETED! (91.3% accuracy, best overall)
-2. 📊 **Test InternVL3-8B non-quantized** (quantized version underperforms)
-3. 🔬 **Expand test set** to 50+ images for statistical significance
-4. 📈 **Test with image preprocessing disabled** for Llama models (measure impact)
-5. 🎯 **Fine-tune on bank statements** (hardest document type - avg 63.4%)
-6. ⚡ **Optimize Llama-4-Scout inference** (explore quantization, batching to reduce 39s/image)
-
----
-
-## Conclusion
-
-**Key Takeaways**:
-
-1. **Llama-4-Scout** is the **new accuracy leader** (91.3% overall, 78.8% bank statements) with MoE architecture
-2. **Llama-3.2-11B** remains the **speed champion** (11.25s/image) with excellent accuracy (88.4%)
-3. **InternVL3.5-8B** offers **good value** (83.6% accuracy, 20% less memory than Llama-3.2-11B at 17GB)
-4. **InternVL3-2B** is the **efficiency champion** (2.3GB, 12.66s/image) for simple documents
-5. **Bank statements** remain challenging (avg 63.4%) but Llama-4-Scout achieves 78.8%
-6. **Quantization hurts** InternVL3-8B (3x slower, lowest accuracy) - avoid
-7. **Memory efficiency**: InternVL3.5-8B uses 20% less memory than Llama-3.2-11B (17GB vs 21GB), making it more memory-efficient
-
-**Production Recommendation**:
-- Use **Llama-4-Scout** if you have high-end infrastructure (2x H200) and need maximum accuracy
-- Use **Llama-3.2-11B** if you need balanced speed/accuracy with standard multi-GPU setup
-- Use **InternVL3.5-8B** as alternative to Llama-3.2-11B (20% less memory at 17GB, 5% lower accuracy, 31% slower)
-- Use **InternVL3-2B** if you need true memory efficiency (2.3GB) with acceptable accuracy (74%)
-- Avoid InternVL3-8B quantized - use InternVL3-2B or InternVL3.5-8B instead
-
----
-
-*Report generated from automated comparison of batch processing results*
-*For detailed field-level analysis, see individual model CSV outputs*
-
-**See also**: [Appendix A: Bank Statement-Specific Investigation](MODEL_COMPARISON_APPENDIX_A.md) — CBA-specific testing with InternVL3.5 Cascade RL
+**Report Auto-Generated**: {timestamp}
+**Source Notebook**: `model_comparison_reporter.ipynb`
+**Visualizations**: `output/visualizations/`
+**Next Update**: Re-run notebook to refresh all metrics and visualizations
+    
