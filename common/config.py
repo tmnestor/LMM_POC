@@ -207,8 +207,12 @@ def _get_config():
             def __init__(self, loader):
                 self.field_loader = loader
 
-                # Get invoice fields as the primary field set
-                self.extraction_fields = loader.get_document_fields("invoice")
+                # Get universal fields (all document types combined, excluding validation-only)
+                # This includes invoice (14) + bank statement fields (STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID)
+                self.extraction_fields = loader.get_document_fields("universal")
+                # Filter out validation-only fields (TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE)
+                _validation_only = ["TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"]
+                self.extraction_fields = [f for f in self.extraction_fields if f not in _validation_only]
                 self.field_count = len(self.extraction_fields)
                 self.active_field_count = len(self.extraction_fields)
 
