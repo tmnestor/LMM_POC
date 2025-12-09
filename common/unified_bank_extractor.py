@@ -1047,8 +1047,11 @@ class UnifiedBankExtractor:
         )
 
         print("[UBE] Turn 1: Extracting transactions...")
+        import sys as _sys
+        _sys.stdout.flush()
         response = self._generate(image, prompt, max_tokens=4096)
         print(f"[UBE] Raw Turn 1 response:\n{response}\n[UBE] === End raw response ===")
+        _sys.stdout.flush()
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
