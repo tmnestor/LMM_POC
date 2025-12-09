@@ -57,6 +57,7 @@ class ExtractionResult:
     transaction_dates: list[str] = field(default_factory=list)
     line_item_descriptions: list[str] = field(default_factory=list)
     transaction_amounts_paid: list[str] = field(default_factory=list)
+    account_balances: list[str] = field(default_factory=list)  # For math enhancement
 
     # Metadata
     strategy_used: str = ""
@@ -79,6 +80,9 @@ class ExtractionResult:
             else "NOT_FOUND",
             "TRANSACTION_AMOUNTS_PAID": " | ".join(self.transaction_amounts_paid)
             if self.transaction_amounts_paid
+            else "NOT_FOUND",
+            "ACCOUNT_BALANCE": " | ".join(self.account_balances)
+            if self.account_balances
             else "NOT_FOUND",
         }
 
@@ -1121,6 +1125,12 @@ class UnifiedBankExtractor:
         dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
         descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
         amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
+        # Extract balances for math enhancement (if balance column exists)
+        balances = (
+            [r.get(balance_col, "") for r in debit_rows if r.get(balance_col)]
+            if balance_col
+            else []
+        )
 
         # Calculate date range from ALL parsed transactions (including opening/closing balance)
         # Use all_rows, not corrected_rows, to include full statement period
@@ -1135,6 +1145,7 @@ class UnifiedBankExtractor:
             transaction_dates=dates,
             line_item_descriptions=descriptions,
             transaction_amounts_paid=amounts,
+            account_balances=balances,
             strategy_used="balance_description_2turn",
             turns_executed=2,
             headers_detected=headers,
@@ -1227,6 +1238,12 @@ class UnifiedBankExtractor:
             for r in debit_rows
             if r.get(amount_col)
         ]
+        # Extract balances for math enhancement (if balance column exists)
+        balances = (
+            [r.get(balance_col, "") for r in debit_rows if r.get(balance_col)]
+            if balance_col
+            else []
+        )
 
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
@@ -1239,6 +1256,7 @@ class UnifiedBankExtractor:
             transaction_dates=dates,
             line_item_descriptions=descriptions,
             transaction_amounts_paid=amounts,
+            account_balances=balances,
             strategy_used="amount_description_2turn",
             turns_executed=2,
             headers_detected=headers,
@@ -1296,6 +1314,8 @@ class UnifiedBankExtractor:
         dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
         descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
         amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
+        # No balance column in debit/credit strategy
+        balances: list[str] = []
 
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
@@ -1308,6 +1328,7 @@ class UnifiedBankExtractor:
             transaction_dates=dates,
             line_item_descriptions=descriptions,
             transaction_amounts_paid=amounts,
+            account_balances=balances,
             strategy_used="debit_credit_description_2turn",
             turns_executed=2,
             headers_detected=headers,
