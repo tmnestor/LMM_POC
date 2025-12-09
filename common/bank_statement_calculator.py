@@ -272,6 +272,9 @@ class BankStatementCalculator:
             # Create DataFrame
             # NOTE: For AMOUNT_DESCRIPTION strategy, amounts are negative (withdrawals)
             # Use abs() to accept both positive and negative VLM amounts
+            # Track if original amounts were signed (negative) for output formatting
+            has_signed_amounts = any(x < 0 for x in amounts_paid_parsed if x != 0)
+
             transactions_df = pd.DataFrame({
                 'date': [d[0] for d in dates_list],
                 'date_str': [d[1] for d in dates_list],
@@ -281,6 +284,8 @@ class BankStatementCalculator:
                 'extracted_paid': [abs(x) if x != 0 else np.nan for x in amounts_paid_parsed[:max_length]],
                 'extracted_received': [abs(x) if x != 0 else np.nan for x in amounts_received_parsed[:max_length]]
             })
+            # Store flag for later use in formatting
+            transactions_df.attrs['has_signed_amounts'] = has_signed_amounts
 
             # Remove rows with invalid dates
             transactions_df = transactions_df.dropna(subset=['date'])
@@ -297,6 +302,8 @@ class BankStatementCalculator:
 
             # Sort chronologically for mathematical calculations
             df_calc = transactions_df.sort_values('date').copy()
+            # Preserve the signed amounts flag
+            has_signed_amounts = transactions_df.attrs.get('has_signed_amounts', False)
 
             # Calculate balance differences (vectorized operation)
             df_calc['balance_change'] = df_calc['balance'].diff()
@@ -430,12 +437,17 @@ class BankStatementCalculator:
             df_final = df_calc.sort_values('original_index')
 
             # Generate output arrays in original extraction order
+            # For AMOUNT_DESCRIPTION (signed amounts), format debits as negative
             calculated_amounts_paid = []
             calculated_amounts_received = []
 
             for _, row in df_final.iterrows():
                 if row['transaction_type'] == 'DEBIT':
-                    calculated_amounts_paid.append(f"${row['final_paid']:.2f}")
+                    # Format with negative sign if original amounts were signed (AMOUNT_DESCRIPTION)
+                    if has_signed_amounts:
+                        calculated_amounts_paid.append(f"-${row['final_paid']:.2f}")
+                    else:
+                        calculated_amounts_paid.append(f"${row['final_paid']:.2f}")
                     calculated_amounts_received.append("NOT_FOUND")
                 elif row['transaction_type'] == 'CREDIT':
                     calculated_amounts_paid.append("NOT_FOUND")

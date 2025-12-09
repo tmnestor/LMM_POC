@@ -1047,24 +1047,7 @@ class UnifiedBankExtractor:
         )
 
         print("Turn 1: Extracting transactions...")
-        # DEBUG: Show GPU and prompt being sent
-        if torch.cuda.is_available():
-            print(f"DEBUG: Running on GPU: {torch.cuda.get_device_name(0)}")
-        print("=" * 60)
-        print("DEBUG: TURN 1 PROMPT BEING SENT")
-        print("=" * 60)
-        print(prompt)
-        print("=" * 60)
         response = self._generate(image, prompt, max_tokens=4096)
-
-        # DEBUG: Show the raw response
-        print("=" * 60)
-        print("DEBUG: RAW TURN 1 RESPONSE (first 2000 chars)")
-        print("=" * 60)
-        print(response[:2000])
-        if len(response) > 2000:
-            print(f"... [{len(response) - 2000} more chars]")
-        print("=" * 60)
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
@@ -1192,25 +1175,7 @@ class UnifiedBankExtractor:
         )
 
         print("Turn 1: Extracting transactions (amount-description)...")
-        # DEBUG: Show GPU and prompt being sent
-        if torch.cuda.is_available():
-            print(f"DEBUG: Running on GPU: {torch.cuda.get_device_name(0)}")
-        print("=" * 60)
-        print("DEBUG: TURN 1 PROMPT BEING SENT")
-        print("=" * 60)
-        print(prompt)
-        print("=" * 60)
-
         response = self._generate(image, prompt, max_tokens=4096)
-
-        # DEBUG: Show the raw response
-        print("=" * 60)
-        print("DEBUG: RAW TURN 1 RESPONSE (first 2000 chars)")
-        print("=" * 60)
-        print(response[:2000])
-        if len(response) > 2000:
-            print(f"... [{len(response) - 2000} more chars]")
-        print("=" * 60)
 
         # Parse response
         all_rows = self.parser.parse_amount_description(
