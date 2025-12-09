@@ -124,9 +124,9 @@ class DocumentAwareInternVL3HybridProcessor:
             ],
             'bank_statement': [
                 "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                "ACCOUNT_BALANCE"
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
             ]
+            # NOTE: TRANSACTION_AMOUNTS_RECEIVED and ACCOUNT_BALANCE excluded (validation-only)
         }
 
         if self.debug:
@@ -691,19 +691,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 ],
                 'bank_statement': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                    "ACCOUNT_BALANCE"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
                 ],
                 # Add structure-specific bank statement fields (same for both)
+                # NOTE: TRANSACTION_AMOUNTS_RECEIVED and ACCOUNT_BALANCE excluded (validation-only)
                 'bank_statement_flat': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                    "ACCOUNT_BALANCE"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
                 ],
                 'bank_statement_date_grouped': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "TRANSACTION_AMOUNTS_RECEIVED",
-                    "ACCOUNT_BALANCE"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
                 ]
             }
 
