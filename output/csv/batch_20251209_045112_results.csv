@@ -1,0 +1,10 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+cba_amount_balance.png,BANK_STATEMENT,88.00000000000001,6,4,5,101.32243585586548,unified_bank_amount_description_2turn,False
+cba_debit_credit.png,BANK_STATEMENT,97.77777777777779,5,4,5,63.247151613235474,unified_bank_debit_credit_description_2turn,False
+cba_highligted.png,BANK_STATEMENT,100.0,6,5,5,52.82786417007446,unified_bank_balance_description_2turn,False
+image_001.png,RECEIPT,92.85714285714286,14,13,14,25.662375450134277,internvl3_receipt,False
+image_002.png,RECEIPT,92.85714285714286,14,13,14,27.690645456314087,internvl3_receipt,False
+image_004.png,RECEIPT,92.85714285714286,14,13,14,22.534515142440796,internvl3_receipt,False
+image_005.png,INVOICE,92.85714285714286,14,13,14,27.64794111251831,internvl3_invoice,False
+image_006.png,INVOICE,92.85714285714286,14,13,14,37.8970673084259,internvl3_invoice,False
+image_007.png,INVOICE,64.28571428571429,11,9,14,26.42207145690918,internvl3_invoice,False
