@@ -1104,16 +1104,25 @@ class UnifiedBankExtractor:
         )
         print(f"  Filtered to {len(debit_rows)} debit transactions")
 
-        # Extract schema fields
-        dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
-        descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
-        amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
-        # Extract balances for math enhancement (if balance column exists)
-        balances = (
-            [r.get(balance_col, "") for r in debit_rows if r.get(balance_col)]
-            if balance_col
-            else []
-        )
+        # Extract schema fields - use consistent filtering to ensure all arrays have same length
+        # Only include rows that have the minimum required fields (date AND description AND debit)
+        dates = []
+        descriptions = []
+        amounts = []
+        balances = []
+        for r in debit_rows:
+            date_val = r.get(date_col, "")
+            desc_val = r.get(desc_col, "")
+            debit_val = r.get(debit_col, "")
+            balance_val = r.get(balance_col, "") if balance_col else ""
+
+            # Only include if we have the minimum required fields
+            if date_val and desc_val and debit_val:
+                dates.append(date_val)
+                descriptions.append(desc_val)
+                amounts.append(debit_val)
+                # Always append balance (even if empty) to maintain array alignment
+                balances.append(balance_val if balance_val else "NOT_FOUND")
 
         # Calculate date range from ALL parsed transactions (including opening/closing balance)
         # Use all_rows, not corrected_rows, to include full statement period
@@ -1195,20 +1204,25 @@ class UnifiedBankExtractor:
         )
         print(f"  Filtered to {len(debit_rows)} withdrawal transactions")
 
-        # Extract schema fields
-        dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
-        descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
-        amounts = [
-            self._format_debit_amount(r.get(amount_col, ""))
-            for r in debit_rows
-            if r.get(amount_col)
-        ]
-        # Extract balances for math enhancement (if balance column exists)
-        balances = (
-            [r.get(balance_col, "") for r in debit_rows if r.get(balance_col)]
-            if balance_col
-            else []
-        )
+        # Extract schema fields - use consistent filtering to ensure all arrays have same length
+        # Only include rows that have the minimum required fields (date AND description AND amount)
+        dates = []
+        descriptions = []
+        amounts = []
+        balances = []
+        for r in debit_rows:
+            date_val = r.get(date_col, "")
+            desc_val = r.get(desc_col, "")
+            amount_val = r.get(amount_col, "")
+            balance_val = r.get(balance_col, "") if balance_col else ""
+
+            # Only include if we have the minimum required fields
+            if date_val and desc_val and amount_val:
+                dates.append(date_val)
+                descriptions.append(desc_val)
+                amounts.append(self._format_debit_amount(amount_val))
+                # Always append balance (even if empty) to maintain array alignment
+                balances.append(balance_val if balance_val else "NOT_FOUND")
 
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
@@ -1275,12 +1289,24 @@ class UnifiedBankExtractor:
         )
         print(f"  Filtered to {len(debit_rows)} debit transactions")
 
-        # Extract schema fields
-        dates = [r.get(date_col, "") for r in debit_rows if r.get(date_col)]
-        descriptions = [r.get(desc_col, "") for r in debit_rows if r.get(desc_col)]
-        amounts = [r.get(debit_col, "") for r in debit_rows if r.get(debit_col)]
-        # No balance column in debit/credit strategy
-        balances: list[str] = []
+        # Extract schema fields - use consistent filtering to ensure all arrays have same length
+        # Only include rows that have the minimum required fields (date AND description AND debit)
+        dates = []
+        descriptions = []
+        amounts = []
+        balances: list[str] = []  # No balance column in debit/credit strategy
+        for r in debit_rows:
+            date_val = r.get(date_col, "")
+            desc_val = r.get(desc_col, "")
+            debit_val = r.get(debit_col, "")
+
+            # Only include if we have the minimum required fields
+            if date_val and desc_val and debit_val:
+                dates.append(date_val)
+                descriptions.append(desc_val)
+                amounts.append(debit_val)
+                # No balance in this strategy, but maintain alignment
+                balances.append("NOT_FOUND")
 
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]

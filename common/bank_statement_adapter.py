@@ -64,6 +64,8 @@ def _bypass_rich_stdout():
         sys.stdout = sys.__stdout__
         yield
     finally:
+        # Flush before restoring to ensure all output is written
+        sys.__stdout__.flush()
         # Restore original stdout (Rich's proxy)
         sys.stdout = original_stdout
 
