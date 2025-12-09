@@ -270,14 +270,16 @@ class BankStatementCalculator:
                 amounts_received_parsed.append(0.0)
 
             # Create DataFrame
+            # NOTE: For AMOUNT_DESCRIPTION strategy, amounts are negative (withdrawals)
+            # Use abs() to accept both positive and negative VLM amounts
             transactions_df = pd.DataFrame({
                 'date': [d[0] for d in dates_list],
                 'date_str': [d[1] for d in dates_list],
                 'original_index': [d[2] for d in dates_list],
                 'balance': balances_list[:max_length],
                 'description': descriptions_list[:max_length],
-                'extracted_paid': [x if x > 0 else np.nan for x in amounts_paid_parsed[:max_length]],
-                'extracted_received': [x if x > 0 else np.nan for x in amounts_received_parsed[:max_length]]
+                'extracted_paid': [abs(x) if x != 0 else np.nan for x in amounts_paid_parsed[:max_length]],
+                'extracted_received': [abs(x) if x != 0 else np.nan for x in amounts_received_parsed[:max_length]]
             })
 
             # Remove rows with invalid dates
