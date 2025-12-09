@@ -18,7 +18,13 @@ class SimpleFieldLoader:
     def __init__(self, config_file: str = "config/field_definitions.yaml"):
         """Initialize with simplified field definitions."""
         self.config_file = config_file
-        self.config_path = Path(config_file)
+        # Resolve path relative to this file's parent (common/) -> project root
+        config_path = Path(config_file)
+        if not config_path.is_absolute():
+            # Relative path - resolve from project root (parent of common/)
+            project_root = Path(__file__).parent.parent
+            config_path = project_root / config_file
+        self.config_path = config_path
         self._config = None
 
     def _load_config(self) -> Dict:
