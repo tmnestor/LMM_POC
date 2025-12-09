@@ -10,15 +10,15 @@
 
 | Metric | InternVL3-8B | Competing Model |
 |--------|-----------|----------|
-| Mean Accuracy | 61.9% | 49.6% |
+| Mean Accuracy | 61.3% | 49.6% |
 | Median Accuracy | 57.1% | 42.9% |
-| Std Dev | 14.0% | 15.9% |
-| Min | 42.1% | 31.6% |
+| Std Dev | 14.7% | 15.9% |
+| Min | 41.8% | 31.6% |
 | Max | 89.2% | 83.6% |
 
 ## Comparison Results
 
-- **Mean Difference**: +12.3% (positive = InternVL3-8B better)
+- **Mean Difference**: +11.7% (positive = InternVL3-8B better)
 - **Fields where InternVL3-8B better**: 15
 - **Fields where Competing Model better**: 0
 - **Fields equal**: 0
@@ -27,15 +27,15 @@
 
 Critical fields: BUSINESS_ABN, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME
 
-- **InternVL3-8B Mean**: 61.3%
+- **InternVL3-8B Mean**: 58.8%
 - **Competing Model Mean**: 48.1%
 
 ## Statistical Significance
 
 - **Paired t-test p-value**: 0.0000 (Significant at α=0.05)
 - **Wilcoxon test p-value**: 0.0001 (Significant at α=0.05)
-- **Cohen's d effect size**: 0.8528 (large)
-- **95% CI for difference**: [+10.6%, +14.2%]
+- **Cohen's d effect size**: 0.7883 (medium)
+- **95% CI for difference**: [+10.2%, +13.3%]
 
 ## Field-Level Details
 
@@ -43,7 +43,7 @@ Critical fields: BUSINESS_ABN, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME
 |-------|-----------|----------|------------|
 | DOCUMENT_TYPE | N/A | N/A | N/A |
 | BUSINESS_ABN ⚠️ | 42.1% | 31.6% | +10.5% |
-| SUPPLIER_NAME ⚠️ | 51.8% | 32.5% | +19.3% |
+| SUPPLIER_NAME ⚠️ | 41.8% | 32.5% | +9.3% |
 | BUSINESS_ADDRESS | 56.2% | 41.4% | +14.8% |
 | PAYER_NAME | 89.2% | 83.6% | +5.5% |
 | PAYER_ADDRESS | 52.4% | 43.7% | +8.7% |
