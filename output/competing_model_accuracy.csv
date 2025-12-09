@@ -1,0 +1,18 @@
+Subset,Field,Accuracy
+Invoices & receipts,BUSINESS_ABN,0.315789474
+Invoices & receipts,SUPPLIER_NAME,0.324817518
+Invoices & receipts,BUSINESS_ADDRESS,0.414201183
+Invoices & receipts,PAYER_NAME,0.83625731
+Invoices & receipts,PAYER_ADDRESS,0.437125749
+Invoices & receipts,INVOICE_DATE,0.715151515
+Invoices & receipts,IS_GST_INCLUDED,
+Invoices & receipts,GST_AMOUNT,0.604061
+Invoices & receipts,TOTAL_AMOUNT,0.680203
+Invoices & receipts,LINE_ITEM_DESCRIPTIONS,0.386934673
+Invoices & receipts,LINE_ITEM_QUANTITIES,0.407035176
+Invoices & receipts,LINE_ITEM_PRICES,0.459798995
+Invoices & receipts,LINE_ITEM_TOTAL_PRICES,0.346733668
+Bank statements,STATEMENT_DATE_RANGE,0.4
+Bank statements,LINE_ITEM_DESCRIPTIONS,0.428927681
+Bank statements,TRANSACTION_DATES,0.428927681
+Bank statements,TRANSACTION_AMOUNTS_PAID,0.640897756
