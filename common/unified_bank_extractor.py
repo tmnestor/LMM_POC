@@ -1129,6 +1129,9 @@ class UnifiedBankExtractor:
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
+        # DEBUG: Verify array lengths are consistent
+        print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
+
         # Free memory
         torch.cuda.empty_cache()
 
@@ -1228,6 +1231,9 @@ class UnifiedBankExtractor:
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
+        # DEBUG: Verify array lengths are consistent
+        print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
+
         torch.cuda.empty_cache()
 
         return ExtractionResult(
@@ -1311,6 +1317,9 @@ class UnifiedBankExtractor:
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
+
+        # DEBUG: Verify array lengths are consistent
+        print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
 
         torch.cuda.empty_cache()
 
