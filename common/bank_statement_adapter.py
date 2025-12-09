@@ -76,6 +76,9 @@ def _bypass_rich_stdout():
             sys.stdout.flush()
 
 
+_BSA_INSTANCE_COUNTER = 0
+
+
 class BankStatementAdapter:
     """Adapter that provides BatchDocumentProcessor-compatible interface to UnifiedBankExtractor.
 
@@ -112,8 +115,15 @@ class BankStatementAdapter:
             model_type: "llama" or "internvl3"
             model_dtype: Optional dtype override (e.g., torch.bfloat16, torch.float32)
         """
+        global _BSA_INSTANCE_COUNTER
+        _BSA_INSTANCE_COUNTER += 1
+        self._instance_id = _BSA_INSTANCE_COUNTER
+
         self.verbose = verbose
         self.model_type = model_type.lower()
+
+        if self.verbose:
+            _safe_print(f"[BSA] Created BankStatementAdapter instance #{self._instance_id} (model_type={model_type})")
 
         # Extract model components based on model type
         if self.model_type == "internvl3":
@@ -185,7 +195,8 @@ class BankStatementAdapter:
               column_mapping, raw_responses, correction_stats
         """
         if self.verbose:
-            _safe_print(f"\n[BSA] >>> START BankStatementAdapter.extract_bank_statement({Path(image_path).name})")
+            _safe_print(f"\n[BSA#{self._instance_id}] >>> START extract_bank_statement({Path(image_path).name})")
+            sys.__stdout__.flush()  # Ensure START message appears before extraction
 
         # Load image
         image = Image.open(image_path).convert("RGB")
@@ -214,10 +225,10 @@ class BankStatementAdapter:
             metadata["correction_stats"] = str(result.correction_stats)
 
         if self.verbose:
-            _safe_print(f"[BSA]   Strategy: {result.strategy_used}")
-            _safe_print(f"[BSA]   Turns: {result.turns_executed}")
-            _safe_print(f"[BSA]   Transactions extracted: {len(result.transaction_dates)}")
-            _safe_print("[BSA] <<< END BankStatementAdapter.extract_bank_statement")
+            _safe_print(f"[BSA#{self._instance_id}]   Strategy: {result.strategy_used}")
+            _safe_print(f"[BSA#{self._instance_id}]   Turns: {result.turns_executed}")
+            _safe_print(f"[BSA#{self._instance_id}]   Transactions extracted: {len(result.transaction_dates)}")
+            _safe_print(f"[BSA#{self._instance_id}] <<< END extract_bank_statement")
 
         return schema_fields, metadata
 
