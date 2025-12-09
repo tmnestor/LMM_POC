@@ -951,7 +951,7 @@ class UnifiedBankExtractor:
             image = PILImage.open(image).convert("RGB")
 
         # Turn 0: Header detection
-        print("Turn 0: Detecting headers...")
+        print("[UBE] Turn 0: Detecting headers...")
         turn0_response = self._generate(image, self._prompts["turn0"], max_tokens=500)
         headers = self.parser.parse_headers(turn0_response)
         print(f"  Detected {len(headers)} headers: {headers}")
@@ -999,7 +999,7 @@ class UnifiedBankExtractor:
             strategy = ExtractionStrategy.TABLE_EXTRACTION
             reason = "Fallback to table extraction"
 
-        print(f"Strategy: {strategy.name} ({reason})")
+        print(f"[UBE] Strategy: {strategy.name} ({reason})")
 
         # Execute strategy
         if strategy == ExtractionStrategy.BALANCE_DESCRIPTION:
@@ -1046,7 +1046,7 @@ class UnifiedBankExtractor:
             credit_col=mapping.credit or "Credit",
         )
 
-        print("Turn 1: Extracting transactions...")
+        print("[UBE] Turn 1: Extracting transactions...")
         response = self._generate(image, prompt, max_tokens=4096)
 
         # Column name shortcuts
@@ -1183,7 +1183,7 @@ class UnifiedBankExtractor:
             balance_format=balance_format,
         )
 
-        print("Turn 1: Extracting transactions (amount-description)...")
+        print("[UBE] Turn 1: Extracting transactions (amount-description)...")
         response = self._generate(image, prompt, max_tokens=4096)
 
         # Parse response
@@ -1261,7 +1261,7 @@ class UnifiedBankExtractor:
             desc_col=mapping.description or "Transaction",
         )
 
-        print("Turn 1: Extracting transactions (debit-credit)...")
+        print("[UBE] Turn 1: Extracting transactions (debit-credit)...")
         response = self._generate(image, prompt, max_tokens=4096)
 
         # Column name shortcuts

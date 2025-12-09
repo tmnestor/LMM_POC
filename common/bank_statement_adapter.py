@@ -60,14 +60,20 @@ def _bypass_rich_stdout():
     """
     original_stdout = sys.stdout
     try:
+        # Flush Rich's buffer BEFORE switching to prevent output interleaving
+        if hasattr(original_stdout, "flush"):
+            original_stdout.flush()
         # Redirect stdout to original (bypasses Rich's file proxy)
         sys.stdout = sys.__stdout__
         yield
     finally:
-        # Flush before restoring to ensure all output is written
+        # Flush raw stdout before restoring
         sys.__stdout__.flush()
         # Restore original stdout (Rich's proxy)
         sys.stdout = original_stdout
+        # Flush Rich's buffer after restoration
+        if hasattr(sys.stdout, "flush"):
+            sys.stdout.flush()
 
 
 class BankStatementAdapter:
@@ -179,7 +185,7 @@ class BankStatementAdapter:
               column_mapping, raw_responses, correction_stats
         """
         if self.verbose:
-            _safe_print(f"\n[BankStatementAdapter] Processing: {Path(image_path).name}")
+            _safe_print(f"\n[BSA] >>> START BankStatementAdapter.extract_bank_statement({Path(image_path).name})")
 
         # Load image
         image = Image.open(image_path).convert("RGB")
@@ -208,9 +214,10 @@ class BankStatementAdapter:
             metadata["correction_stats"] = str(result.correction_stats)
 
         if self.verbose:
-            _safe_print(f"  Strategy: {result.strategy_used}")
-            _safe_print(f"  Turns: {result.turns_executed}")
-            _safe_print(f"  Transactions extracted: {len(result.transaction_dates)}")
+            _safe_print(f"[BSA]   Strategy: {result.strategy_used}")
+            _safe_print(f"[BSA]   Turns: {result.turns_executed}")
+            _safe_print(f"[BSA]   Transactions extracted: {len(result.transaction_dates)}")
+            _safe_print("[BSA] <<< END BankStatementAdapter.extract_bank_statement")
 
         return schema_fields, metadata
 
