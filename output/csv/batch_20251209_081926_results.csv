@@ -1,0 +1,2 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+cba_highligted.png,BANK_STATEMENT,100.0,6,5,5,135.4753189086914,unified_bank_balance_description_2turn,False
