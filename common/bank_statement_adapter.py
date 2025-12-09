@@ -201,12 +201,17 @@ class BankStatementAdapter:
         # Load image
         image = Image.open(image_path).convert("RGB")
 
-        # Execute extraction (Rich recursion issue fixed by using _safe_print elsewhere)
-        # NOTE: Removed _bypass_rich_stdout() so we can see raw response in notebook
-        result: ExtractionResult = self.extractor.extract(
-            image=image,
-            force_strategy=force_strategy,
-        )
+        # Execute extraction with stdout bypass to prevent Rich console recursion
+        # UnifiedBankExtractor uses print() internally which conflicts with Rich
+        with _bypass_rich_stdout():
+            result: ExtractionResult = self.extractor.extract(
+                image=image,
+                force_strategy=force_strategy,
+            )
+
+        # Print raw Turn 1 response AFTER bypass context (visible in notebook)
+        if self.verbose and result.raw_responses.get("turn1"):
+            _safe_print(f"[UBE] Raw Turn 1 response:\n{result.raw_responses['turn1']}\n[UBE] === End raw response ===")
 
         # Convert to schema dict
         schema_fields = result.to_schema_dict()

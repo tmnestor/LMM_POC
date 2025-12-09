@@ -1047,11 +1047,8 @@ class UnifiedBankExtractor:
         )
 
         print("[UBE] Turn 1: Extracting transactions...")
-        import sys as _sys
-        _sys.stdout.flush()
         response = self._generate(image, prompt, max_tokens=4096)
-        print(f"[UBE] Raw Turn 1 response:\n{response}\n[UBE] === End raw response ===")
-        _sys.stdout.flush()
+        # Note: Raw response is printed by BankStatementAdapter after bypass context
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
@@ -1192,7 +1189,7 @@ class UnifiedBankExtractor:
 
         print("[UBE] Turn 1: Extracting transactions (amount-description)...")
         response = self._generate(image, prompt, max_tokens=4096)
-        print(f"[UBE] Raw Turn 1 response:\n{response}\n[UBE] === End raw response ===")
+        # Note: Raw response is printed by BankStatementAdapter after bypass context
 
         # Parse response
         all_rows = self.parser.parse_amount_description(
@@ -1274,7 +1271,7 @@ class UnifiedBankExtractor:
 
         print("[UBE] Turn 1: Extracting transactions (debit-credit)...")
         response = self._generate(image, prompt, max_tokens=4096)
-        print(f"[UBE] Raw Turn 1 response:\n{response}\n[UBE] === End raw response ===")
+        # Note: Raw response is printed by BankStatementAdapter after bypass context
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
