@@ -207,12 +207,13 @@ def _get_config():
             def __init__(self, loader):
                 self.field_loader = loader
 
-                # Get universal fields (all document types combined, excluding validation-only)
-                # This includes invoice (14) + bank statement fields (STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID)
+                # Get universal fields for EXTRACTION (includes ACCOUNT_BALANCE for math enhancement)
+                # This includes invoice (14) + bank statement fields (STATEMENT_DATE_RANGE, TRANSACTION_DATES, TRANSACTION_AMOUNTS_PAID, ACCOUNT_BALANCE)
                 self.extraction_fields = loader.get_document_fields("universal")
-                # Filter out validation-only fields (TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE)
-                _validation_only = ["TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"]
-                self.extraction_fields = [f for f in self.extraction_fields if f not in _validation_only]
+                # Only exclude TRANSACTION_AMOUNTS_RECEIVED from extraction
+                # ACCOUNT_BALANCE IS extracted (for balance correction) but NOT evaluated (see VALIDATION_ONLY_FIELDS)
+                _exclude_from_extraction = ["TRANSACTION_AMOUNTS_RECEIVED"]
+                self.extraction_fields = [f for f in self.extraction_fields if f not in _exclude_from_extraction]
                 self.field_count = len(self.extraction_fields)
                 self.active_field_count = len(self.extraction_fields)
 
@@ -782,8 +783,8 @@ def get_document_type_fields(document_type: str) -> list:
                 if isinstance(field, dict) and "name" in field
             ]
 
-        # CRITICAL: Filter out validation-only fields (TRANSACTION_AMOUNTS_RECEIVED, ACCOUNT_BALANCE)
-        # These fields are used for mathematical validation but NOT for accuracy evaluation
+        # CRITICAL: Filter out validation-only fields from EVALUATION
+        # ACCOUNT_BALANCE is extracted but excluded from accuracy metrics
         return filter_evaluation_fields(field_names)
 
     except Exception as e:
@@ -1033,10 +1034,11 @@ GROUP_VALIDATION_RULES = {
 # EVALUATION VS VALIDATION FIELD SEPARATION
 # ============================================================================
 
-# Fields used for mathematical validation but excluded from evaluation metrics
+# Fields EXTRACTED but EXCLUDED from evaluation metrics
+# These are used for mathematical validation/correction but don't count toward accuracy
 VALIDATION_ONLY_FIELDS = [
     "TRANSACTION_AMOUNTS_RECEIVED",  # Used for mathematical transaction calculation
-    "ACCOUNT_BALANCE",  # Used for mathematical balance validation
+    "ACCOUNT_BALANCE",  # Extracted for balance correction, but not evaluated
 ]
 
 def is_evaluation_field(field_name: str) -> bool:

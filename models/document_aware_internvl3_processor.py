@@ -124,9 +124,10 @@ class DocumentAwareInternVL3HybridProcessor:
             ],
             'bank_statement': [
                 "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
             ]
-            # NOTE: TRANSACTION_AMOUNTS_RECEIVED and ACCOUNT_BALANCE excluded (validation-only)
+            # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
+            # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
         }
 
         if self.debug:
@@ -691,17 +692,18 @@ class DocumentAwareInternVL3HybridProcessor:
                 ],
                 'bank_statement': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
                 ],
                 # Add structure-specific bank statement fields (same for both)
-                # NOTE: TRANSACTION_AMOUNTS_RECEIVED and ACCOUNT_BALANCE excluded (validation-only)
+                # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
+                # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
                 'bank_statement_flat': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
                 ],
                 'bank_statement_date_grouped': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
                 ]
             }
 

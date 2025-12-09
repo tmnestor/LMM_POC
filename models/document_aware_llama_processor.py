@@ -682,14 +682,15 @@ class DocumentAwareLlamaProcessor:
             # Get universal prompt for single-pass extraction
             universal_prompt = load_llama_prompt("universal")
 
-            # Universal field list - 17 fields (excludes validation-only fields)
-            # NOTE: TRANSACTION_AMOUNTS_RECEIVED and ACCOUNT_BALANCE excluded (validation-only)
+            # Universal field list - 18 fields (excludes validation-only fields)
+            # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
+            # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
             universal_fields = [
                 "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
                 "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "STATEMENT_DATE_RANGE",
                 "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
                 "LINE_ITEM_TOTAL_PRICES", "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
             ]
 
             if self.debug:
@@ -871,12 +872,13 @@ class DocumentAwareLlamaProcessor:
                 traceback.print_exc()
 
             # Return error result with default fields list (excludes validation-only fields)
+            # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
             default_fields = [
                 "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
                 "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "STATEMENT_DATE_RANGE",
                 "LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES",
                 "LINE_ITEM_TOTAL_PRICES", "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID"
+                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
             ]
             return {
                 "image_name": Path(image_path).name,
