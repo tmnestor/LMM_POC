@@ -293,9 +293,12 @@ class BatchDocumentProcessor:
                     extracted_data = extraction_result.get("extracted_data", {})
 
                     # Apply mathematical enhancement for bank statements
+                    # Skip if already handled by UnifiedBankExtractor (V2 sophisticated extraction)
+                    skip_math = extraction_result.get("skip_math_enhancement", False)
                     if (
                         document_type.upper() == "BANK_STATEMENT"
                         and self.enable_math_enhancement
+                        and not skip_math
                     ):
                         from .bank_statement_calculator import (
                             enhance_bank_statement_extraction,
@@ -331,6 +334,10 @@ class BatchDocumentProcessor:
 
                         extracted_data = self._filter_debit_transactions(
                             extracted_data, verbose
+                        )
+                    elif skip_math and verbose:
+                        rprint(
+                            "[dim]⏭️  Skipping batch_processor math enhancement (handled by UnifiedBankExtractor)[/dim]"
                         )
 
                     if verbose:
