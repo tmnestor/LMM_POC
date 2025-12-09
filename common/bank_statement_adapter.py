@@ -229,6 +229,8 @@ class BankStatementAdapter:
             _safe_print(f"[BSA#{self._instance_id}]   Turns: {result.turns_executed}")
             _safe_print(f"[BSA#{self._instance_id}]   Transactions extracted: {len(result.transaction_dates)}")
             _safe_print(f"[BSA#{self._instance_id}] <<< END extract_bank_statement")
+            # Ensure all output is flushed before returning
+            sys.__stdout__.flush()
 
         return schema_fields, metadata
 

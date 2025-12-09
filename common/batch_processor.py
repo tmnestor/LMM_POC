@@ -617,13 +617,26 @@ class BatchDocumentProcessor:
             received = extracted_data.get("TRANSACTION_AMOUNTS_RECEIVED", "")
             balances = extracted_data.get("ACCOUNT_BALANCE", "")
 
+            # Check for missing required fields
             if any(
                 field == "" or field == "NOT_FOUND"
-                for field in [descriptions, dates, paid, balances]
+                for field in [descriptions, dates, paid]
             ):
                 if verbose:
                     rprint(
                         "[yellow]⚠️ Missing transaction data - skipping debit filtering[/yellow]"
+                    )
+                return extracted_data
+
+            # Check if balances are all NOT_FOUND (e.g., from DEBIT_CREDIT_DESCRIPTION strategy)
+            # In this case, balances is something like "NOT_FOUND | NOT_FOUND | ..."
+            balance_values = [b.strip() for b in balances.split(" | ")] if balances else []
+            all_balances_missing = all(b == "NOT_FOUND" or b == "" for b in balance_values)
+
+            if balances == "" or balances == "NOT_FOUND" or all_balances_missing:
+                if verbose:
+                    rprint(
+                        "[yellow]⚠️ No balance data available - skipping debit filtering[/yellow]"
                     )
                 return extracted_data
 

@@ -1065,7 +1065,7 @@ class UnifiedBankExtractor:
             credit_col=credit_col,
             balance_col=balance_col,
         )
-        print(f"  Parsed {len(all_rows)} transactions")
+        print(f"[UBE]   Parsed {len(all_rows)} transactions")
 
         # Optionally apply balance correction (sort to chronological order first)
         correction_stats = None
@@ -1102,7 +1102,7 @@ class UnifiedBankExtractor:
             debit_col=debit_col,
             desc_col=desc_col,
         )
-        print(f"  Filtered to {len(debit_rows)} debit transactions")
+        print(f"[UBE]   Filtered to {len(debit_rows)} debit transactions")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND debit)
@@ -1194,7 +1194,7 @@ class UnifiedBankExtractor:
             amount_col=amount_col,
             balance_col=balance_col,
         )
-        print(f"  Parsed {len(all_rows)} transactions")
+        print(f"[UBE]   Parsed {len(all_rows)} transactions")
 
         # Filter for withdrawals (negative amounts)
         debit_rows = self.filter.filter_negative_amounts(
@@ -1202,7 +1202,7 @@ class UnifiedBankExtractor:
             amount_col=amount_col,
             desc_col=desc_col,
         )
-        print(f"  Filtered to {len(debit_rows)} withdrawal transactions")
+        print(f"[UBE]   Filtered to {len(debit_rows)} withdrawal transactions")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND amount)
@@ -1279,7 +1279,7 @@ class UnifiedBankExtractor:
             credit_col=credit_col,
             balance_col="Balance",  # Placeholder, not used
         )
-        print(f"  Parsed {len(all_rows)} transactions")
+        print(f"[UBE]   Parsed {len(all_rows)} transactions")
 
         # Filter for debits
         debit_rows = self.filter.filter_debits(
@@ -1287,7 +1287,7 @@ class UnifiedBankExtractor:
             debit_col=debit_col,
             desc_col=desc_col,
         )
-        print(f"  Filtered to {len(debit_rows)} debit transactions")
+        print(f"[UBE]   Filtered to {len(debit_rows)} debit transactions")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND debit)
