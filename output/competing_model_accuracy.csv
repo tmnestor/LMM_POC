@@ -1,5 +1,5 @@
 Subset,Field,Accuracy
-Invoices & receipts,BUSINESS_ABN,0.315789474
+Invoices & receipts,BUSINESS_ABN,0.3157894740
 Invoices & receipts,SUPPLIER_NAME,0.324817518
 Invoices & receipts,BUSINESS_ADDRESS,0.414201183
 Invoices & receipts,PAYER_NAME,0.83625731
