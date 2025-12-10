@@ -1,8 +1,8 @@
 # Model Accuracy Comparison Report
 
 ## Overview
-- **Current Model**: InternVL3-8B
-- **Competing Model**: Competing Model
+- **Current Model**: Llama-3.2-11B
+- **Competing Model**: LayoutLM
 - **Comparable Fields**: 16
 - **Fields with F1 Comparison**: 15
 - **Additional Capabilities** (our model only): 1
@@ -12,7 +12,7 @@
 
 ### Accuracy Metrics
 
-| Metric | InternVL3-8B | Competing Model |
+| Metric | Llama-3.2-11B | LayoutLM |
 |--------|-----------|----------|
 | Mean Accuracy | 100.0% | 51.3% |
 | Median Accuracy | 100.0% | 44.5% |
@@ -22,40 +22,40 @@
 
 ### F1 Score Metrics (Position-Agnostic)
 
-| Metric | InternVL3-8B | Competing Model |
+| Metric | Llama-3.2-11B | LayoutLM |
 |--------|-----------|----------|
 | Mean F1 | 95.1% | 54.6% |
 | Mean F1 Difference | +40.5% | - |
-| Fields InternVL3-8B Better | 15 | - |
-| Fields Competing Model Better | 0 | - |
+| Fields Llama-3.2-11B Better | 15 | - |
+| Fields LayoutLM Better | 0 | - |
 
 *Note: F1 scores are position-agnostic (set-based matching) for fair comparison between models.*
 
 ## Comparison Results
 
-- **Mean Accuracy Difference**: +48.7% (positive = InternVL3-8B better)
-- **Fields where InternVL3-8B better**: 16
-- **Fields where Competing Model better**: 0
+- **Mean Accuracy Difference**: +48.7% (positive = Llama-3.2-11B better)
+- **Fields where Llama-3.2-11B better**: 16
+- **Fields where LayoutLM better**: 0
 - **Fields equal**: 0
 
 ## Critical Fields Analysis
 
 Critical fields: BUSINESS_ABN, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME
 
-- **InternVL3-8B Mean**: 100.0%
-- **Competing Model Mean**: 50.7%
+- **Llama-3.2-11B Mean**: 100.0%
+- **LayoutLM Mean**: 50.7%
 
 ## Statistical Significance
 
 - **Paired t-test p-value**: 0.0000 (Significant at α=0.05)
 - **Wilcoxon test p-value**: 0.0000 (Significant at α=0.05)
 - **Cohen's d effect size**: 4.5976 (large)
-- **95% CI for difference**: [+41.1%, +55.5%]
+- **95% CI for difference**: [+41.0%, +55.6%]
 
 ## Field-Level Details (Comparable Fields)
 
 ### Accuracy
-| Field | InternVL3-8B | Competing Model | Difference | Critical |
+| Field | Llama-3.2-11B | LayoutLM | Difference | Critical |
 |-------|-----------|----------|------------|----------|
 | BUSINESS_ABN | 100.0% | 31.6% | +68.4% | Yes |
 | SUPPLIER_NAME | 100.0% | 42.7% | +57.3% | Yes |
@@ -75,7 +75,7 @@ Critical fields: BUSINESS_ABN, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME
 | TRANSACTION_AMOUNTS_PAID | 100.0% | 64.1% | +35.9% |  |
 
 ### F1 Scores (Position-Agnostic)
-| Field | InternVL3-8B F1 | Competing Model F1 | Difference |
+| Field | Llama-3.2-11B F1 | LayoutLM F1 | Difference |
 |-------|-----------|----------|------------|
 | BUSINESS_ABN | 100.0% | 20.4% | +79.6% |
 | SUPPLIER_NAME | 100.0% | 58.8% | +41.2% |
@@ -93,11 +93,11 @@ Critical fields: BUSINESS_ABN, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME
 | TRANSACTION_DATES | 96.3% | 56.9% | +39.4% |
 | TRANSACTION_AMOUNTS_PAID | 98.9% | 71.9% | +27.0% |
 
-## Additional Capabilities (InternVL3-8B Only)
+## Additional Capabilities (Llama-3.2-11B Only)
 
 The following fields are **unique to our model** and not available in the competing model:
 
-| Field | InternVL3-8B Accuracy | Category |
+| Field | Llama-3.2-11B Accuracy | Category |
 |-------|------------------|----------|
 | DOCUMENT_TYPE | 100.0% | Identity |
 
