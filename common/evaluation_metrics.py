@@ -177,17 +177,19 @@ def calculate_field_accuracy(
 
     # Special handling for DOCUMENT_TYPE field with canonical type mapping
     if field_name == "DOCUMENT_TYPE":
-        # Define canonical document type mappings (same as detection system)
+        # Define canonical document type mappings
+        # INVOICE and RECEIPT are treated as equivalent (both are "invoice_receipt")
+        # The key distinction is invoice/receipt vs bank_statement
         type_mapping = {
-            "invoice": "invoice",
-            "tax invoice": "invoice",
-            "estimate": "invoice",
-            "quote": "invoice",
-            "quotation": "invoice",
-            "proforma invoice": "invoice",
-            "receipt": "receipt",
-            "purchase receipt": "receipt",
-            "sales receipt": "receipt",
+            "invoice": "invoice_receipt",
+            "tax invoice": "invoice_receipt",
+            "estimate": "invoice_receipt",
+            "quote": "invoice_receipt",
+            "quotation": "invoice_receipt",
+            "proforma invoice": "invoice_receipt",
+            "receipt": "invoice_receipt",
+            "purchase receipt": "invoice_receipt",
+            "sales receipt": "invoice_receipt",
             "bank statement": "bank_statement",
             "account statement": "bank_statement",
             "credit card statement": "bank_statement",
