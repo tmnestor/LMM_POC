@@ -908,9 +908,9 @@ def _parse_boolean_value(value: str) -> bool:
     # Convert to string first to handle boolean objects
     value_lower = str(value).lower().strip()
 
-    # Strict boolean matching - accept both lowercase and Python boolean string representations
-    true_values = ["true", "1"]
-    false_values = ["false", "0"]
+    # Boolean matching - accept common boolean representations
+    true_values = ["true", "1", "yes", "y"]
+    false_values = ["false", "0", "no", "n"]
 
     if value_lower in true_values:
         return True
