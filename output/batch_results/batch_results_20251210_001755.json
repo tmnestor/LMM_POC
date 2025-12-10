@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "batch_id": "20251210_001755",
+    "timestamp": "2025-12-10T00:21:15.693603",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 1,
+    "successful_extractions": 1,
+    "average_accuracy": 100.0,
+    "total_processing_time": 143.38641834259033,
+    "deployment_status": "Production Ready"
+  },
+  "configuration": {
+    "data_directory": "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/synthetic",
+    "ground_truth": "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/synthetic/ground_truth_synthetic.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": false,
+      "device_map": "auto",
+      "max_new_tokens": 3000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": true
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 1.0,
+    "Successful Extractions": 1.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 100.0,
+    "Median Accuracy (%)": 100.0,
+    "Min Accuracy (%)": 100.0,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 143.38641834259033,
+    "Total Processing Time (s)": 143.38641834259033,
+    "Throughput (images/min)": 0.41844967391990495
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 1
+  },
+  "results": [
+    {
+      "image_name": "cba_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 143.38641834259033,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}
