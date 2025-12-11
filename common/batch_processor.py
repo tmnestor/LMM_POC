@@ -1422,3 +1422,122 @@ class BatchDocumentProcessor:
         }
 
         return document_type, extraction_result, prompt_name
+
+
+def print_accuracy_by_document_type(
+    batch_results: list[dict],
+    console: Console | None = None,
+) -> dict:
+    """
+    Print accuracy summary separated by document type.
+
+    Invoice/Receipt have 14 fields, Bank Statements have 5 fields.
+    This provides a fair comparison by reporting metrics separately.
+
+    Args:
+        batch_results: List of result dictionaries from batch processing
+        console: Rich console for output (optional)
+
+    Returns:
+        dict: Summary statistics by document type
+    """
+    if console is None:
+        console = Console()
+
+    # Group results by document type
+    doc_type_results: dict[str, list[dict]] = {
+        "invoice_receipt": [],
+        "bank_statement": [],
+    }
+
+    for result in batch_results:
+        if "error" in result:
+            continue
+
+        doc_type = result.get("document_type", "").upper()
+        evaluation = result.get("evaluation", {})
+
+        if not evaluation or "overall_accuracy" not in evaluation:
+            continue
+
+        # Group invoice and receipt together
+        if doc_type in ["INVOICE", "RECEIPT"]:
+            doc_type_results["invoice_receipt"].append(result)
+        elif doc_type == "BANK_STATEMENT":
+            doc_type_results["bank_statement"].append(result)
+
+    # Calculate and display metrics for each document type
+    console.rule("[bold cyan]Accuracy by Document Type[/bold cyan]")
+
+    summary = {}
+
+    for doc_type_key, results in doc_type_results.items():
+        if not results:
+            continue
+
+        # Extract metrics
+        mean_f1_scores = []
+        median_f1_scores = []
+
+        for r in results:
+            eval_data = r.get("evaluation", {})
+            mean_f1_scores.append(eval_data.get("overall_accuracy", 0))
+            median_f1_scores.append(eval_data.get("median_f1", 0))
+
+        # Calculate aggregates
+        n_docs = len(results)
+        avg_mean_f1 = sum(mean_f1_scores) / n_docs if n_docs else 0
+        avg_median_f1 = sum(median_f1_scores) / n_docs if n_docs else 0
+
+        # Calculate median of medians (most robust)
+        sorted_medians = sorted(median_f1_scores)
+        mid = len(sorted_medians) // 2
+        if len(sorted_medians) % 2 == 0 and len(sorted_medians) > 0:
+            median_of_medians = (sorted_medians[mid - 1] + sorted_medians[mid]) / 2
+        elif len(sorted_medians) > 0:
+            median_of_medians = sorted_medians[mid]
+        else:
+            median_of_medians = 0
+
+        # Display
+        display_name = "Invoice/Receipt (14 fields)" if doc_type_key == "invoice_receipt" else "Bank Statement (5 fields)"
+        field_count = 14 if doc_type_key == "invoice_receipt" else 5
+
+        rprint(f"\n[bold blue]{display_name}[/bold blue]")
+        rprint(f"  Documents: {n_docs}")
+        rprint(f"  [cyan]Median F1 (avg): {avg_median_f1 * 100:.1f}%[/cyan] ← typical field performance")
+        rprint(f"  Mean F1 (avg):   {avg_mean_f1 * 100:.1f}%")
+        rprint(f"  Median of Medians: {median_of_medians * 100:.1f}% ← most robust")
+
+        summary[doc_type_key] = {
+            "count": n_docs,
+            "field_count": field_count,
+            "avg_mean_f1": avg_mean_f1,
+            "avg_median_f1": avg_median_f1,
+            "median_of_medians": median_of_medians,
+        }
+
+    # Overall summary (weighted by document count, not field count)
+    total_docs = sum(s["count"] for s in summary.values())
+    if total_docs > 0:
+        weighted_median = sum(
+            s["avg_median_f1"] * s["count"] for s in summary.values()
+        ) / total_docs
+        weighted_mean = sum(
+            s["avg_mean_f1"] * s["count"] for s in summary.values()
+        ) / total_docs
+
+        rprint("\n[bold green]Overall (weighted by document count)[/bold green]")
+        rprint(f"  Total Documents: {total_docs}")
+        rprint(f"  [cyan]Weighted Median F1: {weighted_median * 100:.1f}%[/cyan]")
+        rprint(f"  Weighted Mean F1:   {weighted_mean * 100:.1f}%")
+
+        summary["overall"] = {
+            "count": total_docs,
+            "weighted_median_f1": weighted_median,
+            "weighted_mean_f1": weighted_mean,
+        }
+
+    console.rule()
+
+    return summary

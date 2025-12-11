@@ -1000,7 +1000,7 @@ class UnifiedBankExtractor:
             reason = "Debit/Credit columns detected (no balance)"
         else:
             strategy = ExtractionStrategy.TABLE_EXTRACTION
-            reason = "Fallback to table extraction"
+            reason = "Schema fallback (column detection failed)"
 
         print(f"[UBE] Strategy: {strategy.name} ({reason})")
 
@@ -1357,9 +1357,11 @@ class UnifiedBankExtractor:
         response = self._generate(image, prompt, max_tokens=4096)
 
         print(f"[UBE]   Raw response length: {len(response)} chars")
+        print(f"[UBE]   Raw response preview: {response[:500]}...")
 
         # Parse the schema-format response
         extracted = self._parse_schema_response(response)
+        print(f"[UBE]   Parsed fields: {list(extracted.keys())}")
 
         # Extract fields from parsed response
         statement_date_range = extracted.get("STATEMENT_DATE_RANGE", "NOT_FOUND")
