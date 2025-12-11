@@ -732,32 +732,38 @@ class BalanceCorrector:
             elif balance_delta < 0:
                 # Balance decreased = should be DEBIT
                 stats.debits_found += 1
+                expected_amount = abs(balance_delta)
 
-                # If LLM misclassified (put amount in credit instead of debit), swap it
-                if llm_credit > 0 and llm_debit == 0:
+                # Check if debit already has the correct value
+                if llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance:
+                    # Debit is already correct - keep it, clear credit
+                    corrected_row[credit_col] = ""
+                # Check if credit has the correct value (misclassified)
+                elif llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
                     # Move credit value to debit column
                     corrected_row[debit_col] = row.get(credit_col, "")
                     corrected_row[credit_col] = ""
                     stats.corrections_made += 1
                     stats.type_corrections += 1
-                else:
-                    # LLM classified correctly as debit - keep amount, just clear credit
-                    corrected_row[credit_col] = ""
+                # else: neither matches expected amount - keep original (don't swap garbage)
 
             else:
                 # Balance increased = should be CREDIT
                 stats.credits_found += 1
+                expected_amount = abs(balance_delta)
 
-                # If LLM misclassified (put amount in debit instead of credit), swap it
-                if llm_debit > 0 and llm_credit == 0:
+                # Check if credit already has the correct value
+                if llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
+                    # Credit is already correct - keep it, clear debit
+                    corrected_row[debit_col] = ""
+                # Check if debit has the correct value (misclassified)
+                elif llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance:
                     # Move debit value to credit column
                     corrected_row[credit_col] = row.get(debit_col, "")
                     corrected_row[debit_col] = ""
                     stats.corrections_made += 1
                     stats.type_corrections += 1
-                else:
-                    # LLM classified correctly as credit - keep amount, just clear debit
-                    corrected_row[debit_col] = ""
+                # else: neither matches expected amount - keep original (don't swap garbage)
 
             corrected_rows.append(corrected_row)
             prev_balance = current_balance
