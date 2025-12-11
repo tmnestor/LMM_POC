@@ -736,16 +736,20 @@ class BalanceCorrector:
 
                 # Check if debit already has the correct value
                 if llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance:
-                    # Debit is already correct - keep it, clear credit
-                    corrected_row[credit_col] = ""
+                    # Debit is already correct - keep it, set credit to NOT_FOUND
+                    corrected_row[credit_col] = "NOT_FOUND"
                 # Check if credit has the correct value (misclassified)
                 elif llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
                     # Move credit value to debit column
                     corrected_row[debit_col] = row.get(credit_col, "")
-                    corrected_row[credit_col] = ""
+                    corrected_row[credit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
                     stats.type_corrections += 1
-                # else: neither matches expected amount - keep original (don't swap garbage)
+                else:
+                    # Neither matches - derive amount from balance delta (most reliable)
+                    corrected_row[debit_col] = f"${expected_amount:.2f}"
+                    corrected_row[credit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
 
             else:
                 # Balance increased = should be CREDIT
@@ -754,16 +758,20 @@ class BalanceCorrector:
 
                 # Check if credit already has the correct value
                 if llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
-                    # Credit is already correct - keep it, clear debit
-                    corrected_row[debit_col] = ""
+                    # Credit is already correct - keep it, set debit to NOT_FOUND
+                    corrected_row[debit_col] = "NOT_FOUND"
                 # Check if debit has the correct value (misclassified)
                 elif llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance:
                     # Move debit value to credit column
                     corrected_row[credit_col] = row.get(debit_col, "")
-                    corrected_row[debit_col] = ""
+                    corrected_row[debit_col] = "NOT_FOUND"
                     stats.corrections_made += 1
                     stats.type_corrections += 1
-                # else: neither matches expected amount - keep original (don't swap garbage)
+                else:
+                    # Neither matches - derive amount from balance delta (most reliable)
+                    corrected_row[credit_col] = f"${expected_amount:.2f}"
+                    corrected_row[debit_col] = "NOT_FOUND"
+                    stats.corrections_made += 1
 
             corrected_rows.append(corrected_row)
             prev_balance = current_balance
