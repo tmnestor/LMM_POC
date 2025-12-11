@@ -927,6 +927,9 @@ class UnifiedBankExtractor:
             "turn1_debit_credit": self.config_loader.get_prompt(
                 "turn1_debit_credit_extraction"
             ),
+            "schema_fallback": self.config_loader.get_prompt(
+                "schema_fallback_extraction"
+            ),
         }
 
     def extract(
@@ -1015,12 +1018,8 @@ class UnifiedBankExtractor:
                 image, headers, mapping, turn0_response
             )
         else:
-            # Table extraction not implemented yet
-            result = ExtractionResult(
-                strategy_used="table_extraction_not_implemented",
-                headers_detected=headers,
-                column_mapping=mapping,
-            )
+            # Schema-based fallback when column detection fails
+            result = self._extract_schema_fallback(image, headers, mapping)
 
         # Free GPU memory
         torch.cuda.empty_cache()
@@ -1338,6 +1337,106 @@ class UnifiedBankExtractor:
             column_mapping=mapping,
             raw_responses={"turn0": turn0_response, "turn1": response},
         )
+
+    def _extract_schema_fallback(
+        self,
+        image: Any,
+        headers: list[str],
+        mapping: ColumnMapping,
+    ) -> ExtractionResult:
+        """Schema-based extraction when column detection fails.
+
+        Used when header detection returns garbage (days of week, ATM locations, etc.)
+        instead of actual column headers. Asks model to extract bank statement fields
+        directly without relying on column structure.
+        """
+        import torch
+
+        print("[UBE] Schema fallback: Extracting with direct schema prompt...")
+        prompt = self._prompts["schema_fallback"]
+        response = self._generate(image, prompt, max_tokens=4096)
+
+        print(f"[UBE]   Raw response length: {len(response)} chars")
+
+        # Parse the schema-format response
+        extracted = self._parse_schema_response(response)
+
+        # Extract fields from parsed response
+        statement_date_range = extracted.get("STATEMENT_DATE_RANGE", "NOT_FOUND")
+        transaction_dates_str = extracted.get("TRANSACTION_DATES", "NOT_FOUND")
+        descriptions_str = extracted.get("LINE_ITEM_DESCRIPTIONS", "NOT_FOUND")
+        amounts_str = extracted.get("TRANSACTION_AMOUNTS_PAID", "NOT_FOUND")
+
+        # Parse pipe-separated lists
+        def parse_list(value: str) -> list[str]:
+            if not value or value == "NOT_FOUND":
+                return []
+            return [item.strip() for item in value.split("|") if item.strip()]
+
+        dates = parse_list(transaction_dates_str)
+        descriptions = parse_list(descriptions_str)
+        amounts = parse_list(amounts_str)
+
+        print(f"[UBE]   Parsed: {len(dates)} dates, {len(descriptions)} descriptions, {len(amounts)} amounts")
+
+        # Ensure arrays are same length (truncate to shortest)
+        min_len = min(len(dates), len(descriptions), len(amounts)) if dates and descriptions and amounts else 0
+        if min_len > 0:
+            dates = dates[:min_len]
+            descriptions = descriptions[:min_len]
+            amounts = amounts[:min_len]
+        else:
+            # If any is empty, set all to empty
+            dates = []
+            descriptions = []
+            amounts = []
+
+        # No balance info in schema fallback
+        balances = ["NOT_FOUND"] * len(dates) if dates else []
+
+        torch.cuda.empty_cache()
+
+        return ExtractionResult(
+            statement_date_range=statement_date_range,
+            transaction_dates=dates,
+            line_item_descriptions=descriptions,
+            transaction_amounts_paid=amounts,
+            account_balances=balances,
+            strategy_used="schema_fallback",
+            turns_executed=1,
+            headers_detected=headers,
+            column_mapping=mapping,
+            raw_responses={"schema_fallback": response},
+        )
+
+    def _parse_schema_response(self, response: str) -> dict[str, str]:
+        """Parse schema-format response into field dictionary."""
+        result = {}
+        lines = response.strip().split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Match "FIELD_NAME: value" pattern
+            if ":" in line:
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    field = parts[0].strip().upper()
+                    value = parts[1].strip()
+
+                    # Only capture known schema fields
+                    if field in [
+                        "DOCUMENT_TYPE",
+                        "STATEMENT_DATE_RANGE",
+                        "TRANSACTION_DATES",
+                        "LINE_ITEM_DESCRIPTIONS",
+                        "TRANSACTION_AMOUNTS_PAID",
+                    ]:
+                        result[field] = value
+
+        return result
 
     @staticmethod
     def _format_debit_amount(amount_str: str) -> str:
