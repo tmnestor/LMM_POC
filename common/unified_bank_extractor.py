@@ -1421,11 +1421,13 @@ class UnifiedBankExtractor:
             if not line:
                 continue
 
-            # Match "FIELD_NAME: value" pattern
+            # Match "FIELD_NAME: value" or "**FIELD_NAME**: value" pattern
+            # Models sometimes wrap field names in markdown bold
             if ":" in line:
                 parts = line.split(":", 1)
                 if len(parts) == 2:
-                    field = parts[0].strip().upper()
+                    # Remove markdown bold markers (**) from field name
+                    field = parts[0].strip().replace("*", "").upper()
                     value = parts[1].strip()
 
                     # Only capture known schema fields
