@@ -43,6 +43,8 @@ prompts:
       4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
       5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
       6. Do NOT skip any transactions
+      7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
   # Used when statement has Amount column (signed values) instead of separate Debit/Credit
