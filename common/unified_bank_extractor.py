@@ -146,18 +146,24 @@ class ColumnMatcher:
     def _find_match(
         self, headers: list[str], headers_lower: list[str], keywords: list[str]
     ) -> str | None:
-        """Find matching header using keywords."""
+        """Find matching header using keywords.
+
+        Only matches headers that look like actual column headers (short text),
+        not transaction content (long descriptions).
+        """
         # Exact match first
         for keyword in keywords:
             for i, header_lower in enumerate(headers_lower):
                 if keyword == header_lower:
                     return headers[i]
 
-        # Substring match
+        # Substring match - but only for short headers (likely actual column names)
+        # Skip headers longer than 20 chars as they're likely transaction content
         for keyword in keywords:
             if len(keyword) > 2:
                 for i, header_lower in enumerate(headers_lower):
-                    if keyword in header_lower:
+                    # Only match short headers (actual column names)
+                    if len(header_lower) <= 20 and keyword in header_lower:
                         return headers[i]
 
         return None
