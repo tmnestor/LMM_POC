@@ -1191,6 +1191,8 @@ class UnifiedBankExtractor:
 
         # Optionally apply balance correction (sort to chronological order first)
         correction_stats = None
+        sys.__stdout__.write(f"[UBE]   use_balance_correction={self.use_balance_correction}\n")
+        sys.__stdout__.flush()
         if self.use_balance_correction:
             # Check if transactions are in chronological order
             is_chrono, order_reason = BalanceCorrector.is_chronological_order(
