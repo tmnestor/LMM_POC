@@ -285,6 +285,14 @@ class ResponseParser:
                 if date_match:
                     date_found = date_match.group(1).strip()
 
+            # Pattern 8: "1. **06 Aug 24**" (date with 2-digit year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2})\*?\*?$", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
             if date_found:
                 # Save previous transaction
                 if current_transaction and current_date:
