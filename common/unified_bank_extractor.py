@@ -1153,10 +1153,15 @@ class UnifiedBankExtractor:
 
         sys.__stdout__.write("[UBE] Turn 1: Calling model for extraction...\n")
         sys.__stdout__.flush()
-        response = self._generate(image, prompt, max_tokens=4096)
-        sys.__stdout__.write(f"[UBE]   Raw response length: {len(response)} chars\n")
-        sys.__stdout__.write(f"[UBE]   Response preview:\n{response[:500]}...\n")
-        sys.__stdout__.flush()
+        try:
+            response = self._generate(image, prompt, max_tokens=4096)
+            sys.__stdout__.write(f"[UBE]   Raw response length: {len(response)} chars\n")
+            sys.__stdout__.write(f"[UBE]   Response preview:\n{response[:500]}...\n")
+            sys.__stdout__.flush()
+        except Exception as e:
+            sys.__stdout__.write(f"[UBE] ERROR in _generate: {type(e).__name__}: {e}\n")
+            sys.__stdout__.flush()
+            raise
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
