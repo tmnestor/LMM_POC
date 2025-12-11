@@ -1402,6 +1402,13 @@ class UnifiedBankExtractor:
         # No balance info in schema fallback
         balances = ["NOT_FOUND"] * len(dates) if dates else []
 
+        # Compute date range from transaction dates (ensures chronological: earliest - latest)
+        # This handles reverse-chronological statements correctly
+        if dates:
+            computed_date_range = self._compute_date_range(dates)
+            print(f"[UBE]   Date range: {statement_date_range} → {computed_date_range} (computed from transactions)")
+            statement_date_range = computed_date_range
+
         torch.cuda.empty_cache()
 
         return ExtractionResult(
