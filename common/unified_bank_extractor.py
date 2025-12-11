@@ -12,12 +12,19 @@ Usage:
 """
 
 import re
+import sys
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def _ube_print(msg: str) -> None:
+    """Print with immediate flush to ensure output appears in correct order."""
+    sys.__stdout__.write(msg + "\n")
+    sys.__stdout__.flush()
 
 
 class ExtractionStrategy(Enum):
@@ -979,14 +986,14 @@ class UnifiedBankExtractor:
             image = PILImage.open(image).convert("RGB")
 
         # Turn 0: Header detection
-        print("[UBE] Turn 0: Detecting headers...")
+        _ube_print("[UBE] Turn 0: Detecting headers...")
         turn0_response = self._generate(image, self._prompts["turn0"], max_tokens=500)
         headers = self.parser.parse_headers(turn0_response)
-        print(f"  Detected {len(headers)} headers: {headers}")
+        _ube_print(f"  Detected {len(headers)} headers: {headers}")
 
         # Map headers to columns
         mapping = self.column_matcher.match(headers)
-        print(f"  Balance column: {mapping.balance or 'NOT FOUND'}")
+        _ube_print(f"  Balance column: {mapping.balance or 'NOT FOUND'}")
 
         # Select strategy based on detected columns
         # Key insight: Some statements have Amount+Balance (signed values),
@@ -995,10 +1002,10 @@ class UnifiedBankExtractor:
         has_amount = mapping.amount is not None
 
         # DEBUG: Show column detection
-        print(f"  Amount column: {mapping.amount or 'NOT FOUND'}")
-        print(f"  Debit column: {mapping.debit or 'NOT FOUND'}")
-        print(f"  Credit column: {mapping.credit or 'NOT FOUND'}")
-        print(f"  has_balance={mapping.has_balance}, has_amount={has_amount}, has_debit_or_credit={has_debit_or_credit}")
+        _ube_print(f"  Amount column: {mapping.amount or 'NOT FOUND'}")
+        _ube_print(f"  Debit column: {mapping.debit or 'NOT FOUND'}")
+        _ube_print(f"  Credit column: {mapping.credit or 'NOT FOUND'}")
+        _ube_print(f"  has_balance={mapping.has_balance}, has_amount={has_amount}, has_debit_or_credit={has_debit_or_credit}")
 
         if force_strategy:
             strategy = force_strategy
@@ -1027,7 +1034,7 @@ class UnifiedBankExtractor:
             strategy = ExtractionStrategy.TABLE_EXTRACTION
             reason = "Schema fallback (column detection failed)"
 
-        print(f"[UBE] Strategy: {strategy.name} ({reason})")
+        _ube_print(f"[UBE] Strategy: {strategy.name} ({reason})")
 
         # Execute strategy
         if strategy == ExtractionStrategy.BALANCE_DESCRIPTION:
@@ -1119,14 +1126,14 @@ class UnifiedBankExtractor:
             is_chrono, order_reason = BalanceCorrector.is_chronological_order(
                 all_rows, date_col
             )
-            print(f"  Date order: {order_reason}")
+            _ube_print(f"  Date order: {order_reason}")
 
             # Sort to chronological order if not already
             if is_chrono:
                 sorted_rows = all_rows
             else:
                 sorted_rows = BalanceCorrector.sort_by_date(all_rows, date_col)
-                print("  Sorted to chronological order for balance correction")
+                _ube_print("  Sorted to chronological order for balance correction")
 
             # Apply balance correction on sorted (chronological) rows
             corrector = BalanceCorrector()
@@ -1137,7 +1144,7 @@ class UnifiedBankExtractor:
                 credit_col=credit_col,
                 desc_col=desc_col,
             )
-            print(f"  Balance correction: {correction_stats}")
+            _ube_print(f"  Balance correction: {correction_stats}")
             # DEBUG: Show corrected rows
             sys.__stdout__.write("[UBE]   Corrected rows:\n")
             for i, row in enumerate(corrected_rows):
@@ -1250,7 +1257,7 @@ class UnifiedBankExtractor:
             balance_format=balance_format,
         )
 
-        print("[UBE] Turn 1: Extracting transactions (amount-description)...")
+        _ube_print("[UBE] Turn 1: Extracting transactions (amount-description)...")
         response = self._generate(image, prompt, max_tokens=4096)
         # Note: Raw response is printed by BankStatementAdapter after bypass context
 
@@ -1262,7 +1269,7 @@ class UnifiedBankExtractor:
             amount_col=amount_col,
             balance_col=balance_col,
         )
-        print(f"[UBE]   Parsed {len(all_rows)} transactions")
+        _ube_print(f"[UBE]   Parsed {len(all_rows)} transactions")
 
         # Filter for withdrawals (negative amounts)
         debit_rows = self.filter.filter_negative_amounts(
@@ -1270,7 +1277,7 @@ class UnifiedBankExtractor:
             amount_col=amount_col,
             desc_col=desc_col,
         )
-        print(f"[UBE]   Filtered to {len(debit_rows)} withdrawal transactions")
+        _ube_print(f"[UBE]   Filtered to {len(debit_rows)} withdrawal transactions")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND amount)
@@ -1297,7 +1304,7 @@ class UnifiedBankExtractor:
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # DEBUG: Verify array lengths are consistent
-        print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
+        _ube_print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
 
         torch.cuda.empty_cache()
 
@@ -1440,16 +1447,16 @@ class UnifiedBankExtractor:
         """
         import torch
 
-        print("[UBE] Schema fallback: Extracting with direct schema prompt...")
+        _ube_print("[UBE] Schema fallback: Extracting with direct schema prompt...")
         prompt = self._prompts["schema_fallback"]
         response = self._generate(image, prompt, max_tokens=4096)
 
-        print(f"[UBE]   Raw response length: {len(response)} chars")
-        print(f"[UBE]   Raw response preview: {response[:500]}...")
+        _ube_print(f"[UBE]   Raw response length: {len(response)} chars")
+        _ube_print(f"[UBE]   Raw response preview: {response[:500]}...")
 
         # Parse the schema-format response
         extracted = self._parse_schema_response(response)
-        print(f"[UBE]   Parsed fields: {list(extracted.keys())}")
+        _ube_print(f"[UBE]   Parsed fields: {list(extracted.keys())}")
 
         # Extract fields from parsed response
         statement_date_range = extracted.get("STATEMENT_DATE_RANGE", "NOT_FOUND")
@@ -1467,7 +1474,7 @@ class UnifiedBankExtractor:
         descriptions = parse_list(descriptions_str)
         amounts = parse_list(amounts_str)
 
-        print(f"[UBE]   Parsed: {len(dates)} dates, {len(descriptions)} descriptions, {len(amounts)} amounts")
+        _ube_print(f"[UBE]   Parsed: {len(dates)} dates, {len(descriptions)} descriptions, {len(amounts)} amounts")
 
         # Ensure arrays are same length (truncate to shortest)
         min_len = min(len(dates), len(descriptions), len(amounts)) if dates and descriptions and amounts else 0
@@ -1488,7 +1495,7 @@ class UnifiedBankExtractor:
         # This handles reverse-chronological statements correctly
         if dates:
             computed_date_range = self._compute_date_range(dates)
-            print(f"[UBE]   Date range: {statement_date_range} → {computed_date_range} (computed from transactions)")
+            _ube_print(f"[UBE]   Date range: {statement_date_range} → {computed_date_range} (computed from transactions)")
             statement_date_range = computed_date_range
 
         torch.cuda.empty_cache()
