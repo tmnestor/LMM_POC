@@ -1119,6 +1119,14 @@ class UnifiedBankExtractor:
                 desc_col=desc_col,
             )
             print(f"  Balance correction: {correction_stats}")
+            # DEBUG: Show corrected rows
+            sys.__stdout__.write("[UBE]   Corrected rows:\n")
+            for i, row in enumerate(corrected_rows):
+                debit_val = row.get(debit_col, "")
+                credit_val = row.get(credit_col, "")
+                desc = row.get(desc_col, "")[:30]
+                sys.__stdout__.write(f"[UBE]     {i}: D={debit_val or 'N/A':10} C={credit_val or 'N/A':10} {desc}\n")
+            sys.__stdout__.flush()
         else:
             corrected_rows = all_rows
 
@@ -1130,6 +1138,12 @@ class UnifiedBankExtractor:
         )
         sys.__stdout__.write(f"[UBE]   After correction: {len(corrected_rows)} rows\n")
         sys.__stdout__.write(f"[UBE]   After debit filter: {len(debit_rows)} debit transactions\n")
+        # DEBUG: Show which rows passed the filter
+        sys.__stdout__.write("[UBE]   Debit rows:\n")
+        for i, row in enumerate(debit_rows):
+            debit_val = row.get(debit_col, "")
+            desc = row.get(desc_col, "")[:30]
+            sys.__stdout__.write(f"[UBE]     {i}: D={debit_val:10} {desc}\n")
         sys.__stdout__.flush()
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
