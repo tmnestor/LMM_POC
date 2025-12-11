@@ -439,10 +439,34 @@ class ResponseParser:
                 if date_match:
                     date_found = date_match.group(1).strip()
 
-            # Pattern 3: "1. **04 Sep 2025**" or "1. **03 Jun 2023**"
+            # Pattern 3: "1. **04 Sep 2025**" or "1. **03 Jun 2023**" (4-digit year)
             if not date_found:
                 date_match = re.match(
                     r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\*?\*?", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            # Pattern 4: "1. **[20 May]**" (bracketed date without year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?\[(\d{1,2}\s+[A-Za-z]{3,9})\]\*?\*?", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            # Pattern 5: "1. **20 May**" (date without year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3,9})\*?\*?$", line
+                )
+                if date_match:
+                    date_found = date_match.group(1).strip()
+
+            # Pattern 6: "1. **06 Aug 24**" (date with 2-digit year)
+            if not date_found:
+                date_match = re.match(
+                    r"^\d+\.\s*\*?\*?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2})\*?\*?$", line
                 )
                 if date_match:
                     date_found = date_match.group(1).strip()
@@ -619,6 +643,39 @@ class TransactionFilter:
                 debit_rows.append(row)
 
         return debit_rows
+
+    @classmethod
+    def filter_positive_amounts(
+        cls,
+        rows: list[dict[str, str]],
+        amount_col: str,
+        desc_col: str | None = None,
+    ) -> list[dict[str, str]]:
+        """Filter to transactions with positive amounts (charges/purchases).
+
+        For credit card statements, positive amounts represent charges
+        that the customer paid for goods/services. Negative amounts
+        represent payments/credits and should be marked as NOT_FOUND.
+        """
+        charge_rows = []
+        for row in rows:
+            amount_str = row.get(amount_col, "").strip()
+            if not amount_str:
+                continue
+
+            # Skip non-transaction entries (Opening Balance, Closing Balance, etc.)
+            if desc_col and cls.is_non_transaction(row, desc_col):
+                continue
+
+            # Check for negative indicators - skip these
+            is_negative = amount_str.startswith("-") or (
+                amount_str.startswith("(") and amount_str.endswith(")")
+            )
+
+            if not is_negative:
+                charge_rows.append(row)
+
+        return charge_rows
 
 
 @dataclass
@@ -1278,14 +1335,21 @@ class UnifiedBankExtractor:
             balance_col=balance_col,
         )
         _ube_print(f"[UBE]   Parsed {len(all_rows)} transactions")
+        # DEBUG: Show first few parsed rows
+        for i, row in enumerate(all_rows[:3]):
+            _ube_print(f"[UBE]     Row {i}: {row}")
+        if len(all_rows) > 3:
+            _ube_print(f"[UBE]     ... and {len(all_rows) - 3} more rows")
 
-        # Filter for withdrawals (negative amounts)
-        debit_rows = self.filter.filter_negative_amounts(
+        # Filter for positive amounts (charges/purchases)
+        # For credit card statements: positive = charges you paid for goods/services
+        # Negative amounts (payments/credits) are excluded and become NOT_FOUND
+        charge_rows = self.filter.filter_positive_amounts(
             all_rows,
             amount_col=amount_col,
             desc_col=desc_col,
         )
-        _ube_print(f"[UBE]   Filtered to {len(debit_rows)} withdrawal transactions")
+        _ube_print(f"[UBE]   Filtered to {len(charge_rows)} charge transactions (positive amounts)")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND amount)
@@ -1293,7 +1357,7 @@ class UnifiedBankExtractor:
         descriptions = []
         amounts = []
         balances = []
-        for r in debit_rows:
+        for r in charge_rows:
             date_val = r.get(date_col, "")
             desc_val = r.get(desc_col, "")
             amount_val = r.get(amount_col, "")
