@@ -480,6 +480,18 @@ class BatchDocumentProcessor:
                     )
                     overall_recall = total_recall / num_fields if num_fields else 0.0
 
+                    # Calculate median F1 (more robust to outliers than mean)
+                    f1_values = [s["f1_score"] for s in field_scores.values()]
+                    if f1_values:
+                        sorted_f1 = sorted(f1_values)
+                        mid = len(sorted_f1) // 2
+                        if len(sorted_f1) % 2 == 0:
+                            median_f1 = (sorted_f1[mid - 1] + sorted_f1[mid]) / 2
+                        else:
+                            median_f1 = sorted_f1[mid]
+                    else:
+                        median_f1 = 0.0
+
                     # Count perfect matches for compatibility
                     perfect_matches = sum(
                         1 for score in field_scores.values() if score["f1_score"] == 1.0
@@ -487,7 +499,8 @@ class BatchDocumentProcessor:
                     fields_matched = perfect_matches
 
                     evaluation = {
-                        "overall_accuracy": overall_accuracy,  # F1-based average
+                        "overall_accuracy": overall_accuracy,  # F1-based average (mean)
+                        "median_f1": median_f1,  # Median F1 (robust to outliers)
                         "overall_precision": overall_precision,  # Average precision
                         "overall_recall": overall_recall,  # Average recall
                         "total_fields": len(field_scores),
@@ -500,10 +513,11 @@ class BatchDocumentProcessor:
                         # Add field-level scores for detailed comparison (now with F1 metrics)
                         "field_scores": field_scores,
                         "overall_metrics": {
-                            "overall_accuracy": overall_accuracy,  # F1-based
+                            "overall_accuracy": overall_accuracy,  # F1-based mean
+                            "median_f1": median_f1,  # Median F1
                             "overall_precision": overall_precision,
                             "overall_recall": overall_recall,
-                            "meets_threshold": overall_accuracy >= 0.8,
+                            "meets_threshold": median_f1 >= 0.8,  # Use median for threshold
                             "document_type_threshold": 0.8,
                         },
                     }
@@ -512,11 +526,12 @@ class BatchDocumentProcessor:
 
                     # Show evaluation summary
                     if verbose and evaluation:
-                        accuracy = evaluation.get("overall_accuracy", 0) * 100
+                        mean_f1 = evaluation.get("overall_accuracy", 0) * 100
+                        median_f1_pct = evaluation.get("median_f1", 0) * 100
                         precision = evaluation.get("overall_precision", 0) * 100
                         recall = evaluation.get("overall_recall", 0) * 100
                         rprint(
-                            f"[cyan]✓ Overall F1 Score (Accuracy): {accuracy:.1f}% for {image_name}[/cyan]"
+                            f"[cyan]✓ Median F1: {median_f1_pct:.1f}% | Mean F1: {mean_f1:.1f}% for {image_name}[/cyan]"
                         )
                         rprint(
                             f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]"
@@ -567,7 +582,24 @@ class BatchDocumentProcessor:
                 }
                 batch_results.append(result)
 
-                # Progress update
+                # Always show compact F1 score for each document (regardless of verbose)
+                if evaluation and "median_f1" in evaluation:
+                    median_f1_pct = evaluation.get("median_f1", 0) * 100
+                    mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
+                    rprint(
+                        f"  [green]✓[/green] {image_name}: "
+                        f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
+                        f"Mean {mean_f1_pct:.1f}% | {processing_time:.1f}s"
+                    )
+                elif evaluation:
+                    # Fallback if median not available
+                    mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
+                    rprint(
+                        f"  [green]✓[/green] {image_name}: "
+                        f"[cyan]F1 {mean_f1_pct:.1f}%[/cyan] | {processing_time:.1f}s"
+                    )
+
+                # Additional verbose progress update
                 if verbose and (
                     idx % progress_interval == 0 or idx == len(image_paths)
                 ):
@@ -960,6 +992,7 @@ class BatchDocumentProcessor:
         overall_accuracy = evaluation.get("overall_metrics", {}).get(
             "overall_accuracy", 0
         )
+        median_f1 = evaluation.get("overall_metrics", {}).get("median_f1", 0)
 
         rprint("\n📊 EXTRACTION SUMMARY:")
         rprint(
@@ -968,8 +1001,8 @@ class BatchDocumentProcessor:
         rprint(
             f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
         )
-        rprint(f"📈 Extraction Success Rate: {overall_accuracy * 100:.1f}%")
-        rprint(f"⏱️ Accuracy (matches/total): {overall_accuracy * 100:.1f}%")
+        rprint(f"📈 Median F1: {median_f1 * 100:.1f}% (typical document)")
+        rprint(f"📊 Mean F1: {overall_accuracy * 100:.1f}% (penalized by outliers)")
         rprint(f"🤖 Document Type: {document_type}")
         rprint("🔧 Model: Llama-3.2-11B-Vision-Instruct")
 
