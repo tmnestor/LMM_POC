@@ -1834,21 +1834,24 @@ def calculate_field_accuracy_f1(
                     "fn": 0 if match else 1,
                 }
 
-            # For date fields, use date-aware comparison that normalizes formats
-            # This handles cases like "16/07/2025" vs "16-Jul-25" (same date, different format)
+            # For date fields, use semantic date comparison that handles:
+            # - Date ranges: "1 February 2024 - 28 June 2024" vs "01/02/2024 to 28/06/2024"
+            # - Single dates: "28 June 2024" vs "28/06/2024"
+            # - Month names vs numbers
+            # - Day name prefixes (Tue, Mon, etc.)
             date_field_keywords = ["DATE", "DUE_DATE", "INVOICE_DATE", "STATEMENT_DATE"]
             is_date_field = any(keyword in field_name.upper() for keyword in date_field_keywords)
 
             if is_date_field:
-                # Use fuzzy date comparison from _compare_dates_fuzzy
-                match = _compare_dates_fuzzy(extracted_normalized, ground_truth_normalized)
+                # Use semantic date comparison that handles ranges and format variations
+                score = _compare_date_field(extracted_normalized, ground_truth_normalized, field_name, debug)
                 return {
-                    "f1_score": 1.0 if match else 0.0,
-                    "precision": 1.0 if match else 0.0,
-                    "recall": 1.0 if match else 0.0,
-                    "tp": 1 if match else 0,
-                    "fp": 0 if match else 1,
-                    "fn": 0 if match else 1,
+                    "f1_score": score,
+                    "precision": score,
+                    "recall": score,
+                    "tp": 1 if score > 0 else 0,
+                    "fp": 0 if score > 0 else 1,
+                    "fn": 0 if score > 0 else 1,
                 }
 
             # For single-value monetary fields (GST_AMOUNT, TOTAL_AMOUNT), use monetary comparison with F1-style penalty
