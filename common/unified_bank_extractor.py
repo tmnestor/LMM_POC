@@ -551,7 +551,11 @@ class TransactionFilter:
         debit_col: str,
         desc_col: str | None = None,
     ) -> list[dict[str, str]]:
-        """Filter to only debit transactions with amount > 0."""
+        """Filter to only debit transactions with amount > 0.
+
+        Note: Some statements show debits as negative values (e.g., -$5.00).
+        We use abs() to handle both positive and negative representations.
+        """
         debit_rows = []
         for row in rows:
             debit_value = row.get(debit_col, "").strip()
@@ -561,7 +565,8 @@ class TransactionFilter:
             if debit_value.upper() == "NOT_FOUND":
                 continue
 
-            amount = cls.parse_amount(debit_value)
+            # Use abs() to handle negative amounts (some statements show debits as negative)
+            amount = abs(cls.parse_amount(debit_value))
             if amount <= 0:
                 continue
 
