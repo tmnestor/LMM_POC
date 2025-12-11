@@ -45,6 +45,9 @@ prompts:
       6. Do NOT skip any transactions
       7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
          (Value Date may appear in the description but is NOT the transaction date)
+      8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
+         - {balance_col} example: $223.38 CR
+         - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
   # Used when statement has Amount column (signed values) instead of separate Debit/Credit
