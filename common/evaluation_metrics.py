@@ -268,31 +268,9 @@ def calculate_field_accuracy(
         return score
 
     elif field_types.get(field_name) == "date":
-        # Date fields - flexible matching
-        # Extract date components
-        extracted_numbers = re.findall(r"\d+", extracted)
-        ground_truth_numbers = re.findall(r"\d+", ground_truth)
-
-        # Check if same date components are present
-        if set(extracted_numbers) == set(ground_truth_numbers):
-            if debug:
-                print(
-                    f"    📅 DATE: Components match {extracted_numbers} = {ground_truth_numbers} - score: 1.0"
-                )
-            return 1.0
-
-        # Partial match for dates
-        common = set(extracted_numbers) & set(ground_truth_numbers)
-        if common and len(common) >= 2:  # At least month and day match
-            if debug:
-                print(f"    📅 DATE: Partial match {common} - score: 0.8")
-            return 0.8
-
-        if debug:
-            print(
-                f"    📅 DATE: No match {extracted_numbers} vs {ground_truth_numbers} - score: 0.0"
-            )
-        return 0.0
+        # Date fields - semantic comparison handling date ranges and various formats
+        score = _compare_date_field(extracted, ground_truth, field_name, debug)
+        return score
 
     elif field_name in get_list_fields():
         # List fields - type-aware comparison
@@ -1067,6 +1045,152 @@ def _transaction_item_matches(
     else:
         # Text comparison for descriptions
         return extracted_item.lower().strip() == ground_truth_item.lower().strip()
+
+
+def _compare_date_field(
+    extracted: str, ground_truth: str, field_name: str, debug: bool = False
+) -> float:
+    """
+    Compare date fields with semantic understanding.
+
+    Handles:
+    - Date ranges: "1 February 2024 - 28 June 2024" vs "01/02/2024 to 28/06/2024"
+    - Single dates: "28 June 2024" vs "28/06/2024"
+    - Month names vs numbers: "February" = "02"
+    - Day name prefixes: "Tue 2 Apr 2024" = "02/04/2024"
+    """
+    # Month name to number mapping
+    months = {
+        'jan': 1, 'january': 1,
+        'feb': 2, 'february': 2,
+        'mar': 3, 'march': 3,
+        'apr': 4, 'april': 4,
+        'may': 5,
+        'jun': 6, 'june': 6,
+        'jul': 7, 'july': 7,
+        'aug': 8, 'august': 8,
+        'sep': 9, 'sept': 9, 'september': 9,
+        'oct': 10, 'october': 10,
+        'nov': 11, 'november': 11,
+        'dec': 12, 'december': 12,
+    }
+
+    def parse_single_date(date_str: str) -> tuple[int, int, int] | None:
+        """Parse a single date string to (day, month, year) tuple."""
+        date_str = date_str.strip().lower()
+
+        # Strip day name prefix (Mon, Tue, etc.)
+        day_names = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
+                     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        for day_name in day_names:
+            if date_str.startswith(day_name):
+                date_str = date_str[len(day_name):].strip()
+                break
+
+        # Extract all numbers
+        nums = re.findall(r'\d+', date_str)
+
+        # Check for month names
+        month_num = None
+        for month_name, month_val in months.items():
+            if month_name in date_str:
+                month_num = month_val
+                break
+
+        if not nums:
+            return None
+
+        # Parse based on available information
+        if len(nums) >= 3:
+            # Full numeric date: DD/MM/YYYY or similar
+            day, month, year = int(nums[0]), int(nums[1]), int(nums[2])
+        elif len(nums) == 2 and month_num:
+            # Date with month name: "28 June 2024"
+            day, month, year = int(nums[0]), month_num, int(nums[1])
+        elif len(nums) == 2:
+            # Ambiguous - assume DD/MM or MM/YY
+            day, month, year = int(nums[0]), int(nums[1]), 0
+        else:
+            return None
+
+        # Normalize 2-digit years
+        if year < 100:
+            year = 2000 + year if year <= 50 else 1900 + year
+
+        return (day, month, year)
+
+    def parse_date_range(text: str) -> list[tuple[int, int, int]]:
+        """Parse a date range string into list of (day, month, year) tuples."""
+        # Split on common range separators
+        separators = [' - ', ' to ', ' – ', ' — ', '-']
+        dates = []
+
+        for sep in separators:
+            if sep in text.lower():
+                parts = text.split(sep) if sep != '-' else re.split(r'\s*-\s*', text)
+                # Filter out empty parts and parts that are just numbers (like in "16-Jul-25")
+                parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 4]
+                if len(parts) >= 2:
+                    for part in parts[:2]:  # Take first two date parts
+                        parsed = parse_single_date(part)
+                        if parsed:
+                            dates.append(parsed)
+                    break
+
+        # If no range found, try parsing as single date
+        if not dates:
+            parsed = parse_single_date(text)
+            if parsed:
+                dates.append(parsed)
+
+        return dates
+
+    # Parse both values
+    extracted_dates = parse_date_range(extracted)
+    ground_truth_dates = parse_date_range(ground_truth)
+
+    if debug:
+        print(f"    📅 DATE FIELD: {field_name}")
+        print(f"       Extracted: '{extracted}' → {extracted_dates}")
+        print(f"       Ground truth: '{ground_truth}' → {ground_truth_dates}")
+
+    if not extracted_dates or not ground_truth_dates:
+        if debug:
+            print("       No dates parsed - score: 0.0")
+        return 0.0
+
+    # Compare dates (order-independent for ranges)
+    extracted_set = set(extracted_dates)
+    ground_truth_set = set(ground_truth_dates)
+
+    if extracted_set == ground_truth_set:
+        if debug:
+            print("       Exact match - score: 1.0")
+        return 1.0
+
+    # Partial match - check overlap
+    common = extracted_set & ground_truth_set
+    if common:
+        score = len(common) / max(len(extracted_set), len(ground_truth_set))
+        if debug:
+            print(f"       Partial match: {len(common)} common dates - score: {score}")
+        return score
+
+    # Check if dates are semantically close (same day/month, different format issues)
+    # Compare first dates from each
+    if extracted_dates and ground_truth_dates:
+        e_day, e_month, e_year = extracted_dates[0]
+        g_day, g_month, g_year = ground_truth_dates[0]
+
+        # If day and month match (year might differ due to parsing issues)
+        if e_day == g_day and e_month == g_month:
+            if debug:
+                print("       Day/month match (year differs) - score: 0.8")
+            return 0.8
+
+    if debug:
+        print("       No match - score: 0.0")
+    return 0.0
 
 
 def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
