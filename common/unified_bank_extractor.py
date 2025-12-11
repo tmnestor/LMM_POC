@@ -1317,7 +1317,13 @@ class UnifiedBankExtractor:
         turn0_response: str,
     ) -> ExtractionResult:
         """Execute 2-turn debit-credit extraction for statements without balance."""
+        import sys
+
         import torch
+
+        # DEBUG: Entry point marker
+        sys.__stdout__.write("[UBE] >>> ENTERING _extract_debit_credit_description\n")
+        sys.__stdout__.flush()
 
         # Build Turn 1 prompt with actual column names
         prompt_template = self._prompts["turn1_debit_credit"]
@@ -1327,9 +1333,15 @@ class UnifiedBankExtractor:
             desc_col=mapping.description or "Transaction",
         )
 
-        print("[UBE] Turn 1: Extracting transactions (debit-credit)...")
+        sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt[:500]}...\n")
+        sys.__stdout__.flush()
+
+        sys.__stdout__.write("[UBE] Turn 1: Calling model for extraction (debit-credit)...\n")
+        sys.__stdout__.flush()
         response = self._generate(image, prompt, max_tokens=4096)
-        # Note: Raw response is printed by BankStatementAdapter after bypass context
+        sys.__stdout__.write(f"[UBE]   Raw response length: {len(response)} chars\n")
+        sys.__stdout__.write(f"[UBE]   Response preview:\n{response[:500]}...\n")
+        sys.__stdout__.flush()
 
         # Column name shortcuts
         date_col = mapping.date or "Date"
@@ -1338,6 +1350,8 @@ class UnifiedBankExtractor:
         credit_col = mapping.credit or "Credit"
 
         # Parse response - reuse balance-description parser (same format)
+        sys.__stdout__.write("[UBE] Parsing response...\n")
+        sys.__stdout__.flush()
         all_rows = self.parser.parse_balance_description(
             response,
             date_col=date_col,
@@ -1346,7 +1360,13 @@ class UnifiedBankExtractor:
             credit_col=credit_col,
             balance_col="Balance",  # Placeholder, not used
         )
-        print(f"[UBE]   Parsed {len(all_rows)} transactions")
+        sys.__stdout__.write(f"[UBE]   Parsed {len(all_rows)} transactions\n")
+        # DEBUG: Show first few parsed rows
+        for i, row in enumerate(all_rows[:3]):
+            sys.__stdout__.write(f"[UBE]     Row {i}: {row}\n")
+        if len(all_rows) > 3:
+            sys.__stdout__.write(f"[UBE]     ... and {len(all_rows) - 3} more rows\n")
+        sys.__stdout__.flush()
 
         # Filter for debits
         debit_rows = self.filter.filter_debits(
@@ -1354,7 +1374,8 @@ class UnifiedBankExtractor:
             debit_col=debit_col,
             desc_col=desc_col,
         )
-        print(f"[UBE]   Filtered to {len(debit_rows)} debit transactions")
+        sys.__stdout__.write(f"[UBE]   Filtered to {len(debit_rows)} debit transactions\n")
+        sys.__stdout__.flush()
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND debit)
@@ -1380,7 +1401,10 @@ class UnifiedBankExtractor:
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # DEBUG: Verify array lengths are consistent
-        print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
+        sys.__stdout__.write(f"[UBE]   Final arrays: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}\n")
+        sys.__stdout__.write(f"[UBE]   Date range: {date_range}\n")
+        sys.__stdout__.write("[UBE] <<< EXITING _extract_debit_credit_description\n")
+        sys.__stdout__.flush()
 
         torch.cuda.empty_cache()
 

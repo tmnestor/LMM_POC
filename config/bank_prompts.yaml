@@ -99,7 +99,10 @@ prompts:
       3. Include the FULL description text, not abbreviated
       4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
       5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
-      6. Do NOT skip any transactions
+      6. Do NOT skip any actual transactions - extract them ALL
+      7. SKIP "Opening balance" and "Closing balance" rows - these are NOT transactions
+      8. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
 
   # Turn 0.5: Format classification (3-turn strategy)
   turn0_5_format_classification:
