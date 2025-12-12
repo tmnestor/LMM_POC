@@ -23,37 +23,31 @@ prompts:
     description: "Extract transactions anchored to balance column"
     # Placeholders: {balance_col}, {desc_col}, {debit_col}, {credit_col}
     template: |
-      List all the balances in the {balance_col} column, including:
-      - Date from the Date Header of the balance
-      - {desc_col}
-      - {debit_col} Amount or "NOT_FOUND"
-      - {credit_col} Amount or "NOT_FOUND"
+      Extract ALL transactions from this bank statement table.
 
-      Format each balance entry like this:
+      The table has these columns (left to right): Date, {desc_col}, {debit_col}, {credit_col}, {balance_col}
+
+      For EACH transaction row, extract:
       1. **[Date]**
-         - {desc_col}: [ALL rows of text for this transaction]
-         - {debit_col}: [amount or NOT_FOUND]
-         - {credit_col}: [amount or NOT_FOUND]
-         - {balance_col}: [balance amount]
+         - {desc_col}: [full description text]
+         - {debit_col}: [amount from {debit_col} column, or NOT_FOUND if empty]
+         - {credit_col}: [amount from {credit_col} column, or NOT_FOUND if empty]
+         - {balance_col}: [running total from {balance_col} column]
 
-      CRITICAL RULES:
-      1. List EVERY balance entry in order from top to bottom
-      2. EVERY balance entry has a date, either on the same row, or above
-      3. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction, not abbreviated
-      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
-      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
-      6. Do NOT skip any transactions
-      7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
-         (Value Date may appear in the description but is NOT the transaction date)
-      8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
-         - {balance_col} example: $223.38 CR
-         - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
-      9. COLUMN DISTINCTION (CRITICAL):
-         - {balance_col} contains RUNNING TOTALS - the cumulative balance after each transaction
-         - {debit_col} and {credit_col} contain INDIVIDUAL TRANSACTION amounts
-         - Extract values based on their VISUAL POSITION under each column header
-         - A value under the {balance_col} header goes in {balance_col}, NOT in {credit_col}
-         - The "CR" suffix on {balance_col} means "Credit Balance" - it does NOT mean the value belongs in {credit_col}
+      CRITICAL - COLUMN POSITIONS:
+      - {debit_col} and {credit_col} are SEPARATE columns containing INDIVIDUAL transaction amounts
+      - {balance_col} is the RIGHTMOST column containing RUNNING TOTALS
+      - Read each column by its VISUAL POSITION under its header
+      - Transaction amounts ({debit_col}/{credit_col}) are typically smaller numbers without CR/DR suffix
+      - {balance_col} values are larger cumulative totals, often with CR or DR suffix
+
+      RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction
+      3. If {debit_col} column has an amount, put it there and use NOT_FOUND for {credit_col}
+      4. If {credit_col} column has an amount, put it there and use NOT_FOUND for {debit_col}
+      5. Do NOT put {balance_col} values into {debit_col} or {credit_col} fields
+      6. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
   # Used when statement has Amount column (signed values) instead of separate Debit/Credit
