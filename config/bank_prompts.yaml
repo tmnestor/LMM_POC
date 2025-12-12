@@ -48,6 +48,12 @@ prompts:
       8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
          - {balance_col} example: $223.38 CR
          - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
+      9. COLUMN DISTINCTION (CRITICAL):
+         - {balance_col} contains RUNNING TOTALS - the cumulative balance after each transaction
+         - {debit_col} and {credit_col} contain INDIVIDUAL TRANSACTION amounts
+         - Extract values based on their VISUAL POSITION under each column header
+         - A value under the {balance_col} header goes in {balance_col}, NOT in {credit_col}
+         - The "CR" suffix on {balance_col} means "Credit Balance" - it does NOT mean the value belongs in {credit_col}
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
   # Used when statement has Amount column (signed values) instead of separate Debit/Credit
