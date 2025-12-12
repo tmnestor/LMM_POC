@@ -1148,7 +1148,7 @@ class UnifiedBankExtractor:
             credit_col=mapping.credit or "Credit",
         )
 
-        sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt[:500]}...\n")
+        sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt}\n")
         sys.__stdout__.flush()
 
         sys.__stdout__.write("[UBE] Turn 1: Calling model for extraction...\n")
@@ -1424,7 +1424,7 @@ class UnifiedBankExtractor:
             desc_col=mapping.description or "Transaction",
         )
 
-        sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt[:500]}...\n")
+        sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt}\n")
         sys.__stdout__.flush()
 
         sys.__stdout__.write("[UBE] Turn 1: Calling model for extraction (debit-credit)...\n")
