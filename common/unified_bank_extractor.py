@@ -1348,15 +1348,16 @@ class UnifiedBankExtractor:
         if len(all_rows) > 3:
             _ube_print(f"[UBE]     ... and {len(all_rows) - 3} more rows")
 
-        # Filter for positive amounts (charges/purchases)
-        # For credit card statements: positive = charges you paid for goods/services
-        # Negative amounts (payments/credits) are excluded and become NOT_FOUND
-        charge_rows = self.filter.filter_positive_amounts(
+        # Filter for negative amounts (withdrawals/debits)
+        # For bank statements with signed Amount column:
+        # Negative = withdrawals/debits (money out) - what we want
+        # Positive = deposits/credits (money in) - excluded
+        debit_rows = self.filter.filter_negative_amounts(
             all_rows,
             amount_col=amount_col,
             desc_col=desc_col,
         )
-        _ube_print(f"[UBE]   Filtered to {len(charge_rows)} charge transactions (positive amounts)")
+        _ube_print(f"[UBE]   Filtered to {len(debit_rows)} debit transactions (negative amounts)")
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND amount)
@@ -1364,7 +1365,7 @@ class UnifiedBankExtractor:
         descriptions = []
         amounts = []
         balances = []
-        for r in charge_rows:
+        for r in debit_rows:
             date_val = r.get(date_col, "")
             desc_val = r.get(desc_col, "")
             amount_val = r.get(amount_col, "")
