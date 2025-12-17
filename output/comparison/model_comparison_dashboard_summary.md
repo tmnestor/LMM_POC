@@ -75,6 +75,42 @@ Fields are grouped into five categories for analysis:
 
 *Exclusive to InternVL3.5-8B
 
+## Accuracy vs F1: Understanding the Metrics
+
+This report uses two distinct evaluation metrics that serve different purposes:
+
+### Document-Level Accuracy (`overall_accuracy`)
+
+Used in: **Executive Dashboard**, **Summary Statistics**
+
+- **Definition**: Percentage of fields correctly extracted per document
+- **Formula**: `(fields_matched / total_fields) × 100`
+- **Scope**: Evaluates complete document extraction quality
+- **Scale**: 0-100%
+- **Use case**: Quick comparison of overall model performance
+
+### Per-Field F1 Score
+
+Used in: **Detailed Field Analysis**, **Statistical Comparisons**
+
+- **Definition**: Harmonic mean of Precision and Recall computed per field type
+- **Formula**: `F1 = 2 × (Precision × Recall) / (Precision + Recall)`
+- **Scope**: Evaluates extraction quality for each specific field (e.g., SUPPLIER_NAME, TOTAL_AMOUNT)
+- **Scale**: 0-100%
+- **Use case**: Identifying which fields perform well vs need improvement
+
+### Why These Metrics Differ
+
+The same model may show different values for Accuracy vs F1 because:
+
+1. **Aggregation level**: Accuracy averages across documents; F1 averages across field types
+2. **Field weighting**: Accuracy weights all fields equally per document; F1 treats each field type independently
+3. **List fields impact**: Position-aware F1 for list fields (LINE_ITEM_*) can be stricter than document accuracy
+
+**Example**: A model might achieve 85% document accuracy but 72% mean F1 if it struggles with specific field types like LINE_ITEM_TOTAL_PRICES.
+
+---
+
 ## F1 Calculation Methodology
 
 F1 scores for InternVL3.5-8B were computed using `calculate_field_accuracy_f1()` with **position-aware matching**:
