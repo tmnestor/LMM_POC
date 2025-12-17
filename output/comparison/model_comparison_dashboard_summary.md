@@ -18,7 +18,7 @@ InternVL3.5-8B underperforms LayoutLM on two fields:
 | Field | InternVL3.5-8B | LayoutLM | Gap |
 |-------|----------------|----------|-----|
 | LINE_ITEM_TOTAL_PRICES | 29% | 51% | -22% |
-| PAYER_NAME | 79% | 89% | -10% |
+| LINE_ITEM_DESCRIPTIONS | 44% | 56% | -12% |
 
 ## Statistical Significance
 
