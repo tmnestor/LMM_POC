@@ -28,6 +28,53 @@ The improvement is statistically significant (p=0.0105) with a **large effect si
 
 InternVL3.5-8B exclusively supports DOCUMENT_TYPE (72.8%) and STATEMENT_DATE_RANGE (92.8%)—fields unavailable in LayoutLM—with 82.8% mean accuracy.
 
+## Schema Fields
+
+The evaluation covers 17 fields extracted from business documents (invoices, receipts, bank statements):
+
+| Field | Description |
+|-------|-------------|
+| DOCUMENT_TYPE | Classification: Invoice, Receipt, or Bank Statement |
+| BUSINESS_ABN | Australian Business Number (11-digit identifier) |
+| SUPPLIER_NAME | Vendor or merchant name |
+| BUSINESS_ADDRESS | Supplier's address |
+| PAYER_NAME | Customer or payer name |
+| PAYER_ADDRESS | Customer's address |
+| INVOICE_DATE | Date of invoice or receipt |
+| LINE_ITEM_DESCRIPTIONS | Product/service descriptions (list) |
+| LINE_ITEM_QUANTITIES | Quantities per line item (list) |
+| LINE_ITEM_PRICES | Unit prices per line item (list) |
+| LINE_ITEM_TOTAL_PRICES | Extended prices per line item (list) |
+| IS_GST_INCLUDED | Whether GST is included in totals |
+| GST_AMOUNT | Goods and Services Tax amount |
+| TOTAL_AMOUNT | Invoice/receipt total |
+| STATEMENT_DATE_RANGE | Bank statement period |
+| TRANSACTION_DATES | Dates of bank transactions (list) |
+| TRANSACTION_AMOUNTS_PAID | Transaction amounts (list) |
+
+### Critical Fields
+
+Four fields are designated as **critical** due to their importance for financial reconciliation:
+
+- **BUSINESS_ABN**: Required for tax compliance and vendor identification
+- **SUPPLIER_NAME**: Essential for vendor matching
+- **GST_AMOUNT**: Required for GST/BAS reporting
+- **TOTAL_AMOUNT**: Core financial data for reconciliation
+
+### Field Categories (Panel B)
+
+Fields are grouped into five categories for analysis:
+
+| Category | Fields |
+|----------|--------|
+| **Identity** | DOCUMENT_TYPE*, BUSINESS_ABN, SUPPLIER_NAME |
+| **Address** | BUSINESS_ADDRESS, PAYER_NAME, PAYER_ADDRESS |
+| **Dates** | INVOICE_DATE, STATEMENT_DATE_RANGE*, TRANSACTION_DATES |
+| **Line Items** | LINE_ITEM_DESCRIPTIONS, LINE_ITEM_QUANTITIES, LINE_ITEM_PRICES, LINE_ITEM_TOTAL_PRICES |
+| **Financial** | IS_GST_INCLUDED, GST_AMOUNT, TOTAL_AMOUNT, TRANSACTION_AMOUNTS_PAID |
+
+*Exclusive to InternVL3.5-8B
+
 ## F1 Calculation Methodology
 
 F1 scores for InternVL3.5-8B were computed using `calculate_field_accuracy_f1()` with **position-aware matching**:
