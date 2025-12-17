@@ -133,4 +133,34 @@ Uses **position-aware (order-aware)** matching where items must match both in va
 - Recall = TP / (TP + FN)
 - F1 = 2 × (Precision × Recall) / (Precision + Recall)
 
+### Position-Aware Matching Example
+
+```
+Ground Truth: ["apple", "banana", "cherry"]
+Extracted:    ["banana", "apple", "cherry"]
+
+Position 0: "banana" ≠ "apple"  → FP + FN
+Position 1: "apple" ≠ "banana" → FP + FN
+Position 2: "cherry" = "cherry" → TP
+
+Result: TP=1, FP=2, FN=2
+Precision = 1/3 = 33.3%
+Recall = 1/3 = 33.3%
+F1 = 33.3%
+```
+
 This strict position-aware approach penalizes ordering errors, ensuring extracted line items align correctly with ground truth.
+
+### Alternative: Position-Agnostic Matching
+
+A separate function `calculate_field_accuracy_f1_position_agnostic()` is available for set-based matching where order doesn't matter:
+
+```
+Ground Truth: ["apple", "banana", "cherry"]
+Extracted:    ["banana", "apple", "cherry"]
+
+Set comparison: All 3 items present
+Result: TP=3, FP=0, FN=0 → F1 = 100%
+```
+
+The notebook uses **position-aware** matching by default for stricter evaluation.
