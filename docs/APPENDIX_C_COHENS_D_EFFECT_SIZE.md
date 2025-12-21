@@ -8,11 +8,14 @@ Cohen's d is a standardized measure of effect size that quantifies the magnitude
 
 For comparing models across the same schema fields, we use the **paired samples** formula:
 
-$$d = \frac{\bar{D}}{s_D}$$
+```
+d = mean(differences) / std(differences)
+```
 
 Where:
-- $\bar{D}$ = Mean of the difference scores (Model A F1 - Model B F1 per field)
-- $s_D$ = Standard deviation of the difference scores
+- **differences** = Model A F1 score minus Model B F1 score, computed for each field
+- **mean(differences)** = Average of these difference scores across all fields
+- **std(differences)** = Standard deviation of the difference scores
 
 This paired approach is appropriate because each schema field serves as its own control, and the same 17 fields are evaluated across all models.
 
