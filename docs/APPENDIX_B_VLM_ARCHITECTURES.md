@@ -140,12 +140,12 @@ Chen, Z., et al. (2025). *InternVL3: Exploring the Upper Bound of Multimodal Lar
 | Benchmark | Llama-3.2-11B | InternVL3-2B | InternVL3.5-8B |
 |:----------|:-------------:|:------------:|:--------------:|
 | DocVQA | 88.4 | 88.3 | 93.0 |
-| OCRBench | 805 | 835 | 822 |
-| ChartQA | 83.4 | 76.7 | 84.8 |
-| TextVQA | 73.1 | 70.5 | 77.5 |
-| MMMU | 50.7 | 46.2 | 56.0 |
+| MMMU | 50.7 | 46.2 | 73.4 |
+| MathVista | 51.5 | - | - |
 
-*Scores from official model documentation and published benchmarks.*
+*Sources: Llama scores from Meta AI official benchmarks. InternVL scores from arXiv:2504.10479 (InternVL3) and arXiv:2508.18265 (InternVL3.5). For complete benchmark tables, refer to the original papers.*
+
+**Note**: Benchmark scores should be interpreted cautiously as they may not reflect real-world document extraction performance. Our empirical evaluation (Section D) provides task-specific metrics.
 
 ### Practical Trade-offs
 
