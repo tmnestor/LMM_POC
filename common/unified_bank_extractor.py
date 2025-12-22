@@ -536,7 +536,10 @@ class ResponseParser:
                     unlabeled_text = unlabeled_match.group(1).strip()
 
                     # If no description yet, this IS the description
-                    if desc_col not in current_transaction or not current_transaction.get(desc_col):
+                    if (
+                        desc_col not in current_transaction
+                        or not current_transaction.get(desc_col)
+                    ):
                         current_transaction[desc_col] = unlabeled_text
                         last_field_was_description = True
                     # If we already have description and last field was description, append
@@ -816,7 +819,10 @@ class BalanceCorrector:
                     # Debit is already correct - keep it, set credit to NOT_FOUND
                     corrected_row[credit_col] = "NOT_FOUND"
                 # Check if credit has the correct value (misclassified)
-                elif llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
+                elif (
+                    llm_credit > 0
+                    and abs(llm_credit - expected_amount) < self.tolerance
+                ):
                     # Move credit value to debit column
                     corrected_row[debit_col] = row.get(credit_col, "")
                     corrected_row[credit_col] = "NOT_FOUND"
@@ -834,11 +840,16 @@ class BalanceCorrector:
                 expected_amount = abs(balance_delta)
 
                 # Check if credit already has the correct value
-                if llm_credit > 0 and abs(llm_credit - expected_amount) < self.tolerance:
+                if (
+                    llm_credit > 0
+                    and abs(llm_credit - expected_amount) < self.tolerance
+                ):
                     # Credit is already correct - keep it, set debit to NOT_FOUND
                     corrected_row[debit_col] = "NOT_FOUND"
                 # Check if debit has the correct value (misclassified)
-                elif llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance:
+                elif (
+                    llm_debit > 0 and abs(llm_debit - expected_amount) < self.tolerance
+                ):
                     # Move debit value to credit column
                     corrected_row[credit_col] = row.get(debit_col, "")
                     corrected_row[debit_col] = "NOT_FOUND"
@@ -929,9 +940,7 @@ class BalanceCorrector:
             return False, "Same date for first and last transaction"
 
     @staticmethod
-    def sort_by_date(
-        rows: list[dict[str, str]], date_col: str
-    ) -> list[dict[str, str]]:
+    def sort_by_date(rows: list[dict[str, str]], date_col: str) -> list[dict[str, str]]:
         """Sort rows chronologically by date (oldest first).
 
         Args:
@@ -1070,7 +1079,9 @@ class UnifiedBankExtractor:
         _ube_print(f"  Amount column: {mapping.amount or 'NOT FOUND'}")
         _ube_print(f"  Debit column: {mapping.debit or 'NOT FOUND'}")
         _ube_print(f"  Credit column: {mapping.credit or 'NOT FOUND'}")
-        _ube_print(f"  has_balance={mapping.has_balance}, has_amount={has_amount}, has_debit_or_credit={has_debit_or_credit}")
+        _ube_print(
+            f"  has_balance={mapping.has_balance}, has_amount={has_amount}, has_debit_or_credit={has_debit_or_credit}"
+        )
 
         if force_strategy:
             strategy = force_strategy
@@ -1155,7 +1166,9 @@ class UnifiedBankExtractor:
         sys.__stdout__.flush()
         try:
             response = self._generate(image, prompt, max_tokens=4096)
-            sys.__stdout__.write(f"[UBE]   Raw response length: {len(response)} chars\n")
+            sys.__stdout__.write(
+                f"[UBE]   Raw response length: {len(response)} chars\n"
+            )
             sys.__stdout__.write(f"[UBE]   Response preview:\n{response[:500]}...\n")
             sys.__stdout__.flush()
         except Exception as e:
@@ -1191,7 +1204,9 @@ class UnifiedBankExtractor:
 
         # Optionally apply balance correction (sort to chronological order first)
         correction_stats = None
-        sys.__stdout__.write(f"[UBE]   use_balance_correction={self.use_balance_correction}\n")
+        sys.__stdout__.write(
+            f"[UBE]   use_balance_correction={self.use_balance_correction}\n"
+        )
         sys.__stdout__.flush()
         if self.use_balance_correction:
             # Check if transactions are in chronological order
@@ -1223,7 +1238,9 @@ class UnifiedBankExtractor:
                 debit_val = row.get(debit_col, "")
                 credit_val = row.get(credit_col, "")
                 desc = row.get(desc_col, "")[:30]
-                sys.__stdout__.write(f"[UBE]     {i}: D={debit_val or 'N/A':10} C={credit_val or 'N/A':10} {desc}\n")
+                sys.__stdout__.write(
+                    f"[UBE]     {i}: D={debit_val or 'N/A':10} C={credit_val or 'N/A':10} {desc}\n"
+                )
             sys.__stdout__.flush()
         else:
             corrected_rows = all_rows
@@ -1235,7 +1252,9 @@ class UnifiedBankExtractor:
             desc_col=desc_col,
         )
         sys.__stdout__.write(f"[UBE]   After correction: {len(corrected_rows)} rows\n")
-        sys.__stdout__.write(f"[UBE]   After debit filter: {len(debit_rows)} debit transactions\n")
+        sys.__stdout__.write(
+            f"[UBE]   After debit filter: {len(debit_rows)} debit transactions\n"
+        )
         # DEBUG: Show which rows passed the filter
         sys.__stdout__.write("[UBE]   Debit rows:\n")
         for i, row in enumerate(debit_rows):
@@ -1270,7 +1289,9 @@ class UnifiedBankExtractor:
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # DEBUG: Verify array lengths are consistent
-        sys.__stdout__.write(f"[UBE]   Final arrays: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}\n")
+        sys.__stdout__.write(
+            f"[UBE]   Final arrays: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}\n"
+        )
         sys.__stdout__.write(f"[UBE]   Date range: {date_range}\n")
         sys.__stdout__.write("[UBE] <<< EXITING _extract_balance_description\n")
         sys.__stdout__.flush()
@@ -1357,7 +1378,9 @@ class UnifiedBankExtractor:
             amount_col=amount_col,
             desc_col=desc_col,
         )
-        _ube_print(f"[UBE]   Filtered to {len(debit_rows)} debit transactions (negative amounts)")
+        _ube_print(
+            f"[UBE]   Filtered to {len(debit_rows)} debit transactions (negative amounts)"
+        )
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
         # Only include rows that have the minimum required fields (date AND description AND amount)
@@ -1384,7 +1407,9 @@ class UnifiedBankExtractor:
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # DEBUG: Verify array lengths are consistent
-        _ube_print(f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}")
+        _ube_print(
+            f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}"
+        )
 
         torch.cuda.empty_cache()
 
@@ -1428,7 +1453,9 @@ class UnifiedBankExtractor:
         sys.__stdout__.write(f"[UBE] Turn 1 Prompt:\n{prompt}\n")
         sys.__stdout__.flush()
 
-        sys.__stdout__.write("[UBE] Turn 1: Calling model for extraction (debit-credit)...\n")
+        sys.__stdout__.write(
+            "[UBE] Turn 1: Calling model for extraction (debit-credit)...\n"
+        )
         sys.__stdout__.flush()
         response = self._generate(image, prompt, max_tokens=4096)
         sys.__stdout__.write(f"[UBE]   Raw response length: {len(response)} chars\n")
@@ -1466,7 +1493,9 @@ class UnifiedBankExtractor:
             debit_col=debit_col,
             desc_col=desc_col,
         )
-        sys.__stdout__.write(f"[UBE]   Filtered to {len(debit_rows)} debit transactions\n")
+        sys.__stdout__.write(
+            f"[UBE]   Filtered to {len(debit_rows)} debit transactions\n"
+        )
         sys.__stdout__.flush()
 
         # Extract schema fields - use consistent filtering to ensure all arrays have same length
@@ -1493,7 +1522,9 @@ class UnifiedBankExtractor:
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
 
         # DEBUG: Verify array lengths are consistent
-        sys.__stdout__.write(f"[UBE]   Final arrays: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}\n")
+        sys.__stdout__.write(
+            f"[UBE]   Final arrays: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}\n"
+        )
         sys.__stdout__.write(f"[UBE]   Date range: {date_range}\n")
         sys.__stdout__.write("[UBE] <<< EXITING _extract_debit_credit_description\n")
         sys.__stdout__.flush()
@@ -1554,10 +1585,16 @@ class UnifiedBankExtractor:
         descriptions = parse_list(descriptions_str)
         amounts = parse_list(amounts_str)
 
-        _ube_print(f"[UBE]   Parsed: {len(dates)} dates, {len(descriptions)} descriptions, {len(amounts)} amounts")
+        _ube_print(
+            f"[UBE]   Parsed: {len(dates)} dates, {len(descriptions)} descriptions, {len(amounts)} amounts"
+        )
 
         # Ensure arrays are same length (truncate to shortest)
-        min_len = min(len(dates), len(descriptions), len(amounts)) if dates and descriptions and amounts else 0
+        min_len = (
+            min(len(dates), len(descriptions), len(amounts))
+            if dates and descriptions and amounts
+            else 0
+        )
         if min_len > 0:
             dates = dates[:min_len]
             descriptions = descriptions[:min_len]
@@ -1575,7 +1612,9 @@ class UnifiedBankExtractor:
         # This handles reverse-chronological statements correctly
         if dates:
             computed_date_range = self._compute_date_range(dates)
-            _ube_print(f"[UBE]   Date range: {statement_date_range} → {computed_date_range} (computed from transactions)")
+            _ube_print(
+                f"[UBE]   Date range: {statement_date_range} → {computed_date_range} (computed from transactions)"
+            )
             statement_date_range = computed_date_range
 
         torch.cuda.empty_cache()
@@ -1765,8 +1804,20 @@ class UnifiedBankExtractor:
 
         # Preprocess image
         pixel_values = self._preprocess_image_internvl3(image)
+
+        # Get device from model (respects multi-GPU distribution via accelerate)
+        # For models with device_map, vision_model is typically on GPU 0
+        if hasattr(self.model, "hf_device_map"):
+            # Multi-GPU: use vision_model device or first available
+            device = self.model.hf_device_map.get("vision_model", 0)
+            if isinstance(device, int):
+                device = f"cuda:{device}"
+        else:
+            # Single GPU: use model's device
+            device = next(self.model.parameters()).device
+
         pixel_values = pixel_values.to(
-            dtype=self.model_dtype or torch.bfloat16, device="cuda:0"
+            dtype=self.model_dtype or torch.bfloat16, device=device
         )
 
         response = self.model.chat(
