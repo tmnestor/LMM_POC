@@ -1,0 +1,382 @@
+(* ::Package:: *)
+
+(* Southern Cross, Pointers, and South Celestial Pole Star Chart *)
+(* South polar stereographic projection - as seen looking UP at the sky *)
+
+(* === CLEAR PREVIOUS DEFINITIONS === *)
+Clear[raToRad, decToRad, starProject, stars, starData,
+  magnitude, starSize, starColor, decCircle, raLine,
+  crossLines, pointerLine, scpLine, bisectorLine, chart];
+
+(* === STAR DATA === *)
+(* Format: {Name, RA (hours, minutes), Dec (degrees, arcmin), Magnitude} *)
+(* Positive Dec values here represent SOUTH declination *)
+
+starData = {
+  (* Southern Cross (Crux) *)
+  {"Acrux", {12, 26}, {63, 6}, 0.76},
+  {"Mimosa", {12, 47}, {59, 41}, 1.25},
+  {"Gacrux", {12, 31}, {57, 7}, 1.63},
+  {"\[Delta] Cru", {12, 15}, {58, 45}, 2.79},
+  {"\[Epsilon] Cru", {12, 21}, {60, 24}, 3.59},
+
+  (* Pointer Stars *)
+  {"Rigil Kent", {14, 39}, {60, 50}, -0.27},
+  {"Hadar", {14, 4}, {60, 22}, 0.61},
+
+  (* Achernar *)
+  {"Achernar", {1, 37}, {57, 14}, 0.46}
+};
+
+(* === COORDINATE CONVERSION === *)
+(* Convert RA (hours, minutes) to radians *)
+raToRad[{h_, m_}] := (h + m/60) * (2 Pi / 24);
+
+(* Convert Dec (degrees, arcmin) to decimal degrees *)
+decToDeg[{d_, m_}] := d + m/60;
+
+(* Stereographic projection from south pole *)
+(* Looking UP at sky, so RA increases clockwise (east to left) *)
+(* r = 90 - dec (so pole is at center, dec=90 maps to r=0) *)
+starProject[ra_, dec_] := Module[{r, theta},
+  r = 90 - dec;  (* Distance from pole in degrees *)
+  theta = -ra;   (* Negative for "looking up" view (east to left) *)
+  r * {Cos[theta], Sin[theta]}
+];
+
+(* === PROCESS STAR DATA === *)
+stars = Table[
+  Module[{name, ra, dec, mag, pos},
+    name = starData[[i, 1]];
+    ra = raToRad[starData[[i, 2]]];
+    dec = decToDeg[starData[[i, 3]]];
+    mag = starData[[i, 4]];
+    pos = starProject[ra, dec];
+    {name, pos, mag}
+  ],
+  {i, Length[starData]}
+];
+
+(* === STAR APPEARANCE === *)
+(* Size based on magnitude (brighter = larger) *)
+starSize[mag_] := 0.018 * (3 - mag/2);
+
+(* Color: white/blue-white for hot stars, orange for Gacrux *)
+starColor[name_] := If[name == "Gacrux",
+  RGBColor[1, 0.7, 0.4],  (* Orange-red *)
+  White
+];
+
+(* === CONSTELLATION LINES === *)
+(* Southern Cross: connect the four main stars *)
+acruxPos = stars[[1, 2]];
+mimosaPos = stars[[2, 2]];
+gacruxPos = stars[[3, 2]];
+deltaCruPos = stars[[4, 2]];
+
+crossLines = {
+  Line[{acruxPos, gacruxPos}],      (* Vertical bar *)
+  Line[{mimosaPos, deltaCruPos}]    (* Horizontal bar *)
+};
+
+(* Pointer line *)
+rigilPos = stars[[6, 2]];
+hadarPos = stars[[7, 2]];
+pointerLine = Line[{rigilPos, hadarPos}];
+
+(* === FINDING THE SOUTH CELESTIAL POLE === *)
+(* Method 1: Extend Cross axis 4.5x *)
+crossVector = gacruxPos - acruxPos;
+crossLength = Norm[crossVector];
+scpFromCross = acruxPos + 4.5 * (acruxPos - gacruxPos);
+
+(* Method 2: Perpendicular bisector of Pointers *)
+pointerMidpoint = (rigilPos + hadarPos) / 2;
+pointerVector = hadarPos - rigilPos;
+perpVector = {-pointerVector[[2]], pointerVector[[1]]};
+perpNormalized = Normalize[perpVector];
+
+(* SCP position (at origin in this projection) *)
+scpPos = {0, 0};
+
+(* Lines showing how to find SCP *)
+extendedCrossLine = Line[{gacruxPos, gacruxPos + 5.5 * (acruxPos - gacruxPos)}];
+bisectorLine = Line[{pointerMidpoint, pointerMidpoint + 35 * perpNormalized}];
+
+(* === DECLINATION CIRCLES === *)
+decCircles = Table[
+  {Gray, Opacity[0.3], Thickness[0.001],
+   Circle[{0, 0}, 90 - dec]},
+  {dec, 60, 80, 10}
+];
+
+decLabels = Table[
+  Text[Style[ToString[-dec] <> "\[Degree]", 9, Gray],
+    {(90 - dec) * 1.08, 0}],
+  {dec, 60, 80, 10}
+];
+
+(* === RA LINES === *)
+raLines = Table[
+  {Gray, Opacity[0.2], Thickness[0.001],
+   Line[{{0, 0}, 35 * {Cos[-ra * 2 Pi/24], Sin[-ra * 2 Pi/24]}}]},
+  {ra, 0, 23, 3}
+];
+
+raLabels = Table[
+  Text[Style[ToString[ra] <> "h", 9, Gray],
+    38 * {Cos[-ra * 2 Pi/24], Sin[-ra * 2 Pi/24]}],
+  {ra, 0, 21, 3}
+];
+
+(* === ACHERNAR POSITION === *)
+achernarPos = stars[[8, 2]];
+
+(* === CREATE THE CHART === *)
+chart = Graphics[{
+  (* Background *)
+  Black,
+  Rectangle[{-50, -50}, {50, 50}],
+
+  (* Coordinate grid *)
+  decCircles,
+  raLines,
+
+  (* Labels for grid *)
+  decLabels,
+  raLabels,
+
+  (* Finding SCP - Method 1: Extended Cross line *)
+  {Cyan, Opacity[0.6], Dashed, Thickness[0.003],
+   extendedCrossLine},
+
+  (* Finding SCP - Method 2: Perpendicular bisector *)
+  {Magenta, Opacity[0.6], Dashed, Thickness[0.003],
+   bisectorLine},
+
+  (* Constellation lines *)
+  {Yellow, Opacity[0.5], Thickness[0.004],
+   crossLines},
+  {Yellow, Opacity[0.5], Thickness[0.004],
+   pointerLine},
+
+  (* Line from Cross to indicate extension *)
+  {Cyan, Opacity[0.4], Thickness[0.002],
+   Line[{acruxPos, gacruxPos}]},
+
+  (* Stars *)
+  Table[
+    {starColor[stars[[i, 1]]],
+     Disk[stars[[i, 2]], starSize[stars[[i, 3]]]]},
+    {i, Length[stars]}
+  ],
+
+  (* Star labels *)
+  {White,
+   Text[Style["Acrux", 10, Bold], acruxPos + {2, -2}],
+   Text[Style["Mimosa", 10, Bold], mimosaPos + {3, 1}],
+   Text[Style["Gacrux", 10, Bold], gacruxPos + {2, 2}],
+   Text[Style["\[Delta]", 9], deltaCruPos + {-2, 1}],
+   Text[Style["\[Epsilon]", 9], stars[[5, 2]] + {-2, -1}],
+   Text[Style["Rigil Kentaurus", 10, Bold], rigilPos + {0, -3}],
+   Text[Style["Hadar", 10, Bold], hadarPos + {0, 3}],
+   Text[Style["Achernar", 10, Bold], achernarPos + {3, 2}]
+  },
+
+  (* South Celestial Pole *)
+  {Red, PointSize[0.02], Point[scpPos]},
+  {White,
+   Text[Style["South Celestial Pole", 11, Bold, Red], {0, -4}]},
+
+  (* Constellation labels *)
+  {Cyan,
+   Text[Style["CRUX", 12, Bold], {(acruxPos[[1]] + gacruxPos[[1]])/2 - 6,
+     (acruxPos[[2]] + gacruxPos[[2]])/2}]},
+  {Yellow,
+   Text[Style["Pointers", 11, Italic],
+     (rigilPos + hadarPos)/2 + {0, 4}]},
+
+  (* Legend for finding SCP *)
+  {Cyan,
+   Text[Style["4.5\[Times] Cross length", 9], {-15, -22}]},
+  {Magenta,
+   Text[Style["\[UpArrow] Bisector of Pointers", 9], {20, -15}]},
+
+  (* Achernar constellation label *)
+  {LightBlue,
+   Text[Style["ERIDANUS", 10], achernarPos + {5, -3}]}
+},
+  PlotRange -> {{-45, 45}, {-45, 45}},
+  ImageSize -> 700,
+  Background -> Black,
+  PlotLabel -> Style["Southern Sky - Finding the South Celestial Pole",
+    18, Bold, White],
+  Epilog -> {
+    Inset[
+      Framed[
+        Column[{
+          Style["NAVIGATION GUIDE:", Bold, 12, White],
+          "",
+          Style["To find the South Celestial Pole:", 10, White],
+          Style["1. Extend Cross (Gacrux\[Rule]Acrux) 4.5\[Times]", 10, Cyan],
+          Style["2. Perpendicular from Pointer midpoint", 10, Magenta],
+          Style["Both methods intersect at SCP", 10, White],
+          "",
+          Style["Stars shown:", 10, White],
+          Style["\[Bullet] Crux (Southern Cross) - 5 stars", 9, Yellow],
+          Style["\[Bullet] Pointers (\[Alpha],\[Beta] Centauri)", 9, Yellow],
+          Style["\[Bullet] Achernar (\[Alpha] Eridani)", 9, LightBlue]
+        }, Alignment -> Left, Spacings -> 0.2],
+        Background -> Darker[Blue, 0.8],
+        FrameStyle -> Gray,
+        RoundingRadius -> 5
+      ],
+      Scaled[{0.01, 0.99}], {-1, 1}
+    ]
+  }
+]
+
+(* === ALTERNATIVE VIEW: Horizon perspective === *)
+(* This shows how the Cross appears when looking south *)
+(* CORRECTED: Pointers are EAST (left) of the Cross *)
+(* Both methods of finding SCP now intersect correctly *)
+
+horizonView = Module[{
+  (* Define SCP position *)
+  scpPos = {-1, 1.5},
+
+  (* Cross positions - line from Gacrux through Acrux passes through SCP *)
+  (* Verified: {1,8} to {0,4.75} extended hits {-1,1.5} *)
+  gacruxPos = {1, 8},
+  acruxPos = {0, 4.75},
+
+  (* Pointer positions - perpendicular bisector passes through SCP *)
+  (* Midpoint at {-6,6}, perpendicular direction {2.2,-2} hits SCP *)
+  rigilPos = {-7, 4.9},
+  hadarPos = {-5, 7.1},
+
+  pointerMid, pointerVec, perpVec,
+  mimosaPos, deltaPos, epsilonPos,
+  crossbarCenter, crossVec, crossPerp
+  },
+
+  (* Calculate pointer geometry *)
+  pointerMid = (rigilPos + hadarPos)/2;  (* = {-6, 6} *)
+  pointerVec = hadarPos - rigilPos;       (* = {2, 2.2} *)
+  perpVec = Normalize[{pointerVec[[2]], -pointerVec[[1]]}];  (* Points toward SCP *)
+
+  (* Calculate cross geometry *)
+  crossVec = Normalize[gacruxPos - acruxPos];
+  crossPerp = {-crossVec[[2]], crossVec[[1]]};
+
+  (* Crossbar is about 1/3 down from Gacrux, NOT at center *)
+  crossbarCenter = gacruxPos + 0.35 * (acruxPos - gacruxPos);
+
+  (* Cross arm positions - Mimosa left (east), Delta right (west) *)
+  mimosaPos = crossbarCenter + 1.3 * crossPerp;
+  deltaPos = crossbarCenter - 1.1 * crossPerp;
+
+  (* Epsilon is between crossbar and Acrux, slightly offset toward Mimosa *)
+  epsilonPos = gacruxPos + 0.65 * (acruxPos - gacruxPos) + 0.25 * crossPerp;
+
+  Graphics[{
+    (* Sky background gradient *)
+    {Darker[Blue, 0.7], Rectangle[{-10, 0}, {10, 12}]},
+    {Darker[Blue, 0.9], Rectangle[{-10, -1}, {10, 0}]},
+
+    (* Horizon line *)
+    {Gray, Thickness[0.003], Line[{{-10, 0}, {10, 0}}]},
+    {White, Text[Style["HORIZON (Looking South)", 10], {0, -0.5}]},
+
+    (* Pointers - EAST (left) of the Cross *)
+    {White, PointSize[0.03], Point[rigilPos]},
+    {White, PointSize[0.022], Point[hadarPos]},
+    {Yellow, Opacity[0.5], Thickness[0.003],
+     Line[{rigilPos, hadarPos}]},
+    {White, Text[Style["Rigil Kent", 9], rigilPos + {-0.5, -0.6}]},
+    {White, Text[Style["Hadar", 9], hadarPos + {0.5, 0.4}]},
+    {Yellow, Text[Style["Pointers", 10, Italic], pointerMid + {0, -1.2}]},
+
+    (* Southern Cross stars *)
+    {White, PointSize[0.025], Point[acruxPos]},      (* Acrux - brightest *)
+    {White, PointSize[0.02], Point[mimosaPos]},      (* Mimosa *)
+    {RGBColor[1, 0.7, 0.4], PointSize[0.02], Point[gacruxPos]},  (* Gacrux - orange *)
+    {White, PointSize[0.012], Point[deltaPos]},      (* Delta *)
+    {White, PointSize[0.01], Point[epsilonPos]},     (* Epsilon - smallest *)
+
+    (* Cross constellation lines *)
+    {Yellow, Opacity[0.5], Thickness[0.003],
+     Line[{acruxPos, gacruxPos}],      (* Long axis *)
+     Line[{deltaPos, mimosaPos}]},     (* Short axis *)
+
+    (* Star labels *)
+    {White, Text[Style["Gacrux", 9], gacruxPos + {0.8, 0.3}]},
+    {White, Text[Style["Acrux", 9], acruxPos + {0.8, -0.3}]},
+    {White, Text[Style["Mimosa", 8], mimosaPos + {0.6, 0.3}]},
+    {White, Text[Style["\[Delta]", 8], deltaPos + {-0.7, 0.3}]},
+    {White, Text[Style["\[Epsilon]", 8], epsilonPos + {0.6, -0.3}]},
+    {Cyan, Text[Style["CRUX", 11, Bold], crossbarCenter + {2.8, 0}]},
+
+    (* METHOD 1: Extended Cross axis (cyan) *)
+    {Cyan, Dashed, Thickness[0.003],
+     Line[{gacruxPos, scpPos}]},
+
+    (* METHOD 2: Perpendicular bisector of Pointers (magenta) *)
+    {Magenta, Dashed, Thickness[0.003],
+     Line[{pointerMid, scpPos}]},
+    {Magenta, Text[Style["\[LeftArrow] bisector", 9, Italic],
+      pointerMid + {1.5, -0.5}]},
+
+    (* South Celestial Pole - where both lines meet *)
+    {Red, PointSize[0.02], Point[scpPos]},
+    {White, Text[Style["SCP", 11, Bold, Red], scpPos + {0.8, 0}]},
+
+    (* Projection from SCP to horizon - shows TRUE SOUTH *)
+    {Red, Thickness[0.003], Dotted,
+     Line[{scpPos, {scpPos[[1]], 0}}]},
+    {Red, PointSize[0.012], Point[{scpPos[[1]], 0}]},
+    {White, Text[Style["True South", 10, Bold], {scpPos[[1]], 0.6}]},
+
+    (* Canopus - bright star to the west *)
+    {White, PointSize[0.028], Point[{7, 4}]},
+    {White, Text[Style["Canopus", 10], {7, 3.3}]},
+    {LightBlue, Text[Style["(Carina)", 9, Italic], {7, 2.8}]},
+
+    (* Direction labels *)
+    {White, Text[Style["E", 12, Bold], {-9, 0.5}]},
+    {White, Text[Style["W", 12, Bold], {9, 0.5}]},
+
+    (* Legend *)
+    {White, Text[Style["Finding SCP:", 9, Bold], {6, 10.5}]},
+    {Cyan, Text[Style["- Extend Cross axis", 8], {6, 9.8}]},
+    {Magenta, Text[Style["- Pointer bisector", 8], {6, 9.2}]}
+  },
+    PlotRange -> {{-10, 10}, {-1, 12}},
+    ImageSize -> 700,
+    Background -> Darker[Blue, 0.85],
+    AspectRatio -> 0.6,
+    PlotLabel -> Style["Southern Cross - Horizon View (from ~35\[Degree]S)",
+      16, Bold, White]
+  ]
+]
+
+(* === DISPLAY INSTRUCTIONS === *)
+(* Evaluate 'chart' for the polar star chart view *)
+(* Evaluate 'horizonView' for the horizon perspective *)
+
+
+
+
+
+(* ============================================ *)
+(* === EXPORT - Uncomment to save files === *)
+(* ============================================ *)
+
+
+Export[FileNameJoin[{NotebookDirectory[], "southern_cross_chart.pdf"}], chart]
+Export[FileNameJoin[{NotebookDirectory[], "southern_cross_chart.png"}], chart]
+Export[FileNameJoin[{NotebookDirectory[], "southern_cross_horizon.pdf"}], horizonView]
+Export[FileNameJoin[{NotebookDirectory[], "southern_cross_horizon.png"}], horizonView]
+
+
+
