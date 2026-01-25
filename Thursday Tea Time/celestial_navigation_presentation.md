@@ -1704,6 +1704,208 @@ The difference of about 30 nautical miles demonstrates why using the correct met
 
 ---
 
+## Path Angle Method (Time-Lapse Observation)
+
+A time-lapse of sunrise or sunset reveals the **angle of the sun's path** relative to the horizon. This angle is directly related to your latitude and provides an alternative method for position determination - one that doesn't require a compass.
+
+### The Principle
+
+The sun doesn't rise or set vertically (except at the equator). The angle its path makes with the horizon depends on your latitude:
+
+| Latitude | Path Angle | Sun's Motion |
+|----------|------------|--------------|
+| Equator (0°) | 90° | Rises/sets vertically |
+| 30° | ~60° | Steep diagonal |
+| 45° | ~45° | 45° diagonal |
+| 60° | ~30° | Shallow angle |
+| Near poles | ~0° | Skims along horizon |
+
+### The Formula
+
+The relationship between path angle (θ), latitude (φ), and declination (δ):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  At the equinoxes (δ = 0°):                                 │
+│                                                             │
+│      Path angle = 90° - |Latitude|                          │
+│                                                             │
+│      Latitude = 90° - Path angle                            │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  General case:                                              │
+│                                                             │
+│      sin(θ) = cos(φ) × cos(δ)                               │
+│                                                             │
+│      cos(φ) = sin(θ) / cos(δ)                               │
+│                                                             │
+│      Latitude = arccos[ sin(path angle) / cos(declination) ]│
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why This Works
+
+The sun's apparent motion is caused by Earth's rotation. The angle of this motion relative to your horizon depends on:
+
+1. **Your latitude** - determines the angle between the celestial equator and your horizon
+2. **The sun's declination** - determines how far north/south of the celestial equator the sun is
+
+At the equator, the celestial equator passes directly overhead, so all celestial objects rise and set perpendicular to the horizon. At higher latitudes, they rise and set at increasingly shallow angles.
+
+### Complete Position Fix from Time-Lapse
+
+A single time-lapse video captures TWO independent measurements:
+
+| From the Time-Lapse | Measurement | Result |
+|---------------------|-------------|--------|
+| Angle of sun's path | Path angle θ | **Latitude** |
+| Time when sun touches horizon | UTC time | **Longitude** |
+
+### Worked Example: Equinox
+
+**Observation:**
+- Date: March 21 (Equinox, δ ≈ 0°)
+- Path angle measured from time-lapse: 55°
+- Sun sets toward the west-northwest (Southern Hemisphere indicated)
+- UTC time when upper limb disappears: 06:15 UTC
+
+**Step 1: Latitude from path angle**
+
+At equinox, the simple formula applies:
+```
+Latitude = 90° - path angle
+Latitude = 90° - 55° = 35°
+```
+Sun setting north of west indicates Southern Hemisphere: **Latitude = 35°S**
+
+**Step 2: Longitude from time**
+
+Using h = -50' for upper limb observation:
+```
+cos(LHA) = [-0.0145 - sin(-35°)·sin(0°)] / [cos(-35°)·cos(0°)]
+cos(LHA) = [-0.0145 - 0] / [0.819 × 1]
+cos(LHA) = -0.0177
+LHA = arccos(-0.0177) = 91.0°
+```
+
+From almanac: GHA of sun at 06:15 UTC ≈ 272.5°
+```
+Longitude = GHA - LHA = 272.5° - 91.0° = 181.5°
+Longitude = 181.5° - 360° = -178.5° = 178.5°E
+```
+
+**Result: 35°S, 178.5°E** (Near New Zealand)
+
+### Worked Example: Non-Equinox
+
+**Observation:**
+- Date: December 21 (δ = -23.4°)
+- Path angle measured: 48°
+- UTC time of sunset: 07:45 UTC
+
+**Step 1: Latitude from path angle**
+```
+cos(φ) = sin(θ) / cos(δ)
+cos(φ) = sin(48°) / cos(-23.4°)
+cos(φ) = 0.743 / 0.918
+cos(φ) = 0.809
+
+φ = arccos(0.809) = 36.0°
+```
+
+Southern Hemisphere (summer solstice, sun high): **Latitude = 36°S**
+
+**Step 2: Longitude from time**
+```
+cos(LHA) = [-0.0145 - sin(-36°)·sin(-23.4°)] / [cos(-36°)·cos(-23.4°)]
+cos(LHA) = [-0.0145 - (-0.588)(-0.397)] / [(0.809)(0.918)]
+cos(LHA) = [-0.0145 - 0.233] / [0.743]
+cos(LHA) = -0.333
+
+LHA = arccos(-0.333) = 109.5°
+```
+
+From almanac: GHA at 07:45 UTC ≈ 294.5°
+```
+Longitude = 294.5° - 109.5° = 185.0°
+Longitude = 185.0° - 360° = -175.0° = 175°E
+```
+
+**Result: 36°S, 175°E** (East of New Zealand)
+
+### How to Measure Path Angle from Time-Lapse
+
+**Method 1: Direct measurement**
+1. Take a time-lapse video of sunrise/sunset
+2. In image editing software, draw a line along the sun's path
+3. Measure the angle from horizontal with a protractor tool
+
+**Method 2: Two-point calculation**
+1. Note the sun's position at two times during the time-lapse
+2. Calculate the angle: θ = arctan(Δy / Δx)
+   where Δy = vertical change, Δx = horizontal change
+
+**Method 3: Shadow stick**
+1. Place a vertical stick on level ground
+2. Mark the shadow tip at regular intervals (e.g., every 5 minutes)
+3. The shadow path is perpendicular to the sun's path
+4. Measure the shadow path angle and add 90°
+
+### Advantages of the Path Angle Method
+
+| Advantage | Explanation |
+|-----------|-------------|
+| **No compass needed** | You measure an angle, not a bearing |
+| **Works with partial view** | Only need to see part of the sun's path |
+| **Time-lapse captures both measurements** | Path angle AND time in one observation |
+| **Intuitive** | Easy to see and understand from video |
+| **Ancient method** | Polynesian navigators used this technique |
+
+### Limitations
+
+| Limitation | Mitigation |
+|------------|------------|
+| Requires clear horizon | Choose observing location carefully |
+| Camera must be level | Use spirit level or phone app |
+| Less precise than sextant | Best as backup or confirmation method |
+| Atmospheric effects | Take multiple measurements |
+| Fails near equinoxes at equator | Path is vertical, hard to measure angle |
+
+### Path Angle Reference Table
+
+**At Equinoxes (δ = 0°):**
+
+| Path Angle | Latitude |
+|------------|----------|
+| 90° | 0° (Equator) |
+| 80° | 10° |
+| 70° | 20° |
+| 60° | 30° |
+| 55° | 35° |
+| 50° | 40° |
+| 45° | 45° |
+| 40° | 50° |
+| 30° | 60° |
+
+**Adjustment for declination:** At solstices (δ = ±23.4°), the path angle is steeper by a few degrees compared to equinox values at the same latitude.
+
+### Historical Note: Polynesian Navigation
+
+The Polynesian voyagers of the Pacific used the angle of star paths (including the sun) to maintain their latitude during long ocean crossings. They memorized the rising and setting angles of key stars at different islands, creating mental "star compasses" that allowed navigation across thousands of miles of open ocean.
+
+The Southern Cross was particularly valuable because:
+- Its path angle indicated latitude
+- Its orientation helped find south
+- It was visible year-round from most of the South Pacific
+
+> *"The angle at which a star rises tells you where you are on the ocean. The old navigators knew this in their bones - they could feel their latitude in the tilt of the sky."*
+> — Traditional Polynesian navigation wisdom
+
+---
+
 ## Quick Reference
 
 ```
