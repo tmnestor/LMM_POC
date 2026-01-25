@@ -1,0 +1,540 @@
+(* ::Package:: *)
+
+(* Sun Path Angle at Sunrise/Sunset *)
+(* Shows how the sun's path makes an angle with the horizon *)
+(* This angle is directly related to the observer's latitude *)
+
+(* === CLEAR PREVIOUS DEFINITIONS === *)
+Clear[pathAngleDiagram, multipleLatitudes, sunPos, pathAngle,
+  horizonView, latitudeComparison];
+
+(* ============================================ *)
+(* === SINGLE LATITUDE VIEW === *)
+(* ============================================ *)
+
+pathAngleDiagram[lat_, showLabels_: True] := Module[{
+  pathAngle, sunPath, horizon, angleArc, sunPositions,
+  startX, endX, pathSlope
+  },
+
+  (* At equinox, path angle = 90 - latitude *)
+  pathAngle = 90 - Abs[lat];
+  pathSlope = Tan[pathAngle Degree];
+
+  (* Sun path from below horizon to above *)
+  startX = -2;
+  endX = 4;
+
+  Graphics[{
+    (* Sky background *)
+    {Lighter[Blue, 0.85], Rectangle[{-3, 0}, {6, 5}]},
+    (* Ground/sea *)
+    {Darker[Blue, 0.6], Rectangle[{-3, -1}, {6, 0}]},
+
+    (* Horizon line *)
+    {Black, Thickness[0.004], Line[{{-3, 0}, {6, 0}}]},
+
+    (* Sun's path *)
+    {Orange, Thickness[0.006],
+     Line[{{startX, startX * pathSlope}, {endX, endX * pathSlope}}]},
+
+    (* Sun positions along path *)
+    {Yellow, EdgeForm[{Thick, Orange}],
+     (* Below horizon *)
+     Disk[{-1, -1 * pathSlope}, 0.25],
+     (* At horizon *)
+     Disk[{0, 0}, 0.3],
+     (* Rising *)
+     Disk[{1.5, 1.5 * pathSlope}, 0.3],
+     Disk[{3, 3 * pathSlope}, 0.3]
+    },
+
+    (* Path angle arc *)
+    {Red, Thickness[0.004],
+     Circle[{0, 0}, 0.8, {0, pathAngle Degree}]},
+
+    (* Path angle label *)
+    If[showLabels,
+      {Red,
+       Text[Style[ToString[pathAngle] <> "\[Degree]", 14, Bold],
+         {1.1 Cos[pathAngle/2 Degree], 1.1 Sin[pathAngle/2 Degree]}]},
+      {}
+    ],
+
+    (* Horizon label *)
+    {Black, Text[Style["Horizon", 12], {5, -0.3}]},
+
+    (* Path label *)
+    If[showLabels,
+      {Orange,
+       Text[Style["Sun's Path", 12, Bold],
+         {3.5, 3.5 * pathSlope + 0.4}, {0, -1}]},
+      {}
+    ],
+
+    (* Latitude label *)
+    If[showLabels,
+      {Black,
+       Text[Style["Latitude: " <> ToString[lat] <> "\[Degree]", 14, Bold],
+         {1.5, 4.5}]},
+      {}
+    ],
+
+    (* Direction labels *)
+    {Gray,
+     Text[Style["E", 12, Bold], {-2.5, 0.3}],
+     Text[Style["W", 12, Bold], {5.5, 0.3}],
+     Text[Style["\[UpArrow] Zenith", 10], {-2, 4}]
+    },
+
+    (* Time annotations *)
+    If[showLabels,
+      {Gray, Italic,
+       Text[Style["Before sunrise", 9], {-1, -1 * pathSlope - 0.5}],
+       Text[Style["Sunrise", 9, Bold], {0, -0.5}],
+       Text[Style["Morning", 9], {2, 2 * pathSlope + 0.5}]
+      },
+      {}
+    ]
+  },
+    PlotRange -> {{-3, 6}, {-1, 5}},
+    ImageSize -> 500,
+    AspectRatio -> 0.5,
+    Frame -> False
+  ]
+]
+
+(* ============================================ *)
+(* === LATITUDE COMPARISON === *)
+(* ============================================ *)
+
+latitudeComparison = Graphics[{
+  (* Sky background *)
+  {Lighter[Blue, 0.9], Rectangle[{-2, 0}, {8, 6}]},
+  (* Ground *)
+  {Darker[Green, 0.3], Rectangle[{-2, -0.5}, {8, 0}]},
+
+  (* Horizon *)
+  {Black, Thickness[0.003], Line[{{-2, 0}, {8, 0}}]},
+
+  (* Multiple sun paths at different latitudes *)
+
+  (* Equator: 90\[Degree] path angle (vertical) *)
+  {Red, Thickness[0.005],
+   Arrow[{{0, -0.3}, {0, 5}}]},
+  {Red, Text[Style["0\[Degree] (Equator)\nPath: 90\[Degree]", 10, Bold], {0, 5.5}]},
+
+  (* 30\[Degree] latitude: 60\[Degree] path angle *)
+  {Orange, Thickness[0.005],
+   Arrow[{{2, -0.3}, {2 + 4*Cos[60 Degree], 4*Sin[60 Degree]}}]},
+  {Orange, Text[Style["30\[Degree] Lat\nPath: 60\[Degree]", 10, Bold],
+    {2 + 4*Cos[60 Degree] + 0.3, 4*Sin[60 Degree]}]},
+
+  (* 45\[Degree] latitude: 45\[Degree] path angle *)
+  {Yellow, Thickness[0.005], EdgeForm[Black],
+   Arrow[{{4, -0.3}, {4 + 4*Cos[45 Degree], 4*Sin[45 Degree]}}]},
+  {Darker[Yellow, 0.3], Text[Style["45\[Degree] Lat\nPath: 45\[Degree]", 10, Bold],
+    {4 + 4*Cos[45 Degree] + 0.3, 4*Sin[45 Degree]}]},
+
+  (* 60\[Degree] latitude: 30\[Degree] path angle *)
+  {Darker[Cyan], Thickness[0.005],
+   Arrow[{{5.5, -0.3}, {5.5 + 4*Cos[30 Degree], 4*Sin[30 Degree]}}]},
+  {Darker[Cyan], Text[Style["60\[Degree] Lat\nPath: 30\[Degree]", 10, Bold],
+    {5.5 + 4*Cos[30 Degree] + 0.5, 4*Sin[30 Degree] - 0.3}]},
+
+  (* Sun symbols at horizon *)
+  {Yellow, EdgeForm[{Thick, Orange}],
+   Disk[{0, 0}, 0.2],
+   Disk[{2, 0}, 0.2],
+   Disk[{4, 0}, 0.2],
+   Disk[{5.5, 0}, 0.2]
+  },
+
+  (* Angle arcs *)
+  {Red, Thickness[0.002], Circle[{0, 0}, 0.6, {0, 90 Degree}]},
+  {Orange, Thickness[0.002], Circle[{2, 0}, 0.6, {0, 60 Degree}]},
+  {Darker[Yellow, 0.3], Thickness[0.002], Circle[{4, 0}, 0.6, {0, 45 Degree}]},
+  {Darker[Cyan], Thickness[0.002], Circle[{5.5, 0}, 0.6, {0, 30 Degree}]},
+
+  (* Title and labels *)
+  {Black, Text[Style["Horizon", 11], {7.5, -0.25}]},
+  {Gray, Text[Style["E", 11, Bold], {-1.5, 0.25}]}
+},
+  PlotRange -> {{-2, 8}, {-0.5, 6}},
+  ImageSize -> 700,
+  AspectRatio -> 0.45,
+  PlotLabel -> Style["Sun Path Angle vs Latitude (at Equinox)", 16, Bold]
+]
+
+(* ============================================ *)
+(* === HORIZON VIEW WITH MEASUREMENT === *)
+(* ============================================ *)
+
+horizonViewWithAngle = Module[{lat = 35, pathAngle, sunTimes},
+  pathAngle = 90 - lat;  (* 55\[Degree] for 35\[Degree] latitude *)
+
+  Graphics[{
+    (* Sky gradient *)
+    {Lighter[Orange, 0.7], Rectangle[{-4, 0}, {4, 0.8}]},  (* Sunset glow *)
+    {Lighter[Blue, 0.6], Rectangle[{-4, 0.8}, {4, 4}]},    (* Sky *)
+    (* Ocean *)
+    {Darker[Blue, 0.4], Rectangle[{-4, -1}, {4, 0}]},
+
+    (* Horizon *)
+    {Black, Thickness[0.003], Line[{{-4, 0}, {4, 0}}]},
+
+    (* Sun path (going down-left as sun sets in southern hemisphere) *)
+    {Orange, Thickness[0.006], Dashed,
+     Line[{{3, 3 * Tan[pathAngle Degree]}, {-1, -1 * Tan[pathAngle Degree]}}]},
+
+    (* Multiple sun positions showing descent *)
+    {Yellow, EdgeForm[{Thick, Orange}],
+     Disk[{2.5, 2.5 * Tan[pathAngle Degree]}, 0.2],
+     Disk[{1.5, 1.5 * Tan[pathAngle Degree]}, 0.22],
+     Disk[{0.5, 0.5 * Tan[pathAngle Degree]}, 0.25],
+     (* Half sun at horizon *)
+     {Lighter[Yellow], Disk[{-0.3, 0}, 0.28, {0, Pi}]}
+    },
+
+    (* Horizon reference line for angle measurement *)
+    {Gray, Thickness[0.002],
+     Line[{{-0.3, 0}, {2.5, 0}}]},
+
+    (* Path angle arc *)
+    {Red, Thickness[0.004],
+     Circle[{-0.3, 0}, 0.7, {0, pathAngle Degree}]},
+
+    (* Angle label *)
+    {Red, Text[Style["\[Theta] = " <> ToString[pathAngle] <> "\[Degree]", 14, Bold],
+      {0.7, 0.5}]},
+
+    (* Measurement guide lines *)
+    {Gray, Dashed, Thickness[0.001],
+     Line[{{-0.3, 0}, {-0.3 + 1.5, 0}}],  (* Horizontal reference *)
+     Line[{{-0.3, 0}, {-0.3 + 1.5 * Cos[pathAngle Degree],
+            1.5 * Sin[pathAngle Degree]}}]  (* Along sun path *)
+    },
+
+    (* Labels *)
+    {White, Text[Style["HORIZON", 10, Bold], {0, -0.3}]},
+    {Orange, Text[Style["Sun's Path", 11, Bold],
+      {2, 2 * Tan[pathAngle Degree] + 0.4}]},
+
+    (* Direction indicators *)
+    {White,
+     Text[Style["W", 12, Bold], {-3.5, 0.2}],
+     Text[Style["N", 12, Bold], {3.5, 0.2}]},
+
+    (* Info box *)
+    {Black,
+     Text[Style["Latitude = 90\[Degree] - \[Theta]", 12], {-2.5, 3.2}],
+     Text[Style["Latitude = 90\[Degree] - 55\[Degree] = 35\[Degree]", 12, Bold],
+       {-2.5, 2.7}]
+    },
+
+    (* Time labels along path *)
+    {Gray, Italic,
+     Text[Style["30 min", 8], {2.5, 2.5 * Tan[pathAngle Degree] + 0.3}],
+     Text[Style["15 min", 8], {1.5, 1.5 * Tan[pathAngle Degree] + 0.3}],
+     Text[Style["5 min", 8], {0.5, 0.5 * Tan[pathAngle Degree] + 0.3}],
+     Text[Style["Sunset", 9, Bold], {-0.3, -0.5}]
+    }
+  },
+    PlotRange -> {{-4, 4}, {-1, 4}},
+    ImageSize -> 600,
+    AspectRatio -> 0.5,
+    PlotLabel -> Style["Measuring Path Angle at Sunset (35\[Degree]S)", 14, Bold],
+    Background -> Darker[Blue, 0.7]
+  ]
+]
+
+(* ============================================ *)
+(* === SUNRISE VIEW WITH MEASUREMENT === *)
+(* ============================================ *)
+
+sunriseViewWithAngle = Module[{lat = 35, pathAngle},
+  pathAngle = 90 - lat;  (* 55\[Degree] for 35\[Degree] latitude *)
+
+  Graphics[{
+    (* Sky gradient - dawn colors *)
+    {Lighter[Pink, 0.6], Rectangle[{-4, 0}, {4, 1.2}]},    (* Dawn glow *)
+    {Lighter[Orange, 0.8], Rectangle[{-4, 0}, {4, 0.6}]},  (* Horizon glow *)
+    {Lighter[Blue, 0.7], Rectangle[{-4, 1.2}, {4, 4}]},    (* Sky *)
+    (* Ocean *)
+    {Darker[Blue, 0.4], Rectangle[{-4, -1}, {4, 0}]},
+
+    (* Horizon *)
+    {Black, Thickness[0.003], Line[{{-4, 0}, {4, 0}}]},
+
+    (* Sun path - rising from right, going up and to the left *)
+    (* In Southern Hemisphere, sun rises in ESE and moves toward north (left) *)
+    {Orange, Thickness[0.006], Dashed,
+     Line[{{1, -1 * Tan[pathAngle Degree]},
+           {-3, 3 * Tan[pathAngle Degree]}}]},
+
+    (* Multiple sun positions showing ascent *)
+    {Yellow, EdgeForm[{Thick, Orange}],
+     (* Half sun at horizon - just appearing *)
+     {Lighter[Yellow], Disk[{0.3, 0}, 0.28, {0, Pi}]},
+     (* Rising positions *)
+     Disk[{-0.5, 0.5 * Tan[pathAngle Degree]}, 0.25],
+     Disk[{-1.5, 1.5 * Tan[pathAngle Degree]}, 0.22],
+     Disk[{-2.5, 2.5 * Tan[pathAngle Degree]}, 0.2]
+    },
+
+    (* Horizon reference line for angle measurement *)
+    {Gray, Thickness[0.002],
+     Line[{{0.3, 0}, {-2.5, 0}}]},
+
+    (* Path angle arc - measured from horizon *)
+    {Red, Thickness[0.004],
+     Circle[{0.3, 0}, 0.7, {180 Degree - pathAngle Degree, 180 Degree}]},
+
+    (* Angle label *)
+    {Red, Text[Style["\[Theta] = " <> ToString[pathAngle] <> "\[Degree]", 14, Bold],
+      {-0.7, 0.5}]},
+
+    (* Measurement guide lines *)
+    {Gray, Dashed, Thickness[0.001],
+     Line[{{0.3, 0}, {0.3 - 1.5, 0}}],  (* Horizontal reference *)
+     Line[{{0.3, 0}, {0.3 - 1.5 * Cos[pathAngle Degree],
+            1.5 * Sin[pathAngle Degree]}}]  (* Along sun path *)
+    },
+
+    (* Labels *)
+    {White, Text[Style["HORIZON", 10, Bold], {0, -0.3}]},
+    {Orange, Text[Style["Sun's Path", 11, Bold],
+      {-2, 2 * Tan[pathAngle Degree] + 0.4}]},
+
+    (* Direction indicators *)
+    (* In Southern Hemisphere looking east at sunrise: N is to the left, S to right *)
+    {White,
+     Text[Style["E", 12, Bold], {3.5, 0.2}],
+     Text[Style["N", 12, Bold], {-3.5, 0.2}]},
+
+    (* Info box *)
+    {Black,
+     Text[Style["Latitude = 90\[Degree] - \[Theta]", 12], {2.5, 3.2}],
+     Text[Style["Latitude = 90\[Degree] - 55\[Degree] = 35\[Degree]", 12, Bold],
+       {2.5, 2.7}]
+    },
+
+    (* Time labels along path *)
+    {Gray, Italic,
+     Text[Style["Sunrise", 9, Bold], {0.3, -0.5}],
+     Text[Style["+5 min", 8], {-0.5, 0.5 * Tan[pathAngle Degree] + 0.3}],
+     Text[Style["+15 min", 8], {-1.5, 1.5 * Tan[pathAngle Degree] + 0.3}],
+     Text[Style["+30 min", 8], {-2.5, 2.5 * Tan[pathAngle Degree] + 0.3}]
+    },
+
+    (* Note about direction *)
+    {Darker[Gray],
+     Text[Style["Sun rises in E, moves toward N", 9, Italic], {0, 3.7}],
+     Text[Style["(Southern Hemisphere)", 9, Italic], {0, 3.4}]
+    }
+  },
+    PlotRange -> {{-4, 4}, {-1, 4}},
+    ImageSize -> 600,
+    AspectRatio -> 0.5,
+    PlotLabel -> Style["Measuring Path Angle at Sunrise (35\[Degree]S)", 14, Bold],
+    Background -> Darker[Blue, 0.7]
+  ]
+]
+
+(* ============================================ *)
+(* === COMBINED SUNRISE/SUNSET COMPARISON === *)
+(* ============================================ *)
+
+sunriseSunsetComparison = Module[{lat = 35, pathAngle},
+  pathAngle = 90 - lat;  (* 55\[Degree] *)
+
+  Graphics[{
+    (* Background *)
+    {Lighter[Blue, 0.85], Rectangle[{-8, 0}, {8, 4}]},
+    {Darker[Cyan, 0.3], Rectangle[{-8, -0.5}, {8, 0}]},
+
+    (* Horizon *)
+    {Black, Thickness[0.003], Line[{{-8, 0}, {8, 0}}]},
+
+    (* === LEFT SIDE: SUNRISE === *)
+    (* Sun path - rising *)
+    {Orange, Thickness[0.004],
+     Arrow[{{-3.5, -0.5 * Tan[pathAngle Degree]},
+            {-5.5, 1.5 * Tan[pathAngle Degree]}}]},
+
+    (* Sun at horizon *)
+    {Yellow, EdgeForm[{Thick, Orange}],
+     Disk[{-4, 0}, 0.25]},
+
+    (* Angle arc *)
+    {Red, Thickness[0.003],
+     Circle[{-4, 0}, 0.6, {180 Degree - pathAngle Degree, 180 Degree}]},
+
+    (* Labels *)
+    {Black, Text[Style["SUNRISE", 11, Bold], {-4, -0.8}]},
+    {Red, Text[Style[ToString[pathAngle] <> "\[Degree]", 11, Bold], {-4.8, 0.4}]},
+    {Gray,
+     Text[Style["E", 10, Bold], {-3, 0.2}],
+     Text[Style["N", 10], {-6, 0.2}]},
+    {Orange, Text[Style["Rising", 9, Italic], {-5.2, 1.8}]},
+
+    (* === CENTER: Observer === *)
+    {Darker[Green], PointSize[0.02], Point[{0, 0}]},
+    {Black, Text[Style["Observer\n35\[Degree]S", 10, Bold], {0, -0.8}]},
+    {Gray, Dashed, Thickness[0.001],
+     Line[{{0, 0}, {0, 3.5}}]},
+    {Gray, Text[Style["Zenith", 9], {0.5, 3.3}]},
+
+    (* === RIGHT SIDE: SUNSET === *)
+    (* Sun path - setting *)
+    {Orange, Thickness[0.004],
+     Arrow[{{5.5, 1.5 * Tan[pathAngle Degree]},
+            {3.5, -0.5 * Tan[pathAngle Degree]}}]},
+
+    (* Sun at horizon *)
+    {Yellow, EdgeForm[{Thick, Orange}],
+     Disk[{4, 0}, 0.25]},
+
+    (* Angle arc *)
+    {Red, Thickness[0.003],
+     Circle[{4, 0}, 0.6, {0, pathAngle Degree}]},
+
+    (* Labels *)
+    {Black, Text[Style["SUNSET", 11, Bold], {4, -0.8}]},
+    {Red, Text[Style[ToString[pathAngle] <> "\[Degree]", 11, Bold], {4.8, 0.4}]},
+    {Gray,
+     Text[Style["W", 10, Bold], {3, 0.2}],
+     Text[Style["N", 10], {6, 0.2}]},
+    {Orange, Text[Style["Setting", 9, Italic], {5.2, 1.8}]},
+
+    (* Symmetry note *)
+    {Darker[Blue],
+     Text[Style["Same path angle at both sunrise and sunset", 11, Italic], {0, 3.8}],
+     Text[Style["Path angle = 90\[Degree] - Latitude (at equinox)", 10], {0, 3.4}]
+    }
+  },
+    PlotRange -> {{-8, 8}, {-1.2, 4.2}},
+    ImageSize -> 750,
+    AspectRatio -> 0.35,
+    PlotLabel -> Style["Path Angle: Sunrise vs Sunset (35\[Degree]S at Equinox)", 14, Bold]
+  ]
+]
+
+(* ============================================ *)
+(* === 3D CELESTIAL SPHERE VIEW === *)
+(* ============================================ *)
+
+celestialSphereView = Module[{lat = 35, dec = 0},
+  Graphics3D[{
+    (* Earth/Observer point *)
+    {Darker[Green], Sphere[{0, 0, 0}, 0.05]},
+
+    (* Horizon plane *)
+    {Lighter[Blue, 0.8], Opacity[0.3],
+     Polygon[Table[{2 Cos[t], 2 Sin[t], 0}, {t, 0, 2 Pi, Pi/30}]]},
+    {Gray, Thickness[0.002],
+     Line[Table[{2 Cos[t], 2 Sin[t], 0}, {t, 0, 2 Pi + 0.1, Pi/30}]]},
+
+    (* Celestial equator (tilted by latitude) *)
+    {Yellow, Opacity[0.2],
+     Polygon[Table[
+       {1.8 Cos[t], 1.8 Sin[t] Cos[lat Degree], 1.8 Sin[t] Sin[lat Degree]},
+       {t, 0, 2 Pi, Pi/30}]]},
+    {Orange, Thickness[0.003],
+     Line[Table[
+       {1.8 Cos[t], 1.8 Sin[t] Cos[lat Degree], 1.8 Sin[t] Sin[lat Degree]},
+       {t, 0, 2 Pi + 0.1, Pi/30}]]},
+
+    (* Sun's path on celestial equator (at equinox) *)
+    {Red, Thickness[0.005],
+     Line[Table[
+       {1.5 Cos[t], 1.5 Sin[t] Cos[lat Degree], 1.5 Sin[t] Sin[lat Degree]},
+       {t, -Pi/2, Pi/2, Pi/40}]]},
+
+    (* Zenith direction *)
+    {Darker[Green], Thickness[0.003], Dashed,
+     Arrow[{{0, 0, 0}, {0, 0, 1.5}}]},
+    {Darker[Green], Text[Style["Zenith", 10], {0, 0, 1.65}]},
+
+    (* Celestial pole *)
+    {Blue, Thickness[0.003], Dashed,
+     Arrow[{{0, 0, 0}, {0, -Sin[lat Degree] * 1.5, Cos[lat Degree] * 1.5}}]},
+    {Blue, Text[Style["SCP", 10],
+      {0, -Sin[lat Degree] * 1.65, Cos[lat Degree] * 1.65}]},
+
+    (* Cardinal directions on horizon *)
+    {Black,
+     Text[Style["N", 12, Bold], {0, 2.2, 0}],
+     Text[Style["S", 12, Bold], {0, -2.2, 0}],
+     Text[Style["E", 12, Bold], {2.2, 0, 0}],
+     Text[Style["W", 12, Bold], {-2.2, 0, 0}]
+    },
+
+    (* Path angle indicator at eastern horizon *)
+    {Red, Thickness[0.004],
+     Line[{{1.8, 0, 0}, {1.8 + 0.8, 0, 0}}],  (* Horizon direction *)
+     Line[{{1.8, 0, 0},
+           {1.8 + 0.8 Cos[lat Degree], 0.8 Sin[lat Degree] Cos[lat Degree],
+            0.8 Sin[lat Degree] Sin[lat Degree]}}]  (* Sun path direction *)
+    },
+
+    (* Labels *)
+    {Orange, Text[Style["Sun's Path\n(Celestial Eq.)", 9], {0.5, 1.2, 1}]},
+    {Gray, Text[Style["Horizon", 10], {1.5, 1.5, 0}]}
+  },
+    Boxed -> False,
+    ViewPoint -> {3, 2, 1.5},
+    ViewVertical -> {0, 0, 1},
+    ImageSize -> 550,
+    PlotLabel -> Style["Celestial Sphere View (35\[Degree]S at Equinox)", 14, Bold],
+    Lighting -> "Neutral"
+  ]
+]
+
+(* ============================================ *)
+(* === DISPLAY INSTRUCTIONS === *)
+(* ============================================ *)
+
+(* Single latitude diagram *)
+(* pathAngleDiagram[35] *)
+
+(* Compare multiple latitudes *)
+(* latitudeComparison *)
+
+(* Sunset view showing measurement *)
+(* horizonViewWithAngle *)
+
+(* Sunrise view showing measurement *)
+(* sunriseViewWithAngle *)
+
+(* Side-by-side sunrise and sunset comparison *)
+(* sunriseSunsetComparison *)
+
+(* 3D celestial sphere *)
+(* celestialSphereView *)
+
+
+
+
+(* ============================================ *)
+(* === EXPORT - Uncomment to save files === *)
+(* ============================================ *)
+
+
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_single.png"}], pathAngleDiagram[35]]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_comparison.png"}], latitudeComparison]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_sunset.png"}], horizonViewWithAngle]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_sunrise.png"}], sunriseViewWithAngle]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_both.png"}], sunriseSunsetComparison]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_celestial.png"}], celestialSphereView]
+
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_single.pdf"}], pathAngleDiagram[35]]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_comparison.pdf"}], latitudeComparison]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_sunset.pdf"}], horizonViewWithAngle]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_sunrise.pdf"}], sunriseViewWithAngle]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_both.pdf"}], sunriseSunsetComparison]
+Export[FileNameJoin[{NotebookDirectory[], "path_angle_celestial.pdf"}], celestialSphereView]
+
+
+
+
