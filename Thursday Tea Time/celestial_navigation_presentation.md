@@ -1949,6 +1949,308 @@ The Southern Cross was particularly valuable because:
 
 ---
 
+# Appendix E: Vector Derivation of Spherical Trigonometry
+
+This appendix derives the spherical law of cosines and spherical law of sines using vector algebra (dot products and cross products). This approach provides geometric insight into why these formulas work and connects spherical trigonometry to linear algebra.
+
+## Setup: Spherical Triangle as Vectors
+
+Consider a unit sphere centered at the origin O. Three points A, B, C on the sphere define a spherical triangle. Each point can be represented by a unit vector from the origin:
+
+- **a** = unit vector to vertex A
+- **b** = unit vector to vertex B
+- **c** = unit vector to vertex C
+
+Since these are unit vectors: |**a**| = |**b**| = |**c**| = 1
+
+### Sides as Dot Products
+
+The sides of a spherical triangle are great circle arcs. The angular length of each side equals the angle between the corresponding vectors:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Side a (opposite vertex A):  cos(a) = b · c        │
+│  Side b (opposite vertex B):  cos(b) = a · c        │
+│  Side c (opposite vertex C):  cos(c) = a · b        │
+└─────────────────────────────────────────────────────┘
+```
+
+This follows directly from the definition of the dot product:
+```
+u · v = |u| |v| cos(θ)
+```
+For unit vectors, this simplifies to: **u** · **v** = cos(θ)
+
+---
+
+## Deriving the Spherical Law of Cosines
+
+The spherical angle at vertex A is the dihedral angle between planes OAB and OAC.
+
+### Step 1: Find Normal Vectors to the Planes
+
+The normal vector to a plane containing two vectors is their cross product:
+
+- Normal to plane OAB: **n₁** = **a** × **b**
+- Normal to plane OAC: **n₂** = **a** × **c**
+
+### Step 2: Relate the Angle to the Dot Product of Normals
+
+The angle A between the planes satisfies:
+```
+n₁ · n₂ = |n₁| |n₂| cos(A)
+
+(a × b) · (a × c) = |a × b| |a × c| cos(A)
+```
+
+### Step 3: Apply the Vector Identity
+
+Use the identity for the dot product of two cross products:
+```
+(u × v) · (w × x) = (u · w)(v · x) - (u · x)(v · w)
+```
+
+Applying this with u = w = **a**, v = **b**, x = **c**:
+```
+(a × b) · (a × c) = (a · a)(b · c) - (a · c)(a · b)
+```
+
+### Step 4: Substitute Unit Vector Property
+
+Since **a** is a unit vector: **a** · **a** = 1
+```
+(a × b) · (a × c) = (1)(b · c) - (a · c)(a · b)
+                  = cos(a) - cos(b)cos(c)
+```
+
+### Step 5: Calculate Cross Product Magnitudes
+
+For unit vectors, the magnitude of the cross product gives the sine of the angle:
+```
+|a × b| = |a| |b| sin(c) = (1)(1)sin(c) = sin(c)
+|a × c| = |a| |c| sin(b) = (1)(1)sin(b) = sin(b)
+```
+
+### Step 6: Combine the Results
+
+Substituting into the equation from Step 2:
+```
+cos(a) - cos(b)cos(c) = sin(b) sin(c) cos(A)
+```
+
+Rearranging:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   cos(a) = cos(b)cos(c) + sin(b)sin(c)cos(A)               │
+│                                                             │
+│   SPHERICAL LAW OF COSINES                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Cyclic Permutations
+
+By symmetry, cycling through the vertices gives:
+```
+cos(a) = cos(b)cos(c) + sin(b)sin(c)cos(A)
+cos(b) = cos(c)cos(a) + sin(c)sin(a)cos(B)
+cos(c) = cos(a)cos(b) + sin(a)sin(b)cos(C)
+```
+
+---
+
+## Deriving the Spherical Law of Sines
+
+### Step 1: Define the Scalar Triple Product
+
+The scalar triple product of three vectors gives the signed volume of the parallelepiped they span:
+
+```
+V = a · (b × c) = b · (c × a) = c · (a × b)
+```
+
+This quantity is the same regardless of which cyclic permutation we use.
+
+### Step 2: Cross Product of Cross Products
+
+Consider the cross product of our normal vectors:
+```
+(a × b) × (a × c)
+```
+
+Using the vector identity (BAC-CAB rule):
+```
+(u × v) × w = (u · w)v - (v · w)u
+```
+
+We can show that:
+```
+(a × b) × (a × c) = [(a × b) · c] a - [(a × b) · a] c
+```
+
+Since (**a** × **b**) is perpendicular to **a**, we have (**a** × **b**) · **a** = 0:
+```
+(a × b) × (a × c) = [(a × b) · c] a = V · a
+```
+
+### Step 3: Calculate the Magnitude
+
+Taking magnitudes:
+```
+|(a × b) × (a × c)| = |V| · |a| = |V|
+```
+
+### Step 4: Alternative Expression for the Magnitude
+
+The magnitude of a cross product of two vectors equals:
+```
+|u × v| = |u| |v| sin(θ)
+```
+
+where θ is the angle between them. The angle between (**a** × **b**) and (**a** × **c**) is the spherical angle A, so:
+```
+|(a × b) × (a × c)| = |a × b| |a × c| sin(A)
+                    = sin(c) · sin(b) · sin(A)
+```
+
+### Step 5: Equate the Two Expressions
+
+From Steps 3 and 4:
+```
+|V| = sin(b) sin(c) sin(A)
+```
+
+### Step 6: Apply Cyclic Symmetry
+
+By the same reasoning at each vertex:
+```
+|V| = sin(b) sin(c) sin(A)
+|V| = sin(c) sin(a) sin(B)
+|V| = sin(a) sin(b) sin(C)
+```
+
+### Step 7: Derive the Law of Sines
+
+Since all three expressions equal |V|:
+```
+sin(b) sin(c) sin(A) = sin(c) sin(a) sin(B) = sin(a) sin(b) sin(C)
+```
+
+Dividing each term by sin(a) sin(b) sin(c):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   sin(A)     sin(B)     sin(C)         |V|                 │
+│   ────── = ────────  = ────────  = ─────────────────       │
+│   sin(a)     sin(b)     sin(c)     sin(a)sin(b)sin(c)      │
+│                                                             │
+│   SPHERICAL LAW OF SINES                                    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Geometric Interpretation
+
+### The Scalar Triple Product V
+
+The quantity |V| = |**a** · (**b** × **c**)| has a beautiful geometric meaning:
+
+- It equals the volume of the parallelepiped formed by vectors **a**, **b**, **c**
+- For unit vectors on a sphere, it relates to the "size" of the spherical triangle
+- It appears as the common numerator in the law of sines
+
+### Connection to Spherical Excess
+
+The spherical excess E = A + B + C - π (the amount by which the angles exceed 180°) is related to the area of the spherical triangle:
+
+```
+Area = E × R²  (for a sphere of radius R)
+```
+
+The scalar triple product V is connected to this excess through:
+```
+tan(E/4) = |V| / (1 + cos(a) + cos(b) + cos(c))
+```
+
+---
+
+## Summary of Vector Identities Used
+
+| Identity | Formula | Use |
+|----------|---------|-----|
+| Dot product definition | **u** · **v** = \|**u**\| \|**v**\| cos(θ) | Sides from dot products |
+| Cross product magnitude | \|**u** × **v**\| = \|**u**\| \|**v**\| sin(θ) | Sines from cross products |
+| Dot of cross products | (**u**×**v**)·(**w**×**x**) = (**u**·**w**)(**v**·**x**) - (**u**·**x**)(**v**·**w**) | Law of cosines |
+| Scalar triple product | **a**·(**b**×**c**) = **b**·(**c**×**a**) = **c**·(**a**×**b**) | Common factor V |
+| Cross of cross products | (**u**×**v**)×**w** = (**u**·**w**)**v** - (**v**·**w**)**u** | Law of sines |
+
+---
+
+## Why This Matters for Navigation
+
+The vector approach reveals the fundamental structure:
+
+1. **Sides** of a spherical triangle are **dot products** (angles between position vectors on the celestial sphere)
+
+2. **Angles** of a spherical triangle come from **cross products** (angles between great circle planes)
+
+3. The **scalar triple product** V is the geometric "glue" connecting all parts of the triangle
+
+For the PZX navigation triangle:
+- The position vectors point to the Pole (P), Zenith (Z), and celestial body (X)
+- The sides (co-lat, co-dec, zenith distance) are dot products of these vectors
+- The angles (LHA, azimuth, parallactic angle) are dihedral angles between planes
+
+This explains why spherical trigonometry, though seemingly complex, has such elegant formulas - they're all manifestations of basic vector operations on the unit sphere.
+
+---
+
+## Application: The Altitude Equation
+
+Starting from the spherical law of cosines:
+```
+cos(a) = cos(b)cos(c) + sin(b)sin(c)cos(A)
+```
+
+For the PZX triangle with:
+- Side PZ = 90° - φ (co-latitude)
+- Side PX = 90° - δ (co-declination)
+- Side ZX = 90° - h (co-altitude = zenith distance)
+- Angle at P = LHA
+
+Substituting:
+```
+cos(90° - h) = cos(90° - φ)cos(90° - δ) + sin(90° - φ)sin(90° - δ)cos(LHA)
+```
+
+Using co-function identities (cos(90° - x) = sin(x), sin(90° - x) = cos(x)):
+```
+sin(h) = sin(φ)sin(δ) + cos(φ)cos(δ)cos(LHA)
+```
+
+This is the **altitude equation** - derived directly from the vector-based spherical law of cosines!
+
+---
+
+## Historical Note
+
+While the spherical laws were known to ancient astronomers (Menelaus, Ptolemy, Islamic mathematicians), the vector derivation came much later:
+
+- **Josiah Willard Gibbs** (1880s) developed modern vector analysis
+- The vector approach to spherical trigonometry emerged in the early 20th century
+- It's now standard in celestial mechanics, satellite navigation, and computer graphics
+
+The vector method is computationally efficient for modern applications - GPS receivers and planetarium software use these formulas in their vector form.
+
+> *"The dot product tells you how much two directions agree. The cross product tells you how much they disagree. Together, they unlock the geometry of the sphere."*
+
+---
+
 ## References
 
 - [Bowditch Chapter 15 - Azimuths and Amplitudes (PDF)](https://thenauticalalmanac.com/2017_Bowditch-_American_Practical_Navigator/Volume-_1/05-%20Part%203-%20Celestial%20Navigation/Chapter%2015-%20Azimuths%20And%20Amplitudes.pdf)
