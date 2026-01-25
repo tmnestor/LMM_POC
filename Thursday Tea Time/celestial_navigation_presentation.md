@@ -1113,6 +1113,640 @@ The **Southern Cross** was particularly important - its angle above the horizon 
 
 ---
 
+# Appendix C: Special Cases of the Astronomical Triangle
+
+This appendix shows how the general spherical trigonometry equations of the PZX (astronomical) triangle reduce to simple formulas in special cases.
+
+## The General Equations
+
+The PZX triangle has three sides and three angles:
+
+**Sides:**
+- PZ = 90° - φ (co-latitude, where φ = observer's latitude)
+- PX = 90° - δ (polar distance, where δ = declination)
+- ZX = 90° - h (zenith distance, where h = altitude)
+
+**Angles:**
+- Angle at P = LHA (Local Hour Angle)
+- Angle at Z = Az (Azimuth)
+- Angle at X = q (parallactic angle)
+
+**The fundamental equations (spherical law of cosines):**
+
+```
+cos(ZX) = cos(PZ)·cos(PX) + sin(PZ)·sin(PX)·cos(LHA)
+```
+
+Substituting the co-functions:
+
+```
+sin(h) = sin(φ)·sin(δ) + cos(φ)·cos(δ)·cos(LHA)    ... (1)
+```
+
+This is the **altitude equation** - the master equation of celestial navigation.
+
+---
+
+## Special Case 1: Meridian Passage (Noon Sight)
+
+**Condition:** Body on the meridian → **LHA = 0°**
+
+**Reduction:**
+
+When LHA = 0°, cos(LHA) = cos(0°) = 1
+
+Equation (1) becomes:
+```
+sin(h) = sin(φ)·sin(δ) + cos(φ)·cos(δ)·(1)
+sin(h) = sin(φ)·sin(δ) + cos(φ)·cos(δ)
+```
+
+Using the cosine addition formula: cos(A - B) = cos(A)cos(B) + sin(A)sin(B)
+```
+sin(h) = cos(φ - δ)
+```
+
+Since sin(h) = cos(90° - h) = cos(ZD):
+```
+cos(ZD) = cos(φ - δ)
+```
+
+Therefore:
+```
+ZD = |φ - δ|
+```
+
+Or equivalently:
+```
+┌─────────────────────────────────────┐
+│  φ = δ ± ZD  =  δ ± (90° - h)       │
+│                                     │
+│  Latitude = Declination ± Zenith Distance │
+└─────────────────────────────────────┘
+```
+
+**Result:** No spherical trigonometry needed! The triangle collapses to a straight line (P, Z, and X are collinear on the meridian).
+
+---
+
+## Special Case 2: Polaris (Body at the Celestial Pole)
+
+**Condition:** Declination δ = 90° (exactly at the pole)
+
+**Reduction:**
+
+When δ = 90°:
+- sin(δ) = sin(90°) = 1
+- cos(δ) = cos(90°) = 0
+
+Equation (1) becomes:
+```
+sin(h) = sin(φ)·(1) + cos(φ)·(0)·cos(LHA)
+sin(h) = sin(φ)
+```
+
+Therefore:
+```
+┌─────────────────────────┐
+│  h = φ                  │
+│                         │
+│  Altitude = Latitude    │
+└─────────────────────────┘
+```
+
+**Result:** The altitude of the celestial pole equals your latitude directly. (Polaris at δ ≈ 89.3° requires small corrections.)
+
+---
+
+## Special Case 3: Amplitude (Body on the Horizon)
+
+**Condition:** Body rising or setting → **Altitude h = 0°**
+
+**Reduction:**
+
+When h = 0°, sin(h) = 0
+
+Equation (1) becomes:
+```
+0 = sin(φ)·sin(δ) + cos(φ)·cos(δ)·cos(LHA)
+```
+
+Solving for cos(LHA):
+```
+cos(LHA) = -sin(φ)·sin(δ) / [cos(φ)·cos(δ)]
+cos(LHA) = -tan(φ)·tan(δ)
+```
+
+At the moment of rising/setting, the azimuth measured from East (sunrise) or West (sunset) is called the **amplitude (A)**. The relationship between amplitude and azimuth:
+- At sunrise: Az = 90° - A (measuring A north or south of due East)
+- At sunset: Az = 270° + A
+
+Using the azimuth formula at h = 0°:
+```
+┌─────────────────────────────────────┐
+│  sin(A) = sin(δ) / cos(φ)           │
+│                                     │
+│  sin(Amplitude) = sin(Dec) / cos(Lat) │
+└─────────────────────────────────────┘
+```
+
+**Result:** One simple equation. If you know your latitude, observe the amplitude at sunrise/sunset to find the sun's declination (and hence the date). Or if you know the date (declination), find your latitude.
+
+---
+
+## Special Case 4: Body at the Zenith
+
+**Condition:** Altitude h = 90° (body directly overhead)
+
+**Reduction:**
+
+When h = 90°:
+- sin(h) = 1
+- ZX = 0° (zenith distance is zero)
+
+The triangle collapses to a point - the body IS at your zenith.
+
+This means:
+```
+┌─────────────────────────┐
+│  φ = δ                  │
+│  Longitude = GHA        │
+│                         │
+│  You are at the GP      │
+└─────────────────────────┘
+```
+
+**Result:** Your position is the Geographic Position of the body. Latitude equals declination, longitude equals the Greenwich Hour Angle.
+
+---
+
+## Special Case 5: Prime Vertical Observation
+
+**Condition:** Body due East or West → **Azimuth = 90° or 270°**
+
+**Reduction:**
+
+When the body is on the prime vertical, the PZX triangle has a right angle at the zenith (Z).
+
+Using the spherical law of sines:
+```
+sin(PX) / sin(Az) = sin(ZX) / sin(P)
+```
+
+With Az = 90°, sin(Az) = 1, and converting to altitude/declination:
+```
+cos(δ) / 1 = cos(h) / sin(LHA)
+```
+
+Using the altitude equation with the prime vertical constraint:
+```
+┌─────────────────────────────────────┐
+│  sin(h) = sin(δ) / sin(φ)           │
+│                                     │
+│  sin(Altitude) = sin(Dec) / sin(Lat) │
+└─────────────────────────────────────┘
+```
+
+**Result:** One equation. Time when a known star crosses your prime vertical to find latitude.
+
+---
+
+## Special Case 6: Observer at the Equator
+
+**Condition:** Latitude φ = 0°
+
+**Reduction:**
+
+When φ = 0°:
+- sin(φ) = 0
+- cos(φ) = 1
+- PZ = 90° (co-latitude equals 90°)
+
+Equation (1) becomes:
+```
+sin(h) = (0)·sin(δ) + (1)·cos(δ)·cos(LHA)
+sin(h) = cos(δ)·cos(LHA)
+```
+
+At meridian passage (LHA = 0°):
+```
+sin(h) = cos(δ)
+h = 90° - |δ|
+```
+
+```
+┌─────────────────────────────────────────┐
+│  Meridian Altitude = 90° - |Declination| │
+│                                         │
+│  All bodies rise and set vertically      │
+└─────────────────────────────────────────┘
+```
+
+**Result:** Right triangle geometry. The zenith is on the celestial equator.
+
+---
+
+## Special Case 7: Circumpolar Star at Culmination
+
+**Condition:** Circumpolar star on the meridian (upper or lower transit)
+
+**Reduction:**
+
+For a circumpolar star, it never sets. At **upper culmination** (highest point, LHA = 0°):
+```
+h_upper = 90° - φ + δ    (for southern stars from southern latitudes)
+```
+
+At **lower culmination** (lowest point, LHA = 180°):
+```
+h_lower = φ + δ - 90°    (for southern stars from southern latitudes)
+```
+
+Adding these:
+```
+h_upper + h_lower = (90° - φ + δ) + (φ + δ - 90°)
+h_upper + h_lower = 2δ
+```
+
+Subtracting:
+```
+h_upper - h_lower = (90° - φ + δ) - (φ + δ - 90°)
+h_upper - h_lower = 180° - 2φ
+```
+
+Therefore:
+```
+┌─────────────────────────────────────────────┐
+│  δ = (h_upper + h_lower) / 2                │
+│                                             │
+│  φ = 90° - (h_upper - h_lower) / 2          │
+│                                             │
+│  Latitude from averaging culmination altitudes │
+└─────────────────────────────────────────────┘
+```
+
+**Result:** Observe a circumpolar star at both culminations to find both latitude and the star's declination, with no time required.
+
+---
+
+## Summary: Why These Special Cases Matter
+
+| Special Case | What Simplifies | Practical Use |
+|--------------|-----------------|---------------|
+| Meridian (LHA=0) | Triangle → line | Noon sight for latitude |
+| Pole star (δ=90°) | Direct reading | Quick latitude check |
+| Horizon (h=0°) | One trig equation | Amplitude for lat/dec |
+| Zenith (h=90°) | Triangle → point | You're at the GP |
+| Prime vertical | Right triangle | Latitude from timing |
+| Equator (φ=0°) | Right triangle | Simplified geometry |
+| Culminations | Algebra only | Lat without time |
+
+These special cases were the foundation of practical celestial navigation for centuries. Navigators planned their observations to exploit these simplifications, avoiding complex spherical trigonometry whenever possible.
+
+> *"A wise navigator seeks the special case. Why wrestle with spherical triangles when the noon sun gives latitude by simple addition?"*
+
+---
+
+# Appendix D: Position Fix from Sunrise/Sunset
+
+This appendix describes how to obtain a complete position fix (latitude AND longitude) from a single sunrise or sunset observation by measuring both the **azimuth** (bearing) and the **time**.
+
+## The Principle
+
+At sunrise or sunset, the sun is on the horizon (altitude h = 0°). This special case allows us to extract two pieces of information from one event:
+
+1. **Azimuth** → Latitude (via the amplitude formula)
+2. **Time** → Longitude (via the hour angle calculation)
+
+---
+
+## Step 1: Amplitude → Latitude
+
+The **amplitude** is the bearing of the sun measured from due East (at sunrise) or due West (at sunset), expressed as degrees North or South.
+
+At h = 0°, the general altitude equation reduces to:
+
+```
+sin(Amplitude) = sin(Declination) / cos(Latitude)
+```
+
+Rearranging for latitude:
+
+```
+┌─────────────────────────────────────────────────┐
+│  cos(φ) = sin(δ) / sin(A)                       │
+│                                                 │
+│  Latitude = arccos( sin(Dec) / sin(Amplitude) ) │
+└─────────────────────────────────────────────────┘
+```
+
+**To find amplitude from observed azimuth:**
+- Sunrise: A = Azimuth - 90° (positive if north of E, negative if south)
+- Sunset: A = Azimuth - 270° (positive if north of W, negative if south)
+
+---
+
+## Step 2: Time → Longitude
+
+Once you have latitude, you can calculate the **Local Hour Angle (LHA)** at the moment of sunrise/sunset.
+
+At h = 0°, the altitude equation gives:
+
+```
+0 = sin(φ)·sin(δ) + cos(φ)·cos(δ)·cos(LHA)
+```
+
+Solving for LHA:
+
+```
+┌─────────────────────────────────────┐
+│  cos(LHA) = -tan(φ) · tan(δ)        │
+└─────────────────────────────────────┘
+```
+
+At sunset: LHA = arccos(-tan(φ)·tan(δ))
+At sunrise: LHA = 360° - arccos(-tan(φ)·tan(δ))
+
+**Finding Longitude:**
+
+From the Nautical Almanac, look up the **Greenwich Hour Angle (GHA)** of the sun at your observed UTC time.
+
+```
+┌─────────────────────────────────────┐
+│  Longitude = GHA - LHA              │
+│                                     │
+│  (Adjust to range -180° to +180°)   │
+│  West longitude is negative         │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Complete Worked Example (Southern Hemisphere)
+
+**Observation:**
+- Date: December 21 (Summer Solstice)
+- Event: Sunset
+- Observed azimuth: 246° (compass corrected for variation)
+- UTC time of sunset: 07:30 UTC
+
+**Given:**
+- Sun's declination on Dec 21: δ = -23.4° (from almanac)
+- GHA of sun at 07:30 UTC: 290.5° (from almanac)
+
+### Step 1: Calculate Amplitude
+
+```
+Azimuth = 246°
+Amplitude = 246° - 270° = -24° (24° south of due west)
+```
+
+### Step 2: Calculate Latitude
+
+```
+cos(φ) = sin(δ) / sin(A)
+cos(φ) = sin(-23.4°) / sin(-24°)
+cos(φ) = (-0.397) / (-0.407)
+cos(φ) = 0.975
+
+φ = arccos(0.975) = 12.8°
+```
+
+Since both declination and amplitude are south (negative), we are in the Southern Hemisphere:
+
+**Latitude = 12.8°S**
+
+### Step 3: Calculate Local Hour Angle
+
+```
+cos(LHA) = -tan(φ) · tan(δ)
+cos(LHA) = -tan(-12.8°) · tan(-23.4°)
+cos(LHA) = -(-0.227) · (-0.433)
+cos(LHA) = -0.098
+
+LHA = arccos(-0.098) = 95.6°
+```
+
+### Step 4: Calculate Longitude
+
+```
+Longitude = GHA - LHA
+Longitude = 290.5° - 95.6°
+Longitude = 194.9°
+```
+
+Converting to standard notation (194.9° > 180°):
+```
+Longitude = 194.9° - 360° = -165.1°
+```
+
+Or: **Longitude = 165.1°E**
+
+### Result
+
+**Position: 12.8°S, 165.1°E**
+
+This position is in the South Pacific, near Vanuatu.
+
+---
+
+## Corrections Required
+
+For accurate results, apply these corrections:
+
+| Correction | Typical Value | Effect |
+|------------|---------------|--------|
+| Atmospheric refraction | ~34' | Sun appears higher than it is |
+| Sun's semi-diameter | ~16' | Time when center crosses horizon |
+| Dip of horizon | Varies with height of eye | Higher eye = earlier sunset |
+| Compass deviation | Varies | Correct azimuth reading |
+| Magnetic variation | Varies by location | Convert magnetic to true bearing |
+
+**Refraction correction:** The sun appears about 34 arcminutes higher than its true position when on the horizon. The visible sunset occurs when the sun's true altitude is about -50' (below the geometric horizon).
+
+---
+
+## Advantages and Limitations
+
+### Advantages
+
+- Complete position fix from a single event
+- Available twice daily (sunrise and sunset)
+- No noon sight required
+- Uses simple equipment (compass, watch)
+- Good backup method when noon is cloudy
+
+### Limitations
+
+- Requires clear horizon (no clouds, land, or ships in the way)
+- Less accurate than multiple-sight fixes
+- Sensitive to refraction variations (temperature, pressure)
+- Requires accurate compass and timing
+- Amplitude method fails near equinoxes when declination ≈ 0°
+
+---
+
+## Historical Use
+
+This method was particularly valuable for:
+
+1. **Overcast days** - When the noon sun was obscured but horizon was clear at sunrise/sunset
+2. **Confirming position** - Cross-checking against dead reckoning
+3. **Coastal navigation** - When timing and bearing were easy to observe
+4. **Emergency navigation** - When limited observations were possible
+
+> *"The prudent navigator takes every sight the heavens offer. A sunrise amplitude and time, though less precise than a meridian altitude, may be the only fix a cloudy day allows."*
+
+---
+
+## Upper Limb Method (Recommended)
+
+In practice, it's easier to observe the precise moment when the **upper limb of the sun disappears** below the horizon (sunset) or **first appears** above it (sunrise), rather than estimating when the center crosses the horizon.
+
+### Why the Upper Limb is Better
+
+| Observation | Difficulty |
+|-------------|------------|
+| Center at horizon | Must estimate - center is obscured |
+| Upper limb at horizon | Precise - watch last/first sliver |
+
+### The Correction
+
+When the upper limb touches the horizon, the sun's **center** is actually below the geometric horizon due to:
+
+| Effect | Amount |
+|--------|--------|
+| Semi-diameter (radius of sun) | -16' |
+| Atmospheric refraction | -34' |
+| **Total correction** | **-50'** (≈ -0.83°) |
+
+So instead of h = 0°, we use **h = -50'** in the altitude equation.
+
+### Modified Equations
+
+**Latitude (unchanged):** The azimuth changes very slowly near the horizon, so use the same amplitude formula:
+
+```
+cos(φ) = sin(δ) / sin(A)
+```
+
+**Longitude (modified):** The hour angle formula becomes:
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                                                                   │
+│  cos(LHA) = [sin(-50') - sin(φ)·sin(δ)] / [cos(φ)·cos(δ)]        │
+│                                                                   │
+│  where sin(-50') ≈ -0.0145                                        │
+│                                                                   │
+│  This replaces: cos(LHA) = -tan(φ)·tan(δ)                         │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### Worked Example: Upper Limb Method
+
+**Observation:**
+- Date: December 21 (δ = -23.4°)
+- Event: Upper limb disappears below horizon
+- Observed azimuth: 246°
+- UTC time: 07:32 UTC
+- GHA of sun at 07:32 UTC: 291.0° (from almanac)
+
+**Step 1: Latitude (same as before)**
+```
+Amplitude = 246° - 270° = -24° (24° south of west)
+cos(φ) = sin(-23.4°) / sin(-24°)
+cos(φ) = (-0.397) / (-0.407) = 0.975
+φ = arccos(0.975) = 12.8°S
+```
+
+**Step 2: Hour Angle (modified formula)**
+```
+cos(LHA) = [sin(-50') - sin(φ)·sin(δ)] / [cos(φ)·cos(δ)]
+cos(LHA) = [-0.0145 - sin(-12.8°)·sin(-23.4°)] / [cos(-12.8°)·cos(-23.4°)]
+cos(LHA) = [-0.0145 - (-0.222)(-0.397)] / [(0.975)(0.917)]
+cos(LHA) = [-0.0145 - 0.0881] / [0.894]
+cos(LHA) = -0.1027 / 0.894
+cos(LHA) = -0.1149
+
+LHA = arccos(-0.1149) = 96.6°
+```
+
+**Step 3: Longitude**
+```
+Longitude = GHA - LHA
+Longitude = 291.0° - 96.6° = 194.4°
+Longitude = 194.4° - 360° = -165.6°
+
+Longitude = 165.6°E
+```
+
+**Result: 12.8°S, 165.6°E** (South Pacific, near Vanuatu)
+
+### Comparison: Geometric vs Upper Limb
+
+| Method | Assumed h | LHA | Longitude |
+|--------|-----------|-----|-----------|
+| Geometric (h = 0°) | 0° | 95.6° | 165.1°E |
+| Upper Limb (h = -50') | -0.83° | 96.6° | 165.6°E |
+| **Difference** | | 1.0° | ~30 nm |
+
+The difference of about 30 nautical miles demonstrates why using the correct method matters for accurate navigation.
+
+### Summary: When to Use Each Formula
+
+| Observation | Use h = | LHA Formula |
+|-------------|---------|-------------|
+| Geometric sunset (center at horizon) | 0° | cos(LHA) = -tan(φ)·tan(δ) |
+| **Visible sunset (upper limb disappears)** | **-50'** | **cos(LHA) = [-0.0145 - sin(φ)sin(δ)] / [cos(φ)cos(δ)]** |
+| Visible sunrise (upper limb appears) | -50' | LHA = 360° - arccos(...) |
+
+---
+
+## Quick Reference
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         SUNRISE/SUNSET POSITION FIX                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  OBSERVE:                                                   │
+│    • Azimuth (true bearing) of sun at horizon               │
+│    • Exact UTC time when upper limb disappears/appears      │
+│                                                             │
+│  LOOK UP:                                                   │
+│    • Declination (δ) from almanac for date                  │
+│    • GHA of sun at observed UTC time                        │
+│                                                             │
+│  CALCULATE:                                                 │
+│    1. Amplitude:  A = Azimuth - 90° (sunrise)               │
+│                   A = Azimuth - 270° (sunset)               │
+│                                                             │
+│    2. Latitude:   cos(φ) = sin(δ) / sin(A)                  │
+│                                                             │
+│    3. Hour Angle (UPPER LIMB METHOD - h = -50'):            │
+│       cos(LHA) = [-0.0145 - sin(φ)sin(δ)] / [cos(φ)cos(δ)] │
+│                                                             │
+│       Sunrise: LHA = 360° - arccos(...)                     │
+│       Sunset:  LHA = arccos(...)                            │
+│                                                             │
+│    4. Longitude:  λ = GHA - LHA                             │
+│                   (adjust to ±180° range)                   │
+│                                                             │
+│  ALREADY INCLUDED IN h = -50':                              │
+│    • Refraction (34')  ─┬─ Combined into the               │
+│    • Semi-diameter (16') ─┘   -50' correction               │
+│                                                             │
+│  STILL APPLY:                                               │
+│    • Dip (height of eye) - typically 2-5'                   │
+│    • Compass error (deviation + variation)                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## References
 
 - [Bowditch Chapter 15 - Azimuths and Amplitudes (PDF)](https://thenauticalalmanac.com/2017_Bowditch-_American_Practical_Navigator/Volume-_1/05-%20Part%203-%20Celestial%20Navigation/Chapter%2015-%20Azimuths%20And%20Amplitudes.pdf)
