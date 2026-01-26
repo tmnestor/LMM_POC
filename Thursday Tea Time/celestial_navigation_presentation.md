@@ -2619,6 +2619,408 @@ The Southern Cross was central to their navigation:
 
 ---
 
+# Appendix G: Derivation of the Amplitude Equation
+
+The **amplitude** is the bearing of the sun (or other celestial body) measured from due East at sunrise, or from due West at sunset. This appendix derives the amplitude equation from the spherical law of cosines.
+
+## The Amplitude Equation
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│        sin(Amplitude) = sin(δ) / cos(φ)                     │
+│                                                             │
+│        where:  δ = declination of the body                  │
+│                φ = observer's latitude                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Derivation from Spherical Trigonometry
+
+### Step 1: The PZX Triangle at Sunrise/Sunset
+
+At the moment of sunrise or sunset, the celestial body X is exactly on the horizon:
+
+- **Altitude h = 0°**
+- **Zenith distance ZX = 90° - h = 90°**
+
+The three sides of the PZX navigation triangle become:
+
+| Side | Definition | Value at h = 0° |
+|------|------------|-----------------|
+| PZ | Co-latitude | 90° - φ |
+| PX | Co-declination | 90° - δ |
+| ZX | Zenith distance | 90° |
+
+### Step 2: Apply the Spherical Law of Cosines
+
+The spherical law of cosines relates the sides and angles:
+
+```
+cos(PX) = cos(PZ)·cos(ZX) + sin(PZ)·sin(ZX)·cos(Z)
+```
+
+Where angle Z is the **azimuth** at the zenith.
+
+### Step 3: Substitute the Values
+
+Substituting our values:
+
+```
+cos(90° - δ) = cos(90° - φ)·cos(90°) + sin(90° - φ)·sin(90°)·cos(Az)
+```
+
+### Step 4: Apply Co-function Identities
+
+The key trigonometric identities:
+
+| Expression | Equals |
+|------------|--------|
+| cos(90° - δ) | sin(δ) |
+| cos(90° - φ) | sin(φ) |
+| sin(90° - φ) | cos(φ) |
+| cos(90°) | 0 |
+| sin(90°) | 1 |
+
+Substituting these:
+
+```
+sin(δ) = sin(φ) × 0 + cos(φ) × 1 × cos(Az)
+```
+
+This simplifies to:
+
+```
+sin(δ) = cos(φ) · cos(Az)
+```
+
+### Step 5: Solve for Azimuth
+
+Rearranging:
+
+```
+cos(Az) = sin(δ) / cos(φ)
+```
+
+### Step 6: Convert Azimuth to Amplitude
+
+The **amplitude (A)** is measured from due East (at sunrise) or due West (at sunset):
+
+- Due East has azimuth Az = 90°
+- If amplitude is North of East: Az = 90° - A
+- If amplitude is South of East: Az = 90° + A
+
+For the general case (amplitude north positive):
+
+```
+Az = 90° - A
+```
+
+Therefore:
+
+```
+cos(90° - A) = sin(δ) / cos(φ)
+```
+
+Using the identity **cos(90° - A) = sin(A)**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              sin(A) = sin(δ) / cos(φ)                       │
+│                                                             │
+│              THE AMPLITUDE EQUATION                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Why the Derivation Works: The Right Spherical Triangle
+
+At sunrise/sunset (h = 0°), the zenith distance ZX = 90°, which means the PZX triangle has a **side of exactly 90°**.
+
+This creates a special case - when one side of a spherical triangle equals 90°, several terms vanish:
+
+```
+When ZX = 90°:
+    cos(ZX) = cos(90°) = 0    ← Eliminates first term
+    sin(ZX) = sin(90°) = 1    ← Simplifies second term
+```
+
+This is why the amplitude equation is so simple compared to the general altitude equation.
+
+---
+
+## Geometric Interpretation
+
+```
+                         Zenith (Z)
+                            │
+                            │ 90° - φ
+                            │ (co-latitude)
+                            │
+    ←───────────────────────┼───────────────────────→ Horizon
+    West                    │                        East
+                            │    ╲
+                            │     ╲ 90° (ZX)
+                            │      ╲
+                            │       ╲
+                            │        ★ Body X (on horizon)
+                            │       ╱
+                            │      ╱
+                            │     ╱ 90° - δ
+                            │    ╱  (co-declination)
+                            │   ╱
+                            │  ╱
+                            P
+                         (Pole)
+
+
+    When the body X is on the horizon:
+    • The side ZX = 90° (zenith to body = zenith distance)
+    • The triangle PZX becomes a "right" spherical triangle
+    • The amplitude is the angle from due East to the body
+```
+
+---
+
+## Vector Derivation
+
+From the vector approach (Appendix E), we can also derive the amplitude equation.
+
+**Setup:**
+- **p** = unit vector to celestial pole
+- **z** = unit vector to zenith
+- **x** = unit vector to celestial body
+
+**Key relationships:**
+- **p** · **z** = cos(PZ) = cos(90° - φ) = sin(φ)
+- **p** · **x** = cos(PX) = cos(90° - δ) = sin(δ)
+- **z** · **x** = cos(ZX) = cos(90°) = 0 (body on horizon)
+
+**At sunrise/sunset**, the body X lies in the horizon plane, which is perpendicular to the zenith vector **z**:
+
+```
+z · x = 0
+```
+
+The pole vector **p** can be decomposed into components parallel and perpendicular to the zenith:
+
+```
+p = sin(φ)·z + cos(φ)·h
+```
+
+where **h** is a unit vector in the horizon plane pointing toward the elevated pole.
+
+The azimuth angle Az relates to the angle between **h** and the projection of **x** onto the horizon plane. Since **x** is already in the horizon plane:
+
+```
+p · x = sin(φ)·(z · x) + cos(φ)·(h · x)
+sin(δ) = sin(φ)·(0) + cos(φ)·cos(Az)
+sin(δ) = cos(φ)·cos(Az)
+```
+
+Converting to amplitude:
+
+```
+sin(A) = sin(δ) / cos(φ)
+```
+
+---
+
+## Sign Conventions and Interpretation
+
+### Amplitude Sign Convention
+
+| Amplitude | Meaning |
+|-----------|---------|
+| A > 0 (positive) | Body rises/sets **North** of due East/West |
+| A < 0 (negative) | Body rises/sets **South** of due East/West |
+| A = 0 | Body rises/sets exactly due East/West |
+
+### Relationship to Declination
+
+The amplitude always has the **same sign as the declination**:
+
+| Declination | Amplitude | Rises/Sets |
+|-------------|-----------|------------|
+| North (δ > 0) | North (A > 0) | North of E/W |
+| Zero (δ = 0) | Zero (A = 0) | Due E/W (equinoxes) |
+| South (δ < 0) | South (A < 0) | South of E/W |
+
+This is true regardless of the observer's hemisphere.
+
+### Converting Amplitude to Azimuth
+
+**At Sunrise (Eastern horizon):**
+
+| Amplitude | Azimuth Formula | Example |
+|-----------|-----------------|---------|
+| A > 0 (North) | Az = 90° - A | A = 20°N → Az = 70° |
+| A < 0 (South) | Az = 90° - A | A = 20°S → Az = 110° |
+
+**At Sunset (Western horizon):**
+
+| Amplitude | Azimuth Formula | Example |
+|-----------|-----------------|---------|
+| A > 0 (North) | Az = 270° + A | A = 20°N → Az = 290° |
+| A < 0 (South) | Az = 270° + A | A = 20°S → Az = 250° |
+
+---
+
+## Worked Examples
+
+### Example 1: Summer Solstice in Southern Hemisphere
+
+**Given:**
+- Location: Sydney, Australia (φ = 34°S = -34°)
+- Date: December 21 (Southern summer solstice)
+- Sun's declination: δ = -23.4° (sun over Tropic of Capricorn)
+
+**Calculate amplitude:**
+```
+sin(A) = sin(δ) / cos(φ)
+sin(A) = sin(-23.4°) / cos(-34°)
+sin(A) = -0.397 / 0.829
+sin(A) = -0.479
+
+A = arcsin(-0.479) = -28.6°
+```
+
+**Interpretation:**
+- Amplitude = 28.6° **South** of East/West
+- Sunrise azimuth: 90° - (-28.6°) = 118.6° (ESE)
+- Sunset azimuth: 270° + (-28.6°) = 241.4° (WSW)
+
+The sun rises and sets well south of due East/West, traveling a long arc across the northern sky.
+
+### Example 2: Equinox (Any Location)
+
+**Given:**
+- Any latitude
+- Date: March 21 or September 23 (equinox)
+- Sun's declination: δ = 0°
+
+**Calculate amplitude:**
+```
+sin(A) = sin(0°) / cos(φ)
+sin(A) = 0 / cos(φ)
+sin(A) = 0
+
+A = 0°
+```
+
+**Interpretation:**
+At the equinoxes, the sun rises **exactly due East** and sets **exactly due West** at all latitudes (except the poles).
+
+### Example 3: Winter Solstice in Northern Hemisphere
+
+**Given:**
+- Location: London, UK (φ = 51.5°N)
+- Date: December 21 (Northern winter solstice)
+- Sun's declination: δ = -23.4°
+
+**Calculate amplitude:**
+```
+sin(A) = sin(-23.4°) / cos(51.5°)
+sin(A) = -0.397 / 0.623
+sin(A) = -0.637
+
+A = arcsin(-0.637) = -39.6°
+```
+
+**Interpretation:**
+- Amplitude = 39.6° **South** of East/West
+- Sunrise azimuth: 90° - (-39.6°) = 129.6° (SE)
+- Sunset azimuth: 270° + (-39.6°) = 230.4° (SW)
+
+The sun rises in the southeast and sets in the southwest, traveling a short, low arc across the southern sky.
+
+---
+
+## Limitations of the Amplitude Equation
+
+### 1. Circumpolar Bodies
+
+The equation fails when:
+
+```
+|sin(δ) / cos(φ)| > 1
+```
+
+This occurs when:
+
+```
+|δ| > 90° - |φ|
+```
+
+In this case, the body is **circumpolar** - it never rises or sets, but circles above (or below) the horizon continuously.
+
+**Example:** At 70°N latitude, any body with declination > 20°N or < -20°S is circumpolar.
+
+### 2. At the Poles
+
+At the poles (φ = ±90°), cos(φ) = 0, making the equation undefined:
+
+```
+sin(A) = sin(δ) / 0 = undefined
+```
+
+This reflects the physical reality: at the poles, the horizon is parallel to the celestial equator, and the concepts of "rising" and "setting" don't apply in the normal sense.
+
+### 3. Near-Polar Latitudes
+
+At very high latitudes, the amplitude can approach 90°, meaning the sun rises almost due North (or South). The equation remains valid but sensitivity to errors increases.
+
+---
+
+## Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  AMPLITUDE EQUATION DERIVATION SUMMARY                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Starting equation (spherical law of cosines):              │
+│                                                             │
+│  cos(PX) = cos(PZ)cos(ZX) + sin(PZ)sin(ZX)cos(Az)          │
+│                                                             │
+│  At sunrise/sunset (h = 0°, so ZX = 90°):                   │
+│                                                             │
+│  • cos(90°) = 0  eliminates first term                      │
+│  • sin(90°) = 1  simplifies second term                     │
+│                                                             │
+│  Result:  sin(δ) = cos(φ)·cos(Az)                          │
+│                                                             │
+│  Convert azimuth to amplitude (Az = 90° - A):               │
+│                                                             │
+│           sin(A) = sin(δ) / cos(φ)                          │
+│                                                             │
+│  Key insight: At sunrise/sunset, the PZX triangle has       │
+│  a 90° side, creating a "right spherical triangle" that     │
+│  dramatically simplifies the general navigation equations.  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Practical Application
+
+The amplitude observation has been used for centuries to:
+
+1. **Find latitude** (if declination is known from the date)
+2. **Check compass error** (compare observed bearing to calculated amplitude)
+3. **Determine approximate time** (amplitude changes through the year)
+
+> *"The amplitude tells you where the sun will touch the horizon. Know the declination, observe the bearing, and you know your latitude - or your compass error."*
+
+---
+
 ## References
 
 - [Bowditch Chapter 15 - Azimuths and Amplitudes (PDF)](https://thenauticalalmanac.com/2017_Bowditch-_American_Practical_Navigator/Volume-_1/05-%20Part%203-%20Celestial%20Navigation/Chapter%2015-%20Azimuths%20And%20Amplitudes.pdf)
