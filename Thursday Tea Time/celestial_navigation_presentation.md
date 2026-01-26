@@ -2251,6 +2251,374 @@ The vector method is computationally efficient for modern applications - GPS rec
 
 ---
 
+# Appendix F: Navigation Stars for Southern Latitudes
+
+This appendix covers the key navigation stars visible from the Southern Hemisphere, with guidance on when to observe them during morning and evening twilight.
+
+## Nautical Twilight: The Navigator's Window
+
+**Nautical twilight** is the ideal time for celestial navigation because both the horizon AND stars are visible:
+
+| Twilight | Sun Below Horizon | Horizon | Stars | Navigation |
+|----------|-------------------|---------|-------|------------|
+| Civil | 0° to 6° | Bright | Few | Limited |
+| **Nautical** | **6° to 12°** | **Visible** | **Many** | **Ideal** |
+| Astronomical | 12° to 18° | Faint/Gone | All | No horizon |
+
+This window typically lasts **20-30 minutes** - work quickly!
+
+---
+
+## Premier Southern Navigation Stars
+
+| Star | Constellation | Magnitude | Declination | Identification |
+|------|---------------|-----------|-------------|----------------|
+| **Canopus** | Carina | -0.74 | -52° | 2nd brightest star, brilliant white |
+| **Achernar** | Eridanus | 0.46 | -57° | Isolated, "end of the river" |
+| **Acrux** | Crux | 0.76 | -63° | Southern Cross foot, blue-white |
+| **Rigil Kentaurus** | Centaurus | -0.27 | -61° | Closest star, extremely bright |
+| **Hadar** | Centaurus | 0.61 | -60° | Second Pointer star |
+| **Fomalhaut** | Piscis Austrinus | 1.16 | -30° | "Lonely star" - very isolated |
+| **Peacock** | Pavo | 1.94 | -57° | Southern reference |
+| **Sirius** | Canis Major | -1.46 | -17° | Brightest star in sky |
+| **Antares** | Scorpius | 1.09 | -26° | Distinctly red, "rival of Mars" |
+
+---
+
+## Stars Visible Year-Round (Circumpolar from ~35°S)
+
+These stars never set and are available every clear night:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  CIRCUMPOLAR STARS (from 35°S latitude)                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  • Canopus (-0.74)      Always high, excellent anchor       │
+│  • Achernar (0.46)      Circles the pole                    │
+│  • Acrux (0.76)         Southern Cross - foot               │
+│  • Gacrux (1.63)        Southern Cross - head (orange)      │
+│  • Rigil Kentaurus (-0.27)  Alpha Centauri - Pointer        │
+│  • Hadar (0.61)         Beta Centauri - Pointer             │
+│                                                             │
+│  These six stars are your constant companions in the        │
+│  southern sky. Learn them well.                             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Seasonal Star Guide
+
+### Southern Summer (December - February)
+
+**Evening Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Canopus | High S | 60-80° | Anchor star |
+| Sirius | High N | 50-70° | Brightest, unmistakable |
+| Rigel | NW | 40-60° | Orion's foot, blue-white |
+| Achernar | SW, setting | 30-50° | Catch early |
+| Fomalhaut | W, low | 10-30° | Setting, observe first |
+| Crux | SE, rising | 20-40° | Coming up |
+
+**Morning Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Crux | High S | 50-70° | Prime position |
+| Rigil Kent/Hadar | High S | 50-70° | Pointers well placed |
+| Spica | E | 30-50° | Rising, bright |
+| Arcturus | NE | 20-40° | Orange giant |
+| Antares | E | 20-30° | Red, Scorpius rising |
+
+### Southern Autumn (March - May)
+
+**Evening Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Crux | High S | 60-80° | Excellent position |
+| Rigil Kent/Hadar | High S | 60-75° | Pointers at best |
+| Canopus | SW | 40-60° | Still high |
+| Sirius | W | 30-50° | Setting |
+| Spica | E | 30-50° | Rising |
+| Arcturus | NE | 20-40° | Appearing |
+
+**Morning Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Antares | High N | 50-60° | Scorpius high |
+| Fomalhaut | E | 30-40° | Rising |
+| Achernar | SE | 30-50° | Coming up |
+| Vega | NE, low | 10-20° | If latitude permits |
+| Altair | NE | 20-30° | Summer triangle |
+
+### Southern Winter (June - August)
+
+**Evening Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Crux | SW | 50-70° | Still good |
+| Rigil Kent/Hadar | S-SW | 50-70° | Well placed |
+| Antares | High N | 60-70° | Prime position |
+| Arcturus | NW | 30-50° | Setting |
+| Spica | W | 30-40° | Catch early |
+| Vega | NE | 20-30° | Low but visible |
+| Fomalhaut | SE | 30-40° | Rising |
+
+**Morning Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Canopus | SE | 30-50° | Rising |
+| Achernar | S-SE | 50-70° | Well placed |
+| Fomalhaut | High S | 50-60° | Prime |
+| Sirius | E | 20-30° | Rising |
+| Aldebaran | NE | 30-40° | Taurus rising |
+| Rigel | E | 20-30° | Orion appearing |
+
+### Southern Spring (September - November)
+
+**Evening Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Fomalhaut | High S | 60-70° | Excellent |
+| Achernar | SE | 40-60° | Rising higher |
+| Antares | W | 30-40° | Setting |
+| Peacock | S | 50-60° | Good southern marker |
+| Altair | NW | 30-40° | Setting |
+| Vega | NW, low | 10-20° | Catch if possible |
+
+**Morning Twilight Stars:**
+
+| Star | Position | Altitude | Notes |
+|------|----------|----------|-------|
+| Canopus | High S | 60-80° | Prime position |
+| Sirius | High N | 50-70° | Brilliant |
+| Rigel | N-NE | 40-60° | Orion high |
+| Aldebaran | NW | 40-50° | Taurus |
+| Crux | SE | 30-50° | Rising |
+| Rigil Kent/Hadar | SE | 30-50° | Pointers rising |
+
+---
+
+## The Navigator's "Big Seven"
+
+These seven stars are bright, well-distributed, and easy to identify. Master these and you can navigate anywhere in the Southern Hemisphere:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  ★ CANOPUS      α Carinae    -0.74 mag   Dec -52°          │
+│    The southern anchor. Second brightest star.              │
+│    Brilliant white. Well south of Sirius.                   │
+│                                                             │
+│  ★ SIRIUS       α CMa        -1.46 mag   Dec -17°          │
+│    Brightest star in the sky. Follows Orion's belt.         │
+│    Blue-white, often twinkles. Can't miss it.               │
+│                                                             │
+│  ★ RIGIL KENT   α Centauri   -0.27 mag   Dec -61°          │
+│    Third brightest star. Nearest star system.               │
+│    Forms Pointer pair with Hadar toward Crux.               │
+│                                                             │
+│  ★ ACHERNAR     α Eridani    +0.46 mag   Dec -57°          │
+│    "End of the River." Very isolated - no bright            │
+│    stars nearby. Easy to identify by loneliness.            │
+│                                                             │
+│  ★ ACRUX        α Crucis     +0.76 mag   Dec -63°          │
+│    Foot of the Southern Cross. Blue-white.                  │
+│    Use Pointers to confirm (not False Cross).               │
+│                                                             │
+│  ★ FOMALHAUT    α PsA        +1.16 mag   Dec -30°          │
+│    The "Lonely Star" or "Solitary One."                     │
+│    Extremely isolated. Autumn evening star.                 │
+│                                                             │
+│  ★ ANTARES      α Scorpii    +1.09 mag   Dec -26°          │
+│    Heart of the Scorpion. Distinctly RED.                   │
+│    Name means "rival of Mars." Winter star.                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Star Identification Tips
+
+### Canopus
+- Second brightest star in the sky (after Sirius)
+- Brilliant white, steady light
+- Located well south of Sirius - if you can see Sirius, look further south
+- Circumpolar from about 37°S
+
+### Sirius
+- **Brightest star in the sky** - unmistakable
+- Follows Orion's belt (the "belt points to it")
+- Blue-white, often twinkles strongly when low
+- Rises in the east a few hours after Orion
+
+### Rigil Kentaurus & Hadar (The Pointers)
+- Two bright stars close together
+- They "point" toward the Southern Cross
+- Rigil Kent is slightly brighter and further from Crux
+- Help distinguish true Southern Cross from the False Cross
+
+### Achernar
+- Very bright but **completely isolated**
+- No other bright stars within 30° of it
+- Marks the southern end of the river Eridanus
+- The isolation makes it easy to identify
+
+### Fomalhaut
+- Called the "Lonely One" or "Autumn Star"
+- **Very isolated** - only bright star in its region
+- Easy to find by its solitude
+- Best seen in southern spring evenings
+
+### Acrux (Alpha Crucis)
+- Bottom (foot) star of the Southern Cross
+- Blue-white color
+- Actually a multiple star system
+- Extend from Gacrux through Acrux to find SCP
+
+### Antares
+- **Distinctly RED/orange** color
+- Heart of Scorpius constellation
+- Name means "anti-Ares" (rival of Mars)
+- Can be confused with Mars when Mars is nearby - check for twinkling (stars twinkle, planets don't)
+
+---
+
+## Planning Star Observations
+
+### Selection Criteria
+
+For a good fix, select 3-5 stars that are:
+
+1. **Well distributed in azimuth** - spread around the compass (ideally 60-120° apart)
+2. **At moderate altitude** - between 15° and 70°
+   - Too low: refraction errors, haze, obstructions
+   - Too high: difficult sextant technique
+3. **Easy to identify** - bright, distinctive, or in recognizable patterns
+4. **Different brightness** - helps confirm identification
+
+### Ideal Star Geometry
+
+```
+         N
+         ★ Star 1 (Az 350°, Alt 45°)
+        /
+       /
+W ────●──── E
+       \
+        \★ Star 2 (Az 110°, Alt 35°)
+         \
+          ★ Star 3 (Az 200°, Alt 55°)
+         S
+
+Three stars spread around the compass give
+a strong "cocked hat" fix.
+```
+
+### Pre-Computation
+
+Before twilight, compute for each planned star:
+- Expected altitude (Hc)
+- Expected azimuth (Zn)
+- Identification features
+
+This allows rapid star identification in the dimming/brightening sky.
+
+---
+
+## Twilight Observation Procedure
+
+### Evening Observations
+
+1. **30 min before sunset**: Prepare sextant, check watch, review star list
+2. **Civil twilight begins**: Identify brightest stars appearing (Sirius, Canopus, planets)
+3. **Early nautical twilight**: Take sights of bright stars while horizon is sharp
+4. **Mid nautical twilight**: Take remaining stars as they become visible
+5. **Late nautical twilight**: Final sights before horizon fades
+
+### Morning Observations
+
+1. **Late nautical twilight**: Stars still bright, horizon becoming visible
+2. **Mid nautical twilight**: Horizon sharpening, take fainter stars first (they'll fade)
+3. **Early nautical twilight**: Take bright stars last (Sirius, Canopus)
+4. **Civil twilight**: Only brightest stars/planets visible - final chance
+
+### Time Management
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  TWILIGHT OBSERVATION TIMELINE                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  EVENING:                                                   │
+│  ────────                                                   │
+│  Sunset ──▶ Civil ──▶ NAUTICAL (20-30 min) ──▶ Astro       │
+│              │              │                    │          │
+│         First stars    BEST TIME           Horizon gone     │
+│                                                             │
+│  MORNING:                                                   │
+│  ─────────                                                  │
+│  Astro ──▶ NAUTICAL (20-30 min) ──▶ Civil ──▶ Sunrise      │
+│    │              │                    │                    │
+│  All stars     BEST TIME          Stars fading              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Reference: Stars by Azimuth
+
+When planning observations, choose stars from different directions:
+
+**Northern Sky (Az 315° - 45°):**
+- Sirius, Rigel, Aldebaran, Betelgeuse (winter)
+- Arcturus, Spica (autumn)
+- Vega, Altair, Deneb (if visible - summer)
+
+**Eastern Sky (Az 45° - 135°):**
+- Rising stars vary by season
+- Check seasonal tables above
+
+**Southern Sky (Az 135° - 225°):**
+- Canopus, Achernar (always available from far south)
+- Crux, Rigil Kent, Hadar (circumpolar)
+- Fomalhaut, Peacock (seasonal)
+
+**Western Sky (Az 225° - 315°):**
+- Setting stars - observe these first!
+- They'll be gone before twilight ends
+
+---
+
+## Historical Note: Polynesian Star Navigation
+
+Long before the sextant, Polynesian navigators crossed the Pacific using star paths. They memorized:
+
+- **Rising and setting points** of key stars at different islands
+- **Star altitude** as a measure of latitude
+- **Star paths** - sequences of stars that rose at the same azimuth
+
+The Southern Cross was central to their navigation:
+- Its orientation indicated south
+- Its altitude indicated latitude
+- Its rotation through the night helped tell time
+
+> *"The stars are our ancestors' gift - a map written in light. The Southern Cross points the way home."*
+> — Traditional Polynesian navigation wisdom
+
+---
+
 ## References
 
 - [Bowditch Chapter 15 - Azimuths and Amplitudes (PDF)](https://thenauticalalmanac.com/2017_Bowditch-_American_Practical_Navigator/Volume-_1/05-%20Part%203-%20Celestial%20Navigation/Chapter%2015-%20Azimuths%20And%20Amplitudes.pdf)
