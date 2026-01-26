@@ -1187,6 +1187,74 @@ Or equivalently:
 
 **Result:** No spherical trigonometry needed! The triangle collapses to a straight line (P, Z, and X are collinear on the meridian).
 
+### Worked Example: Noon Sight in Fiji Waters
+
+**Scenario:** You are sailing between Viti Levu and Vanua Levu in Fiji. Your DR position is approximately 17°S, 179°E. On November 5th, you take a noon sight.
+
+**Given Data:**
+- Date: November 5th
+- Sextant altitude (Hs): 87° 38.2'
+- Index error: +1.5' (on the arc)
+- Height of eye: 3 metres
+- Sun's declination (from almanac): S 15° 48.3'
+
+**Step 1: Correct the sextant altitude**
+```
+Sextant altitude (Hs):     87° 38.2'
+Index correction:           - 1.5'      (subtract if "on the arc")
+Dip (3m):                   - 3.0'
+                           ─────────
+Apparent altitude (Ha):    87° 33.7'
+Altitude correction (Sun):  + 15.7'     (lower limb, from almanac)
+                           ─────────
+Observed altitude (Ho):    87° 49.4'
+```
+
+**Step 2: Calculate Zenith Distance**
+```
+ZD = 90° - Ho
+ZD = 90° 00.0' - 87° 49.4'
+ZD = 2° 10.6'
+```
+
+**Step 3: Determine the sign (critical step!)**
+
+Ask: Where is the sun relative to my zenith?
+- My DR latitude: ~17°S
+- Sun's declination: 15° 48.3'S
+- Sun is closer to equator than I am
+- Therefore: **Sun bears NORTH** (sun is north of my zenith)
+
+Rule for same name (both South), sun north of zenith:
+```
+Latitude = Declination + Zenith Distance
+```
+
+**Step 4: Calculate Latitude**
+```
+Declination:        S 15° 48.3'
+Zenith Distance:      + 2° 10.6'
+                    ───────────
+Latitude:           S 17° 58.9'
+```
+
+**Result:** Your observed latitude is **17° 58.9' S**
+
+**Verification:** This is consistent with Fiji waters (Fiji spans roughly 15°S to 21°S).
+
+### Sign Rule Summary for Noon Sights
+
+| Observer | Sun | Sun bears | Formula |
+|----------|-----|-----------|---------|
+| South | South (lesser) | North | φ = δ + ZD |
+| South | South (greater) | South | φ = δ - ZD |
+| South | North | North | φ = ZD - δ (contrary name) |
+| North | North (lesser) | South | φ = δ + ZD |
+| North | North (greater) | North | φ = δ - ZD |
+| North | South | South | φ = ZD - δ (contrary name) |
+
+*"Lesser/greater" refers to whether declination is less than or greater than latitude in absolute value.*
+
 ---
 
 ## Special Case 2: Polaris (Body at the Celestial Pole)
