@@ -1187,6 +1187,11 @@ Or equivalently:
 
 **Result:** No spherical trigonometry needed! The triangle collapses to a straight line (P, Z, and X are collinear on the meridian).
 
+**Diagram:** See `collinear_pzx_diagram.nb` for Mathematica visualizations showing:
+- 3D view of the collinear P-Z-X configuration on the celestial sphere
+- 2D side view of the meridian plane
+- Equation flow diagram showing the simplification
+
 ### Worked Example: Noon Sight in Fiji Waters
 
 **Scenario:** You are sailing between Viti Levu and Vanua Levu in Fiji. Your DR position is approximately 17°S, 179°E. On November 5th, you take a noon sight.

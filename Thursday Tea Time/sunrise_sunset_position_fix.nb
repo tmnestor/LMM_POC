@@ -1,0 +1,476 @@
+Notebook[{
+
+Cell["Sunrise/Sunset Position Fix Reference Card", "Title"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"positionFixCard", " ", "=", " ",
+   RowBox[{"Graphics", "[",
+    RowBox[{
+     RowBox[{"{", "\n", "  ",
+      RowBox[{"(*", " ",
+       RowBox[{"Main", " ", "border"}], " ", "*)"}], "\n", "  ",
+      RowBox[{
+       RowBox[{"{",
+        RowBox[{
+         RowBox[{"EdgeForm", "[",
+          RowBox[{"{",
+           RowBox[{"Black", ",", " ",
+            RowBox[{"Thickness", "[", "0.003", "]"}]}], "}"}], "]"}], ",",
+         " ", "White", ",", " ",
+         RowBox[{"Rectangle", "[",
+          RowBox[{
+           RowBox[{"{",
+            RowBox[{"0", ",", " ", "0"}], "}"}], ",", " ",
+           RowBox[{"{",
+            RowBox[{"10", ",", " ", "14"}], "}"}]}], "]"}]}], "}"}], ",",
+       "\n", "  ", "\n", "  ",
+       RowBox[{"(*", " ", "Title", " ", "*)"}], "\n", "  ",
+       RowBox[{"{",
+        RowBox[{
+         RowBox[{"EdgeForm", "[", "Black", "]"}], ",", " ",
+         RowBox[{"GrayLevel", "[", "0.95", "]"}], ",", " ",
+         RowBox[{"Rectangle", "[",
+          RowBox[{
+           RowBox[{"{",
+            RowBox[{"0.3", ",", " ", "13.2"}], "}"}], ",", " ",
+           RowBox[{"{",
+            RowBox[{"9.7", ",", " ", "13.7"}], "}"}]}], "]"}]}], "}"}], ",",
+       "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<SUNRISE/SUNSET POSITION FIX\>\"", ",", " ", "Bold", ",", " ",
+           "14", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"5", ",", " ", "13.45"}], "}"}]}], "]"}], ",", "\n", "  ",
+       "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"OBSERVE", " ", "section"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{"\"\<OBSERVE:\>\"", ",", " ", "Bold", ",", " ", "12", ",",
+           " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "12.7"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Azimuth (true bearing) of sun at horizon\>\"", ",",
+            " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "12.3"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Exact UTC time when upper limb disappears/\
+appears\>\"", ",", " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "11.9"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"LOOK", " ", "UP", " ", "section"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{"\"\<LOOK UP:\>\"", ",", " ", "Bold", ",", " ", "12", ",",
+           " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "11.4"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Declination (\[Delta]) from almanac for date\>\"",
+            ",", " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "11.0"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] GHA of sun at observed UTC time\>\"", ",", " ",
+           "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "10.6"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"CALCULATE", " ", "section"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{"\"\<CALCULATE:\>\"", ",", " ", "Bold", ",", " ", "12", ",",
+            " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "10.1"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"1.", " ", "Amplitude"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{"\"\<  1. Amplitude:  A = Azimuth - 90\[Degree]  (sunrise)\
+\>\"", ",", " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "9.65"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<                A = Azimuth - 270\[Degree] (sunset)\>\"", ",",
+           " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "9.25"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"2.", " ", "Latitude"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  2. Latitude:  cos(\[Phi]) = sin(\[Delta]) / sin(A)\>\"", ",",
+            " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "8.7"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"3.", " ", "Hour", " ", "Angle"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  3. Hour Angle (UPPER LIMB METHOD - h = -50'):\>\"", ",", " ",
+            "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "8.15"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<     cos(LHA) = [-0.0145 - sin(\[Phi])sin(\[Delta])] / [cos(\
+\[Phi])cos(\[Delta])]\>\"", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "7.7"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<     Sunrise: LHA = 360\[Degree] - arccos(...)\>\"", ",", " ",
+           "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "7.2"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<     Sunset:  LHA = arccos(...)\>\"", ",", " ", "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "6.8"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"4.", " ", "Longitude"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  4. Longitude:  \[Lambda] = GHA - LHA\>\"", ",", " ", "11",
+           ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "6.25"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<                (adjust to \[PlusMinus]180\[Degree] range)\>\"",
+            ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "5.85"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"Divider", " ", "line"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"{",
+        RowBox[{
+         RowBox[{"GrayLevel", "[", "0.7", "]"}], ",", " ",
+         RowBox[{"Line", "[",
+          RowBox[{"{",
+           RowBox[{
+            RowBox[{"{",
+             RowBox[{"0.5", ",", " ", "5.4"}], "}"}], ",", " ",
+            RowBox[{"{",
+             RowBox[{"9.5", ",", " ", "5.4"}], "}"}]}], "}"}], "]"}]}], "}"}],
+        ",", "\n", "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"ALREADY", " ", "INCLUDED", " ", "section"}], " ", "*)"}],
+       "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<ALREADY INCLUDED IN h = -50':\>\"", ",", " ", "Bold", ",", " ",
+            "11", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "5.0"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Refraction (34')      \[UpperRightArrow] Combined \
+into the\>\"", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "4.55"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Semi-diameter (16') \[LowerRightArrow]   -50' \
+correction\>\"", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "4.15"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"Divider", " ", "line"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"{",
+        RowBox[{
+         RowBox[{"GrayLevel", "[", "0.7", "]"}], ",", " ",
+         RowBox[{"Line", "[",
+          RowBox[{"{",
+           RowBox[{
+            RowBox[{"{",
+             RowBox[{"0.5", ",", " ", "3.7"}], "}"}], ",", " ",
+            RowBox[{"{",
+             RowBox[{"9.5", ",", " ", "3.7"}], "}"}]}], "}"}], "]"}]}], "}"}],
+        ",", "\n", "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"STILL", " ", "APPLY", " ", "section"}], " ", "*)"}], "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{"\"\<STILL APPLY:\>\"", ",", " ", "Bold", ",", " ", "11",
+           ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "3.3"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Dip (height of eye) - typically 2-5'\>\"", ",", " ",
+            "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "2.9"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<  \[Bullet] Compass error (deviation + variation)\>\"", ",",
+           " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "2.5"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"Divider", " ", "line"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"{",
+        RowBox[{
+         RowBox[{"GrayLevel", "[", "0.7", "]"}], ",", " ",
+         RowBox[{"Line", "[",
+          RowBox[{"{",
+           RowBox[{
+            RowBox[{"{",
+             RowBox[{"0.5", ",", " ", "2.1"}], "}"}], ",", " ",
+            RowBox[{"{",
+             RowBox[{"9.5", ",", " ", "2.1"}], "}"}]}], "}"}], "]"}]}], "}"}],
+        ",", "\n", "  ", "\n", "  ",
+       RowBox[{"(*", " ",
+        RowBox[{"Note", " ", "at", " ", "bottom"}], " ", "*)"}], "\n", "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<NOTE: This method gives a complete position fix from a\>\"",
+           ",", " ", "Italic", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "1.7"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<single observation - no noon sight required!\>\"", ",", " ",
+           "Italic", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "1.3"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}], ",", "\n",
+       "  ",
+       RowBox[{"Text", "[",
+        RowBox[{
+         RowBox[{"Style", "[",
+          RowBox[{
+          "\"\<Available twice daily (sunrise and sunset).\>\"", ",", " ",
+           "Italic", ",", " ", "10", ",", " ",
+           RowBox[{"FontFamily", " ", "->", " ", "\"\<Courier\>\""}]}], "]"}],
+          ",", " ",
+         RowBox[{"{",
+          RowBox[{"0.5", ",", " ", "0.9"}], "}"}], ",", " ",
+         RowBox[{"{",
+          RowBox[{
+           RowBox[{"-", "1"}], ",", " ", "0"}], "}"}]}], "]"}]}], "\n", "}"}],
+      ",", "\n",
+     RowBox[{"ImageSize", " ", "->", " ", "500"}], ",", "\n",
+     RowBox[{"Background", " ", "->", " ", "White"}]}], "\n", "]"}]}],
+  ";"}]], "Input"],
+
+Cell[BoxData["positionFixCard"], "Input"],
+
+Cell["Export", "Section"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"SetDirectory", "[",
+   RowBox[{"NotebookDirectory", "[", "]"}], "]"}], ";"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Export", "[",
+  RowBox[{
+  "\"\<sunrise_sunset_position_fix.png\>\"", ",", " ", "positionFixCard", ",",
+    " ",
+   RowBox[{"ImageResolution", " ", "->", " ", "150"}]}], "]"}]], "Input"]
+
+}]
