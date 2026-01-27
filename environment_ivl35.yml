@@ -1,4 +1,4 @@
-name: ivl35_env
+name: LMM_POC_IVL3.5
 
 channels:
   - pytorch
@@ -32,7 +32,7 @@ dependencies:
 
 # Installation:
 # conda env create -f environment_ivl35.yml
-# conda activate ivl35_env
+# conda activate LMM_POC_IVL3.5
 #
 # IMPORTANT: Install flash-attn separately (requires torch to be installed first):
 # pip install flash-attn --no-build-isolation
@@ -41,20 +41,6 @@ dependencies:
 # - 8B model fits easily on single H200 (80GB HBM3)
 # - Use torch_dtype=torch.bfloat16
 # - Enable use_flash_attn=True
-
-# # 1. Activate the environment
-# conda activate ivl35_env
-
-# # 2. Install ipykernel (if not already in environment.yml)
-# pip install ipykernel
-
-# # 3. Create the Jupyter kernel
-# python -m ipykernel install --user --name=ivl35_env --display-name "Python (InternVL3.5)"
-
-# # 4. Verify kernel installation
-# jupyter kernelspec list
-
-# To use in Jupyter:
-# 1. Start Jupyter: jupyter notebook or jupyter lab
-# 2. Create/open a notebook
-# 3. Select Kernel → Change Kernel → Python (InternVL3.5)
+#
+# Jupyter kernel is registered automatically by LMM_POC_setup.sh
+# Manual registration: python -m ipykernel install --user --name=LMM_POC_IVL3.5 --display-name "Python (LMM_POC_IVL3.5)"

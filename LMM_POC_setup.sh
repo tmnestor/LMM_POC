@@ -4,7 +4,8 @@
 # Usage: source LMM_POC_setup.sh
 #
 # This script sets up the environment for running vision model comparison notebooks:
-# - Creates conda environment from <<environment.yml>>
+# - Creates conda environment from environment_ivl35.yml
+# - Registers Jupyter kernel: LMM_POC_IVL3.5
 # - Validates model dependencies and hardware
 
 # Set permissions for SSH keys
@@ -35,10 +36,10 @@ if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
     fi
 fi
 
-# Default configuration for unified vision processor
-# DEFAULT_DIR="$HOME/nfs_share_new/tod/information_extractor_standalone"
+# Default configuration
 DEFAULT_DIR="$HOME/nfs_share_new/tod/LMM_POC"
-DEFAULT_ENV="unified_vision_processor"
+DEFAULT_ENV="LMM_POC_IVL3.5"
+DEFAULT_YML="environment_ivl35.yml"
 
 # Parse arguments
 WORK_DIR=${1:-$DEFAULT_DIR}
@@ -56,7 +57,7 @@ if [ -d "$WORK_DIR" ]; then
     echo "✅ Changed directory to: $(pwd)"
 else
     echo "❌ Error: Directory $WORK_DIR does not exist"
-    echo "   Expected: unified_vision_processor project directory"
+    echo "   Expected: LMM_POC project directory"
     return 1
 fi
 
@@ -70,22 +71,22 @@ if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
         echo "✅ Activated conda environment: $CONDA_ENV"
     else
         echo "⚠️ Conda environment '$CONDA_ENV' not found"
-        echo "   Creating environment from environment.yml..."
-        
-        if [ -f "environment.yml" ]; then
-            echo "📦 Installing dependencies (this may take a few minutes)..."
-            if conda env create -f environment.yml; then
+        echo "   Creating environment from $DEFAULT_YML..."
+
+        if [ -f "$DEFAULT_YML" ]; then
+            echo "📦 Installing dependencies..."
+            if conda env create -f "$DEFAULT_YML"; then
                 echo "✅ Environment created successfully"
                 conda activate "$CONDA_ENV"
                 echo "✅ Activated new environment: $CONDA_ENV"
             else
-                echo "❌ Failed to create environment from environment.yml"
+                echo "❌ Failed to create environment from $DEFAULT_YML"
                 echo "   Available environments:"
                 conda env list
                 return 1
             fi
         else
-            echo "❌ environment.yml not found in current directory"
+            echo "❌ $DEFAULT_YML not found in current directory"
             return 1
         fi
     fi
@@ -96,7 +97,7 @@ fi
 
 # Register conda environment as Jupyter kernel
 KERNEL_NAME="$CONDA_ENV"
-KERNEL_DISPLAY="Python (Vision Notebooks)"
+KERNEL_DISPLAY="Python (LMM_POC_IVL3.5)"
 if [ -n "$KERNEL_NAME" ] && jupyter kernelspec list 2>/dev/null | grep -qw "$KERNEL_NAME"; then
     echo "✅ Jupyter kernel '$KERNEL_DISPLAY' already registered"
 else
