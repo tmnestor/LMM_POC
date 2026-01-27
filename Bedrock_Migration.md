@@ -15,7 +15,8 @@ This document outlines the code changes required to migrate the LMM_POC informat
 9. [AWS Configuration](#aws-configuration)
 10. [Available Bedrock Models](#available-bedrock-models)
 11. [Migration Strategy Options](#migration-strategy-options)
-12. [Estimated Effort](#estimated-effort)
+12. [SageMaker Alternative for Custom Models](#sagemaker-alternative-for-custom-models)
+13. [Estimated Effort](#estimated-effort)
 
 ---
 
@@ -57,7 +58,7 @@ All API calls must use `region_name="ap-southeast-2"` to ensure data stays in Au
 
 ### Model Availability in Sydney (ap-southeast-2)
 
-**Claude models are NOT available in the Sydney region.** Only Amazon Nova models support Australian data residency:
+**Claude models are NOT available in the Sydney region.** Only Amazon Nova models support Australian data residency via native Bedrock:
 
 | Model | Available in Sydney | Vision Support | Recommendation |
 |-------|:------------------:|:--------------:|----------------|
@@ -65,14 +66,33 @@ All API calls must use `region_name="ap-southeast-2"` to ensure data stays in Au
 | Claude 3 Haiku | :x: No | Yes | Not available |
 | **Amazon Nova Pro** | :white_check_mark: Yes | Yes | **Recommended for production** |
 | **Amazon Nova Lite** | :white_check_mark: Yes | Yes | Budget option |
-| **Amazon Nova Micro** | :white_check_mark: Yes | No (text only) | Not suitable for document extraction |
+| Amazon Nova Micro | :white_check_mark: Yes | No (text only) | Not suitable for document extraction |
+
+### Bedrock Custom Model Import - NOT Available in Sydney
+
+> **CRITICAL**: Bedrock Custom Model Import is **not available** in ap-southeast-2 (Sydney).
+
+Custom Model Import regions:
+- :white_check_mark: US-East (N. Virginia)
+- :white_check_mark: US-West (Oregon)
+- :white_check_mark: Europe (Frankfurt)
+- :x: **Sydney (ap-southeast-2) - NOT AVAILABLE**
+
+This means the following models **cannot be used in Australia** via Bedrock:
+
+| Model | Bedrock Support | Sydney Availability | Alternative |
+|-------|-----------------|:------------------:|-------------|
+| **Qwen2.5-VL** | Custom Import | :x: No | SageMaker in Sydney |
+| **InternVL3** | Not supported | :x: No | SageMaker in Sydney |
+| Llama 3.2 Vision | Custom Import | :x: No | SageMaker in Sydney |
 
 ### Implications for This Project
 
-1. **Must use Amazon Nova Pro or Nova Lite** for vision-language tasks
-2. **Cannot use Claude models** while maintaining Australian data residency
-3. **Prompts may need adjustment** - Nova has different response characteristics than Claude
-4. **Evaluation required** - Nova Pro should be benchmarked against current Llama/InternVL3 results
+1. **Must use Amazon Nova Pro or Nova Lite** for serverless Bedrock in Sydney
+2. **Cannot use Claude, Qwen2.5-VL, or InternVL3** via Bedrock with Australian data residency
+3. **Alternative: Amazon SageMaker** can host Qwen2.5-VL or InternVL3 in Sydney (see [SageMaker Alternative](#sagemaker-alternative-for-custom-models))
+4. **Prompts may need adjustment** - Nova has different response characteristics
+5. **Evaluation required** - Nova Pro should be benchmarked against current Llama/InternVL3 results
 
 ### Cross-Region Inference (CRIS)
 
@@ -674,7 +694,7 @@ export AWS_DEFAULT_REGION="ap-southeast-2"  # Sydney - Australian data residency
 
 ### Models Available in Sydney (ap-southeast-2)
 
-> **For Australian data residency, only Amazon Nova models are available.**
+> **For Australian data residency, only Amazon Nova models are available via native Bedrock.**
 
 | Model | Model ID | Vision | Sydney (ap-southeast-2) | Recommendation |
 |-------|----------|:------:|:-----------------------:|----------------|
@@ -683,6 +703,18 @@ export AWS_DEFAULT_REGION="ap-southeast-2"  # Sydney - Australian data residency
 | Amazon Nova Micro | `amazon.nova-micro-v1:0` | No | :white_check_mark: Available | Text-only (not suitable) |
 | Claude 3.5 Sonnet | `anthropic.claude-3-5-sonnet-*` | Yes | :x: Not available | Cannot use in Australia |
 | Claude 3 Haiku | `anthropic.claude-3-haiku-*` | Yes | :x: Not available | Cannot use in Australia |
+
+### Models Available via Custom Model Import (NOT in Sydney)
+
+These models can be imported to Bedrock, but **only in US/EU regions** - not Sydney:
+
+| Model | Architecture | Vision | Sydney | US/EU Regions |
+|-------|--------------|:------:|:------:|:-------------:|
+| **Qwen2.5-VL** | Qwen2_5_VL | Yes | :x: | :white_check_mark: |
+| **Llama 3.2 Vision** | Mllama | Yes | :x: | :white_check_mark: |
+| InternVL3 | Not supported | Yes | :x: | :x: |
+
+> **For Qwen2.5-VL or InternVL3 in Australia**: Use [SageMaker](#sagemaker-alternative-for-custom-models) instead.
 
 ### Model Selection Guide (Australian Deployment)
 
@@ -815,18 +847,226 @@ def get_client():
 
 ---
 
+## SageMaker Alternative for Custom Models
+
+> **Use this option if you need Qwen2.5-VL or InternVL3 with Australian data residency.**
+
+Since Bedrock Custom Model Import is not available in Sydney, Amazon SageMaker provides an alternative path to host custom vision-language models in ap-southeast-2.
+
+### When to Use SageMaker
+
+| Requirement | Bedrock (Nova) | SageMaker |
+|-------------|:--------------:|:---------:|
+| Australian data residency | :white_check_mark: | :white_check_mark: |
+| Serverless (no infrastructure) | :white_check_mark: | :x: |
+| Use InternVL3 | :x: | :white_check_mark: |
+| Use Qwen2.5-VL | :x: | :white_check_mark: |
+| Managed scaling | :white_check_mark: | Partial |
+| Lowest operational burden | :white_check_mark: | :x: |
+
+### SageMaker Deployment Options
+
+#### Option 1: SageMaker JumpStart (Easiest)
+
+Pre-built model deployments with one-click setup:
+
+```python
+from sagemaker.jumpstart.model import JumpStartModel
+
+# Deploy Qwen2.5-VL via JumpStart (check availability)
+model = JumpStartModel(
+    model_id="huggingface-vlm-qwen2-5-vl-7b-instruct",
+    region="ap-southeast-2"
+)
+predictor = model.deploy(
+    instance_type="ml.g5.2xlarge",
+    initial_instance_count=1
+)
+```
+
+#### Option 2: SageMaker Endpoint (Full Control)
+
+Custom container deployment for InternVL3 or Qwen2.5-VL:
+
+```python
+import sagemaker
+from sagemaker.huggingface import HuggingFaceModel
+
+# Configure for Sydney region
+session = sagemaker.Session(boto_session=boto3.Session(region_name="ap-southeast-2"))
+
+# Deploy InternVL3 or Qwen2.5-VL
+huggingface_model = HuggingFaceModel(
+    model_data="s3://your-bucket-ap-southeast-2/model.tar.gz",
+    role="arn:aws:iam::ACCOUNT:role/SageMakerRole",
+    transformers_version="4.37",
+    pytorch_version="2.1",
+    py_version="py310",
+    sagemaker_session=session
+)
+
+predictor = huggingface_model.deploy(
+    initial_instance_count=1,
+    instance_type="ml.g5.2xlarge",  # Or ml.p3.2xlarge for V100
+    endpoint_name="internvl3-sydney-endpoint"
+)
+```
+
+#### Option 3: SageMaker Inference Component (Cost-Optimized)
+
+Share GPU instances across multiple models:
+
+```python
+# Create inference component for efficient GPU sharing
+# Useful if running multiple model variants
+```
+
+### SageMaker Client Implementation
+
+Create `common/sagemaker_model_client.py`:
+
+```python
+"""
+Amazon SageMaker client for custom vision-language models.
+
+Use this for InternVL3 or Qwen2.5-VL in Australian regions where
+Bedrock Custom Model Import is not available.
+"""
+
+import base64
+import json
+from io import BytesIO
+
+import boto3
+from PIL import Image
+from rich.console import Console
+
+console = Console()
+
+
+class SageMakerVisionClient:
+    """SageMaker endpoint client for vision-language models."""
+
+    def __init__(
+        self,
+        endpoint_name: str,
+        region: str = "ap-southeast-2",
+    ):
+        """
+        Initialize SageMaker client.
+
+        Args:
+            endpoint_name: Name of deployed SageMaker endpoint
+            region: AWS region (default: Sydney for Australian data residency)
+        """
+        self.client = boto3.client("sagemaker-runtime", region_name=region)
+        self.endpoint_name = endpoint_name
+        self.region = region
+
+        console.print(f"[green]SageMaker client initialized[/green]")
+        console.print(f"[cyan]Endpoint: {endpoint_name} | Region: {region}[/cyan]")
+
+    def encode_image_base64(self, image: Image.Image) -> str:
+        """Convert PIL Image to base64 string."""
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    def extract(self, image: Image.Image, prompt: str) -> str:
+        """
+        Send image + prompt to SageMaker endpoint.
+
+        Args:
+            image: PIL Image of document
+            prompt: Extraction prompt text
+
+        Returns:
+            Model response text
+        """
+        image_b64 = self.encode_image_base64(image)
+
+        # Payload format depends on your endpoint implementation
+        payload = {
+            "image": image_b64,
+            "prompt": prompt,
+            "max_new_tokens": 4096,
+        }
+
+        response = self.client.invoke_endpoint(
+            EndpointName=self.endpoint_name,
+            ContentType="application/json",
+            Body=json.dumps(payload),
+        )
+
+        result = json.loads(response["Body"].read().decode())
+        return result["generated_text"]
+
+
+def load_sagemaker_client(
+    endpoint_name: str,
+    region: str = "ap-southeast-2",
+) -> SageMakerVisionClient:
+    """Load SageMaker client for Australian deployment."""
+    return SageMakerVisionClient(endpoint_name=endpoint_name, region=region)
+```
+
+### Cost Comparison: Bedrock vs SageMaker
+
+| Aspect | Bedrock (Nova Pro) | SageMaker (g5.2xlarge) |
+|--------|-------------------|------------------------|
+| **Pricing model** | Per-token | Per-hour instance |
+| **Idle cost** | $0 | ~$1.50/hour |
+| **1000 documents/day** | ~$5-15/day | ~$36/day (24h) |
+| **10 documents/day** | ~$0.05-0.15/day | ~$36/day (24h) |
+| **Burst capacity** | Automatic | Manual scaling |
+| **Cold start** | None | 5-10 minutes |
+
+**Recommendation:**
+- **Low/variable volume**: Use Bedrock (Nova Pro) - pay only for usage
+- **High sustained volume**: SageMaker may be cost-effective
+- **Must use InternVL3/Qwen2.5-VL**: SageMaker is the only option for Australia
+
+### SageMaker in Migration Checklist
+
+If using SageMaker for custom models, add these tasks:
+
+- [ ] Package model artifacts to S3 in ap-southeast-2
+- [ ] Create SageMaker execution role with appropriate permissions
+- [ ] Deploy endpoint in ap-southeast-2
+- [ ] Test endpoint with sample documents
+- [ ] Configure auto-scaling policies (if needed)
+- [ ] Set up CloudWatch monitoring
+- [ ] Create `common/sagemaker_model_client.py`
+
+---
+
 ## Estimated Effort
+
+### Bedrock Migration (Nova Pro)
 
 | Task | Complexity | Time Estimate |
 |------|------------|---------------|
 | Create Bedrock client wrapper | Medium | 1-2 days |
 | Update configuration management | Low | 0.5 day |
 | Update batch processing scripts | Medium | 1 day |
-| Test and tune prompts for Claude | Medium | 1-2 days |
+| Test and tune prompts for Nova | Medium | 1-2 days |
 | Add rate limiting and error handling | Low | 0.5 day |
 | Update environment.yml | Low | 0.5 hour |
 | Documentation and testing | Low | 1 day |
 | **Total** | | **5-7 days** |
+
+### SageMaker Migration (InternVL3/Qwen2.5-VL) - Additional Effort
+
+| Task | Complexity | Time Estimate |
+|------|------------|---------------|
+| Package model for SageMaker | Medium | 1-2 days |
+| Create deployment infrastructure | Medium | 1 day |
+| Create SageMaker client wrapper | Medium | 1 day |
+| Test endpoint in Sydney | Low | 0.5 day |
+| Configure scaling/monitoring | Low | 0.5 day |
+| **Additional Total** | | **4-5 days** |
 
 ### Migration Checklist
 
@@ -920,13 +1160,26 @@ print(result["output"]["message"]["content"][0]["text"])
 
 ## References
 
+### Amazon Bedrock
 - [Amazon Bedrock in Sydney Region Announcement](https://aws.amazon.com/about-aws/whats-new/2024/04/amazon-bedrock-sydney-region/)
 - [Bedrock Model Support by Region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
 - [AWS Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/)
 - [Amazon Nova Documentation](https://docs.aws.amazon.com/nova/)
+
+### Custom Model Import & Qwen
+- [Bedrock Custom Model Import Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-customization-import-model.html)
+- [Qwen Models on Amazon Bedrock](https://aws.amazon.com/blogs/aws/qwen-models-are-now-available-in-amazon-bedrock/)
+- [Deploy Qwen Models with Bedrock Custom Model Import](https://aws.amazon.com/blogs/machine-learning/deploy-qwen-models-with-amazon-bedrock-custom-model-import/)
+- [Bedrock Custom Model Import - Qwen Support Announcement](https://aws.amazon.com/about-aws/whats-new/2025/06/amazon-bedrock-custom-model-import-qwen-models/)
+
+### Amazon SageMaker
+- [SageMaker JumpStart](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-jumpstart.html)
+- [Deploy HuggingFace Models on SageMaker](https://huggingface.co/docs/sagemaker/inference)
+- [SageMaker Pricing](https://aws.amazon.com/sagemaker/pricing/)
 
 ---
 
 *Document created: January 2026*
 *Last updated: January 2026*
 *Australian data residency requirements added: January 2026*
+*Qwen2.5-VL and SageMaker alternatives added: January 2026*
