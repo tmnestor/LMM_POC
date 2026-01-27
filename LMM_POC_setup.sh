@@ -97,7 +97,7 @@ fi
 # Register conda environment as Jupyter kernel
 KERNEL_NAME="$CONDA_ENV"
 KERNEL_DISPLAY="Python (Vision Notebooks)"
-if jupyter kernelspec list 2>/dev/null | grep -q "$KERNEL_NAME"; then
+if [ -n "$KERNEL_NAME" ] && jupyter kernelspec list 2>/dev/null | grep -qw "$KERNEL_NAME"; then
     echo "✅ Jupyter kernel '$KERNEL_DISPLAY' already registered"
 else
     echo "📦 Registering Jupyter kernel: $KERNEL_DISPLAY..."
