@@ -1,32 +1,22 @@
 #!/bin/bash
 
 # LMM_POC_setup.sh - LMM POC Model Notebooks Setup Script
-# Usage: source LMM_POC_setup.sh [work_dir] [conda_env]
+# Usage: source LMM_POC_setup.sh
 #
-# This script automates environment setup for vision model comparison on remote GPU machines (H200/V100):
-# - Configures SSH authentication for passwordless git operations
-# - Creates/activates conda environment from environment.yml
-# - Sets up PYTHONPATH for development imports (no pip install needed)
-# - Detects hardware (GPU/CPU) and validates dependencies
-# - Configures colored prompt showing conda environment and git branch
-#
-# IMPORTANT: Use 'source' not 'bash' so environment variables persist in your shell
+# This script sets up the environment for running vision model comparison notebooks:
+# - Creates conda environment from <<environment.yml>>
+# - Validates model dependencies and hardware
 
-# ============================================================================
-# SECTION 1: SSH Key Setup
-# ============================================================================
-# Set correct permissions for SSH keys (required for git operations)
-[ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519      # Private key: read-only by owner
-[ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && chmod 644 /home/jovyan/.ssh/id_ed25519.pub  # Public key: readable by all
+# Set permissions for SSH keys
+[ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519
+[ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && chmod 644 /home/jovyan/.ssh/id_ed25519.pub
 
-# Automatically convert HTTPS git remotes to SSH for passwordless operations
+# Configure git to use SSH instead of HTTPS for GitHub
 if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
     echo "🔑 Setting up git SSH authentication..."
-
-    # Check current git remote URL
+    
+    # Set git remote to use SSH if currently using HTTPS
     CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
-
-    # Convert HTTPS URLs to SSH format (https://github.com/user/repo → git@github.com:user/repo)
     if [[ "$CURRENT_REMOTE" == https://github.com/* ]]; then
         SSH_REMOTE=$(echo "$CURRENT_REMOTE" | sed 's|https://github.com/|git@github.com:|')
         git remote set-url origin "$SSH_REMOTE"
@@ -34,8 +24,8 @@ if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
     elif [[ "$CURRENT_REMOTE" == git@github.com:* ]]; then
         echo "✅ Git already configured for SSH: $CURRENT_REMOTE"
     fi
-
-    # Test SSH connection to GitHub (verifies key is added to GitHub account)
+    
+    # Test SSH connection
     if ssh -T git@github.com -o StrictHostKeyChecking=no -o ConnectTimeout=10 2>&1 | grep -q "successfully authenticated"; then
         echo "✅ SSH authentication to GitHub working"
     else
@@ -45,30 +35,22 @@ if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
     fi
 fi
 
-# ============================================================================
-# SECTION 2: Configuration & Arguments
-# ============================================================================
-# Default paths for remote GPU machines (H200/V100)
-DEFAULT_DIR="$HOME/nfs_share/tod/LMM_POC"
+# Default configuration for unified vision processor
+# DEFAULT_DIR="$HOME/nfs_share_new/tod/information_extractor_standalone"
+DEFAULT_DIR="$HOME/nfs_share_new/tod/LMM_POC"
 DEFAULT_ENV="unified_vision_processor"
 
-# Parse command-line arguments (allows custom paths if needed)
-# Usage: source LMM_POC_setup.sh [/custom/path] [custom_env_name]
-WORK_DIR=${1:-$DEFAULT_DIR}    # Use argument 1, or default directory
-CONDA_ENV=${2:-$DEFAULT_ENV}   # Use argument 2, or default environment name
+# Parse arguments
+WORK_DIR=${1:-$DEFAULT_DIR}
+CONDA_ENV=${2:-$DEFAULT_ENV}
 
-# ============================================================================
-# SECTION 3: Startup Banner
-# ============================================================================
+# Print header
 echo "========================================================"
 echo "🔬 Unified Vision Document Processing System"
 echo "🚀 Setting up environment: $CONDA_ENV"
 echo "========================================================"
 
-# ============================================================================
-# SECTION 4: Directory Navigation
-# ============================================================================
-# Navigate to project directory
+# Change to working directory
 if [ -d "$WORK_DIR" ]; then
     cd "$WORK_DIR"
     echo "✅ Changed directory to: $(pwd)"
@@ -78,22 +60,18 @@ else
     return 1
 fi
 
-# ============================================================================
-# SECTION 5: Conda Environment Management
-# ============================================================================
-# Initialize conda (required before using conda commands)
+# Initialize conda
 if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
     source "/opt/conda/etc/profile.d/conda.sh"
     echo "✅ Conda initialized"
-
+    
     # Try to activate the conda environment
     if conda activate "$CONDA_ENV" 2>/dev/null; then
         echo "✅ Activated conda environment: $CONDA_ENV"
     else
-        # Environment doesn't exist - create it automatically from environment.yml
         echo "⚠️ Conda environment '$CONDA_ENV' not found"
         echo "   Creating environment from environment.yml..."
-
+        
         if [ -f "environment.yml" ]; then
             echo "📦 Installing dependencies (this may take a few minutes)..."
             if conda env create -f environment.yml; then
@@ -116,106 +94,86 @@ else
     return 1
 fi
 
-# ============================================================================
-# SECTION 6: Python Path Configuration
-# ============================================================================
-# Add project directory to PYTHONPATH for development imports (no pip install needed)
-# Enables: from common.config import EXTRACTION_FIELDS
+# Register conda environment as Jupyter kernel
+KERNEL_NAME="$CONDA_ENV"
+KERNEL_DISPLAY="Python (Vision Notebooks)"
+if python -m ipykernel show "$KERNEL_NAME" >/dev/null 2>&1; then
+    echo "✅ Jupyter kernel '$KERNEL_DISPLAY' already registered"
+else
+    echo "📦 Registering Jupyter kernel: $KERNEL_DISPLAY..."
+    if python -m ipykernel install --user --name "$KERNEL_NAME" --display-name "$KERNEL_DISPLAY"; then
+        echo "✅ Jupyter kernel registered: $KERNEL_DISPLAY"
+    else
+        echo "❌ Failed to register Jupyter kernel"
+        echo "   Try manually: python -m ipykernel install --user --name $KERNEL_NAME --display-name \"$KERNEL_DISPLAY\""
+    fi
+fi
+
+# Set up PYTHONPATH for package access (no pip install needed)
+# Append to existing PYTHONPATH to avoid overwriting other paths, but avoid duplicates
 CURRENT_DIR="$(pwd)"
 if [ -z "$PYTHONPATH" ]; then
-    # PYTHONPATH is empty - set it
     export PYTHONPATH="$CURRENT_DIR"
     echo "✅ Set PYTHONPATH to: $CURRENT_DIR"
 elif [[ ":$PYTHONPATH:" != *":$CURRENT_DIR:"* ]]; then
-    # PYTHONPATH exists but doesn't contain project directory - prepend it
     export PYTHONPATH="$CURRENT_DIR:$PYTHONPATH"
     echo "✅ Added project to PYTHONPATH: $CURRENT_DIR"
     echo "   Full PYTHONPATH: $PYTHONPATH"
 else
-    # Project directory already in PYTHONPATH - no action needed
     echo "✅ Project already in PYTHONPATH: $CURRENT_DIR"
     echo "   Current PYTHONPATH: $PYTHONPATH"
 fi
 
-# ============================================================================
-# SECTION 7: Hardware Detection
-# ============================================================================
-# Detect GPU/CPU environment and provide optimization recommendations
+# Detect hardware environment
 echo ""
 echo "🔍 Hardware Detection:"
 if command -v nvidia-smi >/dev/null 2>&1; then
-    # GPU detected - get count and VRAM
     GPU_COUNT=$(nvidia-smi -L | wc -l)
     GPU_MEMORY=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
     echo "   GPUs detected: $GPU_COUNT"
     echo "   GPU memory: ${GPU_MEMORY}MB"
-
-    # Provide optimization recommendations based on VRAM
+    
     if [ "$GPU_MEMORY" -lt 20000 ]; then
-        echo "   💡 Limited GPU memory detected (V100 16GB typical)"
+        echo "   💡 Limited GPU memory detected"
         echo "      Recommended: Use 8-bit quantization in notebooks"
         echo "      (This is already configured in the notebooks)"
     fi
 else
-    # No GPU detected - CPU-only mode
     echo "   CPU-only environment detected"
     echo "   💡 Notebooks will run on CPU (slower but functional)"
 fi
 
-# ============================================================================
-# SECTION 8: Dependency Verification
-# ============================================================================
-# Quick health check for critical dependencies
+# Check key dependencies
 echo ""
 echo "🔍 Verifying installation:"
 echo "   📦 Checking dependencies:"
 
-# Test critical Python packages
 python -c "import torch; print(f'   ✅ PyTorch: {torch.__version__}')" 2>/dev/null || echo "   ❌ PyTorch not available"
 python -c "import transformers; print(f'   ✅ Transformers: {transformers.__version__}')" 2>/dev/null || echo "   ❌ Transformers not available"
 python -c "import PIL; print('   ✅ PIL (Pillow): available')" 2>/dev/null || echo "   ❌ PIL not available"
 python -c "import torchvision; print('   ✅ Torchvision: available')" 2>/dev/null || echo "   ❌ Torchvision not available"
 
-# Check CUDA availability within PyTorch
+# Check CUDA availability
 if python -c "import torch; print(f'   ✅ CUDA available: {torch.cuda.is_available()}')" 2>/dev/null; then
     python -c "import torch; print(f'   ✅ CUDA devices: {torch.cuda.device_count()}')" 2>/dev/null
 else
     echo "   ⚠️ CUDA not available - notebooks will run on CPU"
 fi
 
-# ============================================================================
-# SECTION 9: Environment Summary
-# ============================================================================
 echo ""
 echo "📋 Current Environment:"
 echo "   - Working directory: $(pwd)"
 echo "   - Python: $(which python)"
 echo "   - Conda environment: $CONDA_ENV"
 
-# ============================================================================
-# SECTION 10: Colored Prompt Configuration
-# ============================================================================
-# Configure shell prompt to display: (conda-env) (git-branch) directory $
+# Configure colored prompt with conda environment and git branch
 # Colors: Green for conda env, Cyan for git branch, Yellow for directory, White for $
-# Helper function to extract current git branch name
 git_branch() {
     git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 
-# Set PS1 prompt with color codes:
-# \[\e[0;32m\] = Green   | \[\e[0;36m\] = Cyan   | \[\e[0;33m\] = Yellow
-# \[\e[0;37m\] = White   | \[\e[0m\]    = Reset color
 export PS1='\[\e[0;32m\](${CONDA_DEFAULT_ENV})\[\e[0m\] \[\e[0;36m\]$(git_branch)\[\e[0m\] \[\e[0;33m\]\w\[\e[0m\] \[\e[0;37m\]\$\[\e[0m\] '
 
-# ============================================================================
-# SECTION 11: Useful Aliases
-# ============================================================================
-# Quick sync: Discard local changes, pull from remote, clear terminal
 alias gsync='git checkout -- . && git pull && reset'
-# ============================================================================
-# Setup Complete
-# ============================================================================
 echo "✅ Setup complete! You can now run the vision model comparison notebooks."
 echo "✅ Colored prompt configured: (conda-env) (git-branch) directory $"
-echo ""
-echo "💡 Tip: Add 'source ~/nfs_share/tod/LMM_POC/LMM_POC_setup.sh' to ~/.bashrc for automatic setup on login"
