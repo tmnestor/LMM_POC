@@ -5,16 +5,17 @@ This document outlines the code changes required to migrate the LMM_POC informat
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [Architecture Comparison](#architecture-comparison)
-3. [New Dependencies](#new-dependencies)
-4. [Bedrock Client Implementation](#bedrock-client-implementation)
-5. [Files Requiring Changes](#files-requiring-changes)
-6. [Components That Stay the Same](#components-that-stay-the-same)
-7. [Bedrock-Specific Considerations](#bedrock-specific-considerations)
-8. [AWS Configuration](#aws-configuration)
-9. [Available Bedrock Models](#available-bedrock-models)
-10. [Migration Strategy Options](#migration-strategy-options)
-11. [Estimated Effort](#estimated-effort)
+2. [Australian Data Residency Requirements](#australian-data-residency-requirements)
+3. [Architecture Comparison](#architecture-comparison)
+4. [New Dependencies](#new-dependencies)
+5. [Bedrock Client Implementation](#bedrock-client-implementation)
+6. [Files Requiring Changes](#files-requiring-changes)
+7. [Components That Stay the Same](#components-that-stay-the-same)
+8. [Bedrock-Specific Considerations](#bedrock-specific-considerations)
+9. [AWS Configuration](#aws-configuration)
+10. [Available Bedrock Models](#available-bedrock-models)
+11. [Migration Strategy Options](#migration-strategy-options)
+12. [Estimated Effort](#estimated-effort)
 
 ---
 
@@ -22,10 +23,14 @@ This document outlines the code changes required to migrate the LMM_POC informat
 
 The current architecture is **well-modularized**, making Bedrock migration straightforward. The main work involves replacing the model loading/inference layer while keeping the extraction parser, evaluation metrics, and reporting components unchanged.
 
+> **IMPORTANT: Australian Hosting Requirement**
+>
+> This deployment requires Australian data residency. See [Australian Data Residency Requirements](#australian-data-residency-requirements) for critical constraints on model selection.
+
 **Key Benefits of Bedrock Migration:**
 - No GPU infrastructure management
 - Serverless scaling
-- Access to Claude 3.5 Sonnet (strong document understanding)
+- Australian data residency compliance (ap-southeast-2 Sydney region)
 - Pay-per-use pricing
 - Simplified deployment
 
@@ -33,6 +38,69 @@ The current architecture is **well-modularized**, making Bedrock migration strai
 - Per-request API costs vs. fixed GPU costs
 - Network latency vs. local inference
 - AWS dependency vs. self-hosted flexibility
+- **Model limitation**: Claude models not available in Sydney - must use Amazon Nova
+
+---
+
+## Australian Data Residency Requirements
+
+> **CRITICAL**: This section contains mandatory requirements for Australian deployment.
+
+### Region Selection
+
+| Region | Code | Status |
+|--------|------|--------|
+| **Sydney** | `ap-southeast-2` | **Required for data residency** |
+| Melbourne | `ap-southeast-4` | Available (CRIS routing with Sydney) |
+
+All API calls must use `region_name="ap-southeast-2"` to ensure data stays in Australia.
+
+### Model Availability in Sydney (ap-southeast-2)
+
+**Claude models are NOT available in the Sydney region.** Only Amazon Nova models support Australian data residency:
+
+| Model | Available in Sydney | Vision Support | Recommendation |
+|-------|:------------------:|:--------------:|----------------|
+| Claude 3.5 Sonnet | :x: No | Yes | Not available |
+| Claude 3 Haiku | :x: No | Yes | Not available |
+| **Amazon Nova Pro** | :white_check_mark: Yes | Yes | **Recommended for production** |
+| **Amazon Nova Lite** | :white_check_mark: Yes | Yes | Budget option |
+| **Amazon Nova Micro** | :white_check_mark: Yes | No (text only) | Not suitable for document extraction |
+
+### Implications for This Project
+
+1. **Must use Amazon Nova Pro or Nova Lite** for vision-language tasks
+2. **Cannot use Claude models** while maintaining Australian data residency
+3. **Prompts may need adjustment** - Nova has different response characteristics than Claude
+4. **Evaluation required** - Nova Pro should be benchmarked against current Llama/InternVL3 results
+
+### Cross-Region Inference (CRIS)
+
+AWS offers Cross-Region Inference that routes between Sydney and Melbourne within Australia:
+- Traffic stays within Australian geography
+- Automatic load balancing between regions
+- Does **not** enable Claude models (still unavailable in both Australian regions)
+
+### Code Configuration for Australia
+
+```python
+# REQUIRED: Australian region configuration
+BEDROCK_REGION = "ap-southeast-2"  # Sydney
+
+# REQUIRED: Use Amazon Nova (Claude not available in Australia)
+DEFAULT_MODEL = "amazon.nova-pro-v1:0"
+
+# Initialize client for Australian deployment
+client = boto3.client("bedrock-runtime", region_name="ap-southeast-2")
+```
+
+### Compliance Checklist
+
+- [ ] Confirm `ap-southeast-2` region in all Bedrock client configurations
+- [ ] Use Amazon Nova Pro (not Claude) for all inference
+- [ ] Verify no cross-region calls to non-Australian regions
+- [ ] Document data residency compliance for audit purposes
+- [ ] Test Nova Pro accuracy against current model benchmarks
 
 ---
 
@@ -113,14 +181,18 @@ class BedrockVisionClient:
     """Bedrock client for vision-language models."""
 
     # Supported model IDs
-    CLAUDE_35_SONNET = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    CLAUDE_3_HAIKU = "anthropic.claude-3-haiku-20240307-v1:0"
-    AMAZON_NOVA_PRO = "amazon.nova-pro-v1:0"
+    # NOTE: Claude models NOT available in ap-southeast-2 (Sydney)
+    CLAUDE_35_SONNET = "anthropic.claude-3-5-sonnet-20241022-v2:0"  # Not available in Australia
+    CLAUDE_3_HAIKU = "anthropic.claude-3-haiku-20240307-v1:0"  # Not available in Australia
+
+    # Amazon Nova - Available in Sydney (ap-southeast-2)
+    AMAZON_NOVA_PRO = "amazon.nova-pro-v1:0"   # Recommended for Australia
+    AMAZON_NOVA_LITE = "amazon.nova-lite-v1:0"  # Budget option for Australia
 
     def __init__(
         self,
-        model_id: str = CLAUDE_35_SONNET,
-        region: str = "us-east-1",
+        model_id: str = AMAZON_NOVA_PRO,  # Default to Nova Pro for Australian deployment
+        region: str = "ap-southeast-2",    # Default to Sydney for Australian data residency
         max_tokens: int = 4096,
     ):
         """
@@ -195,27 +267,48 @@ class BedrockVisionClient:
         image_b64 = self.encode_image_base64(image, format=image_format)
         media_type = self._get_media_type(image_format)
 
-        # Bedrock Messages API format (Anthropic models)
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": self.max_tokens,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": image_b64,
+        # Build request body based on model type
+        if "nova" in self.model_id.lower():
+            # Amazon Nova format (required for Australian deployment)
+            body = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "image": {
+                                    "format": image_format.lower(),
+                                    "source": {"bytes": image_b64},
+                                }
                             },
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
-                }
-            ],
-        }
+                            {"text": prompt},
+                        ],
+                    }
+                ],
+                "inferenceConfig": {"maxTokens": self.max_tokens},
+            }
+        else:
+            # Anthropic Claude format (not available in Australia)
+            body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": self.max_tokens,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_b64,
+                                },
+                            },
+                            {"type": "text", "text": prompt},
+                        ],
+                    }
+                ],
+            }
 
         # Retry logic for throttling
         for attempt in range(max_retries):
@@ -226,12 +319,18 @@ class BedrockVisionClient:
 
                 result = json.loads(response["body"].read())
 
-                # Track token usage
+                # Track token usage (format differs by model)
                 if "usage" in result:
                     self.total_input_tokens += result["usage"].get("input_tokens", 0)
                     self.total_output_tokens += result["usage"].get("output_tokens", 0)
 
-                return result["content"][0]["text"]
+                # Parse response based on model type
+                if "nova" in self.model_id.lower():
+                    # Amazon Nova response format
+                    return result["output"]["message"]["content"][0]["text"]
+                else:
+                    # Anthropic Claude response format
+                    return result["content"][0]["text"]
 
             except ThrottlingException:
                 wait_time = 2**attempt
@@ -292,19 +391,26 @@ class BedrockVisionClient:
         Estimate cost based on token usage.
 
         Pricing (as of 2024, verify current rates):
-        - Claude 3.5 Sonnet: $0.003/1K input, $0.015/1K output
-        - Claude 3 Haiku: $0.00025/1K input, $0.00125/1K output
+        - Amazon Nova Pro: $0.0008/1K input, $0.0032/1K output
+        - Amazon Nova Lite: $0.00006/1K input, $0.00024/1K output
+        - Claude 3.5 Sonnet: $0.003/1K input, $0.015/1K output (not available in Australia)
         """
-        if "sonnet" in self.model_id.lower():
+        if "nova-pro" in self.model_id.lower():
+            input_rate = 0.0008 / 1000
+            output_rate = 0.0032 / 1000
+        elif "nova-lite" in self.model_id.lower():
+            input_rate = 0.00006 / 1000
+            output_rate = 0.00024 / 1000
+        elif "sonnet" in self.model_id.lower():
             input_rate = 0.003 / 1000
             output_rate = 0.015 / 1000
         elif "haiku" in self.model_id.lower():
             input_rate = 0.00025 / 1000
             output_rate = 0.00125 / 1000
         else:
-            # Default/unknown model
-            input_rate = 0.003 / 1000
-            output_rate = 0.015 / 1000
+            # Default to Nova Pro pricing
+            input_rate = 0.0008 / 1000
+            output_rate = 0.0032 / 1000
 
         return (self.total_input_tokens * input_rate) + (
             self.total_output_tokens * output_rate
@@ -318,15 +424,15 @@ class BedrockVisionClient:
 
 # Convenience function matching existing loader pattern
 def load_bedrock_client(
-    model_id: str = BedrockVisionClient.CLAUDE_35_SONNET,
-    region: str = "us-east-1",
+    model_id: str = BedrockVisionClient.AMAZON_NOVA_PRO,  # Nova Pro for Australian deployment
+    region: str = "ap-southeast-2",  # Sydney for Australian data residency
 ) -> BedrockVisionClient:
     """
     Load Bedrock client (drop-in replacement for load_llama_model).
 
     Args:
-        model_id: Bedrock model identifier
-        region: AWS region
+        model_id: Bedrock model identifier (default: Nova Pro for Australia)
+        region: AWS region (default: ap-southeast-2 Sydney for Australia)
 
     Returns:
         Configured BedrockVisionClient
@@ -371,9 +477,10 @@ def extract_document(image_path: str, document_type: str = "universal") -> dict:
     """Extract fields from document using Bedrock."""
 
     # Load Bedrock client (no GPU needed!)
+    # Using Amazon Nova Pro in Sydney for Australian data residency
     client = load_bedrock_client(
-        model_id=BedrockVisionClient.CLAUDE_35_SONNET,
-        region="us-east-1"
+        model_id=BedrockVisionClient.AMAZON_NOVA_PRO,
+        region="ap-southeast-2"  # Sydney - Australian data residency
     )
 
     # Load and preprocess image
@@ -506,7 +613,7 @@ except ClientError as e:
 
 ### IAM Policy
 
-Minimum required permissions:
+Minimum required permissions for Australian deployment (Sydney region):
 
 ```json
 {
@@ -519,76 +626,93 @@ Minimum required permissions:
                 "bedrock:InvokeModelWithResponseStream"
             ],
             "Resource": [
-                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
-                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-*",
-                "arn:aws:bedrock:*::foundation-model/amazon.nova-*"
+                "arn:aws:bedrock:ap-southeast-2::foundation-model/amazon.nova-pro-v1:0",
+                "arn:aws:bedrock:ap-southeast-2::foundation-model/amazon.nova-lite-v1:0"
             ]
         }
     ]
 }
 ```
 
+> **Note**: This policy restricts access to the Sydney region (`ap-southeast-2`) and Amazon Nova models only, enforcing Australian data residency at the IAM level.
+
 ### Credential Setup
 
 ```bash
 # Option 1: AWS CLI configuration
 aws configure
-# Enter: AWS Access Key ID, Secret Access Key, Region
+# Enter: AWS Access Key ID, Secret Access Key
+# Region: ap-southeast-2 (Sydney - REQUIRED for Australian data residency)
 
 # Option 2: Environment variables
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"
+export AWS_DEFAULT_REGION="ap-southeast-2"  # Sydney - Australian data residency
 
-# Option 3: IAM Role (recommended for EC2/Lambda)
+# Option 3: IAM Role (recommended for EC2/Lambda in ap-southeast-2)
 # Attach IAM role to compute resource - no credentials needed in code
+# Ensure EC2/Lambda is deployed in ap-southeast-2 region
 ```
 
 ### Enable Model Access
 
 1. Go to AWS Console > Amazon Bedrock
-2. Navigate to "Model access" in left sidebar
-3. Click "Manage model access"
-4. Enable access for:
-   - Anthropic Claude 3.5 Sonnet
-   - Anthropic Claude 3 Haiku
-   - Amazon Nova (if desired)
-5. Submit and wait for access approval
+2. **Ensure you are in the Sydney region (ap-southeast-2)** - check top-right region selector
+3. Navigate to "Model access" in left sidebar
+4. Click "Manage model access"
+5. Enable access for:
+   - **Amazon Nova Pro** (required for document extraction)
+   - **Amazon Nova Lite** (optional, budget alternative)
+   - ~~Anthropic Claude~~ (not available in Sydney region)
+6. Submit and wait for access approval
+
+> **Important**: Model access must be enabled in the ap-southeast-2 region specifically. Access enabled in other regions does not carry over.
 
 ---
 
 ## Available Bedrock Models
 
-### Recommended for Document Extraction
+### Models Available in Sydney (ap-southeast-2)
 
-| Model | Model ID | Vision | Strengths | Cost |
-|-------|----------|--------|-----------|------|
-| **Claude 3.5 Sonnet** | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Yes | Best accuracy, complex documents | $$$ |
-| **Claude 3 Haiku** | `anthropic.claude-3-haiku-20240307-v1:0` | Yes | Fast, cost-effective, good accuracy | $ |
-| **Amazon Nova Pro** | `amazon.nova-pro-v1:0` | Yes | AWS-native, competitive pricing | $$ |
-| **Amazon Nova Lite** | `amazon.nova-lite-v1:0` | Yes | Budget option, simpler documents | $ |
+> **For Australian data residency, only Amazon Nova models are available.**
 
-### Model Selection Guide
+| Model | Model ID | Vision | Sydney (ap-southeast-2) | Recommendation |
+|-------|----------|:------:|:-----------------------:|----------------|
+| **Amazon Nova Pro** | `amazon.nova-pro-v1:0` | Yes | :white_check_mark: Available | **Production recommended** |
+| **Amazon Nova Lite** | `amazon.nova-lite-v1:0` | Yes | :white_check_mark: Available | Budget/high-volume |
+| Amazon Nova Micro | `amazon.nova-micro-v1:0` | No | :white_check_mark: Available | Text-only (not suitable) |
+| Claude 3.5 Sonnet | `anthropic.claude-3-5-sonnet-*` | Yes | :x: Not available | Cannot use in Australia |
+| Claude 3 Haiku | `anthropic.claude-3-haiku-*` | Yes | :x: Not available | Cannot use in Australia |
+
+### Model Selection Guide (Australian Deployment)
 
 ```python
-# High accuracy requirement (invoices, complex statements)
-client = load_bedrock_client(model_id=BedrockVisionClient.CLAUDE_35_SONNET)
+# RECOMMENDED: Production document extraction in Australia
+client = load_bedrock_client(
+    model_id=BedrockVisionClient.AMAZON_NOVA_PRO,
+    region="ap-southeast-2"
+)
 
-# Cost-sensitive, high volume
-client = load_bedrock_client(model_id=BedrockVisionClient.CLAUDE_3_HAIKU)
+# Budget option for high-volume processing
+client = load_bedrock_client(
+    model_id=BedrockVisionClient.AMAZON_NOVA_LITE,
+    region="ap-southeast-2"
+)
 
-# AWS-native preference
-client = load_bedrock_client(model_id="amazon.nova-pro-v1:0")
+# NOT AVAILABLE IN AUSTRALIA - will fail:
+# client = load_bedrock_client(model_id=BedrockVisionClient.CLAUDE_35_SONNET)
 ```
 
 ### Pricing Comparison (as of 2024)
 
-| Model | Input (per 1K tokens) | Output (per 1K tokens) |
-|-------|----------------------|------------------------|
-| Claude 3.5 Sonnet | $0.003 | $0.015 |
-| Claude 3 Haiku | $0.00025 | $0.00125 |
-| Amazon Nova Pro | $0.0008 | $0.0032 |
-| Amazon Nova Lite | $0.00006 | $0.00024 |
+| Model | Input (per 1K tokens) | Output (per 1K tokens) | Available in Sydney |
+|-------|----------------------|------------------------|:-------------------:|
+| **Amazon Nova Pro** | $0.0008 | $0.0032 | :white_check_mark: |
+| **Amazon Nova Lite** | $0.00006 | $0.00024 | :white_check_mark: |
+| Claude 3.5 Sonnet | $0.003 | $0.015 | :x: |
+| Claude 3 Haiku | $0.00025 | $0.00125 | :x: |
+
+> **Cost advantage**: Amazon Nova Pro is ~4x cheaper than Claude 3.5 Sonnet for input tokens and ~5x cheaper for output tokens.
 
 *Verify current pricing at [AWS Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/)*
 
@@ -706,28 +830,42 @@ def get_client():
 
 ### Migration Checklist
 
-- [ ] Enable Bedrock model access in AWS Console
-- [ ] Configure IAM permissions
-- [ ] Set up AWS credentials
-- [ ] Create `common/bedrock_model_client.py`
+**Australian Data Residency Setup:**
+- [ ] Confirm AWS account has access to ap-southeast-2 (Sydney) region
+- [ ] Enable Amazon Nova Pro model access in Sydney region
+- [ ] Configure IAM policy restricted to ap-southeast-2
+- [ ] Set AWS_DEFAULT_REGION to ap-southeast-2
+
+**Development:**
+- [ ] Create `common/bedrock_model_client.py` with Nova format
 - [ ] Update `environment.yml` with boto3
-- [ ] Create/update prompts for Claude (if needed)
+- [ ] Create/update prompts for Amazon Nova (different from Claude)
 - [ ] Update extraction scripts to use Bedrock client
-- [ ] Test with sample documents
+
+**Testing:**
+- [ ] Test with sample documents using Nova Pro
+- [ ] Benchmark Nova Pro accuracy against current Llama/InternVL3 results
 - [ ] Implement rate limiting and error handling
 - [ ] Add cost tracking and monitoring
+
+**Validation:**
 - [ ] Run full evaluation against ground truth
-- [ ] Document any prompt adjustments needed
-- [ ] Deploy to production environment
+- [ ] Document any prompt adjustments needed for Nova
+- [ ] Verify all API calls use ap-southeast-2 region
+- [ ] Audit for any cross-region data leakage
+
+**Deployment:**
+- [ ] Deploy to production in ap-southeast-2
+- [ ] Document data residency compliance for audit
 
 ---
 
 ## Appendix: Quick Start
 
-### Minimal Working Example
+### Minimal Working Example (Australian Deployment)
 
 ```python
-"""Minimal Bedrock extraction example."""
+"""Minimal Bedrock extraction example for Australian data residency."""
 
 import boto3
 import base64
@@ -735,8 +873,8 @@ import json
 from PIL import Image
 from io import BytesIO
 
-# Initialize client
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
+# Initialize client - Sydney region for Australian data residency
+client = boto3.client("bedrock-runtime", region_name="ap-southeast-2")
 
 # Load and encode image
 image = Image.open("document.png")
@@ -744,41 +882,51 @@ buffer = BytesIO()
 image.save(buffer, format="PNG")
 image_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-# Create request
+# Create request (Amazon Nova format)
 body = {
-    "anthropic_version": "bedrock-2023-05-31",
-    "max_tokens": 4096,
     "messages": [{
         "role": "user",
         "content": [
             {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": image_b64
+                "image": {
+                    "format": "png",
+                    "source": {"bytes": image_b64}
                 }
             },
             {
-                "type": "text",
                 "text": "Extract all text fields from this invoice. Return as JSON."
             }
         ]
-    }]
+    }],
+    "inferenceConfig": {
+        "maxTokens": 4096
+    }
 }
 
-# Call Bedrock
+# Call Bedrock with Amazon Nova Pro (available in Sydney)
 response = client.invoke_model(
-    modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+    modelId="amazon.nova-pro-v1:0",
     body=json.dumps(body)
 )
 
 # Parse response
 result = json.loads(response["body"].read())
-print(result["content"][0]["text"])
+print(result["output"]["message"]["content"][0]["text"])
 ```
+
+> **Note**: Amazon Nova uses a different request/response format than Claude. The example above shows the Nova-specific format required for Australian deployment.
+
+---
+
+## References
+
+- [Amazon Bedrock in Sydney Region Announcement](https://aws.amazon.com/about-aws/whats-new/2024/04/amazon-bedrock-sydney-region/)
+- [Bedrock Model Support by Region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
+- [AWS Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/)
+- [Amazon Nova Documentation](https://docs.aws.amazon.com/nova/)
 
 ---
 
 *Document created: January 2026*
 *Last updated: January 2026*
+*Australian data residency requirements added: January 2026*
