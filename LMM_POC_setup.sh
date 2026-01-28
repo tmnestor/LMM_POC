@@ -8,6 +8,11 @@
 # - Registers Jupyter kernel: LMM_POC_IVL3.5
 # - Validates model dependencies and hardware
 
+# Configure git identity (uses GitHub no-reply email for privacy)
+git config --global user.name "Tod Nestor"
+git config --global user.email "tmnestor@users.noreply.github.com"
+echo "✅ Git identity configured: tmnestor@users.noreply.github.com"
+
 # Symlink SSH keys from persistent NFS storage to ephemeral home
 NFS_SSH_DIR="$HOME/nfs_share/tod_2026/.ssh"
 if [ -d "$NFS_SSH_DIR" ]; then
