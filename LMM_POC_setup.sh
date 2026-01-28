@@ -37,7 +37,7 @@ if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
 fi
 
 # Default configuration
-DEFAULT_DIR="$HOME/nfs_share_new/tod/LMM_POC"
+DEFAULT_DIR="$HOME/nfs_share/tod_2026/LMM_POC"
 DEFAULT_ENV="LMM_POC_IVL3.5"
 DEFAULT_YML="environment_ivl35.yml"
 
