@@ -8,12 +8,23 @@
 # - Registers Jupyter kernel: LMM_POC_IVL3.5
 # - Validates model dependencies and hardware
 
-# Set permissions for SSH keys
-[ -f "/home/jovyan/.ssh/id_ed25519" ] && chmod 600 /home/jovyan/.ssh/id_ed25519
-[ -f "/home/jovyan/.ssh/id_ed25519.pub" ] && chmod 644 /home/jovyan/.ssh/id_ed25519.pub
+# Symlink SSH keys from persistent NFS storage to ephemeral home
+NFS_SSH_DIR="$HOME/nfs_share/tod_2026/.ssh"
+if [ -d "$NFS_SSH_DIR" ]; then
+    mkdir -p "$HOME/.ssh"
+    ln -sf "$NFS_SSH_DIR/id_ed25519" "$HOME/.ssh/id_ed25519"
+    ln -sf "$NFS_SSH_DIR/id_ed25519.pub" "$HOME/.ssh/id_ed25519.pub"
+    chmod 700 "$HOME/.ssh"
+    chmod 600 "$NFS_SSH_DIR/id_ed25519"
+    chmod 644 "$NFS_SSH_DIR/id_ed25519.pub"
+    echo "✅ SSH keys symlinked from NFS persistent storage"
+else
+    echo "⚠️ No SSH keys found at $NFS_SSH_DIR"
+    echo "   Generate with: ssh-keygen -t ed25519 -C \"your@email\" -f $NFS_SSH_DIR/id_ed25519 -N \"\""
+fi
 
 # Configure git to use SSH instead of HTTPS for GitHub
-if [ -f "/home/jovyan/.ssh/id_ed25519" ]; then
+if [ -f "$HOME/.ssh/id_ed25519" ]; then
     echo "🔑 Setting up git SSH authentication..."
     
     # Set git remote to use SSH if currently using HTTPS
