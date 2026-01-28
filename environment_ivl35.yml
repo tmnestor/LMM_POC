@@ -37,6 +37,9 @@ dependencies:
 # IMPORTANT: Install flash-attn separately (requires torch to be installed first):
 # pip install flash-attn --no-build-isolation
 #
+# If flash-attn import fails with "undefined symbol" ABI mismatch error,
+# see docs/FLASH_ATTENTION_SOURCE_BUILD.md for patched source build instructions.
+#
 # H200 GPU Optimized:
 # - 8B model fits easily on single H200 (80GB HBM3)
 # - Use torch_dtype=torch.bfloat16
