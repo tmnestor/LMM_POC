@@ -51,6 +51,17 @@ document_fields:
       - TRANSACTION_DATES
       - TRANSACTION_AMOUNTS_PAID
 
+  travel_expense:
+    count: 7
+    fields:
+      - DOCUMENT_TYPE
+      - PASSENGER_NAME
+      - TRAVEL_MODE
+      - TRAVEL_ROUTE
+      - TRAVEL_DATES
+      - TOTAL_AMOUNT
+      - SUPPLIER_NAME
+
   universal:
     count: 19
     fields:
@@ -97,6 +108,10 @@ field_descriptions:
   TRANSACTION_AMOUNTS_PAID: "Debit/withdrawal amounts"
   TRANSACTION_AMOUNTS_RECEIVED: "Credit/deposit amounts"
   ACCOUNT_BALANCE: "Running balance after each transaction"
+  PASSENGER_NAME: "Name of person travelling (LASTNAME/FIRSTNAME format)"
+  TRAVEL_MODE: "Mode of travel (plane, train, bus, taxi, uber, ferry)"
+  TRAVEL_ROUTE: "Travel route with origin/destination (e.g., Sydney → Melbourne)"
+  TRAVEL_DATES: "Travel date(s) in DD Mon YYYY format"
 
 # ============================================================================
 # FIELD CATEGORIES - For evaluation reporting
@@ -134,6 +149,12 @@ field_categories:
     - TRANSACTION_AMOUNTS_PAID
     - TRANSACTION_AMOUNTS_RECEIVED
     - ACCOUNT_BALANCE
+
+  travel:
+    - PASSENGER_NAME
+    - TRAVEL_MODE
+    - TRAVEL_ROUTE
+    - TRAVEL_DATES
 
 # ============================================================================
 # FIELD USAGE CLASSIFICATION
@@ -233,6 +254,16 @@ document_type_aliases:
     - account statement
     - credit card statement
 
+  travel_expense:
+    - travel expense
+    - boarding pass
+    - airline ticket
+    - e-ticket
+    - train ticket
+    - bus ticket
+    - taxi receipt
+    - rideshare receipt
+
 # ============================================================================
 # SUPPORTED DOCUMENT TYPES
 # ============================================================================
@@ -240,3 +271,4 @@ supported_document_types:
   - invoice
   - receipt
   - bank_statement
+  - travel_expense

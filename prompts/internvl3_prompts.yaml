@@ -174,6 +174,68 @@ prompts:
       TRANSACTION_AMOUNTS_RECEIVED: [Credits with $ and " | " or NOT_FOUND]
       ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
 
+  # ============================================================================
+  # TRAVEL EXPENSE EXTRACTION - 6 Fields (Taxpayer Work-Related Expense Claims)
+  # Focused on: WHO travelled, WHERE, WHEN, HOW, HOW MUCH
+  # ============================================================================
+  travel_expense:
+    name: "Travel Expense Extraction"
+    description: "Extract travel expense details for taxpayer work-related claims (6 fields)"
+    prompt: |
+      Extract travel expense information from this document for a work-related expense claim.
+
+      DOCUMENT TYPES: Boarding pass, e-ticket, train ticket, bus ticket, taxi receipt, rideshare receipt
+
+      EXTRACT THESE 6 FIELDS:
+
+      1. PASSENGER_NAME: Who travelled
+         - Look for passenger, traveller, or customer name
+         - Format: "LASTNAME/FIRSTNAME" or "Firstname Lastname"
+
+      2. TRAVEL_MODE: How they travelled
+         - plane (boarding pass, flight itinerary, e-ticket)
+         - train (rail ticket, train pass)
+         - bus (bus ticket, coach ticket)
+         - taxi (taxi receipt, cab receipt)
+         - uber/rideshare (Uber, Lyft, DiDi, Ola receipt)
+         - ferry (ferry ticket)
+
+      3. TRAVEL_ROUTE: Where they travelled
+         - Single trip: "Sydney to Melbourne" or "SYD to MEL"
+         - Multi-leg: "Sydney → Melbourne → Brisbane → Sydney" (use → separator)
+         - Round trip: Include return leg (e.g., "Sydney → Perth → Sydney")
+
+      4. TRAVEL_DATES: When they travelled
+         - Single date: "12 Feb 2026"
+         - Multiple dates: "12 Feb 2026 | 13 Feb 2026 | 14 Feb 2026" (use " | " separator)
+         - Use DD Mon YYYY format
+
+      5. TOTAL_AMOUNT: How much they spent
+         - Include currency symbol: "$284.76" or "AUD $284.76"
+         - This is the total cost of the travel
+
+      6. SUPPLIER_NAME: Travel provider
+         - Airline name (e.g., "Southern Cross Airways", "Qantas")
+         - Train operator (e.g., "NSW TrainLink", "V/Line")
+         - Bus company (e.g., "Greyhound", "Premier")
+         - Rideshare company (e.g., "Uber", "DiDi")
+
+      OUTPUT FORMAT (6 FIELDS):
+
+      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      PASSENGER_NAME: [Name or NOT_FOUND]
+      TRAVEL_MODE: [plane / train / bus / taxi / uber / ferry or NOT_FOUND]
+      TRAVEL_ROUTE: [Route description or NOT_FOUND]
+      TRAVEL_DATES: [Dates with " | " separator or NOT_FOUND]
+      TOTAL_AMOUNT: [Amount with $ or NOT_FOUND]
+      SUPPLIER_NAME: [Provider name or NOT_FOUND]
+
+      Instructions:
+      - Focus on expense claim essentials: who, where, when, how, how much
+      - For multi-leg trips, show complete route with → separator
+      - For multi-day trips, list all travel dates with " | " separator
+      - Use NOT_FOUND only if information is genuinely not visible
+
 # Configuration
 settings:
   max_tokens: 600

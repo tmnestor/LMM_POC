@@ -9,6 +9,7 @@ prompts:
       - INVOICE (includes bills, quotes, estimates)
       - RECEIPT (includes purchase receipts)
       - BANK_STATEMENT (includes credit card statements)
+      - TRAVEL_EXPENSE (includes boarding passes, airline tickets, train/bus tickets)
 
   detection_complex:
     name: "Enhanced Document Type Detection"
@@ -42,6 +43,14 @@ prompts:
       - Visual: Bank logo/branding, tabular transaction list, running balance
       - Multiple transactions over time period, not single purchase
 
+      TRAVEL EXPENSE INDICATORS:
+      - Header: "BOARDING PASS", "E-TICKET", "ITINERARY", "TICKET", airline/train/bus company name
+      - Layout: Travel provider header → Passenger details → Route/destination → Flight/trip details
+      - Key fields: Passenger name, origin/destination, travel date, flight/ticket number, seat, gate
+      - Visual: Barcode/QR code, airline/transport branding, route information (SYD → MEL)
+      - Document types: Boarding pass, airline ticket, train ticket, bus ticket, taxi receipt, rideshare receipt
+      - Focus: Single traveller journey with origin, destination, date and cost
+
       DECISION CRITERIA:
 
       PRIMARY INDICATORS:
@@ -55,6 +64,7 @@ prompts:
       - INVOICE/ESTIMATE: Future billing, "Amount Due", line item pricing structure
       - RECEIPT: Completed transaction, "Amount Paid", payment method details
       - BANK STATEMENT: Multiple transactions, running balance, bank account details
+      - TRAVEL EXPENSE: Passenger name, route/destination, airline/transport branding, boarding/ticket format
 
       AMBIGUOUS CASES:
       - If document has both invoice-like and receipt-like features, prioritize header text
@@ -65,6 +75,7 @@ prompts:
       - INVOICE (for invoices, bills, estimates, quotes, proforma invoices)
       - RECEIPT (for receipts, payment confirmations, completed transactions)
       - BANK_STATEMENT (for bank statements, account statements, credit card statements)
+      - TRAVEL_EXPENSE (for boarding passes, airline tickets, train/bus tickets, taxi/rideshare receipts)
 
       If unclear after visual analysis, default to: INVOICE
 
@@ -72,7 +83,7 @@ prompts:
     name: "Simple Document Type Detection"
     description: "Minimal prompt for document type detection"
     prompt: |
-      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT
+      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT or TRAVEL_EXPENSE
 
 # Type mappings for response normalization
 type_mappings:
@@ -103,6 +114,25 @@ type_mappings:
   "creditcard statement": "BANK_STATEMENT"
   "statement": "BANK_STATEMENT"
   "monthly statement": "BANK_STATEMENT"
+
+  # Travel expense variations
+  "travel expense": "TRAVEL_EXPENSE"
+  "travel_expense": "TRAVEL_EXPENSE"
+  "travelexpense": "TRAVEL_EXPENSE"
+  "boarding pass": "TRAVEL_EXPENSE"
+  "boardingpass": "TRAVEL_EXPENSE"
+  "boarding_pass": "TRAVEL_EXPENSE"
+  "airline ticket": "TRAVEL_EXPENSE"
+  "e-ticket": "TRAVEL_EXPENSE"
+  "eticket": "TRAVEL_EXPENSE"
+  "itinerary": "TRAVEL_EXPENSE"
+  "flight itinerary": "TRAVEL_EXPENSE"
+  "train ticket": "TRAVEL_EXPENSE"
+  "bus ticket": "TRAVEL_EXPENSE"
+  "taxi receipt": "TRAVEL_EXPENSE"
+  "rideshare receipt": "TRAVEL_EXPENSE"
+  "uber receipt": "TRAVEL_EXPENSE"
+  "plane ticket": "TRAVEL_EXPENSE"
 
 # Configuration settings
 settings:

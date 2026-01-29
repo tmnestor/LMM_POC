@@ -125,9 +125,13 @@ class DocumentAwareInternVL3HybridProcessor:
             'bank_statement': [
                 "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
                 "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
-            ]
+            ],
             # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
             # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
+            'travel_expense': [
+                "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
+                "TRAVEL_DATES", "TOTAL_AMOUNT", "SUPPLIER_NAME"
+            ]
         }
 
         if self.debug:
@@ -704,6 +708,10 @@ class DocumentAwareInternVL3HybridProcessor:
                 'bank_statement_date_grouped': [
                     "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
                     "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
+                ],
+                'travel_expense': [
+                    "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
+                    "TRAVEL_DATES", "TOTAL_AMOUNT", "SUPPLIER_NAME"
                 ]
             }
 
@@ -782,6 +790,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT\n")
                 sys.stdout.flush()
             return "BANK_STATEMENT"
+        elif any(word in response_lower for word in ["travel", "ticket", "boarding", "airline", "flight", "itinerary", "passenger"]):
+            if self.debug:
+                import sys
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: TRAVEL_EXPENSE\n")
+                sys.stdout.flush()
+            return "TRAVEL_EXPENSE"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
                 import sys
@@ -997,7 +1011,8 @@ class DocumentAwareInternVL3HybridProcessor:
                 type_mapping = {
                     'INVOICE': 'invoice',
                     'RECEIPT': 'receipt',
-                    'BANK_STATEMENT': 'bank_statement'  # Will be refined below
+                    'BANK_STATEMENT': 'bank_statement',  # Will be refined below
+                    'TRAVEL_EXPENSE': 'travel_expense'
                 }
                 document_type = type_mapping.get(detected_type, 'invoice')
 
