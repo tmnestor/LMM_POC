@@ -165,7 +165,7 @@ echo '#include <bits/c++config.h>' | g++ -dM -E -x c++ - | grep GLIBCXX_USE_CXX1
 
 **Required outputs:**
 - `CXX11 ABI: False` (PyTorch uses old ABI)
-- `nvcc` must be available (e.g., `/usr/local/cuda-12.4/bin/nvcc`)
+- `nvcc` must be available (e.g., `/usr/local/cuda-12.1/bin/nvcc`)
 - System header shows `#define _GLIBCXX_USE_CXX11_ABI 1` (confirms mismatch)
 
 If PyTorch reports `CXX11 ABI: True`, you do not need this guide -- standard `pip install flash-attn --no-build-isolation` should work.
@@ -300,7 +300,7 @@ ls /usr/local/cuda*/bin/nvcc
 
 If present but not on PATH:
 ```bash
-export PATH=/usr/local/cuda-12.4/bin:$PATH
+export PATH=/usr/local/cuda-12.1/bin:$PATH
 ```
 
 If not installed and you cannot install it (no sudo), you cannot build from source. In this case, try finding the exact matching prebuilt wheel from [flash-attention releases](https://github.com/Dao-AILab/flash-attention/releases).
@@ -313,7 +313,7 @@ nvcc --version          # System CUDA
 python -c "import torch; print(torch.version.cuda)"  # PyTorch CUDA
 ```
 
-These should match (e.g., both CUDA 12.4).
+These should match (e.g., both CUDA 12.1).
 
 **Same `undefined symbol` error after build**
 
@@ -337,4 +337,4 @@ cd ~/nfs_share/flash_attn_build
 
 | flash-attn | PyTorch | CUDA | Python | Status |
 |-----------|---------|------|--------|--------|
-| 2.8.3 | 2.6.0+cu124 | 12.4 | 3.11 | Confirmed working with ABI patch |
+| 2.8.3 | 2.3.1+cu121 | 12.1 | 3.11 | Confirmed working with ABI patch |
