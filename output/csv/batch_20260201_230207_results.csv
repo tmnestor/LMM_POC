@@ -1,0 +1,11 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+itinerary_001_AS_CBR_CBR_3leg.png,TRAVEL_EXPENSE,62.5,7,5,8,14.75575304031372,internvl3_travel_expense,False
+itinerary_002_SX_MEL_MEL_4leg.png,TRAVEL_EXPENSE,50.0,6,4,8,18.397930145263672,internvl3_travel_expense,False
+itinerary_003_SX_BNE_BNE_4leg.png,TRAVEL_EXPENSE,62.5,7,5,8,14.996854782104492,internvl3_travel_expense,False
+itinerary_004_SX_CBR_PER_4leg.png,TRAVEL_EXPENSE,75.0,7,6,8,14.82591962814331,internvl3_travel_expense,False
+itinerary_005_PW_DRW_DRW_2leg.png,TRAVEL_EXPENSE,45.83333333333333,6,3,8,12.913193225860596,internvl3_travel_expense,False
+itinerary_006_PW_ADL_ADL_2leg.png,TRAVEL_EXPENSE,58.33333333333333,6,4,8,12.450448751449585,internvl3_travel_expense,False
+itinerary_007_AS_BNE_BNE_3leg.png,TRAVEL_EXPENSE,62.5,7,5,8,14.54038953781128,internvl3_travel_expense,False
+ticket_001_SX_SYD_HBA.png,TRAVEL_EXPENSE,62.5,7,5,8,13.531416416168213,internvl3_travel_expense,False
+ticket_002_AS_DRW_PER.png,TRAVEL_EXPENSE,37.5,6,3,8,12.072566509246826,internvl3_travel_expense,False
+ticket_003_PW_BNE_PER.png,TRAVEL_EXPENSE,50.0,6,4,8,12.656801223754883,internvl3_travel_expense,False
