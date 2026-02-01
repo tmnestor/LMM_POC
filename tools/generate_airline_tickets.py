@@ -83,6 +83,25 @@ def generate_price(travel_class: str) -> float:
     return round(random.uniform(low, high), 2)
 
 
+def calculate_gst(total_amount: float, gst_free: bool = False) -> tuple[float, float]:
+    """
+    Calculate GST from a GST-inclusive total.
+
+    Australian domestic flights include 10% GST.
+    International flights are GST-free.
+
+    Returns:
+        Tuple of (gst_amount, gst_free_subtotal)
+    """
+    if gst_free:
+        return 0.0, total_amount
+
+    # GST = Total / 11 (since Total = Subtotal + 10% of Subtotal = 1.1 * Subtotal)
+    gst_amount = round(total_amount / 11, 2)
+    subtotal = round(total_amount - gst_amount, 2)
+    return gst_amount, subtotal
+
+
 def hex_to_rgb(hex_color: str) -> tuple:
     """Convert hex color to RGB tuple."""
     hex_color = hex_color.lstrip("#")
@@ -135,11 +154,13 @@ def draw_ticket(
     travel_class: str,
     price: float,
     output_path: Path,
+    issue_date: datetime | None = None,
+    gst_amount: float = 0.0,
 ) -> None:
     """Draw and save a single-leg airline ticket image."""
 
-    # Ticket dimensions (standard boarding pass proportions)
-    width, height = 900, 400
+    # Ticket dimensions (standard boarding pass proportions) - increased height for GST info
+    width, height = 900, 450
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
@@ -205,8 +226,26 @@ def draw_ticket(
     draw.text((col4_x, y_offset + 100), "FLIGHT", fill="gray", font=fonts["small"])
     draw.text((col4_x, y_offset + 118), flight_number, fill="black", font=fonts["medium"])
 
+    # Issue date and GST section (above barcode)
+    info_y = y_offset + 170
+
+    if issue_date:
+        draw.text((30, info_y), "ISSUED", fill="gray", font=fonts["small"])
+        draw.text((30, info_y + 18), issue_date.strftime("%d %b %Y"), fill="black", font=fonts["medium"])
+
+    # GST breakdown
+    subtotal = price - gst_amount
+    draw.text((200, info_y), "SUBTOTAL (ex GST)", fill="gray", font=fonts["small"])
+    draw.text((200, info_y + 18), f"${subtotal:.2f}", fill="black", font=fonts["medium"])
+
+    draw.text((380, info_y), "GST (10%)", fill="gray", font=fonts["small"])
+    draw.text((380, info_y + 18), f"${gst_amount:.2f}", fill="black", font=fonts["medium"])
+
+    draw.text((520, info_y), "TOTAL", fill="gray", font=fonts["small"])
+    draw.text((520, info_y + 18), f"AUD ${price:.2f}", fill=main_color, font=fonts["medium"])
+
     # Barcode area (simulated)
-    barcode_y = height - 80
+    barcode_y = height - 70
     draw.rectangle([(20, barcode_y), (width - 20, barcode_y + 50)], outline="lightgray")
 
     # Simulated barcode lines
@@ -216,9 +255,6 @@ def draw_ticket(
         if random.random() > 0.3:
             draw.rectangle([(x, barcode_y + 10), (x + bar_width, barcode_y + 40)], fill="black")
         x += bar_width + random.randint(1, 3)
-
-    # Price in corner (optional - some tickets show this)
-    draw.text((width - 100, barcode_y + 55), f"AUD ${price:.2f}", fill="gray", font=fonts["small"])
 
     # Save
     img.save(output_path, quality=95)
@@ -232,6 +268,8 @@ def draw_multi_leg_ticket(
     travel_class: str,
     total_price: float,
     output_path: Path,
+    issue_date: datetime | None = None,
+    gst_amount: float = 0.0,
 ) -> None:
     """
     Draw and save a multi-leg itinerary ticket image.
@@ -245,14 +283,16 @@ def draw_multi_leg_ticket(
         travel_class: Travel class
         total_price: Total price for all legs
         output_path: Output file path
+        issue_date: Date ticket was issued
+        gst_amount: GST amount included in total
     """
     num_legs = len(legs)
 
-    # Adjust height based on number of legs
+    # Adjust height based on number of legs (increased footer for GST info)
     width = 900
     header_height = 70
     leg_height = 140
-    footer_height = 100
+    footer_height = 150  # Increased to fit GST breakdown
     height = header_height + (leg_height * num_legs) + footer_height
 
     img = Image.new("RGB", (width, height), "white")
@@ -315,7 +355,7 @@ def draw_multi_leg_ticket(
         col5 = 780
 
         draw.text((col1, y), "DATE", fill="gray", font=fonts["tiny"])
-        draw.text((col1, y + 14), leg["flight_date"].strftime("%d %b"), fill="black", font=fonts["small"])
+        draw.text((col1, y + 14), leg["flight_date"].strftime("%d %b %Y"), fill="black", font=fonts["small"])
 
         draw.text((col2, y), "DEPART", fill="gray", font=fonts["tiny"])
         draw.text((col2, y + 14), leg["flight_date"].strftime("%H:%M"), fill="black", font=fonts["small"])
@@ -344,21 +384,35 @@ def draw_multi_leg_ticket(
             for dash_x in range(20, width - 20, 10):
                 draw.line([(dash_x, y + leg_height - 15), (dash_x + 5, y + leg_height - 15)], fill="lightgray", width=1)
 
-    # Footer with barcode and total
-    barcode_y = height - footer_height + 10
-    draw.rectangle([(20, barcode_y), (width - 150, barcode_y + 50)], outline="lightgray")
+    # Issue date and GST breakdown section
+    info_y = height - footer_height + 10
+
+    if issue_date:
+        draw.text((20, info_y), "ISSUED", fill="gray", font=fonts["small"])
+        draw.text((20, info_y + 18), issue_date.strftime("%d %b %Y"), fill="black", font=fonts["medium"])
+
+    # GST breakdown
+    subtotal = total_price - gst_amount
+    draw.text((180, info_y), "SUBTOTAL (ex GST)", fill="gray", font=fonts["small"])
+    draw.text((180, info_y + 18), f"${subtotal:.2f}", fill="black", font=fonts["medium"])
+
+    draw.text((360, info_y), "GST (10%)", fill="gray", font=fonts["small"])
+    draw.text((360, info_y + 18), f"${gst_amount:.2f}", fill="black", font=fonts["medium"])
+
+    draw.text((500, info_y), "TOTAL", fill="gray", font=fonts["small"])
+    draw.text((500, info_y + 18), f"AUD ${total_price:.2f}", fill=main_color, font=fonts["medium"])
+
+    # Footer with barcode
+    barcode_y = info_y + 55
+    draw.rectangle([(20, barcode_y), (width - 20, barcode_y + 50)], outline="lightgray")
 
     # Simulated barcode
     x = 30
-    while x < width - 160:
+    while x < width - 30:
         bar_width = random.choice([2, 3, 4])
         if random.random() > 0.3:
             draw.rectangle([(x, barcode_y + 10), (x + bar_width, barcode_y + 40)], fill="black")
         x += bar_width + random.randint(1, 3)
-
-    # Total price
-    draw.text((width - 130, barcode_y + 5), "TOTAL", fill="gray", font=fonts["small"])
-    draw.text((width - 130, barcode_y + 25), f"AUD ${total_price:.2f}", fill=main_color, font=fonts["medium"])
 
     # Save
     img.save(output_path, quality=95)
@@ -414,6 +468,12 @@ def generate_ticket_batch(
         gate = generate_gate()
         price = generate_price(travel_class)
 
+        # Generate issue date (1-30 days before travel date)
+        issue_date = flight_date - timedelta(days=random.randint(1, 30))
+
+        # Calculate GST (domestic flights include 10% GST)
+        gst_amount, _subtotal = calculate_gst(price, gst_free=False)
+
         # Generate filename
         filename = f"ticket_{i+1:03d}_{airline['code']}_{origin['code']}_{destination['code']}.png"
         output_path = output_dir / filename
@@ -432,10 +492,11 @@ def generate_ticket_batch(
             travel_class=travel_class,
             price=price,
             output_path=output_path,
+            issue_date=issue_date,
+            gst_amount=gst_amount,
         )
 
-        # Store metadata for ground truth - simplified expense claim format (6 fields)
-        # Matches travel_expense prompt in prompts/internvl3_prompts.yaml
+        # Store metadata for ground truth - expense claim format with GST
         ticket_meta = {
             "filename": filename,
             # Expense claim essentials: WHO, WHERE, WHEN, HOW, HOW MUCH, PROVIDER
@@ -443,6 +504,8 @@ def generate_ticket_batch(
             "TRAVEL_MODE": "plane",
             "TRAVEL_ROUTE": f"{origin['city']} → {destination['city']}",
             "TRAVEL_DATES": flight_date.strftime("%d %b %Y"),
+            "INVOICE_DATE": issue_date.strftime("%d %b %Y"),
+            "GST_AMOUNT": f"${gst_amount:.2f}",
             "TOTAL_AMOUNT": f"${price:.2f}",
             "SUPPLIER_NAME": airline["name"],
         }
@@ -569,6 +632,13 @@ def generate_multi_leg_batch(
         base_price = generate_price(travel_class)
         total_price = round(base_price * num_legs * random.uniform(0.8, 1.1), 2)
 
+        # Generate issue date (1-30 days before first travel date)
+        first_travel_date = legs[0]["flight_date"]
+        issue_date = first_travel_date - timedelta(days=random.randint(1, 30))
+
+        # Calculate GST (domestic flights include 10% GST)
+        gst_amount, _subtotal = calculate_gst(total_price, gst_free=False)
+
         # Generate filename (origin to final destination)
         first_origin = route_cities[0]["code"]
         final_dest = route_cities[-1]["code"]
@@ -584,10 +654,11 @@ def generate_multi_leg_batch(
             travel_class=travel_class,
             total_price=total_price,
             output_path=output_path,
+            issue_date=issue_date,
+            gst_amount=gst_amount,
         )
 
-        # Store metadata for ground truth - simplified expense claim format (6 fields)
-        # Matches travel_expense prompt in prompts/internvl3_prompts.yaml
+        # Store metadata for ground truth - expense claim format with GST
 
         # Build route with → separator: "Sydney → Melbourne → Brisbane → Sydney"
         route_parts = [route_cities[0]["city"]]  # Start with origin
@@ -595,16 +666,18 @@ def generate_multi_leg_batch(
             route_parts.append(leg["destination"]["city"])
         travel_route = " → ".join(route_parts)
 
-        # Dates with " | " separator
+        # Dates with " | " separator (with year for itineraries now)
         travel_dates = " | ".join(leg["flight_date"].strftime("%d %b %Y") for leg in legs)
 
         ticket_meta = {
             "filename": filename,
-            # Expense claim essentials: WHO, WHERE, WHEN, HOW, HOW MUCH, PROVIDER
+            # Expense claim essentials: WHO, WHERE, WHEN, HOW, HOW MUCH, PROVIDER, GST
             "PASSENGER_NAME": passenger,
             "TRAVEL_MODE": "plane",
             "TRAVEL_ROUTE": travel_route,
             "TRAVEL_DATES": travel_dates,
+            "INVOICE_DATE": issue_date.strftime("%d %b %Y"),
+            "GST_AMOUNT": f"${gst_amount:.2f}",
             "TOTAL_AMOUNT": f"${total_price:.2f}",
             "SUPPLIER_NAME": airline["name"],
         }

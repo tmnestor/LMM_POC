@@ -52,13 +52,15 @@ document_fields:
       - TRANSACTION_AMOUNTS_PAID
 
   travel_expense:
-    count: 7
+    count: 9
     fields:
       - DOCUMENT_TYPE
       - PASSENGER_NAME
       - TRAVEL_MODE
       - TRAVEL_ROUTE
       - TRAVEL_DATES
+      - INVOICE_DATE
+      - GST_AMOUNT
       - TOTAL_AMOUNT
       - SUPPLIER_NAME
 
