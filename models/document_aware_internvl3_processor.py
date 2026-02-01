@@ -130,7 +130,7 @@ class DocumentAwareInternVL3HybridProcessor:
             # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
             'travel_expense': [
                 "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
-                "TRAVEL_DATES", "TOTAL_AMOUNT", "SUPPLIER_NAME"
+                "TRAVEL_DATES", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT", "SUPPLIER_NAME"
             ]
         }
 
@@ -711,7 +711,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 ],
                 'travel_expense': [
                     "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
-                    "TRAVEL_DATES", "TOTAL_AMOUNT", "SUPPLIER_NAME"
+                    "TRAVEL_DATES", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT", "SUPPLIER_NAME"
                 ]
             }
 
