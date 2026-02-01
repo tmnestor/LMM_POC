@@ -175,18 +175,18 @@ prompts:
       ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
 
   # ============================================================================
-  # TRAVEL EXPENSE EXTRACTION - 6 Fields (Taxpayer Work-Related Expense Claims)
-  # Focused on: WHO travelled, WHERE, WHEN, HOW, HOW MUCH
+  # TRAVEL EXPENSE EXTRACTION - 8 Fields (Taxpayer Work-Related Expense Claims)
+  # Focused on: WHO travelled, WHERE, WHEN, HOW, HOW MUCH, GST
   # ============================================================================
   travel_expense:
     name: "Travel Expense Extraction"
-    description: "Extract travel expense details for taxpayer work-related claims (6 fields)"
+    description: "Extract travel expense details for taxpayer work-related claims (8 fields)"
     prompt: |
       Extract travel expense information from this document for a work-related expense claim.
 
       DOCUMENT TYPES: Boarding pass, e-ticket, train ticket, bus ticket, taxi receipt, rideshare receipt
 
-      EXTRACT THESE 6 FIELDS:
+      EXTRACT THESE 8 FIELDS:
 
       1. PASSENGER_NAME: Who travelled
          - Look for passenger, traveller, or customer name
@@ -210,30 +210,43 @@ prompts:
          - Multiple dates: "12 Feb 2026 | 13 Feb 2026 | 14 Feb 2026" (use " | " separator)
          - Use DD Mon YYYY format
 
-      5. TOTAL_AMOUNT: How much they spent
-         - Include currency symbol: "$284.76" or "AUD $284.76"
-         - This is the total cost of the travel
+      5. INVOICE_DATE: When the ticket was issued/purchased
+         - Look for "ISSUED", "Issue Date", "Purchase Date", "Booking Date"
+         - Format: "DD Mon YYYY" (e.g., "07 Feb 2026")
+         - This is different from travel dates - it's when the ticket was bought
 
-      6. SUPPLIER_NAME: Travel provider
+      6. GST_AMOUNT: GST/tax amount
+         - Look for "GST", "GST (10%)", "Tax"
+         - Include currency symbol: "$25.89"
+         - May be $0.00 for international travel or GST-free items
+
+      7. TOTAL_AMOUNT: Total cost including GST
+         - Include currency symbol: "$284.76" or "AUD $284.76"
+         - This is the final total cost of the travel
+
+      8. SUPPLIER_NAME: Travel provider
          - Airline name (e.g., "Southern Cross Airways", "Qantas")
          - Train operator (e.g., "NSW TrainLink", "V/Line")
          - Bus company (e.g., "Greyhound", "Premier")
          - Rideshare company (e.g., "Uber", "DiDi")
 
-      OUTPUT FORMAT (6 FIELDS):
+      OUTPUT FORMAT (8 FIELDS):
 
       DOCUMENT_TYPE: TRAVEL_EXPENSE
       PASSENGER_NAME: [Name or NOT_FOUND]
       TRAVEL_MODE: [plane / train / bus / taxi / uber / ferry or NOT_FOUND]
       TRAVEL_ROUTE: [Route description or NOT_FOUND]
       TRAVEL_DATES: [Dates with " | " separator or NOT_FOUND]
+      INVOICE_DATE: [Issue date DD Mon YYYY or NOT_FOUND]
+      GST_AMOUNT: [GST with $ or NOT_FOUND]
       TOTAL_AMOUNT: [Amount with $ or NOT_FOUND]
       SUPPLIER_NAME: [Provider name or NOT_FOUND]
 
       Instructions:
-      - Focus on expense claim essentials: who, where, when, how, how much
+      - Focus on expense claim essentials: who, where, when, how, how much, GST
       - For multi-leg trips, show complete route with → separator
       - For multi-day trips, list all travel dates with " | " separator
+      - INVOICE_DATE is the issue/purchase date, NOT the travel date
       - Use NOT_FOUND only if information is genuinely not visible
 
 # Configuration
