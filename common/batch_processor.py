@@ -104,11 +104,18 @@ def load_document_field_definitions() -> Dict[str, List[str]]:
                 f"Each document type must have at least one field defined."
             )
 
-    return {
+    # Build field definitions dynamically from YAML
+    result = {
         "invoice": doc_fields["invoice"]["fields"],
         "receipt": doc_fields["receipt"]["fields"],
         "bank_statement": doc_fields["bank_statement"]["fields"],
     }
+
+    # Add travel_expense if defined in YAML
+    if "travel_expense" in doc_fields and "fields" in doc_fields["travel_expense"]:
+        result["travel_expense"] = doc_fields["travel_expense"]["fields"]
+
+    return result
 
 
 class BatchDocumentProcessor:
