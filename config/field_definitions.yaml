@@ -229,6 +229,7 @@ evaluation:
       - TRANSACTION_AMOUNTS_PAID
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
+      - TRAVEL_DATES
 
 # ============================================================================
 # DOCUMENT TYPE ALIASES - For flexible document type detection
