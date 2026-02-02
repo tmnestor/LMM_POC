@@ -272,7 +272,10 @@ def draw_multi_leg_ticket(
     gst_amount: float = 0.0,
 ) -> None:
     """
-    Draw and save a multi-leg itinerary ticket image.
+    Draw and save a multi-leg itinerary ticket image with table layout.
+
+    Uses a single table header with each leg as a row - more typical of
+    real airline e-tickets and itinerary confirmations.
 
     Args:
         airline: Airline info dict
@@ -288,12 +291,15 @@ def draw_multi_leg_ticket(
     """
     num_legs = len(legs)
 
-    # Adjust height based on number of legs (increased footer for GST info)
+    # Layout dimensions - table-style with single header
     width = 900
     header_height = 70
-    leg_height = 140
-    footer_height = 150  # Increased to fit GST breakdown
-    height = header_height + (leg_height * num_legs) + footer_height
+    info_section_height = 55  # Passenger, booking ref, class
+    table_header_height = 30
+    row_height = 35  # Compact rows for table style
+    footer_height = 120  # GST breakdown and barcode
+
+    height = header_height + info_section_height + table_header_height + (row_height * num_legs) + footer_height
 
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
@@ -309,109 +315,119 @@ def draw_multi_leg_ticket(
     draw.text((20, 18), airline["name"].upper(), fill="white", font=fonts["large"])
     draw.text((width - 180, 25), f"{num_legs}-LEG ITINERARY", fill=accent_color, font=fonts["medium"])
 
-    # Itinerary label
+    # E-Ticket label
     draw.rectangle([(width - 200, header_height), (width, header_height + 35)], fill=accent_color)
     draw.text((width - 180, header_height + 8), "E-TICKET", fill=main_color, font=fonts["small"])
 
-    # Passenger and booking info (top section)
-    draw.text((20, header_height + 10), "PASSENGER", fill="gray", font=fonts["small"])
-    draw.text((20, header_height + 26), passenger, fill="black", font=fonts["medium"])
+    # Passenger and booking info section
+    info_y = header_height + 10
+    draw.text((20, info_y), "PASSENGER", fill="gray", font=fonts["small"])
+    draw.text((20, info_y + 16), passenger, fill="black", font=fonts["medium"])
 
-    draw.text((250, header_height + 10), "BOOKING REF", fill="gray", font=fonts["small"])
-    draw.text((250, header_height + 26), booking_ref, fill="black", font=fonts["medium"])
+    draw.text((280, info_y), "BOOKING REF", fill="gray", font=fonts["small"])
+    draw.text((280, info_y + 16), booking_ref, fill="black", font=fonts["medium"])
 
-    draw.text((420, header_height + 10), "CLASS", fill="gray", font=fonts["small"])
-    draw.text((420, header_height + 26), travel_class, fill="black", font=fonts["medium"])
-
-    # Draw separator line
-    draw.line([(20, header_height + 55), (width - 20, header_height + 55)], fill="lightgray", width=1)
-
-    # Draw each leg
-    y_start = header_height + 65
-
-    for i, leg in enumerate(legs):
-        y = y_start + (i * leg_height)
-
-        # Leg number indicator
-        draw.rectangle([(20, y), (50, y + 25)], fill=main_color)
-        draw.text((28, y + 4), str(i + 1), fill="white", font=fonts["medium"])
-
-        # Origin
-        draw.text((70, y), leg["origin"]["code"], fill=main_color, font=fonts["code_small"])
-        draw.text((70, y + 25), leg["origin"]["city"], fill="gray", font=fonts["tiny"])
-
-        # Arrow
-        draw.text((150, y + 5), "→", fill=accent_color, font=fonts["medium"])
-
-        # Destination
-        draw.text((180, y), leg["destination"]["code"], fill=main_color, font=fonts["code_small"])
-        draw.text((180, y + 25), leg["destination"]["city"], fill="gray", font=fonts["tiny"])
-
-        # Flight details
-        col1 = 300
-        col2 = 420
-        col3 = 540
-        col4 = 660
-        col5 = 780
-
-        draw.text((col1, y), "DATE", fill="gray", font=fonts["tiny"])
-        draw.text((col1, y + 14), leg["flight_date"].strftime("%d %b %Y"), fill="black", font=fonts["small"])
-
-        draw.text((col2, y), "DEPART", fill="gray", font=fonts["tiny"])
-        draw.text((col2, y + 14), leg["flight_date"].strftime("%H:%M"), fill="black", font=fonts["small"])
-
-        draw.text((col3, y), "FLIGHT", fill="gray", font=fonts["tiny"])
-        draw.text((col3, y + 14), leg["flight_number"], fill="black", font=fonts["small"])
-
-        draw.text((col4, y), "GATE", fill="gray", font=fonts["tiny"])
-        draw.text((col4, y + 14), leg["gate"], fill="black", font=fonts["small"])
-
-        draw.text((col5, y), "SEAT", fill="gray", font=fonts["tiny"])
-        draw.text((col5, y + 14), leg["seat"], fill=main_color, font=fonts["medium"])
-
-        # Connection info (if not last leg)
-        if i < num_legs - 1:
-            next_leg = legs[i + 1]
-            # Calculate layover
-            arrival_est = leg["flight_date"] + timedelta(hours=random.uniform(1.5, 4))
-            layover = next_leg["flight_date"] - arrival_est
-            layover_hrs = layover.total_seconds() / 3600
-
-            draw.text((70, y + 50), f"Connection at {leg['destination']['city']}", fill="gray", font=fonts["tiny"])
-            draw.text((280, y + 50), f"Layover: {layover_hrs:.1f} hrs", fill="gray", font=fonts["tiny"])
-
-            # Dashed separator
-            for dash_x in range(20, width - 20, 10):
-                draw.line([(dash_x, y + leg_height - 15), (dash_x + 5, y + leg_height - 15)], fill="lightgray", width=1)
-
-    # Issue date and GST breakdown section
-    info_y = height - footer_height + 10
+    draw.text((450, info_y), "CLASS", fill="gray", font=fonts["small"])
+    draw.text((450, info_y + 16), travel_class, fill="black", font=fonts["medium"])
 
     if issue_date:
-        draw.text((20, info_y), "ISSUED", fill="gray", font=fonts["small"])
-        draw.text((20, info_y + 18), issue_date.strftime("%d %b %Y"), fill="black", font=fonts["medium"])
+        draw.text((600, info_y), "ISSUED", fill="gray", font=fonts["small"])
+        draw.text((600, info_y + 16), issue_date.strftime("%d %b %Y"), fill="black", font=fonts["medium"])
 
-    # GST breakdown
+    # Table section starts here
+    table_y = header_height + info_section_height
+
+    # Table column positions
+    col_leg = 20
+    col_from = 60
+    col_to = 160
+    col_date = 280
+    col_depart = 400
+    col_flight = 500
+    col_gate = 610
+    col_seat = 720
+
+    # Table header row (colored background)
+    draw.rectangle([(15, table_y), (width - 15, table_y + table_header_height)], fill=main_color)
+
+    # Table header text
+    header_y = table_y + 8
+    draw.text((col_leg, header_y), "#", fill="white", font=fonts["small"])
+    draw.text((col_from, header_y), "FROM", fill="white", font=fonts["small"])
+    draw.text((col_to, header_y), "TO", fill="white", font=fonts["small"])
+    draw.text((col_date, header_y), "DATE", fill="white", font=fonts["small"])
+    draw.text((col_depart, header_y), "DEPART", fill="white", font=fonts["small"])
+    draw.text((col_flight, header_y), "FLIGHT", fill="white", font=fonts["small"])
+    draw.text((col_gate, header_y), "GATE", fill="white", font=fonts["small"])
+    draw.text((col_seat, header_y), "SEAT", fill="white", font=fonts["small"])
+
+    # Draw table rows for each leg
+    rows_start_y = table_y + table_header_height
+
+    for i, leg in enumerate(legs):
+        row_y = rows_start_y + (i * row_height)
+
+        # Alternate row background for readability
+        if i % 2 == 1:
+            draw.rectangle([(15, row_y), (width - 15, row_y + row_height)], fill=(248, 248, 248))
+
+        # Row content (vertically centered)
+        text_y = row_y + 10
+
+        # Leg number
+        draw.text((col_leg + 5, text_y), str(i + 1), fill=main_color, font=fonts["small"])
+
+        # From (city code + name)
+        draw.text((col_from, text_y - 2), leg["origin"]["code"], fill=main_color, font=fonts["small"])
+        draw.text((col_from, text_y + 12), leg["origin"]["city"], fill="gray", font=fonts["tiny"])
+
+        # To (city code + name)
+        draw.text((col_to, text_y - 2), leg["destination"]["code"], fill=main_color, font=fonts["small"])
+        draw.text((col_to, text_y + 12), leg["destination"]["city"], fill="gray", font=fonts["tiny"])
+
+        # Date
+        draw.text((col_date, text_y), leg["flight_date"].strftime("%d %b %Y"), fill="black", font=fonts["small"])
+
+        # Departure time
+        draw.text((col_depart, text_y), leg["flight_date"].strftime("%H:%M"), fill="black", font=fonts["small"])
+
+        # Flight number
+        draw.text((col_flight, text_y), leg["flight_number"], fill="black", font=fonts["small"])
+
+        # Gate
+        draw.text((col_gate, text_y), leg["gate"], fill="black", font=fonts["small"])
+
+        # Seat (highlighted)
+        draw.text((col_seat, text_y), leg["seat"], fill=main_color, font=fonts["medium"])
+
+        # Draw horizontal line after each row
+        line_y = row_y + row_height - 1
+        draw.line([(15, line_y), (width - 15, line_y)], fill="lightgray", width=1)
+
+    # GST breakdown section (below table)
+    info_y = rows_start_y + (num_legs * row_height) + 15
+
+    # GST breakdown in a single line
     subtotal = total_price - gst_amount
-    draw.text((180, info_y), "SUBTOTAL (ex GST)", fill="gray", font=fonts["small"])
-    draw.text((180, info_y + 18), f"${subtotal:.2f}", fill="black", font=fonts["medium"])
+    draw.text((20, info_y), "SUBTOTAL (ex GST):", fill="gray", font=fonts["small"])
+    draw.text((170, info_y), f"${subtotal:.2f}", fill="black", font=fonts["small"])
 
-    draw.text((360, info_y), "GST (10%)", fill="gray", font=fonts["small"])
-    draw.text((360, info_y + 18), f"${gst_amount:.2f}", fill="black", font=fonts["medium"])
+    draw.text((280, info_y), "GST (10%):", fill="gray", font=fonts["small"])
+    draw.text((380, info_y), f"${gst_amount:.2f}", fill="black", font=fonts["small"])
 
-    draw.text((500, info_y), "TOTAL", fill="gray", font=fonts["small"])
-    draw.text((500, info_y + 18), f"AUD ${total_price:.2f}", fill=main_color, font=fonts["medium"])
+    draw.text((500, info_y), "TOTAL:", fill="gray", font=fonts["small"])
+    draw.text((570, info_y), f"AUD ${total_price:.2f}", fill=main_color, font=fonts["medium"])
 
     # Footer with barcode
-    barcode_y = info_y + 55
-    draw.rectangle([(20, barcode_y), (width - 20, barcode_y + 50)], outline="lightgray")
+    barcode_y = info_y + 35
+    draw.rectangle([(20, barcode_y), (width - 20, barcode_y + 45)], outline="lightgray")
 
     # Simulated barcode
     x = 30
     while x < width - 30:
         bar_width = random.choice([2, 3, 4])
         if random.random() > 0.3:
-            draw.rectangle([(x, barcode_y + 10), (x + bar_width, barcode_y + 40)], fill="black")
+            draw.rectangle([(x, barcode_y + 8), (x + bar_width, barcode_y + 37)], fill="black")
         x += bar_width + random.randint(1, 3)
 
     # Save
@@ -502,7 +518,7 @@ def generate_ticket_batch(
             # Expense claim essentials: WHO, WHERE, WHEN, HOW, HOW MUCH, PROVIDER
             "PASSENGER_NAME": passenger,
             "TRAVEL_MODE": "plane",
-            "TRAVEL_ROUTE": f"{origin['city']} → {destination['city']}",
+            "TRAVEL_ROUTE": f"{origin['city']} | {destination['city']}",
             "TRAVEL_DATES": flight_date.strftime("%d %b %Y"),
             "INVOICE_DATE": issue_date.strftime("%d %b %Y"),
             "GST_AMOUNT": f"${gst_amount:.2f}",
@@ -660,11 +676,11 @@ def generate_multi_leg_batch(
 
         # Store metadata for ground truth - expense claim format with GST
 
-        # Build route with → separator: "Sydney → Melbourne → Brisbane → Sydney"
+        # Build route with " | " separator: "Sydney | Melbourne | Brisbane | Sydney"
         route_parts = [route_cities[0]["city"]]  # Start with origin
         for leg in legs:
             route_parts.append(leg["destination"]["city"])
-        travel_route = " → ".join(route_parts)
+        travel_route = " | ".join(route_parts)
 
         # Dates with " | " separator (with year for itineraries now)
         travel_dates = " | ".join(leg["flight_date"].strftime("%d %b %Y") for leg in legs)

@@ -201,9 +201,9 @@ prompts:
          - ferry (ferry ticket)
 
       3. TRAVEL_ROUTE: Where they travelled
-         - Single trip: "Sydney to Melbourne" or "SYD to MEL"
-         - Multi-leg: "Sydney → Melbourne → Brisbane → Sydney" (use → separator)
-         - Round trip: Include return leg (e.g., "Sydney → Perth → Sydney")
+         - Single trip: "Sydney | Melbourne" (use " | " separator)
+         - Multi-leg: "Sydney | Melbourne | Brisbane | Sydney" (use " | " separator)
+         - Round trip: Include return leg (e.g., "Sydney | Perth | Sydney")
 
       4. TRAVEL_DATES: When they travelled
          - Single date: "12 Feb 2026"
@@ -244,7 +244,7 @@ prompts:
 
       Instructions:
       - Focus on expense claim essentials: who, where, when, how, how much, GST
-      - For multi-leg trips, show complete route with → separator
+      - For multi-leg trips, show complete route with " | " separator
       - For multi-day trips, list all travel dates with " | " separator
       - INVOICE_DATE is the issue/purchase date, NOT the travel date
       - Use NOT_FOUND only if information is genuinely not visible
