@@ -45,5 +45,7 @@ dependencies:
 # - Use torch_dtype=torch.bfloat16
 # - Enable use_flash_attn=True
 #
-# Jupyter kernel is registered automatically by LMM_POC_setup.sh
-# Manual registration: python -m ipykernel install --user --name=LMM_POC_IVL3.5 --display-name "Python (LMM_POC_IVL3.5)"
+# Jupyter kernel management:
+# Remove existing kernel: jupyter kernelspec remove LMM_POC_IVL3.5 -y
+# Register new kernel:    python -m ipykernel install --user --name=LMM_POC_IVL3.5 --display-name "Python (LMM_POC_IVL3.5)"
+# List kernels:           jupyter kernelspec list

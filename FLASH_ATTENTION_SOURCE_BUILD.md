@@ -5,7 +5,7 @@
 Flash Attention 2 prebuilt wheels (and standard `pip install flash-attn --no-build-isolation`) fail with an ABI mismatch on JupyterHub/containerized environments:
 
 ```
-ImportError: flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so: undefined symbol:
+ImportError: flash_attn_2_cuda.cpython-312-x86_64-linux-gnu.so: undefined symbol:
 _ZN3c105ErrorC2ENS_14SourceLocationENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
 ```
 
@@ -21,7 +21,7 @@ Two independent issues combine to cause this:
 
 - JupyterHub containers with NVIDIA GPUs
 - Any Linux environment where `g++` defaults to CXX11 ABI=1 and PyTorch uses ABI=0
-- Confirmed on: Python 3.11, PyTorch 2.6.0+cu124, CUDA 12.4, NVIDIA L4 GPUs
+- Confirmed on: Python 3.12, PyTorch 2.6.0+cu124, CUDA 12.4, NVIDIA L4 GPUs
 
 ## Prerequisites
 
@@ -112,7 +112,7 @@ This compiles all CUDA kernels and takes several minutes. You will see individua
 ### Step 6: Install the built wheel
 
 ```bash
-pip install dist/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl --no-cache-dir
+pip install dist/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl --no-cache-dir
 ```
 
 ### Step 7: Verify
@@ -218,7 +218,7 @@ cd ~/nfs_share/flash_attn_build
 
 | flash-attn | PyTorch | CUDA | Python | Status |
 |-----------|---------|------|--------|--------|
-| 2.8.3 | 2.6.0+cu124 | 12.4 | 3.11 | Confirmed working with ABI patch |
+| 2.8.3 | 2.6.0+cu124 | 12.4 | 3.12 | Confirmed working with ABI patch |
 
 ## Why Standard Install Fails
 
