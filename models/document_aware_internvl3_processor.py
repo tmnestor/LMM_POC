@@ -24,6 +24,7 @@ import torchvision.transforms as T
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
+from common.batch_processor import load_document_field_definitions
 from common.config import (
     DEFAULT_IMAGE_SIZE,
     IMAGENET_MEAN,
@@ -108,31 +109,9 @@ class DocumentAwareInternVL3HybridProcessor:
         # Initialize extraction cleaner for value normalization (🧹 CLEANER CALLED output)
         self.cleaner = ExtractionCleaner(debug=debug)
 
-        # Document-specific field lists for optimal processing
-        self.document_field_lists = {
-            'invoice': [
-                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
-            ],
-            'receipt': [
-                "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
-            ],
-            'bank_statement': [
-                "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
-            ],
-            # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
-            # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
-            'travel_expense': [
-                "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
-                "TRAVEL_DATES", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT", "SUPPLIER_NAME"
-            ]
-        }
+        # Document-specific field lists - loaded from config/field_definitions.yaml
+        # SINGLE SOURCE OF TRUTH - no hardcoding here
+        self.document_field_lists = load_document_field_definitions()
 
         if self.debug:
             print(
@@ -680,40 +659,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 prompt_source = "prompt_config" if self.prompt_config else "get_extraction_prompt"
                 print(f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters")
 
-            # Get document-specific field list
-            doc_type_fields = {
-                'invoice': [
-                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
-                ],
-                'receipt': [
-                    "DOCUMENT_TYPE", "BUSINESS_ABN", "SUPPLIER_NAME", "BUSINESS_ADDRESS",
-                    "PAYER_NAME", "PAYER_ADDRESS", "INVOICE_DATE", "LINE_ITEM_DESCRIPTIONS",
-                    "LINE_ITEM_QUANTITIES", "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES",
-                    "IS_GST_INCLUDED", "GST_AMOUNT", "TOTAL_AMOUNT"
-                ],
-                'bank_statement': [
-                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
-                ],
-                # Add structure-specific bank statement fields (same for both)
-                # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)
-                # ACCOUNT_BALANCE required for mathematical enhancement when balance column exists
-                'bank_statement_flat': [
-                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
-                ],
-                'bank_statement_date_grouped': [
-                    "DOCUMENT_TYPE", "STATEMENT_DATE_RANGE", "LINE_ITEM_DESCRIPTIONS",
-                    "TRANSACTION_DATES", "TRANSACTION_AMOUNTS_PAID", "ACCOUNT_BALANCE"
-                ],
-                'travel_expense': [
-                    "DOCUMENT_TYPE", "PASSENGER_NAME", "TRAVEL_MODE", "TRAVEL_ROUTE",
-                    "TRAVEL_DATES", "INVOICE_DATE", "GST_AMOUNT", "TOTAL_AMOUNT", "SUPPLIER_NAME"
-                ]
-            }
+            # Get document-specific field list from YAML config (single source of truth)
+            doc_type_fields = load_document_field_definitions()
+            # Add structure-specific bank statement aliases (same fields as bank_statement)
+            if 'bank_statement' in doc_type_fields:
+                doc_type_fields['bank_statement_flat'] = doc_type_fields['bank_statement']
+                doc_type_fields['bank_statement_date_grouped'] = doc_type_fields['bank_statement']
 
             # Update field list for document-specific extraction
             original_field_list = self.field_list
