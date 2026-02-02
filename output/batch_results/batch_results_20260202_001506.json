@@ -1,0 +1,172 @@
+{
+  "metadata": {
+    "batch_id": "20260202_001506",
+    "timestamp": "2026-02-02T00:17:50.101534",
+    "model": "/home/jovyan/nfs_share/models/InternVL3_5-8B",
+    "total_images": 10,
+    "successful_extractions": 10,
+    "average_accuracy": 81.66666666666666,
+    "total_processing_time": 158.3142795562744,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "/home/jovyan/nfs_share/tod_2026/LMM_POC/evaluation_data/travel",
+    "ground_truth": "/home/jovyan/nfs_share/tod_2026/LMM_POC/evaluation_data/travel/ground_truth_travel.csv",
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "use_quantization": false,
+      "device_map": "auto",
+      "max_new_tokens": 2000,
+      "torch_dtype": "bfloat16",
+      "low_cpu_mem_usage": false
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 10.0,
+    "Successful Extractions": 10.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 81.66666666666666,
+    "Median Accuracy (%)": 85.41666666666666,
+    "Min Accuracy (%)": 62.5,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 15.831427955627442,
+    "Total Processing Time (s)": 158.3142795562744,
+    "Throughput (images/min)": 3.7899297630112003
+  },
+  "document_type_distribution": {
+    "TRAVEL_EXPENSE": 10
+  },
+  "results": [
+    {
+      "image_name": "itinerary_001_AS_CBR_CBR_3leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 16.604762315750122,
+      "evaluation_summary": {
+        "overall_accuracy": 0.875,
+        "fields_extracted": 9,
+        "fields_matched": 7,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_002_SX_MEL_MEL_4leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 20.644359588623047,
+      "evaluation_summary": {
+        "overall_accuracy": 0.625,
+        "fields_extracted": 8,
+        "fields_matched": 5,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_003_SX_BNE_BNE_4leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 17.083746194839478,
+      "evaluation_summary": {
+        "overall_accuracy": 0.875,
+        "fields_extracted": 9,
+        "fields_matched": 7,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_004_SX_CBR_PER_4leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 16.799657821655273,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 9,
+        "fields_matched": 8,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_005_PW_DRW_DRW_2leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 14.116882085800171,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8333333333333333,
+        "fields_extracted": 8,
+        "fields_matched": 6,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_006_PW_ADL_ADL_2leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 14.140809297561646,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7083333333333333,
+        "fields_extracted": 8,
+        "fields_matched": 5,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "itinerary_007_AS_BNE_BNE_3leg.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 16.626604318618774,
+      "evaluation_summary": {
+        "overall_accuracy": 0.875,
+        "fields_extracted": 9,
+        "fields_matched": 7,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "ticket_001_SX_SYD_HBA.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 15.545831680297852,
+      "evaluation_summary": {
+        "overall_accuracy": 0.875,
+        "fields_extracted": 9,
+        "fields_matched": 7,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "ticket_002_AS_DRW_PER.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 13.006069898605347,
+      "evaluation_summary": {
+        "overall_accuracy": 0.75,
+        "fields_extracted": 8,
+        "fields_matched": 6,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "ticket_003_PW_BNE_PER.png",
+      "document_type": "TRAVEL_EXPENSE",
+      "prompt_used": "internvl3_travel_expense",
+      "processing_time": 13.745556354522705,
+      "evaluation_summary": {
+        "overall_accuracy": 0.75,
+        "fields_extracted": 8,
+        "fields_matched": 6,
+        "total_fields": 8,
+        "inference_only": false
+      }
+    }
+  ]
+}

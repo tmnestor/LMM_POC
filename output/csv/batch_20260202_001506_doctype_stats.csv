@@ -1,0 +1,2 @@
+document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
+TRAVEL_EXPENSE,81.67,85.42,10.79,62.5,100.0,15.83,16.08,10
