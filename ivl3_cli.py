@@ -515,7 +515,7 @@ def generate_analytics(
 
     saved_files, df_results, df_summary, df_doctype_stats, df_field_stats = (
         analytics.save_all_dataframes(
-            str(output_dirs["csv"]),
+            output_dirs["csv"],
             config.timestamp,
         )
     )
@@ -543,7 +543,7 @@ def generate_visualizations(
     viz_files = visualizer.create_all_visualizations(
         df_results,
         df_doctype_stats,
-        str(output_dirs["visualizations"]),
+        output_dirs["visualizations"],
         config.timestamp,
         show=False,
     )
