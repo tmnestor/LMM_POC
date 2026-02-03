@@ -703,47 +703,34 @@ def get_document_type_fields(document_type: str) -> list:
     Raises:
         ValueError: If document type not supported
     """
+    from .field_definitions_loader import SimpleFieldLoader
+
+    loader = SimpleFieldLoader()
+
+    # Map common document type variations
+    doc_type_mapping = {
+        "invoice": "invoice",
+        "tax_invoice": "invoice",
+        "bill": "invoice",
+        "receipt": "receipt",
+        "purchase_receipt": "receipt",
+        "bank_statement": "bank_statement",
+        "statement": "bank_statement",
+    }
+
+    mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
+
     try:
-        from .unified_schema import DocumentTypeFieldSchema
-
-        loader = DocumentTypeFieldSchema("config/field_definitions.yaml")
-
-        # Map common document type variations
-        doc_type_mapping = {
-            "invoice": "invoice",
-            "tax_invoice": "invoice",
-            "bill": "invoice",
-            "receipt": "receipt",
-            "purchase_receipt": "receipt",
-            "bank_statement": "bank_statement",
-            "statement": "bank_statement",
-        }
-
-        mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
-        schema = loader.get_document_schema(mapped_type)
-
-        # Extract field names from simplified unified schema
-        fields = schema.get("fields", [])
-        if fields and isinstance(fields[0], str):
-            # New unified schema returns field names directly
-            field_names = fields
-        else:
-            # Legacy format with field dictionaries
-            field_names = [
-                field["name"]
-                for field in fields
-                if isinstance(field, dict) and "name" in field
-            ]
-
-        # CRITICAL: Filter out validation-only fields from EVALUATION
-        # ACCOUNT_BALANCE is extracted but excluded from accuracy metrics
-        return filter_evaluation_fields(field_names)
-
+        field_names = loader.get_document_fields(mapped_type)
     except Exception as e:
         # Fallback to full field list if document-specific filtering fails
         print(f"⚠️ Document-specific field filtering failed for '{document_type}': {e}")
-        print("🔄 Falling back to full V4 field list (filtered for evaluation)")
+        print("🔄 Falling back to full field list (filtered for evaluation)")
         return filter_evaluation_fields(get_v4_field_list())
+
+    # CRITICAL: Filter out validation-only fields from EVALUATION
+    # ACCOUNT_BALANCE is extracted but excluded from accuracy metrics
+    return filter_evaluation_fields(field_names)
 
 
 def get_v4_field_count() -> int:

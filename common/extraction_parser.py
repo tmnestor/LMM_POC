@@ -25,7 +25,6 @@ except ImportError:
 from .config import (
     EXTRACTION_FIELDS,
 )
-from .unified_schema import get_global_schema
 
 
 def _normalize_date(date_str: str) -> str:
@@ -269,14 +268,9 @@ def hybrid_parse_response(
     Returns:
         dict: Parsed fields in consistent format
     """
-    # Use provided fields or get from schema
+    # Use provided fields or get from config
     if expected_fields is None:
-        try:
-            schema = get_global_schema()
-            expected_fields = schema.field_names
-        except Exception:
-            # Fallback to config-based fields if schema fails
-            expected_fields = EXTRACTION_FIELDS
+        expected_fields = EXTRACTION_FIELDS
 
     if not response_text:
         return {field: "NOT_FOUND" for field in expected_fields}
@@ -317,19 +311,14 @@ def parse_extraction_response(
     Returns:
         dict: Parsed key-value pairs with all expected fields
     """
-    # Use provided fields or get from schema (supports filtered field extraction)
+    # Use provided fields or get from config (supports filtered field extraction)
     if expected_fields is None:
-        try:
-            schema = get_global_schema()
-            expected_fields = schema.field_names
-        except Exception:
-            # Fallback to config-based fields if schema fails
-            expected_fields = EXTRACTION_FIELDS
+        expected_fields = EXTRACTION_FIELDS
 
     if not response_text:
         return {field: "NOT_FOUND" for field in expected_fields}
 
-    # Clean Llama-specific conversation artifacts if requested
+    # Clean conversation artifacts if requested
     if clean_conversation_artifacts:
         # Remove common Llama conversation patterns
         clean_patterns = [
