@@ -1,7 +1,0 @@
-**Transaction Statement Column Headers:**
-
-*   **Date**
-*   **Transaction**
-*   **Withdrawal**
-*   **Deposit**
-*   **Balance**

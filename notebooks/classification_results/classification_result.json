@@ -1,5 +1,0 @@
-{
-  "image_path": "/home/jovyan/nfs_share/tod/LMM_POC/evaluation_data/image_008.png",
-  "document_type": "BANK_STATEMENT",
-  "headers": "Date | Description | Withdrawal | Deposit | Balance"
-}

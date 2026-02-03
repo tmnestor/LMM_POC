@@ -1,2 +1,0 @@
-Document Type: BANK_STATEMENT
-Headers: Date | Description | Withdrawal | Deposit | Balance

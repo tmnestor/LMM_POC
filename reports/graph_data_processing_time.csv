@@ -1,5 +1,0 @@
-Configuration,GPU,Model,Precision,Flash_Attention,Processing_Time_s,Throughput_img_per_min,Speedup_vs_V100
-V100 Quantized,V100,InternVL3-8B,8-bit,No,108.71,0.55,1.0
-H200 Quantized,H200,InternVL3-8B,8-bit,No,42.16,1.42,2.58
-H200 bfloat16,H200,InternVL3-8B,bfloat16,Yes,13.98,4.29,7.78
-H200 InternVL3.5,H200,InternVL3.5-8B,bfloat16,Yes,15.06,3.98,7.22
