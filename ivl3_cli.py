@@ -357,7 +357,14 @@ def load_prompt_config() -> dict[str, Any]:
         return {}
 
     with prompt_path.open() as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+    # Add detection config keys expected by DocumentAwareInternVL3HybridProcessor
+    detection_path = Path(__file__).parent / "prompts" / "document_type_detection.yaml"
+    config["detection_file"] = str(detection_path)
+    config["detection_key"] = "detection"
+
+    return config
 
 
 def load_field_definitions() -> dict[str, list[str]]:
