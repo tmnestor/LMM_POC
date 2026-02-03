@@ -985,14 +985,12 @@ class UnifiedBankExtractor:
     """Unified bank statement extractor with automatic strategy selection.
 
     Args:
-        model: Loaded model (Llama or InternVL3)
+        model: Loaded InternVL3 model
         tokenizer: Model tokenizer
-        processor: Model processor (required for Llama)
-        model_type: "llama" or "internvl3"
         config_dir: Path to config directory (optional)
 
     Example:
-        extractor = UnifiedBankExtractor(model, tokenizer, model_type="internvl3")
+        extractor = UnifiedBankExtractor(model, tokenizer)
         result = extractor.extract(image_path)
         print(result.to_schema_dict())
     """
@@ -1001,8 +999,6 @@ class UnifiedBankExtractor:
         self,
         model: Any,
         tokenizer: Any,
-        processor: Any = None,
-        model_type: str = "internvl3",
         config_dir: str | Path | None = None,
         model_dtype: Any = None,
         image_processing_config: dict[str, Any] | None = None,
@@ -1010,8 +1006,6 @@ class UnifiedBankExtractor:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.processor = processor
-        self.model_type = model_type.lower()
         self.model_dtype = model_dtype
         self.use_balance_correction = use_balance_correction
 
@@ -1754,51 +1748,6 @@ class UnifiedBankExtractor:
             return f"{last_str_clean} - {first_str_clean}"
 
     def _generate(self, image: Any, prompt: str, max_tokens: int = 4096) -> str:
-        """Generate model response."""
-        if self.model_type == "llama":
-            return self._generate_llama(image, prompt, max_tokens)
-        return self._generate_internvl3(image, prompt, max_tokens)
-
-    def _generate_llama(self, image: Any, prompt: str, max_tokens: int) -> str:
-        """Generate response using Llama model."""
-        import torch
-
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
-
-        text_input = self.processor.apply_chat_template(
-            messages, add_generation_prompt=True
-        )
-        inputs = self.processor(
-            images=[image], text=text_input, return_tensors="pt"
-        ).to(self.model.device)
-
-        output = self.model.generate(
-            **inputs,
-            max_new_tokens=max_tokens,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-        )
-
-        generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
-        response = self.processor.decode(
-            generate_ids[0], clean_up_tokenization_spaces=False
-        )
-
-        del inputs, output, generate_ids
-        torch.cuda.empty_cache()
-
-        return response
-
-    def _generate_internvl3(self, image: Any, prompt: str, max_tokens: int) -> str:
         """Generate response using InternVL3 model."""
         import torch
 

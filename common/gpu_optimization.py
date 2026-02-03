@@ -1,8 +1,8 @@
 """
-GPU Memory Optimization Utilities for V100 and Other GPUs
+GPU Memory Optimization Utilities for AWS GPUs (A10G, L4)
 
 This module provides comprehensive GPU memory management strategies optimized for
-older GPUs like V100 that have limited memory and fragmentation issues.
+AWS GPU instances (G5 with A10G, G6 with L4).
 
 Key Features:
     - CUDA memory allocation configuration for reduced fragmentation
@@ -11,10 +11,9 @@ Key Features:
     - Resilient generation with multiple fallback strategies
     - Emergency model reload and CPU fallback capabilities
 
-Based on insights from:
-    - PyTorch forums on CUDA OOM issues
-    - worldversant.com memory management articles
-    - V100 GPU optimization best practices
+Supported GPUs:
+    - AWS G5 instances: NVIDIA A10G (24GB VRAM)
+    - AWS G6 instances: NVIDIA L4 (24GB VRAM)
 """
 
 import gc
@@ -26,9 +25,9 @@ import torch
 
 def configure_cuda_memory_allocation(verbose: bool = True):
     """
-    Configure CUDA memory allocation to reduce fragmentation (PyTorch forums insights).
+    Configure CUDA memory allocation to reduce fragmentation.
 
-    Based on: https://discuss.pytorch.org/t/keep-getting-cuda-oom-error-with-pytorch-failing-to-allocate-all-free-memory/133896
+    Optimized for AWS GPU instances (G5/A10G, G6/L4).
 
     Args:
         verbose: Whether to print configuration messages
@@ -47,27 +46,18 @@ def configure_cuda_memory_allocation(verbose: bool = True):
                 print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
             del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
 
-    # Detect GPU type and configure accordingly
+    # Detect GPU type for logging
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
-    is_v100 = "V100" in gpu_name
 
-    # Set PYTORCH_CUDA_ALLOC_CONF with GPU-specific fragmentation prevention
-    if is_v100:
-        # V100: Ultra-aggressive fragmentation prevention
-        # 32MB blocks for maximum fragmentation resistance on older architecture
-        cuda_alloc_config = "max_split_size_mb:32"
-        if verbose:
-            print("🎯 V100 detected: Using ultra-aggressive memory settings")
-    else:
-        # Modern GPUs: Standard aggressive settings
-        # 64MB blocks for good fragmentation handling
-        cuda_alloc_config = "max_split_size_mb:64"
+    # Modern GPUs (A10G, L4): Standard settings with 128MB blocks
+    # These GPUs have better memory management than older architectures
+    cuda_alloc_config = "max_split_size_mb:128"
 
-    # Apply the safe configuration
+    # Apply the configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
     if verbose:
+        print(f"🔧 GPU detected: {gpu_name}")
         print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
-        print("💡 Using 64MB memory blocks to reduce fragmentation")
 
     # Also set cudnn benchmarking for better performance
     torch.backends.cudnn.benchmark = True
@@ -565,7 +555,7 @@ def get_available_gpu_memory(device: str = "cuda") -> float:
                 return fallback_memory
         except Exception:
             pass
-        return 16.0  # Final fallback for V100
+        return 24.0  # Final fallback for A10G/L4 (24GB)
 
 
 def diagnose_gpu_memory_comprehensive(verbose: bool = True) -> dict:
@@ -619,9 +609,9 @@ def get_total_gpu_memory_robust() -> float:
             return 0.0
 
 
-def optimize_model_for_v100(model: Any, verbose: bool = True):
+def optimize_model_for_gpu(model: Any, verbose: bool = True):
     """
-    Apply V100-specific optimizations to a model.
+    Apply GPU optimizations to a model for AWS instances (A10G, L4).
 
     Args:
         model: The model to optimize
@@ -630,29 +620,29 @@ def optimize_model_for_v100(model: Any, verbose: bool = True):
     if not torch.cuda.is_available():
         return
 
-    # Enable basic V100 optimizations (conservative)
+    # Enable TF32 for faster computation on Ampere+ GPUs (A10G, L4)
     torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
     # Set model to evaluation mode
     model.eval()
 
     if verbose:
-        print("🚀 V100 optimizations applied")
+        print("🚀 GPU optimizations applied (TF32 enabled)")
 
 
 def clear_gpu_cache(verbose: bool = True):
     """
-    V100-optimized GPU memory cache clearing.
+    GPU memory cache clearing optimized for AWS instances (A10G, L4).
 
     Provides comprehensive GPU memory cleanup with detailed reporting of memory
-    states before and after clearing. Includes fragmentation detection based on
-    V100_MEMORY_STRATEGIES.md best practices.
+    states before and after clearing. Includes fragmentation detection.
 
     Args:
         verbose: Whether to print detailed cleanup messages
     """
     if verbose:
-        print("🧹 Starting V100-optimized GPU memory cleanup...")
+        print("🧹 Starting GPU memory cleanup...")
 
     # Clear Python garbage collection
     gc.collect()
@@ -691,9 +681,9 @@ def clear_gpu_cache(verbose: bool = True):
             )
             print(f"   💾 Memory freed: {initial_memory - final_memory:.2f}GB")
 
-        # Memory fragmentation detection (from V100_MEMORY_STRATEGIES.md)
+        # Memory fragmentation detection
         fragmentation = final_reserved - final_memory
-        if fragmentation > 0.5:  # 0.5GB threshold from document
+        if fragmentation > 1.0:  # 1.0GB threshold for modern GPUs
             if verbose:
                 print(f"   ⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap")
     else:
@@ -701,22 +691,21 @@ def clear_gpu_cache(verbose: bool = True):
             print("   ℹ️  No CUDA device available, skipping GPU cache clearing")
 
     if verbose:
-        print("✅ V100-optimized memory cleanup complete")
+        print("✅ GPU memory cleanup complete")
 
 
 def emergency_cleanup(verbose: bool = True):
     """
-    Emergency cleanup based on V100_MEMORY_STRATEGIES.md.
+    Emergency GPU memory cleanup for critical OOM recovery.
 
     Performs aggressive memory cleanup including module reference clearing,
     multi-pass garbage collection, and multiple cache clearing iterations.
-    This is designed for critical OOM recovery scenarios.
 
     Args:
         verbose: Whether to print cleanup messages
     """
     if verbose:
-        print("🚨 Running V100 emergency GPU cleanup...")
+        print("🚨 Running emergency GPU cleanup...")
 
     # Try to delete any global model references
     import sys
@@ -726,7 +715,7 @@ def emergency_cleanup(verbose: bool = True):
             if hasattr(sys.modules[name], "_model"):
                 delattr(sys.modules[name], "_model")
 
-    # Multi-pass cleanup (from document: 3x GC + 2x cache clearing)
+    # Multi-pass cleanup: 3x GC + 2x cache clearing
     for _ in range(3):
         gc.collect()
 
@@ -738,7 +727,7 @@ def emergency_cleanup(verbose: bool = True):
     clear_gpu_cache(verbose=verbose)
 
     if verbose:
-        print("✅ V100 emergency cleanup complete")
+        print("✅ Emergency cleanup complete")
 
 
 def cleanup_model_handler(

@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import torch
 from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
@@ -17,9 +16,7 @@ from rich.progress import track
 from .evaluation_metrics import load_ground_truth
 
 # Import Rich content sanitization to prevent recursion errors and ExtractionCleaner
-from .extraction_cleaner import ExtractionCleaner, sanitize_for_rich
 from .simple_model_evaluator import SimpleModelEvaluator
-from .simple_prompt_loader import SimplePromptLoader
 
 
 def load_document_field_definitions() -> Dict[str, List[str]]:
@@ -131,29 +128,18 @@ class BatchDocumentProcessor:
         enable_math_enhancement: bool = True,
     ):
         """
-        Initialize batch processor with support for both Llama and InternVL3 models.
+        Initialize batch processor for InternVL3 document extraction.
 
         Args:
-            model: Loaded model instance (Llama model or InternVL3 handler)
-            processor: Loaded processor instance (Llama processor or None for InternVL3)
+            model: InternVL3 handler (DocumentAwareInternVL3HybridProcessor)
+            processor: Not used (kept for API compatibility), pass None
             prompt_config: Dictionary with prompt file paths and keys
             ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
             enable_math_enhancement: Whether to apply mathematical enhancement for bank statements
         """
-        # Detect model type and store components appropriately
-        self.model_type = self._detect_model_type(model, processor)
-
-        if self.model_type == "internvl3":
-            # For InternVL3, model param is actually the handler
-            self.internvl3_handler = model
-            self.model = None
-            self.processor = None
-        else:
-            # For Llama, use traditional model/processor
-            self.model = model
-            self.processor = processor
-            self.internvl3_handler = None
+        # Store InternVL3 handler
+        self.internvl3_handler = model
 
         self.prompt_config = prompt_config
         self.ground_truth_csv = ground_truth_csv
@@ -173,25 +159,6 @@ class BatchDocumentProcessor:
         print(message)
         with Path(self._trace_file).open("a", encoding="utf-8") as f:
             f.write(f"{message}\n")
-
-    def _detect_model_type(self, model, processor) -> str:
-        """
-        Detect whether we're working with Llama or InternVL3 components.
-
-        Args:
-            model: Model or handler object
-            processor: Processor object (None for InternVL3)
-
-        Returns:
-            String indicating model type: 'llama' or 'internvl3'
-        """
-        # InternVL3 handler has these specific methods
-        if hasattr(model, "detect_and_classify_document") and hasattr(
-            model, "process_document_aware"
-        ):
-            return "internvl3"
-        else:
-            return "llama"
 
     def process_batch(
         self, image_paths: List[str], verbose: bool = True, progress_interval: int = 5
@@ -247,33 +214,22 @@ class BatchDocumentProcessor:
                 # Record start time
                 start_time = time.time()
 
-                # Route processing based on model type
-                if self.model_type == "internvl3":
-                    if verbose:
-                        rprint(
-                            f"[dim]🔍 TRACE: Processing InternVL3 image {idx}/{len(image_paths)}: {image_name}[/dim]"
-                        )
-
-                    # InternVL3 processing path
-                    document_type, extraction_result, prompt_name = (
-                        self._process_internvl3_image(image_path, verbose)
-                    )
-                    document_types_found[document_type] = (
-                        document_types_found.get(document_type, 0) + 1
+                # Process image with InternVL3 handler
+                if verbose:
+                    rprint(
+                        f"[dim]🔍 TRACE: Processing image {idx}/{len(image_paths)}: {image_name}[/dim]"
                     )
 
-                    if verbose:
-                        rprint(
-                            f"[dim]🔍 TRACE: InternVL3 processing complete for {image_name}, doc_type={document_type}[/dim]"
-                        )
+                document_type, extraction_result, prompt_name = (
+                    self._process_internvl3_image(image_path, verbose)
+                )
+                document_types_found[document_type] = (
+                    document_types_found.get(document_type, 0) + 1
+                )
 
-                else:
-                    # Llama processing path (original logic)
-                    document_type, extraction_result, prompt_name = (
-                        self._process_llama_image(image_path, verbose)
-                    )
-                    document_types_found[document_type] = (
-                        document_types_found.get(document_type, 0) + 1
+                if verbose:
+                    rprint(
+                        f"[dim]🔍 TRACE: Processing complete for {image_name}, doc_type={document_type}[/dim]"
                     )
 
                 # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
@@ -544,27 +500,11 @@ class BatchDocumentProcessor:
                             f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]"
                         )
 
-                    # Debug: Show why detailed comparison might not be displayed
+                    # Debug: Show field score count
                     if verbose:
                         has_field_scores = "field_scores" in evaluation
                         rprint(
-                            f"[dim]🔍 DEBUG: model_type={self.model_type}, has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]"
-                        )
-
-                    # Only show detailed comparison for Llama - InternVL3 has its own display logic
-                    if (
-                        verbose
-                        and evaluation
-                        and "field_scores" in evaluation
-                        and self.model_type == "llama"
-                    ):
-                        self._display_detailed_field_comparison(
-                            image_name,
-                            extracted_data,
-                            ground_truth,
-                            evaluation,
-                            document_type,
-                            verbose=verbose,
+                            f"[dim]🔍 DEBUG: has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]"
                         )
                 else:
                     evaluation = {
@@ -755,278 +695,6 @@ class BatchDocumentProcessor:
                 rprint("[yellow]⚠️ Falling back to original data[/yellow]")
             return extracted_data
 
-    def _parse_document_type_response(
-        self, response: str, detection_config: dict
-    ) -> str:
-        """Parse document type response using Python 3.11 structural pattern matching."""
-        if not response:
-            return detection_config.get("settings", {}).get("fallback_type", "INVOICE")
-
-        response_lower = response.lower().strip()
-
-        # Use structural pattern matching for clear, explicit document type detection
-        # Check most specific patterns first, then more general ones
-        match response_lower:
-            # RECEIPT - most specific check first
-            case s if "receipt" in s:
-                return "RECEIPT"
-
-            # INVOICE - check before general "statement"
-            case s if "invoice" in s or "bill" in s:
-                return "INVOICE"
-
-            # BANK_STATEMENT - check for explicit bank statement
-            case s if "bank" in s and "statement" in s:
-                return "BANK_STATEMENT"
-
-            # STATEMENT alone could be bank statement (but after more specific checks)
-            case s if "statement" in s:
-                return "BANK_STATEMENT"
-
-            # No keyword matches - check type mappings from config
-            case _:
-                type_mappings = detection_config.get("type_mappings", {})
-                for variant, canonical in type_mappings.items():
-                    if variant.lower() in response_lower:
-                        return canonical
-
-                # Final fallback
-                return detection_config.get("settings", {}).get(
-                    "fallback_type", "INVOICE"
-                )
-
-    # Removed: _classify_bank_statement_structure - filename-based classification is inappropriate
-
-    def _display_detailed_field_comparison(
-        self,
-        image_name: str,
-        extracted_data: dict,
-        ground_truth: dict,
-        evaluation: dict,
-        document_type: str,
-        verbose: bool = True,
-    ):
-        """Display detailed field-by-field comparison like in document-aware system."""
-
-        rprint(f"\n{'=' * 120}")
-        rprint("📋 STEP 4: Extracted Data Results with Ground Truth Comparison")
-        rprint("=" * 120)
-
-        # Display extracted data first
-        rprint("\n🔍 EXTRACTED DATA:")
-        for field, value in extracted_data.items():
-            if value != "NOT_FOUND":
-                rprint(f"✅ {field}: {value}")
-            else:
-                rprint(f"❌ {field}: {value}")
-
-        # Ground truth comparison table
-        rprint(f"\n📊 Ground truth loaded for {image_name}")
-        rprint("-" * 120)
-
-        field_scores = evaluation.get("field_scores", {})
-
-        # Table header with consistent spacing like document-aware system
-        rprint(f"{'STATUS':<8} {'FIELD':<25} {'EXTRACTED':<40} {'GROUND TRUTH':<40}")
-        rprint("=" * 120)
-
-        # Field-by-field comparison
-        fields_found = 0
-        exact_matches = 0
-        total_fields = len(field_scores)
-
-        for field, score in field_scores.items():
-            extracted_val = extracted_data.get(field, "NOT_FOUND")
-            ground_val = ground_truth.get(field, "NOT_FOUND")
-
-            # Get F1 metrics from score dict
-            f1_score = score.get("f1_score", 0)
-            precision = score.get("precision", 0)
-            recall = score.get("recall", 0)
-            tp = score.get("tp", 0)
-            fp = score.get("fp", 0)
-            fn = score.get("fn", 0)
-
-            # Determine status symbol based on F1 score
-            if f1_score == 1.0:
-                status = "✅"
-                exact_matches += 1
-            elif f1_score >= 0.8:
-                status = "≈"
-            else:
-                status = "❌"
-
-            if extracted_val != "NOT_FOUND":
-                fields_found += 1
-
-            # Truncate long values for display
-            extracted_display = str(extracted_val)[:38] + (
-                "..." if len(str(extracted_val)) > 38 else ""
-            )
-            ground_display = str(ground_val)[:38] + (
-                "..." if len(str(ground_val)) > 38 else ""
-            )
-
-            rprint(
-                f"{status:<8} {field:<25} {extracted_display:<40} {ground_display:<40}"
-            )
-
-            # For mismatches and partial matches, show full values and F1 metrics
-            if (status == "❌" or status == "≈") and verbose:
-                rprint(
-                    f"[red]  ⚠️ MISMATCH DETAILS (F1={f1_score:.1%}, P={precision:.1%}, R={recall:.1%}):[/red]"
-                )
-                rprint(f"[yellow]     Extracted (full): {extracted_val}[/yellow]")
-                rprint(f"[yellow]     Ground Truth (full): {ground_val}[/yellow]")
-                rprint(f"[cyan]     Metrics: TP={tp}, FP={fp}, FN={fn}[/cyan]")
-
-                # Show detailed comparison for list fields
-                if "|" in str(extracted_val) or "|" in str(ground_val):
-                    ext_items = [
-                        i.strip() for i in str(extracted_val).split("|") if i.strip()
-                    ]
-                    gt_items = [
-                        i.strip() for i in str(ground_val).split("|") if i.strip()
-                    ]
-
-                    rprint(
-                        f"[yellow]     List comparison: {len(ext_items)} extracted vs {len(gt_items)} ground truth[/yellow]"
-                    )
-                    rprint(f"[cyan]     True Positives (correct): {tp}[/cyan]")
-                    rprint(f"[yellow]     False Positives (extra): {fp}[/yellow]")
-                    rprint(f"[red]     False Negatives (missing): {fn}[/red]")
-
-                    # POSITION-AWARE matching display (matches F1 calculation logic)
-                    # Determine which comparison method to use
-                    from common.evaluation_metrics import (
-                        _transaction_item_matches,
-                        get_transaction_list_fields,
-                    )
-
-                    is_transaction_field = field in get_transaction_list_fields()
-
-                    # Track position-aware matches, mismatches, extras, and missing
-                    correct_items = []
-                    wrong_position_items = []
-                    extra_items = []
-                    missing_items = []
-
-                    max_len = max(len(ext_items), len(gt_items))
-
-                    for i in range(max_len):
-                        if i < len(gt_items) and i < len(ext_items):
-                            # Both lists have item at this position - check if match
-                            if is_transaction_field:
-                                match = _transaction_item_matches(
-                                    ext_items[i], gt_items[i], field
-                                )
-                            else:
-                                # Use same fuzzy matching logic as F1 calculation (0.75 threshold)
-                                from common.evaluation_metrics import _fuzzy_text_match
-
-                                match = _fuzzy_text_match(
-                                    ext_items[i], gt_items[i], threshold=0.75
-                                )
-
-                            if match:
-                                correct_items.append(f"Pos {i}: {ext_items[i]}")
-                            else:
-                                wrong_position_items.append(
-                                    f"Pos {i}: '{ext_items[i]}' vs '{gt_items[i]}'"
-                                )
-
-                        elif i < len(gt_items):
-                            # Ground truth has item but extraction doesn't (missing)
-                            missing_items.append(f"Pos {i}: {gt_items[i]}")
-                        else:
-                            # Extraction has item but ground truth doesn't (extra)
-                            extra_items.append(f"Pos {i}: {ext_items[i]}")
-
-                    # Display position-aware results (first 3 of each type)
-                    if correct_items:
-                        display_correct = correct_items[:3]
-                        more_text = (
-                            f" (+{len(correct_items) - 3} more)"
-                            if len(correct_items) > 3
-                            else ""
-                        )
-                        rprint(
-                            f"[green]     ✓ Correct (position-aware):{more_text}[/green]"
-                        )
-                        for item in display_correct:
-                            rprint(f"[green]       {item}[/green]")
-
-                    if wrong_position_items:
-                        display_wrong = wrong_position_items[:3]
-                        more_text = (
-                            f" (+{len(wrong_position_items) - 3} more)"
-                            if len(wrong_position_items) > 3
-                            else ""
-                        )
-                        rprint(f"[yellow]     ≈ Wrong at position:{more_text}[/yellow]")
-                        for item in display_wrong:
-                            rprint(f"[yellow]       {item}[/yellow]")
-
-                    if missing_items:
-                        display_missing = missing_items[:3]
-                        more_text = (
-                            f" (+{len(missing_items) - 3} more)"
-                            if len(missing_items) > 3
-                            else ""
-                        )
-                        rprint(
-                            f"[red]     ✗ Missing (in GT, not extracted):{more_text}[/red]"
-                        )
-                        for item in display_missing:
-                            rprint(f"[red]       {item}[/red]")
-
-                    if extra_items:
-                        display_extra = extra_items[:3]
-                        more_text = (
-                            f" (+{len(extra_items) - 3} more)"
-                            if len(extra_items) > 3
-                            else ""
-                        )
-                        rprint(
-                            f"[yellow]     + Extra (extracted beyond GT length):{more_text}[/yellow]"
-                        )
-                        for item in display_extra:
-                            rprint(f"[yellow]       {item}[/yellow]")
-                else:
-                    rprint("[yellow]     Simple text/value mismatch[/yellow]")
-
-        # Summary section (same format as document-aware system)
-        overall_accuracy = evaluation.get("overall_metrics", {}).get(
-            "overall_accuracy", 0
-        )
-        median_f1 = evaluation.get("overall_metrics", {}).get("median_f1", 0)
-
-        rprint("\n📊 EXTRACTION SUMMARY:")
-        rprint(
-            f"✅ Fields Found: {fields_found}/{total_fields} ({fields_found / total_fields * 100:.1f}%)"
-        )
-        rprint(
-            f"🎯 Exact Matches: {exact_matches}/{total_fields} ({exact_matches / total_fields * 100:.1f}%)"
-        )
-        rprint(f"📈 Median F1: {median_f1 * 100:.1f}% (typical document)")
-        rprint(f"📊 Mean F1: {overall_accuracy * 100:.1f}% (penalized by outliers)")
-        rprint(f"🤖 Document Type: {document_type}")
-        rprint("🔧 Model: Llama-3.2-11B-Vision-Instruct")
-
-        # Additional metrics (same as document-aware system)
-        meets_threshold = evaluation.get("overall_metrics", {}).get(
-            "meets_threshold", False
-        )
-        threshold = evaluation.get("overall_metrics", {}).get(
-            "document_type_threshold", 0.8
-        )
-        rprint("\n≈ = Partial match")
-        rprint("✗ = No match")
-        rprint(
-            f"Note: Meets accuracy threshold ({threshold * 100:.0f}%): {'✅ Yes' if meets_threshold else '❌ No'}"
-        )
-        rprint("=" * 120)
-
     def _process_internvl3_image(
         self, image_path: str, verbose: bool
     ) -> Tuple[str, Dict, str]:
@@ -1084,351 +752,6 @@ class BatchDocumentProcessor:
 
         return document_type, formatted_result, prompt_name
 
-    def _process_llama_image(
-        self, image_path: str, verbose: bool
-    ) -> Tuple[str, Dict, str]:
-        """
-        Process single image using Llama model (original logic).
-
-        Args:
-            image_path: Path to image
-            verbose: Whether to show verbose output
-
-        Returns:
-            Tuple of (document_type, extraction_result, prompt_name)
-        """
-        # Step 1: Detect document type using YAML-first approach
-        from pathlib import Path
-
-        import yaml
-
-        # Load detection config from YAML
-        detection_path = Path(self.prompt_config["detection_file"])
-        with detection_path.open("r") as f:
-            detection_config = yaml.safe_load(f)
-
-        # Get detection prompt and settings
-        # Use the key specified in prompt_config, falling back to YAML default if not specified
-        detection_prompt_key = self.prompt_config.get(
-            "detection_key"
-        ) or detection_config.get("settings", {}).get("default_prompt", "detection")
-        doc_type_prompt = detection_config["prompts"][detection_prompt_key]["prompt"]
-        max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
-
-        # Debug: Show detection token configuration
-        if verbose:
-            configured_model_tokens = getattr(self.model.config, "max_new_tokens", None)
-            rprint(
-                f"[cyan]🔧 Detection tokens - YAML: {max_tokens}, Model config: {configured_model_tokens}[/cyan]"
-            )
-
-        # Show detection prompt when verbose
-        if verbose:
-            rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
-            rprint("[cyan]━" * 80 + "[/cyan]")
-            rprint(
-                f"[yellow]Detection Prompt (using key: '{detection_prompt_key}'):[/yellow]"
-            )
-            rprint(f"[dim]{doc_type_prompt}[/dim]")
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
-
-        # Use direct model approach (like working llama_single_image.ipynb)
-        from PIL import Image
-
-        # Load image directly
-        image = Image.open(image_path)
-
-        # Create message structure like working notebook
-        messageDataStructure = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": doc_type_prompt},
-                ],
-            }
-        ]
-
-        # Process input like working notebook
-        textInput = self.processor.apply_chat_template(
-            messageDataStructure, add_generation_prompt=True
-        )
-        inputs = self.processor(image, textInput, return_tensors="pt")
-
-        # Clear GPU 1 cache before processing since model has layers there
-        torch.cuda.empty_cache()
-        if torch.cuda.device_count() > 1:
-            with torch.cuda.device(1):
-                torch.cuda.empty_cache()
-
-        # Move to model device like working notebook
-        inputs = inputs.to(self.model.device)
-
-        # Generate response directly like working notebook
-        with torch.no_grad():
-            output = self.model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                do_sample=False,
-                temperature=None,
-                top_p=None,
-            )
-        response = self.processor.decode(output[0], skip_special_tokens=True)
-
-        # Show raw response when verbose (sanitized for Rich console safety)
-        if verbose:
-            safe_response = sanitize_for_rich(response, max_length=500)
-            rprint(f"[yellow]Model Response:[/yellow] {safe_response}")
-
-        # Extract only the assistant's response (not the prompt) for parsing
-        # Llama responses include full conversation: "user\n\n[prompt]\nassistant\n\n[answer]"
-        if "assistant" in response:
-            # Get everything after the last "assistant" marker
-            assistant_response = response.split("assistant")[-1].strip()
-        else:
-            # Fallback: use full response (shouldn't happen normally)
-            assistant_response = response
-
-        # Parse document type from assistant's response only
-        document_type = self._parse_document_type_response(
-            assistant_response, detection_config
-        )
-
-        if verbose:
-            rprint(f"[green]✅ Detected Document Type: {document_type}[/green]\n")
-
-        # Memory cleanup between detection and extraction
-        if verbose:
-            rprint("[dim]🧹 Cleaning memory before extraction...[/dim]")
-        from common.gpu_optimization import emergency_cleanup
-
-        emergency_cleanup(verbose=False)
-
-        # Initialize bank statement structure (used for prompt selection)
-        bank_structure = None
-
-        # Bank statements: Use vision-based structure classification for optimal prompt selection
-        if document_type == "BANK_STATEMENT":
-            from .vision_bank_statement_classifier import (
-                classify_bank_statement_structure_vision,
-            )
-
-            # Classify bank statement structure using vision analysis
-            bank_structure = classify_bank_statement_structure_vision(
-                image_path=image_path,
-                model=self.model,
-                processor=self.processor,
-                verbose=verbose,
-            )
-
-            if verbose:
-                rprint(f"[cyan]🏦 Bank statement structure: {bank_structure}[/cyan]")
-                rprint(
-                    f"[cyan]📁 Using prompt: llama_prompts.yaml (bank_statement_{bank_structure})[/cyan]"
-                )
-
-        # Step 2: Load document-specific prompt using prompt_config (single source of truth)
-        prompt_loader = SimplePromptLoader()
-
-        try:
-            # Get extraction file and key from prompt_config - fully explicit configuration
-            doc_type_upper = document_type.upper()
-
-            # Get the prompt file path from config
-            extraction_files = self.prompt_config.get("extraction_files", {})
-            extraction_file = extraction_files.get(
-                doc_type_upper,
-                "prompts/llama_prompts.yaml",  # fallback
-            )
-
-            # Get the prompt key from config (or derive from document type if not specified)
-            extraction_keys = self.prompt_config.get("extraction_keys", {})
-
-            if doc_type_upper in extraction_keys:
-                # Use explicitly configured key
-                extraction_key = extraction_keys[doc_type_upper]
-            else:
-                # Derive key from document type - simple lowercase conversion
-                extraction_key = document_type.lower()
-
-            # For bank statements ONLY: if key doesn't include structure suffix, append it
-            # This allows config to override by specifying full key like "bank_statement_flat"
-            if document_type == "BANK_STATEMENT" and bank_structure:
-                if (
-                    "_flat" not in extraction_key
-                    and "_date_grouped" not in extraction_key
-                ):
-                    extraction_key = f"{extraction_key}_{bank_structure}"
-
-            # Load using config values (pass full path - loader handles normalization)
-            from pathlib import Path
-
-            extraction_prompt = prompt_loader.load_prompt(
-                extraction_file, extraction_key
-            )
-            prompt_name = f"{Path(extraction_file).stem}_{extraction_key}_prompt"
-
-        except KeyError as e:
-            # If specific key not found, provide clear error message
-            raise KeyError(
-                f"❌ Prompt key '{extraction_key}' not found in {extraction_file}\n"
-                f"💡 Check that the prompt file has the required key for document type: {document_type}\n"
-                f"💡 For bank statements, ensure both 'bank_statement_flat' and 'bank_statement_date_grouped' exist"
-            ) from e
-
-        # Step 3: Extract fields using YAML-configured field mapping
-        doc_type_fields = load_document_field_definitions()
-
-        # Ensure case-insensitive document type matching for field list selection
-        document_type_lower = document_type.lower()
-        field_list = doc_type_fields.get(
-            document_type_lower, doc_type_fields["invoice"]
-        )
-
-        # Create document-aware processor with loaded model/processor
-        if verbose:
-            rprint("\n[bold cyan]📋 FIELD EXTRACTION[/bold cyan]")
-            rprint(
-                f"[cyan]Creating extraction processor with {len(field_list)} fields for {document_type}[/cyan]"
-            )
-            rprint(
-                f"[dim]Fields: {', '.join(field_list[:3])}... ({len(field_list)} total)[/dim]"
-            )
-
-        # Use configured max_tokens from model if available, otherwise calculate
-        configured_tokens = getattr(self.model.config, "max_new_tokens", None)
-        if configured_tokens:
-            max_tokens = configured_tokens
-            if verbose:
-                rprint(
-                    f"[cyan]🔧 Using configured max_tokens: {max_tokens} (from notebook CONFIG)[/cyan]"
-                )
-        else:
-            # Fallback to calculation
-            from .config import get_max_new_tokens
-
-            max_tokens = get_max_new_tokens("llama", len(field_list))
-            if verbose:
-                rprint(
-                    f"[cyan]🔧 Calculated max_tokens: {max_tokens} for {len(field_list)} fields[/cyan]"
-                )
-
-        # Show extraction prompt when verbose (BEFORE model generation)
-        if verbose:
-            rprint("\n[bold yellow]📋 EXTRACTION PROMPT:[/bold yellow]")
-            rprint("[cyan]━" * 80 + "[/cyan]")
-            # Truncate prompt if too long
-            prompt_display = (
-                extraction_prompt[:1500] + "..."
-                if len(extraction_prompt) > 1500
-                else extraction_prompt
-            )
-            safe_prompt = sanitize_for_rich(prompt_display, max_length=2000)
-            rprint(f"[dim]{safe_prompt}[/dim]")
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
-
-        # Use direct model approach for extraction (like working notebook)
-        image = Image.open(image_path)
-
-        # Create message structure like working notebook
-        messageDataStructure = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": extraction_prompt},
-                ],
-            }
-        ]
-
-        # Process input like working notebook
-        textInput = self.processor.apply_chat_template(
-            messageDataStructure, add_generation_prompt=True
-        )
-        inputs = self.processor(image, textInput, return_tensors="pt").to(
-            self.model.device
-        )
-
-        # Generate response directly like working notebook
-        with torch.no_grad():
-            output = self.model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                do_sample=False,
-                temperature=None,
-                top_p=None,
-            )
-        response = self.processor.decode(output[0], skip_special_tokens=True)
-
-        # Show raw extraction response when verbose
-        if verbose:
-            rprint("\n[bold yellow]📄 RAW MODEL EXTRACTION RESPONSE:[/bold yellow]")
-            # Show response length and check if model generated output
-            rprint(f"[dim]Total response length: {len(response)} characters[/dim]")
-
-            # Extract only the assistant's response (after the prompt)
-            # Llama responses include the full conversation, split at "assistant" marker
-            if "assistant" in response:
-                # Get everything after the last "assistant" marker
-                model_response = response.split("assistant")[-1].strip()
-                if not model_response or len(model_response) < 50:
-                    rprint(
-                        "[red]⚠️ WARNING: Model generated very short or empty response![/red]"
-                    )
-                    rprint(
-                        "[yellow]This likely means max_tokens is too low for this prompt.[/yellow]"
-                    )
-            else:
-                # No assistant marker means model didn't generate anything
-                rprint(
-                    "[red]⚠️ CRITICAL: No 'assistant' response found in output![/red]"
-                )
-                rprint(
-                    "[yellow]Model may have hit token limit during prompt processing.[/yellow]"
-                )
-                model_response = response
-
-            # Show only last 3000 chars to see the actual extraction part
-            if len(model_response) > 3000:
-                display_response = "...[truncated]..." + model_response[-3000:]
-            else:
-                display_response = model_response
-
-            # Sanitize for Rich console
-            safe_response = sanitize_for_rich(display_response, max_length=10000)
-            rprint(f"[dim]{safe_response}[/dim]")
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
-
-        # Create extraction result in expected format
-        from .extraction_parser import parse_extraction_response
-
-        parsed_data = parse_extraction_response(
-            response, clean_conversation_artifacts=False, expected_fields=field_list
-        )
-
-        # Apply ExtractionCleaner to clean and normalize field values
-        cleaner = ExtractionCleaner(debug=False)
-        cleaned_data = cleaner.clean_extraction_dict(parsed_data)
-
-        # Show parsed/cleaned data when verbose
-        if verbose:
-            rprint("[bold green]✅ PARSED EXTRACTION DATA:[/bold green]")
-            for field, value in cleaned_data.items():
-                if value != "NOT_FOUND":
-                    # Truncate long values for readability
-                    display_value = (
-                        str(value)[:100] + "..." if len(str(value)) > 100 else value
-                    )
-                    rprint(f"  [cyan]{field}:[/cyan] {display_value}")
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
-
-        extraction_result = {
-            "extracted_data": cleaned_data,
-            "raw_response": response,
-            "field_list": field_list,
-        }
-
-        return document_type, extraction_result, prompt_name
 
 
 def print_accuracy_by_document_type(

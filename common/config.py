@@ -1,8 +1,8 @@
 """
-Shared configuration for vision model evaluation.
+Shared configuration for InternVL3.5-8B vision model evaluation.
 
-This module contains all configuration values and constants shared between
-different vision models (InternVL3, Llama, etc.).
+This module contains all configuration values and constants for
+the InternVL3.5-8B vision-language model.
 
 NOTE: Uses YAML-first field discovery for single source of truth.
 NOTE: Supports environment variables for flexible deployment configuration.
@@ -16,12 +16,10 @@ NOTE: Supports environment variables for flexible deployment configuration.
 # Available model variants
 AVAILABLE_MODELS = {
     "internvl3": ["InternVL3-2B", "InternVL3-8B"],
-    "llama": ["Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"],
 }
 
-# Current model selection (CHANGE THESE TO SWITCH MODELS)
+# Current model selection (CHANGE THIS TO SWITCH MODELS)
 CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-8B"
-CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"  # Options: "Llama-3.2-11B-Vision-Instruct", "Llama-3.2-11B-Vision"
 
 # V4 Schema Configuration - Enable by default
 V4_SCHEMA_ENABLED = True
@@ -48,9 +46,8 @@ MODELS_BASE = (
     f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "AISandbox" else f"{BASE_PATH}/PTM"
 )
 
-# Model paths based on current model selection
+# Model path based on current model selection
 INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
-LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
 # Data paths based on deployment
 if CURRENT_DEPLOYMENT == "AISandbox":
@@ -65,37 +62,24 @@ else:  # EFS deployment
     OUTPUT_DIR = f"{DATA_BASE}/output"
 
 
-def switch_model(model_type: str, model_name: str):
+def switch_model(model_name: str):
     """
-    Switch to a different model variant.
+    Switch to a different InternVL3 model variant.
 
     Args:
-        model_type (str): Model type ('internvl3' or 'llama')
-        model_name (str): Specific model name from AVAILABLE_MODELS
+        model_name (str): Specific model name from AVAILABLE_MODELS['internvl3']
     """
-    global CURRENT_INTERNVL3_MODEL, CURRENT_LLAMA_MODEL
-    global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
+    global CURRENT_INTERNVL3_MODEL, INTERNVL3_MODEL_PATH
 
-    if model_type not in AVAILABLE_MODELS:
+    if model_name not in AVAILABLE_MODELS["internvl3"]:
         raise ValueError(
-            f"Invalid model type: {model_type}. Valid options: {list(AVAILABLE_MODELS.keys())}"
+            f"Invalid model: {model_name}. Valid options: {AVAILABLE_MODELS['internvl3']}"
         )
 
-    if model_name not in AVAILABLE_MODELS[model_type]:
-        raise ValueError(
-            f"Invalid {model_type} model: {model_name}. Valid options: {AVAILABLE_MODELS[model_type]}"
-        )
-
-    if model_type == "internvl3":
-        CURRENT_INTERNVL3_MODEL = model_name
-        INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
-        print(f"✅ Switched to {model_name}")
-        print(f"   Path: {INTERNVL3_MODEL_PATH}")
-    elif model_type == "llama":
-        CURRENT_LLAMA_MODEL = model_name
-        LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
-        print(f"✅ Switched to {model_name}")
-        print(f"   Path: {LLAMA_MODEL_PATH}")
+    CURRENT_INTERNVL3_MODEL = model_name
+    INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+    print(f"✅ Switched to {model_name}")
+    print(f"   Path: {INTERNVL3_MODEL_PATH}")
 
 
 def switch_deployment(deployment: str):
@@ -106,7 +90,7 @@ def switch_deployment(deployment: str):
         deployment (str): Deployment type ('AISandbox' or 'efs')
     """
     global CURRENT_DEPLOYMENT, BASE_PATH, MODELS_BASE
-    global INTERNVL3_MODEL_PATH, LLAMA_MODEL_PATH
+    global INTERNVL3_MODEL_PATH
     global DATA_BASE, DATA_DIR, GROUND_TRUTH_PATH, OUTPUT_DIR
 
     if deployment not in BASE_PATHS:
@@ -117,7 +101,7 @@ def switch_deployment(deployment: str):
     CURRENT_DEPLOYMENT = deployment
     BASE_PATH = BASE_PATHS[CURRENT_DEPLOYMENT]
 
-    # Update model paths using current model selections
+    # Update model path using current model selection
     MODELS_BASE = (
         f"{BASE_PATH}/models"
         if CURRENT_DEPLOYMENT == "AISandbox"
@@ -125,7 +109,6 @@ def switch_deployment(deployment: str):
     )
 
     INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
-    LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
     # Update data paths
     if CURRENT_DEPLOYMENT == "AISandbox":
@@ -157,11 +140,9 @@ def show_current_config():
     print(f"   Output Dir: {OUTPUT_DIR}")
     print(f"   Ground Truth: {GROUND_TRUTH_PATH}")
     print()
-    print("🤖 Models:")
+    print("🤖 Model:")
     print(f"   InternVL3: {CURRENT_INTERNVL3_MODEL}")
-    print(f"   Llama: {CURRENT_LLAMA_MODEL}")
-    print(f"   InternVL3 Path: {INTERNVL3_MODEL_PATH}")
-    print(f"   Llama Path: {LLAMA_MODEL_PATH}")
+    print(f"   Path: {INTERNVL3_MODEL_PATH}")
 
 
 # ============================================================================
@@ -477,7 +458,6 @@ IMAGE_EXTENSIONS = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
 
 # Default batch sizes per model (Balanced for 16GB VRAM)
 DEFAULT_BATCH_SIZES = {
-    "llama": 1,  # Llama-3.2-11B with optimized 8-bit quantization on 16GB VRAM
     "internvl3": 4,  # InternVL3 generic fallback (backward compatibility)
     "internvl3-2b": 4,  # InternVL3-2B is memory efficient, can handle larger batches
     "internvl3-8b": 1,  # InternVL3-8B with quantization needs conservative batching
@@ -493,7 +473,7 @@ INTERNVL3_TOKEN_LIMITS = {
     "8b": 800,  # Enough for all 25 fields with buffer after 8-bit quantization
 }
 
-# Generation parameters for different models
+# Generation parameters for InternVL3
 GENERATION_CONFIGS = {
     "internvl3": {
         "do_sample": False,  # CRITICAL: Must be False for deterministic output (greedy decoding)
@@ -503,18 +483,10 @@ GENERATION_CONFIGS = {
         "repetition_penalty": 1.0,  # No repetition penalty
         # Note: seed is set at system level in _set_random_seeds(), not in generation config
     },
-    "llama": {
-        "do_sample": False,  # Greedy decoding for determinism
-        # No temperature/top_k/top_p to avoid warnings with do_sample=False
-        "num_beams": 1,
-        "repetition_penalty": 1.0,
-        # Note: seed is set at system level, not in generation config
-    },
 }
 
 # Maximum batch sizes per model (Aggressive for 24GB+ VRAM)
 MAX_BATCH_SIZES = {
-    "llama": 3,  # Higher end for powerful GPUs
     "internvl3": 8,  # InternVL3 generic fallback (backward compatibility)
     "internvl3-2b": 8,  # InternVL3-2B can handle large batches on high-end GPUs
     "internvl3-8b": 2,  # InternVL3-8B maximum safe batch size even on powerful GPUs
@@ -522,7 +494,6 @@ MAX_BATCH_SIZES = {
 
 # Conservative batch sizes per model (Safe for limited memory situations)
 CONSERVATIVE_BATCH_SIZES = {
-    "llama": 1,  # Llama always uses 1 for conservative approach
     "internvl3": 1,  # InternVL3 generic fallback (backward compatibility)
     "internvl3-2b": 2,  # InternVL3-2B can safely handle 2 even in conservative mode
     "internvl3-8b": 1,  # InternVL3-8B must stay at 1 for safety
@@ -654,16 +625,6 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 # GENERATION CONFIGURATION - SINGLE SOURCE OF TRUTH
 # ============================================================================
 
-# Llama-3.2-11B-Vision generation configuration
-LLAMA_GENERATION_CONFIG = {
-    "max_new_tokens_base": 400,  # Reduced for L40S hardware (was 2000 for 4xV100)
-    "max_new_tokens_per_field": 50,  # Increased from 30 for better extraction
-    "temperature": 0.0,  # Deterministic sampling for consistent results
-    "do_sample": False,  # Disable sampling for full determinism
-    "top_p": 0.95,  # Nucleus sampling parameter (inactive with do_sample=False)
-    "use_cache": True,  # CRITICAL: Required for extraction quality (proven by testing)
-}
-
 # InternVL3 generation configuration
 INTERNVL3_GENERATION_CONFIG = {
     "max_new_tokens_base": 2000,  # Increased for complex bank statements (4 V100 setup)
@@ -676,12 +637,11 @@ INTERNVL3_GENERATION_CONFIG = {
 
 
 # Helper function to calculate dynamic max_new_tokens
-def get_max_new_tokens(model_name: str, field_count: int = None, document_type: str = None) -> int:
+def get_max_new_tokens(field_count: int = None, document_type: str = None) -> int:
     """
-    Calculate max_new_tokens based on model, field count, and document complexity.
+    Calculate max_new_tokens based on field count and document complexity.
 
     Args:
-        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
         field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
         document_type (str): Document type ('bank_statement', 'invoice', 'receipt', etc.)
 
@@ -692,15 +652,7 @@ def get_max_new_tokens(model_name: str, field_count: int = None, document_type: 
         field_count or FIELD_COUNT or 15
     )  # Default to 15 for universal extraction
 
-    model_name_lower = model_name.lower()
-
-    if model_name_lower == "llama":
-        config = LLAMA_GENERATION_CONFIG
-    elif model_name_lower.startswith("internvl3"):
-        # Handle all InternVL3 variants (internvl3, internvl3-2b, internvl3-8b)
-        config = INTERNVL3_GENERATION_CONFIG
-    else:
-        raise ValueError(f"Unknown model name: {model_name}")
+    config = INTERNVL3_GENERATION_CONFIG
 
     base_tokens = max(
         config["max_new_tokens_base"], field_count * config["max_new_tokens_per_field"]
