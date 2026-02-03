@@ -372,7 +372,16 @@ def load_field_definitions() -> dict[str, list[str]]:
     with config_path.open() as f:
         config = yaml.safe_load(f)
 
-    return config.get("document_field_definitions", {})
+    # Extract fields from nested structure: document_fields.{type}.fields
+    document_fields = config.get("document_fields", {})
+    result = {}
+    for doc_type, doc_config in document_fields.items():
+        if isinstance(doc_config, dict) and "fields" in doc_config:
+            result[doc_type] = doc_config["fields"]
+        elif isinstance(doc_config, list):
+            result[doc_type] = doc_config
+
+    return result
 
 
 @contextmanager
@@ -428,6 +437,15 @@ def load_model(config: PipelineConfig):
         for fields in field_definitions.values():
             all_fields.update(fields)
         universal_fields = sorted(list(all_fields))
+
+        if not universal_fields:
+            console.print(
+                "[red]FATAL: No field definitions found in config/field_definitions.yaml[/red]"
+            )
+            console.print(
+                "[yellow]Expected: document_fields section with field lists[/yellow]"
+            )
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
         # Create processor
         processor = DocumentAwareInternVL3HybridProcessor(
