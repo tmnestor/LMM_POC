@@ -609,18 +609,20 @@ def get_total_gpu_memory_robust() -> float:
             return 0.0
 
 
-def optimize_model_for_gpu(model: Any, verbose: bool = True):
+def optimize_model_for_gpu(model: Any, verbose: bool = True, dtype: Optional[torch.dtype] = None):
     """
     Apply GPU optimizations to a model for AWS instances (A10G, L4).
 
     Args:
         model: The model to optimize
         verbose: Whether to print optimization messages
+        dtype: Model dtype (e.g., torch.bfloat16, torch.float32). Used for accurate messaging.
     """
     if not torch.cuda.is_available():
         return
 
     # Enable TF32 for faster computation on Ampere+ GPUs (A10G, L4)
+    # Note: TF32 only affects float32 operations; bfloat16 uses native tensor cores
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
@@ -628,7 +630,13 @@ def optimize_model_for_gpu(model: Any, verbose: bool = True):
     model.eval()
 
     if verbose:
-        print("🚀 GPU optimizations applied (TF32 enabled)")
+        # Only mention TF32 when using float32 (TF32 is irrelevant for bfloat16)
+        if dtype == torch.bfloat16:
+            print("🚀 GPU optimizations applied (bfloat16 tensor cores)")
+        elif dtype == torch.float32:
+            print("🚀 GPU optimizations applied (TF32 enabled)")
+        else:
+            print("🚀 GPU optimizations applied")
 
 
 def clear_gpu_cache(verbose: bool = True):

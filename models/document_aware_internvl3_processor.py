@@ -135,8 +135,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 print("✅ Using pre-loaded InternVL3 model and tokenizer")
                 print(f"🔧 Device: {self.model.device}")
                 print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
-            # Apply V100 optimizations to pre-loaded model
-            optimize_model_for_gpu(self.model)
+            # Apply GPU optimizations to pre-loaded model
+            model_dtype = next(self.model.parameters()).dtype
+            optimize_model_for_gpu(self.model, dtype=model_dtype)
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -236,8 +237,9 @@ class DocumentAwareInternVL3HybridProcessor:
                     f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
                 )
 
-            # Apply V100 optimizations
-            optimize_model_for_gpu(self.model)
+            # Apply GPU optimizations
+            model_dtype = next(self.model.parameters()).dtype
+            optimize_model_for_gpu(self.model, dtype=model_dtype)
 
         except Exception as e:
             if self.debug:
