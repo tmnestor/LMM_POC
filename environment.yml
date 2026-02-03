@@ -23,6 +23,7 @@ dependencies:
     - einops>=0.6.0
     - accelerate>=0.27.0
     - pyyaml>=6.0.0
+    - typer>=0.9.0
     # FlashAttention 2.x (optional - GPU machines only)
     # Install manually on L40S/A10G: pip install flash-attn --no-build-isolation
     - jupyter>=1.0.0
