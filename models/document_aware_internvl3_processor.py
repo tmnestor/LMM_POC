@@ -158,7 +158,7 @@ class DocumentAwareInternVL3HybridProcessor:
         # InternVL3 generation config - chat() method only accepts max_new_tokens and do_sample
         # NOTE: temperature and top_p are NOT valid for InternVL3 chat() and cause warnings
         self.generation_config = {
-            "max_new_tokens": get_max_new_tokens("internvl3", self.field_count),
+            "max_new_tokens": get_max_new_tokens(field_count=self.field_count),
             "do_sample": False,  # Greedy decoding for consistent extraction
             "use_cache": True,
         }
@@ -674,7 +674,7 @@ class DocumentAwareInternVL3HybridProcessor:
             from common.config import get_max_new_tokens
             # Use base document type for max tokens calculation
             base_doc_type = document_type.replace('_flat', '').replace('_date_grouped', '')
-            doc_specific_tokens = get_max_new_tokens("internvl3", len(self.field_list), base_doc_type)
+            doc_specific_tokens = get_max_new_tokens(field_count=len(self.field_list), document_type=base_doc_type)
 
             # Process with document-specific settings
             result = self.process_single_image(image_path, custom_max_tokens=doc_specific_tokens)
