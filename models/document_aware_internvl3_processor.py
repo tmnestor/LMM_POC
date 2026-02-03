@@ -38,7 +38,7 @@ from common.gpu_optimization import (
     configure_cuda_memory_allocation,
     emergency_cleanup,
     get_available_gpu_memory,
-    optimize_model_for_v100,
+    optimize_model_for_gpu,
 )
 from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
 
@@ -136,7 +136,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 print(f"🔧 Device: {self.model.device}")
                 print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
             # Apply V100 optimizations to pre-loaded model
-            optimize_model_for_v100(self.model)
+            optimize_model_for_gpu(self.model)
 
     def _configure_batch_processing(self, batch_size: Optional[int]):
         """Configure batch processing parameters."""
@@ -237,7 +237,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 )
 
             # Apply V100 optimizations
-            optimize_model_for_v100(self.model)
+            optimize_model_for_gpu(self.model)
 
         except Exception as e:
             if self.debug:
