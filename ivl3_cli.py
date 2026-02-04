@@ -31,7 +31,6 @@ from rich.table import Table
 from transformers import AutoModel, AutoTokenizer
 
 # Local imports
-from common.bank_statement_adapter import BankStatementAdapter
 from common.batch_analytics import BatchAnalytics
 from common.batch_processor import BatchDocumentProcessor
 from common.batch_reporting import BatchReporter
