@@ -1,0 +1,25 @@
+# Model configuration
+model:
+  path: /models/InternVL3_5-8B
+  max_tiles: 11
+  flash_attn: true
+  dtype: bfloat16
+
+# Data paths
+data:
+  dir: ./evaluation_data/travel
+  ground_truth: ./evaluation_data/travel/ground_truth_travel.csv
+  max_images: null  # null = process all
+  document_types: null  # null = all types
+
+# Output settings
+output:
+  dir: ./output
+  skip_visualizations: false
+  skip_reports: false
+
+# Processing options
+processing:
+  bank_v2: true
+  balance_correction: true
+  verbose: true
