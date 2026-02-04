@@ -481,20 +481,156 @@ def run_batch_processing(
     prompt_config: dict[str, Any],
     images: list[Path],
 ) -> tuple[list[dict], list[float], dict[str, int]]:
-    """Run batch document processing."""
+    """Run batch document processing with sophisticated bank statement extraction."""
+    # Import here to avoid import issues at module level
+    from common.bank_statement_adapter import BankStatementAdapter
+
     # Create batch processor
+    # NOTE: enable_math_enhancement=False matches notebook behavior
+    # Balance correction is handled by BankStatementAdapter instead
     batch_processor = BatchDocumentProcessor(
         model=processor,
         processor=None,
         prompt_config=prompt_config,
         ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
         console=console,
-        enable_math_enhancement=config.balance_correction,  # Use balance_correction setting correctly
+        enable_math_enhancement=False,  # Disabled - BankStatementAdapter handles this
     )
 
-    # Apply bank statement V2 settings
-    if hasattr(processor, "use_bank_v2"):
-        processor.use_bank_v2 = config.bank_v2
+    # ============================================================================
+    # V2: SOPHISTICATED BANK STATEMENT EXTRACTION (matches notebook behavior)
+    # ============================================================================
+    if config.bank_v2:
+        console.print(
+            "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
+        )
+
+        # Create bank adapter for multi-turn extraction
+        # Adapter auto-detects dtype from model parameters
+        bank_adapter = BankStatementAdapter(
+            model=processor,
+            processor=None,
+            verbose=config.verbose,
+            use_balance_correction=config.balance_correction,
+        )
+
+        # Get reference to the InternVL3 handler
+        internvl3_handler = batch_processor.internvl3_handler
+
+        def enhanced_process_internvl3(image_path, verbose):
+            """
+            Enhanced processing with proper routing:
+            - Turn 0: Document type detection (all documents)
+            - If BANK_STATEMENT: BankStatementAdapter handles extraction
+            - If INVOICE/RECEIPT: Standard extraction via internvl3_handler
+            """
+            import sys
+            from pathlib import Path as PathLib
+
+            def _safe_print(msg: str) -> None:
+                """Print without triggering Rich console recursion."""
+                try:
+                    sys.__stdout__.write(msg + "\n")
+                    sys.__stdout__.flush()
+                except Exception:
+                    pass
+
+            # Turn 0: Document Type Detection
+            if verbose:
+                _safe_print(
+                    f"\nTurn 0: Document type detection for {PathLib(image_path).name}"
+                )
+
+            try:
+                classification_info = internvl3_handler.detect_and_classify_document(
+                    image_path, verbose=verbose
+                )
+                doc_type = classification_info["document_type"]
+            except Exception as e:
+                console.print(f"[red]Error in document type detection: {e}[/red]")
+                raise
+
+            if verbose:
+                _safe_print(f"Detected: {doc_type}")
+
+            # ROUTING: Bank statements vs other documents
+            if doc_type.upper() == "BANK_STATEMENT":
+                if verbose:
+                    _safe_print(
+                        "Routing to BankStatementAdapter for multi-turn extraction"
+                    )
+
+                try:
+                    # BankStatementAdapter handles Turn 1 (headers) + Turn 2 (extraction)
+                    schema_fields, metadata = bank_adapter.extract_bank_statement(
+                        image_path
+                    )
+
+                    # Build result structure compatible with BatchDocumentProcessor
+                    extraction_result = {
+                        "extracted_data": schema_fields,
+                        "raw_response": metadata.get("raw_responses", {}).get(
+                            "turn1", ""
+                        ),
+                        "field_list": list(schema_fields.keys()),
+                        "metadata": metadata,
+                    }
+
+                    strategy = metadata.get("strategy_used", "unknown")
+                    prompt_name = f"unified_bank_{strategy}"
+
+                    if verbose:
+                        _safe_print(f"  Strategy: {strategy}")
+                        tx_count = (
+                            len(schema_fields.get("TRANSACTION_DATES", "").split("|"))
+                            if schema_fields.get("TRANSACTION_DATES") != "NOT_FOUND"
+                            else 0
+                        )
+                        _safe_print(f"  Transactions extracted: {tx_count}")
+
+                    return doc_type, extraction_result, prompt_name
+
+                except Exception as e:
+                    console.print(
+                        f"[yellow]BankStatementAdapter failed: {e}[/yellow]"
+                    )
+                    console.print(
+                        "[yellow]Falling back to standard extraction...[/yellow]"
+                    )
+                    # Fall through to standard extraction
+
+            # INVOICE/RECEIPT (or bank fallback): Standard extraction
+            if verbose:
+                _safe_print(f"Using standard extraction for {doc_type}")
+
+            extraction_result = internvl3_handler.process_document_aware(
+                image_path, classification_info, verbose=verbose
+            )
+
+            extracted_data = extraction_result.get("extracted_data", {})
+
+            formatted_result = {
+                "extracted_data": extracted_data,
+                "document_type": doc_type,
+                "image_file": PathLib(image_path).name,
+                "processing_time": extraction_result.get("processing_time", 0),
+            }
+
+            prompt_name = f"internvl3_{doc_type.lower()}"
+
+            return doc_type, formatted_result, prompt_name
+
+        # Replace the processing method
+        batch_processor._process_internvl3_image = enhanced_process_internvl3
+
+        console.print("[green]V2: Sophisticated bank statement extraction enabled[/green]")
+        console.print(
+            f"[dim]  Balance correction: {'Enabled' if config.balance_correction else 'Disabled'}[/dim]"
+        )
+    else:
+        # Apply legacy bank statement settings
+        if hasattr(processor, "use_bank_v2"):
+            processor.use_bank_v2 = False
 
     # Process batch
     console.print(f"\n[bold]Processing {len(images)} images...[/bold]")
