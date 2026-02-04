@@ -615,8 +615,8 @@ class DocumentAwareInternVL3HybridProcessor:
                 except Exception as e:
                     if verbose:
                         print(f"⚠️ Vision classification failed: {e}")
-                        print("📝 Falling back to universal prompt")
-                    document_type = "universal"
+                        print("📝 Falling back to bank_statement_flat prompt")
+                    document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback
 
             # Get document-specific prompt using prompt_config (single source of truth)
             if self.prompt_config:
@@ -1006,8 +1006,8 @@ class DocumentAwareInternVL3HybridProcessor:
                     except Exception as e:
                         if self.debug:
                             print(f"⚠️ Vision classification failed: {e}")
-                            print("📝 Falling back to universal prompt")
-                        document_type = "universal"
+                            print("📝 Falling back to bank_statement_flat prompt")
+                        document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback
 
                 if self.debug:
                     print(f"📋 DOCUMENT DETECTION RESULT: {detection_result}")

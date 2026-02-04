@@ -489,7 +489,7 @@ def run_batch_processing(
         prompt_config=prompt_config,
         ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
         console=console,
-        enable_math_enhancement=False,
+        enable_math_enhancement=config.balance_correction,  # Use balance_correction setting
     )
 
     # Apply bank statement V2 settings
