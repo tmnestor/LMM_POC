@@ -306,7 +306,7 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
     """Create output directory structure."""
     output_dirs = {
         "base": config.output_dir,
-        "batch_results": config.output_dir / "batch_results",
+        "batch": config.output_dir / "batch_results",
         "csv": config.output_dir / "csv",
         "visualizations": config.output_dir / "visualizations",
         "reports": config.output_dir / "reports",
