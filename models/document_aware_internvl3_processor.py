@@ -84,7 +84,9 @@ class DocumentAwareInternVL3HybridProcessor:
         self.model_path = model_path or INTERNVL3_MODEL_PATH
         self.device = device
         self.debug = debug
-        self.prompt_config = prompt_config  # Single source of truth for prompt configuration
+        self.prompt_config = (
+            prompt_config  # Single source of truth for prompt configuration
+        )
         self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
 
         # Initialize components (InternVL3 specific)
@@ -98,9 +100,9 @@ class DocumentAwareInternVL3HybridProcessor:
 
         # Also set pad_token_id on model's generation_config to suppress warnings
         if self.model is not None and self.tokenizer is not None:
-            if hasattr(self.model, 'generation_config'):
+            if hasattr(self.model, "generation_config"):
                 self.model.generation_config.pad_token_id = self.tokenizer.eos_token_id
-            elif hasattr(self.model.config, 'pad_token_id'):
+            elif hasattr(self.model.config, "pad_token_id"):
                 self.model.config.pad_token_id = self.tokenizer.eos_token_id
 
         # Detect model variant (2B vs 8B) for tile optimization
@@ -134,7 +136,9 @@ class DocumentAwareInternVL3HybridProcessor:
             if self.debug:
                 print("✅ Using pre-loaded InternVL3 model and tokenizer")
                 print(f"🔧 Device: {self.model.device}")
-                print(f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+                print(
+                    f"💾 Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
+                )
             # Apply GPU optimizations to pre-loaded model
             model_dtype = next(self.model.parameters()).dtype
             optimize_model_for_gpu(self.model, dtype=model_dtype)
@@ -185,15 +189,19 @@ class DocumentAwareInternVL3HybridProcessor:
         """
         # For multi-GPU device_map models, get the vision model embedding device
         # This is critical: pixel_values enter through vision_model.embeddings
-        if hasattr(self.model, 'vision_model') and hasattr(self.model.vision_model, 'embeddings'):
+        if hasattr(self.model, "vision_model") and hasattr(
+            self.model.vision_model, "embeddings"
+        ):
             try:
-                vision_embed_device = next(self.model.vision_model.embeddings.parameters()).device
+                vision_embed_device = next(
+                    self.model.vision_model.embeddings.parameters()
+                ).device
                 return vision_embed_device
             except (StopIteration, AttributeError):
                 pass
 
         # Fallback: check model.device attribute
-        if hasattr(self.model, 'device'):
+        if hasattr(self.model, "device"):
             return self.model.device
 
         try:
@@ -201,7 +209,7 @@ class DocumentAwareInternVL3HybridProcessor:
             return next(self.model.parameters()).device
         except (StopIteration, AttributeError):
             # Fallback to cuda if available
-            return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
@@ -260,9 +268,11 @@ class DocumentAwareInternVL3HybridProcessor:
         )
         return transform
 
-    def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
+    def find_closest_aspect_ratio(
+        self, aspect_ratio, target_ratios, width, height, image_size
+    ):
         """Standard InternVL3 find_closest_aspect_ratio from official documentation."""
-        best_ratio_diff = float('inf')
+        best_ratio_diff = float("inf")
         best_ratio = (1, 1)
         area = width * height
         for ratio in target_ratios:
@@ -276,20 +286,27 @@ class DocumentAwareInternVL3HybridProcessor:
                     best_ratio = ratio
         return best_ratio
 
-    def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
+    def dynamic_preprocess(
+        self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False
+    ):
         """Standard InternVL3 dynamic_preprocess from official documentation."""
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
 
         # Standard target ratios calculation
         target_ratios = set(
-            (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
-            i * j <= max_num and i * j >= min_num)
+            (i, j)
+            for n in range(min_num, max_num + 1)
+            for i in range(1, n + 1)
+            for j in range(1, n + 1)
+            if i * j <= max_num and i * j >= min_num
+        )
         target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
         # Find the closest aspect ratio using standard method
         target_aspect_ratio = self.find_closest_aspect_ratio(
-            aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+            aspect_ratio, target_ratios, orig_width, orig_height, image_size
+        )
 
         target_width = image_size * target_aspect_ratio[0]
         target_height = image_size * target_aspect_ratio[1]
@@ -304,7 +321,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 (i % (target_width // image_size)) * image_size,
                 (i // (target_width // image_size)) * image_size,
                 ((i % (target_width // image_size)) + 1) * image_size,
-                ((i // (target_width // image_size)) + 1) * image_size
+                ((i // (target_width // image_size)) + 1) * image_size,
             )
             split_img = resized_img.crop(box)
             processed_images.append(split_img)
@@ -356,20 +373,26 @@ class DocumentAwareInternVL3HybridProcessor:
         # Convert to model's dtype to prevent "Input type (float) and bias type (c10::BFloat16)" error
         try:
             # For 8-bit quantized models, we need to check vision model's weight dtype
-            if hasattr(self.model, 'vision_model') and hasattr(self.model.vision_model, 'embeddings'):
+            if hasattr(self.model, "vision_model") and hasattr(
+                self.model.vision_model, "embeddings"
+            ):
                 # Get dtype from vision model's embedding layer (most reliable for quantized models)
-                vision_dtype = next(self.model.vision_model.embeddings.parameters()).dtype
+                vision_dtype = next(
+                    self.model.vision_model.embeddings.parameters()
+                ).dtype
                 pixel_values = pixel_values.to(dtype=vision_dtype)
                 if self.debug:
                     print(f"🔧 TENSOR_DTYPE: Using vision model dtype {vision_dtype}")
-            elif hasattr(self.model, 'dtype'):
+            elif hasattr(self.model, "dtype"):
                 pixel_values = pixel_values.to(dtype=self.model.dtype)
                 if self.debug:
                     print(f"🔧 TENSOR_DTYPE: Using model.dtype {self.model.dtype}")
-            elif hasattr(self.model.vision_model, 'dtype'):
+            elif hasattr(self.model.vision_model, "dtype"):
                 pixel_values = pixel_values.to(dtype=self.model.vision_model.dtype)
                 if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using vision_model.dtype {self.model.vision_model.dtype}")
+                    print(
+                        f"🔧 TENSOR_DTYPE: Using vision_model.dtype {self.model.vision_model.dtype}"
+                    )
             else:
                 # Try to get dtype from first model parameter
                 model_dtype = next(self.model.parameters()).dtype
@@ -385,7 +408,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 detected_dtype = first_param.dtype
                 pixel_values = pixel_values.to(dtype=detected_dtype)
                 if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using detected parameter dtype {detected_dtype}")
+                    print(
+                        f"🔧 TENSOR_DTYPE: Using detected parameter dtype {detected_dtype}"
+                    )
             except Exception:
                 # Last resort fallback: use float32 for safety (V100 compatible)
                 pixel_values = pixel_values.to(dtype=torch.float32)
@@ -401,7 +426,9 @@ class DocumentAwareInternVL3HybridProcessor:
             if pixel_values.device != model_device:
                 pixel_values = pixel_values.to(model_device)
                 if self.debug:
-                    print(f"🔧 DEVICE_MOVE: Moved tensor from {pixel_values.device} to {model_device}")
+                    print(
+                        f"🔧 DEVICE_MOVE: Moved tensor from {pixel_values.device} to {model_device}"
+                    )
             elif self.debug:
                 print(f"✅ DEVICE_OK: Tensor already on {model_device}")
 
@@ -409,10 +436,16 @@ class DocumentAwareInternVL3HybridProcessor:
         if self.debug:
             try:
                 model_param = next(iter(self.model.parameters()))
-                print(f"🔍 DTYPE_CHECK: pixel_values={pixel_values.dtype}, model_param={model_param.dtype}")
-                print(f"🔍 DEVICE_CHECK: pixel_values={pixel_values.device}, model_param={model_param.device}")
+                print(
+                    f"🔍 DTYPE_CHECK: pixel_values={pixel_values.dtype}, model_param={model_param.dtype}"
+                )
+                print(
+                    f"🔍 DEVICE_CHECK: pixel_values={pixel_values.device}, model_param={model_param.device}"
+                )
                 if pixel_values.dtype != model_param.dtype:
-                    print(f"⚠️ DTYPE_MISMATCH: pixel_values ({pixel_values.dtype}) != model ({model_param.dtype})")
+                    print(
+                        f"⚠️ DTYPE_MISMATCH: pixel_values ({pixel_values.dtype}) != model ({model_param.dtype})"
+                    )
             except Exception as debug_err:
                 print(f"⚠️ Debug check failed: {debug_err}")
 
@@ -446,15 +479,18 @@ class DocumentAwareInternVL3HybridProcessor:
             return load_internvl3_prompt(document_type)
         except Exception as e:
             if self.debug:
-                print(f"⚠️ Failed to load {document_type} prompt, falling back to universal")
+                print(
+                    f"⚠️ Failed to load {document_type} prompt, falling back to universal"
+                )
             return load_internvl3_prompt("universal")
 
     def get_supported_document_types(self) -> List[str]:
         """Get list of supported document types."""
         return SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
 
-
-    def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> Dict:
+    def detect_and_classify_document(
+        self, image_path: str, verbose: bool = False
+    ) -> Dict:
         """
         Detect document type using InternVL3 model and document detection prompt.
         Compatible with BatchDocumentProcessor workflow.
@@ -476,13 +512,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 detection_path = Path(self.prompt_config["detection_file"])
                 detection_key = self.prompt_config["detection_key"]
                 if verbose:
-                    print(f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'")
+                    print(
+                        f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'"
+                    )
             else:
                 # Fallback to hardcoded YAML (legacy behavior)
                 detection_path = Path("prompts/document_type_detection.yaml")
                 detection_key = "detection"
                 if verbose:
-                    print(f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'")
+                    print(
+                        f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'"
+                    )
 
             with detection_path.open("r") as f:
                 detection_config = yaml.safe_load(f)
@@ -493,7 +533,10 @@ class DocumentAwareInternVL3HybridProcessor:
             if verbose:
                 # Use direct stdout to bypass Rich console completely for detection
                 import sys
-                sys.stdout.write(f"🔍 Using InternVL3 document detection prompt: {detection_key}\n")
+
+                sys.stdout.write(
+                    f"🔍 Using InternVL3 document detection prompt: {detection_key}\n"
+                )
                 sys.stdout.write(f"📝 Prompt: {detection_prompt[:100]}...\n")
                 sys.stdout.flush()
 
@@ -514,21 +557,25 @@ class DocumentAwareInternVL3HybridProcessor:
                 max_new_tokens=max_tokens,
                 temperature=0.1,
                 do_sample=False,
-                is_detection=True  # Enable strict token limits for detection
+                is_detection=True,  # Enable strict token limits for detection
             )
 
             if verbose:
                 # Use direct stdout to bypass Rich console completely for detection
                 import sys
+
                 sys.stdout.write(f"🤖 Model response: {response}\n")
                 sys.stdout.flush()
 
             # Parse document type from response
-            document_type = self._parse_document_type_response(response, detection_config)
+            document_type = self._parse_document_type_response(
+                response, detection_config
+            )
 
             if verbose:
                 # Use direct stdout to bypass Rich console completely for detection
                 import sys
+
                 sys.stdout.write(f"✅ Detected document type: {document_type}\n")
                 sys.stdout.flush()
 
@@ -536,16 +583,18 @@ class DocumentAwareInternVL3HybridProcessor:
                 "document_type": document_type,
                 "confidence": 1.0,  # InternVL3 doesn't provide confidence scores
                 "raw_response": response,
-                "prompt_used": detection_key
+                "prompt_used": detection_key,
             }
 
         except Exception as e:
             # ALWAYS show detection errors - critical for debugging
             import sys
+
             sys.stdout.write(f"❌ DETECTION ERROR: {e}\n")
             sys.stdout.flush()
             if self.debug:
                 import traceback
+
                 sys.stdout.write("❌ DETECTION ERROR TRACEBACK:\n")
                 sys.stdout.flush()
                 traceback.print_exc()
@@ -556,10 +605,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 "confidence": 0.1,
                 "raw_response": "",
                 "prompt_used": "fallback_heuristic",
-                "error": str(e)
+                "error": str(e),
             }
 
-    def process_document_aware(self, image_path: str, classification_info: Dict, verbose: bool = False) -> Dict:
+    def process_document_aware(
+        self, image_path: str, classification_info: Dict, verbose: bool = False
+    ) -> Dict:
         """
         Process document using document-specific extraction based on detected type.
         Compatible with BatchDocumentProcessor workflow.
@@ -579,7 +630,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 print(f"📊 Processing {document_type.upper()} document with InternVL3")
 
             # For bank statements, use vision-based structure classification
-            if document_type == 'bank_statement':
+            if document_type == "bank_statement":
                 try:
                     # Try different import methods to handle various execution contexts
                     try:
@@ -589,20 +640,23 @@ class DocumentAwareInternVL3HybridProcessor:
                     except ImportError:
                         import sys
                         from pathlib import Path
+
                         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
                         from common.vision_bank_statement_classifier import (
                             classify_bank_statement_structure_vision,
                         )
 
                     if verbose:
-                        print("🔍 Running vision-based structure classification for bank statement")
+                        print(
+                            "🔍 Running vision-based structure classification for bank statement"
+                        )
 
                     # Pass self (the processor) which has the load_image method
                     structure_type = classify_bank_statement_structure_vision(
                         image_path,
                         model=self,  # Pass the processor itself which has load_image
                         processor=None,  # InternVL3 doesn't use separate processor
-                        verbose=verbose
+                        verbose=verbose,
                     )
 
                     # Map structure to specific prompt
@@ -616,20 +670,23 @@ class DocumentAwareInternVL3HybridProcessor:
                     if verbose:
                         print(f"⚠️ Vision classification failed: {e}")
                         print("📝 Falling back to bank_statement_flat prompt")
-                    document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback
+                    document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback updated
 
             # Get document-specific prompt using prompt_config (single source of truth)
             if self.prompt_config:
                 # Use prompt_config to determine which file and key to use
                 # Strip structure suffixes to get base document type
-                doc_type_upper = document_type.upper().replace('_FLAT', '').replace('_DATE_GROUPED', '')
-                extraction_file = self.prompt_config.get('extraction_files', {}).get(
-                    doc_type_upper,
-                    'prompts/internvl3_prompts.yaml'
+                doc_type_upper = (
+                    document_type.upper()
+                    .replace("_FLAT", "")
+                    .replace("_DATE_GROUPED", "")
+                )
+                extraction_file = self.prompt_config.get("extraction_files", {}).get(
+                    doc_type_upper, "prompts/internvl3_prompts.yaml"
                 )
 
                 # Get the prompt key from config (or derive from document type if not specified)
-                extraction_keys = self.prompt_config.get('extraction_keys', {})
+                extraction_keys = self.prompt_config.get("extraction_keys", {})
 
                 if doc_type_upper in extraction_keys:
                     # Use explicitly configured key
@@ -640,53 +697,81 @@ class DocumentAwareInternVL3HybridProcessor:
 
                 # For bank statements ONLY: if key doesn't include structure suffix, append it
                 # This allows config to override by specifying full key like "bank_statement_flat"
-                if document_type.startswith('bank_statement') and doc_type_upper == 'BANK_STATEMENT':
-                    if '_flat' not in extraction_key and '_date_grouped' not in extraction_key:
+                if (
+                    document_type.startswith("bank_statement")
+                    and doc_type_upper == "BANK_STATEMENT"
+                ):
+                    if (
+                        "_flat" not in extraction_key
+                        and "_date_grouped" not in extraction_key
+                    ):
                         # Only append if document_type has a structure suffix
-                        if '_flat' in document_type:
+                        if "_flat" in document_type:
                             extraction_key = f"{extraction_key}_flat"
-                        elif '_date_grouped' in document_type:
+                        elif "_date_grouped" in document_type:
                             extraction_key = f"{extraction_key}_date_grouped"
 
                 from pathlib import Path
 
                 from common.simple_prompt_loader import SimplePromptLoader
+
                 loader = SimplePromptLoader()
-                extraction_prompt = loader.load_prompt(Path(extraction_file).name, extraction_key)
+                extraction_prompt = loader.load_prompt(
+                    Path(extraction_file).name, extraction_key
+                )
             else:
                 # Fallback to get_extraction_prompt method
                 extraction_prompt = self.get_extraction_prompt(document_type)
 
             if verbose:
-                prompt_source = "prompt_config" if self.prompt_config else "get_extraction_prompt"
-                print(f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters")
+                prompt_source = (
+                    "prompt_config" if self.prompt_config else "get_extraction_prompt"
+                )
+                print(
+                    f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters"
+                )
 
             # Get document-specific field list from YAML config (single source of truth)
             doc_type_fields = load_document_field_definitions()
             # Add structure-specific bank statement aliases (same fields as bank_statement)
-            if 'bank_statement' in doc_type_fields:
-                doc_type_fields['bank_statement_flat'] = doc_type_fields['bank_statement']
-                doc_type_fields['bank_statement_date_grouped'] = doc_type_fields['bank_statement']
+            if "bank_statement" in doc_type_fields:
+                doc_type_fields["bank_statement_flat"] = doc_type_fields[
+                    "bank_statement"
+                ]
+                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields[
+                    "bank_statement"
+                ]
 
             # Update field list for document-specific extraction
             original_field_list = self.field_list
-            self.field_list = doc_type_fields.get(document_type, doc_type_fields['invoice'])
+            self.field_list = doc_type_fields.get(
+                document_type, doc_type_fields["invoice"]
+            )
 
             # Calculate document-specific max tokens
             from common.config import get_max_new_tokens
+
             # Use base document type for max tokens calculation
-            base_doc_type = document_type.replace('_flat', '').replace('_date_grouped', '')
-            doc_specific_tokens = get_max_new_tokens(field_count=len(self.field_list), document_type=base_doc_type)
+            base_doc_type = document_type.replace("_flat", "").replace(
+                "_date_grouped", ""
+            )
+            doc_specific_tokens = get_max_new_tokens(
+                field_count=len(self.field_list), document_type=base_doc_type
+            )
 
             # Process with document-specific settings
-            result = self.process_single_image(image_path, custom_max_tokens=doc_specific_tokens)
+            result = self.process_single_image(
+                image_path, custom_max_tokens=doc_specific_tokens
+            )
 
             # Restore original field list
             self.field_list = original_field_list
 
             if verbose:
-                extracted_data = result.get('extracted_data', {})
-                found_fields = sum(1 for v in extracted_data.values() if v != 'NOT_FOUND')
+                extracted_data = result.get("extracted_data", {})
+                found_fields = sum(
+                    1 for v in extracted_data.values() if v != "NOT_FOUND"
+                )
                 print(f"✅ Extracted {found_fields}/{len(extracted_data)} fields")
 
             return result
@@ -698,7 +783,9 @@ class DocumentAwareInternVL3HybridProcessor:
             # Fallback to universal processing
             return self.process_single_image(image_path)
 
-    def _parse_document_type_response(self, response: str, detection_config: Dict) -> str:
+    def _parse_document_type_response(
+        self, response: str, detection_config: Dict
+    ) -> str:
         """
         Parse document type from model response using type mappings.
 
@@ -714,8 +801,11 @@ class DocumentAwareInternVL3HybridProcessor:
         if self.debug:
             # Use direct stdout to bypass Rich console completely for detection debug
             import sys
+
             sys.stdout.write(f"🔍 PARSING DEBUG - Raw response: '{response}'\n")
-            sys.stdout.write(f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'\n")
+            sys.stdout.write(
+                f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'\n"
+            )
             sys.stdout.flush()
 
         # Get type mappings from config
@@ -726,7 +816,10 @@ class DocumentAwareInternVL3HybridProcessor:
             if variant.lower() in response_lower:
                 if self.debug:
                     import sys
-                    sys.stdout.write(f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n")
+
+                    sys.stdout.write(
+                        f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n"
+                    )
                     sys.stdout.flush()
                 return canonical
 
@@ -734,24 +827,39 @@ class DocumentAwareInternVL3HybridProcessor:
         if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
             if self.debug:
                 import sys
+
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: RECEIPT\n")
                 sys.stdout.flush()
             return "RECEIPT"
         elif any(word in response_lower for word in ["bank", "statement", "account"]):
             if self.debug:
                 import sys
+
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT\n")
                 sys.stdout.flush()
             return "BANK_STATEMENT"
-        elif any(word in response_lower for word in ["travel", "ticket", "boarding", "airline", "flight", "itinerary", "passenger"]):
+        elif any(
+            word in response_lower
+            for word in [
+                "travel",
+                "ticket",
+                "boarding",
+                "airline",
+                "flight",
+                "itinerary",
+                "passenger",
+            ]
+        ):
             if self.debug:
                 import sys
+
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: TRAVEL_EXPENSE\n")
                 sys.stdout.flush()
             return "TRAVEL_EXPENSE"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
                 import sys
+
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: INVOICE\n")
                 sys.stdout.flush()
             return "INVOICE"
@@ -760,7 +868,10 @@ class DocumentAwareInternVL3HybridProcessor:
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
         if self.debug:
             import sys
-            sys.stdout.write(f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n")
+
+            sys.stdout.write(
+                f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n"
+            )
             sys.stdout.flush()
         return fallback
 
@@ -777,8 +888,12 @@ class DocumentAwareInternVL3HybridProcessor:
         """Resilient generation with OOM fallback using InternVL3 chat method."""
 
         # Build clean generation parameters - differentiate detection vs extraction limits
-        max_tokens = generation_kwargs.get("max_new_tokens", self.generation_config["max_new_tokens"])
-        is_detection = generation_kwargs.get("is_detection", False)  # New parameter to identify detection phase
+        max_tokens = generation_kwargs.get(
+            "max_new_tokens", self.generation_config["max_new_tokens"]
+        )
+        is_detection = generation_kwargs.get(
+            "is_detection", False
+        )  # New parameter to identify detection phase
 
         if is_detection:
             # Detection only needs a short response (just the document type)
@@ -804,14 +919,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 question,
                 generation_config=clean_generation_kwargs,
                 history=None,
-                return_history=False
+                return_history=False,
             )
 
             # CRITICAL: Detect infinite recursion patterns FIRST
             if self._detect_recursion_pattern(response):
                 if self.debug:
                     import sys
-                    sys.stdout.write(f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n")
+
+                    sys.stdout.write(
+                        f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n"
+                    )
                     sys.stdout.flush()
                 # For detection, we only need the document type anyway
                 response = response[:200]  # Less aggressive truncation
@@ -835,14 +953,17 @@ class DocumentAwareInternVL3HybridProcessor:
                     question,
                     generation_config=clean_generation_kwargs,
                     history=None,
-                    return_history=False
+                    return_history=False,
                 )
 
                 # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
                         import sys
-                        sys.stdout.write(f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars\n")
+
+                        sys.stdout.write(
+                            f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars\n"
+                        )
                         sys.stdout.flush()
                     response = response[:200]  # Less aggressive truncation
                 elif len(response) > 2000:  # Higher safety limit for normal responses
@@ -867,17 +988,22 @@ class DocumentAwareInternVL3HybridProcessor:
                         question,
                         generation_config=minimal_config,
                         history=None,
-                        return_history=False
+                        return_history=False,
                     )
                 except Exception:
                     # Last resort - return a fallback response
-                    response = "invoice" if "document" in question.lower() else "NOT_FOUND"
+                    response = (
+                        "invoice" if "document" in question.lower() else "NOT_FOUND"
+                    )
 
                 # CRITICAL: Detect infinite recursion patterns FIRST
                 if self._detect_recursion_pattern(response):
                     if self.debug:
                         import sys
-                        sys.stdout.write(f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars\n")
+
+                        sys.stdout.write(
+                            f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars\n"
+                        )
                         sys.stdout.flush()
                     response = response[:200]  # Less aggressive truncation
                 elif len(response) > 2000:  # Higher safety limit for normal responses
@@ -885,9 +1011,12 @@ class DocumentAwareInternVL3HybridProcessor:
 
                 # Skip moving quantized models (not supported with .to())
                 # Quantized models can't be moved with .to() method
-                if not (hasattr(self.model, 'quantization_method') or
-                        hasattr(self.model, 'is_quantized') or
-                        getattr(self.model.config, 'quantization_config', None) is not None):
+                if not (
+                    hasattr(self.model, "quantization_method")
+                    or hasattr(self.model, "is_quantized")
+                    or getattr(self.model.config, "quantization_config", None)
+                    is not None
+                ):
                     # Only move non-quantized models
                     self.model = self.model.to(self.device)
 
@@ -897,10 +1026,14 @@ class DocumentAwareInternVL3HybridProcessor:
             # CRITICAL: Catch all other exceptions to prevent infinite recursion
             if self.debug:
                 import sys
-                sys.stdout.write(f"❌ CRITICAL: Generation failed with exception: {e}\n")
+
+                sys.stdout.write(
+                    f"❌ CRITICAL: Generation failed with exception: {e}\n"
+                )
                 sys.stdout.write(f"Exception type: {type(e).__name__}\n")
                 sys.stdout.flush()
                 import traceback
+
                 traceback.print_exc()
 
             # Return empty response to trigger fallback logic (like working handler)
@@ -912,7 +1045,7 @@ class DocumentAwareInternVL3HybridProcessor:
             return False
 
         # Check for repeated text patterns that indicate recursion
-        response_lines = response.split('\n')
+        response_lines = response.split("\n")
 
         # Look for lines that are repeated many times
         line_counts = {}
@@ -927,7 +1060,10 @@ class DocumentAwareInternVL3HybridProcessor:
             return True
 
         # Check for the specific "Answer with one of:" repetition pattern
-        if "Answer with one of:" in response and response.count("Answer with one of:") > 3:
+        if (
+            "Answer with one of:" in response
+            and response.count("Answer with one of:") > 3
+        ):
             return True
 
         # Check for repeated prompt instructions
@@ -946,6 +1082,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
         try:
             from pathlib import Path
+
             start_time = time.time()
 
             # Memory cleanup
@@ -957,20 +1094,22 @@ class DocumentAwareInternVL3HybridProcessor:
                 document_type = "CUSTOM"  # Indicate custom prompt usage
             else:
                 # Get document-aware prompt using PROPER model-based detection
-                detection_result = self.detect_and_classify_document(image_path, verbose=self.debug)
-                detected_type = detection_result.get('document_type', 'INVOICE')
+                detection_result = self.detect_and_classify_document(
+                    image_path, verbose=self.debug
+                )
+                detected_type = detection_result.get("document_type", "INVOICE")
 
                 # CRITICAL FIX: Map uppercase detection result to lowercase prompt key
                 type_mapping = {
-                    'INVOICE': 'invoice',
-                    'RECEIPT': 'receipt',
-                    'BANK_STATEMENT': 'bank_statement',  # Will be refined below
-                    'TRAVEL_EXPENSE': 'travel_expense'
+                    "INVOICE": "invoice",
+                    "RECEIPT": "receipt",
+                    "BANK_STATEMENT": "bank_statement",  # Will be refined below
+                    "TRAVEL_EXPENSE": "travel_expense",
                 }
-                document_type = type_mapping.get(detected_type, 'invoice')
+                document_type = type_mapping.get(detected_type, "invoice")
 
                 # For bank statements, use vision-based structure classification
-                if detected_type == 'BANK_STATEMENT':
+                if detected_type == "BANK_STATEMENT":
                     try:
                         # Try different import methods to handle various execution contexts
                         try:
@@ -980,20 +1119,25 @@ class DocumentAwareInternVL3HybridProcessor:
                         except ImportError:
                             import sys
                             from pathlib import Path
-                            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+                            sys.path.insert(
+                                0, str(Path(__file__).resolve().parent.parent)
+                            )
                             from common.vision_bank_statement_classifier import (
                                 classify_bank_statement_structure_vision,
                             )
 
                         if self.debug:
-                            print("🔍 Running vision-based structure classification for bank statement")
+                            print(
+                                "🔍 Running vision-based structure classification for bank statement"
+                            )
 
                         # Pass self (the processor) which has the load_image method
                         structure_type = classify_bank_statement_structure_vision(
                             image_path,
                             model=self,  # Pass the processor itself which has load_image
                             processor=None,  # InternVL3 doesn't use separate processor
-                            verbose=self.debug
+                            verbose=self.debug,
                         )
 
                         # Map structure to specific prompt
@@ -1011,19 +1155,29 @@ class DocumentAwareInternVL3HybridProcessor:
 
                 if self.debug:
                     print(f"📋 DOCUMENT DETECTION RESULT: {detection_result}")
-                    print(f"🎯 DETECTED DOCUMENT TYPE: '{detected_type}' → MAPPED TO: '{document_type}'")
+                    print(
+                        f"🎯 DETECTED DOCUMENT TYPE: '{detected_type}' → MAPPED TO: '{document_type}'"
+                    )
                     print(f"📝 LOADING EXTRACTION PROMPT FOR: '{document_type}'")
 
                 prompt = self.get_extraction_prompt(document_type=document_type)
 
                 # Get document-specific field list for accurate processing
                 # Normalize document_type by stripping structure suffix for field list lookup
-                base_doc_type = document_type.replace('_flat', '').replace('_date_grouped', '')
-                document_fields = self.document_field_lists.get(base_doc_type, self.field_list)
+                base_doc_type = document_type.replace("_flat", "").replace(
+                    "_date_grouped", ""
+                )
+                document_fields = self.document_field_lists.get(
+                    base_doc_type, self.field_list
+                )
 
                 if self.debug:
-                    print(f"📋 DOCUMENT-SPECIFIC FIELDS: {len(document_fields)} fields for '{document_type}'")
-                    print(f"   Fields: {document_fields[:5]}{'...' if len(document_fields) > 5 else ''}")
+                    print(
+                        f"📋 DOCUMENT-SPECIFIC FIELDS: {len(document_fields)} fields for '{document_type}'"
+                    )
+                    print(
+                        f"   Fields: {document_fields[:5]}{'...' if len(document_fields) > 5 else ''}"
+                    )
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
@@ -1068,8 +1222,12 @@ class DocumentAwareInternVL3HybridProcessor:
                 )
 
             # Generate response using InternVL3 chat method for extraction
-            generation_config['is_detection'] = False  # Enable full token limits for extraction
-            response = self._resilient_generate(pixel_values, question, **generation_config)
+            generation_config["is_detection"] = (
+                False  # Enable full token limits for extraction
+            )
+            response = self._resilient_generate(
+                pixel_values, question, **generation_config
+            )
 
             if self.debug:
                 # Use direct stdout to bypass Rich console completely
@@ -1085,7 +1243,7 @@ class DocumentAwareInternVL3HybridProcessor:
             from common.extraction_parser import hybrid_parse_response
 
             # Use document-specific fields if we detected a document type, otherwise use full field list
-            if 'document_fields' not in locals():
+            if "document_fields" not in locals():
                 document_fields = self.field_list
 
             extracted_data = hybrid_parse_response(
@@ -1132,9 +1290,21 @@ class DocumentAwareInternVL3HybridProcessor:
                 [k for k in extracted_data.keys() if k in self.field_list]
             )
             # Use document-specific field count for accurate metrics
-            document_field_count = len(document_fields) if 'document_fields' in locals() else self.field_count
-            response_completeness = extracted_fields_count / document_field_count if document_field_count > 0 else 0
-            content_coverage = extracted_fields_count / document_field_count if document_field_count > 0 else 0
+            document_field_count = (
+                len(document_fields)
+                if "document_fields" in locals()
+                else self.field_count
+            )
+            response_completeness = (
+                extracted_fields_count / document_field_count
+                if document_field_count > 0
+                else 0
+            )
+            content_coverage = (
+                extracted_fields_count / document_field_count
+                if document_field_count > 0
+                else 0
+            )
 
             # Cleanup with V100 optimizations
             del pixel_values
@@ -1149,7 +1319,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 "content_coverage": content_coverage,
                 "extracted_fields_count": extracted_fields_count,
                 "field_count": document_field_count,
-                "document_type": document_type if 'document_type' in locals() else 'unknown'
+                "document_type": document_type
+                if "document_type" in locals()
+                else "unknown",
             }
 
         except Exception as e:

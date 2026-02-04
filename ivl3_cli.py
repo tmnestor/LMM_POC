@@ -31,6 +31,7 @@ from rich.table import Table
 from transformers import AutoModel, AutoTokenizer
 
 # Local imports
+from common.bank_statement_adapter import BankStatementAdapter
 from common.batch_analytics import BatchAnalytics
 from common.batch_processor import BatchDocumentProcessor
 from common.batch_reporting import BatchReporter
@@ -489,7 +490,7 @@ def run_batch_processing(
         prompt_config=prompt_config,
         ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
         console=console,
-        enable_math_enhancement=config.balance_correction,  # Use balance_correction setting
+        enable_math_enhancement=config.balance_correction,  # Use balance_correction setting correctly
     )
 
     # Apply bank statement V2 settings
