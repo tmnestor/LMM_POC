@@ -601,7 +601,7 @@ def generate_reports(
     }
 
     report_files = reporter.save_all_reports(
-        {k: str(v) for k, v in output_dirs.items()},
+        output_dirs,
         df_results,
         df_summary,
         df_doctype_stats,
