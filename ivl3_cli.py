@@ -628,13 +628,13 @@ def print_summary(
     total_time = sum(processing_times)
     avg_time = total_time / len(processing_times) if processing_times else 0
 
-    # Extract accuracy from evaluation dict (uses median_f1 for robustness)
+    # Extract accuracy from evaluation dict (uses overall_accuracy = mean F1)
     accuracies = []
     for r in batch_results:
         eval_data = r.get("evaluation", {})
         if eval_data:
-            # Prefer median_f1 (more robust), fallback to overall_accuracy
-            acc = eval_data.get("median_f1") or eval_data.get("overall_accuracy", 0)
+            # Use overall_accuracy (mean F1), not median_f1
+            acc = eval_data.get("overall_accuracy", 0)
             accuracies.append(acc)
     avg_accuracy = sum(accuracies) / len(accuracies) if accuracies else 0
 
