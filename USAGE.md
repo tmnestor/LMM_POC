@@ -151,74 +151,88 @@ python ivl3_cli.py \
 
 #### CLI Options Reference
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+CLI options default to `None` and only override YAML config when explicitly provided.
+
+| Option | Type | Fallback Default | Description |
+|--------|------|------------------|-------------|
 | `--data-dir`, `-d` | Path | **Required** | Directory containing images |
 | `--output-dir`, `-o` | Path | **Required** | Output directory for results |
 | `--config`, `-c` | Path | None | YAML configuration file |
 | `--model-path`, `-m` | Path | Auto-detect | Path to InternVL3.5-8B model |
 | `--ground-truth`, `-g` | Path | None | Ground truth CSV (omit for inference) |
-| `--max-images` | int | None | Limit number of images (None = all) |
-| `--document-types` | str | None | Filter: "invoice,receipt,bank_statement" |
+| `--max-images` | int | None (all) | Limit number of images |
+| `--document-types` | str | None (all) | Filter: "INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK" |
 | `--bank-v2/--no-bank-v2` | bool | True | V2 bank statement extraction |
 | `--balance-correction/--no-balance-correction` | bool | True | Balance validation for bank statements |
-| `--max-tiles` | int | 11 | Image tiles (H200: 11, V100: 14) |
+| `--max-tiles` | int | 11 | Image tiles (H200: 18, V100: 14, L4: 18) |
 | `--flash-attn/--no-flash-attn` | bool | True | Flash Attention 2 |
 | `--dtype` | str | bfloat16 | Torch dtype (bfloat16, float16, float32) |
-| `--no-viz` | flag | False | Skip visualization generation |
-| `--no-reports` | flag | False | Skip report generation |
-| `--verbose/-v`, `--quiet/-q` | bool | True | Verbose output |
-| `--version`, `-V` | flag | False | Show version and exit |
+| `--no-viz/--viz` | bool | False | Skip visualization generation |
+| `--no-reports/--reports` | bool | False | Skip report generation |
+| `--verbose/-v`, `--quiet/-q` | bool | True | Verbose/debug output |
+| `--version`, `-V` | flag | - | Show version and exit |
+
+**Note:** "Fallback Default" is used only when neither CLI nor YAML config specifies a value.
 
 ## Configuration
 
 ### Priority Order (Highest to Lowest)
 
-1. CLI arguments
-2. Config file (`--config`)
-3. Environment variables (`IVL_*` prefix)
-4. Built-in defaults
+1. **CLI arguments** (only when explicitly provided)
+2. **YAML config file** (`--config`)
+3. **Environment variables** (`IVL_*` prefix)
+4. **Built-in defaults**
+
+**Important:** CLI options default to `None` and only override YAML config when you explicitly pass them. This allows YAML to be the primary configuration source.
 
 ### YAML Config File
 
-Create a `run_config.yaml` file:
+The recommended approach is to use a YAML config file with all options explicitly stated.
+
+Create `config/run_config.yml`:
 
 ```yaml
+# InternVL3.5-8B Document Extraction Configuration
+# All options explicitly stated - YAML takes priority over defaults
+# CLI flags override YAML when explicitly provided
+
 # Model configuration
 model:
-  path: /models/InternVL3_5-8B
-  max_tiles: 11
-  flash_attn: true
-  dtype: bfloat16
+  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
+  flash_attn: true       # Use Flash Attention 2 (disable for V100)
+  dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
+  max_new_tokens: 2000   # Max tokens for generation
 
 # Data paths
 data:
   dir: ./evaluation_data/travel
   ground_truth: ./evaluation_data/travel/ground_truth_travel.csv
-  max_images: null  # null = process all
-  document_types: null  # null = all types
+  max_images: null       # null = process all images
+  document_types: null   # null = all types, or: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
 # Output settings
 output:
   dir: ./output
-  skip_visualizations: false
-  skip_reports: false
+  skip_visualizations: false  # Skip visualization generation
+  skip_reports: false         # Skip report generation
 
 # Processing options
 processing:
-  bank_v2: true
-  balance_correction: true
-  verbose: true
+  bank_v2: true              # Use V2 bank statement extraction
+  balance_correction: true   # Enable balance validation for bank statements
+  verbose: false             # Verbose output (debug messages)
 ```
 
 Run with config:
 ```bash
-python ivl3_cli.py --config run_config.yaml
+python ivl3_cli.py --config config/run_config.yml
 ```
 
-Override specific settings:
+Override specific settings (CLI takes precedence when explicitly provided):
 ```bash
-python ivl3_cli.py --config run_config.yaml --max-images 5 --no-viz
+# Override max_images and verbose from config
+python ivl3_cli.py --config config/run_config.yml --max-images 5 --verbose
 ```
 
 ### Environment Variables
@@ -337,10 +351,11 @@ output_dir/
 
 | Document Type | Key Fields |
 |--------------|------------|
-| **Invoice** | BUSINESS_ABN, INVOICE_DATE, INVOICE_NUMBER, GST_AMOUNT, TOTAL_AMOUNT, SUBTOTAL, LINE_ITEMS |
-| **Receipt** | BUSINESS_ABN, RECEIPT_DATE, RECEIPT_NUMBER, GST_AMOUNT, TOTAL_AMOUNT, PAYMENT_METHOD |
-| **Bank Statement** | STATEMENT_DATE_RANGE, ACCOUNT_BALANCE, OPENING_BALANCE, CLOSING_BALANCE, TRANSACTION_DETAILS |
-| **Travel Expense** | PASSENGER_NAME, TRAVEL_MODE, DEPARTURE_LOCATION, ARRIVAL_LOCATION, TRAVEL_DATE, BOOKING_REFERENCE |
+| **INVOICE** | BUSINESS_ABN, INVOICE_DATE, SUPPLIER_NAME, PAYER_NAME, LINE_ITEM_DESCRIPTIONS, GST_AMOUNT, TOTAL_AMOUNT |
+| **RECEIPT** | BUSINESS_ABN, INVOICE_DATE, SUPPLIER_NAME, LINE_ITEM_DESCRIPTIONS, GST_AMOUNT, TOTAL_AMOUNT |
+| **BANK_STATEMENT** | STATEMENT_DATE_RANGE, TRANSACTION_DATES, LINE_ITEM_DESCRIPTIONS, TRANSACTION_AMOUNTS_PAID |
+| **TRAVEL_EXPENSE** | PASSENGER_NAME, TRAVEL_MODE, TRAVEL_ROUTE, TRAVEL_DATES, INVOICE_DATE, GST_AMOUNT, TOTAL_AMOUNT, SUPPLIER_NAME |
+| **VEHICLE_LOGBOOK** | VEHICLE_MAKE, VEHICLE_MODEL, VEHICLE_REGISTRATION, ENGINE_CAPACITY, LOGBOOK_PERIOD_START, LOGBOOK_PERIOD_END, ODOMETER_START, ODOMETER_END, TOTAL_KILOMETERS, BUSINESS_KILOMETERS, BUSINESS_USE_PERCENTAGE, JOURNEY_DATES, JOURNEY_DISTANCES, JOURNEY_PURPOSES |
 
 ## Troubleshooting
 
@@ -472,7 +487,9 @@ docker run -v /data:/data -v /output:/output myimage \
 |------|---------|
 | `ivl3_5_8b.ipynb` | Interactive notebook |
 | `ivl3_cli.py` | CLI script |
-| `environment.yml` | Conda environment |
-| `environment_ivl35.yml` | IVL-specific environment |
+| `config/run_config.yml` | YAML configuration (primary config source) |
 | `config/field_definitions.yaml` | Field definitions per document type |
 | `prompts/internvl3_prompts.yaml` | Extraction prompts |
+| `prompts/document_type_detection.yaml` | Document type detection prompts |
+| `environment.yml` | Conda environment |
+| `environment_ivl35.yml` | IVL-specific environment |

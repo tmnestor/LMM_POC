@@ -149,6 +149,7 @@ def load_yaml_config(config_path: Path) -> dict[str, Any]:
         flat_config["max_tiles"] = config["model"].get("max_tiles")
         flat_config["flash_attn"] = config["model"].get("flash_attn")
         flat_config["dtype"] = config["model"].get("dtype")
+        flat_config["max_new_tokens"] = config["model"].get("max_new_tokens")
 
     if "data" in config:
         flat_config["data_dir"] = config["data"].get("dir")
@@ -845,46 +846,46 @@ def main(
         "--document-types",
         help="Filter by document types (comma-separated)",
     ),
-    bank_v2: bool = typer.Option(
-        True,
+    bank_v2: bool | None = typer.Option(
+        None,
         "--bank-v2/--no-bank-v2",
-        help="Use V2 bank statement extraction",
+        help="Use V2 bank statement extraction. Default from config or True.",
     ),
-    balance_correction: bool = typer.Option(
-        True,
+    balance_correction: bool | None = typer.Option(
+        None,
         "--balance-correction/--no-balance-correction",
-        help="Enable balance validation",
+        help="Enable balance validation. Default from config or True.",
     ),
     max_tiles: int | None = typer.Option(
         None,
         "--max-tiles",
         help="Max image tiles (H200: 11, V100: 14). Default from config or 11.",
     ),
-    flash_attn: bool = typer.Option(
-        True,
+    flash_attn: bool | None = typer.Option(
+        None,
         "--flash-attn/--no-flash-attn",
-        help="Use Flash Attention 2",
+        help="Use Flash Attention 2. Default from config or True.",
     ),
-    dtype: str = typer.Option(
-        "bfloat16",
+    dtype: str | None = typer.Option(
+        None,
         "--dtype",
-        help="Torch dtype (bfloat16, float16, float32)",
+        help="Torch dtype (bfloat16, float16, float32). Default from config or bfloat16.",
     ),
-    no_viz: bool = typer.Option(
-        False,
-        "--no-viz",
-        help="Skip visualization generation",
+    no_viz: bool | None = typer.Option(
+        None,
+        "--no-viz/--viz",
+        help="Skip visualization generation. Default from config or False.",
     ),
-    no_reports: bool = typer.Option(
-        False,
-        "--no-reports",
-        help="Skip report generation",
+    no_reports: bool | None = typer.Option(
+        None,
+        "--no-reports/--reports",
+        help="Skip report generation. Default from config or False.",
     ),
-    verbose: bool = typer.Option(
-        True,
+    verbose: bool | None = typer.Option(
+        None,
         "--verbose/--quiet",
         "-v/-q",
-        help="Verbose output",
+        help="Verbose output. Default from config or True.",
     ),
     version: bool = typer.Option(
         False,
@@ -942,15 +943,24 @@ def main(
     if document_types is not None:
         cli_args["document_types"] = [t.strip() for t in document_types.split(",")]
 
-    cli_args["bank_v2"] = bank_v2
-    cli_args["balance_correction"] = balance_correction
+    # Only add CLI args if explicitly set (not None)
+    # This allows YAML config to take precedence when CLI options aren't specified
+    if bank_v2 is not None:
+        cli_args["bank_v2"] = bank_v2
+    if balance_correction is not None:
+        cli_args["balance_correction"] = balance_correction
     if max_tiles is not None:
         cli_args["max_tiles"] = max_tiles
-    cli_args["flash_attn"] = flash_attn
-    cli_args["dtype"] = dtype
-    cli_args["skip_visualizations"] = no_viz
-    cli_args["skip_reports"] = no_reports
-    cli_args["verbose"] = verbose
+    if flash_attn is not None:
+        cli_args["flash_attn"] = flash_attn
+    if dtype is not None:
+        cli_args["dtype"] = dtype
+    if no_viz is not None:
+        cli_args["skip_visualizations"] = no_viz
+    if no_reports is not None:
+        cli_args["skip_reports"] = no_reports
+    if verbose is not None:
+        cli_args["verbose"] = verbose
 
     # Load configs from different sources
     yaml_config = load_yaml_config(config_file) if config_file else {}
