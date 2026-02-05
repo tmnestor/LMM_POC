@@ -24,10 +24,11 @@ from typing import Any
 import torch
 import typer
 import yaml
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from rich.text import Text
 from transformers import AutoModel, AutoTokenizer
 
 # Local imports
@@ -919,14 +920,7 @@ def main(
         console.print(f"{APP_NAME} v{VERSION}")
         raise typer.Exit(EXIT_SUCCESS)
 
-    # Print header
-    console.print(
-        Panel.fit(
-            f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}\n"
-            "[dim]InternVL3.5-8B Document Extraction[/dim]",
-            border_style="blue",
-        )
-    )
+    # Header will be printed after config is loaded (to show actual values)
 
     # Build CLI args dict (only non-None values)
     cli_args = {}
@@ -988,18 +982,55 @@ def main(
     # Validate configuration
     validate_config(config)
 
-    # Print configuration
-    if config.verbose:
-        console.print("\n[bold]Configuration:[/bold]")
-        console.print(f"  Data directory:  {config.data_dir}")
-        console.print(f"  Output directory: {config.output_dir}")
-        console.print(f"  Model path:      {config.model_path}")
-        console.print(
-            f"  Ground truth:    {config.ground_truth or 'None (inference-only)'}"
+    # Print header with configuration table (always shown for audit purposes)
+    config_table = Table(show_header=False, box=None, padding=(0, 1))
+    config_table.add_column("Option", style="cyan")
+    config_table.add_column("Value", style="white")
+
+    # Data paths
+    config_table.add_row("Data directory", str(config.data_dir))
+    config_table.add_row("Output directory", str(config.output_dir))
+    config_table.add_row("Model path", str(config.model_path))
+    config_table.add_row(
+        "Ground truth", str(config.ground_truth) if config.ground_truth else "[dim]None (inference-only)[/dim]"
+    )
+
+    # Model settings
+    config_table.add_row("Max tiles", str(config.max_tiles))
+    config_table.add_row("Flash attention", str(config.flash_attn))
+    config_table.add_row("Dtype", config.dtype)
+    config_table.add_row("Max new tokens", str(config.max_new_tokens))
+
+    # Processing options
+    config_table.add_row("Bank V2", str(config.bank_v2))
+    config_table.add_row("Balance correction", str(config.balance_correction))
+    config_table.add_row("Verbose", str(config.verbose))
+
+    # Output options
+    config_table.add_row("Skip visualizations", str(config.skip_visualizations))
+    config_table.add_row("Skip reports", str(config.skip_reports))
+
+    # Optional filters
+    if config.max_images:
+        config_table.add_row("Max images", str(config.max_images))
+    if config.document_types:
+        config_table.add_row("Document types", ", ".join(config.document_types))
+
+    header_content = Group(
+        Text.from_markup(f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}"),
+        Text.from_markup("[dim]InternVL3.5-8B Document Extraction[/dim]"),
+        Text(""),  # Blank line
+        config_table,
+    )
+
+    console.print(
+        Panel(
+            header_content,
+            border_style="blue",
+            title="Configuration",
+            title_align="left",
         )
-        console.print(f"  Max tiles:       {config.max_tiles}")
-        console.print(f"  Flash attention: {config.flash_attn}")
-        console.print(f"  Dtype:           {config.dtype}")
+    )
 
     # Setup output directories
     console.print("\n[bold]Setting up output directories...[/bold]")
