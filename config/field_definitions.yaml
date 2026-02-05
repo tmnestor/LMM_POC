@@ -64,8 +64,27 @@ document_fields:
       - TOTAL_AMOUNT
       - SUPPLIER_NAME
 
+  vehicle_logbook:
+    count: 16
+    fields:
+      - DOCUMENT_TYPE
+      - VEHICLE_MAKE
+      - VEHICLE_MODEL
+      - VEHICLE_REGISTRATION
+      - ENGINE_CAPACITY
+      - LOGBOOK_PERIOD_START
+      - LOGBOOK_PERIOD_END
+      - ODOMETER_START
+      - ODOMETER_END
+      - TOTAL_KILOMETERS
+      - BUSINESS_KILOMETERS
+      - BUSINESS_USE_PERCENTAGE
+      - JOURNEY_DATES
+      - JOURNEY_DISTANCES
+      - JOURNEY_PURPOSES
+
   universal:
-    count: 19
+    count: 33
     fields:
       - DOCUMENT_TYPE
       - BUSINESS_ABN
@@ -86,6 +105,26 @@ document_fields:
       - TRANSACTION_AMOUNTS_PAID
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
+      # Travel expense fields
+      - PASSENGER_NAME
+      - TRAVEL_MODE
+      - TRAVEL_ROUTE
+      - TRAVEL_DATES
+      # Vehicle logbook fields
+      - VEHICLE_MAKE
+      - VEHICLE_MODEL
+      - VEHICLE_REGISTRATION
+      - ENGINE_CAPACITY
+      - LOGBOOK_PERIOD_START
+      - LOGBOOK_PERIOD_END
+      - ODOMETER_START
+      - ODOMETER_END
+      - TOTAL_KILOMETERS
+      - BUSINESS_KILOMETERS
+      - BUSINESS_USE_PERCENTAGE
+      - JOURNEY_DATES
+      - JOURNEY_DISTANCES
+      - JOURNEY_PURPOSES
 
 # ============================================================================
 # FIELD DESCRIPTIONS - Documentation for each field
@@ -114,6 +153,21 @@ field_descriptions:
   TRAVEL_MODE: "Mode of travel (plane, train, bus, taxi, uber, ferry)"
   TRAVEL_ROUTE: "Travel route with origin/destination (e.g., Sydney → Melbourne)"
   TRAVEL_DATES: "Travel date(s) in DD Mon YYYY format"
+  # Vehicle logbook fields
+  VEHICLE_MAKE: "Vehicle manufacturer (e.g., Toyota, Mazda, Ford)"
+  VEHICLE_MODEL: "Vehicle model name (e.g., Corolla, CX-5, Ranger)"
+  VEHICLE_REGISTRATION: "Vehicle registration number"
+  ENGINE_CAPACITY: "Engine capacity in litres (e.g., 2.0L, 2.5L)"
+  LOGBOOK_PERIOD_START: "Start date of logbook period (DD Mon YYYY)"
+  LOGBOOK_PERIOD_END: "End date of logbook period (DD Mon YYYY)"
+  ODOMETER_START: "Odometer reading at start of logbook period"
+  ODOMETER_END: "Odometer reading at end of logbook period"
+  TOTAL_KILOMETERS: "Total kilometres travelled during logbook period"
+  BUSINESS_KILOMETERS: "Business kilometres travelled during logbook period"
+  BUSINESS_USE_PERCENTAGE: "Calculated business use percentage (e.g., 75%)"
+  JOURNEY_DATES: "List of journey dates (DD Mon YYYY with | separator)"
+  JOURNEY_DISTANCES: "List of journey distances in km (with | separator)"
+  JOURNEY_PURPOSES: "List of journey purposes/descriptions (with | separator)"
 
 # ============================================================================
 # FIELD CATEGORIES - For evaluation reporting
@@ -157,6 +211,22 @@ field_categories:
     - TRAVEL_MODE
     - TRAVEL_ROUTE
     - TRAVEL_DATES
+
+  vehicle_logbook:
+    - VEHICLE_MAKE
+    - VEHICLE_MODEL
+    - VEHICLE_REGISTRATION
+    - ENGINE_CAPACITY
+    - LOGBOOK_PERIOD_START
+    - LOGBOOK_PERIOD_END
+    - ODOMETER_START
+    - ODOMETER_END
+    - TOTAL_KILOMETERS
+    - BUSINESS_KILOMETERS
+    - BUSINESS_USE_PERCENTAGE
+    - JOURNEY_DATES
+    - JOURNEY_DISTANCES
+    - JOURNEY_PURPOSES
 
 # ============================================================================
 # FIELD USAGE CLASSIFICATION
@@ -219,11 +289,17 @@ evaluation:
       - TRANSACTION_AMOUNTS_PAID
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
+      - JOURNEY_DATES
+      - JOURNEY_DISTANCES
+      - JOURNEY_PURPOSES
 
     date:
       - INVOICE_DATE
       - STATEMENT_DATE_RANGE
       - TRANSACTION_DATES
+      - LOGBOOK_PERIOD_START
+      - LOGBOOK_PERIOD_END
+      - JOURNEY_DATES
 
     # Transaction list fields - trigger type-aware matching (monetary/date)
     transaction_list:
@@ -232,6 +308,8 @@ evaluation:
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
       - TRAVEL_DATES
+      - JOURNEY_DATES
+      - JOURNEY_DISTANCES
 
 # ============================================================================
 # DOCUMENT TYPE ALIASES - For flexible document type detection
@@ -267,6 +345,15 @@ document_type_aliases:
     - taxi receipt
     - rideshare receipt
 
+  vehicle_logbook:
+    - vehicle logbook
+    - logbook
+    - motor vehicle logbook
+    - car logbook
+    - mileage log
+    - trip log
+    - ato logbook
+
 # ============================================================================
 # SUPPORTED DOCUMENT TYPES
 # ============================================================================
@@ -275,3 +362,4 @@ supported_document_types:
   - receipt
   - bank_statement
   - travel_expense
+  - vehicle_logbook

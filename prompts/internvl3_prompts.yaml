@@ -249,6 +249,97 @@ prompts:
       - INVOICE_DATE is the issue/purchase date, NOT the travel date
       - Use NOT_FOUND only if information is genuinely not visible
 
+  # ============================================================================
+  # VEHICLE LOGBOOK EXTRACTION - 15 Fields (ATO Motor Vehicle Expense Claims)
+  # Focused on: VEHICLE details, LOGBOOK PERIOD, ODOMETER, BUSINESS USE %
+  # ============================================================================
+  vehicle_logbook:
+    name: "Vehicle Logbook Extraction"
+    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (15 fields)"
+    prompt: |
+      Extract vehicle logbook information from this document for a motor vehicle expense claim.
+
+      DOCUMENT TYPES: ATO logbook, motor vehicle logbook, mileage log, trip log, commercial logbook
+
+      EXTRACT THESE 15 FIELDS:
+
+      1. VEHICLE_MAKE: Vehicle manufacturer
+         - Look for make/brand: Toyota, Mazda, Ford, Holden, Kia, Hyundai, etc.
+
+      2. VEHICLE_MODEL: Vehicle model name
+         - Look for model: Corolla, CX-5, Ranger, Colorado, Cerato, i30, etc.
+
+      3. VEHICLE_REGISTRATION: Registration number
+         - Australian format: ABC123, AB12CD, etc.
+         - May include state prefix
+
+      4. ENGINE_CAPACITY: Engine size in litres
+         - Format: "2.0L", "2.5L", "1.8L", etc.
+
+      5. LOGBOOK_PERIOD_START: Start date of logbook period
+         - ATO requires minimum 12 continuous weeks
+         - Format: "DD Mon YYYY" (e.g., "01 Jul 2025")
+
+      6. LOGBOOK_PERIOD_END: End date of logbook period
+         - Format: "DD Mon YYYY" (e.g., "30 Sep 2025")
+
+      7. ODOMETER_START: Odometer reading at start of period
+         - Just the number, no units (e.g., "45230")
+
+      8. ODOMETER_END: Odometer reading at end of period
+         - Just the number, no units (e.g., "48750")
+
+      9. TOTAL_KILOMETERS: Total km travelled during period
+         - Calculated: ODOMETER_END - ODOMETER_START
+         - Just the number (e.g., "3520")
+
+      10. BUSINESS_KILOMETERS: Business km travelled
+          - Sum of business-related journeys only
+          - Just the number (e.g., "2640")
+
+      11. BUSINESS_USE_PERCENTAGE: Business use percentage
+          - Calculated: (BUSINESS_KILOMETERS / TOTAL_KILOMETERS) × 100
+          - Include % symbol (e.g., "75%")
+
+      12. JOURNEY_DATES: List of journey dates
+          - Format: "DD Mon YYYY | DD Mon YYYY | DD Mon YYYY"
+          - Use " | " separator between dates
+          - Extract first 10 journeys if many exist
+
+      13. JOURNEY_DISTANCES: List of journey distances
+          - Format: "45 | 32 | 28 | 15" (km values with " | " separator)
+          - Match order with JOURNEY_DATES
+
+      14. JOURNEY_PURPOSES: List of journey purposes
+          - Format: "Client meeting | Site visit | Delivery | Bank appointment"
+          - Use " | " separator
+          - Match order with JOURNEY_DATES
+
+      OUTPUT FORMAT (15 FIELDS):
+
+      DOCUMENT_TYPE: VEHICLE_LOGBOOK
+      VEHICLE_MAKE: [Make or NOT_FOUND]
+      VEHICLE_MODEL: [Model or NOT_FOUND]
+      VEHICLE_REGISTRATION: [Rego or NOT_FOUND]
+      ENGINE_CAPACITY: [Engine size or NOT_FOUND]
+      LOGBOOK_PERIOD_START: [Start date DD Mon YYYY or NOT_FOUND]
+      LOGBOOK_PERIOD_END: [End date DD Mon YYYY or NOT_FOUND]
+      ODOMETER_START: [Start reading or NOT_FOUND]
+      ODOMETER_END: [End reading or NOT_FOUND]
+      TOTAL_KILOMETERS: [Total km or NOT_FOUND]
+      BUSINESS_KILOMETERS: [Business km or NOT_FOUND]
+      BUSINESS_USE_PERCENTAGE: [Percentage with % or NOT_FOUND]
+      JOURNEY_DATES: [Dates with " | " separator or NOT_FOUND]
+      JOURNEY_DISTANCES: [Distances with " | " separator or NOT_FOUND]
+      JOURNEY_PURPOSES: [Purposes with " | " separator or NOT_FOUND]
+
+      Instructions:
+      - Focus on ATO logbook essentials: vehicle, period, odometer, business use
+      - Business use percentage is the key tax deduction calculation
+      - Extract journey entries in chronological order
+      - Use " | " separator for all list fields
+      - Use NOT_FOUND only if information is genuinely not visible
+
 # Configuration
 settings:
   max_tokens: 600

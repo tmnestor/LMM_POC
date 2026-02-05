@@ -856,6 +856,24 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.write("✅ PARSING DEBUG - Keyword match: TRAVEL_EXPENSE\n")
                 sys.stdout.flush()
             return "TRAVEL_EXPENSE"
+        elif any(
+            word in response_lower
+            for word in [
+                "logbook",
+                "vehicle logbook",
+                "motor vehicle",
+                "mileage",
+                "odometer",
+                "business use",
+                "trip log",
+            ]
+        ):
+            if self.debug:
+                import sys
+
+                sys.stdout.write("✅ PARSING DEBUG - Keyword match: VEHICLE_LOGBOOK\n")
+                sys.stdout.flush()
+            return "VEHICLE_LOGBOOK"
         elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
             if self.debug:
                 import sys
@@ -1105,6 +1123,7 @@ class DocumentAwareInternVL3HybridProcessor:
                     "RECEIPT": "receipt",
                     "BANK_STATEMENT": "bank_statement",  # Will be refined below
                     "TRAVEL_EXPENSE": "travel_expense",
+                    "VEHICLE_LOGBOOK": "vehicle_logbook",
                 }
                 document_type = type_mapping.get(detected_type, "invoice")
 

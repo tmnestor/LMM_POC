@@ -4,12 +4,13 @@ prompts:
     description: "Minimal prompt for document type detection"
     prompt: |
       What type of business document is this?
-      
+
       Answer with one of:
       - INVOICE (includes bills, quotes, estimates)
       - RECEIPT (includes purchase receipts)
       - BANK_STATEMENT (includes credit card statements)
       - TRAVEL_EXPENSE (includes boarding passes, airline tickets, train/bus tickets)
+      - VEHICLE_LOGBOOK (includes motor vehicle logbooks, mileage logs, trip logs for ATO)
 
   detection_complex:
     name: "Enhanced Document Type Detection"
@@ -51,6 +52,15 @@ prompts:
       - Document types: Boarding pass, airline ticket, train ticket, bus ticket, taxi receipt, rideshare receipt
       - Focus: Single traveller journey with origin, destination, date and cost
 
+      VEHICLE LOGBOOK INDICATORS:
+      - Header: "LOGBOOK", "MOTOR VEHICLE LOGBOOK", "VEHICLE LOGBOOK", "TRIP LOG", "MILEAGE LOG"
+      - Layout: Vehicle details section → Logbook period → Journey entries table → Business use calculation
+      - Key fields: Vehicle make/model, registration, odometer readings, business use percentage
+      - Table structure: Date | Start Odo | End Odo | Distance | Purpose columns
+      - Visual: ATO branding, business use percentage calculation, journey purpose descriptions
+      - Document types: ATO logbook forms, commercial logbook templates, handwritten trip logs
+      - Focus: Vehicle business use tracking for tax deductions
+
       DECISION CRITERIA:
 
       PRIMARY INDICATORS:
@@ -65,6 +75,7 @@ prompts:
       - RECEIPT: Completed transaction, "Amount Paid", payment method details
       - BANK STATEMENT: Multiple transactions, running balance, bank account details
       - TRAVEL EXPENSE: Passenger name, route/destination, airline/transport branding, boarding/ticket format
+      - VEHICLE LOGBOOK: Vehicle details, odometer readings, journey list, business use percentage
 
       AMBIGUOUS CASES:
       - If document has both invoice-like and receipt-like features, prioritize header text
@@ -76,6 +87,7 @@ prompts:
       - RECEIPT (for receipts, payment confirmations, completed transactions)
       - BANK_STATEMENT (for bank statements, account statements, credit card statements)
       - TRAVEL_EXPENSE (for boarding passes, airline tickets, train/bus tickets, taxi/rideshare receipts)
+      - VEHICLE_LOGBOOK (for motor vehicle logbooks, mileage logs, trip logs, ATO logbooks)
 
       If unclear after visual analysis, default to: INVOICE
 
@@ -83,7 +95,7 @@ prompts:
     name: "Simple Document Type Detection"
     description: "Minimal prompt for document type detection"
     prompt: |
-      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT or TRAVEL_EXPENSE
+      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT or TRAVEL_EXPENSE or VEHICLE_LOGBOOK
 
 # Type mappings for response normalization
 type_mappings:
@@ -133,6 +145,18 @@ type_mappings:
   "rideshare receipt": "TRAVEL_EXPENSE"
   "uber receipt": "TRAVEL_EXPENSE"
   "plane ticket": "TRAVEL_EXPENSE"
+
+  # Vehicle logbook variations
+  "vehicle logbook": "VEHICLE_LOGBOOK"
+  "vehicle_logbook": "VEHICLE_LOGBOOK"
+  "vehiclelogbook": "VEHICLE_LOGBOOK"
+  "logbook": "VEHICLE_LOGBOOK"
+  "motor vehicle logbook": "VEHICLE_LOGBOOK"
+  "car logbook": "VEHICLE_LOGBOOK"
+  "mileage log": "VEHICLE_LOGBOOK"
+  "trip log": "VEHICLE_LOGBOOK"
+  "ato logbook": "VEHICLE_LOGBOOK"
+  "travel log": "VEHICLE_LOGBOOK"
 
 # Configuration settings
 settings:
