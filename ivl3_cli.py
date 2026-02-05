@@ -75,6 +75,82 @@ app = typer.Typer(
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def create_gpu_status_table() -> Table | None:
+    """Create a Rich table showing GPU memory status."""
+    if not torch.cuda.is_available():
+        return None
+
+    gpu_table = Table(
+        title="GPU Status",
+        show_header=True,
+        header_style="bold cyan",
+        box=None,
+    )
+    gpu_table.add_column("GPU", style="white")
+    gpu_table.add_column("Total", justify="right")
+    gpu_table.add_column("Allocated", justify="right")
+    gpu_table.add_column("Reserved", justify="right")
+    gpu_table.add_column("Utilization", justify="right")
+
+    device_count = torch.cuda.device_count()
+    total_vram = 0.0
+    total_allocated = 0.0
+    total_reserved = 0.0
+
+    for gpu_id in range(device_count):
+        props = torch.cuda.get_device_properties(gpu_id)
+        gpu_name = props.name
+        vram_gb = props.total_memory / (1024**3)
+        allocated_gb = torch.cuda.memory_allocated(gpu_id) / (1024**3)
+        reserved_gb = torch.cuda.memory_reserved(gpu_id) / (1024**3)
+        utilization = (reserved_gb / vram_gb) * 100 if vram_gb > 0 else 0
+
+        total_vram += vram_gb
+        total_allocated += allocated_gb
+        total_reserved += reserved_gb
+
+        # Color utilization based on percentage
+        if utilization < 50:
+            util_color = "green"
+        elif utilization < 80:
+            util_color = "yellow"
+        else:
+            util_color = "red"
+
+        gpu_table.add_row(
+            f"{gpu_id}: {gpu_name}",
+            f"{vram_gb:.1f} GB",
+            f"{allocated_gb:.2f} GB",
+            f"{reserved_gb:.2f} GB",
+            f"[{util_color}]{utilization:.1f}%[/{util_color}]",
+        )
+
+    # Add total row for multi-GPU
+    if device_count > 1:
+        total_util = (total_reserved / total_vram) * 100 if total_vram > 0 else 0
+        if total_util < 50:
+            util_color = "green"
+        elif total_util < 80:
+            util_color = "yellow"
+        else:
+            util_color = "red"
+
+        gpu_table.add_row(
+            "[bold]Total[/bold]",
+            f"[bold]{total_vram:.1f} GB[/bold]",
+            f"[bold]{total_allocated:.2f} GB[/bold]",
+            f"[bold]{total_reserved:.2f} GB[/bold]",
+            f"[bold][{util_color}]{total_util:.1f}%[/{util_color}][/bold]",
+        )
+
+    return gpu_table
+
+
+# ============================================================================
 # Configuration
 # ============================================================================
 
@@ -432,10 +508,10 @@ def load_model(config: PipelineConfig):
 
             progress.update(task, description="Model loaded!")
 
-        # Log GPU memory usage
-        if torch.cuda.is_available():
-            allocated = torch.cuda.memory_allocated() / 1e9
-            console.print(f"[dim]GPU memory allocated: {allocated:.2f} GB[/dim]")
+        # Display GPU memory status table
+        gpu_table = create_gpu_status_table()
+        if gpu_table:
+            console.print(gpu_table)
 
         # Load configs
         prompt_config = load_prompt_config()
