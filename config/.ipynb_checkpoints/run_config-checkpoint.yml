@@ -7,8 +7,8 @@ model:
 
 # Data paths
 data:
-  dir: ./evaluation_data/synthetic
-  ground_truth: ./evaluation_data/synthetic/ground_truth_synthetic.csv
+  dir: ./evaluation_data/travel/logbooks
+  ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
   max_images: null  # null = process all
   document_types: null  # null = all types
 
@@ -23,4 +23,3 @@ processing:
   bank_v2: true
   balance_correction: true
   verbose: true
-  
