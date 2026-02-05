@@ -1,7 +1,7 @@
 # Model configuration
 model:
   path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-  max_tiles: 11
+  max_tiles: 18
   flash_attn: true
   dtype: bfloat16
 
@@ -15,11 +15,11 @@ data:
 # Output settings
 output:
   dir: ./output
-  skip_visualizations: false
-  skip_reports: false
+  skip_visualizations: true
+  skip_reports: true
 
 # Processing options
 processing:
   bank_v2: true
   balance_correction: true
-  verbose: true
+  verbose: false

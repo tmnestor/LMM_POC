@@ -1,0 +1,11 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+logbook_001_professional.png,VEHICLE_LOGBOOK,100.0,15,15,15,31.019788026809692,internvl3_vehicle_logbook,False
+logbook_002_spreadsheet.png,VEHICLE_LOGBOOK,100.0,15,15,15,29.773483276367188,internvl3_vehicle_logbook,False
+logbook_003_handwritten.png,VEHICLE_LOGBOOK,100.0,15,15,15,29.64942741394043,internvl3_vehicle_logbook,False
+logbook_004_ato_form.png,VEHICLE_LOGBOOK,99.64912280701755,15,14,15,30.857096195220947,internvl3_vehicle_logbook,False
+logbook_005_notebook.png,VEHICLE_LOGBOOK,93.33333333333333,15,14,15,29.442649841308594,internvl3_vehicle_logbook,False
+logbook_006_commercial.png,VEHICLE_LOGBOOK,94.54545454545455,15,14,15,29.936393976211548,internvl3_vehicle_logbook,False
+logbook_007_minimal.png,VEHICLE_LOGBOOK,80.0,15,12,15,29.524209022521973,internvl3_vehicle_logbook,False
+logbook_008_accounting.png,VEHICLE_LOGBOOK,99.64912280701755,15,14,15,29.720789670944214,internvl3_vehicle_logbook,False
+logbook_009_scanned.png,VEHICLE_LOGBOOK,100.0,15,15,15,29.86255383491516,internvl3_vehicle_logbook,False
+logbook_010_mobile_app.png,VEHICLE_LOGBOOK,85.96491228070175,14,11,15,29.342031240463257,internvl3_vehicle_logbook,False
