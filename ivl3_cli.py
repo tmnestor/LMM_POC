@@ -855,10 +855,10 @@ def main(
         "--balance-correction/--no-balance-correction",
         help="Enable balance validation",
     ),
-    max_tiles: int = typer.Option(
-        11,
+    max_tiles: int | None = typer.Option(
+        None,
         "--max-tiles",
-        help="Max image tiles (H200: 11, V100: 14)",
+        help="Max image tiles (H200: 11, V100: 14). Default from config or 11.",
     ),
     flash_attn: bool = typer.Option(
         True,
@@ -944,7 +944,8 @@ def main(
 
     cli_args["bank_v2"] = bank_v2
     cli_args["balance_correction"] = balance_correction
-    cli_args["max_tiles"] = max_tiles
+    if max_tiles is not None:
+        cli_args["max_tiles"] = max_tiles
     cli_args["flash_attn"] = flash_attn
     cli_args["dtype"] = dtype
     cli_args["skip_visualizations"] = no_viz
