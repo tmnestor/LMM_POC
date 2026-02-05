@@ -760,8 +760,11 @@ class DocumentAwareInternVL3HybridProcessor:
             )
 
             # Process with document-specific settings
+            # CRITICAL: Pass extraction_prompt to avoid duplicate detection
             result = self.process_single_image(
-                image_path, custom_max_tokens=doc_specific_tokens
+                image_path,
+                custom_prompt=extraction_prompt,
+                custom_max_tokens=doc_specific_tokens,
             )
 
             # Restore original field list
