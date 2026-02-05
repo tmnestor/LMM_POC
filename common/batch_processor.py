@@ -112,6 +112,10 @@ def load_document_field_definitions() -> Dict[str, List[str]]:
     if "travel_expense" in doc_fields and "fields" in doc_fields["travel_expense"]:
         result["travel_expense"] = doc_fields["travel_expense"]["fields"]
 
+    # Add vehicle_logbook if defined in YAML
+    if "vehicle_logbook" in doc_fields and "fields" in doc_fields["vehicle_logbook"]:
+        result["vehicle_logbook"] = doc_fields["vehicle_logbook"]["fields"]
+
     return result
 
 
