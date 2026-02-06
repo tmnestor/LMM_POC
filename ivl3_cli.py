@@ -189,6 +189,32 @@ def load_prompt_config() -> dict[str, Any]:
     return config
 
 
+def load_pipeline_configs() -> tuple[dict[str, Any], list[str]]:
+    """Load prompt configuration and build universal field list.
+
+    Returns:
+        Tuple of (prompt_config dict, sorted universal_fields list).
+    """
+    prompt_config = load_prompt_config()
+    field_definitions = load_document_field_definitions()
+
+    all_fields: set[str] = set()
+    for fields in field_definitions.values():
+        all_fields.update(fields)
+    universal_fields = sorted(all_fields)
+
+    if not universal_fields:
+        console.print(
+            "[red]FATAL: No field definitions found in config/field_definitions.yaml[/red]"
+        )
+        console.print(
+            "[yellow]Expected: document_fields section with field lists[/yellow]"
+        )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    return prompt_config, universal_fields
+
+
 @contextmanager
 def load_model(config: PipelineConfig):
     """Context manager for loading and cleaning up model resources."""
@@ -233,37 +259,7 @@ def load_model(config: PipelineConfig):
         if gpu_table:
             console.print(gpu_table)
 
-        # Load configs
-        prompt_config = load_prompt_config()
-        field_definitions = load_document_field_definitions()
-
-        # Create universal field list
-        all_fields = set()
-        for fields in field_definitions.values():
-            all_fields.update(fields)
-        universal_fields = sorted(list(all_fields))
-
-        if not universal_fields:
-            console.print(
-                "[red]FATAL: No field definitions found in config/field_definitions.yaml[/red]"
-            )
-            console.print(
-                "[yellow]Expected: document_fields section with field lists[/yellow]"
-            )
-            raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-        # Create processor
-        processor = DocumentAwareInternVL3HybridProcessor(
-            field_list=universal_fields,
-            model_path=str(config.model_path),
-            debug=config.verbose,
-            pre_loaded_model=model,
-            pre_loaded_tokenizer=tokenizer,
-            prompt_config=prompt_config,
-            max_tiles=config.max_tiles,
-        )
-
-        yield processor, prompt_config
+        yield model, tokenizer
 
     finally:
         # Cleanup
@@ -271,6 +267,25 @@ def load_model(config: PipelineConfig):
         del tokenizer
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+
+def create_processor(
+    model,
+    tokenizer,
+    config: PipelineConfig,
+    prompt_config: dict[str, Any],
+    universal_fields: list[str],
+) -> DocumentAwareInternVL3HybridProcessor:
+    """Create document extraction processor from loaded components."""
+    return DocumentAwareInternVL3HybridProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        pre_loaded_model=model,
+        pre_loaded_tokenizer=tokenizer,
+        prompt_config=prompt_config,
+        max_tiles=config.max_tiles,
+    )
 
 
 def run_batch_processing(
@@ -719,9 +734,16 @@ def main(
 
     console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
 
+    # Load configs (no GPU needed)
+    prompt_config, universal_fields = load_pipeline_configs()
+
     # Run pipeline
     try:
-        with load_model(config) as (processor, prompt_config):
+        with load_model(config) as (model, tokenizer):
+            processor = create_processor(
+                model, tokenizer, config, prompt_config, universal_fields
+            )
+
             # Process batch
             batch_results, processing_times, document_types_found = (
                 run_batch_processing(

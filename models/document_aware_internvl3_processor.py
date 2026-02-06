@@ -608,6 +608,41 @@ class DocumentAwareInternVL3HybridProcessor:
                 "error": str(e),
             }
 
+    def _classify_bank_structure(self, image_path: str, verbose: bool = False) -> str:
+        """Classify bank statement structure using vision model.
+
+        Returns:
+            Structure-specific prompt key (e.g. 'bank_statement_flat')
+        """
+        try:
+            from common.vision_bank_statement_classifier import (
+                classify_bank_statement_structure_vision,
+            )
+        except ImportError:
+            import sys
+            from pathlib import Path
+
+            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+            from common.vision_bank_statement_classifier import (
+                classify_bank_statement_structure_vision,
+            )
+
+        if verbose:
+            print("🔍 Running vision-based structure classification for bank statement")
+
+        structure_type = classify_bank_statement_structure_vision(
+            image_path,
+            model=self,
+            processor=None,
+            verbose=verbose,
+        )
+
+        if verbose:
+            print(f"🏗️ Bank statement structure: {structure_type}")
+            print(f"📝 Using prompt key: bank_statement_{structure_type}")
+
+        return f"bank_statement_{structure_type}"
+
     def process_document_aware(
         self, image_path: str, classification_info: Dict, verbose: bool = False
     ) -> Dict:
@@ -632,45 +667,12 @@ class DocumentAwareInternVL3HybridProcessor:
             # For bank statements, use vision-based structure classification
             if document_type == "bank_statement":
                 try:
-                    # Try different import methods to handle various execution contexts
-                    try:
-                        from common.vision_bank_statement_classifier import (
-                            classify_bank_statement_structure_vision,
-                        )
-                    except ImportError:
-                        import sys
-                        from pathlib import Path
-
-                        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-                        from common.vision_bank_statement_classifier import (
-                            classify_bank_statement_structure_vision,
-                        )
-
-                    if verbose:
-                        print(
-                            "🔍 Running vision-based structure classification for bank statement"
-                        )
-
-                    # Pass self (the processor) which has the load_image method
-                    structure_type = classify_bank_statement_structure_vision(
-                        image_path,
-                        model=self,  # Pass the processor itself which has load_image
-                        processor=None,  # InternVL3 doesn't use separate processor
-                        verbose=verbose,
-                    )
-
-                    # Map structure to specific prompt
-                    document_type = f"bank_statement_{structure_type}"
-
-                    if verbose:
-                        print(f"🏗️ Bank statement structure: {structure_type}")
-                        print(f"📝 Using prompt key: {document_type}")
-
+                    document_type = self._classify_bank_structure(image_path, verbose)
                 except Exception as e:
                     if verbose:
                         print(f"⚠️ Vision classification failed: {e}")
                         print("📝 Falling back to bank_statement_flat prompt")
-                    document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback updated
+                    document_type = "bank_statement_flat"
 
             # Get document-specific prompt using prompt_config (single source of truth)
             if self.prompt_config:
@@ -1133,47 +1135,14 @@ class DocumentAwareInternVL3HybridProcessor:
                 # For bank statements, use vision-based structure classification
                 if detected_type == "BANK_STATEMENT":
                     try:
-                        # Try different import methods to handle various execution contexts
-                        try:
-                            from common.vision_bank_statement_classifier import (
-                                classify_bank_statement_structure_vision,
-                            )
-                        except ImportError:
-                            import sys
-                            from pathlib import Path
-
-                            sys.path.insert(
-                                0, str(Path(__file__).resolve().parent.parent)
-                            )
-                            from common.vision_bank_statement_classifier import (
-                                classify_bank_statement_structure_vision,
-                            )
-
-                        if self.debug:
-                            print(
-                                "🔍 Running vision-based structure classification for bank statement"
-                            )
-
-                        # Pass self (the processor) which has the load_image method
-                        structure_type = classify_bank_statement_structure_vision(
-                            image_path,
-                            model=self,  # Pass the processor itself which has load_image
-                            processor=None,  # InternVL3 doesn't use separate processor
-                            verbose=self.debug,
+                        document_type = self._classify_bank_structure(
+                            image_path, self.debug
                         )
-
-                        # Map structure to specific prompt
-                        document_type = f"bank_statement_{structure_type}"
-
-                        if self.debug:
-                            print(f"🏗️ Bank statement structure: {structure_type}")
-                            print(f"📝 Using prompt key: {document_type}")
-
                     except Exception as e:
                         if self.debug:
                             print(f"⚠️ Vision classification failed: {e}")
                             print("📝 Falling back to bank_statement_flat prompt")
-                        document_type = "bank_statement_flat"  # Use flat bank statement prompt as fallback
+                        document_type = "bank_statement_flat"
 
                 if self.debug:
                     print(f"📋 DOCUMENT DETECTION RESULT: {detection_result}")
