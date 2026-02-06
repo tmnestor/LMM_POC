@@ -125,22 +125,22 @@ class BatchDocumentProcessor:
     def __init__(
         self,
         model,
-        processor,
         prompt_config: Dict,
         ground_truth_csv: str,
         console: Optional[Console] = None,
         enable_math_enhancement: bool = True,
+        bank_adapter=None,
     ):
         """
         Initialize batch processor for InternVL3 document extraction.
 
         Args:
             model: InternVL3 handler (DocumentAwareInternVL3HybridProcessor)
-            processor: Not used (kept for API compatibility), pass None
             prompt_config: Dictionary with prompt file paths and keys
             ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
             enable_math_enhancement: Whether to apply mathematical enhancement for bank statements
+            bank_adapter: Optional BankStatementAdapter for sophisticated bank extraction
         """
         # Store InternVL3 handler
         self.internvl3_handler = model
@@ -149,6 +149,7 @@ class BatchDocumentProcessor:
         self.ground_truth_csv = ground_truth_csv
         self.console = console or Console()
         self.enable_math_enhancement = enable_math_enhancement
+        self.bank_adapter = bank_adapter
 
         # Initialize file-based trace logging
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -429,8 +430,12 @@ class BatchDocumentProcessor:
                             )
 
                             if is_debug:
-                                rprint(f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]")
-                                rprint(f"  Field '{field}' f1_score = {f1_metrics['f1_score']}")
+                                rprint(
+                                    f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]"
+                                )
+                                rprint(
+                                    f"  Field '{field}' f1_score = {f1_metrics['f1_score']}"
+                                )
 
                             field_scores[field] = f1_metrics
                             total_f1_score += f1_metrics["f1_score"]
@@ -484,7 +489,8 @@ class BatchDocumentProcessor:
                             "median_f1": median_f1,  # Median F1
                             "overall_precision": overall_precision,
                             "overall_recall": overall_recall,
-                            "meets_threshold": median_f1 >= 0.8,  # Use median for threshold
+                            "meets_threshold": median_f1
+                            >= 0.8,  # Use median for threshold
                             "document_type_threshold": 0.8,
                         },
                     }
@@ -620,8 +626,12 @@ class BatchDocumentProcessor:
 
             # Check if balances are all NOT_FOUND (e.g., from DEBIT_CREDIT_DESCRIPTION strategy)
             # In this case, balances is something like "NOT_FOUND | NOT_FOUND | ..."
-            balance_values = [b.strip() for b in balances.split(" | ")] if balances else []
-            all_balances_missing = all(b == "NOT_FOUND" or b == "" for b in balance_values)
+            balance_values = (
+                [b.strip() for b in balances.split(" | ")] if balances else []
+            )
+            all_balances_missing = all(
+                b == "NOT_FOUND" or b == "" for b in balance_values
+            )
 
             if balances == "" or balances == "NOT_FOUND" or all_balances_missing:
                 if verbose:
@@ -635,19 +645,30 @@ class BatchDocumentProcessor:
             date_list = dates.split(" | ")
             paid_list = paid.split(" | ")
             balance_list = balances.split(" | ")
-            received_list = received.split(" | ") if received and received != "NOT_FOUND" else None
+            received_list = (
+                received.split(" | ") if received and received != "NOT_FOUND" else None
+            )
 
             # DEBUG: Show array lengths before DataFrame creation
             if verbose:
-                rprint(f"[dim]Array lengths: desc={len(desc_list)}, date={len(date_list)}, paid={len(paid_list)}, balance={len(balance_list)}[/dim]")
+                rprint(
+                    f"[dim]Array lengths: desc={len(desc_list)}, date={len(date_list)}, paid={len(paid_list)}, balance={len(balance_list)}[/dim]"
+                )
                 if received_list:
                     rprint(f"[dim]  received={len(received_list)}[/dim]")
 
             # Verify arrays have same length
-            lengths = [len(desc_list), len(date_list), len(paid_list), len(balance_list)]
+            lengths = [
+                len(desc_list),
+                len(date_list),
+                len(paid_list),
+                len(balance_list),
+            ]
             if len(set(lengths)) > 1:
                 if verbose:
-                    rprint(f"[yellow]⚠️ Array length mismatch: {lengths} - skipping debit filtering[/yellow]")
+                    rprint(
+                        f"[yellow]⚠️ Array length mismatch: {lengths} - skipping debit filtering[/yellow]"
+                    )
                 return extracted_data
 
             # Create DataFrame from transaction data
@@ -705,6 +726,9 @@ class BatchDocumentProcessor:
         """
         Process single image using InternVL3 handler.
 
+        Routes bank statements to BankStatementAdapter when available,
+        otherwise uses standard document-aware extraction for all types.
+
         Args:
             image_path: Path to image
             verbose: Whether to show verbose output
@@ -727,12 +751,51 @@ class BatchDocumentProcessor:
             rprint(f"[green]✅ Detected Document Type: {document_type}[/green]")
             rprint("[cyan]━" * 80 + "[/cyan]\n")
 
+        # Step 2: Route bank statements to adapter when available
+        if document_type.upper() == "BANK_STATEMENT" and self.bank_adapter is not None:
+            if verbose:
+                rprint(
+                    "[bold cyan]📊 BANK STATEMENT: Routing to BankStatementAdapter[/bold cyan]"
+                )
+
+            try:
+                schema_fields, metadata = self.bank_adapter.extract_bank_statement(
+                    image_path
+                )
+
+                extraction_result = {
+                    "extracted_data": schema_fields,
+                    "raw_response": metadata.get("raw_responses", {}).get("turn1", ""),
+                    "field_list": list(schema_fields.keys()),
+                    "metadata": metadata,
+                }
+
+                strategy = metadata.get("strategy_used", "unknown")
+                prompt_name = f"unified_bank_{strategy}"
+
+                if verbose:
+                    rprint(f"[dim]  Strategy: {strategy}[/dim]")
+                    tx_count = (
+                        len(schema_fields.get("TRANSACTION_DATES", "").split("|"))
+                        if schema_fields.get("TRANSACTION_DATES") != "NOT_FOUND"
+                        else 0
+                    )
+                    rprint(f"[dim]  Transactions extracted: {tx_count}[/dim]")
+
+                return document_type, extraction_result, prompt_name
+
+            except Exception as e:
+                rprint(f"[yellow]BankStatementAdapter failed: {e}[/yellow]")
+                rprint("[yellow]Falling back to standard extraction...[/yellow]")
+                # Fall through to standard extraction
+
+        # Step 3: Standard document-aware extraction (invoices, receipts, or bank fallback)
+        if verbose:
             rprint(
                 f"[bold cyan]📊 INTERNVL3 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]"
             )
             rprint("[cyan]━" * 80 + "[/cyan]")
 
-        # Step 2: Process with document-aware extraction
         extraction_result = self.internvl3_handler.process_document_aware(
             image_path, classification_info, verbose=verbose
         )
@@ -755,7 +818,6 @@ class BatchDocumentProcessor:
         prompt_name = f"internvl3_{document_type.lower()}"
 
         return document_type, formatted_result, prompt_name
-
 
 
 def print_accuracy_by_document_type(
@@ -834,12 +896,18 @@ def print_accuracy_by_document_type(
             median_of_medians = 0
 
         # Display
-        display_name = "Invoice/Receipt (14 fields)" if doc_type_key == "invoice_receipt" else "Bank Statement (5 fields)"
+        display_name = (
+            "Invoice/Receipt (14 fields)"
+            if doc_type_key == "invoice_receipt"
+            else "Bank Statement (5 fields)"
+        )
         field_count = 14 if doc_type_key == "invoice_receipt" else 5
 
         rprint(f"\n[bold blue]{display_name}[/bold blue]")
         rprint(f"  Documents: {n_docs}")
-        rprint(f"  [cyan]Median F1 (avg): {avg_median_f1 * 100:.1f}%[/cyan] ← typical field performance")
+        rprint(
+            f"  [cyan]Median F1 (avg): {avg_median_f1 * 100:.1f}%[/cyan] ← typical field performance"
+        )
         rprint(f"  Mean F1 (avg):   {avg_mean_f1 * 100:.1f}%")
         rprint(f"  Median of Medians: {median_of_medians * 100:.1f}% ← most robust")
 
@@ -854,12 +922,12 @@ def print_accuracy_by_document_type(
     # Overall summary (weighted by document count, not field count)
     total_docs = sum(s["count"] for s in summary.values())
     if total_docs > 0:
-        weighted_median = sum(
-            s["avg_median_f1"] * s["count"] for s in summary.values()
-        ) / total_docs
-        weighted_mean = sum(
-            s["avg_mean_f1"] * s["count"] for s in summary.values()
-        ) / total_docs
+        weighted_median = (
+            sum(s["avg_median_f1"] * s["count"] for s in summary.values()) / total_docs
+        )
+        weighted_mean = (
+            sum(s["avg_mean_f1"] * s["count"] for s in summary.values()) / total_docs
+        )
 
         rprint("\n[bold green]Overall (weighted by document count)[/bold green]")
         rprint(f"  Total Documents: {total_docs}")

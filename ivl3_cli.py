@@ -32,8 +32,12 @@ from rich.text import Text
 from transformers import AutoModel, AutoTokenizer
 
 # Local imports
+from common.bank_statement_adapter import BankStatementAdapter
 from common.batch_analytics import BatchAnalytics
-from common.batch_processor import BatchDocumentProcessor
+from common.batch_processor import (
+    BatchDocumentProcessor,
+    load_document_field_definitions,
+)
 from common.batch_reporting import BatchReporter
 from common.batch_visualizations import BatchVisualizer
 from models.document_aware_internvl3_processor import (
@@ -313,8 +317,6 @@ def merge_configs(
 
 def validate_config(config: PipelineConfig) -> None:
     """Validate configuration with fail-fast diagnostics."""
-    errors = []
-
     # Validate data directory
     if not config.data_dir.exists():
         console.print(f"[red]FATAL: Data directory not found: {config.data_dir}[/red]")
@@ -367,11 +369,6 @@ def validate_config(config: PipelineConfig) -> None:
         console.print(
             f"[yellow]Supported formats: {', '.join(IMAGE_EXTENSIONS)}[/yellow]"
         )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    if errors:
-        for error in errors:
-            console.print(f"[red]ERROR: {error}[/red]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
 
@@ -445,30 +442,6 @@ def load_prompt_config() -> dict[str, Any]:
     return config
 
 
-def load_field_definitions() -> dict[str, list[str]]:
-    """Load field definitions from YAML."""
-    config_path = Path(__file__).parent / "config" / "field_definitions.yaml"
-    if not config_path.exists():
-        console.print(
-            f"[yellow]Warning: Field definitions not found at {config_path}[/yellow]"
-        )
-        return {}
-
-    with config_path.open() as f:
-        config = yaml.safe_load(f)
-
-    # Extract fields from nested structure: document_fields.{type}.fields
-    document_fields = config.get("document_fields", {})
-    result = {}
-    for doc_type, doc_config in document_fields.items():
-        if isinstance(doc_config, dict) and "fields" in doc_config:
-            result[doc_type] = doc_config["fields"]
-        elif isinstance(doc_config, list):
-            result[doc_type] = doc_config
-
-    return result
-
-
 @contextmanager
 def load_model(config: PipelineConfig):
     """Context manager for loading and cleaning up model resources."""
@@ -515,7 +488,7 @@ def load_model(config: PipelineConfig):
 
         # Load configs
         prompt_config = load_prompt_config()
-        field_definitions = load_field_definitions()
+        field_definitions = load_document_field_definitions()
 
         # Create universal field list
         all_fields = set()
@@ -559,156 +532,34 @@ def run_batch_processing(
     prompt_config: dict[str, Any],
     images: list[Path],
 ) -> tuple[list[dict], list[float], dict[str, int]]:
-    """Run batch document processing with sophisticated bank statement extraction."""
-    # Import here to avoid import issues at module level
-    from common.bank_statement_adapter import BankStatementAdapter
-
-    # Create batch processor
-    # NOTE: enable_math_enhancement=False matches notebook behavior
-    # Balance correction is handled by BankStatementAdapter instead
-    batch_processor = BatchDocumentProcessor(
-        model=processor,
-        processor=None,
-        prompt_config=prompt_config,
-        ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
-        console=console,
-        enable_math_enhancement=False,  # Disabled - BankStatementAdapter handles this
-    )
-
-    # ============================================================================
-    # V2: SOPHISTICATED BANK STATEMENT EXTRACTION (matches notebook behavior)
-    # ============================================================================
+    """Run batch document processing with optional bank statement adapter."""
+    # Create bank adapter when V2 bank extraction is enabled
+    bank_adapter = None
     if config.bank_v2:
         console.print(
             "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
         )
-
-        # Create bank adapter for multi-turn extraction
-        # Adapter auto-detects dtype from model parameters
         bank_adapter = BankStatementAdapter(
             model=processor,
-            processor=None,
             verbose=config.verbose,
             use_balance_correction=config.balance_correction,
         )
-
-        # Get reference to the InternVL3 handler
-        internvl3_handler = batch_processor.internvl3_handler
-
-        def enhanced_process_internvl3(image_path, verbose):
-            """
-            Enhanced processing with proper routing:
-            - Turn 0: Document type detection (all documents)
-            - If BANK_STATEMENT: BankStatementAdapter handles extraction
-            - If INVOICE/RECEIPT: Standard extraction via internvl3_handler
-            """
-            import sys
-            from pathlib import Path as PathLib
-
-            def _safe_print(msg: str) -> None:
-                """Print without triggering Rich console recursion."""
-                try:
-                    sys.__stdout__.write(msg + "\n")
-                    sys.__stdout__.flush()
-                except Exception:
-                    pass
-
-            # Turn 0: Document Type Detection
-            if verbose:
-                _safe_print(
-                    f"\nTurn 0: Document type detection for {PathLib(image_path).name}"
-                )
-
-            try:
-                classification_info = internvl3_handler.detect_and_classify_document(
-                    image_path, verbose=verbose
-                )
-                doc_type = classification_info["document_type"]
-            except Exception as e:
-                console.print(f"[red]Error in document type detection: {e}[/red]")
-                raise
-
-            if verbose:
-                _safe_print(f"Detected: {doc_type}")
-
-            # ROUTING: Bank statements vs other documents
-            if doc_type.upper() == "BANK_STATEMENT":
-                if verbose:
-                    _safe_print(
-                        "Routing to BankStatementAdapter for multi-turn extraction"
-                    )
-
-                try:
-                    # BankStatementAdapter handles Turn 1 (headers) + Turn 2 (extraction)
-                    schema_fields, metadata = bank_adapter.extract_bank_statement(
-                        image_path
-                    )
-
-                    # Build result structure compatible with BatchDocumentProcessor
-                    extraction_result = {
-                        "extracted_data": schema_fields,
-                        "raw_response": metadata.get("raw_responses", {}).get(
-                            "turn1", ""
-                        ),
-                        "field_list": list(schema_fields.keys()),
-                        "metadata": metadata,
-                    }
-
-                    strategy = metadata.get("strategy_used", "unknown")
-                    prompt_name = f"unified_bank_{strategy}"
-
-                    if verbose:
-                        _safe_print(f"  Strategy: {strategy}")
-                        tx_count = (
-                            len(schema_fields.get("TRANSACTION_DATES", "").split("|"))
-                            if schema_fields.get("TRANSACTION_DATES") != "NOT_FOUND"
-                            else 0
-                        )
-                        _safe_print(f"  Transactions extracted: {tx_count}")
-
-                    return doc_type, extraction_result, prompt_name
-
-                except Exception as e:
-                    console.print(
-                        f"[yellow]BankStatementAdapter failed: {e}[/yellow]"
-                    )
-                    console.print(
-                        "[yellow]Falling back to standard extraction...[/yellow]"
-                    )
-                    # Fall through to standard extraction
-
-            # INVOICE/RECEIPT (or bank fallback): Standard extraction
-            if verbose:
-                _safe_print(f"Using standard extraction for {doc_type}")
-
-            extraction_result = internvl3_handler.process_document_aware(
-                image_path, classification_info, verbose=verbose
-            )
-
-            extracted_data = extraction_result.get("extracted_data", {})
-
-            formatted_result = {
-                "extracted_data": extracted_data,
-                "document_type": doc_type,
-                "image_file": PathLib(image_path).name,
-                "processing_time": extraction_result.get("processing_time", 0),
-            }
-
-            prompt_name = f"internvl3_{doc_type.lower()}"
-
-            return doc_type, formatted_result, prompt_name
-
-        # Replace the processing method
-        batch_processor._process_internvl3_image = enhanced_process_internvl3
-
-        console.print("[green]V2: Sophisticated bank statement extraction enabled[/green]")
+        console.print(
+            "[green]V2: Sophisticated bank statement extraction enabled[/green]"
+        )
         console.print(
             f"[dim]  Balance correction: {'Enabled' if config.balance_correction else 'Disabled'}[/dim]"
         )
-    else:
-        # Apply legacy bank statement settings
-        if hasattr(processor, "use_bank_v2"):
-            processor.use_bank_v2 = False
+
+    # Create batch processor with bank adapter (routing is handled internally)
+    batch_processor = BatchDocumentProcessor(
+        model=processor,
+        prompt_config=prompt_config,
+        ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
+        console=console,
+        enable_math_enhancement=False,
+        bank_adapter=bank_adapter,
+    )
 
     # Process batch
     console.print(f"\n[bold]Processing {len(images)} images...[/bold]")
@@ -1068,7 +919,10 @@ def main(
     config_table.add_row("Output directory", str(config.output_dir))
     config_table.add_row("Model path", str(config.model_path))
     config_table.add_row(
-        "Ground truth", str(config.ground_truth) if config.ground_truth else "[dim]None (inference-only)[/dim]"
+        "Ground truth",
+        str(config.ground_truth)
+        if config.ground_truth
+        else "[dim]None (inference-only)[/dim]",
     )
 
     # Model settings
