@@ -14,10 +14,7 @@ Usage:
 
 from __future__ import annotations
 
-import os
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +37,14 @@ from common.batch_processor import (
 )
 from common.batch_reporting import BatchReporter
 from common.batch_visualizations import BatchVisualizer
+from common.pipeline_config import (
+    PipelineConfig,
+    discover_images,
+    load_env_config,
+    load_yaml_config,
+    merge_configs,
+    validate_config,
+)
 from models.document_aware_internvl3_processor import (
     DocumentAwareInternVL3HybridProcessor,
 )
@@ -56,19 +61,6 @@ EXIT_SUCCESS = 0
 EXIT_CONFIG_ERROR = 1
 EXIT_MODEL_ERROR = 2
 EXIT_PROCESSING_ERROR = 3
-
-# Default model paths to search
-DEFAULT_MODEL_PATHS = [
-    "/home/jovyan/nfs_share/models/InternVL3_5-8B",
-    "/models/InternVL3_5-8B",
-    "./models/InternVL3_5-8B",
-]
-
-# Supported image extensions
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp"}
-
-# Environment variable prefix
-ENV_PREFIX = "IVL_"
 
 console = Console()
 app = typer.Typer(
@@ -155,224 +147,6 @@ def create_gpu_status_table() -> Table | None:
 
 
 # ============================================================================
-# Configuration
-# ============================================================================
-
-
-@dataclass
-class PipelineConfig:
-    """Configuration for the extraction pipeline."""
-
-    # Data paths
-    data_dir: Path
-    output_dir: Path
-    model_path: Path | None = None
-    ground_truth: Path | None = None
-
-    # Processing options
-    max_images: int | None = None
-    document_types: list[str] | None = None
-    bank_v2: bool = True
-    balance_correction: bool = True
-
-    # Model options
-    max_tiles: int = 11
-    flash_attn: bool = True
-    dtype: str = "bfloat16"
-    max_new_tokens: int = 2000
-
-    # Output options
-    skip_visualizations: bool = False
-    skip_reports: bool = False
-    verbose: bool = True
-
-    # Runtime state (set during execution)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now().strftime("%Y%m%d_%H%M%S")
-    )
-
-    def __post_init__(self) -> None:
-        """Convert string paths to Path objects."""
-        if isinstance(self.data_dir, str):
-            self.data_dir = Path(self.data_dir)
-        if isinstance(self.output_dir, str):
-            self.output_dir = Path(self.output_dir)
-        if isinstance(self.model_path, str):
-            self.model_path = Path(self.model_path)
-        if isinstance(self.ground_truth, str):
-            self.ground_truth = Path(self.ground_truth)
-
-    @property
-    def torch_dtype(self) -> torch.dtype:
-        """Convert dtype string to torch.dtype."""
-        dtype_map = {
-            "bfloat16": torch.bfloat16,
-            "float16": torch.float16,
-            "float32": torch.float32,
-        }
-        return dtype_map.get(self.dtype, torch.bfloat16)
-
-
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-    """Load configuration from YAML file."""
-    if not config_path.exists():
-        console.print(f"[red]FATAL: Config file not found: {config_path}[/red]")
-        console.print("[yellow]Expected: YAML configuration file[/yellow]")
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    with config_path.open() as f:
-        config = yaml.safe_load(f)
-
-    # Flatten nested structure
-    flat_config = {}
-    if "model" in config:
-        flat_config["model_path"] = config["model"].get("path")
-        flat_config["max_tiles"] = config["model"].get("max_tiles")
-        flat_config["flash_attn"] = config["model"].get("flash_attn")
-        flat_config["dtype"] = config["model"].get("dtype")
-        flat_config["max_new_tokens"] = config["model"].get("max_new_tokens")
-
-    if "data" in config:
-        flat_config["data_dir"] = config["data"].get("dir")
-        flat_config["ground_truth"] = config["data"].get("ground_truth")
-        flat_config["max_images"] = config["data"].get("max_images")
-        flat_config["document_types"] = config["data"].get("document_types")
-
-    if "output" in config:
-        flat_config["output_dir"] = config["output"].get("dir")
-        flat_config["skip_visualizations"] = config["output"].get("skip_visualizations")
-        flat_config["skip_reports"] = config["output"].get("skip_reports")
-
-    if "processing" in config:
-        flat_config["bank_v2"] = config["processing"].get("bank_v2")
-        flat_config["balance_correction"] = config["processing"].get(
-            "balance_correction"
-        )
-        flat_config["verbose"] = config["processing"].get("verbose")
-
-    # Remove None values
-    return {k: v for k, v in flat_config.items() if v is not None}
-
-
-def load_env_config() -> dict[str, Any]:
-    """Load configuration from environment variables."""
-    env_config = {}
-
-    env_mappings = {
-        f"{ENV_PREFIX}DATA_DIR": ("data_dir", str),
-        f"{ENV_PREFIX}OUTPUT_DIR": ("output_dir", str),
-        f"{ENV_PREFIX}MODEL_PATH": ("model_path", str),
-        f"{ENV_PREFIX}GROUND_TRUTH": ("ground_truth", str),
-        f"{ENV_PREFIX}MAX_IMAGES": ("max_images", int),
-        f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
-        f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}DTYPE": ("dtype", str),
-        f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}VERBOSE": ("verbose", lambda x: x.lower() == "true"),
-    }
-
-    for env_var, (config_key, converter) in env_mappings.items():
-        value = os.environ.get(env_var)
-        if value is not None:
-            env_config[config_key] = converter(value)
-
-    return env_config
-
-
-def auto_detect_model_path() -> Path | None:
-    """Auto-detect model path from common locations."""
-    for path_str in DEFAULT_MODEL_PATHS:
-        path = Path(path_str)
-        if path.exists() and (path / "config.json").exists():
-            return path
-    return None
-
-
-def merge_configs(
-    cli_args: dict[str, Any],
-    yaml_config: dict[str, Any],
-    env_config: dict[str, Any],
-) -> PipelineConfig:
-    """Merge configs with CLI > YAML > ENV > defaults priority."""
-    # Start with defaults (handled by dataclass)
-    merged = {}
-
-    # Layer in env config (lowest priority)
-    merged.update({k: v for k, v in env_config.items() if v is not None})
-
-    # Layer in YAML config
-    merged.update({k: v for k, v in yaml_config.items() if v is not None})
-
-    # Layer in CLI args (highest priority)
-    merged.update({k: v for k, v in cli_args.items() if v is not None})
-
-    # Auto-detect model path if not specified
-    if not merged.get("model_path"):
-        detected = auto_detect_model_path()
-        if detected:
-            merged["model_path"] = detected
-
-    return PipelineConfig(**merged)
-
-
-def validate_config(config: PipelineConfig) -> None:
-    """Validate configuration with fail-fast diagnostics."""
-    # Validate data directory
-    if not config.data_dir.exists():
-        console.print(f"[red]FATAL: Data directory not found: {config.data_dir}[/red]")
-        console.print(
-            f"[yellow]Expected: Directory containing {', '.join(IMAGE_EXTENSIONS)} images[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Validate model path
-    if not config.model_path:
-        console.print(
-            "[red]FATAL: Model path not specified and could not be auto-detected[/red]"
-        )
-        console.print("[yellow]Searched locations:[/yellow]")
-        for p in DEFAULT_MODEL_PATHS:
-            console.print(f"  - {p}")
-        console.print(
-            "[yellow]Specify with --model-path or IVL_MODEL_PATH environment variable[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    if not config.model_path.exists():
-        console.print(f"[red]FATAL: Model path not found: {config.model_path}[/red]")
-        console.print(
-            "[yellow]Expected: Directory containing InternVL3.5-8B model files[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Validate ground truth if specified
-    if config.ground_truth and not config.ground_truth.exists():
-        console.print(
-            f"[red]FATAL: Ground truth file not found: {config.ground_truth}[/red]"
-        )
-        console.print(
-            "[yellow]Expected: CSV file with columns: file, field_name, ground_truth_value[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Validate dtype
-    valid_dtypes = {"bfloat16", "float16", "float32"}
-    if config.dtype not in valid_dtypes:
-        console.print(f"[red]FATAL: Invalid dtype: {config.dtype}[/red]")
-        console.print(f"[yellow]Valid options: {', '.join(valid_dtypes)}[/yellow]")
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Check for images in data directory
-    images = list(discover_images(config.data_dir, config.document_types))
-    if not images:
-        console.print(f"[red]FATAL: No images found in: {config.data_dir}[/red]")
-        console.print(
-            f"[yellow]Supported formats: {', '.join(IMAGE_EXTENSIONS)}[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-
-# ============================================================================
 # Pipeline Components
 # ============================================================================
 
@@ -393,33 +167,6 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
             console.print(f"  [dim]Created: {path}[/dim]")
 
     return output_dirs
-
-
-def discover_images(
-    data_dir: Path,
-    document_types: list[str] | None = None,
-) -> list[Path]:
-    """Discover images in data directory."""
-    images = []
-
-    for ext in IMAGE_EXTENSIONS:
-        images.extend(data_dir.glob(f"*{ext}"))
-        images.extend(data_dir.glob(f"*{ext.upper()}"))
-
-    # Sort by filename for reproducibility
-    images = sorted(images, key=lambda p: p.name.lower())
-
-    # Filter by document type if specified (based on filename patterns)
-    if document_types:
-        filtered = []
-        type_patterns = [t.lower() for t in document_types]
-        for img in images:
-            name_lower = img.name.lower()
-            if any(pattern in name_lower for pattern in type_patterns):
-                filtered.append(img)
-        images = filtered
-
-    return images
 
 
 def load_prompt_config() -> dict[str, Any]:
@@ -516,7 +263,7 @@ def load_model(config: PipelineConfig):
             max_tiles=config.max_tiles,
         )
 
-        yield processor, prompt_config, field_definitions
+        yield processor, prompt_config
 
     finally:
         # Cleanup
@@ -850,41 +597,36 @@ def main(
     # Header will be printed after config is loaded (to show actual values)
 
     # Build CLI args dict (only non-None values)
-    cli_args = {}
-    if data_dir is not None:
-        cli_args["data_dir"] = data_dir
-    if output_dir is not None:
-        cli_args["output_dir"] = output_dir
-    if model_path is not None:
-        cli_args["model_path"] = model_path
-    if ground_truth is not None:
-        cli_args["ground_truth"] = ground_truth
-    if max_images is not None:
-        cli_args["max_images"] = max_images
+    arg_mapping = {
+        "data_dir": data_dir,
+        "output_dir": output_dir,
+        "model_path": model_path,
+        "ground_truth": ground_truth,
+        "max_images": max_images,
+        "max_tiles": max_tiles,
+        "flash_attn": flash_attn,
+        "dtype": dtype,
+        "bank_v2": bank_v2,
+        "balance_correction": balance_correction,
+        "verbose": verbose,
+        "skip_visualizations": no_viz,
+        "skip_reports": no_reports,
+    }
+    cli_args = {k: v for k, v in arg_mapping.items() if v is not None}
+
+    # Special handling: comma-split
     if document_types is not None:
         cli_args["document_types"] = [t.strip() for t in document_types.split(",")]
 
-    # Only add CLI args if explicitly set (not None)
-    # This allows YAML config to take precedence when CLI options aren't specified
-    if bank_v2 is not None:
-        cli_args["bank_v2"] = bank_v2
-    if balance_correction is not None:
-        cli_args["balance_correction"] = balance_correction
-    if max_tiles is not None:
-        cli_args["max_tiles"] = max_tiles
-    if flash_attn is not None:
-        cli_args["flash_attn"] = flash_attn
-    if dtype is not None:
-        cli_args["dtype"] = dtype
-    if no_viz is not None:
-        cli_args["skip_visualizations"] = no_viz
-    if no_reports is not None:
-        cli_args["skip_reports"] = no_reports
-    if verbose is not None:
-        cli_args["verbose"] = verbose
-
     # Load configs from different sources
-    yaml_config = load_yaml_config(config_file) if config_file else {}
+    yaml_config: dict[str, Any] = {}
+    if config_file:
+        try:
+            yaml_config = load_yaml_config(config_file)
+        except FileNotFoundError:
+            console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
+            console.print("[yellow]Expected: YAML configuration file[/yellow]")
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
     env_config = load_env_config()
 
     # Check required fields
@@ -907,7 +649,11 @@ def main(
     config = merge_configs(cli_args, yaml_config, env_config)
 
     # Validate configuration
-    validate_config(config)
+    errors = validate_config(config)
+    if errors:
+        for error in errors:
+            console.print(f"[red]FATAL: {error}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     # Print header with configuration table (always shown for audit purposes)
     config_table = Table(show_header=False, box=None, padding=(0, 1))
@@ -975,7 +721,7 @@ def main(
 
     # Run pipeline
     try:
-        with load_model(config) as (processor, prompt_config, field_definitions):
+        with load_model(config) as (processor, prompt_config):
             # Process batch
             batch_results, processing_times, document_types_found = (
                 run_batch_processing(
