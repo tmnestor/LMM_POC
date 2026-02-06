@@ -731,8 +731,8 @@ class DocumentAwareInternVL3HybridProcessor:
                     f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters"
                 )
 
-            # Get document-specific field list from YAML config (single source of truth)
-            doc_type_fields = load_document_field_definitions()
+            # Get document-specific field list from cached config (single source of truth)
+            doc_type_fields = dict(self.document_field_lists)
             # Add structure-specific bank statement aliases (same fields as bank_statement)
             if "bank_statement" in doc_type_fields:
                 doc_type_fields["bank_statement_flat"] = doc_type_fields[

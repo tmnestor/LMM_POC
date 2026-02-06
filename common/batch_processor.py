@@ -4,6 +4,7 @@ Batch Processing Module for Document-Aware Extraction
 Handles batch processing of images through document detection and extraction pipeline.
 """
 
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +14,11 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import track
 
-from .evaluation_metrics import load_ground_truth
+from .evaluation_metrics import (
+    calculate_correlation_aware_f1,
+    calculate_field_accuracy_with_method,
+    load_ground_truth,
+)
 
 # Import Rich content sanitization to prevent recursion errors and ExtractionCleaner
 from .simple_model_evaluator import SimpleModelEvaluator
@@ -159,6 +164,10 @@ class BatchDocumentProcessor:
         self.model_evaluator = SimpleModelEvaluator()
         self.ground_truth_data = None
 
+        # Cache field definitions and evaluation method (loaded once, not per-image)
+        self.doc_type_fields = load_document_field_definitions()
+        self.evaluation_method = os.environ.get("EVALUATION_METHOD", "order_aware_f1")
+
     def _trace_log(self, message: str):
         """Log message to both console and file"""
         print(message)
@@ -256,266 +265,13 @@ class BatchDocumentProcessor:
                                 break
 
                 if ground_truth:
-                    # Extract data using working DocumentAwareLlamaProcessor format
-                    # DocumentAwareLlamaProcessor returns extracted_data at top level
-                    extracted_data = extraction_result.get("extracted_data", {})
-
-                    # Apply mathematical enhancement for bank statements
-                    # Skip if already handled by UnifiedBankExtractor (V2 sophisticated extraction)
-                    skip_math = extraction_result.get("skip_math_enhancement", False)
-                    if (
-                        document_type.upper() == "BANK_STATEMENT"
-                        and self.enable_math_enhancement
-                        and not skip_math
-                    ):
-                        from .bank_statement_calculator import (
-                            enhance_bank_statement_extraction,
-                        )
-
-                        if verbose:
-                            rprint(
-                                "[blue]🧮 Applying mathematical enhancement for bank statement[/blue]"
-                            )
-
-                        # Get enhanced data with mathematical corrections
-                        enhanced_result = enhance_bank_statement_extraction(
-                            extracted_data, verbose=verbose
-                        )
-
-                        # Separate the corrected extraction data from analysis metadata
-                        extracted_data = {
-                            k: v
-                            for k, v in enhanced_result.items()
-                            if k != "_mathematical_analysis"
-                        }
-
-                        # Store analysis metadata for reporting but don't include in evaluation
-                        mathematical_analysis = enhanced_result.get(
-                            "_mathematical_analysis", {}
-                        )
-
-                        # CRITICAL: Filter to debit-only transactions for evaluation
-                        if verbose:
-                            rprint(
-                                "[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]"
-                            )
-
-                        extracted_data = self._filter_debit_transactions(
-                            extracted_data, verbose
-                        )
-                    elif skip_math and verbose:
-                        rprint(
-                            "[dim]⏭️  Skipping batch_processor math enhancement (handled by UnifiedBankExtractor)[/dim]"
-                        )
-
-                    if verbose:
-                        found_fields = [
-                            k for k, v in extracted_data.items() if v != "NOT_FOUND"
-                        ]
-                        rprint(
-                            f"[cyan]✓ Extracted {len(found_fields)} fields from {image_name}[/cyan]"
-                        )
-
-                        # Show mathematical enhancement results if applied
-                        if (
-                            document_type.upper() == "BANK_STATEMENT"
-                            and "mathematical_analysis" in locals()
-                        ):
-                            if mathematical_analysis.get("calculation_success"):
-                                rprint(
-                                    f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]"
-                                )
-                            else:
-                                rprint(
-                                    "[yellow]⚠️ Mathematical analysis failed[/yellow]"
-                                )
-
-                    # Filter ground truth to document-specific fields for accurate evaluation
-                    # Load document-specific field lists from YAML configuration
-                    doc_type_fields = load_document_field_definitions()
-
-                    # Ensure case-insensitive document type matching for evaluation fields
-                    document_type_lower_eval = document_type.lower()
-                    evaluation_fields = doc_type_fields.get(
-                        document_type_lower_eval, doc_type_fields["invoice"]
+                    evaluation = self._evaluate_extraction(
+                        extraction_result,
+                        ground_truth,
+                        document_type,
+                        image_name,
+                        verbose,
                     )
-
-                    filtered_ground_truth = {
-                        field: ground_truth[field]
-                        for field in evaluation_fields
-                        if field in ground_truth
-                    }
-
-                    # Use SimpleModelEvaluator for clean model comparison with filtered data
-                    if verbose and document_type.upper() == "BANK_STATEMENT":
-                        rprint(
-                            "[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]"
-                        )
-
-                    evaluation_result = self.model_evaluator.evaluate_extraction(
-                        extracted_data, filtered_ground_truth, image_path
-                    )
-
-                    # Convert to expected format for compatibility
-                    # Calculate fields_extracted and fields_matched for notebook compatibility
-                    fields_extracted = len(
-                        [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-                    )
-
-                    # Build field-level scores for detailed comparison display
-                    # Use configurable F1-based evaluation from evaluation_metrics.py
-                    # Get evaluation method from environment or use default
-                    # Users can set EVALUATION_METHOD environment variable to change metrics
-                    import os
-
-                    from common.evaluation_metrics import (
-                        calculate_correlation_aware_f1,
-                        calculate_field_accuracy_with_method,
-                    )
-
-                    evaluation_method = os.environ.get(
-                        "EVALUATION_METHOD", "order_aware_f1"
-                    )
-
-                    field_scores = {}
-                    total_f1_score = 0.0
-                    total_precision = 0.0
-                    total_recall = 0.0
-
-                    # Correlation method needs to be called once for entire document
-                    if evaluation_method in ["correlation", "correlation_aware_f1"]:
-                        # Get overall correlation metrics for the document
-                        correlation_result = calculate_correlation_aware_f1(
-                            extracted_data,
-                            filtered_ground_truth,
-                            document_type,
-                            debug=False,
-                        )
-
-                        # Use the correlation metrics for all field scores
-                        # Each field gets the same combined F1/precision/recall
-                        for field in filtered_ground_truth.keys():
-                            field_scores[field] = correlation_result
-                            total_f1_score += correlation_result["f1_score"]
-                            total_precision += correlation_result["precision"]
-                            total_recall += correlation_result["recall"]
-                    else:
-                        # Standard per-field evaluation
-                        for field in filtered_ground_truth.keys():
-                            extracted_val = extracted_data.get(field, "NOT_FOUND")
-                            ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
-
-                            # Use configurable F1-based scoring (default: order_aware_f1)
-                            # Available methods: 'order_aware_f1', 'f1', 'kieval', 'correlation'
-                            # DEBUG: Enable debug for IS_GST_INCLUDED
-                            is_debug = field == "IS_GST_INCLUDED" and verbose
-                            if is_debug:
-                                rprint("[yellow]🔍 BEFORE EVALUATION:[/yellow]")
-                                rprint(
-                                    f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})"
-                                )
-                                rprint(
-                                    f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})"
-                                )
-                                rprint(
-                                    f"  Are they equal? {extracted_val == ground_val}"
-                                )
-
-                            f1_metrics = calculate_field_accuracy_with_method(
-                                extracted_val,
-                                ground_val,
-                                field,
-                                method=evaluation_method,
-                                debug=is_debug,
-                            )
-
-                            if is_debug:
-                                rprint(
-                                    f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]"
-                                )
-                                rprint(
-                                    f"  Field '{field}' f1_score = {f1_metrics['f1_score']}"
-                                )
-
-                            field_scores[field] = f1_metrics
-                            total_f1_score += f1_metrics["f1_score"]
-                            total_precision += f1_metrics["precision"]
-                            total_recall += f1_metrics["recall"]
-
-                    # Calculate overall metrics from F1 scores
-                    num_fields = len(field_scores)
-                    overall_accuracy = (
-                        total_f1_score / num_fields if num_fields else 0.0
-                    )
-                    overall_precision = (
-                        total_precision / num_fields if num_fields else 0.0
-                    )
-                    overall_recall = total_recall / num_fields if num_fields else 0.0
-
-                    # Calculate median F1 (more robust to outliers than mean)
-                    f1_values = [s["f1_score"] for s in field_scores.values()]
-                    if f1_values:
-                        sorted_f1 = sorted(f1_values)
-                        mid = len(sorted_f1) // 2
-                        if len(sorted_f1) % 2 == 0:
-                            median_f1 = (sorted_f1[mid - 1] + sorted_f1[mid]) / 2
-                        else:
-                            median_f1 = sorted_f1[mid]
-                    else:
-                        median_f1 = 0.0
-
-                    # Count perfect matches for compatibility
-                    perfect_matches = sum(
-                        1 for score in field_scores.values() if score["f1_score"] == 1.0
-                    )
-                    fields_matched = perfect_matches
-
-                    evaluation = {
-                        "overall_accuracy": overall_accuracy,  # F1-based average (mean)
-                        "median_f1": median_f1,  # Median F1 (robust to outliers)
-                        "overall_precision": overall_precision,  # Average precision
-                        "overall_recall": overall_recall,  # Average recall
-                        "total_fields": len(field_scores),
-                        "correct_fields": perfect_matches,  # Perfect F1=1.0 matches
-                        "missing_fields": evaluation_result.missing_fields,
-                        "incorrect_fields": evaluation_result.incorrect_fields,
-                        # Add notebook-expected keys
-                        "fields_extracted": fields_extracted,
-                        "fields_matched": fields_matched,
-                        # Add field-level scores for detailed comparison (now with F1 metrics)
-                        "field_scores": field_scores,
-                        "overall_metrics": {
-                            "overall_accuracy": overall_accuracy,  # F1-based mean
-                            "median_f1": median_f1,  # Median F1
-                            "overall_precision": overall_precision,
-                            "overall_recall": overall_recall,
-                            "meets_threshold": median_f1
-                            >= 0.8,  # Use median for threshold
-                            "document_type_threshold": 0.8,
-                        },
-                    }
-
-                    # SimpleModelEvaluator already provides data in correct format - no flattening needed
-
-                    # Show evaluation summary
-                    if verbose and evaluation:
-                        mean_f1 = evaluation.get("overall_accuracy", 0) * 100
-                        median_f1_pct = evaluation.get("median_f1", 0) * 100
-                        precision = evaluation.get("overall_precision", 0) * 100
-                        recall = evaluation.get("overall_recall", 0) * 100
-                        rprint(
-                            f"[cyan]✓ Median F1: {median_f1_pct:.1f}% | Mean F1: {mean_f1:.1f}% for {image_name}[/cyan]"
-                        )
-                        rprint(
-                            f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]"
-                        )
-
-                    # Debug: Show field score count
-                    if verbose:
-                        has_field_scores = "field_scores" in evaluation
-                        rprint(
-                            f"[dim]🔍 DEBUG: has_field_scores={has_field_scores}, field_count={len(evaluation.get('field_scores', {}))}[/dim]"
-                        )
                 else:
                     evaluation = {
                         "error": f"No ground truth for {image_name}",
@@ -590,6 +346,226 @@ class BatchDocumentProcessor:
         end_time = time.time()
 
         return batch_results, processing_times, document_types_found
+
+    def _evaluate_extraction(
+        self,
+        extraction_result: dict,
+        ground_truth: dict,
+        document_type: str,
+        image_name: str,
+        verbose: bool,
+    ) -> dict:
+        """
+        Evaluate extraction results against ground truth.
+
+        Handles mathematical enhancement for bank statements, field filtering,
+        F1 scoring (standard or correlation), and metric aggregation.
+
+        Args:
+            extraction_result: Raw extraction result with 'extracted_data' key
+            ground_truth: Ground truth dictionary for this image
+            document_type: Detected document type (e.g. 'BANK_STATEMENT', 'INVOICE')
+            image_name: Image filename for logging
+            verbose: Whether to show detailed output
+
+        Returns:
+            Evaluation dictionary with accuracy, F1 scores, and field-level metrics
+        """
+        extracted_data = extraction_result.get("extracted_data", {})
+
+        # Apply mathematical enhancement for bank statements
+        # Skip if already handled by UnifiedBankExtractor (V2 sophisticated extraction)
+        mathematical_analysis = None
+        skip_math = extraction_result.get("skip_math_enhancement", False)
+        if (
+            document_type.upper() == "BANK_STATEMENT"
+            and self.enable_math_enhancement
+            and not skip_math
+        ):
+            from .bank_statement_calculator import (
+                enhance_bank_statement_extraction,
+            )
+
+            if verbose:
+                rprint(
+                    "[blue]🧮 Applying mathematical enhancement for bank statement[/blue]"
+                )
+
+            enhanced_result = enhance_bank_statement_extraction(
+                extracted_data, verbose=verbose
+            )
+
+            extracted_data = {
+                k: v
+                for k, v in enhanced_result.items()
+                if k != "_mathematical_analysis"
+            }
+
+            mathematical_analysis = enhanced_result.get("_mathematical_analysis", {})
+
+            if verbose:
+                rprint(
+                    "[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]"
+                )
+
+            extracted_data = self._filter_debit_transactions(extracted_data, verbose)
+        elif skip_math and verbose:
+            rprint(
+                "[dim]⏭️  Skipping batch_processor math enhancement (handled by UnifiedBankExtractor)[/dim]"
+            )
+
+        if verbose:
+            found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+            rprint(
+                f"[cyan]✓ Extracted {len(found_fields)} fields from {image_name}[/cyan]"
+            )
+
+            if (
+                document_type.upper() == "BANK_STATEMENT"
+                and mathematical_analysis is not None
+            ):
+                if mathematical_analysis.get("calculation_success"):
+                    rprint(
+                        f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]"
+                    )
+                else:
+                    rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
+
+        # Filter ground truth to document-specific fields for accurate evaluation
+        document_type_lower_eval = document_type.lower()
+        evaluation_fields = self.doc_type_fields.get(
+            document_type_lower_eval, self.doc_type_fields["invoice"]
+        )
+
+        filtered_ground_truth = {
+            field: ground_truth[field]
+            for field in evaluation_fields
+            if field in ground_truth
+        }
+
+        if verbose and document_type.upper() == "BANK_STATEMENT":
+            rprint(
+                "[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]"
+            )
+
+        evaluation_result = self.model_evaluator.evaluate_extraction(
+            extracted_data, filtered_ground_truth, image_name
+        )
+
+        fields_extracted = len(
+            [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+        )
+
+        # Build field-level F1 scores
+        field_scores = {}
+        total_f1_score = 0.0
+        total_precision = 0.0
+        total_recall = 0.0
+
+        if self.evaluation_method in ["correlation", "correlation_aware_f1"]:
+            correlation_result = calculate_correlation_aware_f1(
+                extracted_data,
+                filtered_ground_truth,
+                document_type,
+                debug=False,
+            )
+
+            for field in filtered_ground_truth:
+                field_scores[field] = correlation_result
+                total_f1_score += correlation_result["f1_score"]
+                total_precision += correlation_result["precision"]
+                total_recall += correlation_result["recall"]
+        else:
+            for field in filtered_ground_truth:
+                extracted_val = extracted_data.get(field, "NOT_FOUND")
+                ground_val = filtered_ground_truth.get(field, "NOT_FOUND")
+
+                is_debug = field == "IS_GST_INCLUDED" and verbose
+                if is_debug:
+                    rprint("[yellow]🔍 BEFORE EVALUATION:[/yellow]")
+                    rprint(
+                        f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})"
+                    )
+                    rprint(
+                        f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})"
+                    )
+                    rprint(f"  Are they equal? {extracted_val == ground_val}")
+
+                f1_metrics = calculate_field_accuracy_with_method(
+                    extracted_val,
+                    ground_val,
+                    field,
+                    method=self.evaluation_method,
+                    debug=is_debug,
+                )
+
+                if is_debug:
+                    rprint(f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]")
+                    rprint(f"  Field '{field}' f1_score = {f1_metrics['f1_score']}")
+
+                field_scores[field] = f1_metrics
+                total_f1_score += f1_metrics["f1_score"]
+                total_precision += f1_metrics["precision"]
+                total_recall += f1_metrics["recall"]
+
+        # Calculate overall metrics from F1 scores
+        num_fields = len(field_scores)
+        overall_accuracy = total_f1_score / num_fields if num_fields else 0.0
+        overall_precision = total_precision / num_fields if num_fields else 0.0
+        overall_recall = total_recall / num_fields if num_fields else 0.0
+
+        # Calculate median F1 (more robust to outliers than mean)
+        f1_values = [s["f1_score"] for s in field_scores.values()]
+        if f1_values:
+            sorted_f1 = sorted(f1_values)
+            mid = len(sorted_f1) // 2
+            if len(sorted_f1) % 2 == 0:
+                median_f1 = (sorted_f1[mid - 1] + sorted_f1[mid]) / 2
+            else:
+                median_f1 = sorted_f1[mid]
+        else:
+            median_f1 = 0.0
+
+        perfect_matches = sum(
+            1 for score in field_scores.values() if score["f1_score"] == 1.0
+        )
+
+        evaluation = {
+            "overall_accuracy": overall_accuracy,
+            "median_f1": median_f1,
+            "overall_precision": overall_precision,
+            "overall_recall": overall_recall,
+            "total_fields": len(field_scores),
+            "correct_fields": perfect_matches,
+            "missing_fields": evaluation_result.missing_fields,
+            "incorrect_fields": evaluation_result.incorrect_fields,
+            "fields_extracted": fields_extracted,
+            "fields_matched": perfect_matches,
+            "field_scores": field_scores,
+            "overall_metrics": {
+                "overall_accuracy": overall_accuracy,
+                "median_f1": median_f1,
+                "overall_precision": overall_precision,
+                "overall_recall": overall_recall,
+                "meets_threshold": median_f1 >= 0.8,
+                "document_type_threshold": 0.8,
+            },
+        }
+
+        if verbose:
+            mean_f1 = overall_accuracy * 100
+            median_f1_pct = median_f1 * 100
+            precision = overall_precision * 100
+            recall = overall_recall * 100
+            rprint(
+                f"[cyan]✓ Median F1: {median_f1_pct:.1f}% | Mean F1: {mean_f1:.1f}% for {image_name}[/cyan]"
+            )
+            rprint(f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]")
+            rprint(
+                f"[dim]🔍 DEBUG: has_field_scores=True, field_count={len(field_scores)}[/dim]"
+            )
+
+        return evaluation
 
     def _filter_debit_transactions(
         self, extracted_data: dict, verbose: bool = False
