@@ -787,7 +787,7 @@ def main(
         raise typer.Exit(EXIT_PROCESSING_ERROR) from None
     except Exception as e:
         console.print(f"\n[red]FATAL: Processing error: {e}[/red]")
-        if verbose:
+        if config.verbose:
             console.print_exception()
         raise typer.Exit(EXIT_PROCESSING_ERROR) from None
 

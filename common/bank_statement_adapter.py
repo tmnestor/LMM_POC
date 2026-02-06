@@ -140,6 +140,7 @@ class BankStatementAdapter:
             config_dir=config_dir,
             model_dtype=model_dtype,
             use_balance_correction=use_balance_correction,
+            verbose=verbose,
         )
 
     def extract_bank_statement(

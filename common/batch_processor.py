@@ -196,7 +196,7 @@ class BatchDocumentProcessor:
 
         # Load ground truth data once for the batch
         try:
-            self.ground_truth_data = load_ground_truth(self.ground_truth_csv)
+            self.ground_truth_data = load_ground_truth(self.ground_truth_csv, verbose=verbose)
             if verbose:
                 rprint(
                     f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]"
@@ -315,8 +315,8 @@ class BatchDocumentProcessor:
                 # Advance progress after image completes
                 progress.update(progress_task, advance=1)
 
-                # Always show compact F1 score for each document (regardless of verbose)
-                if evaluation and "median_f1" in evaluation:
+                # Show compact F1 score for each document when verbose
+                if verbose and evaluation and "median_f1" in evaluation:
                     median_f1_pct = evaluation.get("median_f1", 0) * 100
                     mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
                     rprint(
@@ -324,8 +324,7 @@ class BatchDocumentProcessor:
                         f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
                         f"Mean {mean_f1_pct:.1f}% | {processing_time:.1f}s"
                     )
-                elif evaluation:
-                    # Fallback if median not available
+                elif verbose and evaluation:
                     mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
                     rprint(
                         f"  [green]✓[/green] {image_name}: "
