@@ -273,12 +273,7 @@ def validate_config(config: PipelineConfig) -> list[str]:
             f"Invalid dtype: {config.dtype}. Valid options: {', '.join(valid_dtypes)}"
         )
 
-    # Check for images in data directory
-    images = list(discover_images(config.data_dir, config.document_types))
-    if not images:
-        exts = ", ".join(IMAGE_EXTENSIONS)
-        errors.append(
-            f"No images found in: {config.data_dir}. Supported formats: {exts}"
-        )
+    # Note: image discovery check is done by the caller after discover_images()
+    # to avoid scanning the data directory twice.
 
     return errors

@@ -57,6 +57,7 @@ class DocumentAwareInternVL3HybridProcessor:
         pre_loaded_tokenizer=None,
         prompt_config: Dict = None,
         max_tiles: int = None,
+        field_definitions: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
@@ -71,10 +72,8 @@ class DocumentAwareInternVL3HybridProcessor:
             pre_loaded_model: Pre-loaded model instance
             pre_loaded_tokenizer: Pre-loaded tokenizer instance
             prompt_config (Dict): Configuration for prompts (single source of truth)
-            skip_model_loading (bool): Skip loading model (for reusing existing model)
-            pre_loaded_model: Pre-loaded InternVL3 model (avoids reloading)
-            pre_loaded_tokenizer: Pre-loaded InternVL3 tokenizer (avoids reloading)
             max_tiles (int): Max image tiles for preprocessing (REQUIRED - set in notebook CONFIG)
+            field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
         """
         self.field_list = field_list
         self.field_count = len(field_list)
@@ -115,7 +114,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
         # Document-specific field lists - loaded from config/field_definitions.yaml
         # SINGLE SOURCE OF TRUTH - no hardcoding here
-        self.document_field_lists = load_document_field_definitions()
+        self.document_field_lists = field_definitions or load_document_field_definitions()
 
         if self.debug:
             print(
@@ -511,9 +510,8 @@ class DocumentAwareInternVL3HybridProcessor:
                     "bank_statement"
                 ]
 
-            # Update field list for document-specific extraction
-            original_field_list = self.field_list
-            self.field_list = doc_type_fields.get(
+            # Resolve document-specific field list (no mutation of self.field_list)
+            doc_field_list = doc_type_fields.get(
                 document_type, doc_type_fields["invoice"]
             )
 
@@ -525,7 +523,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 "_date_grouped", ""
             )
             doc_specific_tokens = get_max_new_tokens(
-                field_count=len(self.field_list), document_type=base_doc_type
+                field_count=len(doc_field_list), document_type=base_doc_type
             )
 
             # Process with document-specific settings
@@ -534,10 +532,8 @@ class DocumentAwareInternVL3HybridProcessor:
                 image_path,
                 custom_prompt=extraction_prompt,
                 custom_max_tokens=doc_specific_tokens,
+                field_list=doc_field_list,
             )
-
-            # Restore original field list
-            self.field_list = original_field_list
 
             if verbose:
                 extracted_data = result.get("extracted_data", {})
@@ -867,13 +863,25 @@ class DocumentAwareInternVL3HybridProcessor:
         image_path: str,
         custom_prompt: Optional[str] = None,
         custom_max_tokens: Optional[int] = None,
+        field_list: Optional[List[str]] = None,
     ) -> dict:
-        """Process single image with document-aware extraction using InternVL3."""
+        """Process single image with document-aware extraction using InternVL3.
+
+        Args:
+            image_path: Path to the image to process.
+            custom_prompt: Pre-built extraction prompt (skips detection).
+            custom_max_tokens: Override max_new_tokens for generation.
+            field_list: Document-specific fields to extract. Falls back to
+                self.field_list when None (standalone / no-detection path).
+        """
 
         try:
             from pathlib import Path
 
             start_time = time.time()
+
+            # Resolve field list: explicit param > self.field_list default
+            document_fields = field_list if field_list is not None else self.field_list
 
             # Memory cleanup
             emergency_cleanup(verbose=False)
@@ -926,7 +934,7 @@ class DocumentAwareInternVL3HybridProcessor:
                     "_date_grouped", ""
                 )
                 document_fields = self.document_field_lists.get(
-                    base_doc_type, self.field_list
+                    base_doc_type, document_fields
                 )
 
                 if self.debug:
@@ -1000,10 +1008,6 @@ class DocumentAwareInternVL3HybridProcessor:
             # Parse response using hybrid parser (handles both JSON and plain text)
             from common.extraction_parser import hybrid_parse_response
 
-            # Use document-specific fields if we detected a document type, otherwise use full field list
-            if "document_fields" not in locals():
-                document_fields = self.field_list
-
             extracted_data = hybrid_parse_response(
                 response, expected_fields=document_fields
             )
@@ -1045,14 +1049,9 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Calculate metrics
             extracted_fields_count = len(
-                [k for k in extracted_data.keys() if k in self.field_list]
+                [k for k in extracted_data.keys() if k in document_fields]
             )
-            # Use document-specific field count for accurate metrics
-            document_field_count = (
-                len(document_fields)
-                if "document_fields" in locals()
-                else self.field_count
-            )
+            document_field_count = len(document_fields)
             response_completeness = (
                 extracted_fields_count / document_field_count
                 if document_field_count > 0
@@ -1077,9 +1076,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 "content_coverage": content_coverage,
                 "extracted_fields_count": extracted_fields_count,
                 "field_count": document_field_count,
-                "document_type": document_type
-                if "document_type" in locals()
-                else "unknown",
+                "document_type": document_type,
             }
 
         except Exception as e:
@@ -1090,15 +1087,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 traceback.print_exc()
 
             # Return error result with dynamic fields
+            # document_fields is set before the try body, so always available
+            error_fields = field_list if field_list is not None else self.field_list
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "NOT_FOUND" for field in self.field_list},
+                "extracted_data": {field: "NOT_FOUND" for field in error_fields},
                 "raw_response": f"Error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
                 "content_coverage": 0,
                 "extracted_fields_count": 0,
-                "field_count": self.field_count,
+                "field_count": len(error_fields),
             }
 
     def get_model_info(self) -> dict:

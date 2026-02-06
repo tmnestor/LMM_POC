@@ -135,6 +135,7 @@ class BatchDocumentProcessor:
         console: Optional[Console] = None,
         enable_math_enhancement: bool = True,
         bank_adapter=None,
+        field_definitions: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Initialize batch processor for InternVL3 document extraction.
@@ -146,6 +147,7 @@ class BatchDocumentProcessor:
             console: Rich console for output
             enable_math_enhancement: Whether to apply mathematical enhancement for bank statements
             bank_adapter: Optional BankStatementAdapter for sophisticated bank extraction
+            field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
         """
         # Store InternVL3 handler
         self.internvl3_handler = model
@@ -165,7 +167,7 @@ class BatchDocumentProcessor:
         self.ground_truth_data = None
 
         # Cache field definitions and evaluation method (loaded once, not per-image)
-        self.doc_type_fields = load_document_field_definitions()
+        self.doc_type_fields = field_definitions or load_document_field_definitions()
         self.evaluation_method = os.environ.get("EVALUATION_METHOD", "order_aware_f1")
 
     def _trace_log(self, message: str):

@@ -75,6 +75,13 @@ app = typer.Typer(
 # ============================================================================
 
 
+def _util_color(pct: float) -> str:
+    """Return Rich color name for a GPU utilization percentage."""
+    if pct < 50:
+        return "green"
+    return "yellow" if pct < 80 else "red"
+
+
 def create_gpu_status_table() -> Table | None:
     """Create a Rich table showing GPU memory status."""
     if not torch.cuda.is_available():
@@ -109,38 +116,25 @@ def create_gpu_status_table() -> Table | None:
         total_allocated += allocated_gb
         total_reserved += reserved_gb
 
-        # Color utilization based on percentage
-        if utilization < 50:
-            util_color = "green"
-        elif utilization < 80:
-            util_color = "yellow"
-        else:
-            util_color = "red"
-
+        color = _util_color(utilization)
         gpu_table.add_row(
             f"{gpu_id}: {gpu_name}",
             f"{vram_gb:.1f} GB",
             f"{allocated_gb:.2f} GB",
             f"{reserved_gb:.2f} GB",
-            f"[{util_color}]{utilization:.1f}%[/{util_color}]",
+            f"[{color}]{utilization:.1f}%[/{color}]",
         )
 
     # Add total row for multi-GPU
     if device_count > 1:
         total_util = (total_reserved / total_vram) * 100 if total_vram > 0 else 0
-        if total_util < 50:
-            util_color = "green"
-        elif total_util < 80:
-            util_color = "yellow"
-        else:
-            util_color = "red"
-
+        color = _util_color(total_util)
         gpu_table.add_row(
             "[bold]Total[/bold]",
             f"[bold]{total_vram:.1f} GB[/bold]",
             f"[bold]{total_allocated:.2f} GB[/bold]",
             f"[bold]{total_reserved:.2f} GB[/bold]",
-            f"[bold][{util_color}]{total_util:.1f}%[/{util_color}][/bold]",
+            f"[bold][{color}]{total_util:.1f}%[/{color}][/bold]",
         )
 
     return gpu_table
@@ -189,11 +183,11 @@ def load_prompt_config() -> dict[str, Any]:
     return config
 
 
-def load_pipeline_configs() -> tuple[dict[str, Any], list[str]]:
+def load_pipeline_configs() -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
     """Load prompt configuration and build universal field list.
 
     Returns:
-        Tuple of (prompt_config dict, sorted universal_fields list).
+        Tuple of (prompt_config, sorted universal_fields, field_definitions).
     """
     prompt_config = load_prompt_config()
     field_definitions = load_document_field_definitions()
@@ -212,7 +206,7 @@ def load_pipeline_configs() -> tuple[dict[str, Any], list[str]]:
         )
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    return prompt_config, universal_fields
+    return prompt_config, universal_fields, field_definitions
 
 
 @contextmanager
@@ -275,6 +269,7 @@ def create_processor(
     config: PipelineConfig,
     prompt_config: dict[str, Any],
     universal_fields: list[str],
+    field_definitions: dict[str, list[str]],
 ) -> DocumentAwareInternVL3HybridProcessor:
     """Create document extraction processor from loaded components."""
     return DocumentAwareInternVL3HybridProcessor(
@@ -285,6 +280,7 @@ def create_processor(
         pre_loaded_tokenizer=tokenizer,
         prompt_config=prompt_config,
         max_tiles=config.max_tiles,
+        field_definitions=field_definitions,
     )
 
 
@@ -293,6 +289,7 @@ def run_batch_processing(
     processor: DocumentAwareInternVL3HybridProcessor,
     prompt_config: dict[str, Any],
     images: list[Path],
+    field_definitions: dict[str, list[str]],
 ) -> tuple[list[dict], list[float], dict[str, int]]:
     """Run batch document processing with optional bank statement adapter."""
     # Create bank adapter when V2 bank extraction is enabled
@@ -321,6 +318,7 @@ def run_batch_processing(
         console=console,
         enable_math_enhancement=False,
         bank_adapter=bank_adapter,
+        field_definitions=field_definitions,
     )
 
     # Process batch
@@ -732,55 +730,67 @@ def main(
     if config.max_images:
         images = images[: config.max_images]
 
+    if not images:
+        from common.pipeline_config import IMAGE_EXTENSIONS
+
+        exts = ", ".join(IMAGE_EXTENSIONS)
+        console.print(
+            f"[red]FATAL: No images found in: {config.data_dir}. Supported formats: {exts}[/red]"
+        )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
     console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
 
     # Load configs (no GPU needed)
-    prompt_config, universal_fields = load_pipeline_configs()
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs()
 
     # Run pipeline
     try:
+        # Model context: load model, run extraction, then free GPU memory
         with load_model(config) as (model, tokenizer):
             processor = create_processor(
-                model, tokenizer, config, prompt_config, universal_fields
+                model, tokenizer, config, prompt_config, universal_fields,
+                field_definitions,
             )
 
-            # Process batch
             batch_results, processing_times, document_types_found = (
                 run_batch_processing(
                     config,
                     processor,
                     prompt_config,
                     images,
+                    field_definitions,
                 )
             )
+        # Model freed here — post-processing is CPU-only
 
-            # Generate analytics
-            analytics, df_results, df_summary, df_doctype_stats, df_field_stats = (
-                generate_analytics(
-                    config,
-                    output_dirs,
-                    batch_results,
-                    processing_times,
-                )
-            )
-
-            # Generate visualizations
-            generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
-
-            # Generate reports
-            generate_reports(
+        # Generate analytics
+        analytics, df_results, df_summary, df_doctype_stats, df_field_stats = (
+            generate_analytics(
                 config,
                 output_dirs,
                 batch_results,
                 processing_times,
-                document_types_found,
-                df_results,
-                df_summary,
-                df_doctype_stats,
             )
+        )
 
-            # Print summary
-            print_summary(config, batch_results, processing_times, document_types_found)
+        # Generate visualizations
+        generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
+
+        # Generate reports
+        generate_reports(
+            config,
+            output_dirs,
+            batch_results,
+            processing_times,
+            document_types_found,
+            df_results,
+            df_summary,
+            df_doctype_stats,
+        )
+
+        # Print summary
+        print_summary(config, batch_results, processing_times, document_types_found)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Processing interrupted by user[/yellow]")
