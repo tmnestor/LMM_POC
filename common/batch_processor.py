@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from rich import print as rprint
 from rich.console import Console
-from rich.progress import track
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
 
 from .evaluation_metrics import (
     calculate_correlation_aware_f1,
@@ -213,15 +213,32 @@ class BatchDocumentProcessor:
             rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
             self.console.rule("[bold green]Batch Extraction[/bold green]")
 
-        # Process each image - always show progress bar, even when not verbose
-        iterator = track(image_paths, description="Processing images...")
+        # Process each image - non-live progress bar to avoid conflict with UBE stdout
+        total_images = len(image_paths)
+        progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("[cyan]{task.fields[current]}[/cyan]"),
+            console=self.console,
+            transient=False,
+        )
 
-        for idx, image_path in enumerate(iterator, 1):
+        # Print initial progress line (non-live to avoid redraw conflicts)
+        progress_task = progress.add_task(
+            "Processing images", total=total_images, current=""
+        )
+
+        for idx, image_path in enumerate(image_paths, 1):
             image_name = Path(image_path).name
+
+            # Update and print progress before each image
+            progress.update(progress_task, current=image_name)
+            self.console.print(progress.get_renderable())
 
             if verbose:
                 rprint(
-                    f"\n[bold blue]Processing [{idx}/{len(image_paths)}]: {image_name}[/bold blue]"
+                    f"\n[bold blue]Processing [{idx}/{total_images}]: {image_name}[/bold blue]"
                 )
 
             try:
@@ -231,7 +248,7 @@ class BatchDocumentProcessor:
                 # Process image with InternVL3 handler
                 if verbose:
                     rprint(
-                        f"[dim]🔍 TRACE: Processing image {idx}/{len(image_paths)}: {image_name}[/dim]"
+                        f"[dim]🔍 TRACE: Processing image {idx}/{total_images}: {image_name}[/dim]"
                     )
 
                 document_type, extraction_result, prompt_name = (
@@ -295,6 +312,9 @@ class BatchDocumentProcessor:
                 }
                 batch_results.append(result)
 
+                # Advance progress after image completes
+                progress.update(progress_task, advance=1)
+
                 # Always show compact F1 score for each document (regardless of verbose)
                 if evaluation and "median_f1" in evaluation:
                     median_f1_pct = evaluation.get("median_f1", 0) * 100
@@ -313,20 +333,20 @@ class BatchDocumentProcessor:
                     )
 
                 # Additional verbose progress update
-                if verbose and (
-                    idx % progress_interval == 0 or idx == len(image_paths)
-                ):
+                if verbose and (idx % progress_interval == 0 or idx == total_images):
                     accuracy = (
                         evaluation.get("overall_accuracy", 0) * 100 if evaluation else 0
                     )
                     rprint(
-                        f"  [{idx}/{len(image_paths)}] {image_name}: {document_type} - "
+                        f"  [{idx}/{total_images}] {image_name}: {document_type} - "
                         f"Accuracy: {accuracy:.1f}% - Time: {processing_time:.2f}s"
                     )
 
             except Exception as e:
                 if verbose:
                     rprint(f"[red]❌ Error processing {image_name}: {e}[/red]")
+
+                progress.update(progress_task, advance=1)
 
                 # Store error result
                 batch_results.append(
@@ -339,6 +359,10 @@ class BatchDocumentProcessor:
                         else 0,
                     }
                 )
+
+        # Print final progress
+        progress.update(progress_task, current="done")
+        self.console.print(progress.get_renderable())
 
         if verbose:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
