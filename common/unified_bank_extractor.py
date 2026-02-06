@@ -1738,7 +1738,11 @@ class UnifiedBankExtractor:
             tokenizer=self.tokenizer,
             pixel_values=pixel_values,
             question=prompt,
-            generation_config={"max_new_tokens": max_tokens, "do_sample": False},
+            generation_config={
+                "max_new_tokens": max_tokens,
+                "do_sample": False,
+                "pad_token_id": self.tokenizer.eos_token_id,
+            },
         )
 
         del pixel_values
