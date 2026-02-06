@@ -10,10 +10,17 @@ model:
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
   max_new_tokens: 2000   # Max tokens for generation
 
+
+
+
 # Data paths
 data:
-  dir: ./evaluation_data/travel/logbooks
-  ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
+  # dir: ./evaluation_data/travel/logbooks
+  # ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
+  # dir: ./evaluation_data/bank
+  # ground_truth: ./evaluation_data/bank/ground_truth_bank.csv
+  dir: ./evaluation_data/synthetic
+  ground_truth: ./evaluation_data/synthetic/ground_truth_synthetic.csv
   max_images: null       # null = process all images
   document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 

@@ -1,25 +1,37 @@
+# InternVL3.5-8B Document Extraction Configuration
+# All options explicitly stated - YAML takes priority over defaults
+# CLI flags override YAML when explicitly provided
+
 # Model configuration
 model:
   path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-  max_tiles: 18
-  flash_attn: true
-  dtype: bfloat16
+  max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
+  flash_attn: true       # Use Flash Attention 2 (disable for V100)
+  dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
+  max_new_tokens: 2000   # Max tokens for generation
+
+
+
 
 # Data paths
 data:
-  dir: ./evaluation_data/travel/logbooks
-  ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
-  max_images: null  # null = process all
-  document_types: null  # null = all types
+  # dir: ./evaluation_data/travel/logbooks
+  # ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
+  # dir: ./evaluation_data/bank
+  # ground_truth: ./evaluation_data/bank/ground_truth_bank.csv
+  dir: ./evaluation_data/synthetic
+  ground_truth: ./evaluation_data/synthetic/ground_truth_synthetic.csv
+  max_images: null       # null = process all images
+  document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
 # Output settings
 output:
   dir: ./output
-  skip_visualizations: true
-  skip_reports: true
+  skip_visualizations: false  # Skip visualization generation
+  skip_reports: false         # Skip report generation
 
 # Processing options
 processing:
-  bank_v2: true
-  balance_correction: true
-  verbose: false
+  bank_v2: true              # Use V2 bank statement extraction
+  balance_correction: true   # Enable balance validation for bank statements
+  verbose: false             # Verbose output (debug messages)

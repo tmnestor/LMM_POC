@@ -1,0 +1,2 @@
+document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
+VEHICLE_LOGBOOK,93.89,93.33,6.68,80.0,100.0,31.36,31.73,10
