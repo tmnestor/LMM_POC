@@ -20,15 +20,11 @@ import warnings
 from typing import Dict, List, Optional
 
 import torch
-import torchvision.transforms as T
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
 from common.batch_processor import load_document_field_definitions
 from common.config import (
-    DEFAULT_IMAGE_SIZE,
-    IMAGENET_MEAN,
-    IMAGENET_STD,
     INTERNVL3_MODEL_PATH,
     get_auto_batch_size,
     get_max_new_tokens,
@@ -41,6 +37,7 @@ from common.gpu_optimization import (
     optimize_model_for_gpu,
 )
 from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
+from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
 warnings.filterwarnings("ignore")
 
@@ -88,6 +85,11 @@ class DocumentAwareInternVL3HybridProcessor:
             prompt_config  # Single source of truth for prompt configuration
         )
         self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
+
+        # Image preprocessing pipeline (extracted for testability and reuse)
+        self.image_preprocessor = InternVL3ImagePreprocessor(
+            max_tiles=max_tiles, debug=debug
+        )
 
         # Initialize components (InternVL3 specific)
         self.model = pre_loaded_model
@@ -180,37 +182,6 @@ class DocumentAwareInternVL3HybridProcessor:
                 f"do_sample={self.generation_config['do_sample']} (greedy decoding)"
             )
 
-    def _get_model_device(self):
-        """Get the device for pixel_values tensor placement.
-
-        For multi-GPU models with device_map="auto", pixel_values must be placed
-        on the device where the vision model's embedding layer resides, since
-        that's where image tensors enter the model.
-        """
-        # For multi-GPU device_map models, get the vision model embedding device
-        # This is critical: pixel_values enter through vision_model.embeddings
-        if hasattr(self.model, "vision_model") and hasattr(
-            self.model.vision_model, "embeddings"
-        ):
-            try:
-                vision_embed_device = next(
-                    self.model.vision_model.embeddings.parameters()
-                ).device
-                return vision_embed_device
-            except (StopIteration, AttributeError):
-                pass
-
-        # Fallback: check model.device attribute
-        if hasattr(self.model, "device"):
-            return self.model.device
-
-        try:
-            # Get device from first parameter
-            return next(self.model.parameters()).device
-        except (StopIteration, AttributeError):
-            # Fallback to cuda if available
-            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     def _load_model(self):
         """Load InternVL3 model and tokenizer with optimal configuration."""
         if self.debug:
@@ -253,210 +224,6 @@ class DocumentAwareInternVL3HybridProcessor:
             if self.debug:
                 print(f"❌ Error loading InternVL3 model: {e}")
             raise
-
-    def build_transform(self, input_size=DEFAULT_IMAGE_SIZE):
-        """Build InternVL3 image transformation pipeline."""
-        transform = T.Compose(
-            [
-                T.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
-                T.Resize(
-                    (input_size, input_size), interpolation=T.InterpolationMode.BICUBIC
-                ),
-                T.ToTensor(),
-                T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            ]
-        )
-        return transform
-
-    def find_closest_aspect_ratio(
-        self, aspect_ratio, target_ratios, width, height, image_size
-    ):
-        """Standard InternVL3 find_closest_aspect_ratio from official documentation."""
-        best_ratio_diff = float("inf")
-        best_ratio = (1, 1)
-        area = width * height
-        for ratio in target_ratios:
-            target_aspect_ratio = ratio[0] / ratio[1]
-            ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-            if ratio_diff < best_ratio_diff:
-                best_ratio_diff = ratio_diff
-                best_ratio = ratio
-            elif ratio_diff == best_ratio_diff:
-                if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
-                    best_ratio = ratio
-        return best_ratio
-
-    def dynamic_preprocess(
-        self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False
-    ):
-        """Standard InternVL3 dynamic_preprocess from official documentation."""
-        orig_width, orig_height = image.size
-        aspect_ratio = orig_width / orig_height
-
-        # Standard target ratios calculation
-        target_ratios = set(
-            (i, j)
-            for n in range(min_num, max_num + 1)
-            for i in range(1, n + 1)
-            for j in range(1, n + 1)
-            if i * j <= max_num and i * j >= min_num
-        )
-        target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
-
-        # Find the closest aspect ratio using standard method
-        target_aspect_ratio = self.find_closest_aspect_ratio(
-            aspect_ratio, target_ratios, orig_width, orig_height, image_size
-        )
-
-        target_width = image_size * target_aspect_ratio[0]
-        target_height = image_size * target_aspect_ratio[1]
-        blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
-
-        resized_img = image.resize((target_width, target_height))
-        processed_images = []
-
-        # Standard tiling process
-        for i in range(blocks):
-            box = (
-                (i % (target_width // image_size)) * image_size,
-                (i // (target_width // image_size)) * image_size,
-                ((i % (target_width // image_size)) + 1) * image_size,
-                ((i // (target_width // image_size)) + 1) * image_size,
-            )
-            split_img = resized_img.crop(box)
-            processed_images.append(split_img)
-
-        # Add thumbnail if requested (standard InternVL3 feature)
-        if use_thumbnail and len(processed_images) != 1:
-            thumbnail_img = image.resize((image_size, image_size))
-            processed_images.append(thumbnail_img)
-        return processed_images
-
-    def load_image(self, image_file, input_size=448, max_num=None):
-        """Complete InternVL3 image loading and preprocessing pipeline."""
-        if max_num is None:
-            if self.max_tiles is not None:
-                max_num = self.max_tiles  # Use notebook-configured value
-            else:
-                # FAIL FAST: Require explicit max_tiles configuration
-                raise ValueError(
-                    "❌ FATAL: max_tiles not configured!\n"
-                    "💡 Add MAX_TILES to your notebook CONFIG:\n"
-                    "   CONFIG = {\n"
-                    "       ...\n"
-                    "       'MAX_TILES': 36,  # H200: 36, V100-8B: 14, 2B: 18\n"
-                    "   }\n"
-                    "💡 Pass to processor initialization:\n"
-                    "   hybrid_processor = DocumentAwareInternVL3HybridProcessor(\n"
-                    "       ...\n"
-                    "       max_tiles=CONFIG['MAX_TILES']\n"
-                    "   )"
-                )
-
-        if self.debug:
-            print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
-
-        # Load image
-        image = Image.open(image_file).convert("RGB")
-
-        # Process into tiles using standard InternVL3 dynamic_preprocess
-        images = self.dynamic_preprocess(
-            image, min_num=1, max_num=max_num, image_size=input_size, use_thumbnail=True
-        )
-
-        # Apply transforms
-        transform = self.build_transform(input_size=input_size)
-        pixel_values = [transform(img) for img in images]
-        pixel_values = torch.stack(pixel_values)
-
-        # CRITICAL FIX: Ensure tensor type matches model weights
-        # Convert to model's dtype to prevent "Input type (float) and bias type (c10::BFloat16)" error
-        try:
-            # For 8-bit quantized models, we need to check vision model's weight dtype
-            if hasattr(self.model, "vision_model") and hasattr(
-                self.model.vision_model, "embeddings"
-            ):
-                # Get dtype from vision model's embedding layer (most reliable for quantized models)
-                vision_dtype = next(
-                    self.model.vision_model.embeddings.parameters()
-                ).dtype
-                pixel_values = pixel_values.to(dtype=vision_dtype)
-                if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using vision model dtype {vision_dtype}")
-            elif hasattr(self.model, "dtype"):
-                pixel_values = pixel_values.to(dtype=self.model.dtype)
-                if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using model.dtype {self.model.dtype}")
-            elif hasattr(self.model.vision_model, "dtype"):
-                pixel_values = pixel_values.to(dtype=self.model.vision_model.dtype)
-                if self.debug:
-                    print(
-                        f"🔧 TENSOR_DTYPE: Using vision_model.dtype {self.model.vision_model.dtype}"
-                    )
-            else:
-                # Try to get dtype from first model parameter
-                model_dtype = next(self.model.parameters()).dtype
-                pixel_values = pixel_values.to(dtype=model_dtype)
-                if self.debug:
-                    print(f"🔧 TENSOR_DTYPE: Using parameter dtype {model_dtype}")
-        except Exception as e:
-            # Fallback dtype detection - check actual model parameter dtype
-            # CRITICAL: Must detect float32 models correctly for V100 compatibility
-            try:
-                # Get dtype from any model parameter
-                first_param = next(iter(self.model.parameters()))
-                detected_dtype = first_param.dtype
-                pixel_values = pixel_values.to(dtype=detected_dtype)
-                if self.debug:
-                    print(
-                        f"🔧 TENSOR_DTYPE: Using detected parameter dtype {detected_dtype}"
-                    )
-            except Exception:
-                # Last resort fallback: use float32 for safety (V100 compatible)
-                pixel_values = pixel_values.to(dtype=torch.float32)
-                if self.debug:
-                    print("🔧 TENSOR_DTYPE: Using float32 fallback (V100 safe)")
-
-            if self.debug:
-                print(f"⚠️ Primary dtype detection failed: {e}")
-
-        # Move to model's device
-        if self.model is not None:
-            model_device = self._get_model_device()
-            if pixel_values.device != model_device:
-                pixel_values = pixel_values.to(model_device)
-                if self.debug:
-                    print(
-                        f"🔧 DEVICE_MOVE: Moved tensor from {pixel_values.device} to {model_device}"
-                    )
-            elif self.debug:
-                print(f"✅ DEVICE_OK: Tensor already on {model_device}")
-
-        # CRITICAL V100 DEBUGGING: Verify dtype and device match
-        if self.debug:
-            try:
-                model_param = next(iter(self.model.parameters()))
-                print(
-                    f"🔍 DTYPE_CHECK: pixel_values={pixel_values.dtype}, model_param={model_param.dtype}"
-                )
-                print(
-                    f"🔍 DEVICE_CHECK: pixel_values={pixel_values.device}, model_param={model_param.device}"
-                )
-                if pixel_values.dtype != model_param.dtype:
-                    print(
-                        f"⚠️ DTYPE_MISMATCH: pixel_values ({pixel_values.dtype}) != model ({model_param.dtype})"
-                    )
-            except Exception as debug_err:
-                print(f"⚠️ Debug check failed: {debug_err}")
-
-        if self.debug:
-            print(
-                f"📐 TENSOR_SHAPE: {pixel_values.shape} (batch_size={pixel_values.shape[0]} tiles)"
-            )
-            print(f"📊 TENSOR_DTYPE: {pixel_values.dtype}")
-            print(f"📍 TENSOR_DEVICE: {pixel_values.device}")
-
-        return pixel_values
 
     def get_extraction_prompt(self, document_type: str = None) -> str:
         """
@@ -541,10 +308,10 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.flush()
 
             # Load and preprocess image using InternVL3 pipeline
-            pixel_values = self.load_image(image_path)
+            pixel_values = self.image_preprocessor.load_image(image_path, self.model)
 
             # Ensure on correct device (backup check)
-            model_device = self._get_model_device()
+            model_device = InternVL3ImagePreprocessor.get_model_device(self.model)
             if pixel_values.device != model_device:
                 pixel_values = pixel_values.to(model_device)
                 if verbose:
@@ -1193,7 +960,7 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.flush()
 
             # Load and preprocess image using InternVL3 pipeline
-            pixel_values = self.load_image(image_path)
+            pixel_values = self.image_preprocessor.load_image(image_path, self.model)
 
             # Note: load_image() already handles device placement and dtype conversion
             # based on the actual model requirements, so no additional conversion needed here
