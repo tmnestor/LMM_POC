@@ -1,5 +1,38 @@
 # Flash Attention Wheel Issue - Action Required
 
+## Background: Why Flash Attention Must Match Your Exact Environment
+
+Flash Attention is a compiled CUDA extension — not pure Python. Its wheel contains pre-compiled C++ and CUDA kernels that are **binary-coupled** to three specific components of the runtime environment:
+
+| Component | Why it must match |
+|-----------|-------------------|
+| **Python version** | The compiled `.so` files link against a specific CPython ABI (e.g. `cp311`). A wheel built for Python 3.12 cannot load in Python 3.11. |
+| **PyTorch version** | Flash Attention calls PyTorch's internal C++ API (`libtorch`). These internal symbols change between PyTorch releases, so a wheel compiled against PyTorch 2.5 will produce `undefined symbol` errors on PyTorch 2.6. |
+| **CUDA version** | The CUDA kernels are compiled for specific CUDA toolkit versions. Mismatched CUDA runtime/toolkit versions produce load failures or silent correctness issues. |
+
+A mismatch in **any one** of these produces `ImportError: undefined symbol` at import time.
+
+### The C++11 ABI Problem
+
+On top of version matching, there is an **ABI (Application Binary Interface) flag** issue:
+
+- **PyTorch pip wheels** are compiled with the legacy C++ ABI: `_GLIBCXX_USE_CXX11_ABI=0`
+- **Linux system compilers** (`g++`) default to the new ABI: `_GLIBCXX_USE_CXX11_ABI=1`
+
+When flash-attn is compiled from source without explicitly setting `ABI=0`, the resulting `.so` files use the new ABI but try to link against PyTorch's old-ABI symbols — producing the `undefined symbol` error. This is specific to our **Python 3.11** environment; Python 3.12 does not exhibit this issue.
+
+The flash-attn project publishes ~200 prebuilt wheel variants to cover different combinations ([Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases)), but when no matching wheel exists — or the matching wheel itself has a binary regression — a **patched source build** is required.
+
+### References
+
+- [flash-attn Issue #1783](https://github.com/Dao-AILab/flash-attention/issues/1783) — Binary compatibility failure with flash_attn 2.8.2 + PyTorch 2.6.0+cu124 on Python 3.11 (our exact scenario)
+- [flash-attn Issue #1644](https://github.com/Dao-AILab/flash-attention/issues/1644) — PyTorch ABI changes breaking existing flash-attn wheels
+- [flash-attn Issue #1717](https://github.com/Dao-AILab/flash-attention/issues/1717) — Undefined symbol errors in flash-attn 2.8 wheel builds
+- [PyTorch Issue #51039](https://github.com/pytorch/pytorch/issues/51039) — Long-standing discussion on PyTorch's `_GLIBCXX_USE_CXX11_ABI=0` wheel policy
+- [flash-attn Installation & Setup (DeepWiki)](https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup) — Wheel selection process and ABI compatibility details
+
+---
+
 ## Current State
 
 The wheel at `/efs/shared/flash-attn/` is **not a source-compiled build**:
