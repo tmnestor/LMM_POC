@@ -238,7 +238,7 @@ def load_model(config: PipelineConfig):
 
             model = AutoModel.from_pretrained(
                 str(config.model_path),
-                torch_dtype=config.torch_dtype,
+                dtype=config.torch_dtype,
                 low_cpu_mem_usage=True,
                 use_flash_attn=config.flash_attn,
                 trust_remote_code=True,
