@@ -46,14 +46,20 @@ flash_attn-2.8.3.tar.gz             <-- source tarball (unused)
 
 The wheel filename `flash_attn-2.8.3-py3-none-any.whl` has platform tags `py3-none-any`, which indicates it is the **prebuilt wheel downloaded from GitHub/PyPI** — not a wheel compiled from source with the ABI patch.
 
-Installing this wheel will produce the same `undefined symbol` ABI mismatch error:
+Additionally, the `py3-none-any` wheel **does not contain compiled CUDA kernels at all**. It is only the Python wrapper code. Installing it produces:
+
+```
+ModuleNotFoundError: No module named 'flash_attn_2_cuda'
+```
+
+This was confirmed by testing the wheel in a Python 3.12 environment (which does not have the ABI issue). The wheel is missing the compiled `.so` files entirely — it will fail on **any** Python version.
+
+On a Python 3.11 environment (our target), it would also produce the ABI mismatch error:
 
 ```
 ImportError: flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so: undefined symbol:
 _ZN3c105ErrorC2ENS_14SourceLocationENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
 ```
-
-**Note:** This ABI mismatch is specific to Python 3.11. Python 3.12 does not have this issue.
 
 ### How to verify
 
