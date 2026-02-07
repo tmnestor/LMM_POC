@@ -331,3 +331,86 @@ Based on vLLM benchmarks for comparable vision-language models:
 - [KServe Documentation](https://kserve.github.io/website/)
 - [PagedAttention Paper](https://arxiv.org/abs/2309.06180)
 - [KServe + vLLM Integration](https://kserve.github.io/website/latest/modelserving/v1beta1/llm/vllm/)
+
+---
+
+## Appendix: TorchServe as an Alternative
+
+### What You Gain with TorchServe
+
+**Native KServe integration** — TorchServe is a first-class KServe runtime. No custom `ClusterServingRuntime` needed; KServe ships with a built-in TorchServe predictor:
+
+```yaml
+spec:
+  predictor:
+    pytorch:
+      storageUri: "pvc://model-store/InternVL3_5-8B"
+      resources:
+        limits:
+          nvidia.com/gpu: "4"
+```
+
+**KFP ecosystem alignment** — TorchServe is maintained by AWS/Meta, well-supported in AWS SageMaker and Kubeflow. Less operational risk than vLLM which is newer and evolving fast.
+
+**MAR packaging** — `torch-model-archiver` bundles model weights + handler + config into a single deployable artifact. Cleaner versioning and rollback.
+
+**torch.compile / TensorRT** — TorchServe supports graph-mode optimizations that vLLM doesn't expose. Can help with the vision encoder portion.
+
+### What You Lose
+
+The three biggest wins in the vLLM proposal all disappear:
+
+| Feature | vLLM | TorchServe |
+|---------|------|------------|
+| **Continuous batching** | Yes — iteration-level scheduling | No — static/dynamic batching only (same as current `batch_chat()`) |
+| **PagedAttention** | Yes — <5% VRAM waste | No — contiguous KV cache (~82% waste) |
+| **Automatic LLM scheduling** | Yes — built for autoregressive decoding | No — general-purpose, you manage batching |
+
+The projected 2.5-3x throughput improvement and ~95% GPU utilization from the proposal come almost entirely from continuous batching + PagedAttention. With TorchServe, you'd be serving the model more cleanly but **performing inference roughly the same way as the current pipeline**.
+
+### Architectural Differences
+
+**Custom handler required** — TorchServe needs a Python handler class to manage the InternVL3.5 pipeline (load model, preprocess images, run multi-tile inference, postprocess). This is nontrivial for a VLM:
+
+```python
+# handler.py (simplified)
+class InternVL3Handler(BaseHandler):
+    def initialize(self, context):
+        # Load model, tokenizer, set up TP across GPUs
+
+    def preprocess(self, requests):
+        # Load images, create pixel_values, handle variable tile counts
+
+    def inference(self, inputs):
+        # Essentially what batch_chat() does today
+
+    def postprocess(self, outputs):
+        # Parse JSON responses
+```
+
+This reimplements much of what `DocumentAwareInternVL3HybridProcessor` already does, inside a TorchServe handler.
+
+**Batching is your problem** — TorchServe has dynamic batching (`batch_size` + `max_batch_delay` in config.properties), but it's request-level, not token-level. For variable-length generation (detection = ~50 tokens, extraction = ~2000 tokens), the GPU idle time problem remains.
+
+**Tensor parallelism is manual** — vLLM handles `--tensor-parallel-size=4` automatically. With TorchServe, you'd use `torchrun` or `deepspeed` for multi-GPU, requiring more setup in the handler.
+
+### Comparison Summary
+
+| Aspect | vLLM + KServe | TorchServe + KServe |
+|--------|--------------|---------------------|
+| **Throughput gain** | 2.5-3x over current | Modest (decoupled lifecycle only) |
+| **GPU utilization** | ~85-95% | ~40-60% (same as current) |
+| **KServe integration** | Custom ServingRuntime | Built-in predictor |
+| **KFP ecosystem maturity** | Newer, evolving | Battle-tested |
+| **Deployment packaging** | Model path + args | MAR archive (versioned) |
+| **Custom code needed** | Minimal (OpenAI API) | Full handler class |
+| **Multi-GPU** | Automatic (`--tensor-parallel-size`) | Manual (`torchrun`/`deepspeed`) |
+| **Optimization** | LLM-specific (PagedAttention, continuous batching) | General-purpose (torch.compile, TensorRT) |
+
+### Recommendation
+
+- **If throughput/GPU efficiency is the goal** — stick with vLLM. The LLM-specific optimizations (continuous batching, PagedAttention) are the entire value proposition.
+- **If operational simplicity and KFP integration are the priority** — TorchServe is more battle-tested in Kubeflow environments, simpler to deploy via KServe, and easier for the platform team to manage. But throughput gains over the current `batch_chat()` approach would be modest — mainly the decoupled lifecycle (persistent model, no cold start, multiple consumers).
+- **Hybrid option** — Use TorchServe as the KServe runtime but call vLLM's `AsyncLLMEngine` internally from the handler. This gives KServe-native deployment with vLLM's batching — but adds complexity.
+
+TorchServe solves the **deployment** problems (coupled lifecycle, single consumer, cold starts) but not the **inference** problems (static batching, KV cache waste, GPU underutilization). vLLM solves both.
