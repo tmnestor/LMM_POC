@@ -47,6 +47,7 @@ class PipelineConfig:
     # Processing options
     max_images: int | None = None
     document_types: list[str] | None = None
+    batch_size: int | None = None  # None = auto-detect from VRAM
     bank_v2: bool = True
     balance_correction: bool = True
 
@@ -128,6 +129,7 @@ def load_yaml_config(config_path: Path) -> dict[str, Any]:
         flat_config["skip_reports"] = config["output"].get("skip_reports")
 
     if "processing" in config:
+        flat_config["batch_size"] = config["processing"].get("batch_size")
         flat_config["bank_v2"] = config["processing"].get("bank_v2")
         flat_config["balance_correction"] = config["processing"].get(
             "balance_correction"
@@ -148,6 +150,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}MODEL_PATH": ("model_path", str),
         f"{ENV_PREFIX}GROUND_TRUTH": ("ground_truth", str),
         f"{ENV_PREFIX}MAX_IMAGES": ("max_images", int),
+        f"{ENV_PREFIX}BATCH_SIZE": ("batch_size", int),
         f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
         f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}DTYPE": ("dtype", str),
@@ -265,6 +268,10 @@ def validate_config(config: PipelineConfig) -> list[str]:
     # Validate ground truth if specified
     if config.ground_truth and not config.ground_truth.exists():
         errors.append(f"Ground truth file not found: {config.ground_truth}")
+
+    # Validate batch_size
+    if config.batch_size is not None and config.batch_size < 1:
+        errors.append(f"Invalid batch_size: {config.batch_size}. Must be >= 1.")
 
     # Validate dtype
     valid_dtypes = {"bfloat16", "float16", "float32"}

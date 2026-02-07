@@ -114,7 +114,9 @@ class DocumentAwareInternVL3HybridProcessor:
 
         # Document-specific field lists - loaded from config/field_definitions.yaml
         # SINGLE SOURCE OF TRUTH - no hardcoding here
-        self.document_field_lists = field_definitions or load_document_field_definitions()
+        self.document_field_lists = (
+            field_definitions or load_document_field_definitions()
+        )
 
         if self.debug:
             print(
@@ -1099,6 +1101,359 @@ class DocumentAwareInternVL3HybridProcessor:
                 "extracted_fields_count": 0,
                 "field_count": len(error_fields),
             }
+
+    # ========================================================================
+    # BATCH INFERENCE METHODS - Uses model.batch_chat() for GPU utilization
+    # ========================================================================
+
+    def _load_detection_config(self):
+        """Load detection prompt and config from YAML (cached after first call).
+
+        Returns:
+            Tuple of (detection_prompt, max_tokens, detection_config)
+        """
+        from pathlib import Path
+
+        import yaml
+
+        if self.prompt_config:
+            detection_path = Path(self.prompt_config["detection_file"])
+            detection_key = self.prompt_config["detection_key"]
+        else:
+            detection_path = Path("prompts/document_type_detection.yaml")
+            detection_key = "detection"
+
+        with detection_path.open("r") as f:
+            detection_config = yaml.safe_load(f)
+
+        detection_prompt = detection_config["prompts"][detection_key]["prompt"]
+        max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
+
+        return detection_prompt, max_tokens, detection_config
+
+    def batch_detect_documents(
+        self, image_paths: List[str], verbose: bool = False
+    ) -> List[Dict]:
+        """Detect document types for a batch of images using model.batch_chat().
+
+        Concatenates pixel_values from all images and calls batch_chat() once
+        with the same detection prompt for all images.
+
+        Args:
+            image_paths: List of image file paths to classify
+            verbose: Whether to show detailed output
+
+        Returns:
+            List of classification_info dicts (same format as detect_and_classify_document)
+        """
+        if not image_paths:
+            return []
+
+        detection_prompt, max_tokens, detection_config = self._load_detection_config()
+
+        if verbose:
+            import sys
+
+            sys.stdout.write(
+                f"🔍 Batch detecting {len(image_paths)} images with batch_chat()\n"
+            )
+            sys.stdout.flush()
+
+        # Load and concatenate pixel values for all images
+        all_pixel_values = []
+        num_patches_list = []
+        for image_path in image_paths:
+            pv = self.image_preprocessor.load_image(image_path, self.model)
+            all_pixel_values.append(pv)
+            num_patches_list.append(pv.size(0))
+
+        pixel_values = torch.cat(all_pixel_values, dim=0)
+
+        # Same detection prompt for all images
+        questions = [detection_prompt] * len(image_paths)
+
+        generation_config = {
+            "max_new_tokens": max_tokens,
+            "do_sample": False,
+        }
+
+        # Call batch_chat with OOM fallback
+        try:
+            responses = self.model.batch_chat(
+                self.tokenizer,
+                pixel_values,
+                questions,
+                generation_config=generation_config,
+                num_patches_list=num_patches_list,
+            )
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            if len(image_paths) <= 1:
+                # Single image OOM — fall back to sequential
+                return [
+                    self.detect_and_classify_document(image_paths[0], verbose=verbose)
+                ]
+            # Halve batch and retry recursively
+            mid = len(image_paths) // 2
+            if verbose:
+                import sys
+
+                sys.stdout.write(
+                    f"⚠️ OOM in batch detection — splitting {len(image_paths)} -> {mid} + {len(image_paths) - mid}\n"
+                )
+                sys.stdout.flush()
+            r1 = self.batch_detect_documents(image_paths[:mid], verbose=verbose)
+            r2 = self.batch_detect_documents(image_paths[mid:], verbose=verbose)
+            return r1 + r2
+
+        # Parse each response into classification_info
+        results = []
+        for i, response in enumerate(responses):
+            # Truncate if recursion detected
+            if self._detect_recursion_pattern(response):
+                response = response[:200]
+
+            document_type = self._parse_document_type_response(
+                response, detection_config
+            )
+
+            if verbose:
+                import sys
+                from pathlib import Path as _Path
+
+                sys.stdout.write(
+                    f"  [{i + 1}/{len(image_paths)}] {_Path(image_paths[i]).name}: {document_type}\n"
+                )
+                sys.stdout.flush()
+
+            results.append(
+                {
+                    "document_type": document_type,
+                    "confidence": 1.0,
+                    "raw_response": response,
+                    "prompt_used": "batch_detection",
+                }
+            )
+
+        # Cleanup
+        del pixel_values, all_pixel_values
+        emergency_cleanup(verbose=False)
+
+        return results
+
+    def batch_extract_documents(
+        self,
+        image_paths: List[str],
+        classification_infos: List[Dict],
+        verbose: bool = False,
+    ) -> List[Dict]:
+        """Extract fields from a batch of images using model.batch_chat().
+
+        Supports different extraction prompts per image (batch_chat handles
+        different questions natively). NOT used for bank statements (which
+        require multi-turn via adapter).
+
+        Args:
+            image_paths: List of image file paths
+            classification_infos: List of classification dicts from batch_detect_documents
+            verbose: Whether to show detailed output
+
+        Returns:
+            List of extraction result dicts (same format as process_document_aware)
+        """
+        from pathlib import Path
+
+        from common.config import get_max_new_tokens
+        from common.extraction_parser import hybrid_parse_response
+
+        if not image_paths:
+            return []
+
+        if verbose:
+            import sys
+
+            sys.stdout.write(
+                f"📊 Batch extracting {len(image_paths)} images with batch_chat()\n"
+            )
+            sys.stdout.flush()
+
+        # Load pixel values and build per-image prompts
+        all_pixel_values = []
+        num_patches_list = []
+        questions = []
+        field_lists_per_image = []
+        max_tokens_needed = 0
+
+        for image_path, classification_info in zip(
+            image_paths, classification_infos, strict=False
+        ):
+            # Load image
+            pv = self.image_preprocessor.load_image(image_path, self.model)
+            all_pixel_values.append(pv)
+            num_patches_list.append(pv.size(0))
+
+            # Build per-image extraction prompt (same logic as process_document_aware)
+            document_type = classification_info["document_type"].lower()
+
+            # Get document-specific field list
+            doc_type_fields = dict(self.document_field_lists)
+            if "bank_statement" in doc_type_fields:
+                doc_type_fields["bank_statement_flat"] = doc_type_fields[
+                    "bank_statement"
+                ]
+                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields[
+                    "bank_statement"
+                ]
+
+            doc_field_list = doc_type_fields.get(
+                document_type, doc_type_fields.get("invoice", self.field_list)
+            )
+            field_lists_per_image.append(doc_field_list)
+
+            # Build extraction prompt
+            extraction_prompt = self._get_batch_extraction_prompt(document_type)
+            questions.append(extraction_prompt)
+
+            # Track max tokens needed
+            base_doc_type = document_type.replace("_flat", "").replace(
+                "_date_grouped", ""
+            )
+            tokens = get_max_new_tokens(
+                field_count=len(doc_field_list), document_type=base_doc_type
+            )
+            max_tokens_needed = max(max_tokens_needed, tokens)
+
+        pixel_values = torch.cat(all_pixel_values, dim=0)
+
+        generation_config = {
+            "max_new_tokens": max_tokens_needed,
+            "do_sample": False,
+        }
+
+        # Call batch_chat with OOM fallback
+        try:
+            responses = self.model.batch_chat(
+                self.tokenizer,
+                pixel_values,
+                questions,
+                generation_config=generation_config,
+                num_patches_list=num_patches_list,
+            )
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            if len(image_paths) <= 1:
+                # Single image OOM — fall back to sequential
+                return [
+                    self.process_document_aware(
+                        image_paths[0], classification_infos[0], verbose=verbose
+                    )
+                ]
+            mid = len(image_paths) // 2
+            if verbose:
+                import sys
+
+                sys.stdout.write(
+                    f"⚠️ OOM in batch extraction — splitting {len(image_paths)} -> {mid} + {len(image_paths) - mid}\n"
+                )
+                sys.stdout.flush()
+            r1 = self.batch_extract_documents(
+                image_paths[:mid], classification_infos[:mid], verbose=verbose
+            )
+            r2 = self.batch_extract_documents(
+                image_paths[mid:], classification_infos[mid:], verbose=verbose
+            )
+            return r1 + r2
+
+        # Parse responses and clean extracted data
+        results = []
+        for i, response in enumerate(responses):
+            image_path = image_paths[i]
+            doc_field_list = field_lists_per_image[i]
+            document_type = classification_infos[i]["document_type"]
+
+            # Truncate if recursion detected
+            if self._detect_recursion_pattern(response):
+                response = response[:2000]
+
+            # Parse response
+            extracted_data = hybrid_parse_response(
+                response, expected_fields=doc_field_list
+            )
+
+            # Apply ExtractionCleaner
+            cleaned_data = {}
+            for field_name in doc_field_list:
+                raw_value = extracted_data.get(field_name, "NOT_FOUND")
+                if raw_value != "NOT_FOUND":
+                    cleaned_data[field_name] = self.cleaner.clean_field_value(
+                        field_name, raw_value
+                    )
+                else:
+                    cleaned_data[field_name] = "NOT_FOUND"
+
+            extracted_fields_count = sum(
+                1 for v in cleaned_data.values() if v != "NOT_FOUND"
+            )
+            document_field_count = len(doc_field_list)
+
+            if verbose:
+                import sys
+
+                sys.stdout.write(
+                    f"  [{i + 1}/{len(image_paths)}] {Path(image_path).name}: "
+                    f"{extracted_fields_count}/{document_field_count} fields\n"
+                )
+                sys.stdout.flush()
+
+            results.append(
+                {
+                    "image_name": Path(image_path).name,
+                    "extracted_data": cleaned_data,
+                    "raw_response": response,
+                    "processing_time": 0,  # Set by caller
+                    "response_completeness": extracted_fields_count
+                    / document_field_count
+                    if document_field_count
+                    else 0,
+                    "content_coverage": extracted_fields_count / document_field_count
+                    if document_field_count
+                    else 0,
+                    "extracted_fields_count": extracted_fields_count,
+                    "field_count": document_field_count,
+                    "document_type": document_type,
+                }
+            )
+
+        # Cleanup
+        del pixel_values, all_pixel_values
+        emergency_cleanup(verbose=False)
+
+        return results
+
+    def _get_batch_extraction_prompt(self, document_type: str) -> str:
+        """Get extraction prompt for batch inference.
+
+        Uses prompt_config (single source of truth) when available,
+        falls back to get_extraction_prompt().
+        """
+        if self.prompt_config:
+            doc_type_upper = (
+                document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+            )
+            extraction_file = self.prompt_config.get("extraction_files", {}).get(
+                doc_type_upper, "prompts/internvl3_prompts.yaml"
+            )
+            extraction_keys = self.prompt_config.get("extraction_keys", {})
+            extraction_key = extraction_keys.get(doc_type_upper, document_type)
+
+            from pathlib import Path
+
+            from common.simple_prompt_loader import SimplePromptLoader
+
+            loader = SimplePromptLoader()
+            return loader.load_prompt(Path(extraction_file).name, extraction_key)
+
+        return self.get_extraction_prompt(document_type)
 
     def get_model_info(self) -> dict:
         """Get information about the loaded model for debugging."""

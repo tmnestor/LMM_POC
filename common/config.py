@@ -194,13 +194,16 @@ def _get_config():
                 # Only exclude TRANSACTION_AMOUNTS_RECEIVED from extraction
                 # ACCOUNT_BALANCE IS extracted (for balance correction) but NOT evaluated (see VALIDATION_ONLY_FIELDS)
                 _exclude_from_extraction = ["TRANSACTION_AMOUNTS_RECEIVED"]
-                self.extraction_fields = [f for f in self.extraction_fields if f not in _exclude_from_extraction]
+                self.extraction_fields = [
+                    f
+                    for f in self.extraction_fields
+                    if f not in _exclude_from_extraction
+                ]
                 self.field_count = len(self.extraction_fields)
                 self.active_field_count = len(self.extraction_fields)
 
                 # Load field type classifications from YAML
                 field_types_from_yaml = loader.get_field_types()
-
 
                 # Simplified field types - all text for simplicity
                 self.field_types = {field: "text" for field in self.extraction_fields}
@@ -211,10 +214,14 @@ def _get_config():
                 self.monetary_fields = field_types_from_yaml.get("monetary", [])
                 self.numeric_id_fields = []
                 self.date_fields = field_types_from_yaml.get("date", [])
-                self.text_fields = field_types_from_yaml.get("text", self.extraction_fields)
+                self.text_fields = field_types_from_yaml.get(
+                    "text", self.extraction_fields
+                )
                 self.boolean_fields = field_types_from_yaml.get("boolean", [])
                 self.calculated_fields = field_types_from_yaml.get("calculated", [])
-                self.transaction_list_fields = field_types_from_yaml.get("transaction_list", [])
+                self.transaction_list_fields = field_types_from_yaml.get(
+                    "transaction_list", []
+                )
 
         _config = SimpleConfig(loader)
     return _config
@@ -400,6 +407,7 @@ def get_transaction_list_fields():
     _ensure_initialized()
     return TRANSACTION_LIST_FIELDS
 
+
 # ============================================================================
 # IMAGE PROCESSING CONSTANTS
 # ============================================================================
@@ -447,11 +455,11 @@ IMAGE_EXTENSIONS = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
 # BATCH PROCESSING CONFIGURATION
 # ============================================================================
 
-# Default batch sizes per model (Balanced for 16GB VRAM)
+# Default batch sizes per model (Balanced for typical VRAM)
 DEFAULT_BATCH_SIZES = {
     "internvl3": 4,  # InternVL3 generic fallback (backward compatibility)
     "internvl3-2b": 4,  # InternVL3-2B is memory efficient, can handle larger batches
-    "internvl3-8b": 1,  # InternVL3-8B with quantization needs conservative batching
+    "internvl3-8b": 4,  # InternVL3-8B uses batch_chat() for efficient batched inference
 }
 
 # ============================================================================
@@ -476,11 +484,11 @@ GENERATION_CONFIGS = {
     },
 }
 
-# Maximum batch sizes per model (Aggressive for 24GB+ VRAM)
+# Maximum batch sizes per model (Aggressive for 64GB+ VRAM)
 MAX_BATCH_SIZES = {
     "internvl3": 8,  # InternVL3 generic fallback (backward compatibility)
     "internvl3-2b": 8,  # InternVL3-2B can handle large batches on high-end GPUs
-    "internvl3-8b": 2,  # InternVL3-8B maximum safe batch size even on powerful GPUs
+    "internvl3-8b": 16,  # InternVL3-8B with batch_chat() on 88GB VRAM (H200/A100)
 }
 
 # Conservative batch sizes per model (Safe for limited memory situations)
@@ -516,6 +524,7 @@ GPU_MEMORY_THRESHOLDS = {
     "low": 8,  # GB - Use conservative batching
     "medium": 16,  # GB - Use default batching
     "high": 24,  # GB - Use aggressive batching
+    "very_high": 64,  # GB - Use maximum batching (H200/A100 88GB)
 }
 
 # Automatic fallback settings
@@ -602,7 +611,9 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
         return get_batch_size_for_model(model_name, CURRENT_BATCH_STRATEGY)
 
     # Determine memory tier
-    if available_memory_gb >= GPU_MEMORY_THRESHOLDS["high"]:
+    if available_memory_gb >= GPU_MEMORY_THRESHOLDS["very_high"]:
+        strategy = "aggressive"
+    elif available_memory_gb >= GPU_MEMORY_THRESHOLDS["high"]:
         strategy = "aggressive"
     elif available_memory_gb >= GPU_MEMORY_THRESHOLDS["medium"]:
         strategy = "balanced"
@@ -652,7 +663,9 @@ def get_max_new_tokens(field_count: int = None, document_type: str = None) -> in
     # Special handling for complex documents that may output JSON with many transactions
     if document_type == "bank_statement":
         # Bank statements can have many transactions, need significantly more tokens for JSON format
-        return max(base_tokens, 1500)  # Ensure at least 1500 tokens for complex bank statements
+        return max(
+            base_tokens, 1500
+        )  # Ensure at least 1500 tokens for complex bank statements
 
     return base_tokens
 
@@ -971,6 +984,7 @@ VALIDATION_ONLY_FIELDS = [
     "ACCOUNT_BALANCE",  # Extracted for balance correction, but not evaluated
 ]
 
+
 def is_evaluation_field(field_name: str) -> bool:
     """
     Check if a field should be included in evaluation metrics.
@@ -983,6 +997,7 @@ def is_evaluation_field(field_name: str) -> bool:
     """
     return field_name not in VALIDATION_ONLY_FIELDS
 
+
 def filter_evaluation_fields(fields: list) -> list:
     """
     Filter a list of fields to exclude validation-only fields.
@@ -994,6 +1009,7 @@ def filter_evaluation_fields(fields: list) -> list:
         list: Filtered list excluding validation-only fields
     """
     return [field for field in fields if is_evaluation_field(field)]
+
 
 def get_validation_only_fields() -> list:
     """

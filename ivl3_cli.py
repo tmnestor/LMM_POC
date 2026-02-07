@@ -319,6 +319,7 @@ def run_batch_processing(
         enable_math_enhancement=False,
         bank_adapter=bank_adapter,
         field_definitions=field_definitions,
+        batch_size=config.batch_size,
     )
 
     # Process batch
@@ -413,6 +414,7 @@ def generate_reports(
     # Build batch config for report
     batch_config = {
         "model_path": str(config.model_path),
+        "batch_size": config.batch_size or "auto",
         "max_tiles": config.max_tiles,
         "flash_attn": config.flash_attn,
         "dtype": config.dtype,
@@ -534,6 +536,12 @@ def main(
         "--document-types",
         help="Filter by document types (comma-separated)",
     ),
+    batch_size: int | None = typer.Option(
+        None,
+        "--batch-size",
+        "-b",
+        help="Images per batch (auto-detect from VRAM if omitted)",
+    ),
     bank_v2: bool | None = typer.Option(
         None,
         "--bank-v2/--no-bank-v2",
@@ -616,6 +624,7 @@ def main(
         "model_path": model_path,
         "ground_truth": ground_truth,
         "max_images": max_images,
+        "batch_size": batch_size,
         "max_tiles": max_tiles,
         "flash_attn": flash_attn,
         "dtype": dtype,
@@ -691,6 +700,10 @@ def main(
     config_table.add_row("Max new tokens", str(config.max_new_tokens))
 
     # Processing options
+    config_table.add_row(
+        "Batch size",
+        str(config.batch_size) if config.batch_size else "[dim]auto[/dim]",
+    )
     config_table.add_row("Bank V2", str(config.bank_v2))
     config_table.add_row("Balance correction", str(config.balance_correction))
     config_table.add_row("Verbose", str(config.verbose))
@@ -749,7 +762,11 @@ def main(
         # Model context: load model, run extraction, then free GPU memory
         with load_model(config) as (model, tokenizer):
             processor = create_processor(
-                model, tokenizer, config, prompt_config, universal_fields,
+                model,
+                tokenizer,
+                config,
+                prompt_config,
+                universal_fields,
                 field_definitions,
             )
 

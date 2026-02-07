@@ -136,6 +136,7 @@ class BatchDocumentProcessor:
         enable_math_enhancement: bool = True,
         bank_adapter=None,
         field_definitions: Optional[Dict[str, List[str]]] = None,
+        batch_size: Optional[int] = None,
     ):
         """
         Initialize batch processor for InternVL3 document extraction.
@@ -148,6 +149,7 @@ class BatchDocumentProcessor:
             enable_math_enhancement: Whether to apply mathematical enhancement for bank statements
             bank_adapter: Optional BankStatementAdapter for sophisticated bank extraction
             field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
+            batch_size: Images per batch (None = auto-detect from VRAM, 1 = sequential)
         """
         # Store InternVL3 handler
         self.internvl3_handler = model
@@ -157,6 +159,7 @@ class BatchDocumentProcessor:
         self.console = console or Console()
         self.enable_math_enhancement = enable_math_enhancement
         self.bank_adapter = bank_adapter
+        self.batch_size = batch_size
 
         # Initialize file-based trace logging
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -176,11 +179,46 @@ class BatchDocumentProcessor:
         with Path(self._trace_file).open("a", encoding="utf-8") as f:
             f.write(f"{message}\n")
 
+    def _resolve_batch_size(self) -> int:
+        """Resolve effective batch size from config or auto-detection."""
+        if self.batch_size is not None:
+            return max(1, self.batch_size)
+
+        # Auto-detect from model's configured batch size
+        return getattr(self.internvl3_handler, "batch_size", 1)
+
+    def _lookup_ground_truth(self, image_path: str) -> dict:
+        """Look up ground truth for an image with fuzzy matching."""
+        if not self.ground_truth_data:
+            return {}
+
+        image_name = Path(image_path).name
+
+        # Try exact match first
+        ground_truth = self.ground_truth_data.get(image_name, {})
+        if ground_truth:
+            return ground_truth
+
+        # Try without extension
+        image_stem = Path(image_path).stem
+        for gt_key in self.ground_truth_data:
+            if Path(gt_key).stem == image_stem or gt_key == image_stem:
+                return self.ground_truth_data[gt_key]
+
+        return {}
+
     def process_batch(
         self, image_paths: List[str], verbose: bool = True, progress_interval: int = 5
     ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
         """
         Process a batch of images through the extraction pipeline.
+
+        Uses a two-phase pipeline when batch_size > 1:
+          Phase 1: Batched document detection (batch_chat)
+          Phase 2: Batched extraction for standard docs, sequential for bank statements
+          Phase 3: Evaluation (unchanged, CPU-only)
+
+        Falls back to sequential processing when batch_size == 1.
 
         Args:
             image_paths: List of image file paths
@@ -190,20 +228,15 @@ class BatchDocumentProcessor:
         Returns:
             Tuple of (batch_results, processing_times, document_types_found)
         """
-        start_time = time.time()
-
-        batch_results = []
-        processing_times = []
-        document_types_found = {}
-
         # Load ground truth data once for the batch
         try:
-            self.ground_truth_data = load_ground_truth(self.ground_truth_csv, verbose=verbose)
+            self.ground_truth_data = load_ground_truth(
+                self.ground_truth_csv, verbose=verbose
+            )
             if verbose:
                 rprint(
                     f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]"
                 )
-                # DEBUG: Show sample GT keys to verify loading
                 sample_keys = list(self.ground_truth_data.keys())[:3]
                 rprint(f"[cyan]📋 Sample GT keys: {sample_keys}[/cyan]")
         except Exception as e:
@@ -211,11 +244,302 @@ class BatchDocumentProcessor:
                 rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
             self.ground_truth_data = {}
 
+        effective_batch_size = self._resolve_batch_size()
+
+        if verbose:
+            rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
+            rprint(f"[dim]  Batch size: {effective_batch_size}[/dim]")
+            self.console.rule("[bold green]Batch Extraction[/bold green]")
+
+        # Route to batched or sequential processing
+        if effective_batch_size > 1 and hasattr(
+            self.internvl3_handler, "batch_detect_documents"
+        ):
+            return self._process_batch_two_phase(
+                image_paths, effective_batch_size, verbose, progress_interval
+            )
+        return self._process_batch_sequential(image_paths, verbose, progress_interval)
+
+    def _process_batch_two_phase(
+        self,
+        image_paths: List[str],
+        batch_size: int,
+        verbose: bool,
+        progress_interval: int,
+    ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
+        """Two-phase batched processing using model.batch_chat().
+
+        Phase 1: Batch detection — classify all images
+        Phase 2: Batch extraction — standard docs batched, bank statements sequential
+        Phase 3: Evaluation — per-image, CPU-only
+        """
+        total_images = len(image_paths)
+        batch_results: List[Dict] = [None] * total_images  # type: ignore[list-item]
+        processing_times: List[float] = [0.0] * total_images
+        document_types_found: Dict[str, int] = {}
+
+        # Progress bar
+        progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("[cyan]{task.fields[current]}[/cyan]"),
+            console=self.console,
+            transient=False,
+        )
+        progress_task = progress.add_task(
+            "Processing images", total=total_images, current=""
+        )
+
+        # ================================================================
+        # PHASE 1: BATCHED DETECTION
+        # ================================================================
+        if verbose:
+            rprint("\n[bold cyan]Phase 1: Batched Document Detection[/bold cyan]")
+
+        detection_start = time.time()
+        all_classification_infos: List[Dict] = []
+
+        for batch_start in range(0, total_images, batch_size):
+            batch_end = min(batch_start + batch_size, total_images)
+            batch_paths = image_paths[batch_start:batch_end]
+
+            if verbose:
+                rprint(
+                    f"[dim]  Detecting batch [{batch_start + 1}-{batch_end}] / {total_images}[/dim]"
+                )
+
+            batch_classifications = self.internvl3_handler.batch_detect_documents(
+                batch_paths, verbose=verbose
+            )
+            all_classification_infos.extend(batch_classifications)
+
+        # Count document types
+        for info in all_classification_infos:
+            doc_type = info["document_type"]
+            document_types_found[doc_type] = document_types_found.get(doc_type, 0) + 1
+
+        if verbose:
+            detection_time = time.time() - detection_start
+            rprint(
+                f"[green]✅ Detection complete: {detection_time:.1f}s for {total_images} images[/green]"
+            )
+            for doc_type, count in sorted(document_types_found.items()):
+                rprint(f"  {doc_type}: {count}")
+
+        # ================================================================
+        # PHASE 2: EXTRACTION (batched for standard, sequential for bank)
+        # ================================================================
+        if verbose:
+            rprint("\n[bold cyan]Phase 2: Document Extraction[/bold cyan]")
+
+        extraction_start = time.time()
+
+        # Partition images into bank vs standard, preserving original indices
+        bank_indices = []
+        standard_indices = []
+        for i, info in enumerate(all_classification_infos):
+            if info["document_type"].upper() == "BANK_STATEMENT":
+                bank_indices.append(i)
+            else:
+                standard_indices.append(i)
+
+        if verbose:
+            rprint(
+                f"[dim]  Standard documents: {len(standard_indices)}, "
+                f"Bank statements: {len(bank_indices)}[/dim]"
+            )
+
+        # --- Standard documents: batched extraction ---
+        if standard_indices:
+            for batch_start_idx in range(0, len(standard_indices), batch_size):
+                batch_end_idx = min(batch_start_idx + batch_size, len(standard_indices))
+                batch_orig_indices = standard_indices[batch_start_idx:batch_end_idx]
+
+                batch_paths = [image_paths[i] for i in batch_orig_indices]
+                batch_class_infos = [
+                    all_classification_infos[i] for i in batch_orig_indices
+                ]
+
+                if verbose:
+                    rprint(
+                        f"[dim]  Extracting standard batch "
+                        f"[{batch_start_idx + 1}-{batch_end_idx}] / {len(standard_indices)}[/dim]"
+                    )
+
+                batch_extract_start = time.time()
+                extraction_results = self.internvl3_handler.batch_extract_documents(
+                    batch_paths, batch_class_infos, verbose=verbose
+                )
+                batch_extract_time = time.time() - batch_extract_start
+
+                # Distribute time evenly across batch
+                per_image_time = (
+                    batch_extract_time / len(batch_orig_indices)
+                    if batch_orig_indices
+                    else 0
+                )
+
+                for j, orig_idx in enumerate(batch_orig_indices):
+                    image_path = image_paths[orig_idx]
+                    image_name = Path(image_path).name
+                    document_type = all_classification_infos[orig_idx]["document_type"]
+                    extraction_result = extraction_results[j]
+
+                    # Format extraction result for evaluation
+                    formatted_result = {
+                        "extracted_data": extraction_result.get("extracted_data", {}),
+                        "document_type": document_type,
+                        "image_file": image_name,
+                        "processing_time": per_image_time,
+                    }
+
+                    # Evaluate
+                    ground_truth = self._lookup_ground_truth(image_path)
+                    if ground_truth:
+                        evaluation = self._evaluate_extraction(
+                            formatted_result,
+                            ground_truth,
+                            document_type,
+                            image_name,
+                            verbose,
+                        )
+                    else:
+                        evaluation = {
+                            "error": f"No ground truth for {image_name}",
+                            "overall_accuracy": 0,
+                        }
+
+                    processing_times[orig_idx] = per_image_time
+                    batch_results[orig_idx] = {
+                        "image_name": image_name,
+                        "image_path": image_path,
+                        "document_type": document_type,
+                        "extraction_result": formatted_result,
+                        "evaluation": evaluation,
+                        "processing_time": per_image_time,
+                        "prompt_used": f"batch_internvl3_{document_type.lower()}",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+
+                    # Update progress
+                    progress.update(progress_task, advance=1, current=image_name)
+                    self.console.print(progress.get_renderable())
+
+                    if verbose and evaluation and "median_f1" in evaluation:
+                        median_f1_pct = evaluation.get("median_f1", 0) * 100
+                        mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
+                        rprint(
+                            f"  [green]✓[/green] {image_name}: "
+                            f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
+                            f"Mean {mean_f1_pct:.1f}% | {per_image_time:.1f}s"
+                        )
+
+        # --- Bank statements: sequential extraction (multi-turn required) ---
+        for orig_idx in bank_indices:
+            image_path = image_paths[orig_idx]
+            image_name = Path(image_path).name
+
+            if verbose:
+                rprint(
+                    f"\n[bold cyan]📊 BANK STATEMENT (sequential): {image_name}[/bold cyan]"
+                )
+
+            bank_start = time.time()
+
+            try:
+                document_type, extraction_result, prompt_name = (
+                    self._process_internvl3_image(image_path, verbose)
+                )
+
+                bank_time = time.time() - bank_start
+
+                # Evaluate
+                ground_truth = self._lookup_ground_truth(image_path)
+                if ground_truth:
+                    evaluation = self._evaluate_extraction(
+                        extraction_result,
+                        ground_truth,
+                        document_type,
+                        image_name,
+                        verbose,
+                    )
+                else:
+                    evaluation = {
+                        "error": f"No ground truth for {image_name}",
+                        "overall_accuracy": 0,
+                    }
+
+                processing_times[orig_idx] = bank_time
+                batch_results[orig_idx] = {
+                    "image_name": image_name,
+                    "image_path": image_path,
+                    "document_type": document_type,
+                    "extraction_result": extraction_result,
+                    "evaluation": evaluation,
+                    "processing_time": bank_time,
+                    "prompt_used": prompt_name,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+            except Exception as e:
+                if verbose:
+                    rprint(
+                        f"[red]❌ Error processing bank statement {image_name}: {e}[/red]"
+                    )
+                bank_time = time.time() - bank_start
+                processing_times[orig_idx] = bank_time
+                batch_results[orig_idx] = {
+                    "image_name": image_name,
+                    "image_path": image_path,
+                    "error": str(e),
+                    "processing_time": bank_time,
+                }
+
+            progress.update(progress_task, advance=1, current=image_name)
+            self.console.print(progress.get_renderable())
+
+            if verbose and batch_results[orig_idx].get("evaluation"):
+                eval_data = batch_results[orig_idx]["evaluation"]
+                if "median_f1" in eval_data:
+                    median_f1_pct = eval_data.get("median_f1", 0) * 100
+                    mean_f1_pct = eval_data.get("overall_accuracy", 0) * 100
+                    rprint(
+                        f"  [green]✓[/green] {image_name}: "
+                        f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
+                        f"Mean {mean_f1_pct:.1f}% | {bank_time:.1f}s"
+                    )
+
+        if verbose:
+            extraction_time = time.time() - extraction_start
+            rprint(f"[green]✅ Extraction complete: {extraction_time:.1f}s[/green]")
+
+        # Print final progress
+        progress.update(progress_task, current="done")
+        self.console.print(progress.get_renderable())
+
+        if verbose:
+            self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+
+        return batch_results, processing_times, document_types_found
+
+    def _process_batch_sequential(
+        self,
+        image_paths: List[str],
+        verbose: bool,
+        progress_interval: int,
+    ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
+        """Sequential processing (batch_size=1). Original behavior."""
+        start_time = time.time()
+
+        batch_results = []
+        processing_times = []
+        document_types_found = {}
+
         if verbose:
             rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
             self.console.rule("[bold green]Batch Extraction[/bold green]")
 
-        # Process each image - non-live progress bar to avoid conflict with UBE stdout
         total_images = len(image_paths)
         progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -226,7 +550,6 @@ class BatchDocumentProcessor:
             transient=False,
         )
 
-        # Print initial progress line (non-live to avoid redraw conflicts)
         progress_task = progress.add_task(
             "Processing images", total=total_images, current=""
         )
@@ -234,7 +557,6 @@ class BatchDocumentProcessor:
         for idx, image_path in enumerate(image_paths, 1):
             image_name = Path(image_path).name
 
-            # Update and print progress before each image
             progress.update(progress_task, current=image_name)
             self.console.print(progress.get_renderable())
 
@@ -244,10 +566,8 @@ class BatchDocumentProcessor:
                 )
 
             try:
-                # Record start time
-                start_time = time.time()
+                img_start_time = time.time()
 
-                # Process image with InternVL3 handler
                 if verbose:
                     rprint(
                         f"[dim]🔍 TRACE: Processing image {idx}/{total_images}: {image_name}[/dim]"
@@ -265,23 +585,9 @@ class BatchDocumentProcessor:
                         f"[dim]🔍 TRACE: Processing complete for {image_name}, doc_type={document_type}[/dim]"
                     )
 
-                # Step 4: Evaluate against ground truth using working DocumentTypeEvaluator approach
                 image_name = Path(image_path).name
 
-                # Fuzzy ground truth lookup - try exact match first, then without extension
-                ground_truth = {}
-                if self.ground_truth_data:
-                    # Try exact match first
-                    ground_truth = self.ground_truth_data.get(image_name, {})
-
-                    # If not found, try without extension
-                    if not ground_truth:
-                        image_stem = Path(image_path).stem  # name without extension
-                        # Look for any GT key that matches the stem
-                        for gt_key in self.ground_truth_data.keys():
-                            if Path(gt_key).stem == image_stem or gt_key == image_stem:
-                                ground_truth = self.ground_truth_data[gt_key]
-                                break
+                ground_truth = self._lookup_ground_truth(image_path)
 
                 if ground_truth:
                     evaluation = self._evaluate_extraction(
@@ -297,11 +603,9 @@ class BatchDocumentProcessor:
                         "overall_accuracy": 0,
                     }
 
-                # Record processing time
-                processing_time = time.time() - start_time
+                processing_time = time.time() - img_start_time
                 processing_times.append(processing_time)
 
-                # Store results
                 result = {
                     "image_name": image_name,
                     "image_path": image_path,
@@ -314,10 +618,8 @@ class BatchDocumentProcessor:
                 }
                 batch_results.append(result)
 
-                # Advance progress after image completes
                 progress.update(progress_task, advance=1)
 
-                # Show compact F1 score for each document when verbose
                 if verbose and evaluation and "median_f1" in evaluation:
                     median_f1_pct = evaluation.get("median_f1", 0) * 100
                     mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
@@ -333,7 +635,6 @@ class BatchDocumentProcessor:
                         f"[cyan]F1 {mean_f1_pct:.1f}%[/cyan] | {processing_time:.1f}s"
                     )
 
-                # Additional verbose progress update
                 if verbose and (idx % progress_interval == 0 or idx == total_images):
                     accuracy = (
                         evaluation.get("overall_accuracy", 0) * 100 if evaluation else 0
@@ -349,26 +650,22 @@ class BatchDocumentProcessor:
 
                 progress.update(progress_task, advance=1)
 
-                # Store error result
                 batch_results.append(
                     {
                         "image_name": image_name,
                         "image_path": image_path,
                         "error": str(e),
-                        "processing_time": time.time() - start_time
-                        if "start_time" in locals()
+                        "processing_time": time.time() - img_start_time
+                        if "img_start_time" in locals()
                         else 0,
                     }
                 )
 
-        # Print final progress
         progress.update(progress_task, current="done")
         self.console.print(progress.get_renderable())
 
         if verbose:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
-
-        end_time = time.time()
 
         return batch_results, processing_times, document_types_found
 
