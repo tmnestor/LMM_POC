@@ -1175,6 +1175,7 @@ class DocumentAwareInternVL3HybridProcessor:
         generation_config = {
             "max_new_tokens": max_tokens,
             "do_sample": False,
+            "pad_token_id": self.tokenizer.eos_token_id,
         }
 
         # Call batch_chat with OOM fallback
@@ -1328,6 +1329,7 @@ class DocumentAwareInternVL3HybridProcessor:
         generation_config = {
             "max_new_tokens": max_tokens_needed,
             "do_sample": False,
+            "pad_token_id": self.tokenizer.eos_token_id,
         }
 
         # Call batch_chat with OOM fallback
