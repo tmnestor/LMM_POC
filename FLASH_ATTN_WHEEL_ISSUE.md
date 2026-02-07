@@ -16,9 +16,11 @@ The wheel filename `flash_attn-2.8.3-py3-none-any.whl` has platform tags `py3-no
 Installing this wheel will produce the same `undefined symbol` ABI mismatch error:
 
 ```
-ImportError: flash_attn_2_cuda.cpython-312-x86_64-linux-gnu.so: undefined symbol:
+ImportError: flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so: undefined symbol:
 _ZN3c105ErrorC2ENS_14SourceLocationENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
 ```
+
+**Note:** This ABI mismatch is specific to Python 3.11. Python 3.12 does not have this issue.
 
 ### How to verify
 
@@ -34,11 +36,11 @@ This will show `Tag: py3-none-any`, confirming it is not a source build.
 A correctly compiled wheel has **platform-specific tags**:
 
 ```
-flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl   <-- source-built (CORRECT)
+flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl   <-- source-built (CORRECT)
 ```
 
 Where:
-- `cp312` = compiled against CPython 3.12 ABI
+- `cp311` = compiled against CPython 3.11 ABI
 - `linux_x86_64` = compiled for this specific platform
 
 ## Required Action
@@ -64,7 +66,7 @@ python setup.py bdist_wheel
 
 # The correctly compiled wheel will be in dist/
 ls dist/
-# Expected: flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl
+# Expected: flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl
 ```
 
 ### Important
@@ -79,6 +81,6 @@ ls dist/
 Once the correct wheel is in `/efs/shared/flash-attn/`, we can install with:
 
 ```bash
-pip install /efs/shared/flash-attn/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl --no-cache-dir
+pip install /efs/shared/flash-attn/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl --no-cache-dir
 python -c "import flash_attn; print(f'flash-attn: {flash_attn.__version__}'); print('SUCCESS')"
 ```
