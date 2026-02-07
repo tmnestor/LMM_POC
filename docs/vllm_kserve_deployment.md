@@ -331,6 +331,12 @@ Based on vLLM benchmarks for comparable vision-language models:
 - [KServe Documentation](https://kserve.github.io/website/)
 - [PagedAttention Paper](https://arxiv.org/abs/2309.06180)
 - [KServe + vLLM Integration](https://kserve.github.io/website/latest/modelserving/v1beta1/llm/vllm/)
+- [InternVL3.5 Usage Guide - vLLM Recipes](https://docs.vllm.ai/projects/recipes/en/latest/InternVL/InternVL3_5.html)
+- [OpenGVLab/InternVL3_5-8B - Hugging Face](https://huggingface.co/OpenGVLab/InternVL3_5-8B)
+- [vLLM Supported Models](https://docs.vllm.ai/en/latest/models/supported_models/)
+- [InternVL3_5-38B vLLM Compatibility Discussion](https://huggingface.co/OpenGVLab/InternVL3_5-38B/discussions/2)
+- [GitHub Issue #16504: InternVL3-8B Support](https://github.com/vllm-project/vllm/issues/16504)
+- [Deploy InternVL3 Series - InternVL Docs](https://internvl.readthedocs.io/en/latest/internvl3.0/deployment.html)
 
 ---
 
