@@ -91,10 +91,9 @@ def create_gpu_status_table() -> Table | None:
         title="GPU Status",
         show_header=True,
         header_style="bold cyan",
-        box=None,
     )
     gpu_table.add_column("GPU", style="white")
-    gpu_table.add_column("Total", justify="right")
+    gpu_table.add_column("Total", justify="right", style="dim")
     gpu_table.add_column("Allocated", justify="right")
     gpu_table.add_column("Reserved", justify="right")
     gpu_table.add_column("Utilization", justify="right")
@@ -290,7 +289,7 @@ def run_batch_processing(
     prompt_config: dict[str, Any],
     images: list[Path],
     field_definitions: dict[str, list[str]],
-) -> tuple[list[dict], list[float], dict[str, int]]:
+) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
     """Run batch document processing with optional bank statement adapter."""
     # Create bank adapter when V2 bank extraction is enabled
     bank_adapter = None
@@ -332,7 +331,12 @@ def run_batch_processing(
         )
     )
 
-    return batch_results, processing_times, document_types_found
+    return (
+        batch_results,
+        processing_times,
+        document_types_found,
+        batch_processor.batch_stats,
+    )
 
 
 def generate_analytics(
@@ -449,6 +453,7 @@ def print_summary(
     batch_results: list[dict],
     processing_times: list[float],
     document_types_found: dict[str, int],
+    batch_stats: dict[str, float] | None = None,
 ) -> None:
     """Print execution summary."""
     # Calculate metrics
@@ -473,6 +478,13 @@ def print_summary(
     table.add_row("Images Processed", str(len(batch_results)))
     table.add_row("Total Time", f"{total_time:.1f}s")
     table.add_row("Avg Time/Image", f"{avg_time:.2f}s")
+
+    # Batch stats
+    if batch_stats:
+        configured = batch_stats.get("configured_batch_size", 1)
+        avg_extract = batch_stats.get("avg_extraction_batch", 1.0)
+        table.add_row("Batch Size (configured)", str(configured))
+        table.add_row("Avg Batch Size (actual)", f"{avg_extract:.1f}")
 
     if config.ground_truth:
         table.add_row("Avg Accuracy", f"{avg_accuracy:.1%}")
@@ -770,7 +782,7 @@ def main(
                 field_definitions,
             )
 
-            batch_results, processing_times, document_types_found = (
+            batch_results, processing_times, document_types_found, batch_stats = (
                 run_batch_processing(
                     config,
                     processor,
@@ -807,7 +819,9 @@ def main(
         )
 
         # Print summary
-        print_summary(config, batch_results, processing_times, document_types_found)
+        print_summary(
+            config, batch_results, processing_times, document_types_found, batch_stats
+        )
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Processing interrupted by user[/yellow]")

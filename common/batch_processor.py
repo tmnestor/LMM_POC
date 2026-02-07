@@ -173,6 +173,9 @@ class BatchDocumentProcessor:
         self.doc_type_fields = field_definitions or load_document_field_definitions()
         self.evaluation_method = os.environ.get("EVALUATION_METHOD", "order_aware_f1")
 
+        # Batch stats — populated after process_batch() completes
+        self.batch_stats: Dict[str, float] = {}
+
     def _trace_log(self, message: str):
         """Log message to both console and file"""
         print(message)
@@ -291,6 +294,10 @@ class BatchDocumentProcessor:
             "Processing images", total=total_images, current=""
         )
 
+        # Track actual batch sizes for reporting
+        detection_batch_sizes: List[int] = []
+        extraction_batch_sizes: List[int] = []
+
         # ================================================================
         # PHASE 1: BATCHED DETECTION
         # ================================================================
@@ -303,6 +310,7 @@ class BatchDocumentProcessor:
         for batch_start in range(0, total_images, batch_size):
             batch_end = min(batch_start + batch_size, total_images)
             batch_paths = image_paths[batch_start:batch_end]
+            detection_batch_sizes.append(len(batch_paths))
 
             if verbose:
                 rprint(
@@ -360,6 +368,7 @@ class BatchDocumentProcessor:
                 batch_class_infos = [
                     all_classification_infos[i] for i in batch_orig_indices
                 ]
+                extraction_batch_sizes.append(len(batch_paths))
 
                 if verbose:
                     rprint(
@@ -437,6 +446,7 @@ class BatchDocumentProcessor:
 
         # --- Bank statements: sequential extraction (multi-turn required) ---
         for orig_idx in bank_indices:
+            extraction_batch_sizes.append(1)
             image_path = image_paths[orig_idx]
             image_name = Path(image_path).name
 
@@ -520,6 +530,25 @@ class BatchDocumentProcessor:
 
         if verbose:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+
+        # Store batch stats for summary reporting
+        avg_detect = (
+            sum(detection_batch_sizes) / len(detection_batch_sizes)
+            if detection_batch_sizes
+            else 1.0
+        )
+        avg_extract = (
+            sum(extraction_batch_sizes) / len(extraction_batch_sizes)
+            if extraction_batch_sizes
+            else 1.0
+        )
+        self.batch_stats = {
+            "avg_detection_batch": avg_detect,
+            "avg_extraction_batch": avg_extract,
+            "num_detection_calls": len(detection_batch_sizes),
+            "num_extraction_calls": len(extraction_batch_sizes),
+            "configured_batch_size": batch_size,
+        }
 
         return batch_results, processing_times, document_types_found
 
@@ -666,6 +695,15 @@ class BatchDocumentProcessor:
 
         if verbose:
             self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+
+        # Sequential = batch size 1
+        self.batch_stats = {
+            "avg_detection_batch": 1.0,
+            "avg_extraction_batch": 1.0,
+            "num_detection_calls": len(image_paths),
+            "num_extraction_calls": len(image_paths),
+            "configured_batch_size": 1,
+        }
 
         return batch_results, processing_times, document_types_found
 
