@@ -501,6 +501,165 @@ def print_summary(
             console.print(f"  {doc_type}: {count}")
 
 
+def print_config(config: PipelineConfig) -> None:
+    """Print configuration panel with all settings."""
+    config_table = Table(show_header=False, box=None, padding=(0, 1))
+    config_table.add_column("Option", style="cyan")
+    config_table.add_column("Value", style="white")
+
+    # Data paths
+    config_table.add_row("Data directory", str(config.data_dir))
+    config_table.add_row("Output directory", str(config.output_dir))
+    config_table.add_row("Model path", str(config.model_path))
+    config_table.add_row(
+        "Ground truth",
+        str(config.ground_truth)
+        if config.ground_truth
+        else "[dim]None (inference-only)[/dim]",
+    )
+
+    # Model settings
+    config_table.add_row("Max tiles", str(config.max_tiles))
+    config_table.add_row("Flash attention", str(config.flash_attn))
+    config_table.add_row("Dtype", config.dtype)
+    config_table.add_row("Max new tokens", str(config.max_new_tokens))
+
+    # Processing options
+    config_table.add_row(
+        "Batch size",
+        str(config.batch_size) if config.batch_size else "[dim]auto[/dim]",
+    )
+    config_table.add_row("Bank V2", str(config.bank_v2))
+    config_table.add_row("Balance correction", str(config.balance_correction))
+    config_table.add_row("Verbose", str(config.verbose))
+
+    # Output options
+    config_table.add_row("Skip visualizations", str(config.skip_visualizations))
+    config_table.add_row("Skip reports", str(config.skip_reports))
+
+    # Optional filters
+    if config.max_images:
+        config_table.add_row("Max images", str(config.max_images))
+    if config.document_types:
+        config_table.add_row("Document types", ", ".join(config.document_types))
+
+    header_content = Group(
+        Text.from_markup(f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}"),
+        Text.from_markup("[dim]InternVL3.5-8B Document Extraction[/dim]"),
+        Text(""),
+        config_table,
+    )
+
+    console.print(
+        Panel(
+            header_content,
+            border_style="blue",
+            title="Configuration",
+            title_align="left",
+        )
+    )
+
+
+# ============================================================================
+# Pipeline Orchestration
+# ============================================================================
+
+
+def run_pipeline(config: PipelineConfig) -> None:
+    """Run the full extraction pipeline from a validated config.
+
+    This function is independently callable from tests, notebooks, or the CLI.
+    It handles: output setup, image discovery, model loading, batch processing,
+    analytics, visualizations, reports, and summary.
+    """
+    # Setup output directories
+    console.print("\n[bold]Setting up output directories...[/bold]")
+    output_dirs = setup_output_directories(config)
+
+    # Discover images
+    images = list(discover_images(config.data_dir, config.document_types))
+    if config.max_images:
+        images = images[: config.max_images]
+
+    if not images:
+        from common.pipeline_config import IMAGE_EXTENSIONS
+
+        exts = ", ".join(IMAGE_EXTENSIONS)
+        console.print(
+            f"[red]FATAL: No images found in: {config.data_dir}. Supported formats: {exts}[/red]"
+        )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
+
+    # Load configs (no GPU needed)
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs()
+
+    try:
+        # Model context: load model, run extraction, then free GPU memory
+        with load_model(config) as (model, tokenizer):
+            processor = create_processor(
+                model,
+                tokenizer,
+                config,
+                prompt_config,
+                universal_fields,
+                field_definitions,
+            )
+
+            batch_results, processing_times, document_types_found, batch_stats = (
+                run_batch_processing(
+                    config,
+                    processor,
+                    prompt_config,
+                    images,
+                    field_definitions,
+                )
+            )
+        # Model freed here — post-processing is CPU-only
+
+        # Generate analytics
+        _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = (
+            generate_analytics(
+                config,
+                output_dirs,
+                batch_results,
+                processing_times,
+            )
+        )
+
+        # Generate visualizations
+        generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
+
+        # Generate reports
+        generate_reports(
+            config,
+            output_dirs,
+            batch_results,
+            processing_times,
+            document_types_found,
+            df_results,
+            df_summary,
+            df_doctype_stats,
+        )
+
+        # Print summary
+        print_summary(
+            config, batch_results, processing_times, document_types_found, batch_stats
+        )
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Processing interrupted by user[/yellow]")
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+    except Exception as e:
+        console.print(f"\n[red]FATAL: Processing error: {e}[/red]")
+        if config.verbose:
+            console.print_exception()
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+
+    console.print("\n[bold green]Pipeline completed successfully![/bold green]")
+
+
 # ============================================================================
 # Main CLI Command
 # ============================================================================
@@ -627,8 +786,6 @@ def main(
         console.print(f"{APP_NAME} v{VERSION}")
         raise typer.Exit(EXIT_SUCCESS)
 
-    # Header will be printed after config is loaded (to show actual values)
-
     # Build CLI args dict (only non-None values)
     arg_mapping = {
         "data_dir": data_dir,
@@ -679,160 +836,18 @@ def main(
         )
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    # Merge configurations
+    # Merge and validate configuration
     config = merge_configs(cli_args, yaml_config, env_config)
 
-    # Validate configuration
     errors = validate_config(config)
     if errors:
         for error in errors:
             console.print(f"[red]FATAL: {error}[/red]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    # Print header with configuration table (always shown for audit purposes)
-    config_table = Table(show_header=False, box=None, padding=(0, 1))
-    config_table.add_column("Option", style="cyan")
-    config_table.add_column("Value", style="white")
-
-    # Data paths
-    config_table.add_row("Data directory", str(config.data_dir))
-    config_table.add_row("Output directory", str(config.output_dir))
-    config_table.add_row("Model path", str(config.model_path))
-    config_table.add_row(
-        "Ground truth",
-        str(config.ground_truth)
-        if config.ground_truth
-        else "[dim]None (inference-only)[/dim]",
-    )
-
-    # Model settings
-    config_table.add_row("Max tiles", str(config.max_tiles))
-    config_table.add_row("Flash attention", str(config.flash_attn))
-    config_table.add_row("Dtype", config.dtype)
-    config_table.add_row("Max new tokens", str(config.max_new_tokens))
-
-    # Processing options
-    config_table.add_row(
-        "Batch size",
-        str(config.batch_size) if config.batch_size else "[dim]auto[/dim]",
-    )
-    config_table.add_row("Bank V2", str(config.bank_v2))
-    config_table.add_row("Balance correction", str(config.balance_correction))
-    config_table.add_row("Verbose", str(config.verbose))
-
-    # Output options
-    config_table.add_row("Skip visualizations", str(config.skip_visualizations))
-    config_table.add_row("Skip reports", str(config.skip_reports))
-
-    # Optional filters
-    if config.max_images:
-        config_table.add_row("Max images", str(config.max_images))
-    if config.document_types:
-        config_table.add_row("Document types", ", ".join(config.document_types))
-
-    header_content = Group(
-        Text.from_markup(f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}"),
-        Text.from_markup("[dim]InternVL3.5-8B Document Extraction[/dim]"),
-        Text(""),  # Blank line
-        config_table,
-    )
-
-    console.print(
-        Panel(
-            header_content,
-            border_style="blue",
-            title="Configuration",
-            title_align="left",
-        )
-    )
-
-    # Setup output directories
-    console.print("\n[bold]Setting up output directories...[/bold]")
-    output_dirs = setup_output_directories(config)
-
-    # Discover images
-    images = list(discover_images(config.data_dir, config.document_types))
-    if config.max_images:
-        images = images[: config.max_images]
-
-    if not images:
-        from common.pipeline_config import IMAGE_EXTENSIONS
-
-        exts = ", ".join(IMAGE_EXTENSIONS)
-        console.print(
-            f"[red]FATAL: No images found in: {config.data_dir}. Supported formats: {exts}[/red]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
-
-    # Load configs (no GPU needed)
-    prompt_config, universal_fields, field_definitions = load_pipeline_configs()
-
-    # Run pipeline
-    try:
-        # Model context: load model, run extraction, then free GPU memory
-        with load_model(config) as (model, tokenizer):
-            processor = create_processor(
-                model,
-                tokenizer,
-                config,
-                prompt_config,
-                universal_fields,
-                field_definitions,
-            )
-
-            batch_results, processing_times, document_types_found, batch_stats = (
-                run_batch_processing(
-                    config,
-                    processor,
-                    prompt_config,
-                    images,
-                    field_definitions,
-                )
-            )
-        # Model freed here — post-processing is CPU-only
-
-        # Generate analytics
-        analytics, df_results, df_summary, df_doctype_stats, df_field_stats = (
-            generate_analytics(
-                config,
-                output_dirs,
-                batch_results,
-                processing_times,
-            )
-        )
-
-        # Generate visualizations
-        generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
-
-        # Generate reports
-        generate_reports(
-            config,
-            output_dirs,
-            batch_results,
-            processing_times,
-            document_types_found,
-            df_results,
-            df_summary,
-            df_doctype_stats,
-        )
-
-        # Print summary
-        print_summary(
-            config, batch_results, processing_times, document_types_found, batch_stats
-        )
-
-    except KeyboardInterrupt:
-        console.print("\n[yellow]Processing interrupted by user[/yellow]")
-        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
-    except Exception as e:
-        console.print(f"\n[red]FATAL: Processing error: {e}[/red]")
-        if config.verbose:
-            console.print_exception()
-        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
-
-    console.print("\n[bold green]Pipeline completed successfully![/bold green]")
+    # Display configuration and run pipeline
+    print_config(config)
+    run_pipeline(config)
     raise typer.Exit(EXIT_SUCCESS)
 
 
