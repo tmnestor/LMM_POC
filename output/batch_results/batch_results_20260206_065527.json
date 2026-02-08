@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "batch_id": "20260206_065527",
+    "timestamp": "2026-02-06T07:01:08.724824",
+    "model": "/home/jovyan/nfs_share/models/InternVL3_5-8B",
+    "total_images": 9,
+    "successful_extractions": 9,
+    "average_accuracy": 94.4514991181658,
+    "total_processing_time": 336.2921040058136,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": null,
+    "ground_truth": null,
+    "max_images": null,
+    "document_types": null,
+    "v100_optimizations": {
+      "dtype": null,
+      "no_flash_attn": false
+    }
+  },
+  "summary_statistics": {
+    "Total Images": 9.0,
+    "Successful Extractions": 9.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 94.4514991181658,
+    "Median Accuracy (%)": 100.0,
+    "Min Accuracy (%)": 71.42857142857143,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 37.365789333979286,
+    "Total Processing Time (s)": 336.2921040058136,
+    "Throughput (images/min)": 1.6057468895869909
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 3,
+    "RECEIPT": 3,
+    "INVOICE": 3
+  },
+  "results": [
+    {
+      "image_name": "cba_amount_balance.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_amount_description_2turn",
+      "processing_time": 84.46005392074585,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8800000000000001,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_debit_credit_description_2turn",
+      "processing_time": 60.35720372200012,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9777777777777779,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 45.64105153083801,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 22.143342971801758,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 23.76065230369568,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_004.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "internvl3_receipt",
+      "processing_time": 19.054766416549683,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_005.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 25.852569580078125,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 14,
+        "fields_matched": 14,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_006.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 32.62863826751709,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_007.png",
+      "document_type": "INVOICE",
+      "prompt_used": "internvl3_invoice",
+      "processing_time": 22.39382529258728,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7142857142857143,
+        "fields_extracted": 11,
+        "fields_matched": 10,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    }
+  ]
+}
