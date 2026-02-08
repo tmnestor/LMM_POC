@@ -1,125 +1,145 @@
-# Flash Attention Wheel Issue - Action Required
+# Flash Attention Wheel Issue - Request to Data Engineering
 
-## Background: Why Flash Attention Must Match Your Exact Environment
+## Current Environment
 
-Flash Attention is a compiled CUDA extension — not pure Python. Its wheel contains pre-compiled C++ and CUDA kernels that are **binary-coupled** to three specific components of the runtime environment:
-
-| Component | Why it must match |
-|-----------|-------------------|
-| **Python version** | The compiled `.so` files link against a specific CPython ABI (e.g. `cp311`). A wheel built for Python 3.12 cannot load in Python 3.11. |
-| **PyTorch version** | Flash Attention calls PyTorch's internal C++ API (`libtorch`). These internal symbols change between PyTorch releases, so a wheel compiled against PyTorch 2.5 will produce `undefined symbol` errors on PyTorch 2.6. |
-| **CUDA version** | The CUDA kernels are compiled for specific CUDA toolkit versions. Mismatched CUDA runtime/toolkit versions produce load failures or silent correctness issues. |
-
-A mismatch in **any one** of these produces `ImportError: undefined symbol` at import time.
-
-### The C++11 ABI Problem
-
-On top of version matching, there is an **ABI (Application Binary Interface) flag** issue:
-
-- **PyTorch pip wheels** are compiled with the legacy C++ ABI: `_GLIBCXX_USE_CXX11_ABI=0`
-- **Linux system compilers** (`g++`) default to the new ABI: `_GLIBCXX_USE_CXX11_ABI=1`
-
-When flash-attn is compiled from source without explicitly setting `ABI=0`, the resulting `.so` files use the new ABI but try to link against PyTorch's old-ABI symbols — producing the `undefined symbol` error. This is specific to our **Python 3.11** environment; Python 3.12 does not exhibit this issue.
-
-The flash-attn project publishes ~200 prebuilt wheel variants to cover different combinations ([Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases)), but when no matching wheel exists — or the matching wheel itself has a binary regression — a **patched source build** is required.
-
-### References
-
-- [flash-attn Issue #1783](https://github.com/Dao-AILab/flash-attention/issues/1783) — Binary compatibility failure with flash_attn 2.8.2 + PyTorch 2.6.0+cu124 on Python 3.11 (our exact scenario)
-- [flash-attn Issue #1644](https://github.com/Dao-AILab/flash-attention/issues/1644) — PyTorch ABI changes breaking existing flash-attn wheels
-- [flash-attn Issue #1717](https://github.com/Dao-AILab/flash-attention/issues/1717) — Undefined symbol errors in flash-attn 2.8 wheel builds
-- [PyTorch Issue #51039](https://github.com/pytorch/pytorch/issues/51039) — Long-standing discussion on PyTorch's `_GLIBCXX_USE_CXX11_ABI=0` wheel policy
-- [flash-attn Installation & Setup (DeepWiki)](https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup) — Wheel selection process and ABI compatibility details
+```
+PyTorch: 2.9.1+cu128
+CUDA available: True
+CUDA version: 12.8
+GPU: NVIDIA L4
+Python: 3.12
+```
 
 ---
 
-## Current State
+## Why the Generic Wheel Will Not Work
 
-The wheel at `/efs/shared/flash-attn/` is **not a source-compiled build**:
+Flash Attention is a compiled CUDA extension — not pure Python. Its wheel contains pre-compiled C++ and CUDA kernels that are **binary-coupled** to three specific components of the runtime environment:
+
+| Component | Required value | Why it must match |
+|-----------|---------------|-------------------|
+| **Python version** | 3.12 (`cp312`) | The compiled `.so` files link against a specific CPython ABI. A wheel built for Python 3.11 cannot load in Python 3.12. |
+| **PyTorch version** | 2.9.1 (`torch291`) | Flash Attention calls PyTorch's internal C++ API (`libtorch`). These internal symbols change between PyTorch releases — a wheel compiled against PyTorch 2.6 will produce `undefined symbol` errors on PyTorch 2.9. |
+| **CUDA version** | 12.8 (`cu128`) | The CUDA kernels are compiled for specific CUDA toolkit versions. Mismatched versions produce load failures or silent correctness issues. |
+
+A mismatch in **any one** of these produces `ImportError` at import time.
+
+### The Generic Wheel Problem
+
+The generic wheel available on PyPI has platform tags `py3-none-any`:
 
 ```
-flash_attn-2.8.3-py3-none-any.whl   <-- prebuilt (WRONG)
-flash_attn-2.8.3.tar.gz             <-- source tarball (unused)
+flash_attn-X.X.X-py3-none-any.whl   <-- WILL NOT WORK
 ```
 
-## The Problem
-
-The wheel filename `flash_attn-2.8.3-py3-none-any.whl` has platform tags `py3-none-any`, which indicates it is the **prebuilt wheel downloaded from GitHub/PyPI** — not a wheel compiled from source with the ABI patch.
-
-Additionally, the `py3-none-any` wheel **does not contain compiled CUDA kernels at all**. It is only the Python wrapper code. Installing it produces:
+This wheel **does not contain compiled CUDA kernels**. It is only the Python wrapper code. Installing it produces:
 
 ```
 ModuleNotFoundError: No module named 'flash_attn_2_cuda'
 ```
 
-This was confirmed by testing the wheel in a Python 3.12 environment (which does not have the ABI issue). The wheel is missing the compiled `.so` files entirely — it will fail on **any** Python version.
+### Pre-built Wheels from GitHub Releases
 
-On a Python 3.11 environment (our target), it would also produce the ABI mismatch error:
+The flash-attn project publishes ~200 prebuilt wheel variants ([Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases)) covering common combinations. However, our specific combination of **Python 3.12 + PyTorch 2.9.1 + CUDA 12.8** may not have a matching pre-built wheel. Even when a pre-built wheel exists, binary regressions have been reported (see References).
 
-```
-ImportError: flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so: undefined symbol:
-_ZN3c105ErrorC2ENS_14SourceLocationENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-```
+### What a Correct Wheel Looks Like
 
-### How to verify
-
-```bash
-unzip -p /efs/shared/flash-attn/flash_attn-2.8.3-py3-none-any.whl \
-  flash_attn-2.8.3.dist-info/WHEEL
-```
-
-This will show `Tag: py3-none-any`, confirming it is not a source build.
-
-### What a correct source build looks like
-
-A correctly compiled wheel has **platform-specific tags**:
+A correctly compiled wheel has **platform-specific tags** matching our environment:
 
 ```
-flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl   <-- source-built (CORRECT)
+flash_attn-X.X.X-cp312-cp312-linux_x86_64.whl   <-- CORRECT
 ```
 
 Where:
-- `cp311` = compiled against CPython 3.11 ABI
+- `cp312` = compiled against CPython 3.12 ABI
 - `linux_x86_64` = compiled for this specific platform
 
-## Required Action
+---
 
-The source tarball (`flash_attn-2.8.3.tar.gz`) is already in place. Steps 4 and 5 from the [build guide](FLASH_ATTENTION_SOURCE_BUILD.md) need to be completed:
+## Request to Data Engineering
+
+We need a flash-attn wheel compiled from source against our exact environment. The build must run on a machine with an NVIDIA GPU and CUDA 12.8 toolkit installed.
+
+### Build Environment Requirements
+
+| Requirement | Value |
+|------------|-------|
+| Python | 3.12 |
+| PyTorch | 2.9.1+cu128 |
+| CUDA Toolkit | 12.8 |
+| GPU | Any NVIDIA GPU (L4, A10G, etc.) |
+| OS | Linux x86_64 |
+
+### Build Steps
 
 ```bash
-# Extract the source tarball
-cd /efs/shared/flash-attn
-tar xzf flash_attn-2.8.3.tar.gz
-cd flash_attn-2.8.3
+# 1. Activate the target conda environment (must have Python 3.12 + PyTorch 2.9.1+cu128)
+conda activate lmm_poc_env
 
-# Step 4: Patch setup.py with ABI=0 flag (two patches)
-sed -i 's/compiler_c17_flag=\["-O3", "-std=c++17"\]/compiler_c17_flag=["-O3", "-std=c++17", "-D_GLIBCXX_USE_CXX11_ABI=0"]/' setup.py
-sed -i 's/nvcc_flags = \[/nvcc_flags = [\n    "-Xcompiler", "-D_GLIBCXX_USE_CXX11_ABI=0",/' setup.py
+# 2. Verify the environment matches
+python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {torch.version.cuda}'); import sys; print(f'Python: {sys.version}')"
+# Expected output:
+#   PyTorch: 2.9.1+cu128
+#   CUDA: 12.8
+#   Python: 3.12.x
 
-# Verify BOTH patches applied (should show 2 matches)
-grep -c "GLIBCXX_USE_CXX11_ABI=0" setup.py
+# 3. Install build dependencies
+pip install ninja packaging wheel setuptools
 
-# Step 5: Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
+# 4. Clone or download flash-attn source
+pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src
+cd /tmp/flash-attn-src
+tar xzf flash_attn-*.tar.gz
+cd flash_attn-*
+
+# 5. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
 export FLASH_ATTENTION_FORCE_BUILD=TRUE
+export MAX_JOBS=4    # adjust based on available CPU/memory
 python setup.py bdist_wheel
 
-# The correctly compiled wheel will be in dist/
+# 6. Verify the output wheel has correct platform tags
 ls dist/
-# Expected: flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl
+# Expected: flash_attn-X.X.X-cp312-cp312-linux_x86_64.whl
+# MUST NOT be: flash_attn-X.X.X-py3-none-any.whl
+
+# 7. Copy to shared storage
+cp dist/flash_attn-*-cp312-cp312-linux_x86_64.whl /efs/shared/flash-attn/
 ```
 
-### Important
+### Critical Notes
 
-- `FLASH_ATTENTION_FORCE_BUILD=TRUE` **must** be set — without it, `setup.py` downloads the prebuilt wheel from GitHub instead of compiling.
-- The `grep` check must show **2 matches** (one for C++ flags, one for NVCC flags).
-- The build takes several minutes as it compiles CUDA kernels.
-- The output wheel in `dist/` **must** have platform-specific tags (`cp3xx-cp3xx-linux_x86_64`), not `py3-none-any`.
+- **`FLASH_ATTENTION_FORCE_BUILD=TRUE` must be set** — without it, `setup.py` downloads the pre-built wheel from GitHub instead of compiling from source.
+- The build takes **10-30 minutes** as it compiles CUDA kernels.
+- The output wheel in `dist/` **must** have platform-specific tags (`cp312-cp312-linux_x86_64`), not `py3-none-any`.
+- The build **must** run on a machine with a GPU — the CUDA compiler needs GPU headers.
 
-## After the Build
+---
 
-Once the correct wheel is in `/efs/shared/flash-attn/`, we can install with:
+## Verification After Install
+
+Once the correct wheel is available:
 
 ```bash
-pip install /efs/shared/flash-attn/flash_attn-2.8.3-cp311-cp311-linux_x86_64.whl --no-cache-dir
-python -c "import flash_attn; print(f'flash-attn: {flash_attn.__version__}'); print('SUCCESS')"
+# Install the wheel
+pip install /efs/shared/flash-attn/flash_attn-*-cp312-cp312-linux_x86_64.whl --no-cache-dir
+
+# Verify it loads correctly
+python -c "
+import flash_attn
+print(f'flash-attn: {flash_attn.__version__}')
+from flash_attn import flash_attn_func
+print('CUDA kernels loaded successfully')
+print('SUCCESS')
+"
 ```
+
+---
+
+## References
+
+- [Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases) — Pre-built wheel variants
+- [flash-attn Issue #1783](https://github.com/Dao-AILab/flash-attention/issues/1783) — Binary compatibility failure with PyTorch version mismatches
+- [flash-attn Issue #1644](https://github.com/Dao-AILab/flash-attention/issues/1644) — PyTorch ABI changes breaking existing flash-attn wheels
+- [flash-attn Issue #1717](https://github.com/Dao-AILab/flash-attention/issues/1717) — Undefined symbol errors in flash-attn wheel builds
+- [PyTorch Issue #51039](https://github.com/pytorch/pytorch/issues/51039) — PyTorch's `_GLIBCXX_USE_CXX11_ABI=0` wheel policy
+- [flash-attn Installation & Setup (DeepWiki)](https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup) — Wheel selection process and ABI compatibility details
