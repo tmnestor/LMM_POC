@@ -70,6 +70,17 @@ We need a flash-attn wheel compiled from source against our exact environment. T
 | GPU | Any NVIDIA GPU (L4, A10G, etc.) |
 | OS | Linux x86_64 |
 
+### What We Need from Data Engineering
+
+Our GPU environment does not have proxy forwarding / internet access, so we cannot run `pip download` directly. We need the flash-attn source tarball downloaded to shared storage:
+
+```bash
+# Run this from a machine with internet access:
+pip download flash-attn --no-binary :all: --no-deps -d /efs/shared/flash-attn/
+```
+
+Once the source tarball is in `/efs/shared/flash-attn/`, we can complete the build ourselves (Steps 1-7 below).
+
 ### Build Steps
 
 ```bash
@@ -86,9 +97,8 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {
 # 3. Install build dependencies
 pip install ninja packaging wheel setuptools
 
-# 4. Clone or download flash-attn source
-pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src
-cd /tmp/flash-attn-src
+# 4. Extract the source tarball from shared storage
+cd /efs/shared/flash-attn
 tar xzf flash_attn-*.tar.gz
 cd flash_attn-*
 
