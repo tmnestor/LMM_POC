@@ -94,16 +94,17 @@ When an image enters the pipeline, the system classifies it using a VLM prompt d
 ```mermaid
 sequenceDiagram
     participant BP as BatchDocumentProcessor
-    participant YAML as detection.yaml
     participant VLM as Vision Language Model
     participant Parser as Type Parser
 
-    BP->>YAML: Load detection prompt + settings
-    BP->>VLM: Send image + detection prompt
-    VLM-->>Parser: Raw response text
-    Parser->>YAML: Look up type_mappings
+    note right of BP: Loads prompt + settings<br/>from detection.yaml
+    BP->>VLM: Image + detection prompt
+    VLM-->>BP: Raw response text
+    BP->>Parser: Parse response (using type_mappings)
     Parser-->>BP: Normalized type (e.g. "INVOICE")
 ```
+
+> **Reading sequence diagrams:** Solid arrows (&#x2192;) are calls/requests. Dashed arrows (&#x21E2;) are returns/responses. This is standard UML notation.
 
 ### Type mappings normalise VLM output
 
