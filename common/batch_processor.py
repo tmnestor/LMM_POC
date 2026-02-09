@@ -139,10 +139,10 @@ class BatchDocumentProcessor:
         batch_size: Optional[int] = None,
     ):
         """
-        Initialize batch processor for InternVL3 document extraction.
+        Initialize batch processor for document extraction.
 
         Args:
-            model: InternVL3 handler (DocumentAwareInternVL3HybridProcessor)
+            model: Model handler implementing detect_and_classify_document() and process_document_aware()
             prompt_config: Dictionary with prompt file paths and keys
             ground_truth_csv: Path to ground truth CSV file
             console: Rich console for output
@@ -151,8 +151,8 @@ class BatchDocumentProcessor:
             field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
             batch_size: Images per batch (None = auto-detect from VRAM, 1 = sequential)
         """
-        # Store InternVL3 handler
-        self.internvl3_handler = model
+        # Store model handler
+        self.model_handler = model
 
         self.prompt_config = prompt_config
         self.ground_truth_csv = ground_truth_csv
@@ -188,7 +188,7 @@ class BatchDocumentProcessor:
             return max(1, self.batch_size)
 
         # Auto-detect from model's configured batch size
-        return getattr(self.internvl3_handler, "batch_size", 1)
+        return getattr(self.model_handler, "batch_size", 1)
 
     def _lookup_ground_truth(self, image_path: str) -> dict:
         """Look up ground truth for an image with fuzzy matching."""
@@ -256,7 +256,7 @@ class BatchDocumentProcessor:
 
         # Route to batched or sequential processing
         if effective_batch_size > 1 and hasattr(
-            self.internvl3_handler, "batch_detect_documents"
+            self.model_handler, "batch_detect_documents"
         ):
             return self._process_batch_two_phase(
                 image_paths, effective_batch_size, verbose, progress_interval
@@ -317,7 +317,7 @@ class BatchDocumentProcessor:
                     f"[dim]  Detecting batch [{batch_start + 1}-{batch_end}] / {total_images}[/dim]"
                 )
 
-            batch_classifications = self.internvl3_handler.batch_detect_documents(
+            batch_classifications = self.model_handler.batch_detect_documents(
                 batch_paths, verbose=verbose
             )
             all_classification_infos.extend(batch_classifications)
@@ -377,7 +377,7 @@ class BatchDocumentProcessor:
                     )
 
                 batch_extract_start = time.time()
-                extraction_results = self.internvl3_handler.batch_extract_documents(
+                extraction_results = self.model_handler.batch_extract_documents(
                     batch_paths, batch_class_infos, verbose=verbose
                 )
                 batch_extract_time = time.time() - batch_extract_start
@@ -427,7 +427,7 @@ class BatchDocumentProcessor:
                         "extraction_result": formatted_result,
                         "evaluation": evaluation,
                         "processing_time": per_image_time,
-                        "prompt_used": f"batch_internvl3_{document_type.lower()}",
+                        "prompt_used": f"batch_{document_type.lower()}",
                         "timestamp": datetime.now().isoformat(),
                     }
 
@@ -458,8 +458,8 @@ class BatchDocumentProcessor:
             bank_start = time.time()
 
             try:
-                document_type, extraction_result, prompt_name = (
-                    self._process_internvl3_image(image_path, verbose)
+                document_type, extraction_result, prompt_name = self._process_image(
+                    image_path, verbose
                 )
 
                 bank_time = time.time() - bank_start
@@ -602,8 +602,8 @@ class BatchDocumentProcessor:
                         f"[dim]🔍 TRACE: Processing image {idx}/{total_images}: {image_name}[/dim]"
                     )
 
-                document_type, extraction_result, prompt_name = (
-                    self._process_internvl3_image(image_path, verbose)
+                document_type, extraction_result, prompt_name = self._process_image(
+                    image_path, verbose
                 )
                 document_types_found[document_type] = (
                     document_types_found.get(document_type, 0) + 1
@@ -1056,11 +1056,9 @@ class BatchDocumentProcessor:
                 rprint("[yellow]⚠️ Falling back to original data[/yellow]")
             return extracted_data
 
-    def _process_internvl3_image(
-        self, image_path: str, verbose: bool
-    ) -> Tuple[str, Dict, str]:
+    def _process_image(self, image_path: str, verbose: bool) -> Tuple[str, Dict, str]:
         """
-        Process single image using InternVL3 handler.
+        Process single image using model handler.
 
         Routes bank statements to BankStatementAdapter when available,
         otherwise uses standard document-aware extraction for all types.
@@ -1074,11 +1072,11 @@ class BatchDocumentProcessor:
         """
 
         if verbose:
-            rprint("\n[bold cyan]📋 INTERNVL3 DOCUMENT TYPE DETECTION[/bold cyan]")
+            rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
             rprint("[cyan]━" * 80 + "[/cyan]")
 
         # Step 1: Detect and classify document
-        classification_info = self.internvl3_handler.detect_and_classify_document(
+        classification_info = self.model_handler.detect_and_classify_document(
             image_path, verbose=verbose
         )
         document_type = classification_info["document_type"]
@@ -1128,11 +1126,11 @@ class BatchDocumentProcessor:
         # Step 3: Standard document-aware extraction (invoices, receipts, or bank fallback)
         if verbose:
             rprint(
-                f"[bold cyan]📊 INTERNVL3 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]"
+                f"[bold cyan]📊 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]"
             )
             rprint("[cyan]━" * 80 + "[/cyan]")
 
-        extraction_result = self.internvl3_handler.process_document_aware(
+        extraction_result = self.model_handler.process_document_aware(
             image_path, classification_info, verbose=verbose
         )
 
@@ -1150,8 +1148,7 @@ class BatchDocumentProcessor:
             "processing_time": extraction_result.get("processing_time", 0),
         }
 
-        # Prompt name for InternVL3
-        prompt_name = f"internvl3_{document_type.lower()}"
+        prompt_name = f"{document_type.lower()}"
 
         return document_type, formatted_result, prompt_name
 

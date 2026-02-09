@@ -550,7 +550,7 @@ def get_model_name_with_size(
     Generate size-aware model name for batch size configuration lookup.
 
     Args:
-        base_model_name (str): Base model name ('internvl3', 'llama', etc.)
+        base_model_name (str): Base model name ('internvl3', etc.)
         model_path (str): Path to model (used for size detection if is_8b_model not provided)
         is_8b_model (bool): Whether model is 8B variant (overrides path detection)
 
@@ -579,7 +579,7 @@ def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
     Get recommended batch size for a model based on strategy.
 
     Args:
-        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
+        model_name (str): Model name ('internvl3', 'internvl3-2b', 'internvl3-8b')
         strategy (str): Batching strategy ('conservative', 'balanced', 'aggressive')
 
     Returns:
@@ -601,7 +601,7 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
     Automatically determine batch size based on available GPU memory.
 
     Args:
-        model_name (str): Model name ('llama', 'internvl3', 'internvl3-2b', 'internvl3-8b')
+        model_name (str): Model name ('internvl3', 'internvl3-2b', 'internvl3-8b')
         available_memory_gb (float): Available GPU memory in GB
 
     Returns:

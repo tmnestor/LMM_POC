@@ -526,10 +526,62 @@ The field list stays the same for all variants — only the prompt changes.
 | `common/bank_statement_adapter.py` | Multi-turn extraction for complex tables |
 | `evaluation_data/*/ground_truth_*.csv` | Ground truth per document type |
 
+## Model Processor Interface
+
+`BatchDocumentProcessor` expects a model handler object that implements a duck-typed interface. Any model processor that provides these methods can be plugged into the pipeline without changes to the batch processing code.
+
+### Required methods
+
+These methods must be implemented for the pipeline to function:
+
+```python
+def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> dict:
+    """Classify a document image into a type.
+
+    Returns:
+        dict with at least {"document_type": "INVOICE" | "RECEIPT" | "BANK_STATEMENT" | ...}
+    """
+
+def process_document_aware(self, image_path: str, classification_info: dict, verbose: bool = False) -> dict:
+    """Extract fields from a document given its classification.
+
+    Returns:
+        dict with at least {"extracted_data": {field: value, ...}}
+    """
+```
+
+### Optional methods (enable batch mode)
+
+When these methods are present and `batch_size > 1`, the pipeline uses batched inference for higher throughput:
+
+```python
+def batch_detect_documents(self, image_paths: list[str], verbose: bool = False) -> list[dict]:
+    """Classify multiple documents in a single batched call.
+
+    Returns:
+        List of classification dicts, one per image (same format as detect_and_classify_document).
+    """
+
+def batch_extract_documents(
+    self, image_paths: list[str], classification_infos: list[dict], verbose: bool = False
+) -> list[dict]:
+    """Extract fields from multiple documents in a single batched call.
+
+    Returns:
+        List of extraction dicts, one per image (same format as process_document_aware).
+    """
+```
+
+If the optional methods are absent, the pipeline falls back to sequential processing using the required methods.
+
+### Current implementation
+
+`models/document_aware_internvl3_processor.py` (`DocumentAwareInternVL3HybridProcessor`) is the InternVL3 implementation of this interface.
+
 ## Design Principles
 
 1. **YAML is the single source of truth** — field lists, prompt text, type mappings, and evaluation rules all live in config files, not code
 2. **Fail fast with diagnostics** — `load_document_field_definitions()` validates structure at load time and raises clear errors with remediation steps
 3. **Document-aware field reduction** — each type extracts only its relevant fields, improving accuracy and reducing token usage
-4. **InternVL3-focused pipeline** — single model path eliminates routing complexity
+4. **Model-agnostic pipeline** — `BatchDocumentProcessor` depends on a duck-typed interface, not a specific model implementation
 5. **Convention over configuration** — prompt keys match document type names, ground truth directories match type names, field lists use the same uppercase names everywhere

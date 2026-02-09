@@ -1,7 +1,7 @@
 """Bank Statement Processing Adapter.
 
 Bridges BatchDocumentProcessor with UnifiedBankExtractor for sophisticated
-multi-turn bank statement extraction using InternVL3.
+multi-turn bank statement extraction.
 
 Usage:
     from common.bank_statement_adapter import BankStatementAdapter
@@ -93,10 +93,10 @@ class BankStatementAdapter:
         use_balance_correction: bool = False,
         model_dtype: Any = None,
     ):
-        """Initialize adapter with InternVL3 model components.
+        """Initialize adapter with model components.
 
         Args:
-            model: InternVL3 hybrid processor (with model and tokenizer attributes)
+            model: Model processor (with model and tokenizer attributes)
             processor: Not used, kept for API compatibility
             config_dir: Path to config directory (default: project config/)
             verbose: Enable verbose output during extraction
@@ -110,7 +110,9 @@ class BankStatementAdapter:
         self.verbose = verbose
 
         if self.verbose:
-            _safe_print(f"[BSA] Created BankStatementAdapter instance #{self._instance_id}")
+            _safe_print(
+                f"[BSA] Created BankStatementAdapter instance #{self._instance_id}"
+            )
 
         # Extract model components from hybrid processor
         if hasattr(model, "model") and hasattr(model, "tokenizer"):
@@ -126,14 +128,14 @@ class BankStatementAdapter:
             try:
                 model_dtype = next(actual_model.parameters()).dtype
             except (StopIteration, AttributeError):
-                model_dtype = torch.bfloat16  # Default for InternVL3
+                model_dtype = torch.bfloat16
 
         self.model = actual_model
         self.tokenizer = actual_tokenizer
         self.processor = None
         self.model_dtype = model_dtype
 
-        # Initialize UnifiedBankExtractor for InternVL3
+        # Initialize UnifiedBankExtractor
         self.extractor = UnifiedBankExtractor(
             model=actual_model,
             tokenizer=actual_tokenizer,
@@ -162,7 +164,9 @@ class BankStatementAdapter:
               column_mapping, raw_responses, correction_stats
         """
         if self.verbose:
-            _safe_print(f"\n[BSA#{self._instance_id}] >>> START extract_bank_statement({Path(image_path).name})")
+            _safe_print(
+                f"\n[BSA#{self._instance_id}] >>> START extract_bank_statement({Path(image_path).name})"
+            )
             sys.__stdout__.flush()  # Ensure START message appears before extraction
 
         # Load image
@@ -178,7 +182,9 @@ class BankStatementAdapter:
 
         # Print raw Turn 1 response AFTER bypass context (visible in notebook)
         if self.verbose and result.raw_responses.get("turn1"):
-            _safe_print(f"[UBE] Raw Turn 1 response:\n{result.raw_responses['turn1']}\n[UBE] === End raw response ===")
+            _safe_print(
+                f"[UBE] Raw Turn 1 response:\n{result.raw_responses['turn1']}\n[UBE] === End raw response ==="
+            )
 
         # Convert to schema dict
         schema_fields = result.to_schema_dict()
@@ -198,7 +204,9 @@ class BankStatementAdapter:
         if self.verbose:
             _safe_print(f"[BSA#{self._instance_id}]   Strategy: {result.strategy_used}")
             _safe_print(f"[BSA#{self._instance_id}]   Turns: {result.turns_executed}")
-            _safe_print(f"[BSA#{self._instance_id}]   Transactions extracted: {len(result.transaction_dates)}")
+            _safe_print(
+                f"[BSA#{self._instance_id}]   Transactions extracted: {len(result.transaction_dates)}"
+            )
             _safe_print(f"[BSA#{self._instance_id}] <<< END extract_bank_statement")
             # Ensure all output is flushed before returning
             sys.__stdout__.flush()
@@ -230,7 +238,7 @@ def create_bank_adapter(
     """Factory function to create BankStatementAdapter.
 
     Args:
-        model: InternVL3 hybrid processor (with model and tokenizer attributes)
+        model: Model processor (with model and tokenizer attributes)
         processor: Not used, kept for API compatibility
         verbose: Enable verbose output
         use_balance_correction: Enable balance-based correction

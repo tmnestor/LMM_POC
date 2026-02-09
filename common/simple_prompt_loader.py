@@ -32,7 +32,7 @@ class SimplePromptLoader:
             KeyError: If the prompt key doesn't exist in the file
         """
         # Strip leading 'prompts/' if present for user convenience
-        if filename.startswith('prompts/'):
+        if filename.startswith("prompts/"):
             filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
@@ -72,7 +72,7 @@ class SimplePromptLoader:
             List of available prompt keys
         """
         # Strip leading 'prompts/' if present for user convenience
-        if filename.startswith('prompts/'):
+        if filename.startswith("prompts/"):
             filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
@@ -87,7 +87,9 @@ class SimplePromptLoader:
             return []
 
     @staticmethod
-    def load_prompt_info(filename: str, prompt_key: str = "universal") -> Dict[str, str]:
+    def load_prompt_info(
+        filename: str, prompt_key: str = "universal"
+    ) -> Dict[str, str]:
         """
         Load prompt with metadata (name, description).
 
@@ -99,7 +101,7 @@ class SimplePromptLoader:
             Dictionary with 'prompt', 'name', and 'description'
         """
         # Strip leading 'prompts/' if present for user convenience
-        if filename.startswith('prompts/'):
+        if filename.startswith("prompts/"):
             filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
@@ -110,7 +112,7 @@ class SimplePromptLoader:
         return {
             "prompt": prompt_data["prompt"],
             "name": prompt_data.get("name", prompt_key),
-            "description": prompt_data.get("description", "")
+            "description": prompt_data.get("description", ""),
         }
 
     @staticmethod
@@ -125,7 +127,7 @@ class SimplePromptLoader:
             Settings dictionary or empty dict if no settings
         """
         # Strip leading 'prompts/' if present for user convenience
-        if filename.startswith('prompts/'):
+        if filename.startswith("prompts/"):
             filename = filename[8:]  # Remove 'prompts/'
         prompt_path = Path(__file__).parent.parent / "prompts" / filename
 
@@ -138,11 +140,6 @@ class SimplePromptLoader:
 
 
 # Convenience functions for common use cases
-def load_llama_prompt(document_type: str = "universal") -> str:
-    """Load a Llama prompt for the specified document type."""
-    return SimplePromptLoader.load_prompt("llama_prompts.yaml", document_type)
-
-
 def load_internvl3_prompt(document_type: str = "universal") -> str:
     """Load an InternVL3 prompt for the specified document type."""
     return SimplePromptLoader.load_prompt("internvl3_prompts.yaml", document_type)
@@ -152,24 +149,14 @@ def load_internvl3_prompt(document_type: str = "universal") -> str:
 if __name__ == "__main__":
     print("🧪 Testing SimplePromptLoader\n")
 
-    # Test loading Llama prompts
     try:
-        prompt = load_llama_prompt("invoice")
-        print(f"✅ Loaded Llama invoice prompt ({len(prompt)} chars)")
-
-        prompt = load_llama_prompt("universal")
-        print(f"✅ Loaded Llama universal prompt ({len(prompt)} chars)")
-
-        # Test getting available prompts
-        available = SimplePromptLoader.get_available_prompts("llama_prompts.yaml")
-        print(f"✅ Available Llama prompts: {', '.join(available)}")
-
-        # Test loading InternVL3 prompts
         prompt = load_internvl3_prompt("bank_statement")
         print(f"✅ Loaded InternVL3 bank statement prompt ({len(prompt)} chars)")
 
-        # Test settings
-        settings = SimplePromptLoader.get_settings("llama_prompts.yaml")
+        available = SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
+        print(f"✅ Available InternVL3 prompts: {', '.join(available)}")
+
+        settings = SimplePromptLoader.get_settings("internvl3_prompts.yaml")
         print(f"✅ Settings: {settings}")
 
         print("\n✅ All tests passed! Simple is better.")
