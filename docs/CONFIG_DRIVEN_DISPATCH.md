@@ -2,6 +2,18 @@
 
 How the LMM_POC pipeline routes document images through detection, extraction, and evaluation using YAML configuration as the single source of truth — and how to extend it to new document types.
 
+## Pattern Origins
+
+Config-Driven Dispatch is not a single named pattern from a textbook — it is a composition of three established software design principles applied together:
+
+| Principle | Origin | How we apply it |
+|---|---|---|
+| **Strategy Pattern** | Gamma et al., *Design Patterns* (GoF, 1994) | The detected document type selects which extraction prompt and field list to use at runtime, without changing the processing code itself. Each document type is effectively a different "strategy" for extraction. |
+| **Table-Driven Design** | McConnell, *Code Complete* (2004, Ch. 18) | YAML lookup tables (`type_mappings`, `document_fields`, `prompts`) replace `if/elif` chains. Adding a new document type means adding rows to tables, not writing new branches. |
+| **Convention over Configuration** | Ruby on Rails / DHH (2004); widely adopted | Prompt keys match document type names match ground truth directory names. The system resolves `"invoice"` to `field_definitions.yaml → invoice`, `internvl3_prompts.yaml → invoice`, and `evaluation_data/inv_rec/` by naming convention alone — no explicit wiring required. |
+
+The combination is powerful: the Strategy Pattern provides the runtime polymorphism, Table-Driven Design makes that polymorphism data-driven rather than code-driven, and Convention over Configuration eliminates the glue code that would otherwise connect them. The result is a pipeline where new document types require only configuration changes.
+
 ## Architecture Overview
 
 The pipeline processes document images in three phases: **detect** the document type, **extract** fields using a type-specific prompt, and **evaluate** against ground truth. Every phase is driven by YAML configuration — no code changes are needed for standard document types.
@@ -426,8 +438,6 @@ prompts:
       - Replace NOT_FOUND with actual values
 ```
 
-If you also support Llama, add the same entry to `prompts/llama_prompts.yaml`.
-
 ### Step 4: Create ground truth data
 
 ```
@@ -452,15 +462,6 @@ In `models/document_aware_internvl3_processor.py`, method `_parse_document_type_
 
 ```python
 elif any(word in response_lower for word in ["purchase", "order", "po"]):
-    return "PURCHASE_ORDER"
-```
-
-In `common/batch_processor.py`, method `_parse_document_type_response` (~line 758), add the same:
-
-```python
-case s if "purchase" in s and "order" in s:
-    return "PURCHASE_ORDER"
-case s if s.strip() == "po":
     return "PURCHASE_ORDER"
 ```
 
@@ -515,8 +516,7 @@ The field list stays the same for all variants — only the prompt changes.
 |---|---|
 | `config/field_definitions.yaml` | Field lists, types, categories, aliases (single source of truth) |
 | `prompts/document_type_detection.yaml` | Detection prompts, type mappings, settings |
-| `prompts/internvl3_prompts.yaml` | InternVL3 extraction prompts per document type |
-| `prompts/llama_prompts.yaml` | Llama extraction prompts per document type |
+| `prompts/internvl3_prompts.yaml` | Extraction prompts per document type |
 | `common/batch_processor.py` | Orchestrates detect -> extract -> evaluate pipeline |
 | `common/simple_prompt_loader.py` | Loads prompts from YAML by file + key |
 | `common/evaluation_metrics.py` | Field-type-aware accuracy scoring |
@@ -530,5 +530,5 @@ The field list stays the same for all variants — only the prompt changes.
 1. **YAML is the single source of truth** — field lists, prompt text, type mappings, and evaluation rules all live in config files, not code
 2. **Fail fast with diagnostics** — `load_document_field_definitions()` validates structure at load time and raises clear errors with remediation steps
 3. **Document-aware field reduction** — each type extracts only its relevant fields, improving accuracy and reducing token usage
-4. **Model-agnostic interfaces** — the same config files drive both InternVL3 and Llama processing paths
+4. **InternVL3-focused pipeline** — single model path eliminates routing complexity
 5. **Convention over configuration** — prompt keys match document type names, ground truth directories match type names, field lists use the same uppercase names everywhere
