@@ -15,6 +15,7 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 - Dynamic max_new_tokens automatically scales with reduced field counts
 """
 
+import gc
 import time
 import warnings
 from typing import Dict, List, Optional
@@ -99,10 +100,14 @@ class DocumentAwareInternVL3HybridProcessor:
         if self.tokenizer is not None and self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
-        # Also set pad_token_id on model's generation_config to suppress warnings
+        # Suppress generation warnings on model's own generation_config
         if self.model is not None and self.tokenizer is not None:
             if hasattr(self.model, "generation_config"):
                 self.model.generation_config.pad_token_id = self.tokenizer.eos_token_id
+                # Clear temperature/top_p — irrelevant with do_sample=False and
+                # causes "not valid and may be ignored" warnings
+                self.model.generation_config.temperature = None
+                self.model.generation_config.top_p = None
             elif hasattr(self.model.config, "pad_token_id"):
                 self.model.config.pad_token_id = self.tokenizer.eos_token_id
 
@@ -169,6 +174,7 @@ class DocumentAwareInternVL3HybridProcessor:
             "max_new_tokens": get_max_new_tokens(field_count=self.field_count),
             "do_sample": False,  # Greedy decoding for consistent extraction
             "use_cache": True,
+            "pad_token_id": self.tokenizer.eos_token_id if self.tokenizer else None,
         }
 
         if self.debug:
@@ -323,10 +329,13 @@ class DocumentAwareInternVL3HybridProcessor:
                 pixel_values=pixel_values,
                 question=detection_prompt,
                 max_new_tokens=max_tokens,
-                temperature=0.1,
                 do_sample=False,
                 is_detection=True,  # Enable strict token limits for detection
             )
+
+            # Free detection tensors before extraction allocates its own
+            del pixel_values
+            torch.cuda.empty_cache()
 
             if verbose:
                 # Use direct stdout to bypass Rich console completely for detection
@@ -673,159 +682,112 @@ class DocumentAwareInternVL3HybridProcessor:
             raise
 
     def _resilient_generate(self, pixel_values, question, **generation_kwargs):
-        """Resilient generation with OOM fallback using InternVL3 chat method."""
+        """Resilient generation with OOM fallback using InternVL3 chat method.
 
-        # Build clean generation parameters - differentiate detection vs extraction limits
+        IMPORTANT — OOM cleanup architecture:
+        All ``torch.cuda.empty_cache()`` calls MUST happen **outside** ``except``
+        blocks.  While inside an ``except`` handler, Python's traceback object
+        holds references to every frame in the failed call-stack — which includes
+        the model's intermediate activation tensors.  ``empty_cache()`` cannot
+        reclaim memory that is still referenced, so calling it inside ``except``
+        is a no-op.  Exiting the ``except`` block releases the traceback and
+        allows the tensors to be freed.
+        """
+
+        # Build clean generation parameters
         max_tokens = generation_kwargs.get(
             "max_new_tokens", self.generation_config["max_new_tokens"]
         )
-        is_detection = generation_kwargs.get(
-            "is_detection", False
-        )  # New parameter to identify detection phase
+        is_detection = generation_kwargs.get("is_detection", False)
 
         if is_detection:
-            # Detection only needs a short response (just the document type)
-            max_tokens = min(max_tokens, 100)  # Allow up to 100 for detection
-        # Don't limit extraction tokens as aggressively - let the model complete its response
-        # The recursion detection will catch any infinite loops
+            max_tokens = min(max_tokens, 100)
 
-        # InternVL3 chat() method only accepts specific parameters
-        # temperature and top_p are not valid - they cause warnings
         clean_generation_kwargs = {
             "max_new_tokens": max_tokens,
             "do_sample": generation_kwargs.get(
                 "do_sample", self.generation_config["do_sample"]
             ),
-            "pad_token_id": self.tokenizer.eos_token_id,  # Suppress pad_token_id warnings
+            "pad_token_id": self.tokenizer.eos_token_id,
         }
 
-        try:
-            # Use InternVL3 chat method instead of generate
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                question,
-                generation_config=clean_generation_kwargs,
-                history=None,
-                return_history=False,
-            )
+        minimal_config = {
+            "max_new_tokens": 50,
+            "do_sample": False,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
 
-            # CRITICAL: Detect infinite recursion patterns FIRST
-            if self._detect_recursion_pattern(response):
-                if self.debug:
-                    import sys
-
-                    sys.stdout.write(
-                        f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n"
-                    )
-                    sys.stdout.flush()
-                # For detection, we only need the document type anyway
-                response = response[:200]  # Less aggressive truncation
-            elif len(response) > 2000:  # Much higher safety limit for normal responses
-                response = response[:2000]  # Allow longer responses for extraction
-
-            return response
-
-        except torch.cuda.OutOfMemoryError:
-            if self.debug:
-                print("⚠️ CUDA OOM during generation, attempting recovery...")
-
-            # Clear cache and retry
-            torch.cuda.empty_cache()
-            emergency_cleanup(verbose=False)
+        # Retry loop — attempt 0: normal, attempt 1: after cleanup, attempt 2: minimal tokens
+        response = None
+        for attempt in range(3):
+            gen_config = minimal_config if attempt == 2 else clean_generation_kwargs
+            oom = False
 
             try:
                 response = self.model.chat(
                     self.tokenizer,
                     pixel_values,
                     question,
-                    generation_config=clean_generation_kwargs,
+                    generation_config=gen_config,
                     history=None,
                     return_history=False,
                 )
+                break  # Success — exit retry loop
 
-                # CRITICAL: Detect infinite recursion patterns FIRST
-                if self._detect_recursion_pattern(response):
-                    if self.debug:
-                        import sys
-
-                        sys.stdout.write(
-                            f"⚠️ RECURSION DETECTED (OOM recovery): Truncating response at {len(response)} chars\n"
-                        )
-                        sys.stdout.flush()
-                    response = response[:200]  # Less aggressive truncation
-                elif len(response) > 2000:  # Higher safety limit for normal responses
-                    response = response[:2000]  # Allow longer responses for extraction
-
-                return response
             except torch.cuda.OutOfMemoryError:
-                if self.debug:
-                    print("❌ Still OOM after cleanup, using minimal generation")
+                oom = True  # Flag to handle OUTSIDE except block
 
-                # Instead of CPU fallback, use minimal generation
-                minimal_config = {
-                    "max_new_tokens": 50,  # Very minimal response
-                    "temperature": 0.0,
-                    "do_sample": False,
-                }
-
-                try:
-                    response = self.model.chat(
-                        self.tokenizer,
-                        pixel_values,
-                        question,
-                        generation_config=minimal_config,
-                        history=None,
-                        return_history=False,
-                    )
-                except Exception:
-                    # Last resort - return a fallback response
+            except Exception as e:
+                if attempt == 2:
+                    # Last resort on minimal generation — return fallback
                     response = (
                         "invoice" if "document" in question.lower() else "NOT_FOUND"
                     )
+                    break
 
-                # CRITICAL: Detect infinite recursion patterns FIRST
-                if self._detect_recursion_pattern(response):
-                    if self.debug:
-                        import sys
+                # Non-OOM error on attempts 0-1 — report and return empty
+                if self.debug:
+                    import sys
 
-                        sys.stdout.write(
-                            f"⚠️ RECURSION DETECTED (CPU fallback): Truncating response at {len(response)} chars\n"
-                        )
-                        sys.stdout.flush()
-                    response = response[:200]  # Less aggressive truncation
-                elif len(response) > 2000:  # Higher safety limit for normal responses
-                    response = response[:2000]  # Allow longer responses for extraction
+                    sys.stdout.write(
+                        f"❌ CRITICAL: Generation failed: {type(e).__name__}: {e}\n"
+                    )
+                    sys.stdout.flush()
+                return ""
 
-                # Skip moving quantized models (not supported with .to())
-                # Quantized models can't be moved with .to() method
-                if not (
-                    hasattr(self.model, "quantization_method")
-                    or hasattr(self.model, "is_quantized")
-                    or getattr(self.model.config, "quantization_config", None)
-                    is not None
-                ):
-                    # Only move non-quantized models
-                    self.model = self.model.to(self.device)
+            # ── OUTSIDE except block ──
+            # The traceback from the failed forward pass is now released,
+            # so gc.collect() + empty_cache() can actually reclaim the
+            # intermediate activation tensors.
+            if oom:
+                if self.debug:
+                    if attempt == 0:
+                        print("⚠️ CUDA OOM during generation, attempting recovery...")
+                    else:
+                        print("❌ Still OOM after cleanup, using minimal generation")
+                gc.collect()
+                torch.cuda.empty_cache()
+                if attempt == 0:
+                    emergency_cleanup(verbose=False)
 
-                return response
+        # Total failure — all 3 attempts exhausted without break
+        if response is None:
+            response = "invoice" if "document" in question.lower() else "NOT_FOUND"
 
-        except Exception as e:
-            # CRITICAL: Catch all other exceptions to prevent infinite recursion
+        # Post-process response (common to all paths)
+        if self._detect_recursion_pattern(response):
             if self.debug:
                 import sys
 
                 sys.stdout.write(
-                    f"❌ CRITICAL: Generation failed with exception: {e}\n"
+                    f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n"
                 )
-                sys.stdout.write(f"Exception type: {type(e).__name__}\n")
                 sys.stdout.flush()
-                import traceback
+            response = response[:200]
+        elif len(response) > 2000:
+            response = response[:2000]
 
-                traceback.print_exc()
-
-            # Return empty response to trigger fallback logic (like working handler)
-            return ""
+        return response
 
     def _detect_recursion_pattern(self, response: str) -> bool:
         """Detect infinite recursion patterns in model responses."""
@@ -1178,7 +1140,10 @@ class DocumentAwareInternVL3HybridProcessor:
             "pad_token_id": self.tokenizer.eos_token_id,
         }
 
-        # Call batch_chat with OOM fallback
+        # Call batch_chat with OOM fallback.
+        # IMPORTANT: cleanup MUST happen outside the except block — see
+        # _resilient_generate docstring for why.
+        oom = False
         try:
             responses = self.model.batch_chat(
                 self.tokenizer,
@@ -1188,13 +1153,17 @@ class DocumentAwareInternVL3HybridProcessor:
                 num_patches_list=num_patches_list,
             )
         except torch.cuda.OutOfMemoryError:
+            oom = True
+
+        if oom:
+            # Outside except — traceback released, tensors can be freed
+            del pixel_values, all_pixel_values, num_patches_list
+            gc.collect()
             torch.cuda.empty_cache()
             if len(image_paths) <= 1:
-                # Single image OOM — fall back to sequential
                 return [
                     self.detect_and_classify_document(image_paths[0], verbose=verbose)
                 ]
-            # Halve batch and retry recursively
             mid = len(image_paths) // 2
             if verbose:
                 import sys
@@ -1332,7 +1301,10 @@ class DocumentAwareInternVL3HybridProcessor:
             "pad_token_id": self.tokenizer.eos_token_id,
         }
 
-        # Call batch_chat with OOM fallback
+        # Call batch_chat with OOM fallback.
+        # IMPORTANT: cleanup MUST happen outside the except block — see
+        # _resilient_generate docstring for why.
+        oom = False
         try:
             responses = self.model.batch_chat(
                 self.tokenizer,
@@ -1342,9 +1314,14 @@ class DocumentAwareInternVL3HybridProcessor:
                 num_patches_list=num_patches_list,
             )
         except torch.cuda.OutOfMemoryError:
+            oom = True
+
+        if oom:
+            # Outside except — traceback released, tensors can be freed
+            del pixel_values, all_pixel_values, num_patches_list
+            gc.collect()
             torch.cuda.empty_cache()
             if len(image_paths) <= 1:
-                # Single image OOM — fall back to sequential
                 return [
                     self.process_document_aware(
                         image_paths[0], classification_infos[0], verbose=verbose

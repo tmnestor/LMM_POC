@@ -631,7 +631,7 @@ def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> i
 INTERNVL3_GENERATION_CONFIG = {
     "max_new_tokens_base": 2000,  # Increased for complex bank statements (4 V100 setup)
     "max_new_tokens_per_field": 50,  # Additional tokens per extraction field
-    "temperature": 0.0,  # Deterministic sampling for consistent results
+    # When do_sample=False, temperature/top_p are ignored and cause warnings
     "do_sample": False,  # Deterministic for consistent field extraction
     "use_cache": True,  # CRITICAL parameter - required for extraction quality
     "pad_token_id": None,  # Set dynamically from tokenizer

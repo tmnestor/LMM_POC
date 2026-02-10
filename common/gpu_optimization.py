@@ -519,10 +519,18 @@ class ResilientGenerator:
 
 def get_available_gpu_memory(device: str = "cuda") -> float:
     """
-    Get available GPU memory in GB - now uses robust detection for consistency.
+    Get available GPU memory in GB for batch-size decisions.
+
+    For multi-GPU with ``device_map="auto"``, pixel_values live on GPU 0 but
+    the KV cache is distributed across all GPUs.  So the effective memory
+    budget is the **minimum** free memory across all GPUs scaled by count —
+    not the sum (OOM) and not just GPU 0 (too conservative).
 
     Args:
-        device: Device string (e.g., "cuda", "cuda:0") or "total" for all GPUs
+        device: Device string.
+            - ``"cuda"`` — min free × world_size (safe for batching).
+            - ``"total"`` — sum across all GPUs.
+            - ``"cuda:N"`` — free memory on GPU N only.
 
     Returns:
         float: Available memory in GB
@@ -531,30 +539,40 @@ def get_available_gpu_memory(device: str = "cuda") -> float:
         return 0.0
 
     try:
-        # For total memory across all GPUs
-        if device == "total" or device == "cuda":
+        if device == "total":
             from .robust_gpu_memory import get_total_available_gpu_memory
+
             return get_total_available_gpu_memory()
 
-        # For specific device
-        device_idx = int(device.split(":")[-1]) if ":" in device else torch.cuda.current_device()
+        # Specific GPU requested
+        if ":" in device:
+            device_idx = int(device.split(":")[-1])
+            total = torch.cuda.get_device_properties(device_idx).total_memory
+            alloc = torch.cuda.memory_allocated(device_idx)
+            return (total - alloc) / (1024**3)
 
-        # Get total and allocated memory for specific device
-        total_memory = torch.cuda.get_device_properties(device_idx).total_memory
-        allocated_memory = torch.cuda.memory_allocated(device_idx)
-        available_memory = (total_memory - allocated_memory) / (1024**3)  # Convert to GB
+        # "cuda" — effective memory for batch_chat() sizing.
+        # With device_map="auto", the KV cache is distributed across GPUs,
+        # so total batch capacity scales with GPU count.  But any single
+        # GPU OOMing kills the call, so the per-GPU bottleneck is min(free).
+        # We report min(free) * world_size so the thresholds (calibrated
+        # for total memory, e.g. 88GB on 4×L4) still work.
+        world_size = torch.cuda.device_count()
+        if world_size <= 1:
+            total = torch.cuda.get_device_properties(0).total_memory
+            alloc = torch.cuda.memory_allocated(0)
+            return (total - alloc) / (1024**3)
 
-        return available_memory
+        min_free = float("inf")
+        for gpu_id in range(world_size):
+            total = torch.cuda.get_device_properties(gpu_id).total_memory
+            alloc = torch.cuda.memory_allocated(gpu_id)
+            free = (total - alloc) / (1024**3)
+            min_free = min(min_free, free)
+
+        return min_free * world_size
     except Exception as e:
         print(f"⚠️ Could not detect GPU memory: {e}")
-        # Fallback: Try robust detection
-        try:
-            from .robust_gpu_memory import get_total_available_gpu_memory
-            fallback_memory = get_total_available_gpu_memory()
-            if fallback_memory > 0:
-                return fallback_memory
-        except Exception:
-            pass
         return 24.0  # Final fallback for A10G/L4 (24GB)
 
 
@@ -570,6 +588,7 @@ def diagnose_gpu_memory_comprehensive(verbose: bool = True) -> dict:
     """
     try:
         from .robust_gpu_memory import diagnose_gpu_memory
+
         return diagnose_gpu_memory(verbose=verbose)
     except Exception as e:
         if verbose:
@@ -579,7 +598,10 @@ def diagnose_gpu_memory_comprehensive(verbose: bool = True) -> dict:
             "detection_successful": False,
             "error": str(e),
             "fallback_diagnostics": True,
-            "recommendations": ["Check robust_gpu_memory.py installation", "Verify CUDA availability"]
+            "recommendations": [
+                "Check robust_gpu_memory.py installation",
+                "Verify CUDA availability",
+            ],
         }
         return basic_diagnostics
 
@@ -593,6 +615,7 @@ def get_total_gpu_memory_robust() -> float:
     """
     try:
         from .robust_gpu_memory import get_total_gpu_memory
+
         return get_total_gpu_memory()
     except Exception as e:
         print(f"⚠️ Robust total memory detection failed: {e}")
@@ -609,7 +632,9 @@ def get_total_gpu_memory_robust() -> float:
             return 0.0
 
 
-def optimize_model_for_gpu(model: Any, verbose: bool = True, dtype: Optional[torch.dtype] = None):
+def optimize_model_for_gpu(
+    model: Any, verbose: bool = True, dtype: Optional[torch.dtype] = None
+):
     """
     Apply GPU optimizations to a model for AWS instances (A10G, L4).
 
