@@ -47,7 +47,7 @@ flowchart TB
     end
 
     IMG --> DET_YAML --> DET_PROMPT --> VLM_DET --> PARSE
-    PARSE -- "INVOICE / RECEIPT / BANK_STATEMENT / TRAVEL_EXPENSE" --> FIELD_SEL
+    PARSE -- "INVOICE / RECEIPT / BANK_STATEMENT / TRAVEL_EXPENSE / VEHICLE_LOGBOOK" --> FIELD_SEL
     FD_YAML --> FIELD_SEL
     EXT_YAML --> EXT_PROMPT
     FIELD_SEL --> EXT_PROMPT --> VLM_EXT --> PARSER
@@ -55,12 +55,13 @@ flowchart TB
     GT_CSV --> EVAL --> REPORT
 ```
 
-## The Four Configuration Files
+## The Five Configuration Files
 
-All pipeline behaviour is defined in four YAML files and one CSV per document type. No Python code references document types by name — everything is looked up dynamically.
+All pipeline behaviour is defined in five YAML files and one CSV per document type. No Python code references document types by name — everything is looked up dynamically. `run_config.yml` controls all tunable runtime parameters (batch sizes, generation, GPU memory, model loading).
 
 | File | Purpose | Keyed by |
 |---|---|---|
+| `config/run_config.yml` | Single source of truth for all tunable parameters (batch, generation, GPU, model loading) | YAML section |
 | `config/field_definitions.yaml` | Field lists, types, categories, aliases | `document_type` (lowercase) |
 | `prompts/document_type_detection.yaml` | Detection prompts, visual indicators, type mappings | prompt variant key |
 | `prompts/internvl3_prompts.yaml` | Extraction prompts per document type | `document_type` (lowercase) |
@@ -69,6 +70,7 @@ All pipeline behaviour is defined in four YAML files and one CSV per document ty
 ```mermaid
 graph LR
     subgraph "Single Source of Truth"
+        RC["run_config.yml"]
         FD["field_definitions.yaml"]
     end
 
@@ -77,8 +79,12 @@ graph LR
         IVL["InternVL3 Processor"]
         EM["Evaluation Metrics"]
         CLI["ivl3_cli.py"]
+        GPU["GPU Optimization"]
     end
 
+    RC --> CLI
+    RC --> GPU
+    RC --> BP
     FD --> BP
     FD --> IVL
     FD --> EM
@@ -183,6 +189,14 @@ document_fields:
       - PASSENGER_NAME
       - TRAVEL_MODE
       # ... 6 more fields
+
+  vehicle_logbook:
+    count: 16
+    fields:
+      - DOCUMENT_TYPE
+      - VEHICLE_MAKE
+      - VEHICLE_MODEL
+      # ... 13 more fields
 ```
 
 This is the **single source of truth** for what fields exist per document type. The function `load_document_field_definitions()` in `common/batch_processor.py` loads this at runtime with fail-fast validation.
@@ -234,13 +248,14 @@ flowchart TD
 
 ### Document-aware field reduction
 
-Instead of extracting all 19 universal fields for every document, the pipeline only asks for fields relevant to the detected type. This improves both accuracy and speed:
+Instead of extracting all 33 universal fields for every document, the pipeline only asks for fields relevant to the detected type. This improves both accuracy and speed:
 
 | Document Type | Fields | Reduction vs Universal |
 |---|---|---|
-| Invoice / Receipt | 14 | 26% fewer |
-| Travel Expense | 9 | 53% fewer |
-| Bank Statement | 5 | 74% fewer |
+| Vehicle Logbook | 16 | 52% fewer |
+| Invoice / Receipt | 14 | 58% fewer |
+| Travel Expense | 9 | 73% fewer |
+| Bank Statement | 5 | 85% fewer |
 
 ## Phase 3: Evaluation Dispatch
 
@@ -286,7 +301,7 @@ flowchart TD
     FILTER --> EVAL["Evaluation"]
 ```
 
-The structure classifier (`common/vision_bank_statement_classifier.py`) uses the VLM itself to analyse layout, then appends a suffix to the prompt key:
+The structure classifier (in `models/document_aware_internvl3_processor.py`) uses the VLM itself to analyse layout, then appends a suffix to the prompt key:
 
 ```python
 structure_type = classify_bank_statement_structure_vision(image_path, model)
@@ -398,6 +413,7 @@ supported_document_types:
   - receipt
   - bank_statement
   - travel_expense
+  - vehicle_logbook
   - purchase_order        # ADD
 ```
 
@@ -532,15 +548,18 @@ The field list stays the same for all variants — only the prompt changes.
 
 | File | Role |
 |---|---|
-| `config/field_definitions.yaml` | Field lists, types, categories, aliases (single source of truth) |
+| `config/run_config.yml` | Single source of truth for tunable parameters (batch, generation, GPU, model loading) |
+| `config/field_definitions.yaml` | Field lists, types, categories, aliases (single source of truth for document types) |
 | `prompts/document_type_detection.yaml` | Detection prompts, type mappings, fallback keywords, settings |
 | `prompts/internvl3_prompts.yaml` | Extraction prompts per document type (keys define supported types) |
 | `ivl3_cli.py` | CLI entry point; derives extraction routing from YAML prompt keys |
+| `common/pipeline_config.py` | PipelineConfig dataclass; loads and merges YAML/ENV/CLI config |
+| `common/config.py` | Module-level constants; `apply_yaml_overrides()` replaces defaults from YAML |
 | `common/batch_processor.py` | Orchestrates detect -> extract -> evaluate pipeline |
+| `common/gpu_optimization.py` | CUDA memory management, OOM recovery, resilient generation |
 | `common/simple_prompt_loader.py` | Loads prompts from YAML by file + key |
 | `common/evaluation_metrics.py` | Field-type-aware accuracy scoring |
-| `models/document_aware_internvl3_processor.py` | InternVL3 detection + extraction logic |
-| `common/vision_bank_statement_classifier.py` | Structure variant classification (bank statements) |
+| `models/document_aware_internvl3_processor.py` | InternVL3 detection + extraction + structure classification |
 | `common/bank_statement_adapter.py` | Multi-turn extraction for complex tables |
 | `evaluation_data/*/ground_truth_*.csv` | Ground truth per document type |
 
@@ -557,7 +576,7 @@ def detect_and_classify_document(self, image_path: str, verbose: bool = False) -
     """Classify a document image into a type.
 
     Returns:
-        dict with at least {"document_type": "INVOICE" | "RECEIPT" | "BANK_STATEMENT" | ...}
+        dict with at least {"document_type": "INVOICE" | "RECEIPT" | "BANK_STATEMENT" | "TRAVEL_EXPENSE" | "VEHICLE_LOGBOOK" | ...}
     """
 
 def process_document_aware(self, image_path: str, classification_info: dict, verbose: bool = False) -> dict:
@@ -598,7 +617,7 @@ If the optional methods are absent, the pipeline falls back to sequential proces
 
 ## Design Principles
 
-1. **YAML is the single source of truth** — field lists, prompt text, type mappings, fallback keywords, and evaluation rules all live in config files, not code
+1. **YAML is the single source of truth** — field lists, prompt text, type mappings, fallback keywords, evaluation rules, and all tunable runtime parameters (`run_config.yml`) live in config files, not code
 2. **Dynamic derivation over hardcoded lists** — supported document types are derived at runtime from YAML keys; adding a new type requires zero Python changes
 3. **Fail fast with diagnostics** — `load_document_field_definitions()` validates structure at load time and raises clear errors with remediation steps
 4. **Document-aware field reduction** — each type extracts only its relevant fields, improving accuracy and reducing token usage
