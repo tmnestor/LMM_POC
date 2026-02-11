@@ -15,18 +15,18 @@ model:
 
 # Data paths
 data:
-  # dir: ./evaluation_data/travel/logbooks
-  # ground_truth: ./evaluation_data/travel/logbooks/ground_truth_logbook.csv
-  # dir: ./evaluation_data/bank
-  # ground_truth: ./evaluation_data/bank/ground_truth_bank.csv
-  dir: ./evaluation_data/synthetic
-  ground_truth: ./evaluation_data/synthetic/ground_truth_synthetic.csv
+  # dir: ../evaluation_data/travel/logbooks
+  # ground_truth: ../evaluation_data/travel/logbooks/ground_truth_logbook.csv
+  # dir: ../evaluation_data/bank
+  # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
+  dir: ../evaluation_data/synthetic
+  ground_truth: ../evaluation_data/synthetic/ground_truth_synthetic.csv
   max_images: null       # null = process all images
   document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
 # Output settings
 output:
-  dir: ./output
+  dir: ../evaluation_data/output
   skip_visualizations: false  # Skip visualization generation
   skip_reports: false         # Skip report generation
 
