@@ -161,31 +161,60 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
 
 
 def load_prompt_config() -> dict[str, Any]:
-    """Build prompt routing config for the document-aware processor."""
+    """Build prompt routing config from YAML files (single source of truth).
+
+    Derives supported document types from the extraction prompt YAML keys
+    rather than maintaining a hardcoded list.
+    """
+    import yaml
+
     base = Path(__file__).parent / "prompts"
     detection_file = base / "document_type_detection.yaml"
-    extraction_file = str(base / "internvl3_prompts.yaml")
+    extraction_path = base / "internvl3_prompts.yaml"
 
     if not detection_file.exists():
         console.print(f"[red]FATAL: Detection prompt not found: {detection_file}[/red]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    if not Path(extraction_file).exists():
+    if not extraction_path.exists():
         console.print(
-            f"[red]FATAL: Extraction prompts not found: {extraction_file}[/red]"
+            f"[red]FATAL: Extraction prompts not found: {extraction_path}[/red]"
+        )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Derive supported document types from extraction YAML prompt keys
+    with extraction_path.open() as f:
+        extraction_yaml = yaml.safe_load(f)
+
+    prompt_keys = set(extraction_yaml.get("prompts", {}).keys())
+
+    # Keys that are not document types (utility prompts, settings)
+    non_doc_keys = {"universal", "settings"}
+    doc_keys = prompt_keys - non_doc_keys
+
+    # Map prompt keys to uppercase canonical types, stripping structure suffixes
+    # e.g. bank_statement_flat → BANK_STATEMENT, invoice → INVOICE
+    extraction_file = str(extraction_path)
+    extraction_files: dict[str, str] = {}
+    for key in doc_keys:
+        canonical = key.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+        extraction_files[canonical] = extraction_file
+
+    if not extraction_files:
+        console.print(
+            "[red]FATAL: No document type prompts found in "
+            f"{extraction_path.name}[/red]"
+        )
+        console.print(
+            "[yellow]Expected: prompts section with keys like 'invoice', "
+            "'receipt', etc.[/yellow]"
         )
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     return {
         "detection_file": str(detection_file),
         "detection_key": "detection",
-        "extraction_files": {
-            "INVOICE": extraction_file,
-            "RECEIPT": extraction_file,
-            "BANK_STATEMENT": extraction_file,
-            "TRAVEL_EXPENSE": extraction_file,
-            "VEHICLE_LOGBOOK": extraction_file,
-        },
+        "extraction_files": extraction_files,
     }
 
 

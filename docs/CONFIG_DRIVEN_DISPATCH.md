@@ -123,7 +123,32 @@ type_mappings:
   # ... every expected variation
 ```
 
-The parser (`_parse_document_type_response`) walks these mappings first, then falls back to keyword matching, then to `settings.fallback_type`.
+The parser (`_parse_document_type_response`) walks these mappings first, then falls back to `fallback_keywords` matching, then to `settings.fallback_type`. All three layers are YAML-driven:
+
+```yaml
+# prompts/document_type_detection.yaml
+
+# Layer 1: Exact phrase matching (checked first)
+type_mappings:
+  "tax invoice": "INVOICE"
+  "boarding pass": "TRAVEL_EXPENSE"
+  # ...
+
+# Layer 2: Keyword matching (checked if type_mappings miss)
+fallback_keywords:
+  RECEIPT:
+    - receipt
+    - purchase
+    - payment
+  BANK_STATEMENT:
+    - bank
+    - statement
+  # ...
+
+# Layer 3: Final fallback
+settings:
+  fallback_type: "INVOICE"
+```
 
 ## Phase 2: Extraction Dispatch
 
@@ -274,25 +299,31 @@ Both variants share the same field list from `field_definitions.yaml` — only t
 
 ## Adding a New Document Type
 
+### Zero Code Changes Required
+
+All steps are **YAML/CSV only**. The pipeline derives supported types dynamically at runtime:
+
+- `load_prompt_config()` reads extraction prompt keys from `internvl3_prompts.yaml`
+- `load_document_field_definitions()` reads document types from `field_definitions.yaml`
+- `_parse_document_type_response()` reads mappings and keywords from `document_type_detection.yaml`
+
 ### Checklist
 
 ```mermaid
 flowchart LR
-    A["1. Field Definitions"] --> B["2. Detection Config"]
-    B --> C["3. Extraction Prompt"]
-    C --> D["4. Ground Truth CSV"]
-    D --> E["5. Parser Keywords"]
-    E --> F["Test"]
+    A["1. Field Definitions\n(YAML)"] --> B["2. Detection Config\n(YAML)"]
+    B --> C["3. Extraction Prompt\n(YAML)"]
+    C --> D["4. Ground Truth\n(CSV)"]
+    D --> E["Test"]
 
     style A fill:#e1f5fe
     style B fill:#e1f5fe
     style C fill:#e1f5fe
     style D fill:#e1f5fe
-    style E fill:#fff3e0
-    style F fill:#e8f5e9
+    style E fill:#e8f5e9
 ```
 
-Steps 1-4 are **config-only** (YAML/CSV). Step 5 is a minor code addition. The walkthrough below uses a hypothetical `PURCHASE_ORDER` type.
+The walkthrough below uses a hypothetical `PURCHASE_ORDER` type.
 
 ---
 
@@ -372,10 +403,18 @@ supported_document_types:
 
 ### Step 2: Add detection rules in `prompts/document_type_detection.yaml`
 
-Add visual indicators to the detection prompt and type mappings for response normalisation:
+Three sections to update: detection prompts, type mappings, and fallback keywords.
 
 ```yaml
+# 2a. Add visual indicators to the detection prompt
 prompts:
+  detection:
+    prompt: |
+      What type of business document is this?
+      Answer with one of:
+      # ... existing types ...
+      - PURCHASE_ORDER (includes purchase orders, P.O.s)
+
   detection_complex:
     prompt: |
       # ... existing indicators ...
@@ -389,18 +428,21 @@ prompts:
       # ... update response options ...
       - PURCHASE_ORDER (for purchase orders, P.O.s)
 
-  detection_simple:
-    prompt: |
-      What type of business document is this image?
-      Respond with only: INVOICE or RECEIPT or BANK_STATEMENT or TRAVEL_EXPENSE or PURCHASE_ORDER
-
-# Add type mappings
+# 2b. Add type mappings for response normalisation
 type_mappings:
   "purchase order": "PURCHASE_ORDER"
   "purchase_order": "PURCHASE_ORDER"
   "purchaseorder": "PURCHASE_ORDER"
   "po": "PURCHASE_ORDER"
   "p.o.": "PURCHASE_ORDER"
+
+# 2c. Add fallback keywords (used when type_mappings don't match)
+fallback_keywords:
+  # ... existing types ...
+  PURCHASE_ORDER:
+    - purchase order
+    - po number
+    - requisition
 ```
 
 ### Step 3: Create extraction prompt in `prompts/internvl3_prompts.yaml`
@@ -457,36 +499,11 @@ filename,DOCUMENT_TYPE,PO_NUMBER,VENDOR_NAME,VENDOR_ADDRESS,BUYER_NAME,BUYER_ADD
 po_001.png,PURCHASE_ORDER,PO-2024-0042,Acme Supplies,"123 Industrial Rd, Sydney",TechCorp,"456 Business Ave, Melbourne",15/03/2024,Widget A | Widget B,100 | 50,$7500.00
 ```
 
-### Step 5: Add parser keywords (minor code change)
+That's it — no Python code changes needed. The pipeline will:
 
-In `models/document_aware_internvl3_processor.py`, method `_parse_document_type_response` (~line 699), add a keyword branch:
-
-```python
-elif any(word in response_lower for word in ["purchase", "order", "po"]):
-    return "PURCHASE_ORDER"
-```
-
-### Step 6: Validate with `load_document_field_definitions()`
-
-The loader currently hardcodes which document types to validate at startup. In `common/batch_processor.py` line 87, update the required types list:
-
-```python
-# Current
-for doc_type in ["invoice", "receipt", "bank_statement"]:
-
-# Updated
-for doc_type in ["invoice", "receipt", "bank_statement", "purchase_order"]:
-```
-
-And add the new type to the result builder (~line 114):
-
-```python
-# Add purchase_order if defined in YAML
-if "purchase_order" in doc_fields and "fields" in doc_fields["purchase_order"]:
-    result["purchase_order"] = doc_fields["purchase_order"]["fields"]
-```
-
-> **Note**: A future improvement could make this fully dynamic by iterating `supported_document_types` from the YAML instead of maintaining a hardcoded list.
+1. **`load_prompt_config()`** reads `internvl3_prompts.yaml`, finds the `purchase_order` key, and adds `PURCHASE_ORDER` to the extraction routing table automatically.
+2. **`load_document_field_definitions()`** iterates all types under `document_fields` in the YAML (excluding `universal`), so `purchase_order` is validated and loaded automatically.
+3. **`_parse_document_type_response()`** reads `type_mappings` and `fallback_keywords` from the detection YAML, so `PURCHASE_ORDER` is recognized automatically.
 
 ---
 
@@ -516,8 +533,9 @@ The field list stays the same for all variants — only the prompt changes.
 | File | Role |
 |---|---|
 | `config/field_definitions.yaml` | Field lists, types, categories, aliases (single source of truth) |
-| `prompts/document_type_detection.yaml` | Detection prompts, type mappings, settings |
-| `prompts/internvl3_prompts.yaml` | Extraction prompts per document type |
+| `prompts/document_type_detection.yaml` | Detection prompts, type mappings, fallback keywords, settings |
+| `prompts/internvl3_prompts.yaml` | Extraction prompts per document type (keys define supported types) |
+| `ivl3_cli.py` | CLI entry point; derives extraction routing from YAML prompt keys |
 | `common/batch_processor.py` | Orchestrates detect -> extract -> evaluate pipeline |
 | `common/simple_prompt_loader.py` | Loads prompts from YAML by file + key |
 | `common/evaluation_metrics.py` | Field-type-aware accuracy scoring |
@@ -580,8 +598,9 @@ If the optional methods are absent, the pipeline falls back to sequential proces
 
 ## Design Principles
 
-1. **YAML is the single source of truth** — field lists, prompt text, type mappings, and evaluation rules all live in config files, not code
-2. **Fail fast with diagnostics** — `load_document_field_definitions()` validates structure at load time and raises clear errors with remediation steps
-3. **Document-aware field reduction** — each type extracts only its relevant fields, improving accuracy and reducing token usage
-4. **Model-agnostic pipeline** — `BatchDocumentProcessor` depends on a duck-typed interface, not a specific model implementation
-5. **Convention over configuration** — prompt keys match document type names, ground truth directories match type names, field lists use the same uppercase names everywhere
+1. **YAML is the single source of truth** — field lists, prompt text, type mappings, fallback keywords, and evaluation rules all live in config files, not code
+2. **Dynamic derivation over hardcoded lists** — supported document types are derived at runtime from YAML keys; adding a new type requires zero Python changes
+3. **Fail fast with diagnostics** — `load_document_field_definitions()` validates structure at load time and raises clear errors with remediation steps
+4. **Document-aware field reduction** — each type extracts only its relevant fields, improving accuracy and reducing token usage
+5. **Model-agnostic pipeline** — `BatchDocumentProcessor` depends on a duck-typed interface, not a specific model implementation
+6. **Convention over configuration** — prompt keys match document type names match ground truth directory names; the system resolves types by naming convention alone

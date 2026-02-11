@@ -85,41 +85,31 @@ def load_document_field_definitions() -> Dict[str, List[str]]:
 
     doc_fields = config["document_fields"]
 
-    # Validate each required document type
-    for doc_type in ["invoice", "receipt", "bank_statement"]:
-        if doc_type not in doc_fields:
-            raise ValueError(
-                f"❌ FATAL: Missing '{doc_type}' definition in field_definitions.yaml\n"
-                f"File: {field_def_path.absolute()}\n"
-                f"Each document type must be defined with a 'fields' list."
-            )
-        if "fields" not in doc_fields[doc_type]:
+    # Validate all document types defined in YAML (excluding 'universal')
+    result = {}
+    for doc_type, type_config in doc_fields.items():
+        if doc_type == "universal":
+            continue
+        if "fields" not in type_config:
             raise ValueError(
                 f"❌ FATAL: Missing 'fields' list for '{doc_type}' in field_definitions.yaml\n"
                 f"File: {field_def_path.absolute()}\n"
                 f"Each document type must have a 'fields' list."
             )
-        if not doc_fields[doc_type]["fields"]:
+        if not type_config["fields"]:
             raise ValueError(
                 f"❌ FATAL: Empty 'fields' list for '{doc_type}' in field_definitions.yaml\n"
                 f"File: {field_def_path.absolute()}\n"
                 f"Each document type must have at least one field defined."
             )
+        result[doc_type] = type_config["fields"]
 
-    # Build field definitions dynamically from YAML
-    result = {
-        "invoice": doc_fields["invoice"]["fields"],
-        "receipt": doc_fields["receipt"]["fields"],
-        "bank_statement": doc_fields["bank_statement"]["fields"],
-    }
-
-    # Add travel_expense if defined in YAML
-    if "travel_expense" in doc_fields and "fields" in doc_fields["travel_expense"]:
-        result["travel_expense"] = doc_fields["travel_expense"]["fields"]
-
-    # Add vehicle_logbook if defined in YAML
-    if "vehicle_logbook" in doc_fields and "fields" in doc_fields["vehicle_logbook"]:
-        result["vehicle_logbook"] = doc_fields["vehicle_logbook"]["fields"]
+    if not result:
+        raise ValueError(
+            f"❌ FATAL: No document types defined in field_definitions.yaml\n"
+            f"File: {field_def_path.absolute()}\n"
+            f"Expected: document_fields section with at least one document type."
+        )
 
     return result
 
@@ -1157,50 +1147,35 @@ def print_accuracy_by_document_type(
     batch_results: list[dict],
     console: Console | None = None,
 ) -> dict:
-    """
-    Print accuracy summary separated by document type.
+    """Print accuracy summary grouped dynamically by document type.
 
-    Invoice/Receipt have 14 fields, Bank Statements have 5 fields.
-    This provides a fair comparison by reporting metrics separately.
-
-    Args:
-        batch_results: List of result dictionaries from batch processing
-        console: Rich console for output (optional)
-
-    Returns:
-        dict: Summary statistics by document type
+    Groups results by the actual document types found in batch_results
+    rather than using a hardcoded type list.
     """
     if console is None:
         console = Console()
 
-    # Group results by document type
-    doc_type_results: dict[str, list[dict]] = {
-        "invoice_receipt": [],
-        "bank_statement": [],
-    }
+    # Group results dynamically by document type
+    doc_type_results: dict[str, list[dict]] = {}
 
     for result in batch_results:
         if "error" in result:
             continue
 
-        doc_type = result.get("document_type", "").upper()
+        doc_type = result.get("document_type", "UNKNOWN").upper()
         evaluation = result.get("evaluation", {})
 
         if not evaluation or "overall_accuracy" not in evaluation:
             continue
 
-        # Group invoice and receipt together
-        if doc_type in ["INVOICE", "RECEIPT"]:
-            doc_type_results["invoice_receipt"].append(result)
-        elif doc_type == "BANK_STATEMENT":
-            doc_type_results["bank_statement"].append(result)
+        doc_type_results.setdefault(doc_type, []).append(result)
 
     # Calculate and display metrics for each document type
     console.rule("[bold cyan]Accuracy by Document Type[/bold cyan]")
 
     summary = {}
 
-    for doc_type_key, results in doc_type_results.items():
+    for doc_type_key, results in sorted(doc_type_results.items()):
         if not results:
             continue
 
@@ -1228,13 +1203,7 @@ def print_accuracy_by_document_type(
         else:
             median_of_medians = 0
 
-        # Display
-        display_name = (
-            "Invoice/Receipt (14 fields)"
-            if doc_type_key == "invoice_receipt"
-            else "Bank Statement (5 fields)"
-        )
-        field_count = 14 if doc_type_key == "invoice_receipt" else 5
+        display_name = doc_type_key.replace("_", " ").title()
 
         rprint(f"\n[bold blue]{display_name}[/bold blue]")
         rprint(f"  Documents: {n_docs}")
@@ -1246,13 +1215,12 @@ def print_accuracy_by_document_type(
 
         summary[doc_type_key] = {
             "count": n_docs,
-            "field_count": field_count,
             "avg_mean_f1": avg_mean_f1,
             "avg_median_f1": avg_median_f1,
             "median_of_medians": median_of_medians,
         }
 
-    # Overall summary (weighted by document count, not field count)
+    # Overall summary (weighted by document count)
     total_docs = sum(s["count"] for s in summary.values())
     if total_docs > 0:
         weighted_median = (

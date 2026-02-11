@@ -158,13 +158,46 @@ type_mappings:
   "ato logbook": "VEHICLE_LOGBOOK"
   "travel log": "VEHICLE_LOGBOOK"
 
+# Fallback keyword matching (used when type_mappings don't match)
+# Maps canonical document types to keywords that indicate that type.
+# Checked in order — first match wins. Put more specific types before general ones.
+fallback_keywords:
+  RECEIPT:
+    - receipt
+    - purchase
+    - payment
+  BANK_STATEMENT:
+    - bank
+    - statement
+    - account
+  TRAVEL_EXPENSE:
+    - travel
+    - ticket
+    - boarding
+    - airline
+    - flight
+    - itinerary
+    - passenger
+  VEHICLE_LOGBOOK:
+    - logbook
+    - vehicle logbook
+    - motor vehicle
+    - mileage
+    - odometer
+    - business use
+    - trip log
+  INVOICE:
+    - invoice
+    - bill
+    - tax
+
 # Configuration settings
 settings:
   default_prompt: "detection"
   max_new_tokens: 200
   temperature: 0.1
   fallback_type: "INVOICE"
-  
+
 # Model-specific configurations
 models:
   llama:

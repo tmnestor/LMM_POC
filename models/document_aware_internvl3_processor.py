@@ -605,64 +605,18 @@ class DocumentAwareInternVL3HybridProcessor:
                     sys.stdout.flush()
                 return canonical
 
-        # Fallback keyword detection
-        if any(word in response_lower for word in ["receipt", "purchase", "payment"]):
-            if self.debug:
-                import sys
+        # Fallback keyword detection (YAML-driven from fallback_keywords section)
+        fallback_keywords = detection_config.get("fallback_keywords", {})
+        for canonical_type, keywords in fallback_keywords.items():
+            if any(kw in response_lower for kw in keywords):
+                if self.debug:
+                    import sys
 
-                sys.stdout.write("✅ PARSING DEBUG - Keyword match: RECEIPT\n")
-                sys.stdout.flush()
-            return "RECEIPT"
-        elif any(word in response_lower for word in ["bank", "statement", "account"]):
-            if self.debug:
-                import sys
-
-                sys.stdout.write("✅ PARSING DEBUG - Keyword match: BANK_STATEMENT\n")
-                sys.stdout.flush()
-            return "BANK_STATEMENT"
-        elif any(
-            word in response_lower
-            for word in [
-                "travel",
-                "ticket",
-                "boarding",
-                "airline",
-                "flight",
-                "itinerary",
-                "passenger",
-            ]
-        ):
-            if self.debug:
-                import sys
-
-                sys.stdout.write("✅ PARSING DEBUG - Keyword match: TRAVEL_EXPENSE\n")
-                sys.stdout.flush()
-            return "TRAVEL_EXPENSE"
-        elif any(
-            word in response_lower
-            for word in [
-                "logbook",
-                "vehicle logbook",
-                "motor vehicle",
-                "mileage",
-                "odometer",
-                "business use",
-                "trip log",
-            ]
-        ):
-            if self.debug:
-                import sys
-
-                sys.stdout.write("✅ PARSING DEBUG - Keyword match: VEHICLE_LOGBOOK\n")
-                sys.stdout.flush()
-            return "VEHICLE_LOGBOOK"
-        elif any(word in response_lower for word in ["invoice", "bill", "tax"]):
-            if self.debug:
-                import sys
-
-                sys.stdout.write("✅ PARSING DEBUG - Keyword match: INVOICE\n")
-                sys.stdout.flush()
-            return "INVOICE"
+                    sys.stdout.write(
+                        f"✅ PARSING DEBUG - Keyword match: {canonical_type}\n"
+                    )
+                    sys.stdout.flush()
+                return canonical_type
 
         # Final fallback
         fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
@@ -864,15 +818,13 @@ class DocumentAwareInternVL3HybridProcessor:
                 )
                 detected_type = detection_result.get("document_type", "INVOICE")
 
-                # CRITICAL FIX: Map uppercase detection result to lowercase prompt key
-                type_mapping = {
-                    "INVOICE": "invoice",
-                    "RECEIPT": "receipt",
-                    "BANK_STATEMENT": "bank_statement",  # Will be refined below
-                    "TRAVEL_EXPENSE": "travel_expense",
-                    "VEHICLE_LOGBOOK": "vehicle_logbook",
+                # Map uppercase detection result to lowercase prompt key
+                # Derived from prompt_config extraction_files (YAML-first)
+                fallback_type = detected_type.lower()
+                supported_types = {
+                    k: k.lower() for k in self.prompt_config["extraction_files"]
                 }
-                document_type = type_mapping.get(detected_type, "invoice")
+                document_type = supported_types.get(detected_type, fallback_type)
 
                 # For bank statements, use vision-based structure classification
                 if detected_type == "BANK_STATEMENT":
