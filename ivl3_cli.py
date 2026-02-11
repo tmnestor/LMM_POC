@@ -281,8 +281,8 @@ def load_model(config: PipelineConfig):
 
             tokenizer = AutoTokenizer.from_pretrained(
                 str(config.model_path),
-                trust_remote_code=True,
-                use_fast=False,
+                trust_remote_code=config.trust_remote_code,
+                use_fast=config.use_fast_tokenizer,
             )
 
             progress.update(task, description="Loading model weights...")
@@ -290,10 +290,10 @@ def load_model(config: PipelineConfig):
             model = AutoModel.from_pretrained(
                 str(config.model_path),
                 dtype=config.torch_dtype,
-                low_cpu_mem_usage=True,
+                low_cpu_mem_usage=config.low_cpu_mem_usage,
                 use_flash_attn=config.flash_attn,
-                trust_remote_code=True,
-                device_map="auto",
+                trust_remote_code=config.trust_remote_code,
+                device_map=config.device_map,
             ).eval()
 
             progress.update(task, description="Model loaded!")
@@ -842,14 +842,30 @@ def main(
         cli_args["document_types"] = [t.strip() for t in document_types.split(",")]
 
     # Load configs from different sources
+    # Always load the default run_config.yml; --config overrides the path
+    default_config = Path(__file__).parent / "config" / "run_config.yml"
+    resolved_config = config_file or (
+        default_config if default_config.exists() else None
+    )
+
     yaml_config: dict[str, Any] = {}
-    if config_file:
+    raw_config: dict[str, Any] = {}
+    if resolved_config:
         try:
-            yaml_config = load_yaml_config(config_file)
+            yaml_config, raw_config = load_yaml_config(resolved_config)
         except FileNotFoundError:
-            console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
-            console.print("[yellow]Expected: YAML configuration file[/yellow]")
-            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+            # Only fatal when the user explicitly passed --config
+            if config_file:
+                console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
+                console.print("[yellow]Expected: YAML configuration file[/yellow]")
+                raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Apply YAML overrides to module-level constants (batch, generation, gpu)
+    if raw_config:
+        from common.config import apply_yaml_overrides
+
+        apply_yaml_overrides(raw_config)
+
     env_config = load_env_config()
 
     # Check required fields
@@ -869,7 +885,7 @@ def main(
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     # Merge and validate configuration
-    config = merge_configs(cli_args, yaml_config, env_config)
+    config = merge_configs(cli_args, yaml_config, env_config, raw_config)
 
     errors = validate_config(config)
     if errors:

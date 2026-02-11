@@ -96,6 +96,12 @@ class PipelineConfig:
     dtype: str = "bfloat16"
     max_new_tokens: int = 2000
 
+    # Model loading options
+    trust_remote_code: bool = True
+    use_fast_tokenizer: bool = False
+    low_cpu_mem_usage: bool = True
+    device_map: str = "auto"
+
     # Output options
     skip_visualizations: bool = False
     skip_reports: bool = False
@@ -135,8 +141,13 @@ class PipelineConfig:
 # ============================================================================
 
 
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
+def load_yaml_config(
+    config_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load configuration from YAML file.
+
+    Returns:
+        Tuple of (flat_config for PipelineConfig, raw_config for apply_yaml_overrides).
 
     Raises:
         FileNotFoundError: If config_path does not exist.
@@ -145,38 +156,54 @@ def load_yaml_config(config_path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
     with config_path.open() as f:
-        config = yaml.safe_load(f)
+        raw_config = yaml.safe_load(f)
 
-    # Flatten nested structure
+    # Flatten nested structure for PipelineConfig
     flat_config: dict[str, Any] = {}
-    if "model" in config:
-        flat_config["model_path"] = config["model"].get("path")
-        flat_config["max_tiles"] = config["model"].get("max_tiles")
-        flat_config["flash_attn"] = config["model"].get("flash_attn")
-        flat_config["dtype"] = config["model"].get("dtype")
-        flat_config["max_new_tokens"] = config["model"].get("max_new_tokens")
+    if "model" in raw_config:
+        flat_config["model_path"] = raw_config["model"].get("path")
+        flat_config["max_tiles"] = raw_config["model"].get("max_tiles")
+        flat_config["flash_attn"] = raw_config["model"].get("flash_attn")
+        flat_config["dtype"] = raw_config["model"].get("dtype")
+        flat_config["max_new_tokens"] = raw_config["model"].get("max_new_tokens")
 
-    if "data" in config:
-        flat_config["data_dir"] = config["data"].get("dir")
-        flat_config["ground_truth"] = config["data"].get("ground_truth")
-        flat_config["max_images"] = config["data"].get("max_images")
-        flat_config["document_types"] = config["data"].get("document_types")
+    if "data" in raw_config:
+        flat_config["data_dir"] = raw_config["data"].get("dir")
+        flat_config["ground_truth"] = raw_config["data"].get("ground_truth")
+        flat_config["max_images"] = raw_config["data"].get("max_images")
+        flat_config["document_types"] = raw_config["data"].get("document_types")
 
-    if "output" in config:
-        flat_config["output_dir"] = config["output"].get("dir")
-        flat_config["skip_visualizations"] = config["output"].get("skip_visualizations")
-        flat_config["skip_reports"] = config["output"].get("skip_reports")
+    if "output" in raw_config:
+        flat_config["output_dir"] = raw_config["output"].get("dir")
+        flat_config["skip_visualizations"] = raw_config["output"].get(
+            "skip_visualizations"
+        )
+        flat_config["skip_reports"] = raw_config["output"].get("skip_reports")
 
-    if "processing" in config:
-        flat_config["batch_size"] = config["processing"].get("batch_size")
-        flat_config["bank_v2"] = config["processing"].get("bank_v2")
-        flat_config["balance_correction"] = config["processing"].get(
+    if "processing" in raw_config:
+        flat_config["batch_size"] = raw_config["processing"].get("batch_size")
+        flat_config["bank_v2"] = raw_config["processing"].get("bank_v2")
+        flat_config["balance_correction"] = raw_config["processing"].get(
             "balance_correction"
         )
-        flat_config["verbose"] = config["processing"].get("verbose")
+        flat_config["verbose"] = raw_config["processing"].get("verbose")
 
-    # Remove None values
-    return {k: v for k, v in flat_config.items() if v is not None}
+    # Flatten model_loading options into PipelineConfig fields
+    if "model_loading" in raw_config:
+        ml = raw_config["model_loading"]
+        if "trust_remote_code" in ml:
+            flat_config["trust_remote_code"] = ml["trust_remote_code"]
+        if "use_fast_tokenizer" in ml:
+            flat_config["use_fast_tokenizer"] = ml["use_fast_tokenizer"]
+        if "low_cpu_mem_usage" in ml:
+            flat_config["low_cpu_mem_usage"] = ml["low_cpu_mem_usage"]
+        if "device_map" in ml:
+            flat_config["device_map"] = str(ml["device_map"])
+
+    # Remove None values from flat config
+    flat_config = {k: v for k, v in flat_config.items() if v is not None}
+
+    return flat_config, raw_config
 
 
 def load_env_config() -> dict[str, Any]:
@@ -205,9 +232,16 @@ def load_env_config() -> dict[str, Any]:
     return env_config
 
 
-def auto_detect_model_path() -> Path | None:
-    """Auto-detect model path from common locations."""
-    for path_str in DEFAULT_MODEL_PATHS:
+def auto_detect_model_path(
+    search_paths: list[str] | None = None,
+) -> Path | None:
+    """Auto-detect model path from common locations.
+
+    Args:
+        search_paths: Custom list of paths to search. Falls back to DEFAULT_MODEL_PATHS.
+    """
+    paths = search_paths or DEFAULT_MODEL_PATHS
+    for path_str in paths:
         path = Path(path_str)
         if path.exists() and (path / "config.json").exists():
             return path
@@ -218,6 +252,7 @@ def merge_configs(
     cli_args: dict[str, Any],
     yaml_config: dict[str, Any],
     env_config: dict[str, Any],
+    raw_config: dict[str, Any] | None = None,
 ) -> PipelineConfig:
     """Merge configs with CLI > YAML > ENV > defaults priority."""
     # Start with defaults (handled by dataclass)
@@ -234,7 +269,10 @@ def merge_configs(
 
     # Auto-detect model path if not specified
     if not merged.get("model_path"):
-        detected = auto_detect_model_path()
+        search_paths = None
+        if raw_config and "model_loading" in raw_config:
+            search_paths = raw_config["model_loading"].get("default_paths")
+        detected = auto_detect_model_path(search_paths)
         if detected:
             merged["model_path"] = detected
 

@@ -531,6 +531,87 @@ GPU_MEMORY_THRESHOLDS = {
 ENABLE_BATCH_SIZE_FALLBACK = True
 BATCH_SIZE_FALLBACK_STEPS = [8, 4, 2, 1]  # Try these batch sizes if OOM occurs
 
+
+def apply_yaml_overrides(raw_config: dict) -> None:
+    """Override module-level constants from run_config.yml.
+
+    Called once from CLI startup. YAML values replace hardcoded defaults.
+    Only keys present in the YAML are overridden — missing keys keep
+    their Python-level defaults.
+    """
+    global DEFAULT_BATCH_SIZES, MAX_BATCH_SIZES, CONSERVATIVE_BATCH_SIZES
+    global MIN_BATCH_SIZE, CURRENT_BATCH_STRATEGY, AUTO_BATCH_SIZE_ENABLED
+    global BATCH_SIZE_MEMORY_SAFETY_MARGIN, CLEAR_GPU_CACHE_AFTER_BATCH
+    global BATCH_PROCESSING_TIMEOUT_SECONDS, ENABLE_BATCH_SIZE_FALLBACK
+    global BATCH_SIZE_FALLBACK_STEPS, GPU_MEMORY_THRESHOLDS
+    global INTERNVL3_GENERATION_CONFIG, GENERATION_CONFIGS
+    global INTERNVL3_TOKEN_LIMITS
+
+    # --- Batch processing ---
+    batch = raw_config.get("batch", {})
+    if batch:
+        if "default_sizes" in batch:
+            DEFAULT_BATCH_SIZES.update(batch["default_sizes"])
+        if "max_sizes" in batch:
+            MAX_BATCH_SIZES.update(batch["max_sizes"])
+        if "conservative_sizes" in batch:
+            CONSERVATIVE_BATCH_SIZES.update(batch["conservative_sizes"])
+        if "min_size" in batch:
+            MIN_BATCH_SIZE = batch["min_size"]
+        if "strategy" in batch:
+            CURRENT_BATCH_STRATEGY = batch["strategy"]
+        if "auto_detect" in batch:
+            AUTO_BATCH_SIZE_ENABLED = batch["auto_detect"]
+        if "memory_safety_margin" in batch:
+            BATCH_SIZE_MEMORY_SAFETY_MARGIN = batch["memory_safety_margin"]
+        if "clear_cache_after_batch" in batch:
+            CLEAR_GPU_CACHE_AFTER_BATCH = batch["clear_cache_after_batch"]
+        if "timeout_seconds" in batch:
+            BATCH_PROCESSING_TIMEOUT_SECONDS = batch["timeout_seconds"]
+        if "fallback_enabled" in batch:
+            ENABLE_BATCH_SIZE_FALLBACK = batch["fallback_enabled"]
+        if "fallback_steps" in batch:
+            BATCH_SIZE_FALLBACK_STEPS = batch["fallback_steps"]
+
+    # --- Generation parameters ---
+    gen = raw_config.get("generation", {})
+    if gen:
+        if "max_new_tokens_base" in gen:
+            INTERNVL3_GENERATION_CONFIG["max_new_tokens_base"] = gen[
+                "max_new_tokens_base"
+            ]
+        if "max_new_tokens_per_field" in gen:
+            INTERNVL3_GENERATION_CONFIG["max_new_tokens_per_field"] = gen[
+                "max_new_tokens_per_field"
+            ]
+        if "do_sample" in gen:
+            INTERNVL3_GENERATION_CONFIG["do_sample"] = gen["do_sample"]
+            if "internvl3" in GENERATION_CONFIGS:
+                GENERATION_CONFIGS["internvl3"]["do_sample"] = gen["do_sample"]
+        if "use_cache" in gen:
+            INTERNVL3_GENERATION_CONFIG["use_cache"] = gen["use_cache"]
+        if "num_beams" in gen:
+            if "internvl3" in GENERATION_CONFIGS:
+                GENERATION_CONFIGS["internvl3"]["num_beams"] = gen["num_beams"]
+        if "repetition_penalty" in gen:
+            if "internvl3" in GENERATION_CONFIGS:
+                GENERATION_CONFIGS["internvl3"]["repetition_penalty"] = gen[
+                    "repetition_penalty"
+                ]
+
+        token_limits = gen.get("token_limits", {})
+        if token_limits:
+            for size_key, value in token_limits.items():
+                INTERNVL3_TOKEN_LIMITS[str(size_key)] = value
+
+    # --- GPU memory thresholds ---
+    gpu = raw_config.get("gpu", {})
+    if gpu:
+        thresholds = gpu.get("memory_thresholds", {})
+        if thresholds:
+            GPU_MEMORY_THRESHOLDS.update(thresholds)
+
+
 # ============================================================================
 # TILE CONFIGURATION - For OCR Quality Optimization
 # ============================================================================

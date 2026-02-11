@@ -23,7 +23,11 @@ from typing import Any, Dict, Optional
 import torch
 
 
-def configure_cuda_memory_allocation(verbose: bool = True):
+def configure_cuda_memory_allocation(
+    verbose: bool = True,
+    max_split_size_mb: int = 128,
+    cudnn_benchmark: bool = True,
+):
     """
     Configure CUDA memory allocation to reduce fragmentation.
 
@@ -31,6 +35,8 @@ def configure_cuda_memory_allocation(verbose: bool = True):
 
     Args:
         verbose: Whether to print configuration messages
+        max_split_size_mb: Maximum CUDA allocator split size in MB
+        cudnn_benchmark: Whether to enable cuDNN benchmarking
 
     Returns:
         bool: True if configuration was applied, False if running on CPU
@@ -49,9 +55,8 @@ def configure_cuda_memory_allocation(verbose: bool = True):
     # Detect GPU type for logging
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
 
-    # Modern GPUs (A10G, L4): Standard settings with 128MB blocks
-    # These GPUs have better memory management than older architectures
-    cuda_alloc_config = "max_split_size_mb:128"
+    # Configure CUDA memory allocator block size
+    cuda_alloc_config = f"max_split_size_mb:{max_split_size_mb}"
 
     # Apply the configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
@@ -60,7 +65,7 @@ def configure_cuda_memory_allocation(verbose: bool = True):
         print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
 
     # Also set cudnn benchmarking for better performance
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = cudnn_benchmark
 
     # Log current CUDA memory state
     try:
@@ -297,7 +302,10 @@ def aggressive_defragmentation():
 
 
 def comprehensive_memory_cleanup(
-    model: Optional[Any] = None, processor: Optional[Any] = None, verbose: bool = True
+    model: Optional[Any] = None,
+    processor: Optional[Any] = None,
+    verbose: bool = True,
+    fragmentation_threshold_gb: float = 0.5,
 ):
     """
     Perform comprehensive memory cleanup including cache clearing and defragmentation.
@@ -306,6 +314,7 @@ def comprehensive_memory_cleanup(
         model: Optional model to clear caches from
         processor: Optional processor to clear caches from
         verbose: Whether to print cleanup messages
+        fragmentation_threshold_gb: Fragmentation threshold in GB to trigger cleanup
     """
     # Phase 1: Clear model caches if provided
     if model is not None:
@@ -329,7 +338,9 @@ def comprehensive_memory_cleanup(
         torch.cuda.reset_accumulated_memory_stats()
 
         # Check and handle fragmentation
-        handle_memory_fragmentation(threshold_gb=0.5, aggressive=True, verbose=verbose)
+        handle_memory_fragmentation(
+            threshold_gb=fragmentation_threshold_gb, aggressive=True, verbose=verbose
+        )
 
 
 class ResilientGenerator:
@@ -343,7 +354,14 @@ class ResilientGenerator:
     4. CPU fallback as ultimate strategy
     """
 
-    def __init__(self, model, processor=None, model_path=None, model_loader=None):
+    def __init__(
+        self,
+        model,
+        processor=None,
+        model_path=None,
+        model_loader=None,
+        max_oom_retries: int = 3,
+    ):
         """
         Initialize resilient generator.
 
@@ -352,13 +370,14 @@ class ResilientGenerator:
             processor: Optional processor/tokenizer
             model_path: Path to model for emergency reload
             model_loader: Function to reload the model
+            max_oom_retries: Maximum number of OOM retries before giving up
         """
         self.model = model
         self.processor = processor
         self.model_path = model_path
         self.model_loader = model_loader
         self.oom_count = 0
-        self.max_oom_retries = 3
+        self.max_oom_retries = max_oom_retries
 
     def generate(
         self,
@@ -664,7 +683,10 @@ def optimize_model_for_gpu(
             print("🚀 GPU optimizations applied")
 
 
-def clear_gpu_cache(verbose: bool = True):
+def clear_gpu_cache(
+    verbose: bool = True,
+    critical_fragmentation_threshold_gb: float = 1.0,
+):
     """
     GPU memory cache clearing optimized for AWS instances (A10G, L4).
 
@@ -673,6 +695,7 @@ def clear_gpu_cache(verbose: bool = True):
 
     Args:
         verbose: Whether to print detailed cleanup messages
+        critical_fragmentation_threshold_gb: Threshold in GB to flag fragmentation
     """
     if verbose:
         print("🧹 Starting GPU memory cleanup...")
@@ -716,7 +739,7 @@ def clear_gpu_cache(verbose: bool = True):
 
         # Memory fragmentation detection
         fragmentation = final_reserved - final_memory
-        if fragmentation > 1.0:  # 1.0GB threshold for modern GPUs
+        if fragmentation > critical_fragmentation_threshold_gb:
             if verbose:
                 print(f"   ⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap")
     else:
