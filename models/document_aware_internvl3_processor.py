@@ -81,9 +81,17 @@ class DocumentAwareInternVL3HybridProcessor:
         self.model_path = model_path or INTERNVL3_MODEL_PATH
         self.device = device
         self.debug = debug
-        self.prompt_config = (
-            prompt_config  # Single source of truth for prompt configuration
+        self.prompt_config = prompt_config
+        if not self.prompt_config:
+            raise ValueError(
+                "prompt_config is required — must contain "
+                "'detection_file', 'detection_key', 'extraction_files'"
+            )
+        missing = {"detection_file", "detection_key", "extraction_files"} - set(
+            self.prompt_config
         )
+        if missing:
+            raise ValueError(f"prompt_config missing required keys: {missing}")
         self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
 
         # Image preprocessing pipeline (extracted for testability and reuse)
@@ -452,62 +460,57 @@ class DocumentAwareInternVL3HybridProcessor:
                     document_type = "bank_statement_flat"
 
             # Get document-specific prompt using prompt_config (single source of truth)
-            if self.prompt_config:
-                # Use prompt_config to determine which file and key to use
-                # Strip structure suffixes to get base document type
-                doc_type_upper = (
-                    document_type.upper()
-                    .replace("_FLAT", "")
-                    .replace("_DATE_GROUPED", "")
+            # Strip structure suffixes to get base document type
+            doc_type_upper = (
+                document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+            )
+            extraction_files = self.prompt_config["extraction_files"]
+            if doc_type_upper not in extraction_files:
+                raise ValueError(
+                    f"No extraction file configured for '{doc_type_upper}'. "
+                    f"Available: {list(extraction_files.keys())}. "
+                    f"Add it to prompt_config['extraction_files']."
                 )
-                extraction_file = self.prompt_config.get("extraction_files", {}).get(
-                    doc_type_upper, "prompts/internvl3_prompts.yaml"
-                )
+            extraction_file = extraction_files[doc_type_upper]
 
-                # Get the prompt key from config (or derive from document type if not specified)
-                extraction_keys = self.prompt_config.get("extraction_keys", {})
+            # Get the prompt key from config (or derive from document type if not specified)
+            extraction_keys = self.prompt_config.get("extraction_keys", {})
 
-                if doc_type_upper in extraction_keys:
-                    # Use explicitly configured key
-                    extraction_key = extraction_keys[doc_type_upper]
-                else:
-                    # Derive key from document type (already includes structure suffix if present)
-                    extraction_key = document_type
-
-                # For bank statements ONLY: if key doesn't include structure suffix, append it
-                # This allows config to override by specifying full key like "bank_statement_flat"
-                if (
-                    document_type.startswith("bank_statement")
-                    and doc_type_upper == "BANK_STATEMENT"
-                ):
-                    if (
-                        "_flat" not in extraction_key
-                        and "_date_grouped" not in extraction_key
-                    ):
-                        # Only append if document_type has a structure suffix
-                        if "_flat" in document_type:
-                            extraction_key = f"{extraction_key}_flat"
-                        elif "_date_grouped" in document_type:
-                            extraction_key = f"{extraction_key}_date_grouped"
-
-                from pathlib import Path
-
-                from common.simple_prompt_loader import SimplePromptLoader
-
-                loader = SimplePromptLoader()
-                extraction_prompt = loader.load_prompt(
-                    Path(extraction_file).name, extraction_key
-                )
+            if doc_type_upper in extraction_keys:
+                # Use explicitly configured key
+                extraction_key = extraction_keys[doc_type_upper]
             else:
-                # Fallback to get_extraction_prompt method
-                extraction_prompt = self.get_extraction_prompt(document_type)
+                # Derive key from document type (already includes structure suffix if present)
+                extraction_key = document_type
+
+            # For bank statements ONLY: if key doesn't include structure suffix, append it
+            # This allows config to override by specifying full key like "bank_statement_flat"
+            if (
+                document_type.startswith("bank_statement")
+                and doc_type_upper == "BANK_STATEMENT"
+            ):
+                if (
+                    "_flat" not in extraction_key
+                    and "_date_grouped" not in extraction_key
+                ):
+                    # Only append if document_type has a structure suffix
+                    if "_flat" in document_type:
+                        extraction_key = f"{extraction_key}_flat"
+                    elif "_date_grouped" in document_type:
+                        extraction_key = f"{extraction_key}_date_grouped"
+
+            from pathlib import Path
+
+            from common.simple_prompt_loader import SimplePromptLoader
+
+            loader = SimplePromptLoader()
+            extraction_prompt = loader.load_prompt(
+                Path(extraction_file).name, extraction_key
+            )
 
             if verbose:
-                prompt_source = (
-                    "prompt_config" if self.prompt_config else "get_extraction_prompt"
-                )
                 print(
-                    f"📝 Using {document_type} prompt ({prompt_source}): {len(extraction_prompt)} characters"
+                    f"📝 Using {document_type} prompt (prompt_config): {len(extraction_prompt)} characters"
                 )
 
             # Get document-specific field list from cached config (single source of truth)
@@ -1412,27 +1415,28 @@ class DocumentAwareInternVL3HybridProcessor:
     def _get_batch_extraction_prompt(self, document_type: str) -> str:
         """Get extraction prompt for batch inference.
 
-        Uses prompt_config (single source of truth) when available,
-        falls back to get_extraction_prompt().
+        Uses prompt_config (single source of truth).
         """
-        if self.prompt_config:
-            doc_type_upper = (
-                document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+        doc_type_upper = (
+            document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+        )
+        extraction_files = self.prompt_config["extraction_files"]
+        if doc_type_upper not in extraction_files:
+            raise ValueError(
+                f"No extraction file configured for '{doc_type_upper}'. "
+                f"Available: {list(extraction_files.keys())}. "
+                f"Add it to prompt_config['extraction_files']."
             )
-            extraction_file = self.prompt_config.get("extraction_files", {}).get(
-                doc_type_upper, "prompts/internvl3_prompts.yaml"
-            )
-            extraction_keys = self.prompt_config.get("extraction_keys", {})
-            extraction_key = extraction_keys.get(doc_type_upper, document_type)
+        extraction_file = extraction_files[doc_type_upper]
+        extraction_keys = self.prompt_config.get("extraction_keys", {})
+        extraction_key = extraction_keys.get(doc_type_upper, document_type)
 
-            from pathlib import Path
+        from pathlib import Path
 
-            from common.simple_prompt_loader import SimplePromptLoader
+        from common.simple_prompt_loader import SimplePromptLoader
 
-            loader = SimplePromptLoader()
-            return loader.load_prompt(Path(extraction_file).name, extraction_key)
-
-        return self.get_extraction_prompt(document_type)
+        loader = SimplePromptLoader()
+        return loader.load_prompt(Path(extraction_file).name, extraction_key)
 
     def get_model_info(self) -> dict:
         """Get information about the loaded model for debugging."""

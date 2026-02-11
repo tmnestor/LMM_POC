@@ -20,7 +20,6 @@ from typing import Any
 
 import torch
 import typer
-import yaml
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -59,7 +58,6 @@ VERSION = "1.0.0"
 # Exit codes
 EXIT_SUCCESS = 0
 EXIT_CONFIG_ERROR = 1
-EXIT_MODEL_ERROR = 2
 EXIT_PROCESSING_ERROR = 3
 
 console = Console()
@@ -163,23 +161,32 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
 
 
 def load_prompt_config() -> dict[str, Any]:
-    """Load prompt configuration from YAML."""
-    prompt_path = Path(__file__).parent / "prompts" / "internvl3_prompts.yaml"
-    if not prompt_path.exists():
+    """Build prompt routing config for the document-aware processor."""
+    base = Path(__file__).parent / "prompts"
+    detection_file = base / "document_type_detection.yaml"
+    extraction_file = str(base / "internvl3_prompts.yaml")
+
+    if not detection_file.exists():
+        console.print(f"[red]FATAL: Detection prompt not found: {detection_file}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    if not Path(extraction_file).exists():
         console.print(
-            f"[yellow]Warning: Prompt config not found at {prompt_path}[/yellow]"
+            f"[red]FATAL: Extraction prompts not found: {extraction_file}[/red]"
         )
-        return {}
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    with prompt_path.open() as f:
-        config = yaml.safe_load(f)
-
-    # Add detection config keys expected by DocumentAwareInternVL3HybridProcessor
-    detection_path = Path(__file__).parent / "prompts" / "document_type_detection.yaml"
-    config["detection_file"] = str(detection_path)
-    config["detection_key"] = "detection"
-
-    return config
+    return {
+        "detection_file": str(detection_file),
+        "detection_key": "detection",
+        "extraction_files": {
+            "INVOICE": extraction_file,
+            "RECEIPT": extraction_file,
+            "BANK_STATEMENT": extraction_file,
+            "TRAVEL_EXPENSE": extraction_file,
+            "VEHICLE_LOGBOOK": extraction_file,
+        },
+    }
 
 
 def load_pipeline_configs() -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
