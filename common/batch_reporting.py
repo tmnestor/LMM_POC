@@ -61,7 +61,11 @@ class BatchReporter:
         successful_extractions = len(self.successful_results)
 
         # Check if we're in inference-only mode
-        inference_only = df_results.get("inference_only", pd.Series([False])).any() if len(df_results) > 0 else False
+        inference_only = (
+            df_results.get("inference_only", pd.Series([False])).any()
+            if len(df_results) > 0
+            else False
+        )
 
         if not inference_only and len(df_results) > 0:
             # Evaluation mode - calculate accuracy metrics
@@ -78,8 +82,12 @@ class BatchReporter:
         else:
             # Inference-only mode - show extraction metrics instead
             avg_accuracy = None
-            avg_fields_found = df_results["fields_extracted"].mean() if len(df_results) > 0 else 0
-            readiness = f"📋 **Inference-Only Mode** (Avg: {avg_fields_found:.1f} fields found)"
+            avg_fields_found = (
+                df_results["fields_extracted"].mean() if len(df_results) > 0 else 0
+            )
+            readiness = (
+                f"📋 **Inference-Only Mode** (Avg: {avg_fields_found:.1f} fields found)"
+            )
 
         total_time = sum(self.processing_times) if self.processing_times else 0
         throughput = 60 / np.mean(self.processing_times) if self.processing_times else 0
@@ -139,7 +147,7 @@ class BatchReporter:
 
         # Add top performing images (only in evaluation mode)
         if not inference_only and len(df_results) > 0:
-            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            accuracy_results = df_results.dropna(subset=["overall_accuracy"])
             if len(accuracy_results) > 0:
                 top_performers = accuracy_results.nlargest(
                     min(5, len(accuracy_results)), "overall_accuracy"
@@ -160,7 +168,7 @@ class BatchReporter:
 
         # Add areas for improvement (only in evaluation mode)
         if not inference_only and len(df_results) > 0:
-            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            accuracy_results = df_results.dropna(subset=["overall_accuracy"])
             if len(accuracy_results) > 0:
                 poor_performers = accuracy_results.nsmallest(
                     min(5, len(accuracy_results)), "overall_accuracy"
@@ -195,7 +203,6 @@ All results have been saved to: `{output_base}`
         df_summary: pd.DataFrame,
         model_path: str,
         batch_config: Dict[str, Any],
-        v100_config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Generate comprehensive JSON report.
@@ -204,7 +211,6 @@ All results have been saved to: `{output_base}`
             df_summary: Summary statistics DataFrame
             model_path: Path to model
             batch_config: Batch configuration
-            v100_config: V100 optimization configuration
 
         Returns:
             Dictionary with complete batch results
@@ -243,7 +249,8 @@ All results have been saved to: `{output_base}`
                 "ground_truth": batch_config.get("ground_truth"),
                 "max_images": batch_config.get("max_images"),
                 "document_types": batch_config.get("document_types"),
-                "v100_optimizations": v100_config,
+                "flash_attn": batch_config.get("flash_attn"),
+                "dtype": batch_config.get("dtype"),
             },
             "summary_statistics": summary_dict,
             "document_type_distribution": self.document_types_found,
@@ -279,7 +286,9 @@ All results have been saved to: `{output_base}`
                     "prompt_used": result["prompt_used"],
                     "processing_time": result["processing_time"],
                     "evaluation_summary": {
-                        "overall_accuracy": evaluation.get("overall_accuracy", 0) if not inference_only else None,
+                        "overall_accuracy": evaluation.get("overall_accuracy", 0)
+                        if not inference_only
+                        else None,
                         "fields_extracted": evaluation.get("fields_extracted", 0),
                         "fields_matched": evaluation.get("fields_matched", 0),
                         "total_fields": evaluation.get("total_fields", 0),
@@ -298,7 +307,6 @@ All results have been saved to: `{output_base}`
         df_doctype_stats: pd.DataFrame,
         model_path: str,
         batch_config: Dict[str, Any],
-        v100_config: Dict[str, Any],
         verbose: bool = True,
     ) -> Dict[str, Path]:
         """
@@ -311,7 +319,6 @@ All results have been saved to: `{output_base}`
             df_doctype_stats: Document type statistics
             model_path: Path to model
             batch_config: Batch configuration
-            v100_config: V100 configuration
             verbose: Whether to print save confirmations
 
         Returns:
@@ -333,9 +340,7 @@ All results have been saved to: `{output_base}`
             rprint(f"[green]✅ Executive summary saved to {report_path}[/green]")
 
         # Generate and save JSON report
-        json_report = self.generate_json_report(
-            df_summary, model_path, batch_config, v100_config
-        )
+        json_report = self.generate_json_report(df_summary, model_path, batch_config)
 
         json_path = output_dirs["batch"] / f"batch_results_{self.timestamp}.json"
         with json_path.open("w") as f:

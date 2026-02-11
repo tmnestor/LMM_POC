@@ -433,11 +433,6 @@ def generate_reports(
         "balance_correction": config.balance_correction,
     }
 
-    v100_config = {
-        "dtype": "float32" if config.dtype == "float32" else None,
-        "no_flash_attn": not config.flash_attn,
-    }
-
     report_files = reporter.save_all_reports(
         output_dirs,
         df_results,
@@ -445,7 +440,6 @@ def generate_reports(
         df_doctype_stats,
         str(config.model_path),
         batch_config,
-        v100_config,
         verbose=config.verbose,
     )
 
