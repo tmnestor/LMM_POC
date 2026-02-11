@@ -638,6 +638,35 @@ INTERNVL3_GENERATION_CONFIG = {
 }
 
 
+# Module-level cache for per-type min_tokens from field_definitions.yaml
+_MIN_TOKENS_CACHE: dict[str, int] | None = None
+
+
+def _get_min_tokens_for_type(document_type: str) -> int | None:
+    """Look up min_tokens for a document type from field_definitions.yaml.
+
+    Returns None if not specified for the given type.
+    """
+    global _MIN_TOKENS_CACHE  # noqa: PLW0603
+    if _MIN_TOKENS_CACHE is None:
+        from pathlib import Path
+
+        import yaml
+
+        _MIN_TOKENS_CACHE = {}
+        yaml_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
+        try:
+            with yaml_path.open() as f:
+                data = yaml.safe_load(f)
+            for doc_type, type_config in data.get("document_fields", {}).items():
+                if isinstance(type_config, dict) and "min_tokens" in type_config:
+                    _MIN_TOKENS_CACHE[doc_type] = type_config["min_tokens"]
+        except Exception:
+            pass
+
+    return _MIN_TOKENS_CACHE.get(document_type)
+
+
 # Helper function to calculate dynamic max_new_tokens
 def get_max_new_tokens(field_count: int = None, document_type: str = None) -> int:
     """
@@ -660,12 +689,11 @@ def get_max_new_tokens(field_count: int = None, document_type: str = None) -> in
         config["max_new_tokens_base"], field_count * config["max_new_tokens_per_field"]
     )
 
-    # Special handling for complex documents that may output JSON with many transactions
-    if document_type == "bank_statement":
-        # Bank statements can have many transactions, need significantly more tokens for JSON format
-        return max(
-            base_tokens, 1500
-        )  # Ensure at least 1500 tokens for complex bank statements
+    # Apply per-type min_tokens from field_definitions.yaml if present
+    if document_type:
+        min_tokens = _get_min_tokens_for_type(document_type)
+        if min_tokens:
+            return max(base_tokens, min_tokens)
 
     return base_tokens
 

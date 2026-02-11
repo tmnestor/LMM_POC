@@ -37,6 +37,7 @@ from common.gpu_optimization import (
     get_available_gpu_memory,
     optimize_model_for_gpu,
 )
+from common.pipeline_config import strip_structure_suffixes
 from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
 from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
@@ -93,6 +94,23 @@ class DocumentAwareInternVL3HybridProcessor:
         if missing:
             raise ValueError(f"prompt_config missing required keys: {missing}")
         self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
+
+        # Read fallback_type from detection YAML settings (avoids hardcoding "INVOICE")
+        self._fallback_type = "INVOICE"  # safe default if YAML read fails
+        try:
+            from pathlib import Path
+
+            import yaml
+
+            detection_path = Path(self.prompt_config["detection_file"])
+            if detection_path.exists():
+                with detection_path.open() as f:
+                    det_cfg = yaml.safe_load(f)
+                self._fallback_type = det_cfg.get("settings", {}).get(
+                    "fallback_type", "INVOICE"
+                )
+        except Exception:
+            pass
 
         # Image preprocessing pipeline (extracted for testability and reuse)
         self.image_preprocessor = InternVL3ImagePreprocessor(
@@ -384,9 +402,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 sys.stdout.flush()
                 traceback.print_exc()
 
-            # Fallback to simple heuristic
+            # Fallback to simple heuristic (type from detection YAML settings)
             return {
-                "document_type": "INVOICE",  # Use uppercase for consistency
+                "document_type": self._fallback_type,
                 "confidence": 0.1,
                 "raw_response": "",
                 "prompt_used": "fallback_heuristic",
@@ -461,9 +479,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
             # Get document-specific prompt using prompt_config (single source of truth)
             # Strip structure suffixes to get base document type
-            doc_type_upper = (
-                document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
-            )
+            doc_type_upper = strip_structure_suffixes(document_type).upper()
             extraction_files = self.prompt_config["extraction_files"]
             if doc_type_upper not in extraction_files:
                 raise ValueError(
@@ -533,9 +549,7 @@ class DocumentAwareInternVL3HybridProcessor:
             from common.config import get_max_new_tokens
 
             # Use base document type for max tokens calculation
-            base_doc_type = document_type.replace("_flat", "").replace(
-                "_date_grouped", ""
-            )
+            base_doc_type = strip_structure_suffixes(document_type)
             doc_specific_tokens = get_max_new_tokens(
                 field_count=len(doc_field_list), document_type=base_doc_type
             )
@@ -816,7 +830,9 @@ class DocumentAwareInternVL3HybridProcessor:
                 detection_result = self.detect_and_classify_document(
                     image_path, verbose=self.debug
                 )
-                detected_type = detection_result.get("document_type", "INVOICE")
+                detected_type = detection_result.get(
+                    "document_type", self._fallback_type
+                )
 
                 # Map uppercase detection result to lowercase prompt key
                 # Derived from prompt_config extraction_files (YAML-first)
@@ -849,9 +865,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
                 # Get document-specific field list for accurate processing
                 # Normalize document_type by stripping structure suffix for field list lookup
-                base_doc_type = document_type.replace("_flat", "").replace(
-                    "_date_grouped", ""
-                )
+                base_doc_type = strip_structure_suffixes(document_type)
                 document_fields = self.document_field_lists.get(
                     base_doc_type, document_fields
                 )
@@ -1240,9 +1254,7 @@ class DocumentAwareInternVL3HybridProcessor:
             questions.append(extraction_prompt)
 
             # Track max tokens needed
-            base_doc_type = document_type.replace("_flat", "").replace(
-                "_date_grouped", ""
-            )
+            base_doc_type = strip_structure_suffixes(document_type)
             tokens = get_max_new_tokens(
                 field_count=len(doc_field_list), document_type=base_doc_type
             )
@@ -1369,9 +1381,7 @@ class DocumentAwareInternVL3HybridProcessor:
 
         Uses prompt_config (single source of truth).
         """
-        doc_type_upper = (
-            document_type.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
-        )
+        doc_type_upper = strip_structure_suffixes(document_type).upper()
         extraction_files = self.prompt_config["extraction_files"]
         if doc_type_upper not in extraction_files:
             raise ValueError(

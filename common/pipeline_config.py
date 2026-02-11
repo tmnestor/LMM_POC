@@ -28,6 +28,45 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp"}
 
 ENV_PREFIX = "IVL_"
 
+# Default structure suffixes (overridden by extraction YAML settings.structure_suffixes)
+_DEFAULT_STRUCTURE_SUFFIXES = ("_flat", "_date_grouped")
+
+
+def strip_structure_suffixes(
+    key: str, suffixes: tuple[str, ...] = _DEFAULT_STRUCTURE_SUFFIXES
+) -> str:
+    """Strip layout variant suffixes to get the base document type.
+
+    e.g. "BANK_STATEMENT_FLAT" → "BANK_STATEMENT", "invoice" → "invoice"
+    """
+    result = key
+    for suffix in suffixes:
+        if result.upper().endswith(suffix.upper()):
+            result = result[: -len(suffix)]
+    return result
+
+
+def load_structure_suffixes(
+    extraction_yaml_path: Path | None = None,
+) -> tuple[str, ...]:
+    """Load structure suffixes from extraction YAML settings.
+
+    Falls back to _DEFAULT_STRUCTURE_SUFFIXES if not specified.
+    """
+    if extraction_yaml_path is None:
+        return _DEFAULT_STRUCTURE_SUFFIXES
+
+    try:
+        with extraction_yaml_path.open() as f:
+            data = yaml.safe_load(f)
+        suffixes = data.get("settings", {}).get("structure_suffixes")
+        if suffixes:
+            return tuple(suffixes)
+    except Exception:
+        pass
+
+    return _DEFAULT_STRUCTURE_SUFFIXES
+
 
 # ============================================================================
 # Configuration Dataclass

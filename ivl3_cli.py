@@ -40,8 +40,10 @@ from common.pipeline_config import (
     PipelineConfig,
     discover_images,
     load_env_config,
+    load_structure_suffixes,
     load_yaml_config,
     merge_configs,
+    strip_structure_suffixes,
     validate_config,
 )
 from models.document_aware_internvl3_processor import (
@@ -188,16 +190,29 @@ def load_prompt_config() -> dict[str, Any]:
 
     prompt_keys = set(extraction_yaml.get("prompts", {}).keys())
 
-    # Keys that are not document types (utility prompts, settings)
-    non_doc_keys = {"universal", "settings"}
-    doc_keys = prompt_keys - non_doc_keys
+    # Derive non-doc keys by cross-referencing with field_definitions.yaml
+    # A prompt key is a document type if its suffix-stripped form appears
+    # in supported_document_types; everything else is a non-doc key.
+    field_defs_path = Path(__file__).parent / "config" / "field_definitions.yaml"
+    supported_types: set[str] = set()
+    if field_defs_path.exists():
+        with field_defs_path.open() as f:
+            field_defs = yaml.safe_load(f)
+        supported_types = set(field_defs.get("supported_document_types", []))
+
+    suffixes = load_structure_suffixes(extraction_path)
+    doc_keys: set[str] = set()
+    for key in prompt_keys:
+        base = strip_structure_suffixes(key, suffixes)
+        if base in supported_types:
+            doc_keys.add(key)
 
     # Map prompt keys to uppercase canonical types, stripping structure suffixes
     # e.g. bank_statement_flat → BANK_STATEMENT, invoice → INVOICE
     extraction_file = str(extraction_path)
     extraction_files: dict[str, str] = {}
     for key in doc_keys:
-        canonical = key.upper().replace("_FLAT", "").replace("_DATE_GROUPED", "")
+        canonical = strip_structure_suffixes(key, suffixes).upper()
         extraction_files[canonical] = extraction_file
 
     if not extraction_files:

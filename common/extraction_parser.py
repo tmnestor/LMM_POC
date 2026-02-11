@@ -22,9 +22,46 @@ except ImportError:
 
     HAS_ORJSON = False
 
+import yaml
+
 from .config import (
     EXTRACTION_FIELDS,
 )
+
+# Module-level cache for document type alias map
+_DOC_TYPE_ALIAS_MAP: dict[str, str] | None = None
+
+
+def _load_doc_type_alias_map() -> dict[str, str]:
+    """Load document_type_aliases from field_definitions.yaml and build reverse lookup.
+
+    Returns a dict mapping lowercased alias → UPPER_CANONICAL_TYPE, e.g.:
+        {"statement": "BANK_STATEMENT", "bank statement": "BANK_STATEMENT", ...}
+
+    Cached at module level after first call.
+    """
+    global _DOC_TYPE_ALIAS_MAP  # noqa: PLW0603
+    if _DOC_TYPE_ALIAS_MAP is not None:
+        return _DOC_TYPE_ALIAS_MAP
+
+    alias_map: dict[str, str] = {}
+    yaml_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
+
+    try:
+        with yaml_path.open() as f:
+            data = yaml.safe_load(f)
+        aliases = data.get("document_type_aliases", {})
+        for canonical_type, alias_list in aliases.items():
+            upper_type = canonical_type.upper()
+            # Map the canonical name itself
+            alias_map[canonical_type.lower()] = upper_type
+            for alias in alias_list:
+                alias_map[alias.lower()] = upper_type
+    except Exception:
+        pass
+
+    _DOC_TYPE_ALIAS_MAP = alias_map
+    return _DOC_TYPE_ALIAS_MAP
 
 
 def _normalize_date(date_str: str) -> str:
@@ -598,15 +635,13 @@ def parse_extraction_response(
         if field_value == "NOT_FOUND":
             continue
 
-        # Normalize DOCUMENT_TYPE values to canonical forms
+        # Normalize DOCUMENT_TYPE values to canonical forms (YAML-driven)
         if field_name == "DOCUMENT_TYPE":
             doc_type_lower = field_value.lower().strip()
-            if doc_type_lower in ("statement", "bank statement"):
-                extracted_data[field_name] = "BANK_STATEMENT"
-            elif doc_type_lower in ("invoice", "bill"):
-                extracted_data[field_name] = "INVOICE"
-            elif doc_type_lower == "receipt":
-                extracted_data[field_name] = "RECEIPT"
+            alias_map = _load_doc_type_alias_map()
+            canonical = alias_map.get(doc_type_lower)
+            if canonical:
+                extracted_data[field_name] = canonical
             continue
 
         # Handle list fields: convert commas/markdown/spaces to pipes

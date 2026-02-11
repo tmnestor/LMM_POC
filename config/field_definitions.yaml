@@ -44,6 +44,7 @@ document_fields:
 
   bank_statement:
     count: 5
+    min_tokens: 1500  # Bank statements have many transactions; need more output tokens
     fields:
       - DOCUMENT_TYPE
       - STATEMENT_DATE_RANGE
