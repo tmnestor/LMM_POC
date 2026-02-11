@@ -6,28 +6,39 @@ A production-ready CLI for extracting structured fields from business document i
 
 ```
 .
-├── ivl3_cli.py                  # CLI entry point
+├── ivl3_cli.py                        # CLI entry point
 ├── config/
-│   ├── run_config.yml           # Single source of truth for all tunable parameters
-│   ├── field_definitions.yaml   # Document types, fields, and evaluation settings
-│   ├── bank_column_patterns.yaml
-│   └── model_config.yaml
+│   ├── run_config.yml                 # Single source of truth for all tunable parameters
+│   ├── field_definitions.yaml         # Document types, fields, and evaluation settings
+│   ├── bank_column_patterns.yaml      # Column header patterns for bank statement extraction
+│   └── model_config.yaml              # Model configs for unified bank extraction
 ├── prompts/
 │   ├── document_type_detection.yaml   # Detection prompts + type mappings
 │   └── internvl3_prompts.yaml         # Per-type extraction prompts
 ├── common/
-│   ├── pipeline_config.py       # PipelineConfig dataclass, YAML/ENV/CLI merging
-│   ├── config.py                # Module-level constants (overridden by YAML)
-│   ├── batch_processor.py       # Batch orchestration (detection → extraction)
-│   ├── gpu_optimization.py      # CUDA memory management, OOM recovery
-│   ├── bank_statement_adapter.py
-│   ├── batch_analytics.py
-│   ├── batch_reporting.py
-│   ├── batch_visualizations.py
-│   └── ...
+│   ├── __init__.py                    # Package exports (PipelineConfig, loaders, etc.)
+│   ├── pipeline_config.py             # PipelineConfig dataclass, YAML/ENV/CLI merging
+│   ├── config.py                      # Module-level constants (overridden by YAML)
+│   ├── batch_processor.py             # Batch orchestration (detection → extraction)
+│   ├── gpu_optimization.py            # CUDA memory management, OOM recovery
+│   ├── robust_gpu_memory.py           # Reliable GPU memory detection across hardware
+│   ├── bank_statement_adapter.py      # Bridges batch processor with multi-turn bank extraction
+│   ├── bank_statement_calculator.py   # Derives transaction types and amounts from extracted data
+│   ├── unified_bank_extractor.py      # Auto-selects optimal bank extraction strategy
+│   ├── batch_analytics.py             # DataFrames and statistics from batch results
+│   ├── batch_reporting.py             # Executive summaries and reports
+│   ├── batch_visualizations.py        # Dashboards, heatmaps, and charts
+│   ├── evaluation_metrics.py          # Ground truth comparison and accuracy calculation
+│   ├── extraction_cleaner.py          # Normalisation and cleaning of extracted values
+│   ├── extraction_parser.py           # Raw model output → structured data dicts
+│   ├── field_definitions_loader.py    # Loads field definitions from YAML
+│   ├── simple_model_evaluator.py      # Model performance comparison
+│   └── simple_prompt_loader.py        # Prompt loading from YAML files
 ├── models/
-│   └── document_aware_internvl3_processor.py  # InternVL3 model wrapper
-└── environment_ivl35.yml        # Conda environment specification
+│   ├── __init__.py                            # Package exports
+│   ├── document_aware_internvl3_processor.py  # InternVL3 model wrapper
+│   └── internvl3_image_preprocessor.py        # Image tiling and tensor preparation
+└── environment_ivl35.yml              # Conda environment specification
 ```
 
 ## Quick Start
