@@ -422,25 +422,12 @@ def generate_reports(
         config.timestamp,
     )
 
-    # Build batch config for report
-    batch_config = {
-        "model_path": str(config.model_path),
-        "batch_size": config.batch_size or "auto",
-        "max_tiles": config.max_tiles,
-        "flash_attn": config.flash_attn,
-        "dtype": config.dtype,
-        "bank_v2": config.bank_v2,
-        "balance_correction": config.balance_correction,
-    }
-
     report_files = reporter.save_all_reports(
         output_dirs,
         df_results,
         df_summary,
         df_doctype_stats,
-        str(config.model_path),
-        batch_config,
-        verbose=config.verbose,
+        config,
     )
 
     for f in report_files:

@@ -4,14 +4,20 @@ Batch Reporting Module for Document Extraction Results
 Generates executive summaries and comprehensive reports in various formats.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 from rich import print as rprint
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from common.pipeline_config import PipelineConfig
 
 
 class BatchReporter:
@@ -19,20 +25,11 @@ class BatchReporter:
 
     def __init__(
         self,
-        batch_results: List[Dict],
-        processing_times: List[float],
-        document_types_found: Dict[str, int],
+        batch_results: list[dict],
+        processing_times: list[float],
+        document_types_found: dict[str, int],
         timestamp: str,
     ):
-        """
-        Initialize reporter with batch results.
-
-        Args:
-            batch_results: List of extraction result dictionaries
-            processing_times: List of processing times
-            document_types_found: Dictionary of document type counts
-            timestamp: Batch timestamp
-        """
         self.batch_results = batch_results
         self.processing_times = processing_times
         self.document_types_found = document_types_found
@@ -201,20 +198,9 @@ All results have been saved to: `{output_base}`
     def generate_json_report(
         self,
         df_summary: pd.DataFrame,
-        model_path: str,
-        batch_config: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """
-        Generate comprehensive JSON report.
-
-        Args:
-            df_summary: Summary statistics DataFrame
-            model_path: Path to model
-            batch_config: Batch configuration
-
-        Returns:
-            Dictionary with complete batch results
-        """
+        config: PipelineConfig,
+    ) -> dict[str, Any]:
+        """Generate comprehensive JSON report from pipeline config."""
         # Extract summary values
         summary_dict = df_summary["Value"].to_dict()
 
@@ -237,7 +223,7 @@ All results have been saved to: `{output_base}`
             "metadata": {
                 "batch_id": self.timestamp,
                 "timestamp": datetime.now().isoformat(),
-                "model": model_path,
+                "model": str(config.model_path),
                 "total_images": total_images,
                 "successful_extractions": successful_extractions,
                 "average_accuracy": avg_accuracy,
@@ -245,12 +231,18 @@ All results have been saved to: `{output_base}`
                 "deployment_status": readiness,
             },
             "configuration": {
-                "data_directory": batch_config.get("data_dir"),
-                "ground_truth": batch_config.get("ground_truth"),
-                "max_images": batch_config.get("max_images"),
-                "document_types": batch_config.get("document_types"),
-                "flash_attn": batch_config.get("flash_attn"),
-                "dtype": batch_config.get("dtype"),
+                "data_directory": str(config.data_dir),
+                "ground_truth": str(config.ground_truth)
+                if config.ground_truth
+                else None,
+                "max_images": config.max_images,
+                "document_types": config.document_types,
+                "batch_size": config.batch_size or "auto",
+                "max_tiles": config.max_tiles,
+                "flash_attn": config.flash_attn,
+                "dtype": config.dtype,
+                "bank_v2": config.bank_v2,
+                "balance_correction": config.balance_correction,
             },
             "summary_statistics": summary_dict,
             "document_type_distribution": self.document_types_found,
@@ -301,29 +293,13 @@ All results have been saved to: `{output_base}`
 
     def save_all_reports(
         self,
-        output_dirs: Dict[str, Path],
+        output_dirs: dict[str, Path],
         df_results: pd.DataFrame,
         df_summary: pd.DataFrame,
         df_doctype_stats: pd.DataFrame,
-        model_path: str,
-        batch_config: Dict[str, Any],
-        verbose: bool = True,
-    ) -> Dict[str, Path]:
-        """
-        Save all reports to files.
-
-        Args:
-            output_dirs: Dictionary of output directories
-            df_results: Results DataFrame
-            df_summary: Summary statistics DataFrame
-            df_doctype_stats: Document type statistics
-            model_path: Path to model
-            batch_config: Batch configuration
-            verbose: Whether to print save confirmations
-
-        Returns:
-            Dictionary mapping report types to saved paths
-        """
+        config: PipelineConfig,
+    ) -> dict[str, Path]:
+        """Save all reports to files."""
         saved_files = {}
 
         # Generate and save Markdown report
@@ -336,18 +312,18 @@ All results have been saved to: `{output_base}`
             f.write(markdown_report)
         saved_files["markdown_report"] = report_path
 
-        if verbose:
+        if config.verbose:
             rprint(f"[green]✅ Executive summary saved to {report_path}[/green]")
 
         # Generate and save JSON report
-        json_report = self.generate_json_report(df_summary, model_path, batch_config)
+        json_report = self.generate_json_report(df_summary, config)
 
         json_path = output_dirs["batch"] / f"batch_results_{self.timestamp}.json"
         with json_path.open("w") as f:
             json.dump(json_report, f, indent=2, default=str)
         saved_files["json_report"] = json_path
 
-        if verbose:
+        if config.verbose:
             rprint(f"[green]✅ Complete results exported to {json_path}[/green]")
 
         return saved_files
