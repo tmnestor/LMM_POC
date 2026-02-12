@@ -191,9 +191,10 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {
 pip install ninja packaging wheel setuptools
 
 # 6. Extract the source tarball from shared storage
-cd /efs/shared/flash-attn
-tar xzf flash_attn-2.8.3.tar.gz
-cd flash_attn-2.8.3
+# cd /efs/shared/flash-attn
+# tar xzf flash_attn-2.8.3.tar.gz
+# cd flash_attn-2.8.3
+cd /efs/shared/flash-attn/flash_attn-2.8.3
 
 # 7. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
 export FLASH_ATTENTION_FORCE_BUILD=TRUE
