@@ -145,6 +145,11 @@ def load_internvl3_prompt(document_type: str = "universal") -> str:
     return SimplePromptLoader.load_prompt("internvl3_prompts.yaml", document_type)
 
 
+def load_llama_prompt(document_type: str = "universal") -> str:
+    """Load a Llama prompt for the specified document type."""
+    return SimplePromptLoader.load_prompt("llama_prompts.yaml", document_type)
+
+
 # Testing
 if __name__ == "__main__":
     print("🧪 Testing SimplePromptLoader\n")

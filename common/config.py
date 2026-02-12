@@ -16,10 +16,12 @@ NOTE: Supports environment variables for flexible deployment configuration.
 # Available model variants
 AVAILABLE_MODELS = {
     "internvl3": ["InternVL3-2B", "InternVL3-8B"],
+    "llama": ["Llama-3.2-11B-Vision-Instruct"],
 }
 
 # Current model selection (CHANGE THIS TO SWITCH MODELS)
 CURRENT_INTERNVL3_MODEL = "InternVL3-8B"  # Options: "InternVL3-2B", "InternVL3-8B"
+CURRENT_LLAMA_MODEL = "Llama-3.2-11B-Vision-Instruct"
 
 # V4 Schema Configuration - Enable by default
 V4_SCHEMA_ENABLED = True
@@ -46,8 +48,9 @@ MODELS_BASE = (
     f"{BASE_PATH}/models" if CURRENT_DEPLOYMENT == "AISandbox" else f"{BASE_PATH}/PTM"
 )
 
-# Model path based on current model selection
+# Model paths based on current model selections
 INTERNVL3_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_INTERNVL3_MODEL}"
+LLAMA_MODEL_PATH = f"{MODELS_BASE}/{CURRENT_LLAMA_MODEL}"
 
 # Data paths based on deployment
 if CURRENT_DEPLOYMENT == "AISandbox":
@@ -716,6 +719,16 @@ INTERNVL3_GENERATION_CONFIG = {
     "do_sample": False,  # Deterministic for consistent field extraction
     "use_cache": True,  # CRITICAL parameter - required for extraction quality
     "pad_token_id": None,  # Set dynamically from tokenizer
+}
+
+# Llama generation configuration
+LLAMA_GENERATION_CONFIG = {
+    "max_new_tokens_base": 400,  # Reduced for L40S hardware (was 2000 for 4xV100)
+    "max_new_tokens_per_field": 50,  # Per-field token allocation
+    "temperature": 0.0,  # Deterministic sampling for consistent results
+    "do_sample": False,  # Disable sampling for full determinism
+    "top_p": 0.95,  # Nucleus sampling parameter (inactive with do_sample=False)
+    "use_cache": True,  # CRITICAL: Required for extraction quality
 }
 
 
