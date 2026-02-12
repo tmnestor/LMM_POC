@@ -239,3 +239,21 @@ print('SUCCESS')
 - [flash-attn Issue #1717](https://github.com/Dao-AILab/flash-attention/issues/1717) — Undefined symbol errors in flash-attn wheel builds
 - [PyTorch Issue #51039](https://github.com/pytorch/pytorch/issues/51039) — PyTorch's `_GLIBCXX_USE_CXX11_ABI=0` wheel policy
 - [flash-attn Installation & Setup (DeepWiki)](https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup) — Wheel selection process and ABI compatibility details
+
+
+**Appendix**
+Once the wheel is on EFS: 
+  # 1. Activate environment                                                                                   
+  conda activate lmm_poc_env                          
+                                                                                                              
+  # 2. Install the pre-built wheel                                                                            
+  pip install /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+  --no-cache-dir
+
+  # 3. Verify it works
+  python -c "
+  import flash_attn
+  print(f'flash-attn: {flash_attn.__version__}')
+  from flash_attn import flash_attn_func
+  print('CUDA kernels loaded successfully')
+  "
