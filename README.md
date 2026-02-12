@@ -1,44 +1,95 @@
-# InternVL3.5-8B Document Extraction Pipeline
+# Document Extraction Pipeline
 
-A production-ready CLI for extracting structured fields from business document images using the InternVL3.5-8B vision-language model. Supports batched inference, automatic GPU memory management, and evaluation against ground truth.
+A production-ready CLI for extracting structured fields from business document images using vision-language models. Supports multiple models via a Protocol + Registry architecture, batched inference, automatic GPU memory management, multi-turn bank statement extraction, and evaluation against ground truth.
+
+**Supported models:**
+
+| Model | Type | Accuracy | Bank Extraction | Batch Inference |
+|-------|------|----------|-----------------|-----------------|
+| InternVL3.5-8B | `internvl3` | 94.5% | Multi-turn | Yes |
+| Llama 3.2-11B Vision | `llama` | 95.0% | Multi-turn | Sequential only |
+
+## Architecture Overview
+
+The pipeline uses a **Protocol + Registry** pattern that cleanly separates model-specific code from pipeline orchestration. Adding a new model requires zero changes to existing pipeline code.
+
+```mermaid
+graph TD
+    CLI["<b>cli.py</b><br/>CLI flags, config merging, pipeline orchestration"]
+    REG["<b>models/registry.py</b><br/>ModelRegistration { loader, processor_creator, prompt_file }<br/>register_model() / get_model() / list_models()"]
+
+    CLI -->|"--model internvl3 ❘ llama"| REG
+
+    subgraph Model Loaders
+        IVL_LOAD["<b>InternVL3 Loader</b><br/>AutoModel + AutoTokenizer<br/>.chat() API"]
+        LLAMA_LOAD["<b>Llama Loader</b><br/>MllamaForConditionalGeneration<br/>AutoProcessor + .generate() API"]
+    end
+
+    REG --> IVL_LOAD
+    REG --> LLAMA_LOAD
+
+    subgraph Processors implement DocumentProcessor Protocol
+        IVL_PROC["<b>InternVL3 Processor</b><br/>batch + sequential"]
+        LLAMA_PROC["<b>Llama Processor</b><br/>sequential only"]
+    end
+
+    IVL_LOAD --> IVL_PROC
+    LLAMA_LOAD --> LLAMA_PROC
+
+    PIPELINE["<b>Pipeline — model-agnostic</b><br/>BatchDocumentProcessor → BankStatementAdapter(model_type)<br/>→ UnifiedBankExtractor(_generate dispatches by model_type)"]
+
+    IVL_PROC --> PIPELINE
+    LLAMA_PROC --> PIPELINE
+```
+
+### Key Design Principles
+
+1. **Protocol-based interface** (`models/protocol.py`): A `@runtime_checkable` Protocol defines the contract all processors must satisfy. The pipeline never imports a concrete processor class.
+
+2. **Registry with lazy loading** (`models/registry.py`): All `torch`/`transformers` imports live inside function bodies. Importing the registry has zero GPU overhead. Models self-register at the bottom of the file.
+
+3. **Model-type dispatch for bank extraction**: `UnifiedBankExtractor` accepts a `model_type` parameter and dispatches to `_generate_llama()` or `_generate_internvl3()`. Both models get the full multi-turn bank extraction pipeline (Turn 0: header detection, Turn 1: adaptive extraction with strategy selection).
+
+4. **Config cascade**: CLI flags > YAML (`run_config.yml`) > ENV vars (`IVL_*`) > dataclass defaults. The `--model` flag selects which registered model to use.
 
 ## Project Structure
 
 ```
 .
-├── ivl3_cli.py                        # CLI entry point
+├── cli.py                                 # CLI entry point (--model flag)
 ├── config/
-│   ├── run_config.yml                 # Single source of truth for all tunable parameters
-│   ├── field_definitions.yaml         # Document types, fields, and evaluation settings
-│   ├── bank_column_patterns.yaml      # Column header patterns for bank statement extraction
-│   └── model_config.yaml              # Model configs for unified bank extraction
+│   ├── run_config.yml                     # Single source of truth for all config
+│   ├── field_definitions.yaml             # Document types, fields, evaluation settings
+│   ├── bank_column_patterns.yaml          # Column header patterns for bank extraction
+│   └── model_config.yaml                  # Model configs for unified bank extraction
 ├── prompts/
-│   ├── document_type_detection.yaml   # Detection prompts + type mappings
-│   └── internvl3_prompts.yaml         # Per-type extraction prompts
-├── common/
-│   ├── __init__.py                    # Package exports (PipelineConfig, loaders, etc.)
-│   ├── pipeline_config.py             # PipelineConfig dataclass, YAML/ENV/CLI merging
-│   ├── config.py                      # Module-level constants (overridden by YAML)
-│   ├── batch_processor.py             # Batch orchestration (detection → extraction)
-│   ├── gpu_optimization.py            # CUDA memory management, OOM recovery
-│   ├── robust_gpu_memory.py           # Reliable GPU memory detection across hardware
-│   ├── bank_statement_adapter.py      # Bridges batch processor with multi-turn bank extraction
-│   ├── bank_statement_calculator.py   # Derives transaction types and amounts from extracted data
-│   ├── unified_bank_extractor.py      # Auto-selects optimal bank extraction strategy
-│   ├── batch_analytics.py             # DataFrames and statistics from batch results
-│   ├── batch_reporting.py             # Executive summaries and reports
-│   ├── batch_visualizations.py        # Dashboards, heatmaps, and charts
-│   ├── evaluation_metrics.py          # Ground truth comparison and accuracy calculation
-│   ├── extraction_cleaner.py          # Normalisation and cleaning of extracted values
-│   ├── extraction_parser.py           # Raw model output → structured data dicts
-│   ├── field_definitions_loader.py    # Loads field definitions from YAML
-│   ├── simple_model_evaluator.py      # Model performance comparison
-│   └── simple_prompt_loader.py        # Prompt loading from YAML files
+│   ├── document_type_detection.yaml       # Detection prompts + type mappings
+│   ├── internvl3_prompts.yaml             # InternVL3 extraction prompts
+│   └── llama_prompts.yaml                 # Llama extraction prompts
 ├── models/
-│   ├── __init__.py                            # Package exports
-│   ├── document_aware_internvl3_processor.py  # InternVL3 model wrapper
+│   ├── protocol.py                        # DocumentProcessor Protocol definition
+│   ├── registry.py                        # Model registry + lazy loaders
+│   ├── document_aware_internvl3_processor.py  # InternVL3 processor
+│   ├── document_aware_llama_processor.py      # Llama processor
 │   └── internvl3_image_preprocessor.py        # Image tiling and tensor preparation
-└── environment_ivl35.yml              # Conda environment specification
+├── common/
+│   ├── pipeline_config.py                 # PipelineConfig dataclass, config merging
+│   ├── config.py                          # Model-specific constants (overridden by YAML)
+│   ├── batch_processor.py                 # Batch orchestration (detection → extraction)
+│   ├── bank_statement_adapter.py          # Multi-turn bank extraction adapter
+│   ├── unified_bank_extractor.py          # Auto-selects bank extraction strategy
+│   ├── gpu_optimization.py                # CUDA memory management, OOM recovery
+│   ├── robust_gpu_memory.py               # GPU memory detection across hardware
+│   ├── bank_statement_calculator.py       # Transaction type/amount derivation
+│   ├── batch_analytics.py                 # DataFrames and statistics
+│   ├── batch_reporting.py                 # Executive summaries and reports
+│   ├── batch_visualizations.py            # Dashboards, heatmaps, charts
+│   ├── evaluation_metrics.py              # Ground truth comparison, F1 scores
+│   ├── extraction_cleaner.py              # Value normalisation and cleaning
+│   ├── extraction_parser.py               # Raw model output → structured dicts
+│   ├── simple_prompt_loader.py            # Prompt loading from YAML files
+│   └── field_definitions_loader.py        # Field definitions from YAML
+└── environment_ivl35.yml                  # Conda environment specification
 ```
 
 ## Quick Start
@@ -48,40 +99,284 @@ A production-ready CLI for extracting structured fields from business document i
 conda env create -f environment_ivl35.yml
 conda activate vision_notebooks
 
-# 2. Run with config file (recommended)
-python ivl3_cli.py --config config/run_config.yml
+# 2. Run with InternVL3 (default)
+python cli.py -d ./images -o ./output
 
-# 3. Or specify paths directly
-python ivl3_cli.py -d ./images -o ./output
+# 3. Run with Llama
+python cli.py --model llama -d ./images -o ./output
 
 # 4. Evaluation mode (with ground truth)
-python ivl3_cli.py -d ./images -o ./output -g ./ground_truth.csv
+python cli.py --model llama -d ./images -o ./output -g ./ground_truth.csv
+
+# 5. Using config file
+python cli.py --config config/run_config.yml
 ```
 
 ## Pipeline Flow
 
-```
-Document Images
-      │
-      ▼
-  Detection ──► Classify document type (INVOICE, RECEIPT, BANK_STATEMENT, ...)
-      │
-      ▼
-  Extraction ──► Type-specific prompt → structured field extraction
-      │
-      ▼
-  Evaluation ──► Compare against ground truth CSV → F1 scores per field
-      │
-      ▼
-  Reporting ──► CSV analytics, visualizations, markdown reports
+```mermaid
+graph TD
+    IMG["Document Images"] --> DET
+
+    DET["Detection<br/>Classify document type"]
+    DET -->|"INVOICE, RECEIPT,<br/>BANK_STATEMENT, ..."| EXT
+
+    EXT["Extraction<br/>Type-specific prompt → structured fields"]
+    EXT -->|"Standard docs"| STD["Single-pass or batched extraction"]
+    EXT -->|"Bank statements"| BANK["Multi-turn via BankStatementAdapter"]
+
+    STD --> EVAL
+    BANK --> EVAL
+
+    EVAL["Evaluation<br/>Compare against ground truth CSV → F1 scores"]
+    EVAL --> RPT["Reporting<br/>CSV analytics, visualizations, markdown reports"]
 ```
 
-**Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches. Bank statements use sequential multi-turn extraction via `BankStatementAdapter`.
+**Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches (InternVL3) or sequentially (Llama). Bank statements always use sequential multi-turn extraction via `BankStatementAdapter`, which dispatches to the correct model-specific generation method.
+
+## The Protocol + Registry System
+
+### DocumentProcessor Protocol
+
+Every model processor must satisfy the `DocumentProcessor` Protocol defined in `models/protocol.py`:
+
+```python
+@runtime_checkable
+class DocumentProcessor(Protocol):
+    model: Any           # The underlying vision-language model
+    tokenizer: Any       # The tokenizer (or processor) for the model
+    batch_size: int      # Current batch size for inference
+
+    def detect_and_classify_document(
+        self, image_path: str, verbose: bool = False
+    ) -> dict[str, Any]:
+        """Classify the document type from an image."""
+        ...
+
+    def process_document_aware(
+        self, image_path: str, classification_info: dict[str, Any], verbose: bool = False
+    ) -> dict[str, Any]:
+        """Extract fields from a document based on its classification."""
+        ...
+```
+
+**Optional batch methods** (detected via `hasattr()` at runtime by `batch_processor.py`):
+- `batch_detect_documents(image_paths, ...)` — batched detection
+- `batch_extract_documents(image_paths, classifications, ...)` — batched extraction
+
+If a processor doesn't implement batch methods, the pipeline automatically falls back to sequential processing.
+
+### Model Registry
+
+`models/registry.py` is the central dispatch table. Each model registers a `ModelRegistration`:
+
+```python
+@dataclass
+class ModelRegistration:
+    model_type: str              # "internvl3", "llama", etc.
+    loader: Callable             # (config) -> ContextManager[(model, tokenizer)]
+    processor_creator: Callable  # (model, tokenizer, config, ...) -> DocumentProcessor
+    prompt_file: str             # "internvl3_prompts.yaml"
+    description: str = ""        # Human-readable description
+```
+
+**Key design**: All `torch` and `transformers` imports are deferred to function bodies inside the loaders and creators. Importing the registry module has zero GPU/ML overhead.
+
+### How Model Selection Works
+
+```mermaid
+graph TD
+    A["python cli.py --model llama"] --> B["get_model('llama')<br/><i>Registry lookup</i>"]
+    B --> C["registration.loader(config)<br/><i>Load model weights (context manager)</i>"]
+    C --> D["registration.processor_creator(model, tokenizer, ...)<br/><i>Create DocumentProcessor</i>"]
+    D --> E["BatchDocumentProcessor(model=processor, ...)<br/><i>Pipeline uses Protocol methods only</i>"]
+    E --> F["processor.detect_and_classify_document(image)"]
+    E --> G["processor.process_document_aware(image, classification)"]
+```
+
+The CLI validates the model type early (fail-fast):
+
+```python
+try:
+    get_model(resolved_model_type)
+except ValueError:
+    # "Unknown model type: 'foo'. Available: internvl3, llama"
+```
+
+### Bank Statement Multi-Turn Extraction
+
+Both models get the sophisticated multi-turn bank extraction pipeline:
+
+```mermaid
+graph TD
+    BSA["BankStatementAdapter<br/>(model_type='llama' | 'internvl3')"]
+    BSA --> UBE["UnifiedBankExtractor(model_type=...)"]
+
+    UBE --> T0["Turn 0: Header detection<br/>(identify column names)"]
+    T0 --> GEN{"_generate() dispatches<br/>by model_type"}
+
+    GEN -->|internvl3| IVL["_generate_internvl3()<br/>model.chat()"]
+    GEN -->|llama| LLAMA["_generate_llama()<br/>processor.apply_chat_template()<br/>+ model.generate()"]
+
+    IVL --> STRAT["Strategy selection<br/>BALANCE_DESCRIPTION | AMOUNT_DESCRIPTION | ..."]
+    LLAMA --> STRAT
+
+    STRAT --> T1["Turn 1: Adaptive extraction<br/>with structure-dynamic prompts"]
+    T1 --> GEN2{"_generate() dispatch<br/>(same as above)"}
+```
+
+## Adding a New Model
+
+Adding a new vision-language model requires **3 files** — no changes to existing pipeline code.
+
+### Step 1: Create the processor
+
+Create `models/document_aware_<name>_processor.py` implementing the `DocumentProcessor` Protocol:
+
+```python
+class DocumentAwareMyModelProcessor:
+    """Must satisfy DocumentProcessor Protocol."""
+
+    def __init__(self, field_list, model_path, debug, pre_loaded_model,
+                 pre_loaded_tokenizer, prompt_config, field_definitions, ...):
+        self.model = pre_loaded_model
+        self.tokenizer = pre_loaded_tokenizer
+        self.batch_size = 1
+        # ...
+
+    def detect_and_classify_document(self, image_path, verbose=False):
+        """Classify document type. Must return dict with 'document_type' key."""
+        # Use your model's inference API to classify the image
+        return {"document_type": "INVOICE", "confidence": 0.95, ...}
+
+    def process_document_aware(self, image_path, classification_info, verbose=False):
+        """Extract fields. Must return dict with 'extracted_data' key."""
+        doc_type = classification_info["document_type"]
+        # Load type-specific prompt, run inference, parse output
+        return {"extracted_data": {"FIELD": "value", ...}, ...}
+```
+
+### Step 2: Create extraction prompts
+
+Create `prompts/<name>_prompts.yaml` with per-document-type extraction prompts:
+
+```yaml
+prompts:
+  invoice:
+    name: "Invoice Extraction"
+    prompt: |
+      Extract the following fields from this invoice...
+      DOCUMENT_TYPE: ...
+      SUPPLIER_NAME: ...
+
+  receipt:
+    name: "Receipt Extraction"
+    prompt: |
+      ...
+
+  bank_statement_flat:
+    name: "Flat Table Bank Statement"
+    prompt: |
+      ...
+
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement"
+    prompt: |
+      ...
+
+  universal:
+    name: "Universal Extraction"
+    prompt: |
+      ...
+
+settings:
+  max_tokens: 800
+  temperature: 0.0
+```
+
+### Step 3: Register in the registry
+
+Add to `models/registry.py`:
+
+```python
+def _mymodel_loader(config):
+    """Context manager for loading MyModel."""
+    from contextlib import contextmanager
+
+    import torch
+    from transformers import AutoModelForVision, AutoProcessor
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+        try:
+            processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+            model = AutoModelForVision.from_pretrained(
+                str(cfg.model_path), dtype=cfg.torch_dtype, device_map=cfg.device_map,
+            )
+            yield model, processor
+        finally:
+            del model, processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _mymodel_processor_creator(model, tokenizer, config, prompt_config,
+                                universal_fields, field_definitions):
+    from models.document_aware_mymodel_processor import DocumentAwareMyModelProcessor
+
+    return DocumentAwareMyModelProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        pre_loaded_model=model,
+        pre_loaded_tokenizer=tokenizer,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="mymodel",
+        loader=_mymodel_loader,
+        processor_creator=_mymodel_processor_creator,
+        prompt_file="mymodel_prompts.yaml",
+        description="My Vision-Language Model",
+    )
+)
+```
+
+### Step 4: Run it
+
+```bash
+python cli.py --model mymodel -d ./images -o ./output
+```
+
+The `--model` flag auto-discovers registered models. `--help` shows the available options.
+
+### Optional: Bank statement support
+
+If your model needs multi-turn bank extraction, add a `_generate_<name>` method to `common/unified_bank_extractor.py` and update the `_generate()` dispatcher. See `_generate_llama()` for a complete example.
+
+### Checklist
+
+| Step | File | What to create/modify |
+|------|------|----------------------|
+| 1 | `models/document_aware_<name>_processor.py` | Implement `DocumentProcessor` Protocol |
+| 2 | `prompts/<name>_prompts.yaml` | Per-document-type extraction prompts |
+| 3 | `models/registry.py` | Lazy loader + processor creator + `register_model()` |
+| 4 | `common/unified_bank_extractor.py` | *(Optional)* Add `_generate_<name>()` for bank extraction |
+
+No changes needed to: `cli.py`, `batch_processor.py`, `bank_statement_adapter.py`, `pipeline_config.py`, or any evaluation/reporting code.
 
 ## CLI Reference
 
 ```
-python ivl3_cli.py [OPTIONS]
+python cli.py [OPTIONS]
 ```
 
 ### Data Options
@@ -98,7 +393,8 @@ python ivl3_cli.py [OPTIONS]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-m, --model-path` | *auto-detected* | Path to InternVL3.5-8B model weights |
+| `--model` | `internvl3` | Model type (`internvl3`, `llama`). Auto-discovered from registry. |
+| `-m, --model-path` | *auto-detected* | Path to model weights directory |
 | `--max-tiles` | `18` | Image tiles (more = better OCR, more VRAM) |
 | `--flash-attn / --no-flash-attn` | `true` | Flash Attention 2 (disable for V100) |
 | `--dtype` | `bfloat16` | Torch dtype: `bfloat16`, `float16`, `float32` |
@@ -143,7 +439,8 @@ All prefixed with `IVL_`:
 ```bash
 IVL_DATA_DIR=/path/to/images
 IVL_OUTPUT_DIR=/path/to/output
-IVL_MODEL_PATH=/models/InternVL3_5-8B
+IVL_MODEL_TYPE=llama           # Model type selection
+IVL_MODEL_PATH=/models/Llama-3.2-11B-Vision-Instruct
 IVL_BATCH_SIZE=4
 IVL_MAX_TILES=14
 IVL_FLASH_ATTN=false
@@ -155,15 +452,16 @@ IVL_VERBOSE=true
 
 `config/run_config.yml` is the single source of truth for all tunable parameters. Every section is optional — missing keys fall back to Python defaults.
 
-### `model` — Model identity
+### `model` — Model identity and selection
 
 ```yaml
 model:
-  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-  max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
-  flash_attn: true       # Flash Attention 2 (disable for V100)
-  dtype: bfloat16        # bfloat16 | float16 | float32
-  max_new_tokens: 2000   # Max generation tokens
+  type: internvl3              # Model type: internvl3 | llama
+  path: /path/to/model/weights
+  max_tiles: 18                # Image tiles (H200: 18-36, V100: 14, L4: 18)
+  flash_attn: true             # Flash Attention 2 (disable for V100)
+  dtype: bfloat16              # bfloat16 | float16 | float32
+  max_new_tokens: 2000         # Max generation tokens
 ```
 
 ### `data` — Input paths
@@ -172,8 +470,8 @@ model:
 data:
   dir: ../evaluation_data/synthetic
   ground_truth: ../evaluation_data/synthetic/ground_truth_synthetic.csv
-  max_images: null       # null = all
-  document_types: null   # null = all, or: INVOICE,RECEIPT,BANK_STATEMENT
+  max_images: null             # null = all
+  document_types: null         # null = all, or: INVOICE,RECEIPT,BANK_STATEMENT
 ```
 
 ### `output` — Output paths and toggles
@@ -397,7 +695,7 @@ fallback_keywords:
 
 ### Step 3: Write the extraction prompt
 
-**File**: `prompts/internvl3_prompts.yaml`
+**File**: `prompts/internvl3_prompts.yaml` **and** `prompts/llama_prompts.yaml`
 
 Add an extraction prompt keyed to the document type name. The key must match the name in `field_definitions.yaml`:
 
@@ -415,23 +713,10 @@ prompts:
       DOCUMENT_TYPE: PURCHASE_ORDER
       BUSINESS_ABN: NOT_FOUND
       SUPPLIER_NAME: NOT_FOUND
-      BUSINESS_ADDRESS: NOT_FOUND
-      PAYER_NAME: NOT_FOUND
-      PAYER_ADDRESS: NOT_FOUND
-      INVOICE_DATE: NOT_FOUND
-      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
-      LINE_ITEM_QUANTITIES: NOT_FOUND
-      TOTAL_AMOUNT: NOT_FOUND
-
-      Instructions:
-      - Find ABN: 11 digits like "12 345 678 901"
-      - Find supplier: Company name at top
-      - Find purchaser: "Ship To" or "Deliver To" section
-      - Find date: Use DD/MM/YYYY format
-      - Find line items: List with " | " separator
-      - Find amounts: Include $ symbol
-      - Replace NOT_FOUND with actual values
+      ...
 ```
+
+**Important**: Add the prompt to **each model's prompt file**. You can tailor the prompt per model (e.g., different instruction styles for InternVL3 vs Llama).
 
 ### Step 4: Prepare evaluation data (optional)
 
@@ -445,7 +730,7 @@ po_001.png,PURCHASE_ORDER,12 345 678 901,Acme Corp,...,$5000.00
 Then run:
 
 ```bash
-python ivl3_cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
+python cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
 ```
 
 ### Checklist
@@ -455,9 +740,10 @@ python ivl3_cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
 | `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases`, field descriptions/categories |
 | `prompts/document_type_detection.yaml` | Detection prompt options, `type_mappings`, `fallback_keywords` |
 | `prompts/internvl3_prompts.yaml` | Extraction prompt with field template |
+| `prompts/llama_prompts.yaml` | Extraction prompt with field template |
 | Ground truth CSV *(optional)* | One row per image with expected field values |
 
-The pipeline automatically discovers new document types from these YAML files — the prompt key in `internvl3_prompts.yaml` is matched against `supported_document_types` in `field_definitions.yaml` to build the extraction routing table. No Python code changes required.
+The pipeline automatically discovers new document types from these YAML files — the prompt key in the prompts YAML is matched against `supported_document_types` in `field_definitions.yaml` to build the extraction routing table. No Python code changes required.
 
 ### Layout Variants
 
