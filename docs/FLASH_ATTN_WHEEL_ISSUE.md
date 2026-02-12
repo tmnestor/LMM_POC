@@ -38,9 +38,29 @@ This wheel **does not contain compiled CUDA kernels**. It is only the Python wra
 ModuleNotFoundError: No module named 'flash_attn_2_cuda'
 ```
 
-### Pre-built Wheels from GitHub Releases
+### Pre-built Wheel from GitHub Releases
 
-The flash-attn project publishes ~200 prebuilt wheel variants ([Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases)) covering common combinations. However, our specific combination of **Python 3.12 + PyTorch 2.9.1 + CUDA 12.8** may not have a matching pre-built wheel. Even when a pre-built wheel exists, binary regressions have been reported (see References).
+The flash-attn project publishes ~200 prebuilt wheel variants ([Dao-AILab/flash-attention Releases](https://github.com/Dao-AILab/flash-attention/releases)) covering common combinations. A matching pre-built wheel **does exist** for our environment:
+
+```
+flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl  (253 MB)
+```
+
+| Tag | Value | Meaning |
+|-----|-------|---------|
+| `cu12` | CUDA 12 | Compatible with our CUDA 12.8 toolkit |
+| `torch2.9` | PyTorch 2.9 | Matches our PyTorch 2.9.1 |
+| `cxx11abiTRUE` | CXX11 ABI enabled | Must match PyTorch's ABI setting (see verification below) |
+| `cp312` | CPython 3.12 | Matches our Python 3.12 |
+| `linux_x86_64` | Platform | Correct architecture |
+
+**CXX11 ABI verification** — before using this wheel, confirm PyTorch's ABI setting:
+```bash
+python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"
+```
+This must print `True`. If it prints `False`, the pre-built wheel will not work and a from-source build is required (see Build from Source section below).
+
+> **This pre-built wheel is the recommended approach** — it does not require `nvcc` or the CUDA toolkit to be installed, as the CUDA kernels are already compiled.
 
 ### What a Correct Wheel Looks Like
 
