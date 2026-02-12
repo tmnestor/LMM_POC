@@ -72,11 +72,60 @@ We need a flash-attn wheel compiled from source against our exact environment. T
 
 ### What We Need from Data Engineering
 
-Our GPU environment does not have proxy forwarding / internet access, so we cannot run `pip download` directly. We need the flash-attn source tarball downloaded to shared storage:
+Our GPU environment does not have proxy forwarding / internet access, so we cannot run `pip download` directly. We need the flash-attn source tarball downloaded to shared storage.
+
+#### Download Command
 
 ```bash
 # Run this from a machine with internet access:
-pip download flash-attn --no-binary :all: --no-deps -d /efs/shared/flash-attn/
+pip download flash-attn --no-binary :all: --no-deps --no-build-isolation -d /efs/shared/flash-attn/
+```
+
+> **Note on `--no-build-isolation`**: Without this flag, pip creates an isolated virtual environment and attempts to download build dependencies (e.g. `setuptools>=40.8.0`) from the package index. On environments where the Artifactory mirror does not carry `setuptools`, this fails with:
+> ```
+> ERROR: No matching distribution found for setuptools>=40.8.0
+> ```
+> The `--no-build-isolation` flag tells pip to use the setuptools already installed in the current environment, bypassing this issue. This is safe because we only need to **download** the source tarball — we are not building here.
+
+#### Alternative: Direct Download from Artifactory
+
+If `pip download` continues to fail due to build-isolation or dependency resolution issues, **the source tarball is already cached in the Artifactory mirror** and can be downloaded directly — bypassing pip entirely.
+
+The Artifactory URL was visible in the error output from the failed `pip download` attempt:
+
+```
+Using cached https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz (8.4 MB)
+```
+
+This means pip successfully resolved and cached the tarball — it only failed afterward when trying to install build dependencies. The tarball itself is available and intact.
+
+**Download it directly using curl or wget:**
+
+```bash
+# Option 1: curl
+curl -L -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
+  "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
+
+# Option 2: wget
+wget -O /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
+  "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
+```
+
+**Why this works**: The `pip download` failure occurred at the build-dependency stage, not the download stage. pip had already fetched the 8.4 MB tarball from Artifactory. By using `curl`/`wget`, we skip pip's build-isolation machinery entirely and just grab the file.
+
+**Verify the download:**
+
+```bash
+# Should be ~8.4 MB
+ls -lh /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
+
+# Verify it's a valid gzip tarball
+file /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
+# Expected: gzip compressed data
+
+# Verify contents look correct
+tar tzf /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz | head -5
+# Expected: flash_attn-2.8.3/setup.py, flash_attn-2.8.3/csrc/, etc.
 ```
 
 Once the source tarball is in `/efs/shared/flash-attn/`, we can complete the build ourselves (Steps 1-7 below).
