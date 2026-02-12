@@ -237,7 +237,7 @@ def _llama_loader(config):
 
                 # Build load kwargs from config
                 load_kwargs = {
-                    "torch_dtype": cfg.torch_dtype,
+                    "dtype": cfg.torch_dtype,
                     "device_map": cfg.device_map,
                 }
 

@@ -525,23 +525,28 @@ class DocumentAwareLlamaProcessor:
     def _resilient_generate(self, inputs, **generation_kwargs):
         """Resilient generation with OOM fallback."""
 
-        # Build clean generation parameters following llama_processor_v2 pattern
+        # Build clean generation parameters
+        do_sample = generation_kwargs.get(
+            "do_sample", self.generation_config["do_sample"]
+        )
         clean_generation_kwargs = {
             "max_new_tokens": generation_kwargs.get(
                 "max_new_tokens", self.generation_config["max_new_tokens"]
             ),
-            "temperature": generation_kwargs.get(
-                "temperature", self.generation_config["temperature"]
-            ),
-            "do_sample": generation_kwargs.get(
-                "do_sample", self.generation_config["do_sample"]
-            ),
-            "top_p": generation_kwargs.get("top_p", self.generation_config["top_p"]),
+            "do_sample": do_sample,
             "use_cache": generation_kwargs.get(
                 "use_cache", self.generation_config["use_cache"]
             ),
             "pad_token_id": self.processor.tokenizer.eos_token_id,
         }
+        # Only include temperature/top_p when sampling is enabled
+        if do_sample:
+            clean_generation_kwargs["temperature"] = generation_kwargs.get(
+                "temperature", self.generation_config["temperature"]
+            )
+            clean_generation_kwargs["top_p"] = generation_kwargs.get(
+                "top_p", self.generation_config["top_p"]
+            )
 
         try:
             # Standard generation with clean parameters
