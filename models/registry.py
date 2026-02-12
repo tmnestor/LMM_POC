@@ -252,6 +252,13 @@ def _llama_loader(config):
                 except Exception:
                     pass
 
+                # Clean the model's built-in GenerationConfig to avoid
+                # "not valid and may be ignored" warnings from transformers.
+                # When do_sample=False, temperature/top_p are irrelevant.
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+
                 progress.update(task, description="Model loaded!")
 
             # Display GPU memory status after loading
