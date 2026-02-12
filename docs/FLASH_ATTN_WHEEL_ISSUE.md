@@ -121,18 +121,41 @@ find ~/.cache/pip -name "*.tar.gz" -type f
 
 #### Fallback B: Direct Download from Artifactory (with Authentication)
 
-The Artifactory PyPI API endpoint requires authenticated access. Direct `curl`/`wget` returns 403 Forbidden unless credentials are provided:
+The Artifactory PyPI API endpoint requires authenticated access. Direct `curl`/`wget` returns 403 Forbidden unless credentials are provided.
+
+> **Security note**: Never pass credentials directly on the command line (e.g. `curl -u user:pass`). While HTTPS encrypts the connection, the plaintext password is exposed in shell history (`~/.bash_history`), process listings (`ps aux`), and system audit logs.
+
+**Option 1 — Artifactory API key (preferred):**
 
 ```bash
-# With Artifactory API key (preferred):
-curl -L -H "X-JFrog-Art-Api:<API_KEY>" \
+# Store API key in a variable (not in shell history with leading space):
+ read -s -p "API Key: " ARTIFACTORY_KEY && echo
+
+curl -L -H "X-JFrog-Art-Api:${ARTIFACTORY_KEY}" \
   -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
   "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
 
-# With username/password:
-curl -L -u "<username>:<password>" \
+unset ARTIFACTORY_KEY
+```
+
+**Option 2 — .netrc file:**
+
+```bash
+# Create a .netrc file with restricted permissions
+cat > ~/.netrc << 'EOF'
+machine artifactory.ctz.atocnet.gov.au
+login <username>
+password <password_or_api_key>
+EOF
+chmod 600 ~/.netrc
+
+# curl reads credentials from .netrc automatically
+curl -L --netrc \
   -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
   "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
+
+# Clean up afterward
+rm ~/.netrc
 ```
 
 > **Note**: pip authenticates to Artifactory automatically via its index configuration (pip.conf or `--index-url`). Direct `curl`/`wget` does not inherit this — credentials must be provided explicitly. Check with your Artifactory admin for API key access if needed.
