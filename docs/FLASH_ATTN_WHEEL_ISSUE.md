@@ -54,11 +54,11 @@ flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl  (253 MB)
 | `cp312` | CPython 3.12 | Matches our Python 3.12 |
 | `linux_x86_64` | Platform | Correct architecture |
 
-**CXX11 ABI verification** — before using this wheel, confirm PyTorch's ABI setting:
+**CXX11 ABI verification** — the pre-built wheel requires `cxx11abiTRUE`. Confirmed on our environment (2026-02-12):
 ```bash
 python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"
+# Output: True  ✓
 ```
-This must print `True`. If it prints `False`, the pre-built wheel will not work and a from-source build is required (see Build from Source section below).
 
 > **This pre-built wheel is the recommended approach** — it does not require `nvcc` or the CUDA toolkit to be installed, as the CUDA kernels are already compiled.
 
@@ -109,13 +109,12 @@ file /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp31
 # Expected: Zip archive data
 ```
 
-**Pre-requisite check on the GPU environment** — before installing, verify the CXX11 ABI matches:
+**Pre-requisite check** — CXX11 ABI compatibility has been verified (2026-02-12):
 
 ```bash
 conda activate lmm_poc_env
 python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"
-# Must print: True
-# If False, the pre-built wheel will not work — see "Fallback: Build from Source" below
+# Output: True  ✓  — pre-built wheel is compatible
 ```
 
 ---
