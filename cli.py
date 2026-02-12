@@ -222,33 +222,37 @@ def run_batch_processing(
     field_definitions: dict[str, list[str]],
 ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
     """Run batch document processing with optional bank statement adapter."""
-    # Create bank adapter when V2 bank extraction is enabled AND model supports
-    # multi-turn .chat() API (required by UnifiedBankExtractor).
-    # Models without .chat() (e.g. Llama) use standard single-pass extraction.
+    # Create bank adapter when V2 bank extraction is enabled.
+    # Pass model_type so the adapter/extractor use the correct generate method.
     bank_adapter = None
     if config.bank_v2:
-        if hasattr(processor.model, "chat"):
-            console.print(
-                "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
+        console.print(
+            "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
+        )
+
+        # For Llama: pass raw model + processor. For InternVL3: pass hybrid processor.
+        if config.model_type == "llama":
+            bank_adapter = BankStatementAdapter(
+                model=processor.model,
+                processor=processor.processor,
+                verbose=config.verbose,
+                use_balance_correction=config.balance_correction,
+                model_type="llama",
             )
+        else:
             bank_adapter = BankStatementAdapter(
                 model=processor,
                 verbose=config.verbose,
                 use_balance_correction=config.balance_correction,
+                model_type=config.model_type,
             )
-            console.print(
-                "[green]V2: Sophisticated bank statement extraction enabled[/green]"
-            )
-            console.print(
-                f"[dim]  Balance correction: {'Enabled' if config.balance_correction else 'Disabled'}[/dim]"
-            )
-        else:
-            console.print(
-                "[yellow]Bank V2 skipped: model does not support multi-turn .chat() API[/yellow]"
-            )
-            console.print(
-                "[dim]  Bank statements will use standard single-pass extraction[/dim]"
-            )
+
+        console.print(
+            "[green]V2: Sophisticated bank statement extraction enabled[/green]"
+        )
+        console.print(
+            f"[dim]  Balance correction: {'Enabled' if config.balance_correction else 'Disabled'}[/dim]"
+        )
 
     # Create batch processor with bank adapter (routing is handled internally)
     batch_processor = BatchDocumentProcessor(
