@@ -15,20 +15,20 @@ The pipeline uses a **Protocol + Registry** pattern that cleanly separates model
 
 ```mermaid
 graph TD
-    CLI["<b>cli.py</b><br/>CLI flags, config merging, pipeline orchestration"]
-    REG["<b>models/registry.py</b><br/>ModelRegistration { loader, processor_creator, prompt_file }<br/>register_model() / get_model() / list_models()"]
+    CLI["<b>cli.py</b><br/>--model flag selects model"]
+    REG["<b>models/registry.py</b><br/>get_model() → loader + creator"]
 
-    CLI -->|"--model internvl3 ❘ llama"| REG
+    CLI -->|"--model internvl3 | llama"| REG
 
-    subgraph Model Loaders
-        IVL_LOAD["<b>InternVL3 Loader</b><br/>AutoModel + AutoTokenizer<br/>.chat() API"]
-        LLAMA_LOAD["<b>Llama Loader</b><br/>MllamaForConditionalGeneration<br/>AutoProcessor + .generate() API"]
+    subgraph Loaders
+        IVL_LOAD["<b>InternVL3</b><br/>AutoModel · .chat() API"]
+        LLAMA_LOAD["<b>Llama</b><br/>Mllama · .generate() API"]
     end
 
     REG --> IVL_LOAD
     REG --> LLAMA_LOAD
 
-    subgraph Processors implement DocumentProcessor Protocol
+    subgraph DocumentProcessor Protocol
         IVL_PROC["<b>InternVL3 Processor</b><br/>batch + sequential"]
         LLAMA_PROC["<b>Llama Processor</b><br/>sequential only"]
     end
@@ -36,7 +36,7 @@ graph TD
     IVL_LOAD --> IVL_PROC
     LLAMA_LOAD --> LLAMA_PROC
 
-    PIPELINE["<b>Pipeline — model-agnostic</b><br/>BatchDocumentProcessor → BankStatementAdapter(model_type)<br/>→ UnifiedBankExtractor(_generate dispatches by model_type)"]
+    PIPELINE["<b>Pipeline (model-agnostic)</b><br/>BatchDocumentProcessor →<br/>BankStatementAdapter →<br/>UnifiedBankExtractor"]
 
     IVL_PROC --> PIPELINE
     LLAMA_PROC --> PIPELINE
@@ -186,12 +186,20 @@ class ModelRegistration:
 
 ```mermaid
 graph TD
-    A["python cli.py --model llama"] --> B["get_model('llama')<br/><i>Registry lookup</i>"]
-    B --> C["registration.loader(config)<br/><i>Load model weights (context manager)</i>"]
-    C --> D["registration.processor_creator(model, tokenizer, ...)<br/><i>Create DocumentProcessor</i>"]
-    D --> E["BatchDocumentProcessor(model=processor, ...)<br/><i>Pipeline uses Protocol methods only</i>"]
-    E --> F["processor.detect_and_classify_document(image)"]
-    E --> G["processor.process_document_aware(image, classification)"]
+    A["cli.py --model llama"]
+    B["get_model('llama')"]
+    C["registration.loader(config)"]
+    D["registration.processor_creator(...)"]
+    E["BatchDocumentProcessor"]
+    F["detect_and_classify_document()"]
+    G["process_document_aware()"]
+
+    A -->|"Registry lookup"| B
+    B -->|"Load weights"| C
+    C -->|"Create processor"| D
+    D -->|"Protocol methods"| E
+    E --> F
+    E --> G
 ```
 
 The CLI validates the model type early (fail-fast):
@@ -209,20 +217,21 @@ Both models get the sophisticated multi-turn bank extraction pipeline:
 
 ```mermaid
 graph TD
-    BSA["BankStatementAdapter<br/>(model_type='llama' | 'internvl3')"]
-    BSA --> UBE["UnifiedBankExtractor(model_type=...)"]
+    BSA["BankStatementAdapter<br/>model_type = llama | internvl3"]
+    UBE["UnifiedBankExtractor"]
+    T0["Turn 0: Header detection"]
+    GEN{"_generate() dispatch"}
+    IVL["model.chat()"]
+    LLAMA["processor.apply_chat_template()<br/>+ model.generate()"]
+    STRAT["Strategy selection"]
+    T1["Turn 1: Adaptive extraction"]
 
-    UBE --> T0["Turn 0: Header detection<br/>(identify column names)"]
-    T0 --> GEN{"_generate() dispatches<br/>by model_type"}
-
-    GEN -->|internvl3| IVL["_generate_internvl3()<br/>model.chat()"]
-    GEN -->|llama| LLAMA["_generate_llama()<br/>processor.apply_chat_template()<br/>+ model.generate()"]
-
-    IVL --> STRAT["Strategy selection<br/>BALANCE_DESCRIPTION | AMOUNT_DESCRIPTION | ..."]
+    BSA --> UBE --> T0 --> GEN
+    GEN -->|internvl3| IVL
+    GEN -->|llama| LLAMA
+    IVL --> STRAT
     LLAMA --> STRAT
-
-    STRAT --> T1["Turn 1: Adaptive extraction<br/>with structure-dynamic prompts"]
-    T1 --> GEN2{"_generate() dispatch<br/>(same as above)"}
+    STRAT --> T1 --> GEN
 ```
 
 ## Adding a New Model
