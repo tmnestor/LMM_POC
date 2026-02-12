@@ -1,12 +1,13 @@
-# InternVL3.5-8B Document Extraction Configuration
+# Document Extraction Configuration
 # All options explicitly stated - YAML takes priority over defaults
 # CLI flags override YAML when explicitly provided
 
-# Model configuration
+# Model configuration — switch type + path together
 model:
   type: internvl3
-  # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-  path: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
+  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  # type: llama
+  # path: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
