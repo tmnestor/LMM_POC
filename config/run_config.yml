@@ -4,6 +4,7 @@
 
 # Model configuration
 model:
+  type: internvl3
   path: /home/jovyan/nfs_share/models/InternVL3_5-8B
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)

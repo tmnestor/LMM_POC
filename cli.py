@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
 # ruff: noqa: B008 - typer.Option in defaults is the standard Typer pattern
 """
-InternVL3.5-8B Document Extraction CLI
+Document Extraction CLI
 
-A production-ready CLI for document field extraction using InternVL3.5-8B.
+A production-ready CLI for document field extraction using vision-language models.
 Supports evaluation mode (with ground truth) and inference-only mode.
 
 Usage:
-    python ivl3_cli.py --data-dir ./images --output-dir ./output
-    python ivl3_cli.py --config run_config.yaml
-    python ivl3_cli.py --help
+    python cli.py --data-dir ./images --output-dir ./output
+    python cli.py --config run_config.yaml
+    python cli.py --help
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-import torch
 import typer
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
-from transformers import AutoModel, AutoTokenizer
 
 # Local imports
 from common.bank_statement_adapter import BankStatementAdapter
@@ -46,16 +42,14 @@ from common.pipeline_config import (
     strip_structure_suffixes,
     validate_config,
 )
-from models.document_aware_internvl3_processor import (
-    DocumentAwareInternVL3HybridProcessor,
-)
+from models.registry import get_model, list_models
 
 # ============================================================================
 # Constants
 # ============================================================================
 
-APP_NAME = "ivl3-cli"
-VERSION = "1.0.0"
+APP_NAME = "doc-extract"
+VERSION = "2.0.0"
 
 # Exit codes
 EXIT_SUCCESS = 0
@@ -65,78 +59,9 @@ EXIT_PROCESSING_ERROR = 3
 console = Console()
 app = typer.Typer(
     name=APP_NAME,
-    help="InternVL3.5-8B Document Extraction CLI",
+    help="Document Extraction CLI",
     add_completion=False,
 )
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-def _util_color(pct: float) -> str:
-    """Return Rich color name for a GPU utilization percentage."""
-    if pct < 50:
-        return "green"
-    return "yellow" if pct < 80 else "red"
-
-
-def create_gpu_status_table() -> Table | None:
-    """Create a Rich table showing GPU memory status."""
-    if not torch.cuda.is_available():
-        return None
-
-    gpu_table = Table(
-        title="GPU Status",
-        show_header=True,
-        header_style="bold cyan",
-    )
-    gpu_table.add_column("GPU", style="white")
-    gpu_table.add_column("Total", justify="right", style="dim")
-    gpu_table.add_column("Allocated", justify="right")
-    gpu_table.add_column("Reserved", justify="right")
-    gpu_table.add_column("Utilization", justify="right")
-
-    device_count = torch.cuda.device_count()
-    total_vram = 0.0
-    total_allocated = 0.0
-    total_reserved = 0.0
-
-    for gpu_id in range(device_count):
-        props = torch.cuda.get_device_properties(gpu_id)
-        gpu_name = props.name
-        vram_gb = props.total_memory / (1024**3)
-        allocated_gb = torch.cuda.memory_allocated(gpu_id) / (1024**3)
-        reserved_gb = torch.cuda.memory_reserved(gpu_id) / (1024**3)
-        utilization = (reserved_gb / vram_gb) * 100 if vram_gb > 0 else 0
-
-        total_vram += vram_gb
-        total_allocated += allocated_gb
-        total_reserved += reserved_gb
-
-        color = _util_color(utilization)
-        gpu_table.add_row(
-            f"{gpu_id}: {gpu_name}",
-            f"{vram_gb:.1f} GB",
-            f"{allocated_gb:.2f} GB",
-            f"{reserved_gb:.2f} GB",
-            f"[{color}]{utilization:.1f}%[/{color}]",
-        )
-
-    # Add total row for multi-GPU
-    if device_count > 1:
-        total_util = (total_reserved / total_vram) * 100 if total_vram > 0 else 0
-        color = _util_color(total_util)
-        gpu_table.add_row(
-            "[bold]Total[/bold]",
-            f"[bold]{total_vram:.1f} GB[/bold]",
-            f"[bold]{total_allocated:.2f} GB[/bold]",
-            f"[bold]{total_reserved:.2f} GB[/bold]",
-            f"[bold][{color}]{total_util:.1f}%[/{color}][/bold]",
-        )
-
-    return gpu_table
 
 
 # ============================================================================
@@ -162,7 +87,7 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
     return output_dirs
 
 
-def load_prompt_config() -> dict[str, Any]:
+def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
     """Build prompt routing config from YAML files (single source of truth).
 
     Derives supported document types from the extraction prompt YAML keys
@@ -170,9 +95,10 @@ def load_prompt_config() -> dict[str, Any]:
     """
     import yaml
 
+    registration = get_model(model_type)
     base = Path(__file__).parent / "prompts"
     detection_file = base / "document_type_detection.yaml"
-    extraction_path = base / "internvl3_prompts.yaml"
+    extraction_path = base / registration.prompt_file
 
     if not detection_file.exists():
         console.print(f"[red]FATAL: Detection prompt not found: {detection_file}[/red]")
@@ -233,13 +159,15 @@ def load_prompt_config() -> dict[str, Any]:
     }
 
 
-def load_pipeline_configs() -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
+def load_pipeline_configs(
+    model_type: str = "internvl3",
+) -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
     """Load prompt configuration and build universal field list.
 
     Returns:
         Tuple of (prompt_config, sorted universal_fields, field_definitions).
     """
-    prompt_config = load_prompt_config()
+    prompt_config = load_prompt_config(model_type)
     field_definitions = load_document_field_definitions()
 
     all_fields: set[str] = set()
@@ -259,58 +187,13 @@ def load_pipeline_configs() -> tuple[dict[str, Any], list[str], dict[str, list[s
     return prompt_config, universal_fields, field_definitions
 
 
-@contextmanager
 def load_model(config: PipelineConfig):
-    """Context manager for loading and cleaning up model resources."""
-    model = None
-    tokenizer = None
+    """Context manager for loading and cleaning up model resources.
 
-    try:
-        # Clear GPU memory before loading
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        console.print(f"\n[bold]Loading model from: {config.model_path}[/bold]")
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Loading tokenizer...", total=None)
-
-            tokenizer = AutoTokenizer.from_pretrained(
-                str(config.model_path),
-                trust_remote_code=config.trust_remote_code,
-                use_fast=config.use_fast_tokenizer,
-            )
-
-            progress.update(task, description="Loading model weights...")
-
-            model = AutoModel.from_pretrained(
-                str(config.model_path),
-                dtype=config.torch_dtype,
-                low_cpu_mem_usage=config.low_cpu_mem_usage,
-                use_flash_attn=config.flash_attn,
-                trust_remote_code=config.trust_remote_code,
-                device_map=config.device_map,
-            ).eval()
-
-            progress.update(task, description="Model loaded!")
-
-        # Display GPU memory status table
-        gpu_table = create_gpu_status_table()
-        if gpu_table:
-            console.print(gpu_table)
-
-        yield model, tokenizer
-
-    finally:
-        # Cleanup
-        del model
-        del tokenizer
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    Delegates to the registered loader for config.model_type.
+    """
+    registration = get_model(config.model_type)
+    return registration.loader(config)
 
 
 def create_processor(
@@ -320,23 +203,20 @@ def create_processor(
     prompt_config: dict[str, Any],
     universal_fields: list[str],
     field_definitions: dict[str, list[str]],
-) -> DocumentAwareInternVL3HybridProcessor:
-    """Create document extraction processor from loaded components."""
-    return DocumentAwareInternVL3HybridProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        pre_loaded_model=model,
-        pre_loaded_tokenizer=tokenizer,
-        prompt_config=prompt_config,
-        max_tiles=config.max_tiles,
-        field_definitions=field_definitions,
+) -> Any:
+    """Create document extraction processor from loaded components.
+
+    Delegates to the registered processor_creator for config.model_type.
+    """
+    registration = get_model(config.model_type)
+    return registration.processor_creator(
+        model, tokenizer, config, prompt_config, universal_fields, field_definitions
     )
 
 
 def run_batch_processing(
     config: PipelineConfig,
-    processor: DocumentAwareInternVL3HybridProcessor,
+    processor: Any,
     prompt_config: dict[str, Any],
     images: list[Path],
     field_definitions: dict[str, list[str]],
@@ -551,6 +431,7 @@ def print_config(config: PipelineConfig) -> None:
     )
 
     # Model settings
+    config_table.add_row("Model type", config.model_type)
     config_table.add_row("Max tiles", str(config.max_tiles))
     config_table.add_row("Flash attention", str(config.flash_attn))
     config_table.add_row("Dtype", config.dtype)
@@ -577,7 +458,7 @@ def print_config(config: PipelineConfig) -> None:
 
     header_content = Group(
         Text.from_markup(f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}"),
-        Text.from_markup("[dim]InternVL3.5-8B Document Extraction[/dim]"),
+        Text.from_markup(f"[dim]{config.model_type} Document Extraction[/dim]"),
         Text(""),
         config_table,
     )
@@ -625,7 +506,9 @@ def run_pipeline(config: PipelineConfig) -> None:
     console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
 
     # Load configs (no GPU needed)
-    prompt_config, universal_fields, field_definitions = load_pipeline_configs()
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(
+        config.model_type
+    )
 
     try:
         # Model context: load model, run extraction, then free GPU memory
@@ -717,11 +600,16 @@ def main(
         "-c",
         help="YAML configuration file",
     ),
+    model_type: str | None = typer.Option(
+        None,
+        "--model",
+        help=f"Model type ({', '.join(list_models())}). Default from config or internvl3.",
+    ),
     model_path: Path = typer.Option(
         None,
         "--model-path",
         "-m",
-        help="Path to InternVL3.5-8B model",
+        help="Path to model weights directory",
     ),
     ground_truth: Path = typer.Option(
         None,
@@ -794,24 +682,24 @@ def main(
     ),
 ) -> None:
     """
-    InternVL3.5-8B Document Extraction CLI
+    Document Extraction CLI
 
-    Process document images and extract structured fields using InternVL3.5-8B.
+    Process document images and extract structured fields using vision-language models.
     Supports evaluation mode (with ground truth) and inference-only mode.
 
     Examples:
 
         # Evaluation mode with ground truth
-        python ivl3_cli.py -d ./data -o ./output -g ./ground_truth.csv
+        python cli.py -d ./data -o ./output -g ./ground_truth.csv
 
         # Inference-only mode
-        python ivl3_cli.py -d ./images -o ./results
+        python cli.py -d ./images -o ./results
 
         # Using config file
-        python ivl3_cli.py --config run_config.yaml
+        python cli.py --config run_config.yaml
 
-        # V100 configuration
-        python ivl3_cli.py -d ./data -o ./output --max-tiles 14 --no-flash-attn --dtype float32
+        # Specify model type
+        python cli.py --model internvl3 -d ./data -o ./output
     """
     # Handle version flag
     if version:
@@ -822,6 +710,7 @@ def main(
     arg_mapping = {
         "data_dir": data_dir,
         "output_dir": output_dir,
+        "model_type": model_type,
         "model_path": model_path,
         "ground_truth": ground_truth,
         "max_images": max_images,
@@ -882,6 +771,16 @@ def main(
         console.print(
             "[yellow]Specify via CLI, config file, or IVL_OUTPUT_DIR environment variable[/yellow]"
         )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Validate model_type early (fail fast with available models)
+    resolved_model_type = merged_check.get("model_type", "internvl3")
+    try:
+        get_model(resolved_model_type)
+    except ValueError:
+        available = ", ".join(list_models()) or "(none)"
+        console.print(f"[red]FATAL: Unknown model type: '{resolved_model_type}'[/red]")
+        console.print(f"[yellow]Available models: {available}[/yellow]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     # Merge and validate configuration

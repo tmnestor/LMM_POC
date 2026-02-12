@@ -91,6 +91,7 @@ class PipelineConfig:
     balance_correction: bool = True
 
     # Model options
+    model_type: str = "internvl3"
     max_tiles: int = 11
     flash_attn: bool = True
     dtype: str = "bfloat16"
@@ -161,6 +162,7 @@ def load_yaml_config(
     # Flatten nested structure for PipelineConfig
     flat_config: dict[str, Any] = {}
     if "model" in raw_config:
+        flat_config["model_type"] = raw_config["model"].get("type")
         flat_config["model_path"] = raw_config["model"].get("path")
         flat_config["max_tiles"] = raw_config["model"].get("max_tiles")
         flat_config["flash_attn"] = raw_config["model"].get("flash_attn")
@@ -213,6 +215,7 @@ def load_env_config() -> dict[str, Any]:
     env_mappings: dict[str, tuple[str, Any]] = {
         f"{ENV_PREFIX}DATA_DIR": ("data_dir", str),
         f"{ENV_PREFIX}OUTPUT_DIR": ("output_dir", str),
+        f"{ENV_PREFIX}MODEL_TYPE": ("model_type", str),
         f"{ENV_PREFIX}MODEL_PATH": ("model_path", str),
         f"{ENV_PREFIX}GROUND_TRUTH": ("ground_truth", str),
         f"{ENV_PREFIX}MAX_IMAGES": ("max_images", int),
