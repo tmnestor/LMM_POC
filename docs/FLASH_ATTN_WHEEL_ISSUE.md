@@ -87,33 +87,59 @@ pip download flash-attn --no-binary :all: --no-deps --no-build-isolation -d /efs
 > ```
 > The `--no-build-isolation` flag tells pip to use the setuptools already installed in the current environment, bypassing this issue. This is safe because we only need to **download** the source tarball — we are not building here.
 
-#### Alternative: Direct Download from Artifactory
+#### Fallback A: Recover Tarball from pip's Cache
 
-If `pip download` continues to fail due to build-isolation or dependency resolution issues, **the source tarball is already cached in the Artifactory mirror** and can be downloaded directly — bypassing pip entirely.
-
-The Artifactory URL was visible in the error output from the failed `pip download` attempt:
+The failed `pip download` attempt already downloaded the tarball successfully before failing at the build-dependency stage. The error output confirms this:
 
 ```
 Using cached https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz (8.4 MB)
 ```
 
-This means pip successfully resolved and cached the tarball — it only failed afterward when trying to install build dependencies. The tarball itself is available and intact.
-
-**Download it directly using curl or wget:**
+The 8.4 MB tarball is sitting in pip's local cache. Retrieve it directly:
 
 ```bash
-# Option 1: curl
-curl -L -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
+# 1. Find pip's cache directory
+pip cache dir
+# Typical output: /home/jovyan/.cache/pip
+
+# 2. Search for the cached flash-attn tarball
+find $(pip cache dir) -name "flash_attn*" -type f
+
+# 3. Copy it to shared storage
+cp <path_from_step_2> /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
+```
+
+If `pip cache` commands are not available (older pip), search the cache manually:
+
+```bash
+# pip HTTP cache stores files with hashed names — search by size (~8.4 MB)
+find ~/.cache/pip -size +8M -size -9M -type f
+
+# Or search all pip cache contents for the tarball
+find ~/.cache/pip -name "*.tar.gz" -type f
+```
+
+#### Fallback B: Direct Download from Artifactory (with Authentication)
+
+The Artifactory PyPI API endpoint requires authenticated access. Direct `curl`/`wget` returns 403 Forbidden unless credentials are provided:
+
+```bash
+# With Artifactory API key (preferred):
+curl -L -H "X-JFrog-Art-Api:<API_KEY>" \
+  -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
   "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
 
-# Option 2: wget
-wget -O /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
+# With username/password:
+curl -L -u "<username>:<password>" \
+  -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
   "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
 ```
 
-**Why this works**: The `pip download` failure occurred at the build-dependency stage, not the download stage. pip had already fetched the 8.4 MB tarball from Artifactory. By using `curl`/`wget`, we skip pip's build-isolation machinery entirely and just grab the file.
+> **Note**: pip authenticates to Artifactory automatically via its index configuration (pip.conf or `--index-url`). Direct `curl`/`wget` does not inherit this — credentials must be provided explicitly. Check with your Artifactory admin for API key access if needed.
 
-**Verify the download:**
+#### Verify the Download
+
+Whichever method succeeds, verify the tarball before proceeding to the build:
 
 ```bash
 # Should be ~8.4 MB
@@ -123,8 +149,8 @@ ls -lh /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
 file /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
 # Expected: gzip compressed data
 
-# Verify contents look correct
-tar tzf /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz | head -5
+# Verify contents include source code and CUDA kernels
+tar tzf /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz | head -10
 # Expected: flash_attn-2.8.3/setup.py, flash_attn-2.8.3/csrc/, etc.
 ```
 
