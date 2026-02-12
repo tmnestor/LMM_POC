@@ -78,90 +78,74 @@ Where:
 
 ## Request to Data Engineering
 
-We need a flash-attn wheel compiled from source against our exact environment. The build must run on a machine with an NVIDIA GPU and CUDA 12.8 toolkit installed.
+Our GPU environment does not have internet access. We need Data Engineering to download a file from GitHub and place it on shared storage.
 
-### Build Environment Requirements
+### Recommended: Pre-built Wheel (No nvcc Required)
 
-| Requirement | Value |
-|------------|-------|
-| Python | 3.12 |
-| PyTorch | 2.9.1+cu128 |
-| CUDA Toolkit | 12.8 |
-| GPU | Any NVIDIA GPU (L4, A10G, etc.) |
-| OS | Linux x86_64 |
+A pre-built wheel matching our environment is available on GitHub. This is the preferred approach — it does not require `nvcc` or the CUDA toolkit, as the CUDA kernels are already compiled.
 
-### What We Need from Data Engineering
+**Download URL:**
 
-Our GPU environment does not have proxy forwarding / internet access, so we cannot run `pip download` directly. We need the flash-attn source tarball downloaded to shared storage.
+```
+https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+```
 
-#### Download Command
+**Download command (from a machine with internet access):**
 
 ```bash
-# Run this from a machine with internet access:
+# Download the pre-built wheel (~253 MB)
+wget -O /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl \
+  "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
+```
+
+**Verify the download:**
+
+```bash
+# Should be ~253 MB
+ls -lh /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+
+# Verify it's a valid zip (wheels are zip files)
+file /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+# Expected: Zip archive data
+```
+
+**Pre-requisite check on the GPU environment** — before installing, verify the CXX11 ABI matches:
+
+```bash
+conda activate lmm_poc_env
+python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"
+# Must print: True
+# If False, the pre-built wheel will not work — see "Fallback: Build from Source" below
+```
+
+---
+
+### Fallback: Build from Source (Requires nvcc)
+
+If the CXX11 ABI check prints `False`, or if the pre-built wheel fails at import time, a from-source build is required. This requires `nvcc` (the CUDA compiler) to be installed on the build machine.
+
+> **Note**: Our current GPU environment does **not** have `nvcc` installed (`/usr/local/cuda/bin/nvcc` is missing). Building from source requires either installing the CUDA toolkit (`conda install -c nvidia cuda-nvcc cuda-toolkit`) or running on a machine that has it.
+
+#### Source Tarball
+
+The source tarball has already been downloaded to shared storage:
+
+```
+/efs/shared/flash-attn/flash_attn-2.8.3.tar.gz  (8.4 MB)
+```
+
+<details>
+<summary>How the source tarball was obtained (resolved issues)</summary>
+
+The initial `pip download --no-binary :all:` command failed because pip's PEP 517 build isolation tried to download `setuptools>=40.8.0` from the Artifactory mirror, which doesn't carry it. Adding `--no-build-isolation` would fix this:
+
+```bash
 pip download flash-attn --no-binary :all: --no-deps --no-build-isolation -d /efs/shared/flash-attn/
 ```
 
-> **Note on `--no-build-isolation`**: Without this flag, pip creates an isolated virtual environment and attempts to download build dependencies (e.g. `setuptools>=40.8.0`) from the package index. On environments where the Artifactory mirror does not carry `setuptools`, this fails with:
-> ```
-> ERROR: No matching distribution found for setuptools>=40.8.0
-> ```
-> The `--no-build-isolation` flag tells pip to use the setuptools already installed in the current environment, bypassing this issue. This is safe because we only need to **download** the source tarball — we are not building here.
-
-#### Fallback A: Recover Tarball from pip's Cache
-
-The failed `pip download` attempt already downloaded the tarball successfully before failing at the build-dependency stage. The error output confirms this:
-
-```
-Using cached https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz (8.4 MB)
-```
-
-The 8.4 MB tarball is sitting in pip's local cache. Retrieve it directly:
+Direct `curl`/`wget` to the Artifactory API endpoint returned 403 Forbidden (requires authenticated access). The working approach used a `.netrc` file for credential-based download:
 
 ```bash
-# 1. Find pip's cache directory
-pip cache dir
-# Typical output: /home/jovyan/.cache/pip
-
-# 2. Search for the cached flash-attn tarball
-find $(pip cache dir) -name "flash_attn*" -type f
-
-# 3. Copy it to shared storage
-cp <path_from_step_2> /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
-```
-
-If `pip cache` commands are not available (older pip), search the cache manually:
-
-```bash
-# pip HTTP cache stores files with hashed names — search by size (~8.4 MB)
-find ~/.cache/pip -size +8M -size -9M -type f
-
-# Or search all pip cache contents for the tarball
-find ~/.cache/pip -name "*.tar.gz" -type f
-```
-
-#### Fallback B: Direct Download from Artifactory (with Authentication)
-
-The Artifactory PyPI API endpoint requires authenticated access. Direct `curl`/`wget` returns 403 Forbidden unless credentials are provided.
-
-> **Security note**: Never pass credentials directly on the command line (e.g. `curl -u user:pass`). While HTTPS encrypts the connection, the plaintext password is exposed in shell history (`~/.bash_history`), process listings (`ps aux`), and system audit logs.
-
-**Option 1 — Artifactory API key (preferred):**
-
-```bash
-# Store API key in a variable (not in shell history with leading space):
- read -s -p "API Key: " ARTIFACTORY_KEY && echo
-
-curl -L -H "X-JFrog-Art-Api:${ARTIFACTORY_KEY}" \
-  -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
-  "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
-
-unset ARTIFACTORY_KEY
-```
-
-**Option 2 — .netrc file:**
-
-```bash
-# Create a .netrc file with restricted permissions
 cat > ~/.netrc << 'EOF'
 machine artifactory.ctz.atocnet.gov.au
 login <username>
@@ -169,37 +153,18 @@ password <password_or_api_key>
 EOF
 chmod 600 ~/.netrc
 
-# curl reads credentials from .netrc automatically
 curl -L --netrc \
   -o /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz \
   "https://artifactory.ctz.atocnet.gov.au/artifactory/api/pypi/sdpaapdl-pypi-rhel9-develop-local/flash-attn/2.8.3/flash_attn-2.8.3.tar.gz"
 
-# Clean up afterward
 rm ~/.netrc
 ```
 
-> **Note**: pip authenticates to Artifactory automatically via its index configuration (pip.conf or `--index-url`). Direct `curl`/`wget` does not inherit this — credentials must be provided explicitly. Check with your Artifactory admin for API key access if needed.
+> **Security note**: Never pass credentials directly on the command line (e.g. `curl -u user:pass`). The plaintext password is exposed in shell history, process listings (`ps aux`), and audit logs. Use `.netrc` with `chmod 600` or environment variables via `read -s` instead.
 
-#### Verify the Download
+</details>
 
-Whichever method succeeds, verify the tarball before proceeding to the build:
-
-```bash
-# Should be ~8.4 MB
-ls -lh /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
-
-# Verify it's a valid gzip tarball
-file /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz
-# Expected: gzip compressed data
-
-# Verify contents include source code and CUDA kernels
-tar tzf /efs/shared/flash-attn/flash_attn-2.8.3.tar.gz | head -10
-# Expected: flash_attn-2.8.3/setup.py, flash_attn-2.8.3/csrc/, etc.
-```
-
-Once the source tarball is in `/efs/shared/flash-attn/`, we can complete the build ourselves (Steps 1-7 below).
-
-### Build Steps
+#### Build Steps
 
 ```bash
 # 1. Activate the target conda environment (must have Python 3.12 + PyTorch 2.9.1+cu128)
@@ -212,34 +177,38 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {
 #   CUDA: 12.8
 #   Python: 3.12.x
 
-# 3. Install build dependencies
+# 3. Ensure nvcc is available
+nvcc --version
+# If missing: conda install -c nvidia cuda-nvcc cuda-toolkit
+
+# 4. Install build dependencies
 pip install ninja packaging wheel setuptools
 
-# 4. Extract the source tarball from shared storage
+# 5. Extract the source tarball from shared storage
 cd /efs/shared/flash-attn
-tar xzf flash_attn-*.tar.gz
-cd flash_attn-*
+tar xzf flash_attn-2.8.3.tar.gz
+cd flash_attn-2.8.3
 
-# 5. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
+# 6. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
 export FLASH_ATTENTION_FORCE_BUILD=TRUE
 export MAX_JOBS=4    # adjust based on available CPU/memory
 python setup.py bdist_wheel
 
-# 6. Verify the output wheel has correct platform tags
+# 7. Verify the output wheel has correct platform tags
 ls dist/
-# Expected: flash_attn-X.X.X-cp312-cp312-linux_x86_64.whl
-# MUST NOT be: flash_attn-X.X.X-py3-none-any.whl
+# Expected: flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl
+# MUST NOT be: flash_attn-2.8.3-py3-none-any.whl
 
-# 7. Copy to shared storage
+# 8. Copy to shared storage
 cp dist/flash_attn-*-cp312-cp312-linux_x86_64.whl /efs/shared/flash-attn/
 ```
 
-### Critical Notes
+#### Critical Notes
 
 - **`FLASH_ATTENTION_FORCE_BUILD=TRUE` must be set** — without it, `setup.py` downloads the pre-built wheel from GitHub instead of compiling from source.
 - The build takes **10-30 minutes** as it compiles CUDA kernels.
 - The output wheel in `dist/` **must** have platform-specific tags (`cp312-cp312-linux_x86_64`), not `py3-none-any`.
-- The build **must** run on a machine with a GPU — the CUDA compiler needs GPU headers.
+- The build requires `nvcc` — the CUDA compiler from the CUDA toolkit.
 
 ---
 
