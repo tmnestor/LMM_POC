@@ -16,7 +16,7 @@ The pipeline uses a **Protocol + Registry** pattern that cleanly separates model
 ```mermaid
 graph TD
     CLI["<b>cli.py</b><br/>--model flag selects model"]
-    REG["<b>models/registry.py</b><br/>get_model() → loader + creator"]
+    REG["<b>models/registry.py</b><br/>get_model() dispatch"]
 
     CLI -->|"--model internvl3 | llama"| REG
 
@@ -28,7 +28,7 @@ graph TD
     REG --> IVL_LOAD
     REG --> LLAMA_LOAD
 
-    subgraph DocumentProcessor Protocol
+    subgraph Processors
         IVL_PROC["<b>InternVL3 Processor</b><br/>batch + sequential"]
         LLAMA_PROC["<b>Llama Processor</b><br/>sequential only"]
     end
