@@ -78,52 +78,54 @@ Where:
 
 ## Request to Data Engineering
 
-Our GPU environment does not have internet access. We need Data Engineering to download a file from GitHub and place it on shared storage.
+We need the `nvcc` CUDA compiler to build flash-attn from source. The source tarball and generic wheel are already on EFS — the only missing component is `nvcc`.
 
-### Recommended: Pre-built Wheel (No nvcc Required)
+### What We Need: cuda-nvcc-dev via conda-forge
 
-A pre-built wheel matching our environment is available on GitHub. This is the preferred approach — it does not require `nvcc` or the CUDA toolkit, as the CUDA kernels are already compiled.
+Our GPU environment does not have `nvcc` at the standard path (`/usr/local/cuda/bin/nvcc`), and the pip package `nvidia-cuda-nvcc-cu12` does not include the `nvcc` binary (only `ptxas`).
 
-**Download URL:**
+The `nvcc` compiler is available via **conda-forge** as `cuda-nvcc-dev_linux-64`, but our GPU environment cannot access conda-forge directly. We need Data Engineering to make this package available through the Artifactory conda mirror.
 
-```
-https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-```
+**Package details:**
 
-**Download command (from a machine with internet access):**
+| Package | Version | Channel | Build |
+|---------|---------|---------|-------|
+| `cuda-nvcc-dev_linux-64` | 12.8.93 | conda-forge | `he91c749_0` |
+| `cuda-nvcc-dev_linux-64` | 12.8.61 | conda-forge | `he91c749_0` |
 
-```bash
-# Download the pre-built wheel (~253 MB)
-wget -O /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl \
-  "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
-```
+Either version is suitable (both match our CUDA 12.8 toolkit). Version 12.8.93 is preferred as it's the latest 12.8.x release.
 
-**Verify the download:**
-
-```bash
-# Should be ~253 MB
-ls -lh /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-
-# Verify it's a valid zip (wheels are zip files)
-file /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-# Expected: Zip archive data
-```
-
-**Pre-requisite check** — CXX11 ABI compatibility has been verified (2026-02-12):
+**Once available in the Artifactory conda mirror**, we can install it ourselves:
 
 ```bash
 conda activate lmm_poc_env
-python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"
-# Output: True  ✓  — pre-built wheel is compatible
+conda install cuda-nvcc-dev_linux-64=12.8.93
+nvcc --version  # verify
 ```
 
----
+### Why We Need nvcc
 
-### Fallback: Build from Source (Requires nvcc)
+We need to build flash-attn from source because:
 
-If the CXX11 ABI check prints `False`, or if the pre-built wheel fails at import time, a from-source build is required. This requires `nvcc` (the CUDA compiler) to be installed on the build machine.
+1. **The generic wheel (`py3-none-any`) does not work** — it lacks compiled CUDA kernels, producing `ModuleNotFoundError: No module named 'flash_attn_2_cuda'`
+2. **The pre-built wheel on GitHub is inaccessible** — policy prevents downloading from GitHub
+3. **The pip `nvidia-cuda-nvcc-cu12` package is incomplete** — it installs `ptxas` but not the `nvcc` binary
+4. **The source tarball is already on EFS** — `/efs/shared/flash-attn/flash_attn-2.8.3.tar.gz` (8.4 MB), ready to build
 
-> **Note**: Our current GPU environment does **not** have `nvcc` installed (`/usr/local/cuda/bin/nvcc` is missing). Building from source requires either installing the CUDA toolkit (`conda install -c nvidia cuda-nvcc cuda-toolkit`) or running on a machine that has it.
+Once `nvcc` is available, we can compile flash-attn ourselves (10-30 minute build).
+
+<details>
+<summary>Attempted approaches (for reference)</summary>
+
+| Approach | Result |
+|----------|--------|
+| Generic wheel from PyPI/Artifactory | `ModuleNotFoundError: No module named 'flash_attn_2_cuda'` — no compiled CUDA kernels |
+| Pre-built wheel from GitHub releases | Policy prevents Data Engineering from downloading GitHub artifacts |
+| `pip install nvidia-cuda-nvcc-cu12==12.8.61` | Installs `ptxas` only, no `nvcc` binary |
+| `pip download --no-binary :all:` (source tarball) | Initial failure due to build-isolation; resolved via `.netrc` authenticated download |
+| Build from source with `python setup.py bdist_wheel` | `FileNotFoundError: '/usr/local/cuda/bin/nvcc'` — nvcc not installed |
+
+</details>
 
 #### Source Tarball
 
@@ -163,46 +165,51 @@ rm ~/.netrc
 
 </details>
 
-#### Build Steps
+### Build Steps (Once nvcc Is Available)
 
 ```bash
-# 1. Activate the target conda environment (must have Python 3.12 + PyTorch 2.9.1+cu128)
+# 1. Activate the target conda environment
 conda activate lmm_poc_env
 
-# 2. Verify the environment matches
+# 2. Install nvcc from conda-forge (requires Artifactory conda mirror access)
+conda install cuda-nvcc-dev_linux-64=12.8.93
+
+# 3. Verify nvcc is available
+nvcc --version
+# If not on PATH:
+export CUDA_HOME=$CONDA_PREFIX
+export PATH="$CUDA_HOME/bin:$PATH"
+
+# 4. Verify the environment matches
 python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {torch.version.cuda}'); import sys; print(f'Python: {sys.version}')"
 # Expected output:
 #   PyTorch: 2.9.1+cu128
 #   CUDA: 12.8
 #   Python: 3.12.x
 
-# 3. Ensure nvcc is available
-nvcc --version
-# If missing: conda install -c nvidia cuda-nvcc cuda-toolkit
-
-# 4. Install build dependencies
+# 5. Install build dependencies
 pip install ninja packaging wheel setuptools
 
-# 5. Extract the source tarball from shared storage
+# 6. Extract the source tarball from shared storage
 cd /efs/shared/flash-attn
 tar xzf flash_attn-2.8.3.tar.gz
 cd flash_attn-2.8.3
 
-# 6. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
+# 7. Build from source (FLASH_ATTENTION_FORCE_BUILD is critical)
 export FLASH_ATTENTION_FORCE_BUILD=TRUE
 export MAX_JOBS=4    # adjust based on available CPU/memory
 python setup.py bdist_wheel
 
-# 7. Verify the output wheel has correct platform tags
+# 8. Verify the output wheel has correct platform tags
 ls dist/
 # Expected: flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl
 # MUST NOT be: flash_attn-2.8.3-py3-none-any.whl
 
-# 8. Copy to shared storage
-cp dist/flash_attn-*-cp312-cp312-linux_x86_64.whl /efs/shared/flash-attn/
+# 9. Install the compiled wheel
+pip install dist/flash_attn-*-cp312-cp312-linux_x86_64.whl --no-cache-dir
 ```
 
-#### Critical Notes
+### Critical Notes
 
 - **`FLASH_ATTENTION_FORCE_BUILD=TRUE` must be set** — without it, `setup.py` downloads the pre-built wheel from GitHub instead of compiling from source.
 - The build takes **10-30 minutes** as it compiles CUDA kernels.
@@ -239,21 +246,3 @@ print('SUCCESS')
 - [flash-attn Issue #1717](https://github.com/Dao-AILab/flash-attention/issues/1717) — Undefined symbol errors in flash-attn wheel builds
 - [PyTorch Issue #51039](https://github.com/pytorch/pytorch/issues/51039) — PyTorch's `_GLIBCXX_USE_CXX11_ABI=0` wheel policy
 - [flash-attn Installation & Setup (DeepWiki)](https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup) — Wheel selection process and ABI compatibility details
-
-
-**Appendix**
-Once the wheel is on EFS: 
-  # 1. Activate environment                                                                                   
-  conda activate lmm_poc_env                          
-                                                                                                              
-  # 2. Install the pre-built wheel                                                                            
-  pip install /efs/shared/flash-attn/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-  --no-cache-dir
-
-  # 3. Verify it works
-  python -c "
-  import flash_attn
-  print(f'flash-attn: {flash_attn.__version__}')
-  from flash_attn import flash_attn_func
-  print('CUDA kernels loaded successfully')
-  "
