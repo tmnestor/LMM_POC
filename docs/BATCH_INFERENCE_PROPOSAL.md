@@ -72,7 +72,7 @@ class PipelineConfig:
     batch_size: int | None = None  # None = auto-detect from VRAM
 ```
 
-### 2. CLI (`ivl3_cli.py`)
+### 2. CLI (`cli.py`)
 
 Add `--batch-size` option:
 

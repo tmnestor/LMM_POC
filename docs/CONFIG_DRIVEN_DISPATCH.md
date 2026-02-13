@@ -78,7 +78,7 @@ graph LR
         BP["BatchDocumentProcessor"]
         IVL["InternVL3 Processor"]
         EM["Evaluation Metrics"]
-        CLI["ivl3_cli.py"]
+        CLI["cli.py"]
         GPU["GPU Optimization"]
     end
 
@@ -552,7 +552,7 @@ The field list stays the same for all variants — only the prompt changes.
 | `config/field_definitions.yaml` | Field lists, types, categories, aliases (single source of truth for document types) |
 | `prompts/document_type_detection.yaml` | Detection prompts, type mappings, fallback keywords, settings |
 | `prompts/internvl3_prompts.yaml` | Extraction prompts per document type (keys define supported types) |
-| `ivl3_cli.py` | CLI entry point; derives extraction routing from YAML prompt keys |
+| `cli.py` | CLI entry point; derives extraction routing from YAML prompt keys |
 | `common/pipeline_config.py` | PipelineConfig dataclass; loads and merges YAML/ENV/CLI config |
 | `common/config.py` | Module-level constants; `apply_yaml_overrides()` replaces defaults from YAML |
 | `common/batch_processor.py` | Orchestrates detect -> extract -> evaluate pipeline |

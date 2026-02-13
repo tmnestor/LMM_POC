@@ -15,7 +15,7 @@ This document proposes replacing the in-process model with a **vLLM model server
 │  Kubeflow Pipeline Step (single pod)                │
 │                                                     │
 │  ┌───────────┐    ┌──────────┐    ┌──────────────┐  │
-│  │ ivl3_cli  │───>│ batch_   │───>│ InternVL3    │  │
+│  │ cli  │───>│ batch_   │───>│ InternVL3    │  │
 │  │           │    │ processor│    │ model.batch_  │  │
 │  │           │    │          │    │ chat()        │  │
 │  └───────────┘    └──────────┘    └──────┬───────┘  │
@@ -47,7 +47,7 @@ This document proposes replacing the in-process model with a **vLLM model server
 │  (lightweight pod)       │       │  (persistent GPU pod)            │
 │                          │       │                                  │
 │  ┌───────────┐           │ HTTP  │  ┌─────────────────────────────┐ │
-│  │ ivl3_cli  │──────────────────>│  │ vLLM Engine                 │ │
+│  │ cli  │──────────────────>│  │ vLLM Engine                 │ │
 │  │           │           │  /v1/ │  │                             │ │
 │  │ - detect  │           │  chat │  │ - Continuous batching       │ │
 │  │ - extract │           │       │  │ - PagedAttention            │ │

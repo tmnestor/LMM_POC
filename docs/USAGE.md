@@ -3,7 +3,7 @@
 This project provides two ways to run document field extraction using InternVL3.5-8B:
 
 1. **Jupyter Notebook** (`ivl3_5_8b.ipynb`) - Interactive development and experimentation
-2. **CLI Script** (`ivl3_cli.py`) - Production pipelines and automation
+2. **CLI Script** (`cli.py`) - Production pipelines and automation
 
 ## Quick Start
 
@@ -26,13 +26,13 @@ jupyter notebook ivl3_5_8b.ipynb
 conda activate vision_notebooks
 
 # Run with ground truth (evaluation mode)
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./evaluation_data/travel \
   --output-dir ./output \
   --ground-truth ./evaluation_data/travel/ground_truth_travel.csv
 
 # Run without ground truth (inference-only mode)
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./production_images \
   --output-dir ./results
 ```
@@ -113,18 +113,18 @@ git clone https://huggingface.co/OpenGVLab/InternVL3_5-8B /models/InternVL3_5-8B
 
 ```bash
 # Evaluation mode (with ground truth)
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./evaluation_data/travel \
   --output-dir ./output \
   --ground-truth ./evaluation_data/travel/ground_truth_travel.csv
 
 # Inference-only mode (no ground truth)
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./production_images \
   --output-dir ./results
 
 # Quick test run (2 images, no visualizations)
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./test_images \
   --output-dir ./tmp \
   --max-images 2 \
@@ -132,10 +132,10 @@ python ivl3_cli.py \
   --no-reports
 
 # Using config file
-python ivl3_cli.py --config run_config.yaml
+python cli.py --config run_config.yaml
 
 # V100 configuration
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./data \
   --output-dir ./output \
   --max-tiles 14 \
@@ -143,7 +143,7 @@ python ivl3_cli.py \
   --dtype float32
 
 # Process specific document types
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./mixed_documents \
   --output-dir ./output \
   --document-types "invoice,receipt"
@@ -226,13 +226,13 @@ processing:
 
 Run with config:
 ```bash
-python ivl3_cli.py --config config/run_config.yml
+python cli.py --config config/run_config.yml
 ```
 
 Override specific settings (CLI takes precedence when explicitly provided):
 ```bash
 # Override max_images and verbose from config
-python ivl3_cli.py --config config/run_config.yml --max-images 5 --verbose
+python cli.py --config config/run_config.yml --max-images 5 --verbose
 ```
 
 ### Environment Variables
@@ -258,7 +258,7 @@ export IVL_MODEL_PATH=/models/InternVL3_5-8B
 export IVL_MAX_TILES=11
 export IVL_FLASH_ATTN=true
 
-python ivl3_cli.py --data-dir ./data --output-dir ./output
+python cli.py --data-dir ./data --output-dir ./output
 ```
 
 ## Hardware Configurations
@@ -266,7 +266,7 @@ python ivl3_cli.py --data-dir ./data --output-dir ./output
 ### H200/A100 (Recommended)
 
 ```bash
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./data \
   --output-dir ./output \
   --dtype bfloat16 \
@@ -283,7 +283,7 @@ python ivl3_cli.py \
 ### V100 (Legacy)
 
 ```bash
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./data \
   --output-dir ./output \
   --dtype float32 \
@@ -368,7 +368,7 @@ FATAL: Model path not found: /models/InternVL3_5-8B
 
 **Solution:** Specify correct model path:
 ```bash
-python ivl3_cli.py --model-path /correct/path/to/InternVL3_5-8B ...
+python cli.py --model-path /correct/path/to/InternVL3_5-8B ...
 ```
 
 ### GPU Memory Issues
@@ -386,7 +386,7 @@ python ivl3_cli.py --model-path /correct/path/to/InternVL3_5-8B ...
 
 **Solution:** Disable flash attention for V100 or CPU:
 ```bash
-python ivl3_cli.py --no-flash-attn --dtype float32 ...
+python cli.py --no-flash-attn --dtype float32 ...
 ```
 
 ### Missing Dependencies
@@ -416,7 +416,7 @@ pip install typer
 Complete evaluation with ground truth comparison:
 
 ```bash
-python ivl3_cli.py \
+python cli.py \
   --data-dir ./evaluation_data/invoice \
   --output-dir ./eval_results \
   --ground-truth ./evaluation_data/invoice/ground_truth.csv \
@@ -428,7 +428,7 @@ python ivl3_cli.py \
 High-throughput inference without evaluation:
 
 ```bash
-python ivl3_cli.py \
+python cli.py \
   --data-dir /mnt/incoming_documents \
   --output-dir /mnt/extracted_data \
   --no-viz \
@@ -444,7 +444,7 @@ import subprocess
 
 def extract_documents(data_dir: str, output_dir: str, model_path: str):
     subprocess.run([
-        "python", "ivl3_cli.py",
+        "python", "cli.py",
         "--data-dir", data_dir,
         "--output-dir", output_dir,
         "--model-path", model_path,
@@ -462,7 +462,7 @@ WORKDIR /app
 COPY . .
 RUN pip install -r requirements.txt
 
-ENTRYPOINT ["python", "ivl3_cli.py"]
+ENTRYPOINT ["python", "cli.py"]
 ```
 
 ```bash
@@ -486,7 +486,7 @@ docker run -v /data:/data -v /output:/output myimage \
 | File | Purpose |
 |------|---------|
 | `ivl3_5_8b.ipynb` | Interactive notebook |
-| `ivl3_cli.py` | CLI script |
+| `cli.py` | CLI script |
 | `config/run_config.yml` | YAML configuration (primary config source) |
 | `config/field_definitions.yaml` | Field definitions per document type |
 | `prompts/internvl3_prompts.yaml` | Extraction prompts |

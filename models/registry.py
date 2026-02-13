@@ -64,7 +64,7 @@ def list_models() -> list[str]:
 def _internvl3_loader(config):
     """Context manager for loading InternVL3 model and tokenizer.
 
-    Exactly mirrors the original ivl3_cli.py:load_model() logic.
+    Load InternVL3 model and tokenizer into GPU memory.
     """
     from contextlib import contextmanager
 
@@ -169,7 +169,7 @@ def _internvl3_processor_creator(
 ):
     """Create a DocumentAwareInternVL3HybridProcessor from loaded components.
 
-    Exactly mirrors the original ivl3_cli.py:create_processor() logic.
+    Create a DocumentAwareInternVL3HybridProcessor from loaded components.
     """
     from models.document_aware_internvl3_processor import (
         DocumentAwareInternVL3HybridProcessor,
