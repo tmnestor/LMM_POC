@@ -537,6 +537,7 @@ class DocumentAwareLlamaProcessor:
             "use_cache": generation_kwargs.get(
                 "use_cache", self.generation_config["use_cache"]
             ),
+            "pad_token_id": self.processor.tokenizer.eos_token_id,
         }
         # Only include temperature/top_p when sampling is enabled
         if do_sample:
@@ -870,6 +871,7 @@ class DocumentAwareLlamaProcessor:
                 "do_sample": self.generation_config["do_sample"],
                 "top_p": self.generation_config["top_p"],
                 "use_cache": self.generation_config["use_cache"],
+                "pad_token_id": self.processor.tokenizer.eos_token_id,
             }
             final_generation_kwargs.update(generation_kwargs)
 
