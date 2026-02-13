@@ -21,6 +21,8 @@
 # Two ways to run:
 #   1. Via KFP (production):  input_params set in UI → injected as env vars
 #   2. Locally (dev/debug):   bash entrypoint.sh --model llama --verbose
+# For example:
+#   LMM_LOG_DIR=/tmp/lmm_logs model=internvl3 image_dir=../evaluation_data/synthetic bash entrypoint.sh --model llama --verbose
 #   Both work — KFP env vars and direct CLI args are merged together.
 #
 # =============================================================================
