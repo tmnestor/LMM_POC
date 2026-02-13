@@ -1792,6 +1792,7 @@ class UnifiedBankExtractor:
             generation_config={
                 "max_new_tokens": max_tokens,
                 "do_sample": False,
+                "pad_token_id": self.tokenizer.eos_token_id,
             },
         )
 
