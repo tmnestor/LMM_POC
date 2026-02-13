@@ -187,7 +187,7 @@ All results have been saved to: `{output_base}`
 
 ## Technical Details
 
-- **V100 Optimizations:** Enabled (ResilientGenerator, Memory Cleanup)
+- **V100 Optimizations:** Enabled (OOM Fallback, Memory Cleanup)
 - **Quantization:** 8-bit with BitsAndBytesConfig
 - **Max Tokens:** 4000
 - **Device:** CUDA (auto-mapped)
