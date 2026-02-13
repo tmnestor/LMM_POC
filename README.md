@@ -74,7 +74,8 @@ graph TD
 │   └── internvl3_image_preprocessor.py        # Image tiling and tensor preparation
 ├── common/
 │   ├── pipeline_config.py                 # PipelineConfig dataclass, config merging
-│   ├── config.py                          # Model-specific constants (overridden by YAML)
+│   ├── field_config.py                    # Field schema, accessors, evaluation filtering
+│   ├── model_config.py                    # Generation config, batch sizes, YAML overrides
 │   ├── batch_processor.py                 # Batch orchestration (detection → extraction)
 │   ├── bank_statement_adapter.py          # Multi-turn bank extraction adapter
 │   ├── unified_bank_extractor.py          # Auto-selects bank extraction strategy
