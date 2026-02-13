@@ -37,8 +37,10 @@ set -o pipefail
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
 # while still being printed to the console (so KFP UI shows it too).
 # Each run creates its own log file, e.g. entrypoint_20260213_143022.log
-LMM_LOG_DIR="/efs/shared/data/lmm_poc/logs"
-LOG_DIR="$LMM_LOG_DIR"
+#
+# LMM_LOG_DIR is set in the KFP manifest under `environment_variables:`.
+# Falls back to ./logs if not set (e.g. local dev usage).
+LOG_DIR="${LMM_LOG_DIR:-./logs}"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/entrypoint_$(date +'%Y%m%d_%H%M%S').log"
 
