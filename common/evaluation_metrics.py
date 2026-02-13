@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from .config import (
+from .field_config import (
     get_all_field_types,
     get_boolean_fields,
     get_calculated_fields,
@@ -167,7 +167,9 @@ def calculate_field_accuracy(
         ground_truth_normalized = ground_truth_normalized.replace(char, "")
 
     if debug:
-        print(f"    🔍 Normalized: '{extracted_normalized}' vs '{ground_truth_normalized}'")
+        print(
+            f"    🔍 Normalized: '{extracted_normalized}' vs '{ground_truth_normalized}'"
+        )
 
     # Exact match after normalization
     if extracted_normalized == ground_truth_normalized:
@@ -193,21 +195,27 @@ def calculate_field_accuracy(
             "bank statement": "bank_statement",
             "account statement": "bank_statement",
             "credit card statement": "bank_statement",
-            "statement": "bank_statement"
+            "statement": "bank_statement",
         }
 
         # Map both values to canonical types
         extracted_canonical = type_mapping.get(extracted_lower, extracted_lower)
-        ground_truth_canonical = type_mapping.get(ground_truth_lower, ground_truth_lower)
+        ground_truth_canonical = type_mapping.get(
+            ground_truth_lower, ground_truth_lower
+        )
 
         # Compare canonical types
         if extracted_canonical == ground_truth_canonical:
             if debug:
-                print(f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) matches '{ground_truth}' ({ground_truth_canonical}) - score: 1.0")
+                print(
+                    f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) matches '{ground_truth}' ({ground_truth_canonical}) - score: 1.0"
+                )
             return 1.0
         else:
             if debug:
-                print(f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) != '{ground_truth}' ({ground_truth_canonical}) - score: 0.0")
+                print(
+                    f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) != '{ground_truth}' ({ground_truth_canonical}) - score: 0.0"
+                )
             return 0.0
 
     # Field-specific comparison logic using centralized field type definitions
@@ -304,8 +312,8 @@ def calculate_field_accuracy(
                 for gt_item in ground_truth_items:
                     try:
                         # Strip "-" prefix and other formatting
-                        ext_clean = re.sub(r"[^\d.]", "", ext_item.lstrip('-'))
-                        gt_clean = re.sub(r"[^\d.]", "", gt_item.lstrip('-'))
+                        ext_clean = re.sub(r"[^\d.]", "", ext_item.lstrip("-"))
+                        gt_clean = re.sub(r"[^\d.]", "", gt_item.lstrip("-"))
                         ext_num = float(ext_clean) if ext_clean else 0
                         gt_num = float(gt_clean) if gt_clean else 0
                         tolerance = abs(gt_num * 0.01) if gt_num != 0 else 0.01
@@ -595,7 +603,7 @@ def evaluate_extraction_results(
         doc_type = type_mapping.get(doc_type_raw, "invoice")
 
         # Get document-specific fields for evaluation
-        from common.config import get_document_type_fields
+        from common.field_config import get_document_type_fields
 
         fields_to_evaluate = get_document_type_fields(doc_type)
 
@@ -1007,7 +1015,9 @@ def _evaluate_transaction_list(
             # This rewards extracting correct items even if extras are present
             score = matches / len(ground_truth_items) if ground_truth_items else 0.0
             if debug:
-                print(f"    📊 TRANSACTION: Length mismatch - partial score: {score} ({matches}/{len(ground_truth_items)} correct)")
+                print(
+                    f"    📊 TRANSACTION: Length mismatch - partial score: {score} ({matches}/{len(ground_truth_items)} correct)"
+                )
             return score
 
         # Full comparison when lengths match
@@ -1061,18 +1071,30 @@ def _compare_date_field(
     """
     # Month name to number mapping
     months = {
-        'jan': 1, 'january': 1,
-        'feb': 2, 'february': 2,
-        'mar': 3, 'march': 3,
-        'apr': 4, 'april': 4,
-        'may': 5,
-        'jun': 6, 'june': 6,
-        'jul': 7, 'july': 7,
-        'aug': 8, 'august': 8,
-        'sep': 9, 'sept': 9, 'september': 9,
-        'oct': 10, 'october': 10,
-        'nov': 11, 'november': 11,
-        'dec': 12, 'december': 12,
+        "jan": 1,
+        "january": 1,
+        "feb": 2,
+        "february": 2,
+        "mar": 3,
+        "march": 3,
+        "apr": 4,
+        "april": 4,
+        "may": 5,
+        "jun": 6,
+        "june": 6,
+        "jul": 7,
+        "july": 7,
+        "aug": 8,
+        "august": 8,
+        "sep": 9,
+        "sept": 9,
+        "september": 9,
+        "oct": 10,
+        "october": 10,
+        "nov": 11,
+        "november": 11,
+        "dec": 12,
+        "december": 12,
     }
 
     def parse_single_date(date_str: str) -> tuple[int, int, int] | None:
@@ -1080,15 +1102,29 @@ def _compare_date_field(
         date_str = date_str.strip().lower()
 
         # Strip day name prefix (Mon, Tue, etc.)
-        day_names = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
-                     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        day_names = [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri",
+            "sat",
+            "sun",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ]
         for day_name in day_names:
             if date_str.startswith(day_name):
-                date_str = date_str[len(day_name):].strip()
+                date_str = date_str[len(day_name) :].strip()
                 break
 
         # Extract all numbers
-        nums = re.findall(r'\d+', date_str)
+        nums = re.findall(r"\d+", date_str)
 
         # Check for month names
         month_num = None
@@ -1122,12 +1158,12 @@ def _compare_date_field(
     def parse_date_range(text: str) -> list[tuple[int, int, int]]:
         """Parse a date range string into list of (day, month, year) tuples."""
         # Split on common range separators
-        separators = [' - ', ' to ', ' – ', ' — ', '-']
+        separators = [" - ", " to ", " – ", " — ", "-"]
         dates = []
 
         for sep in separators:
             if sep in text.lower():
-                parts = text.split(sep) if sep != '-' else re.split(r'\s*-\s*', text)
+                parts = text.split(sep) if sep != "-" else re.split(r"\s*-\s*", text)
                 # Filter out empty parts and parts that are just numbers (like in "16-Jul-25")
                 parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 4]
                 if len(parts) >= 2:
@@ -1200,18 +1236,30 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
 
     # Month name to number mapping
     months = {
-        'jan': '01', 'january': '01',
-        'feb': '02', 'february': '02',
-        'mar': '03', 'march': '03',
-        'apr': '04', 'april': '04',
-        'may': '05',
-        'jun': '06', 'june': '06',
-        'jul': '07', 'july': '07',
-        'aug': '08', 'august': '08',
-        'sep': '09', 'sept': '09', 'september': '09',
-        'oct': '10', 'october': '10',
-        'nov': '11', 'november': '11',
-        'dec': '12', 'december': '12',
+        "jan": "01",
+        "january": "01",
+        "feb": "02",
+        "february": "02",
+        "mar": "03",
+        "march": "03",
+        "apr": "04",
+        "april": "04",
+        "may": "05",
+        "jun": "06",
+        "june": "06",
+        "jul": "07",
+        "july": "07",
+        "aug": "08",
+        "august": "08",
+        "sep": "09",
+        "sept": "09",
+        "september": "09",
+        "oct": "10",
+        "october": "10",
+        "nov": "11",
+        "november": "11",
+        "dec": "12",
+        "december": "12",
     }
 
     def normalize_date(date_str):
@@ -1219,7 +1267,7 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
         date_lower = date_str.lower()
 
         # Extract all numbers
-        nums = re.findall(r'\d+', date_str)
+        nums = re.findall(r"\d+", date_str)
 
         # Check for month names
         month_num = None
@@ -1274,7 +1322,11 @@ def _compare_dates_fuzzy(extracted_date: str, ground_truth_date: str) -> bool:
             return False
 
     # At least day and one other component must match
-    matches = sum(1 for ext, gt in zip(extracted_parts, ground_truth_parts, strict=False) if ext == gt and ext is not None)
+    matches = sum(
+        1
+        for ext, gt in zip(extracted_parts, ground_truth_parts, strict=False)
+        if ext == gt and ext is not None
+    )
     return matches >= 2
 
 
@@ -1309,8 +1361,12 @@ def calculate_correlation_aware_f1(
         ]
     elif "invoice" in doc_type_lower or "receipt" in doc_type_lower:
         related_groups = [
-            ("LINE_ITEM_DESCRIPTIONS", "LINE_ITEM_QUANTITIES",
-             "LINE_ITEM_PRICES", "LINE_ITEM_TOTAL_PRICES")
+            (
+                "LINE_ITEM_DESCRIPTIONS",
+                "LINE_ITEM_QUANTITIES",
+                "LINE_ITEM_PRICES",
+                "LINE_ITEM_TOTAL_PRICES",
+            )
         ]
     else:
         related_groups = []
@@ -1323,7 +1379,7 @@ def calculate_correlation_aware_f1(
                 extracted_data.get(field, "NOT_FOUND"),
                 ground_truth_data.get(field, "NOT_FOUND"),
                 field,
-                debug=False
+                debug=False,
             )
             field_f1_scores[field] = f1_metrics["f1_score"]
 
@@ -1344,10 +1400,10 @@ def calculate_correlation_aware_f1(
                 continue
 
             extracted_lists[field] = [
-                i.strip() for i in ext_value.split('|') if i.strip()
+                i.strip() for i in ext_value.split("|") if i.strip()
             ]
             ground_truth_lists[field] = [
-                i.strip() for i in gt_value.split('|') if i.strip()
+                i.strip() for i in gt_value.split("|") if i.strip()
             ]
 
         # Check alignment row-by-row (strict mode)
@@ -1365,7 +1421,7 @@ def calculate_correlation_aware_f1(
                             if not _transaction_item_matches(
                                 extracted_lists[field][i],
                                 ground_truth_lists[field][i],
-                                field
+                                field,
                             ):
                                 row_aligned = False
                                 break
@@ -1386,10 +1442,14 @@ def calculate_correlation_aware_f1(
                 print(f"    Alignment score: {alignment_score:.1%}")
 
     # Overall alignment score
-    overall_alignment = sum(alignment_scores) / len(alignment_scores) if alignment_scores else 1.0
+    overall_alignment = (
+        sum(alignment_scores) / len(alignment_scores) if alignment_scores else 1.0
+    )
 
     # Overall standard F1
-    overall_f1 = sum(field_f1_scores.values()) / len(field_f1_scores) if field_f1_scores else 0.0
+    overall_f1 = (
+        sum(field_f1_scores.values()) / len(field_f1_scores) if field_f1_scores else 0.0
+    )
 
     # Combined score (weighted average)
     combined_f1 = (overall_f1 + overall_alignment) / 2
@@ -1408,7 +1468,7 @@ def calculate_correlation_aware_f1(
         "field_f1_scores": field_f1_scores,
         "alignment_details": alignment_scores,
         "precision": combined_f1,  # For compatibility
-        "recall": combined_f1,      # For compatibility
+        "recall": combined_f1,  # For compatibility
         "tp": 0,  # Not applicable for correlation metric
         "fp": 0,
         "fn": 0,
@@ -1550,9 +1610,7 @@ def calculate_field_accuracy_f1_position_agnostic(
         }
 
     if extracted.upper() == "NOT_FOUND":
-        gt_items = [
-            i.strip() for i in str(ground_truth).split("|") if i.strip()
-        ]
+        gt_items = [i.strip() for i in str(ground_truth).split("|") if i.strip()]
         return {
             "f1_score": 0.0,
             "precision": 0.0,
@@ -1588,9 +1646,7 @@ def calculate_field_accuracy_f1_position_agnostic(
 
     # Handle list values - POSITION-AGNOSTIC (set-based matching)
     extracted_items = [i.strip() for i in str(extracted).split("|") if i.strip()]
-    ground_truth_items = [
-        i.strip() for i in str(ground_truth).split("|") if i.strip()
-    ]
+    ground_truth_items = [i.strip() for i in str(ground_truth).split("|") if i.strip()]
 
     # True Positives: Count extracted items that match any ground truth item
     tp = 0
@@ -1627,9 +1683,7 @@ def calculate_field_accuracy_f1_position_agnostic(
     if debug:
         print(f"  📊 F1 Metrics (Position-Agnostic) for {field_name}:")
         print(f"     TP={tp}, FP={fp}, FN={fn}")
-        print(
-            f"     Precision={precision:.2%}, Recall={recall:.2%}, F1={f1_score:.2%}"
-        )
+        print(f"     Precision={precision:.2%}, Recall={recall:.2%}, F1={f1_score:.2%}")
 
     return {
         "f1_score": f1_score,
@@ -1676,13 +1730,25 @@ def calculate_field_accuracy_kieval(
     total_error = substitution + addition + deletion
 
     # Count total items for normalization
-    extracted_items = [
-        i.strip() for i in str(extracted_value).split("|") if i.strip()
-    ] if "|" in str(extracted_value) else ([str(extracted_value).strip()] if str(extracted_value).strip() != "NOT_FOUND" else [])
+    extracted_items = (
+        [i.strip() for i in str(extracted_value).split("|") if i.strip()]
+        if "|" in str(extracted_value)
+        else (
+            [str(extracted_value).strip()]
+            if str(extracted_value).strip() != "NOT_FOUND"
+            else []
+        )
+    )
 
-    ground_truth_items = [
-        i.strip() for i in str(ground_truth_value).split("|") if i.strip()
-    ] if "|" in str(ground_truth_value) else ([str(ground_truth_value).strip()] if str(ground_truth_value).strip() != "NOT_FOUND" else [])
+    ground_truth_items = (
+        [i.strip() for i in str(ground_truth_value).split("|") if i.strip()]
+        if "|" in str(ground_truth_value)
+        else (
+            [str(ground_truth_value).strip()]
+            if str(ground_truth_value).strip() != "NOT_FOUND"
+            else []
+        )
+    )
 
     total_items = max(len(extracted_items), len(ground_truth_items))
 
@@ -1767,9 +1833,7 @@ def calculate_field_accuracy_f1(
 
     if extracted.upper() == "NOT_FOUND":
         # Missing extraction - all ground truth items are false negatives
-        gt_items = [
-            i.strip() for i in str(ground_truth).split("|") if i.strip()
-        ]
+        gt_items = [i.strip() for i in str(ground_truth).split("|") if i.strip()]
         return {
             "f1_score": 0.0,
             "precision": 0.0,
@@ -1840,11 +1904,15 @@ def calculate_field_accuracy_f1(
             # - Month names vs numbers
             # - Day name prefixes (Tue, Mon, etc.)
             date_field_keywords = ["DATE", "DUE_DATE", "INVOICE_DATE", "STATEMENT_DATE"]
-            is_date_field = any(keyword in field_name.upper() for keyword in date_field_keywords)
+            is_date_field = any(
+                keyword in field_name.upper() for keyword in date_field_keywords
+            )
 
             if is_date_field:
                 # Use semantic date comparison that handles ranges and format variations
-                score = _compare_date_field(extracted_normalized, ground_truth_normalized, field_name, debug)
+                score = _compare_date_field(
+                    extracted_normalized, ground_truth_normalized, field_name, debug
+                )
                 return {
                     "f1_score": score,
                     "precision": score,
@@ -1857,16 +1925,25 @@ def calculate_field_accuracy_f1(
             # For single-value monetary fields (GST_AMOUNT, TOTAL_AMOUNT), use monetary comparison with F1-style penalty
             # This ensures incorrect amounts get 0.0 score (penalizing false positives)
             # NOTE: List fields like LINE_ITEM_PRICES are handled later by the list F1 logic
-            monetary_single_fields = ["GST_AMOUNT", "TOTAL_AMOUNT", "INVOICE_TOTAL", "SUBTOTAL"]
+            monetary_single_fields = [
+                "GST_AMOUNT",
+                "TOTAL_AMOUNT",
+                "INVOICE_TOTAL",
+                "SUBTOTAL",
+            ]
             is_monetary_field = field_name in monetary_single_fields
 
             if is_monetary_field:
                 try:
                     extracted_num = float(re.sub(r"[^\d.-]", "", extracted_normalized))
-                    ground_truth_num = float(re.sub(r"[^\d.-]", "", ground_truth_normalized))
+                    ground_truth_num = float(
+                        re.sub(r"[^\d.-]", "", ground_truth_normalized)
+                    )
 
                     # Allow 1% tolerance for rounding (same as calculate_field_accuracy)
-                    tolerance = abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+                    tolerance = (
+                        abs(ground_truth_num * 0.01) if ground_truth_num != 0 else 0.01
+                    )
                     match = abs(extracted_num - ground_truth_num) <= tolerance
 
                     return {
@@ -1891,15 +1968,21 @@ def calculate_field_accuracy_f1(
             # For ID fields (ABN, invoice numbers, etc.), require exact match
             # These are critical identifiers where fuzzy matching is inappropriate
             id_field_keywords = ["ABN", "NUMBER", "ID", "REFERENCE", "BSB"]
-            is_id_field = any(keyword in field_name.upper() for keyword in id_field_keywords)
+            is_id_field = any(
+                keyword in field_name.upper() for keyword in id_field_keywords
+            )
 
             if is_id_field:
                 # ID fields require exact match (no fuzzy matching)
                 # ROBUST NORMALIZATION: Handle variations in both extracted and ground truth
                 # Step 1: Remove field label prefixes (ABN, ABN:, BSB, BSB:, etc.)
                 id_label_pattern = r"^(ABN|BSB|ACN|GST|TAX|ID|NUMBER|NO\.?|#)\s*:?\s*"
-                extracted_clean = re.sub(id_label_pattern, "", extracted_normalized, flags=re.IGNORECASE)
-                ground_truth_clean = re.sub(id_label_pattern, "", ground_truth_normalized, flags=re.IGNORECASE)
+                extracted_clean = re.sub(
+                    id_label_pattern, "", extracted_normalized, flags=re.IGNORECASE
+                )
+                ground_truth_clean = re.sub(
+                    id_label_pattern, "", ground_truth_normalized, flags=re.IGNORECASE
+                )
 
                 # Step 2: Remove ALL spaces, dashes, and formatting
                 extracted_clean = re.sub(r"[\s\-]", "", extracted_clean)
@@ -1917,10 +2000,11 @@ def calculate_field_accuracy_f1(
 
                     # Calculate normalized similarity (ANLS-style)
                     edit_dist = levenshtein_distance(
-                        extracted_normalized.lower(),
-                        ground_truth_normalized.lower()
+                        extracted_normalized.lower(), ground_truth_normalized.lower()
                     )
-                    max_len = max(len(extracted_normalized), len(ground_truth_normalized))
+                    max_len = max(
+                        len(extracted_normalized), len(ground_truth_normalized)
+                    )
 
                     if max_len == 0:
                         similarity = 1.0
@@ -1953,9 +2037,7 @@ def calculate_field_accuracy_f1(
 
     # Handle list values (transaction fields)
     extracted_items = [i.strip() for i in str(extracted).split("|") if i.strip()]
-    ground_truth_items = [
-        i.strip() for i in str(ground_truth).split("|") if i.strip()
-    ]
+    ground_truth_items = [i.strip() for i in str(ground_truth).split("|") if i.strip()]
 
     # POSITION-AWARE MATCHING: Items must be in correct positions
     # This penalizes order errors (e.g., reversed lists)
@@ -1976,7 +2058,9 @@ def calculate_field_accuracy_f1(
             else:
                 # Use fuzzy text matching with generous 0.75 threshold
                 # This allows "EATS Sydney" to match "UBER EATS Sydney" (0.80 similarity)
-                match = _fuzzy_text_match(extracted_items[i], ground_truth_items[i], threshold=0.75)
+                match = _fuzzy_text_match(
+                    extracted_items[i], ground_truth_items[i], threshold=0.75
+                )
 
             if match:
                 tp += 1
@@ -2004,9 +2088,7 @@ def calculate_field_accuracy_f1(
     if debug:
         print(f"  📊 F1 Metrics for {field_name}:")
         print(f"     TP={tp}, FP={fp}, FN={fn}")
-        print(
-            f"     Precision={precision:.2%}, Recall={recall:.2%}, F1={f1_score:.2%}"
-        )
+        print(f"     Precision={precision:.2%}, Recall={recall:.2%}, F1={f1_score:.2%}")
         print(f"     Extracted items: {len(extracted_items)}")
         print(f"     Ground truth items: {len(ground_truth_items)}")
 

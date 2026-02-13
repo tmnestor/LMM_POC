@@ -765,7 +765,7 @@ def main(
 
     # Apply YAML overrides to module-level constants (batch, generation, gpu)
     if raw_config:
-        from common.config import apply_yaml_overrides
+        from common.model_config import apply_yaml_overrides
 
         apply_yaml_overrides(raw_config)
 

@@ -13,7 +13,12 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
-from common.config import DEFAULT_IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD
+# ImageNet normalization constants (for vision transformers)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+
+# Default image size for processing
+DEFAULT_IMAGE_SIZE = 448
 
 
 class InternVL3ImagePreprocessor:
@@ -35,9 +40,7 @@ class InternVL3ImagePreprocessor:
         placed on the device where the vision model's embedding layer resides,
         since that's where image tensors enter the model.
         """
-        if hasattr(model, "vision_model") and hasattr(
-            model.vision_model, "embeddings"
-        ):
+        if hasattr(model, "vision_model") and hasattr(model.vision_model, "embeddings"):
             try:
                 return next(model.vision_model.embeddings.parameters()).device
             except (StopIteration, AttributeError):
@@ -60,9 +63,7 @@ class InternVL3ImagePreprocessor:
         parameter dtype, and finally float32 for V100 compatibility.
         """
         # Strategy 1: Vision model embedding layer (most reliable)
-        if hasattr(model, "vision_model") and hasattr(
-            model.vision_model, "embeddings"
-        ):
+        if hasattr(model, "vision_model") and hasattr(model.vision_model, "embeddings"):
             try:
                 dtype = next(model.vision_model.embeddings.parameters()).dtype
                 if debug:

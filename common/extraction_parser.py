@@ -24,7 +24,7 @@ except ImportError:
 
 import yaml
 
-from .config import (
+from .field_config import (
     EXTRACTION_FIELDS,
 )
 

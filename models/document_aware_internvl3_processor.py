@@ -25,11 +25,6 @@ from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
 from common.batch_processor import load_document_field_definitions
-from common.config import (
-    INTERNVL3_MODEL_PATH,
-    get_auto_batch_size,
-    get_max_new_tokens,
-)
 from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     configure_cuda_memory_allocation,
@@ -37,11 +32,17 @@ from common.gpu_optimization import (
     get_available_gpu_memory,
     optimize_model_for_gpu,
 )
+from common.model_config import (
+    get_auto_batch_size,
+    get_max_new_tokens,
+)
 from common.pipeline_config import strip_structure_suffixes
 from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
 from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
 warnings.filterwarnings("ignore")
+
+INTERNVL3_MODEL_PATH = "/efs/shared/PTM/InternVL3-8B"
 
 
 class DocumentAwareInternVL3HybridProcessor:
@@ -546,7 +547,7 @@ class DocumentAwareInternVL3HybridProcessor:
             )
 
             # Calculate document-specific max tokens
-            from common.config import get_max_new_tokens
+            from common.model_config import get_max_new_tokens
 
             # Use base document type for max tokens calculation
             base_doc_type = strip_structure_suffixes(document_type)
@@ -1202,8 +1203,8 @@ class DocumentAwareInternVL3HybridProcessor:
         """
         from pathlib import Path
 
-        from common.config import get_max_new_tokens
         from common.extraction_parser import hybrid_parse_response
+        from common.model_config import get_max_new_tokens
 
         if not image_paths:
             return []

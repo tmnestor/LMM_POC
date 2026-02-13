@@ -24,11 +24,6 @@ from transformers import (
     MllamaForConditionalGeneration,
 )
 
-from common.config import (
-    LLAMA_GENERATION_CONFIG,
-    LLAMA_MODEL_PATH,
-    get_auto_batch_size,
-)
 from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
@@ -37,10 +32,16 @@ from common.gpu_optimization import (
     handle_memory_fragmentation,
     optimize_model_for_gpu,
 )
+from common.model_config import (
+    LLAMA_GENERATION_CONFIG,
+    get_auto_batch_size,
+)
 from common.pipeline_config import strip_structure_suffixes
 from common.simple_prompt_loader import SimplePromptLoader, load_llama_prompt
 
 warnings.filterwarnings("ignore")
+
+LLAMA_MODEL_PATH = "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
 
 
 class DocumentAwareLlamaProcessor:
