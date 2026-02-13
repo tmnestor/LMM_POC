@@ -110,6 +110,11 @@ def _internvl3_loader(config):
                     device_map=cfg.device_map,
                 ).eval()
 
+                # Set pad_token_id on generation_config to suppress
+                # "Setting pad_token_id to eos_token_id" warnings.
+                if hasattr(model, "generation_config"):
+                    model.generation_config.pad_token_id = tokenizer.eos_token_id
+
                 progress.update(task, description="Model loaded!")
 
             # Display GPU memory status after loading
@@ -252,12 +257,16 @@ def _llama_loader(config):
                 except Exception:
                     pass
 
-                # Clean the model's built-in GenerationConfig to avoid
-                # "not valid and may be ignored" warnings from transformers.
-                # When do_sample=False, temperature/top_p are irrelevant.
+                # Clean the model's built-in GenerationConfig to suppress
+                # warnings from transformers during generation.
                 if hasattr(model, "generation_config"):
                     model.generation_config.temperature = None
                     model.generation_config.top_p = None
+                    # Set pad_token_id once at load time so per-call
+                    # passing is unnecessary (suppresses open-end warning).
+                    model.generation_config.pad_token_id = (
+                        processor.tokenizer.eos_token_id
+                    )
 
                 progress.update(task, description="Model loaded!")
 
