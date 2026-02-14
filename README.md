@@ -150,22 +150,29 @@ class DocumentProcessor(Protocol):
 
     def detect_and_classify_document(
         self, image_path: str, verbose: bool = False
-    ) -> dict[str, Any]:
+    ) -> ClassificationResult:
         """Classify the document type from an image."""
         ...
 
     def process_document_aware(
         self, image_path: str, classification_info: dict[str, Any], verbose: bool = False
-    ) -> dict[str, Any]:
+    ) -> ExtractionResult:
         """Extract fields from a document based on its classification."""
         ...
 ```
 
-**Optional batch methods** (detected via `hasattr()` at runtime by `batch_processor.py`):
-- `batch_detect_documents(image_paths, ...)` — batched detection
-- `batch_extract_documents(image_paths, classifications, ...)` — batched extraction
+Return types use `TypedDict` (`ClassificationResult`, `ExtractionResult`) for self-documenting contracts and IDE autocomplete.
 
-If a processor doesn't implement batch methods, the pipeline automatically falls back to sequential processing.
+**Optional batch support** via `BatchCapableProcessor` Protocol (checked with `isinstance()` in `batch_processor.py`):
+
+```python
+@runtime_checkable
+class BatchCapableProcessor(Protocol):
+    def batch_detect_documents(self, image_paths: list[str], ...) -> list[ClassificationResult]: ...
+    def batch_extract_documents(self, image_paths: list[str], ...) -> list[ExtractionResult]: ...
+```
+
+If a processor doesn't satisfy `BatchCapableProcessor`, the pipeline automatically falls back to sequential processing. No stubs or `NotImplementedError` needed.
 
 ### Model Registry
 
