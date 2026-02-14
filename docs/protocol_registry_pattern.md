@@ -119,11 +119,21 @@ User runs:  python cli.py --model llama -d ./images -o ./output
 7. Pipeline never knows it's Llama — it just calls the interface
 ```
 
-The pipeline also checks for optional batch capabilities at runtime:
+The pipeline also checks for optional batch capabilities at runtime using a second Protocol:
 
 ```python
-# In batch_processor.py — duck typing for optional features
-if hasattr(self.model_handler, "batch_detect_documents"):
+# In models/protocol.py — separate Protocol for optional batch support
+@runtime_checkable
+class BatchCapableProcessor(Protocol):
+    def batch_detect_documents(self, image_paths: list[str], ...) -> list[ClassificationResult]: ...
+    def batch_extract_documents(self, image_paths: list[str], ...) -> list[ExtractionResult]: ...
+```
+
+```python
+# In batch_processor.py — type-safe capability detection
+from models.protocol import BatchCapableProcessor
+
+if isinstance(self.model_handler, BatchCapableProcessor):
     # Use batched detection (InternVL3 supports this)
     results = self.model_handler.batch_detect_documents(image_paths)
 else:
@@ -131,7 +141,7 @@ else:
     results = [self.model_handler.detect_and_classify_document(p) for p in image_paths]
 ```
 
-This is a tiered contract: the Protocol defines what's *required*, and `hasattr()` checks discover what's *optional*. Models opt into batch support by implementing the methods — no flags, no configuration, no base class changes.
+This is a tiered contract: `DocumentProcessor` defines what's *required*, `BatchCapableProcessor` defines what's *optional*. `isinstance()` with a `@runtime_checkable` Protocol verifies all batch methods exist at once — a typo becomes an error, not a silent fallback. Models opt into batch support by implementing the methods — no flags, no configuration, no base class changes.
 
 ---
 
@@ -205,6 +215,6 @@ We chose Protocol (structural typing) over ABC (nominal typing) for three reason
 | **Protocol** | Defines the interface: "you must have these methods" | `models/protocol.py` |
 | **Registry** | Maps `"model_name"` string to loader + creator functions | `models/registry.py` |
 | **Lazy loading** | Heavy imports (`torch`, `transformers`) deferred to function bodies | Inside registry loaders |
-| **Duck-typed optionals** | `hasattr()` checks for batch methods at runtime | `common/batch_processor.py` |
+| **Optional Protocol** | `BatchCapableProcessor` — `isinstance()` check for batch methods | `models/protocol.py`, `common/batch_processor.py` |
 
 Together, these give us a pipeline where adding a new vision-language model is a purely additive operation — no existing code changes, no risk of breaking what already works.

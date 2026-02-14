@@ -1,10 +1,10 @@
 """Formal interface for document extraction processors.
 
-Defines a @runtime_checkable Protocol that captures the duck-typed interface
+Defines @runtime_checkable Protocols that capture the duck-typed interfaces
 already expected by BatchDocumentProcessor and BankStatementAdapter.
 
-Batch methods (batch_detect_documents, batch_extract_documents) are NOT part
-of the Protocol — they are detected via hasattr() at runtime by batch_processor.py.
+DocumentProcessor: Required interface for all model processors.
+BatchCapableProcessor: Optional interface for processors that support batched inference.
 """
 
 from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
@@ -84,5 +84,53 @@ class DocumentProcessor(Protocol):
 
         Returns:
             ExtractionResult with extracted field values.
+        """
+        ...
+
+
+@runtime_checkable
+class BatchCapableProcessor(Protocol):
+    """Optional Protocol for processors that support batched inference.
+
+    Models that implement these methods get automatic batch routing
+    in batch_processor.py. Models that don't (e.g. Llama) fall back
+    to sequential processing — no stubs or NotImplementedError needed.
+
+    Use ``isinstance(processor, BatchCapableProcessor)`` instead of
+    ``hasattr(processor, "batch_detect_documents")`` for type-safe
+    capability detection.
+    """
+
+    def batch_detect_documents(
+        self,
+        image_paths: list[str],
+        verbose: bool = False,
+    ) -> list[ClassificationResult]:
+        """Classify document types for a batch of images.
+
+        Args:
+            image_paths: List of image file paths to classify.
+            verbose: Enable debug output.
+
+        Returns:
+            List of ClassificationResult dicts, one per image.
+        """
+        ...
+
+    def batch_extract_documents(
+        self,
+        image_paths: list[str],
+        classification_infos: list[dict[str, Any]],
+        verbose: bool = False,
+    ) -> list[ExtractionResult]:
+        """Extract fields from a batch of images.
+
+        Args:
+            image_paths: List of image file paths.
+            classification_infos: List of classification dicts from batch_detect_documents.
+            verbose: Enable debug output.
+
+        Returns:
+            List of ExtractionResult dicts, one per image.
         """
         ...

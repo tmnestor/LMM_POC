@@ -245,8 +245,10 @@ class BatchDocumentProcessor:
             self.console.rule("[bold green]Batch Extraction[/bold green]")
 
         # Route to batched or sequential processing
-        if effective_batch_size > 1 and hasattr(
-            self.model_handler, "batch_detect_documents"
+        from models.protocol import BatchCapableProcessor
+
+        if effective_batch_size > 1 and isinstance(
+            self.model_handler, BatchCapableProcessor
         ):
             return self._process_batch_two_phase(
                 image_paths, effective_batch_size, verbose, progress_interval
