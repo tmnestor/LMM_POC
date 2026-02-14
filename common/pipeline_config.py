@@ -270,16 +270,51 @@ def merge_configs(
     # Layer in CLI args (highest priority)
     merged.update({k: v for k, v in cli_args.items() if v is not None})
 
+    # If CLI overrides model_type but not model_path, the YAML model_path
+    # belongs to the YAML's model_type — clear it so auto-detect can resolve
+    # the correct path for the CLI-requested model.
+    if "model_type" in cli_args and "model_path" not in cli_args:
+        yaml_model_type = yaml_config.get("model_type")
+        if yaml_model_type and yaml_model_type != cli_args["model_type"]:
+            merged.pop("model_path", None)
+
     # Auto-detect model path if not specified
     if not merged.get("model_path"):
-        search_paths = None
-        if raw_config and "model_loading" in raw_config:
-            search_paths = raw_config["model_loading"].get("default_paths")
+        model_type = merged.get("model_type", "internvl3")
+        search_paths = _resolve_default_paths(raw_config, model_type)
         detected = auto_detect_model_path(search_paths)
         if detected:
             merged["model_path"] = detected
 
     return PipelineConfig(**merged)
+
+
+def _resolve_default_paths(
+    raw_config: dict[str, Any] | None,
+    model_type: str,
+) -> list[str] | None:
+    """Resolve model search paths from config, preferring the requested model_type.
+
+    Supports both dict form ({model_type: path}) and legacy list form ([path, ...]).
+    """
+    if not raw_config or "model_loading" not in raw_config:
+        return None
+
+    default_paths = raw_config["model_loading"].get("default_paths")
+    if default_paths is None:
+        return None
+
+    if isinstance(default_paths, dict):
+        # Dict form: try the requested model_type first, then all paths
+        type_path = default_paths.get(model_type)
+        if type_path:
+            return [type_path]
+        return list(default_paths.values())
+
+    if isinstance(default_paths, list):
+        return default_paths
+
+    return None
 
 
 # ============================================================================

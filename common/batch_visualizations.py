@@ -83,8 +83,12 @@ class BatchVisualizer:
         # Add document type counts to title
         if "document_type" in df_results.columns:
             doc_counts = df_results["document_type"].value_counts()
-            count_text = " | ".join([f"{doc}: {count}" for doc, count in doc_counts.items()])
-            ax1.set_title(f"Accuracy Distribution\n({count_text})", fontweight="bold", fontsize=10)
+            count_text = " | ".join(
+                [f"{doc}: {count}" for doc, count in doc_counts.items()]
+            )
+            ax1.set_title(
+                f"Accuracy Distribution\n({count_text})", fontweight="bold", fontsize=10
+            )
         else:
             ax1.set_title("Accuracy Distribution", fontweight="bold")
 

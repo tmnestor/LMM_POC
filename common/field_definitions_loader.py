@@ -31,7 +31,9 @@ class SimpleFieldLoader:
         """Load the field definitions config."""
         if self._config is None:
             if not self.config_path.exists():
-                raise FileNotFoundError(f"Field definitions not found: {self.config_path}")
+                raise FileNotFoundError(
+                    f"Field definitions not found: {self.config_path}"
+                )
 
             with self.config_path.open("r", encoding="utf-8") as f:
                 self._config = yaml.safe_load(f)
@@ -52,7 +54,9 @@ class SimpleFieldLoader:
     def get_supported_document_types(self) -> List[str]:
         """Get list of supported document types."""
         config = self._load_config()
-        return config.get("supported_document_types", ["invoice", "receipt", "bank_statement"])
+        return config.get(
+            "supported_document_types", ["invoice", "receipt", "bank_statement"]
+        )
 
     def get_field_description(self, field_name: str) -> str:
         """Get description for a field."""
@@ -64,7 +68,9 @@ class SimpleFieldLoader:
         """Get list of critical fields for evaluation."""
         config = self._load_config()
         evaluation = config.get("evaluation", {})
-        return evaluation.get("critical_fields", ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT"])
+        return evaluation.get(
+            "critical_fields", ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT"]
+        )
 
     def get_field_types(self) -> Dict[str, List[str]]:
         """

@@ -86,5 +86,5 @@ model_loading:
   low_cpu_mem_usage: true
   device_map: auto
   default_paths:
-    - /home/jovyan/nfs_share/models/InternVL3_5-8B
-    - /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
+    internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
+    llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
