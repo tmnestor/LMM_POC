@@ -18,7 +18,6 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 import gc
 import time
 import warnings
-from typing import Dict, List, Optional
 
 import torch
 from PIL import Image
@@ -50,23 +49,23 @@ class DocumentAwareInternVL3HybridProcessor:
 
     def __init__(
         self,
-        field_list: List[str],
+        field_list: list[str],
         model_path: str = None,
         device: str = "cuda",
         debug: bool = False,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         skip_model_loading: bool = False,
         pre_loaded_model=None,
         pre_loaded_tokenizer=None,
-        prompt_config: Dict = None,
+        prompt_config: dict | None = None,
         max_tiles: int = None,
-        field_definitions: Optional[Dict[str, List[str]]] = None,
+        field_definitions: dict[str, list[str]] | None = None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
 
         Args:
-            field_list (List[str]): Fields to extract
+            field_list (list[str]): Fields to extract
             model_path (str): Path to InternVL3 model
             device (str): Device to run on
             debug (bool): Enable debug output
@@ -178,7 +177,7 @@ class DocumentAwareInternVL3HybridProcessor:
             model_dtype = next(self.model.parameters()).dtype
             optimize_model_for_gpu(self.model, dtype=model_dtype)
 
-    def _configure_batch_processing(self, batch_size: Optional[int]):
+    def _configure_batch_processing(self, batch_size: int | None):
         """Configure batch processing parameters."""
         if batch_size is not None:
             self.batch_size = max(1, batch_size)
@@ -285,13 +284,13 @@ class DocumentAwareInternVL3HybridProcessor:
                 )
             return load_internvl3_prompt("universal")
 
-    def get_supported_document_types(self) -> List[str]:
+    def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types."""
         return SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
 
     def detect_and_classify_document(
         self, image_path: str, verbose: bool = False
-    ) -> Dict:
+    ) -> dict:
         """
         Detect document type using InternVL3 model and document detection prompt.
         Compatible with BatchDocumentProcessor workflow.
@@ -448,8 +447,8 @@ class DocumentAwareInternVL3HybridProcessor:
         return f"bank_statement_{structure_type}"
 
     def process_document_aware(
-        self, image_path: str, classification_info: Dict, verbose: bool = False
-    ) -> Dict:
+        self, image_path: str, classification_info: dict, verbose: bool = False
+    ) -> dict:
         """
         Process document using document-specific extraction based on detected type.
         Compatible with BatchDocumentProcessor workflow.
@@ -581,7 +580,7 @@ class DocumentAwareInternVL3HybridProcessor:
             return self.process_single_image(image_path)
 
     def _parse_document_type_response(
-        self, response: str, detection_config: Dict
+        self, response: str, detection_config: dict
     ) -> str:
         """
         Parse document type from model response using type mappings.
@@ -797,9 +796,9 @@ class DocumentAwareInternVL3HybridProcessor:
     def process_single_image(
         self,
         image_path: str,
-        custom_prompt: Optional[str] = None,
-        custom_max_tokens: Optional[int] = None,
-        field_list: Optional[List[str]] = None,
+        custom_prompt: str | None = None,
+        custom_max_tokens: int | None = None,
+        field_list: list[str] | None = None,
     ) -> dict:
         """Process single image with document-aware extraction using InternVL3.
 
@@ -1064,8 +1063,8 @@ class DocumentAwareInternVL3HybridProcessor:
         return detection_prompt, max_tokens, detection_config
 
     def batch_detect_documents(
-        self, image_paths: List[str], verbose: bool = False
-    ) -> List[Dict]:
+        self, image_paths: list[str], verbose: bool = False
+    ) -> list[dict]:
         """Detect document types for a batch of images using model.batch_chat().
 
         Concatenates pixel_values from all images and calls batch_chat() once
@@ -1183,10 +1182,10 @@ class DocumentAwareInternVL3HybridProcessor:
 
     def batch_extract_documents(
         self,
-        image_paths: List[str],
-        classification_infos: List[Dict],
+        image_paths: list[str],
+        classification_infos: list[dict],
         verbose: bool = False,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Extract fields from a batch of images using model.batch_chat().
 
         Supports different extraction prompts per image (batch_chat handles

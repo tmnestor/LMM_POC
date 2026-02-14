@@ -7,9 +7,32 @@ Batch methods (batch_detect_documents, batch_extract_documents) are NOT part
 of the Protocol — they are detected via hasattr() at runtime by batch_processor.py.
 """
 
-from __future__ import annotations
+from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
 
-from typing import Any, Protocol, runtime_checkable
+
+class ClassificationResult(TypedDict):
+    """Result from document type detection."""
+
+    document_type: str
+    confidence: float
+    raw_response: str
+    prompt_used: str
+    error: NotRequired[str]
+
+
+class ExtractionResult(TypedDict):
+    """Result from document field extraction."""
+
+    image_name: str
+    extracted_data: dict[str, str]
+    raw_response: str
+    processing_time: float
+    response_completeness: float
+    content_coverage: float
+    extracted_fields_count: int
+    field_count: int
+    document_type: NotRequired[str]
+    extraction_mode: NotRequired[str]
 
 
 @runtime_checkable
@@ -34,7 +57,7 @@ class DocumentProcessor(Protocol):
         self,
         image_path: str,
         verbose: bool = False,
-    ) -> dict[str, Any]:
+    ) -> ClassificationResult:
         """Classify the document type from an image.
 
         Args:
@@ -42,7 +65,7 @@ class DocumentProcessor(Protocol):
             verbose: Enable debug output.
 
         Returns:
-            Dict with at least 'document_type' key.
+            ClassificationResult with at least 'document_type' key.
         """
         ...
 
@@ -51,7 +74,7 @@ class DocumentProcessor(Protocol):
         image_path: str,
         classification_info: dict[str, Any],
         verbose: bool = False,
-    ) -> dict[str, Any]:
+    ) -> ExtractionResult:
         """Extract fields from a document image based on its classification.
 
         Args:
@@ -60,6 +83,6 @@ class DocumentProcessor(Protocol):
             verbose: Enable debug output.
 
         Returns:
-            Dict with extracted field values.
+            ExtractionResult with extracted field values.
         """
         ...

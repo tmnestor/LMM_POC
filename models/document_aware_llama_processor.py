@@ -14,7 +14,6 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional
 
 import torch
 from PIL import Image
@@ -49,22 +48,22 @@ class DocumentAwareLlamaProcessor:
 
     def __init__(
         self,
-        field_list: List[str],
-        model_path: str = None,
+        field_list: list[str],
+        model_path: str | None = None,
         device: str = "cuda",
         debug: bool = False,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         skip_model_loading: bool = False,
         pre_loaded_model=None,
         pre_loaded_processor=None,
-        prompt_config: dict = None,
-        field_definitions: Optional[dict] = None,
+        prompt_config: dict | None = None,
+        field_definitions: dict | None = None,
     ):
         """
         Initialize document-aware processor with specific field list.
 
         Args:
-            field_list (List[str]): Fields to extract
+            field_list (list[str]): Fields to extract
             model_path (str): Path to Llama model
             device (str): Device to run on
             debug (bool): Enable debug output
@@ -131,7 +130,7 @@ class DocumentAwareLlamaProcessor:
         if self.model is None and not skip_model_loading:
             self._load_model()
 
-    def _configure_batch_processing(self, batch_size: Optional[int]):
+    def _configure_batch_processing(self, batch_size: int | None):
         """Configure batch processing parameters."""
         if batch_size is not None:
             self.batch_size = max(1, batch_size)
@@ -486,11 +485,11 @@ class DocumentAwareLlamaProcessor:
                 )
             return load_llama_prompt("universal")
 
-    def get_supported_document_types(self) -> List[str]:
+    def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types."""
         return SimplePromptLoader.get_available_prompts("llama_prompts.yaml")
 
-    def detect_document_type(self, field_list: List[str] = None) -> str:
+    def detect_document_type(self, field_list: list[str] | None = None) -> str:
         """
         Detect document type based on field composition.
         Simple heuristic for backward compatibility.
@@ -581,8 +580,8 @@ class DocumentAwareLlamaProcessor:
     def process_single_image(
         self,
         image_path: str,
-        custom_prompt: Optional[str] = None,
-        custom_max_tokens: Optional[int] = None,
+        custom_prompt: str | None = None,
+        custom_max_tokens: int | None = None,
     ) -> dict:
         """Process single image with document-aware extraction."""
 

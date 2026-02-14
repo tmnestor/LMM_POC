@@ -7,8 +7,6 @@ Separates pure image computation from model loading and generation logic,
 enabling independent testing and reuse (e.g. by UnifiedBankExtractor).
 """
 
-from __future__ import annotations
-
 import torch
 import torchvision.transforms as T
 from PIL import Image

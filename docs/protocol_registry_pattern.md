@@ -20,10 +20,24 @@ Without a pattern, every time we add a model we'd need to scatter `if model == "
 
 A **Protocol** is Python's way of defining an interface without inheritance. Think of it like scikit-learn's estimator contract: if your class has `fit()` and `predict()`, it works with `cross_val_score()`, `Pipeline`, `GridSearchCV`, etc. Nobody checks your class hierarchy — they just call the methods.
 
-Our Protocol (`models/protocol.py`) defines the contract for document extraction:
+Our Protocol (`models/protocol.py`) defines the contract for document extraction, using Python 3.12's `TypedDict` to make return shapes self-documenting:
 
 ```python
-from typing import Protocol, runtime_checkable
+from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
+
+class ClassificationResult(TypedDict):
+    document_type: str
+    confidence: float
+    raw_response: str
+    prompt_used: str
+    error: NotRequired[str]           # Only present on fallback
+
+class ExtractionResult(TypedDict):
+    image_name: str
+    extracted_data: dict[str, str]
+    raw_response: str
+    processing_time: float
+    # ... plus metrics and optional fields
 
 @runtime_checkable
 class DocumentProcessor(Protocol):
@@ -31,27 +45,26 @@ class DocumentProcessor(Protocol):
     tokenizer: Any       # Tokenizer or processor
     batch_size: int      # Current batch size
 
-    def detect_and_classify_document(self, image_path, verbose=False) -> dict:
-        """Given an image, return {'document_type': 'INVOICE', ...}"""
-        ...
-
-    def process_document_aware(self, image_path, classification_info, verbose=False) -> dict:
-        """Given an image + its type, return {'extracted_data': {...}}"""
-        ...
+    def detect_and_classify_document(self, ...) -> ClassificationResult: ...
+    def process_document_aware(self, ...) -> ExtractionResult: ...
 ```
 
-**Key insight**: The pipeline code (`batch_processor.py`, `bank_statement_adapter.py`, `cli.py`) only calls these two methods. It never imports `DocumentAwareInternVL3HybridProcessor` or `DocumentAwareLlamaProcessor` directly. It doesn't know which model it's talking to — and it doesn't need to.
+**Key insight**: The pipeline code (`batch_processor.py`, `bank_statement_adapter.py`, `cli.py`) only calls these two methods. It never imports `DocumentAwareInternVL3HybridProcessor` or `DocumentAwareLlamaProcessor` directly. It doesn't know which model it's talking to — and it doesn't need to. And with `TypedDict` return types, IDEs provide autocomplete on the results without reading docstrings.
 
 ### 2. Registry — "How do we find and load models?"
 
 The **Registry** (`models/registry.py`) is a lookup table that maps a string like `"llama"` to everything needed to load and configure that model:
 
 ```python
+# Python 3.12 type aliases — self-documenting callable signatures
+type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
+type ProcessorCreator = Callable[..., Any]
+
 @dataclass
 class ModelRegistration:
     model_type: str              # "internvl3", "llama"
-    loader: Callable             # Function that loads weights → (model, tokenizer)
-    processor_creator: Callable  # Function that wraps them → DocumentProcessor
+    loader: ModelLoader          # Function that loads weights → (model, tokenizer)
+    processor_creator: ProcessorCreator  # Wraps them → DocumentProcessor
     prompt_file: str             # "llama_prompts.yaml"
     description: str = ""
 

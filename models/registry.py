@@ -5,10 +5,12 @@ All heavy imports (torch, transformers) are deferred to function bodies
 so that importing this module has zero GPU/ML overhead.
 """
 
-from __future__ import annotations
-
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Callable
+
+type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
+type ProcessorCreator = Callable[..., Any]
 
 
 @dataclass
@@ -25,8 +27,8 @@ class ModelRegistration:
     """
 
     model_type: str
-    loader: Callable[..., Any]
-    processor_creator: Callable[..., Any]
+    loader: ModelLoader
+    processor_creator: ProcessorCreator
     prompt_file: str
     description: str = ""
 
