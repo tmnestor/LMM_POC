@@ -22,11 +22,12 @@ Qwen3-VL-8B is a 9B-parameter vision-language model from Alibaba with a 256K con
 # Install the CLI if needed
 pip install huggingface_hub[cli]
 
-# Login (required for gated models — Qwen3-VL is open, but login avoids rate limits)
-huggingface-cli login
+# Login (optional — Qwen3-VL is open, but login avoids rate limits)
+hf auth login
 
-# Download to your model storage directory
-huggingface-cli download Qwen/Qwen3-VL-8B-Instruct \
+# Create target directory and download
+mkdir -p /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
+hf download Qwen/Qwen3-VL-8B-Instruct \
     --local-dir /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
 ```
 
