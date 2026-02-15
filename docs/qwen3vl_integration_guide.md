@@ -27,7 +27,7 @@ huggingface-cli login
 
 # Download to your model storage directory
 huggingface-cli download Qwen/Qwen3-VL-8B-Instruct \
-    --local-dir /path/to/models/Qwen3-VL-8B-Instruct
+    --local-dir /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
 ```
 
 ### Option B: Git LFS
