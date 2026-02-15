@@ -147,7 +147,11 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
         """Calculate max_new_tokens for generation based on field count."""
         base = LLAMA_GENERATION_CONFIG.get("max_new_tokens_base", 512)
         per_field = LLAMA_GENERATION_CONFIG.get("max_new_tokens_per_field", 64)
-        return base + (field_count * per_field)
+        tokens = base + (field_count * per_field)
+        # Bank statements need more tokens for many transactions
+        if document_type == "bank_statement":
+            tokens = max(tokens, 1500)
+        return tokens
 
     # -- Llama-specific methods ------------------------------------------------
 

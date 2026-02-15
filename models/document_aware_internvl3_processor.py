@@ -159,7 +159,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
 
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate max_new_tokens for generation based on field count."""
-        return get_max_new_tokens(field_count=field_count)
+        return get_max_new_tokens(field_count=field_count, document_type=document_type)
 
     def _configure_generation(self):
         """Configure generation parameters for InternVL3."""
