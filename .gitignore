@@ -1,0 +1,171 @@
+# Python
+__pycache__/
+**/*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.cpython-*.pyc
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Model files (large)
+*.bin
+*.safetensors
+*.pth
+*.pt
+
+# Output directories
+# output/
+results/
+/logs/
+!output/logs/
+# remote_results/
+
+# Log files
+# *.log
+
+# Timestamped output files
+output_????????_??????.txt
+
+# Dataset cache
+.cache/
+datasets_cache/
+
+# Jupyter
+**/.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Ruff
+.ruff_cache/
+
+# Documentation
+docs/_build/
+
+# Datasets and images
+datasets/
+# *.png
+# *.jpg
+# *.jpeg
+datasets_old/*
+
+evaluation_data_old/
+ato_synthetic_invoices/
+
+# Archive for legacy code and directories
+archive/*
+# Claude Code related files
+CLAUDE.md
+*claude*
+*CLAUDE*
+debug_llama_prompt.py
+test_*.py
+check_*.py
+build_*.py
+LLAMA_REPETITION_CUDA_BUG_ANALYSIS.md
+# Backup directory
+backup/
+.claude/
+
+simple_invoice_generator.py
+synthetic_invoice_generator.py
+synthetic_invoice.json
+.env
+standard_labels.txt
+
+docs/report_regeneration_prompt.md
+presentation_materials/vision_transformers.pptx
+gitlab_discovery.sh
+# notebooks/create_synthetic_data.ipynb
+notebooks/synthetic_merged_annotations.csv
+docs/testing.txt
+
+
+backups/
+legacy/
+docs/LLAMA_PROCESSOR_COMPARISON.md
+config/unified_schema.yaml.backup
+llama_bank_statement_extraction_bkp.ipynb
+internvl3_document_aware_batch copy.ipynb
+evaluation_data copy/ground_truth.csv
+evaluation_data copy/image_001.png
+evaluation_data copy/image_002.png
+evaluation_data copy/image_003.png
+evaluation_data copy/image_004.png
+evaluation_data copy/image_005.png
+evaluation_data copy/image_006.png
+evaluation_data copy/image_007.png
+evaluation_data copy/image_008.png
+evaluation_data copy/image_009.png
+generate_vlm_diagram.py
+vlm_architecture_transparent.mmd
+vlm_architecture.mmd
+
+# Diagram generation scripts and documentation
+convert_mermaid_to_png.sh
+DIAGRAMS_README.md
+generate_evaluation_architecture_wide.py
+generate_evaluation_architecture.py
+
+
+Llama_3_2_OCR_Together_API.ipynb
+llama3_2_vision_chat.ipynb
+extraction.py
+postprocessing.py
+preprocessing.py
+experiments/image_paths.txt
+latex_header.tex
+bank_statement_extraction_case_study.md
+bank_statement_extraction_case_study_latex.md
+APS5_EOI.tex
+APS5_EOI.md
+TodNestor_Resume_APS5.tex
+TodNestor_Resume_APS5.md
+
+document_extraction
+IVL3_8B_NOTEBOOK_DTYPES.md
+output/current_model_accuracy.csv
+output/competing_model_accuracy.csv
+
+# Local utility scripts (not tracked)
+scripts/
+
+evaluation_data/
