@@ -18,6 +18,7 @@ DOCUMENT AWARE REDUCTION OPTIMIZED:
 import gc
 import time
 import warnings
+from typing import override
 
 import torch
 from PIL import Image
@@ -138,6 +139,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             model_dtype = next(self.model.parameters()).dtype
             optimize_model_for_gpu(self.model, dtype=model_dtype)
 
+    @override
     def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
         """Run model inference on an image with a text prompt."""
         pixel_values = self.image_preprocessor.load_image_from_pil(image, self.model)
@@ -158,6 +160,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         torch.cuda.empty_cache()
         return response
 
+    @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate max_new_tokens for generation based on field count."""
         return get_max_new_tokens(field_count=field_count, document_type=document_type)

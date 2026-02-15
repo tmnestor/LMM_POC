@@ -11,10 +11,9 @@ BaseDocumentProcessor is purely an *implementation detail* shared by
 the InternVL3 and Llama concrete processors.
 """
 
-from __future__ import annotations
-
 import abc
 import sys
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -106,8 +105,9 @@ class BaseDocumentProcessor(abc.ABC):
                 self._fallback_type = det_cfg.get("settings", {}).get(
                     "fallback_type", "INVOICE"
                 )
-        except Exception:
-            pass
+        except (OSError, yaml.YAMLError, KeyError) as e:
+            if debug:
+                print(f"⚠️ Could not read fallback_type from detection YAML: {e}")
 
         # Extraction cleaner for value normalisation
         self.cleaner = ExtractionCleaner(debug=debug)
@@ -164,36 +164,29 @@ class BaseDocumentProcessor(abc.ABC):
             print(f"📝 Loading {document_type} prompt")
 
         # Determine the prompt YAML file from extraction_files config
-        doc_upper = strip_structure_suffixes(document_type).upper()
         extraction_files = self.prompt_config.get("extraction_files", {})
-        prompt_yaml = None
-        for _key, filepath in extraction_files.items():
-            prompt_yaml = Path(filepath).name
-            break  # all map to the same file in current config
+        prompt_yaml = next(
+            (Path(fp).name for fp in extraction_files.values()),
+            "internvl3_prompts.yaml",
+        )
 
-        if prompt_yaml is None:
-            prompt_yaml = "internvl3_prompts.yaml"
-
+        loader = SimplePromptLoader()
         try:
-            loader = SimplePromptLoader()
             return loader.load_prompt(prompt_yaml, document_type)
         except Exception:
             if self.debug:
                 print(
                     f"⚠️ Failed to load {document_type} prompt, falling back to universal"
                 )
-            loader = SimplePromptLoader()
             return loader.load_prompt(prompt_yaml, "universal")
 
     def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types from prompt YAML."""
         extraction_files = self.prompt_config.get("extraction_files", {})
-        prompt_yaml = None
-        for _key, filepath in extraction_files.items():
-            prompt_yaml = Path(filepath).name
-            break
-        if prompt_yaml is None:
-            prompt_yaml = "internvl3_prompts.yaml"
+        prompt_yaml = next(
+            (Path(fp).name for fp in extraction_files.values()),
+            "internvl3_prompts.yaml",
+        )
         return SimplePromptLoader.get_available_prompts(prompt_yaml)
 
     def _parse_document_type_response(
@@ -304,8 +297,6 @@ class BaseDocumentProcessor(abc.ABC):
             sys.stdout.write(f"❌ DETECTION ERROR: {e}\n")
             sys.stdout.flush()
             if self.debug:
-                import traceback
-
                 sys.stdout.write("❌ DETECTION ERROR TRACEBACK:\n")
                 sys.stdout.flush()
                 traceback.print_exc()
@@ -324,15 +315,9 @@ class BaseDocumentProcessor(abc.ABC):
         Returns:
             Structure-specific prompt key (e.g. 'bank_statement_flat')
         """
-        try:
-            from common.vision_bank_statement_classifier import (
-                classify_bank_statement_structure_vision,
-            )
-        except ImportError:
-            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-            from common.vision_bank_statement_classifier import (
-                classify_bank_statement_structure_vision,
-            )
+        from common.vision_bank_statement_classifier import (
+            classify_bank_statement_structure_vision,
+        )
 
         if verbose:
             print("🔍 Running vision-based structure classification for bank statement")

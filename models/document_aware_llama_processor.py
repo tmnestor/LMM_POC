@@ -16,6 +16,7 @@ import gc
 import time
 import warnings
 from pathlib import Path
+from typing import override
 
 import torch
 from PIL import Image
@@ -107,6 +108,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
 
     # -- abstract method implementations ---------------------------------------
 
+    @override
     def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
         """Run model inference on an image with a text prompt."""
         messages = [
@@ -143,6 +145,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
         torch.cuda.empty_cache()
         return response
 
+    @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate max_new_tokens for generation based on field count."""
         base = LLAMA_GENERATION_CONFIG.get("max_new_tokens_base", 512)
