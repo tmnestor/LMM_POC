@@ -9,6 +9,8 @@ BatchCapableProcessor: Optional interface for processors that support batched in
 
 from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
 
+from PIL import Image
+
 
 class ClassificationResult(TypedDict):
     """Result from document type detection."""
@@ -84,6 +86,24 @@ class DocumentProcessor(Protocol):
 
         Returns:
             ExtractionResult with extracted field values.
+        """
+        ...
+
+    def generate(
+        self,
+        image: Image.Image,
+        prompt: str,
+        max_tokens: int = 1024,
+    ) -> str:
+        """Run model inference on an image with a text prompt.
+
+        Args:
+            image: PIL Image to process.
+            prompt: Text prompt for the model.
+            max_tokens: Maximum tokens to generate.
+
+        Returns:
+            Raw model response string.
         """
         ...
 

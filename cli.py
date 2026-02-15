@@ -223,29 +223,17 @@ def run_batch_processing(
 ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
     """Run batch document processing with optional bank statement adapter."""
     # Create bank adapter when V2 bank extraction is enabled.
-    # Pass model_type so the adapter/extractor use the correct generate method.
     bank_adapter = None
     if config.bank_v2:
         console.print(
             "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
         )
 
-        # For Llama: pass raw model + processor. For InternVL3: pass hybrid processor.
-        if config.model_type == "llama":
-            bank_adapter = BankStatementAdapter(
-                model=processor.model,
-                processor=processor.processor,
-                verbose=config.verbose,
-                use_balance_correction=config.balance_correction,
-                model_type="llama",
-            )
-        else:
-            bank_adapter = BankStatementAdapter(
-                model=processor,
-                verbose=config.verbose,
-                use_balance_correction=config.balance_correction,
-                model_type=config.model_type,
-            )
+        bank_adapter = BankStatementAdapter(
+            generate_fn=processor.generate,
+            verbose=config.verbose,
+            use_balance_correction=config.balance_correction,
+        )
 
         console.print(
             "[green]V2: Sophisticated bank statement extraction enabled[/green]"

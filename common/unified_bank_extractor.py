@@ -6,7 +6,7 @@ Follows the 2-turn balance-description approach when Balance column is detected.
 Usage:
     from common.unified_bank_extractor import UnifiedBankExtractor
 
-    extractor = UnifiedBankExtractor(model, tokenizer, model_type="internvl3")
+    extractor = UnifiedBankExtractor(generate_fn=processor.generate)
     result = extractor.extract(image_path)
     schema = result.to_schema_dict()
 """
@@ -985,42 +985,28 @@ class UnifiedBankExtractor:
     """Unified bank statement extractor with automatic strategy selection.
 
     Args:
-        model: Loaded model (Llama or InternVL3)
-        tokenizer: Model tokenizer
-        processor: Model processor (required for Llama)
-        model_type: "llama" or "internvl3"
+        generate_fn: Callable(image, prompt, max_tokens) -> str.
+            Typically ``processor.generate`` from a DocumentProcessor.
         config_dir: Path to config directory (optional)
+        use_balance_correction: Enable balance-based mathematical correction
+        verbose: Enable verbose output
 
     Example:
-        extractor = UnifiedBankExtractor(model, tokenizer, model_type="internvl3")
+        extractor = UnifiedBankExtractor(generate_fn=processor.generate)
         result = extractor.extract(image_path)
         print(result.to_schema_dict())
     """
 
     def __init__(
         self,
-        model: Any,
-        tokenizer: Any,
-        processor: Any = None,
-        model_type: str = "internvl3",
+        generate_fn: Any,
         config_dir: str | Path | None = None,
-        model_dtype: Any = None,
-        image_processing_config: dict[str, Any] | None = None,
         use_balance_correction: bool = False,
         verbose: bool = True,
     ):
-        self.model = model
-        self.tokenizer = tokenizer
-        self.processor = processor
-        self.model_type = model_type.lower()
-        self.model_dtype = model_dtype
+        self.generate_fn = generate_fn
         self.use_balance_correction = use_balance_correction
         self.verbose = verbose
-
-        # Image processing config (from model_config.yaml)
-        self.image_processing = image_processing_config or {}
-        self.max_tiles = self.image_processing.get("max_tiles", 14)
-        self.input_size = self.image_processing.get("input_size", 448)
 
         self.config_loader = ConfigLoader(config_dir)
         self.column_matcher = ColumnMatcher()
@@ -1069,7 +1055,7 @@ class UnifiedBankExtractor:
 
         # Turn 0: Header detection
         self._log("[UBE] Turn 0: Detecting headers...")
-        turn0_response = self._generate(image, self._prompts["turn0"], max_tokens=500)
+        turn0_response = self.generate_fn(image, self._prompts["turn0"], max_tokens=500)
         headers = self.parser.parse_headers(turn0_response)
         self._log(f"  Detected {len(headers)} headers: {headers}")
 
@@ -1166,7 +1152,7 @@ class UnifiedBankExtractor:
         self._log(f"[UBE] Turn 1 Prompt:\n{prompt}")
         self._log("[UBE] Turn 1: Calling model for extraction...")
         try:
-            response = self._generate(image, prompt, max_tokens=4096)
+            response = self.generate_fn(image, prompt, max_tokens=4096)
             self._log(f"[UBE]   Raw response length: {len(response)} chars")
             self._log(f"[UBE]   Response preview:\n{response[:500]}...")
         except Exception as e:
@@ -1334,7 +1320,7 @@ class UnifiedBankExtractor:
         )
 
         self._log("[UBE] Turn 1: Extracting transactions (amount-description)...")
-        response = self._generate(image, prompt, max_tokens=4096)
+        response = self.generate_fn(image, prompt, max_tokens=4096)
         # Note: Raw response is printed by BankStatementAdapter after bypass context
 
         # Parse response
@@ -1431,7 +1417,7 @@ class UnifiedBankExtractor:
 
         self._log(f"[UBE] Turn 1 Prompt:\n{prompt}")
         self._log("[UBE] Turn 1: Calling model for extraction (debit-credit)...")
-        response = self._generate(image, prompt, max_tokens=4096)
+        response = self.generate_fn(image, prompt, max_tokens=4096)
         self._log(f"[UBE]   Raw response length: {len(response)} chars")
         self._log(f"[UBE]   Response preview:\n{response[:500]}...")
 
@@ -1525,7 +1511,7 @@ class UnifiedBankExtractor:
 
         self._log("[UBE] Schema fallback: Extracting with direct schema prompt...")
         prompt = self._prompts["schema_fallback"]
-        response = self._generate(image, prompt, max_tokens=4096)
+        response = self.generate_fn(image, prompt, max_tokens=4096)
 
         self._log(f"[UBE]   Raw response length: {len(response)} chars")
         self._log(f"[UBE]   Raw response preview: {response[:500]}...")
@@ -1717,181 +1703,3 @@ class UnifiedBankExtractor:
             return f"{first_str_clean} - {last_str_clean}"
         else:
             return f"{last_str_clean} - {first_str_clean}"
-
-    def _generate(self, image: Any, prompt: str, max_tokens: int = 4096) -> str:
-        """Generate model response, dispatching by model_type."""
-        if self.model_type == "llama":
-            return self._generate_llama(image, prompt, max_tokens)
-        return self._generate_internvl3(image, prompt, max_tokens)
-
-    def _generate_llama(self, image: Any, prompt: str, max_tokens: int) -> str:
-        """Generate response using Llama model."""
-        import torch
-
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
-
-        text_input = self.processor.apply_chat_template(
-            messages, add_generation_prompt=True
-        )
-        inputs = self.processor(
-            images=[image], text=text_input, return_tensors="pt"
-        ).to(self.model.device)
-
-        output = self.model.generate(
-            **inputs,
-            max_new_tokens=max_tokens,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-        )
-
-        generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
-        response = self.processor.decode(
-            generate_ids[0], clean_up_tokenization_spaces=False
-        )
-
-        del inputs, output, generate_ids
-        torch.cuda.empty_cache()
-
-        return response
-
-    def _generate_internvl3(self, image: Any, prompt: str, max_tokens: int) -> str:
-        """Generate response using InternVL3 model."""
-        import torch
-
-        # Preprocess image
-        pixel_values = self._preprocess_image_internvl3(image)
-
-        # Get device from model (respects multi-GPU distribution via accelerate)
-        # For models with device_map, vision_model is typically on GPU 0
-        if hasattr(self.model, "hf_device_map"):
-            # Multi-GPU: use vision_model device or first available
-            device = self.model.hf_device_map.get("vision_model", 0)
-            if isinstance(device, int):
-                device = f"cuda:{device}"
-        else:
-            # Single GPU: use model's device
-            device = next(self.model.parameters()).device
-
-        pixel_values = pixel_values.to(
-            dtype=self.model_dtype or torch.bfloat16, device=device
-        )
-
-        response = self.model.chat(
-            tokenizer=self.tokenizer,
-            pixel_values=pixel_values,
-            question=prompt,
-            generation_config={
-                "max_new_tokens": max_tokens,
-                "do_sample": False,
-                "pad_token_id": self.tokenizer.eos_token_id,
-            },
-        )
-
-        del pixel_values
-        torch.cuda.empty_cache()
-
-        return response
-
-    def _preprocess_image_internvl3(self, image: Any) -> Any:
-        """Preprocess image for InternVL3 using config from model_config.yaml."""
-
-        import torch
-        import torchvision.transforms as T
-        from PIL import Image as PILImage
-        from torchvision.transforms.functional import InterpolationMode
-
-        IMAGENET_MEAN = (0.485, 0.456, 0.406)
-        IMAGENET_STD = (0.229, 0.224, 0.225)
-        max_tiles = self.max_tiles
-        input_size = self.input_size
-
-        def build_transform(input_size):
-            return T.Compose(
-                [
-                    T.Lambda(
-                        lambda img: img.convert("RGB") if img.mode != "RGB" else img
-                    ),
-                    T.Resize(
-                        (input_size, input_size),
-                        interpolation=InterpolationMode.BICUBIC,
-                    ),
-                    T.ToTensor(),
-                    T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-                ]
-            )
-
-        def find_closest_aspect_ratio(
-            aspect_ratio, target_ratios, width, height, image_size
-        ):
-            best_ratio_diff = float("inf")
-            best_ratio = (1, 1)
-            area = width * height
-            for ratio in target_ratios:
-                target_aspect_ratio = ratio[0] / ratio[1]
-                ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-                if ratio_diff < best_ratio_diff:
-                    best_ratio_diff = ratio_diff
-                    best_ratio = ratio
-                elif ratio_diff == best_ratio_diff:
-                    if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
-                        best_ratio = ratio
-            return best_ratio
-
-        def dynamic_preprocess(image, min_num=1, max_num=max_tiles, image_size=448):
-            orig_width, orig_height = image.size
-            aspect_ratio = orig_width / orig_height
-
-            target_ratios = set(
-                (i, j)
-                for n in range(min_num, max_num + 1)
-                for i in range(1, n + 1)
-                for j in range(1, n + 1)
-                if i * j <= max_num and i * j >= min_num
-            )
-            target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
-
-            target_aspect_ratio = find_closest_aspect_ratio(
-                aspect_ratio, target_ratios, orig_width, orig_height, image_size
-            )
-
-            target_width = image_size * target_aspect_ratio[0]
-            target_height = image_size * target_aspect_ratio[1]
-            blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
-
-            resized_img = image.resize((target_width, target_height))
-            processed_images = []
-            for i in range(blocks):
-                box = (
-                    (i % (target_width // image_size)) * image_size,
-                    (i // (target_width // image_size)) * image_size,
-                    ((i % (target_width // image_size)) + 1) * image_size,
-                    ((i // (target_width // image_size)) + 1) * image_size,
-                )
-                split_img = resized_img.crop(box)
-                processed_images.append(split_img)
-
-            # Add thumbnail
-            thumbnail_img = image.resize((image_size, image_size))
-            processed_images.append(thumbnail_img)
-
-            return processed_images
-
-        # Convert to PIL if needed
-        if isinstance(image, str):
-            image = PILImage.open(image).convert("RGB")
-
-        transform = build_transform(input_size)
-        images = dynamic_preprocess(image, image_size=input_size, max_num=max_tiles)
-        pixel_values = [transform(img) for img in images]
-        pixel_values = torch.stack(pixel_values)
-
-        return pixel_values

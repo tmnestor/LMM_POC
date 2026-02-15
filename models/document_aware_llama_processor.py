@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Document-Aware Llama Processor - DOCUMENT AWARE REDUCTION - Standalone Implementation
+Document-Aware Llama Processor - inherits BaseDocumentProcessor.
 
-A complete rewrite of Llama processor designed from the ground up for
-document-aware extraction with dynamic field lists. NO INHERITANCE.
+Llama-specific implementation for document-aware extraction with dynamic
+field lists.  Shared logic (detection, classification, prompt resolution,
+extraction orchestration) lives in BaseDocumentProcessor.
 
 DOCUMENT AWARE REDUCTION OPTIMIZED:
-- Invoice/Receipt: 11 fields (62-67% reduction) → ~50% faster processing
-- Bank Statement: 5 fields (75% reduction) → ~75% faster processing
+- Invoice/Receipt: 11 fields (62-67% reduction) -> ~50% faster processing
+- Bank Statement: 5 fields (75% reduction) -> ~75% faster processing
 - Dynamic max_new_tokens automatically scales with reduced field counts
 """
 
+import gc
 import time
 import warnings
 from pathlib import Path
@@ -23,28 +25,24 @@ from transformers import (
     MllamaForConditionalGeneration,
 )
 
-from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     comprehensive_memory_cleanup,
     configure_cuda_memory_allocation,
-    get_available_gpu_memory,
     handle_memory_fragmentation,
     optimize_model_for_gpu,
 )
 from common.model_config import (
     LLAMA_GENERATION_CONFIG,
-    get_auto_batch_size,
 )
-from common.pipeline_config import strip_structure_suffixes
-from common.simple_prompt_loader import SimplePromptLoader, load_llama_prompt
+from models.base_processor import BaseDocumentProcessor
 
 warnings.filterwarnings("ignore")
 
 LLAMA_MODEL_PATH = "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
 
 
-class DocumentAwareLlamaProcessor:
-    """Standalone document-aware Llama processor with dynamic field support."""
+class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
+    """Document-aware Llama processor with dynamic field support."""
 
     def __init__(
         self,
@@ -74,76 +72,84 @@ class DocumentAwareLlamaProcessor:
             prompt_config (dict): Prompt routing config (detection_file, extraction_files)
             field_definitions (dict): Pre-loaded field definitions dict
         """
-        self.field_list = field_list
-        self.field_count = len(field_list)
         self.model_path = model_path or LLAMA_MODEL_PATH
-        self.device = device
-        self.debug = debug
-        self.prompt_config = prompt_config
-        self.field_definitions = field_definitions
 
         # Initialize components
         self.model = pre_loaded_model
         self.processor = pre_loaded_processor
         self.generation_config = None
 
-        # Initialize extraction cleaner for value normalization
-        self.cleaner = ExtractionCleaner(debug=debug)
+        # Configure CUDA memory allocation
+        configure_cuda_memory_allocation()
 
-        # Build document-specific field lists from field_definitions
-        self.document_field_lists = {}
-        if field_definitions:
-            for doc_type, fields in field_definitions.items():
-                self.document_field_lists[doc_type] = fields
+        # Load model and processor if not pre-loaded
+        if self.model is None and not skip_model_loading:
+            self._load_model()
 
-        # Read fallback_type from detection YAML settings
-        self._fallback_type = "INVOICE"
-        try:
-            import yaml
-
-            if prompt_config:
-                detection_path = Path(prompt_config["detection_file"])
-                if detection_path.exists():
-                    with detection_path.open() as f:
-                        det_cfg = yaml.safe_load(f)
-                    self._fallback_type = det_cfg.get("settings", {}).get(
-                        "fallback_type", "INVOICE"
-                    )
-        except Exception:
-            pass
+        # Shared init: field_list, prompt_config, cleaner, field_definitions, batch
+        self._init_shared(
+            field_list=field_list,
+            prompt_config=prompt_config,
+            field_definitions=field_definitions,
+            debug=debug,
+            device=device,
+            batch_size=batch_size,
+            model_type_key="llama",
+        )
 
         if self.debug:
             print(
                 f"Document-aware Llama processor initialized for {self.field_count} fields"
             )
 
-        # Configure CUDA memory allocation
-        configure_cuda_memory_allocation()
-
-        # Configure batch processing
-        self._configure_batch_processing(batch_size)
-
         # Configure generation parameters for dynamic field count
         self._configure_generation()
 
-        # Load model and processor if not pre-loaded
-        if self.model is None and not skip_model_loading:
-            self._load_model()
+    # -- abstract method implementations ---------------------------------------
 
-    def _configure_batch_processing(self, batch_size: int | None):
-        """Configure batch processing parameters."""
-        if batch_size is not None:
-            self.batch_size = max(1, batch_size)
-            if self.debug:
-                print(f"🎯 Using manual batch size: {self.batch_size}")
-        else:
-            # Auto-detect batch size based on available memory
-            available_memory = get_available_gpu_memory(self.device)
-            self.batch_size = get_auto_batch_size("llama", available_memory)
-            if self.debug:
-                print(
-                    f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
-                )
+    def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
+        """Run model inference on an image with a text prompt."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+
+        text_input = self.processor.apply_chat_template(
+            messages, add_generation_prompt=True
+        )
+        inputs = self.processor(
+            images=[image], text=text_input, return_tensors="pt"
+        ).to(self.model.device)
+
+        output = self.model.generate(
+            **inputs,
+            max_new_tokens=max_tokens,
+            do_sample=False,
+            temperature=None,
+            top_p=None,
+        )
+
+        generate_ids = output[:, inputs["input_ids"].shape[1] : -1]
+        response = self.processor.decode(
+            generate_ids[0], clean_up_tokenization_spaces=False
+        )
+
+        del inputs, output, generate_ids
+        torch.cuda.empty_cache()
+        return response
+
+    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
+        """Calculate max_new_tokens for generation based on field count."""
+        base = LLAMA_GENERATION_CONFIG.get("max_new_tokens_base", 512)
+        per_field = LLAMA_GENERATION_CONFIG.get("max_new_tokens_per_field", 64)
+        return base + (field_count * per_field)
+
+    # -- Llama-specific methods ------------------------------------------------
 
     def _configure_generation(self):
         """
@@ -236,259 +242,6 @@ class DocumentAwareLlamaProcessor:
             return self.processor.tokenizer
         return None
 
-    # ========================================================================
-    # Protocol methods — required by BatchDocumentProcessor & BankStatementAdapter
-    # ========================================================================
-
-    def detect_and_classify_document(
-        self, image_path: str, verbose: bool = False
-    ) -> dict:
-        """Detect document type using Llama model and detection prompt.
-
-        Compatible with BatchDocumentProcessor workflow.
-        """
-        try:
-            import yaml
-
-            # Load detection prompt from prompt_config (single source of truth)
-            if self.prompt_config:
-                detection_path = Path(self.prompt_config["detection_file"])
-                detection_key = self.prompt_config["detection_key"]
-            else:
-                detection_path = Path("prompts/document_type_detection.yaml")
-                detection_key = "detection"
-
-            with detection_path.open("r") as f:
-                detection_config = yaml.safe_load(f)
-
-            detection_prompt = detection_config["prompts"][detection_key]["prompt"]
-            max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
-
-            if verbose:
-                import sys
-
-                sys.stdout.write(
-                    f"Using Llama document detection prompt: {detection_key}\n"
-                )
-                sys.stdout.flush()
-
-            # Use _extract_with_custom_prompt for detection
-            response = self._extract_with_custom_prompt(
-                image_path, detection_prompt, max_new_tokens=max_tokens
-            )
-
-            if verbose:
-                import sys
-
-                sys.stdout.write(f"Model response: {response}\n")
-                sys.stdout.flush()
-
-            # Parse document type from response
-            document_type = self._parse_document_type_response(
-                response, detection_config
-            )
-
-            if verbose:
-                import sys
-
-                sys.stdout.write(f"Detected document type: {document_type}\n")
-                sys.stdout.flush()
-
-            return {
-                "document_type": document_type,
-                "confidence": 1.0,
-                "raw_response": response,
-                "prompt_used": detection_key,
-            }
-
-        except Exception as e:
-            import sys
-
-            sys.stdout.write(f"DETECTION ERROR: {e}\n")
-            sys.stdout.flush()
-            if self.debug:
-                import traceback
-
-                traceback.print_exc()
-
-            return {
-                "document_type": self._fallback_type,
-                "confidence": 0.1,
-                "raw_response": "",
-                "prompt_used": "fallback_heuristic",
-                "error": str(e),
-            }
-
-    def _parse_document_type_response(
-        self, response: str, detection_config: dict
-    ) -> str:
-        """Parse document type from detection response."""
-
-        response_upper = response.strip().upper()
-
-        # Get supported types from detection config
-        settings = detection_config.get("settings", {})
-        supported_types = settings.get(
-            "supported_types",
-            ["INVOICE", "RECEIPT", "BANK_STATEMENT"],
-        )
-        fallback_type = settings.get("fallback_type", self._fallback_type)
-
-        # Try exact match first
-        for doc_type in supported_types:
-            if doc_type in response_upper:
-                return doc_type
-
-        # Try common variations
-        type_aliases = {
-            "STATEMENT": "BANK_STATEMENT",
-            "BANK": "BANK_STATEMENT",
-            "TAX INVOICE": "INVOICE",
-            "TAX_INVOICE": "INVOICE",
-        }
-        for alias, canonical in type_aliases.items():
-            if alias in response_upper:
-                return canonical
-
-        return fallback_type
-
-    def process_document_aware(
-        self, image_path: str, classification_info: dict, verbose: bool = False
-    ) -> dict:
-        """Process document using document-specific extraction based on detected type.
-
-        Compatible with BatchDocumentProcessor workflow.
-        """
-        try:
-            document_type = classification_info["document_type"].lower()
-
-            if verbose:
-                print(f"Processing {document_type.upper()} document with Llama")
-
-            # For bank statements, use vision-based structure classification
-            if document_type == "bank_statement":
-                try:
-                    from common.vision_bank_statement_classifier import (
-                        classify_bank_statement_structure_vision,
-                    )
-
-                    structure_type = classify_bank_statement_structure_vision(
-                        image_path,
-                        model=self.model,
-                        processor=self.processor,
-                        verbose=verbose,
-                    )
-                    document_type = f"bank_statement_{structure_type}"
-
-                    if verbose:
-                        print(f"Bank statement structure: {structure_type}")
-                except Exception as e:
-                    if verbose:
-                        print(f"Vision classification failed: {e}")
-                    document_type = "bank_statement_flat"
-
-            # Get extraction prompt from prompt_config
-            doc_type_upper = strip_structure_suffixes(document_type).upper()
-            extraction_files = self.prompt_config["extraction_files"]
-            if doc_type_upper not in extraction_files:
-                raise ValueError(
-                    f"No extraction file configured for '{doc_type_upper}'. "
-                    f"Available: {list(extraction_files.keys())}."
-                )
-            extraction_file = extraction_files[doc_type_upper]
-
-            # Derive extraction key
-            extraction_keys = self.prompt_config.get("extraction_keys", {})
-            extraction_key = extraction_keys.get(doc_type_upper, document_type)
-
-            from common.simple_prompt_loader import SimplePromptLoader
-
-            loader = SimplePromptLoader()
-            extraction_prompt = loader.load_prompt(
-                Path(extraction_file).name, extraction_key
-            )
-
-            if verbose:
-                print(
-                    f"Using {document_type} prompt: {len(extraction_prompt)} characters"
-                )
-
-            # Get document-specific field list
-            doc_type_fields = dict(self.document_field_lists)
-            if "bank_statement" in doc_type_fields:
-                doc_type_fields["bank_statement_flat"] = doc_type_fields[
-                    "bank_statement"
-                ]
-                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields[
-                    "bank_statement"
-                ]
-
-            doc_field_list = doc_type_fields.get(
-                document_type, doc_type_fields.get("invoice", self.field_list)
-            )
-
-            # Calculate document-specific max tokens
-            config = LLAMA_GENERATION_CONFIG
-            doc_specific_tokens = max(
-                config["max_new_tokens_base"],
-                len(doc_field_list) * config["max_new_tokens_per_field"],
-            )
-            # Bank statements need more tokens
-            base_doc_type = strip_structure_suffixes(document_type)
-            if base_doc_type == "bank_statement":
-                doc_specific_tokens = max(doc_specific_tokens, 1500)
-
-            # Process with custom prompt
-            result = self.process_single_image(
-                image_path,
-                custom_prompt=extraction_prompt,
-                custom_max_tokens=doc_specific_tokens,
-            )
-
-            if verbose:
-                extracted_data = result.get("extracted_data", {})
-                found_fields = sum(
-                    1 for v in extracted_data.values() if v != "NOT_FOUND"
-                )
-                print(f"Extracted {found_fields}/{len(extracted_data)} fields")
-
-            return result
-
-        except Exception as e:
-            if verbose:
-                print(f"Error in document-aware processing: {e}")
-            return self.process_single_image(image_path)
-
-    def get_extraction_prompt(self, document_type: str = None) -> str:
-        """
-        Get extraction prompt for document type - dead simple.
-
-        Args:
-            document_type: Document type ('invoice', 'receipt', 'bank_statement')
-                          If None, uses 'universal' prompt
-
-        Returns:
-            Complete prompt string loaded from YAML
-        """
-        if document_type is None:
-            document_type = "universal"
-
-        if self.debug:
-            print(f"📝 Loading {document_type} prompt for Llama")
-
-        try:
-            return load_llama_prompt(document_type)
-        except Exception as e:
-            if self.debug:
-                print(
-                    f"⚠️ Failed to load {document_type} prompt, falling back to universal"
-                )
-            return load_llama_prompt("universal")
-
-    def get_supported_document_types(self) -> list[str]:
-        """Get list of supported document types."""
-        return SimplePromptLoader.get_available_prompts("llama_prompts.yaml")
-
     def detect_document_type(self, field_list: list[str] | None = None) -> str:
         """
         Detect document type based on field composition.
@@ -512,15 +265,6 @@ class DocumentAwareLlamaProcessor:
         else:
             # Fallback to invoice for unknown patterns
             return "invoice"
-
-    def load_document_image(self, image_path: str) -> Image.Image:
-        """Load document image with error handling."""
-        try:
-            return Image.open(image_path)
-        except Exception as e:
-            if self.debug:
-                print(f"❌ Error loading image {image_path}: {e}")
-            raise
 
     def _resilient_generate(self, inputs, **generation_kwargs):
         """Resilient generation with OOM fallback."""
@@ -548,46 +292,66 @@ class DocumentAwareLlamaProcessor:
                 "top_p", self.generation_config["top_p"]
             )
 
+        # First attempt
+        oom_first = False
         try:
-            # Standard generation with clean parameters
             return self.model.generate(**inputs, **clean_generation_kwargs)
         except torch.cuda.OutOfMemoryError:
+            oom_first = True
             if self.debug:
                 print("⚠️ CUDA OOM during generation, attempting recovery...")
 
-            # Clear cache and retry
+        # Cleanup OUTSIDE except block so traceback refs are released
+        if oom_first:
+            gc.collect()
             torch.cuda.empty_cache()
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
 
-            try:
-                return self.model.generate(**inputs, **clean_generation_kwargs)
-            except torch.cuda.OutOfMemoryError:
-                if self.debug:
-                    print("❌ Still OOM after cleanup, falling back to CPU")
+        # Second attempt after cleanup
+        oom_second = False
+        try:
+            return self.model.generate(**inputs, **clean_generation_kwargs)
+        except torch.cuda.OutOfMemoryError:
+            oom_second = True
+            if self.debug:
+                print("❌ Still OOM after cleanup, falling back to CPU")
 
-                # CPU fallback
-                inputs_cpu = {
-                    k: v.cpu() if hasattr(v, "cpu") else v for k, v in inputs.items()
-                }
-                self.model = self.model.cpu()
+        # CPU fallback — cleanup OUTSIDE except block
+        if oom_second:
+            gc.collect()
+            torch.cuda.empty_cache()
 
-                output = self.model.generate(**inputs_cpu, **clean_generation_kwargs)
+            inputs_cpu = {
+                k: v.cpu() if hasattr(v, "cpu") else v for k, v in inputs.items()
+            }
+            self.model = self.model.cpu()
 
-                # Move back to GPU
-                self.model = self.model.to(self.device)
-                return output
+            output = self.model.generate(**inputs_cpu, **clean_generation_kwargs)
+
+            # Move back to GPU
+            self.model = self.model.to(self.device)
+            return output
 
     def process_single_image(
         self,
         image_path: str,
         custom_prompt: str | None = None,
         custom_max_tokens: int | None = None,
+        field_list: list[str] | None = None,
     ) -> dict:
-        """Process single image with document-aware extraction."""
+        """Process single image with document-aware extraction.
+
+        Args:
+            image_path: Path to document image.
+            custom_prompt: Optional prompt override.
+            custom_max_tokens: Optional max token override.
+            field_list: Optional field list override (uses self.field_list if None).
+        """
+        # Resolve effective field list for this invocation
+        active_field_list = field_list if field_list is not None else self.field_list
+        active_field_count = len(active_field_list)
 
         try:
-            from pathlib import Path
-
             start_time = time.time()
 
             # Memory cleanup
@@ -660,10 +424,10 @@ class DocumentAwareLlamaProcessor:
                     sys.stdout.write(f"🔍 CUSTOM YAML PROMPT ({len(prompt)} chars):\n")
                 else:
                     sys.stdout.write(
-                        f"📝 Generated prompt for {self.field_count} fields\n"
+                        f"📝 Generated prompt for {active_field_count} fields\n"
                     )
                     sys.stdout.write(
-                        f"   Fields: {self.field_list[:3]}{'...' if len(self.field_list) > 3 else ''}\n"
+                        f"   Fields: {active_field_list[:3]}{'...' if len(active_field_list) > 3 else ''}\n"
                     )
                     sys.stdout.write(
                         f"🔍 DOCUMENT-AWARE PROMPT ({len(prompt)} chars):\n"
@@ -746,12 +510,12 @@ class DocumentAwareLlamaProcessor:
             from common.extraction_parser import parse_extraction_response
 
             extracted_data = parse_extraction_response(
-                response, expected_fields=self.field_list
+                response, expected_fields=active_field_list
             )
 
             # Apply ExtractionCleaner for value normalization
             cleaned_data = {}
-            for field in self.field_list:
+            for field in active_field_list:
                 raw_value = extracted_data.get(field, "NOT_FOUND")
                 if raw_value != "NOT_FOUND":
                     cleaned_value = self.cleaner.clean_field_value(field, raw_value)
@@ -768,7 +532,7 @@ class DocumentAwareLlamaProcessor:
 
                 sys.stdout.write("📊 PARSED EXTRACTION RESULTS:\n")
                 sys.stdout.write("=" * 80 + "\n")
-                for field in self.field_list:
+                for field in active_field_list:
                     value = extracted_data.get(field, "NOT_FOUND")
                     status = "✅" if value != "NOT_FOUND" else "❌"
                     sys.stdout.write(f'  {status} {field}: "{value}"\n')
@@ -778,7 +542,7 @@ class DocumentAwareLlamaProcessor:
                 found_fields = [
                     k for k, v in extracted_data.items() if v != "NOT_FOUND"
                 ]
-                print(f"✅ Extracted {len(found_fields)}/{self.field_count} fields")
+                print(f"✅ Extracted {len(found_fields)}/{active_field_count} fields")
                 if found_fields:
                     print(
                         f"   Found: {found_fields[:3]}{'...' if len(found_fields) > 3 else ''}"
@@ -786,10 +550,10 @@ class DocumentAwareLlamaProcessor:
 
             # Calculate metrics
             extracted_fields_count = len(
-                [k for k in extracted_data.keys() if k in self.field_list]
+                [k for k in extracted_data.keys() if k in active_field_list]
             )
-            response_completeness = extracted_fields_count / len(self.field_list)
-            content_coverage = extracted_fields_count / len(self.field_list)
+            response_completeness = extracted_fields_count / active_field_count
+            content_coverage = extracted_fields_count / active_field_count
 
             # Cleanup with V100 optimizations
             del inputs, output, image
@@ -803,7 +567,7 @@ class DocumentAwareLlamaProcessor:
                 "response_completeness": response_completeness,
                 "content_coverage": content_coverage,
                 "extracted_fields_count": extracted_fields_count,
-                "field_count": self.field_count,
+                "field_count": active_field_count,
             }
 
         except Exception as e:
@@ -816,13 +580,13 @@ class DocumentAwareLlamaProcessor:
             # Return error result with dynamic fields
             return {
                 "image_name": Path(image_path).name,
-                "extracted_data": {field: "NOT_FOUND" for field in self.field_list},
+                "extracted_data": {field: "NOT_FOUND" for field in active_field_list},
                 "raw_response": f"Error: {str(e)}",
                 "processing_time": 0,
                 "response_completeness": 0,
                 "content_coverage": 0,
                 "extracted_fields_count": 0,
-                "field_count": self.field_count,
+                "field_count": active_field_count,
             }
 
     def _extract_with_custom_prompt(
@@ -946,7 +710,7 @@ class DocumentAwareLlamaProcessor:
             image = self.load_document_image(image_path)
 
             # Get universal prompt for single-pass extraction
-            universal_prompt = load_llama_prompt("universal")
+            universal_prompt = self.get_extraction_prompt("universal")
 
             # Universal field list - 18 fields (excludes validation-only fields)
             # NOTE: TRANSACTION_AMOUNTS_RECEIVED excluded (validation-only)

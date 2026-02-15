@@ -254,3 +254,53 @@ class InternVL3ImagePreprocessor:
             print(f"📍 TENSOR_DEVICE: {pixel_values.device}")
 
         return pixel_values
+
+    def load_image_from_pil(
+        self,
+        image: Image.Image,
+        model,
+        input_size: int = 448,
+        max_num: int | None = None,
+    ) -> torch.Tensor:
+        """Same as load_image but accepts a PIL Image instead of a file path.
+
+        Args:
+            image: PIL Image (already loaded).
+            model: The InternVL3 model (used for dtype/device resolution).
+            input_size: Tile size in pixels (default 448).
+            max_num: Max tiles override. Uses self.max_tiles if None.
+
+        Returns:
+            Preprocessed pixel values tensor ready for model inference.
+        """
+        if max_num is None:
+            if self.max_tiles is not None:
+                max_num = self.max_tiles
+            else:
+                raise ValueError(
+                    "❌ FATAL: max_tiles not configured!\n"
+                    "💡 Set max_tiles when constructing the processor."
+                )
+
+        rgb_image = image.convert("RGB")
+
+        images = self.dynamic_preprocess(
+            rgb_image,
+            min_num=1,
+            max_num=max_num,
+            image_size=input_size,
+            use_thumbnail=True,
+        )
+
+        transform = self.build_transform(input_size=input_size)
+        pixel_values = [transform(img) for img in images]
+        pixel_values = torch.stack(pixel_values)
+
+        pixel_dtype = self.resolve_pixel_dtype(model, debug=self.debug)
+        pixel_values = pixel_values.to(dtype=pixel_dtype)
+
+        model_device = self.get_model_device(model)
+        if pixel_values.device != model_device:
+            pixel_values = pixel_values.to(model_device)
+
+        return pixel_values

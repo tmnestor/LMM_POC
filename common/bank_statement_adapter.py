@@ -3,27 +3,21 @@
 Bridges BatchDocumentProcessor with UnifiedBankExtractor for sophisticated
 multi-turn bank statement extraction.
 
-Supports both Llama and InternVL3 models.
+Model-agnostic: accepts a ``generate_fn`` callable instead of raw model objects.
 
-Usage (Llama):
+Usage:
     from common.bank_statement_adapter import BankStatementAdapter
 
-    adapter = BankStatementAdapter(model, processor, model_type="llama")
-    schema_fields, metadata = adapter.extract_bank_statement(image_path)
-
-Usage (InternVL3):
-    from common.bank_statement_adapter import BankStatementAdapter
-
-    adapter = BankStatementAdapter(hybrid_processor, None, model_type="internvl3")
+    adapter = BankStatementAdapter(generate_fn=processor.generate)
     schema_fields, metadata = adapter.extract_bank_statement(image_path)
 """
 
 import sys
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-import torch
 from PIL import Image
 
 from .unified_bank_extractor import (
@@ -81,10 +75,11 @@ _BSA_INSTANCE_COUNTER = 0
 class BankStatementAdapter:
     """Adapter that provides BatchDocumentProcessor-compatible interface to UnifiedBankExtractor.
 
-    This adapter bridges the batch processing notebook with the sophisticated
+    This adapter bridges the batch processing pipeline with the sophisticated
     multi-turn bank statement extraction in UnifiedBankExtractor.
 
-    Supports both Llama and InternVL3 models.
+    Model-agnostic: accepts a ``generate_fn`` callable that handles all
+    model-specific inference logic.
 
     Features:
         - Turn 0: Header detection (identifies actual column names)
@@ -95,87 +90,37 @@ class BankStatementAdapter:
 
     def __init__(
         self,
-        model: Any,
-        processor: Any = None,
+        generate_fn: Callable[[Image.Image, str, int], str],
         config_dir: str | Path | None = None,
         verbose: bool = True,
         use_balance_correction: bool = False,
-        model_type: str = "internvl3",
-        model_dtype: Any = None,
     ):
-        """Initialize adapter with model components.
+        """Initialize adapter with a generation callable.
 
         Args:
-            model: For Llama: the model object. For InternVL3: the hybrid processor.
-            processor: For Llama: the processor. For InternVL3: can be None.
+            generate_fn: Callable(image, prompt, max_tokens) -> str.
+                Typically ``processor.generate`` from a DocumentProcessor.
             config_dir: Path to config directory (default: project config/)
             verbose: Enable verbose output during extraction
             use_balance_correction: Enable mathematical balance correction
-            model_type: "llama" or "internvl3"
-            model_dtype: Optional dtype override (e.g., torch.bfloat16, torch.float32)
         """
         global _BSA_INSTANCE_COUNTER
         _BSA_INSTANCE_COUNTER += 1
         self._instance_id = _BSA_INSTANCE_COUNTER
 
         self.verbose = verbose
-        self.model_type = model_type.lower()
 
         if self.verbose:
             _safe_print(
-                f"[BSA] Created BankStatementAdapter instance #{self._instance_id} (model_type={model_type})"
+                f"[BSA] Created BankStatementAdapter instance #{self._instance_id}"
             )
 
-        # Extract model components based on model type
-        if self.model_type == "internvl3":
-            # For InternVL3, model parameter is the hybrid processor
-            if hasattr(model, "model") and hasattr(model, "tokenizer"):
-                actual_model = model.model
-                actual_tokenizer = model.tokenizer
-            else:
-                actual_model = model
-                actual_tokenizer = processor
-
-            # Auto-detect dtype from model parameters if not specified
-            if model_dtype is None:
-                try:
-                    model_dtype = next(actual_model.parameters()).dtype
-                except (StopIteration, AttributeError):
-                    model_dtype = torch.bfloat16
-
-            self.model = actual_model
-            self.tokenizer = actual_tokenizer
-            self.processor = None
-            self.model_dtype = model_dtype
-
-            # Initialize UnifiedBankExtractor for InternVL3
-            self.extractor = UnifiedBankExtractor(
-                model=actual_model,
-                tokenizer=actual_tokenizer,
-                processor=None,
-                model_type="internvl3",
-                config_dir=config_dir,
-                model_dtype=model_dtype,
-                use_balance_correction=use_balance_correction,
-                verbose=verbose,
-            )
-        else:
-            # Llama model — pass model and processor directly
-            self.model = model
-            self.processor = processor
-            self.tokenizer = processor
-            self.model_dtype = model_dtype
-
-            # Initialize UnifiedBankExtractor for Llama
-            self.extractor = UnifiedBankExtractor(
-                model=model,
-                tokenizer=processor,
-                processor=processor,
-                model_type="llama",
-                config_dir=config_dir,
-                use_balance_correction=use_balance_correction,
-                verbose=verbose,
-            )
+        self.extractor = UnifiedBankExtractor(
+            generate_fn=generate_fn,
+            config_dir=config_dir,
+            use_balance_correction=use_balance_correction,
+            verbose=verbose,
+        )
 
     def extract_bank_statement(
         self,
@@ -261,28 +206,22 @@ class BankStatementAdapter:
 
 
 def create_bank_adapter(
-    model: Any,
-    processor: Any = None,
+    generate_fn: Callable[[Image.Image, str, int], str],
     verbose: bool = True,
     use_balance_correction: bool = False,
-    model_dtype: Any = None,
 ) -> BankStatementAdapter:
     """Factory function to create BankStatementAdapter.
 
     Args:
-        model: Model processor (with model and tokenizer attributes)
-        processor: Not used, kept for API compatibility
+        generate_fn: Callable(image, prompt, max_tokens) -> str.
         verbose: Enable verbose output
         use_balance_correction: Enable balance-based correction
-        model_dtype: Optional dtype override
 
     Returns:
         Configured BankStatementAdapter instance
     """
     return BankStatementAdapter(
-        model=model,
-        processor=processor,
+        generate_fn=generate_fn,
         verbose=verbose,
         use_balance_correction=use_balance_correction,
-        model_dtype=model_dtype,
     )

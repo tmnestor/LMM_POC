@@ -23,20 +23,16 @@ import torch
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
-from common.batch_processor import load_document_field_definitions
-from common.extraction_cleaner import ExtractionCleaner
 from common.gpu_optimization import (
     configure_cuda_memory_allocation,
     emergency_cleanup,
-    get_available_gpu_memory,
     optimize_model_for_gpu,
 )
 from common.model_config import (
-    get_auto_batch_size,
     get_max_new_tokens,
 )
 from common.pipeline_config import strip_structure_suffixes
-from common.simple_prompt_loader import SimplePromptLoader, load_internvl3_prompt
+from models.base_processor import BaseDocumentProcessor
 from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
 warnings.filterwarnings("ignore")
@@ -44,7 +40,7 @@ warnings.filterwarnings("ignore")
 INTERNVL3_MODEL_PATH = "/efs/shared/PTM/InternVL3-8B"
 
 
-class DocumentAwareInternVL3HybridProcessor:
+class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
     """Hybrid processor: InternVL3 model + Llama's proven processing pipeline."""
 
     def __init__(
@@ -77,47 +73,15 @@ class DocumentAwareInternVL3HybridProcessor:
             max_tiles (int): Max image tiles for preprocessing (REQUIRED - set in notebook CONFIG)
             field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
         """
-        self.field_list = field_list
-        self.field_count = len(field_list)
         self.model_path = model_path or INTERNVL3_MODEL_PATH
-        self.device = device
-        self.debug = debug
-        self.prompt_config = prompt_config
-        if not self.prompt_config:
-            raise ValueError(
-                "prompt_config is required — must contain "
-                "'detection_file', 'detection_key', 'extraction_files'"
-            )
-        missing = {"detection_file", "detection_key", "extraction_files"} - set(
-            self.prompt_config
-        )
-        if missing:
-            raise ValueError(f"prompt_config missing required keys: {missing}")
-        self.max_tiles = max_tiles  # REQUIRED: Notebook-configurable tile count
-
-        # Read fallback_type from detection YAML settings (avoids hardcoding "INVOICE")
-        self._fallback_type = "INVOICE"  # safe default if YAML read fails
-        try:
-            from pathlib import Path
-
-            import yaml
-
-            detection_path = Path(self.prompt_config["detection_file"])
-            if detection_path.exists():
-                with detection_path.open() as f:
-                    det_cfg = yaml.safe_load(f)
-                self._fallback_type = det_cfg.get("settings", {}).get(
-                    "fallback_type", "INVOICE"
-                )
-        except Exception:
-            pass
+        self.max_tiles = max_tiles
 
         # Image preprocessing pipeline (extracted for testability and reuse)
         self.image_preprocessor = InternVL3ImagePreprocessor(
             max_tiles=max_tiles, debug=debug
         )
 
-        # Initialize components (InternVL3 specific)
+        # Initialize model components (InternVL3 specific)
         self.model = pre_loaded_model
         self.tokenizer = pre_loaded_tokenizer
         self.generation_config = None
@@ -130,8 +94,6 @@ class DocumentAwareInternVL3HybridProcessor:
         if self.model is not None and self.tokenizer is not None:
             if hasattr(self.model, "generation_config"):
                 self.model.generation_config.pad_token_id = self.tokenizer.eos_token_id
-                # Clear temperature/top_p — irrelevant with do_sample=False and
-                # causes "not valid and may be ignored" warnings
                 self.model.generation_config.temperature = None
                 self.model.generation_config.top_p = None
             elif hasattr(self.model.config, "pad_token_id"):
@@ -140,13 +102,15 @@ class DocumentAwareInternVL3HybridProcessor:
         # Detect model variant (2B vs 8B) for tile optimization
         self.is_8b_model = "8B" in self.model_path
 
-        # Initialize extraction cleaner for value normalization (🧹 CLEANER CALLED output)
-        self.cleaner = ExtractionCleaner(debug=debug)
-
-        # Document-specific field lists - loaded from config/field_definitions.yaml
-        # SINGLE SOURCE OF TRUTH - no hardcoding here
-        self.document_field_lists = (
-            field_definitions or load_document_field_definitions()
+        # Shared init: field_list, prompt_config, cleaner, field_definitions, batch
+        self._init_shared(
+            field_list=field_list,
+            prompt_config=prompt_config,
+            field_definitions=field_definitions,
+            debug=debug,
+            device=device,
+            batch_size=batch_size,
+            model_type_key="internvl3",
         )
 
         if self.debug:
@@ -156,9 +120,6 @@ class DocumentAwareInternVL3HybridProcessor:
 
         # Configure CUDA memory allocation
         configure_cuda_memory_allocation()
-
-        # Configure batch processing
-        self._configure_batch_processing(batch_size)
 
         # Configure generation parameters for dynamic field count
         self._configure_generation()
@@ -177,20 +138,28 @@ class DocumentAwareInternVL3HybridProcessor:
             model_dtype = next(self.model.parameters()).dtype
             optimize_model_for_gpu(self.model, dtype=model_dtype)
 
-    def _configure_batch_processing(self, batch_size: int | None):
-        """Configure batch processing parameters."""
-        if batch_size is not None:
-            self.batch_size = max(1, batch_size)
-            if self.debug:
-                print(f"🎯 Using manual batch size: {self.batch_size}")
-        else:
-            # Auto-detect batch size based on available memory
-            available_memory = get_available_gpu_memory(self.device)
-            self.batch_size = get_auto_batch_size("internvl3", available_memory)
-            if self.debug:
-                print(
-                    f"🤖 Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)"
-                )
+    def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
+        """Run model inference on an image with a text prompt."""
+        pixel_values = self.image_preprocessor.load_image_from_pil(image, self.model)
+        model_device = InternVL3ImagePreprocessor.get_model_device(self.model)
+        if pixel_values.device != model_device:
+            pixel_values = pixel_values.to(model_device)
+
+        response = self._resilient_generate(
+            pixel_values=pixel_values,
+            question=prompt,
+            max_new_tokens=max_tokens,
+            do_sample=False,
+            is_detection=False,
+        )
+
+        del pixel_values
+        torch.cuda.empty_cache()
+        return response
+
+    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
+        """Calculate max_new_tokens for generation based on field count."""
+        return get_max_new_tokens(field_count=field_count)
 
     def _configure_generation(self):
         """Configure generation parameters for InternVL3."""
@@ -256,400 +225,6 @@ class DocumentAwareInternVL3HybridProcessor:
         except Exception as e:
             if self.debug:
                 print(f"❌ Error loading InternVL3 model: {e}")
-            raise
-
-    def get_extraction_prompt(self, document_type: str = None) -> str:
-        """
-        Get extraction prompt for document type - uses Llama prompts for consistency.
-
-        Args:
-            document_type: Document type ('invoice', 'receipt', 'bank_statement')
-                          If None, uses 'universal' prompt
-
-        Returns:
-            Complete prompt string loaded from YAML
-        """
-        if document_type is None:
-            document_type = "universal"
-
-        if self.debug:
-            print(f"📝 Loading {document_type} prompt for InternVL3 Hybrid")
-
-        try:
-            return load_internvl3_prompt(document_type)
-        except Exception as e:
-            if self.debug:
-                print(
-                    f"⚠️ Failed to load {document_type} prompt, falling back to universal"
-                )
-            return load_internvl3_prompt("universal")
-
-    def get_supported_document_types(self) -> list[str]:
-        """Get list of supported document types."""
-        return SimplePromptLoader.get_available_prompts("internvl3_prompts.yaml")
-
-    def detect_and_classify_document(
-        self, image_path: str, verbose: bool = False
-    ) -> dict:
-        """
-        Detect document type using InternVL3 model and document detection prompt.
-        Compatible with BatchDocumentProcessor workflow.
-
-        Args:
-            image_path: Path to the image to classify
-            verbose: Whether to show detailed output
-
-        Returns:
-            Dict with classification info including document_type
-        """
-        try:
-            from pathlib import Path
-
-            import yaml
-
-            # Use prompt_config if provided (single source of truth), otherwise fallback to YAML
-            if self.prompt_config:
-                detection_path = Path(self.prompt_config["detection_file"])
-                detection_key = self.prompt_config["detection_key"]
-                if verbose:
-                    print(
-                        f"🔧 CONFIG DEBUG - Using prompt_config: detection_key='{detection_key}'"
-                    )
-            else:
-                # Fallback to hardcoded YAML (legacy behavior)
-                detection_path = Path("prompts/document_type_detection.yaml")
-                detection_key = "detection"
-                if verbose:
-                    print(
-                        f"🔧 CONFIG DEBUG - Using fallback: detection_key='{detection_key}'"
-                    )
-
-            with detection_path.open("r") as f:
-                detection_config = yaml.safe_load(f)
-
-            detection_prompt = detection_config["prompts"][detection_key]["prompt"]
-            max_tokens = detection_config.get("settings", {}).get("max_new_tokens", 50)
-
-            if verbose:
-                # Use direct stdout to bypass Rich console completely for detection
-                import sys
-
-                sys.stdout.write(
-                    f"🔍 Using InternVL3 document detection prompt: {detection_key}\n"
-                )
-                sys.stdout.write(f"📝 Prompt: {detection_prompt[:100]}...\n")
-                sys.stdout.flush()
-
-            # Load and preprocess image using InternVL3 pipeline
-            pixel_values = self.image_preprocessor.load_image(image_path, self.model)
-
-            # Ensure on correct device (backup check)
-            model_device = InternVL3ImagePreprocessor.get_model_device(self.model)
-            if pixel_values.device != model_device:
-                pixel_values = pixel_values.to(model_device)
-                if verbose:
-                    print(f"🔧 BACKUP_DEVICE_FIX: Moved tensor to {model_device}")
-
-            # Generate response using InternVL3 model with detection-specific limits
-            response = self._resilient_generate(
-                pixel_values=pixel_values,
-                question=detection_prompt,
-                max_new_tokens=max_tokens,
-                do_sample=False,
-                is_detection=True,  # Enable strict token limits for detection
-            )
-
-            # Free detection tensors before extraction allocates its own
-            del pixel_values
-            torch.cuda.empty_cache()
-
-            if verbose:
-                # Use direct stdout to bypass Rich console completely for detection
-                import sys
-
-                sys.stdout.write(f"🤖 Model response: {response}\n")
-                sys.stdout.flush()
-
-            # Parse document type from response
-            document_type = self._parse_document_type_response(
-                response, detection_config
-            )
-
-            if verbose:
-                # Use direct stdout to bypass Rich console completely for detection
-                import sys
-
-                sys.stdout.write(f"✅ Detected document type: {document_type}\n")
-                sys.stdout.flush()
-
-            return {
-                "document_type": document_type,
-                "confidence": 1.0,  # InternVL3 doesn't provide confidence scores
-                "raw_response": response,
-                "prompt_used": detection_key,
-            }
-
-        except Exception as e:
-            # ALWAYS show detection errors - critical for debugging
-            import sys
-
-            sys.stdout.write(f"❌ DETECTION ERROR: {e}\n")
-            sys.stdout.flush()
-            if self.debug:
-                import traceback
-
-                sys.stdout.write("❌ DETECTION ERROR TRACEBACK:\n")
-                sys.stdout.flush()
-                traceback.print_exc()
-
-            # Fallback to simple heuristic (type from detection YAML settings)
-            return {
-                "document_type": self._fallback_type,
-                "confidence": 0.1,
-                "raw_response": "",
-                "prompt_used": "fallback_heuristic",
-                "error": str(e),
-            }
-
-    def _classify_bank_structure(self, image_path: str, verbose: bool = False) -> str:
-        """Classify bank statement structure using vision model.
-
-        Returns:
-            Structure-specific prompt key (e.g. 'bank_statement_flat')
-        """
-        try:
-            from common.vision_bank_statement_classifier import (
-                classify_bank_statement_structure_vision,
-            )
-        except ImportError:
-            import sys
-            from pathlib import Path
-
-            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-            from common.vision_bank_statement_classifier import (
-                classify_bank_statement_structure_vision,
-            )
-
-        if verbose:
-            print("🔍 Running vision-based structure classification for bank statement")
-
-        structure_type = classify_bank_statement_structure_vision(
-            image_path,
-            model=self,
-            processor=None,
-            verbose=verbose,
-        )
-
-        if verbose:
-            print(f"🏗️ Bank statement structure: {structure_type}")
-            print(f"📝 Using prompt key: bank_statement_{structure_type}")
-
-        return f"bank_statement_{structure_type}"
-
-    def process_document_aware(
-        self, image_path: str, classification_info: dict, verbose: bool = False
-    ) -> dict:
-        """
-        Process document using document-specific extraction based on detected type.
-        Compatible with BatchDocumentProcessor workflow.
-
-        Args:
-            image_path: Path to the image to process
-            classification_info: Result from detect_and_classify_document()
-            verbose: Whether to show detailed output
-
-        Returns:
-            Dict with extraction results in BatchDocumentProcessor format
-        """
-        try:
-            document_type = classification_info["document_type"].lower()
-
-            if verbose:
-                print(f"📊 Processing {document_type.upper()} document with InternVL3")
-
-            # For bank statements, use vision-based structure classification
-            if document_type == "bank_statement":
-                try:
-                    document_type = self._classify_bank_structure(image_path, verbose)
-                except Exception as e:
-                    if verbose:
-                        print(f"⚠️ Vision classification failed: {e}")
-                        print("📝 Falling back to bank_statement_flat prompt")
-                    document_type = "bank_statement_flat"
-
-            # Get document-specific prompt using prompt_config (single source of truth)
-            # Strip structure suffixes to get base document type
-            doc_type_upper = strip_structure_suffixes(document_type).upper()
-            extraction_files = self.prompt_config["extraction_files"]
-            if doc_type_upper not in extraction_files:
-                raise ValueError(
-                    f"No extraction file configured for '{doc_type_upper}'. "
-                    f"Available: {list(extraction_files.keys())}. "
-                    f"Add it to prompt_config['extraction_files']."
-                )
-            extraction_file = extraction_files[doc_type_upper]
-
-            # Get the prompt key from config (or derive from document type if not specified)
-            extraction_keys = self.prompt_config.get("extraction_keys", {})
-
-            if doc_type_upper in extraction_keys:
-                # Use explicitly configured key
-                extraction_key = extraction_keys[doc_type_upper]
-            else:
-                # Derive key from document type (already includes structure suffix if present)
-                extraction_key = document_type
-
-            # For bank statements ONLY: if key doesn't include structure suffix, append it
-            # This allows config to override by specifying full key like "bank_statement_flat"
-            if (
-                document_type.startswith("bank_statement")
-                and doc_type_upper == "BANK_STATEMENT"
-            ):
-                if (
-                    "_flat" not in extraction_key
-                    and "_date_grouped" not in extraction_key
-                ):
-                    # Only append if document_type has a structure suffix
-                    if "_flat" in document_type:
-                        extraction_key = f"{extraction_key}_flat"
-                    elif "_date_grouped" in document_type:
-                        extraction_key = f"{extraction_key}_date_grouped"
-
-            from pathlib import Path
-
-            from common.simple_prompt_loader import SimplePromptLoader
-
-            loader = SimplePromptLoader()
-            extraction_prompt = loader.load_prompt(
-                Path(extraction_file).name, extraction_key
-            )
-
-            if verbose:
-                print(
-                    f"📝 Using {document_type} prompt (prompt_config): {len(extraction_prompt)} characters"
-                )
-
-            # Get document-specific field list from cached config (single source of truth)
-            doc_type_fields = dict(self.document_field_lists)
-            # Add structure-specific bank statement aliases (same fields as bank_statement)
-            if "bank_statement" in doc_type_fields:
-                doc_type_fields["bank_statement_flat"] = doc_type_fields[
-                    "bank_statement"
-                ]
-                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields[
-                    "bank_statement"
-                ]
-
-            # Resolve document-specific field list (no mutation of self.field_list)
-            doc_field_list = doc_type_fields.get(
-                document_type, doc_type_fields["invoice"]
-            )
-
-            # Calculate document-specific max tokens
-            from common.model_config import get_max_new_tokens
-
-            # Use base document type for max tokens calculation
-            base_doc_type = strip_structure_suffixes(document_type)
-            doc_specific_tokens = get_max_new_tokens(
-                field_count=len(doc_field_list), document_type=base_doc_type
-            )
-
-            # Process with document-specific settings
-            # CRITICAL: Pass extraction_prompt to avoid duplicate detection
-            result = self.process_single_image(
-                image_path,
-                custom_prompt=extraction_prompt,
-                custom_max_tokens=doc_specific_tokens,
-                field_list=doc_field_list,
-            )
-
-            if verbose:
-                extracted_data = result.get("extracted_data", {})
-                found_fields = sum(
-                    1 for v in extracted_data.values() if v != "NOT_FOUND"
-                )
-                print(f"✅ Extracted {found_fields}/{len(extracted_data)} fields")
-
-            return result
-
-        except Exception as e:
-            if verbose:
-                print(f"❌ Error in document-aware processing: {e}")
-
-            # Fallback to universal processing
-            return self.process_single_image(image_path)
-
-    def _parse_document_type_response(
-        self, response: str, detection_config: dict
-    ) -> str:
-        """
-        Parse document type from model response using type mappings.
-
-        Args:
-            response: Raw model response
-            detection_config: Detection configuration with type mappings
-
-        Returns:
-            Normalized document type
-        """
-        response_lower = response.lower().strip()
-
-        if self.debug:
-            # Use direct stdout to bypass Rich console completely for detection debug
-            import sys
-
-            sys.stdout.write(f"🔍 PARSING DEBUG - Raw response: '{response}'\n")
-            sys.stdout.write(
-                f"🔍 PARSING DEBUG - Cleaned response: '{response_lower}'\n"
-            )
-            sys.stdout.flush()
-
-        # Get type mappings from config
-        type_mappings = detection_config.get("type_mappings", {})
-
-        # Direct mapping check
-        for variant, canonical in type_mappings.items():
-            if variant.lower() in response_lower:
-                if self.debug:
-                    import sys
-
-                    sys.stdout.write(
-                        f"✅ PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n"
-                    )
-                    sys.stdout.flush()
-                return canonical
-
-        # Fallback keyword detection (YAML-driven from fallback_keywords section)
-        fallback_keywords = detection_config.get("fallback_keywords", {})
-        for canonical_type, keywords in fallback_keywords.items():
-            if any(kw in response_lower for kw in keywords):
-                if self.debug:
-                    import sys
-
-                    sys.stdout.write(
-                        f"✅ PARSING DEBUG - Keyword match: {canonical_type}\n"
-                    )
-                    sys.stdout.flush()
-                return canonical_type
-
-        # Final fallback
-        fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
-        if self.debug:
-            import sys
-
-            sys.stdout.write(
-                f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n"
-            )
-            sys.stdout.flush()
-        return fallback
-
-    def load_document_image(self, image_path: str) -> Image.Image:
-        """Load document image with error handling."""
-        try:
-            return Image.open(image_path)
-        except Exception as e:
-            if self.debug:
-                print(f"❌ Error loading image {image_path}: {e}")
             raise
 
     def _resilient_generate(self, pixel_values, question, **generation_kwargs):
