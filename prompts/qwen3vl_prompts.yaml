@@ -1,0 +1,272 @@
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields with proven step-by-step methodology"
+    prompt: |
+      You are an expert document analyzer specializing in invoice extraction.
+      Extract structured data from this invoice image using proven step-by-step methodology.
+
+      CRITICAL EXTRACTION RULES:
+      - If ANY field is not clearly visible in the document, return "NOT_FOUND"
+      - Do NOT guess, estimate, or infer missing information
+      - Only extract what is EXPLICITLY shown in the image
+      - Use exact text from document (preserve original formatting/capitalization)
+
+      ## STEP-BY-STEP EXTRACTION:
+
+      ### STEP 1: Document Identification
+      Look at the header - is it an INVOICE, BILL, QUOTE, or ESTIMATE?
+      DOCUMENT_TYPE: [INVOICE or NOT_FOUND]
+
+      ### STEP 2: Business Information (Usually at the top)
+      Find the supplier/business details in the document header:
+      BUSINESS_ABN: [Find ABN number - must be exactly 11 digits (e.g., 12 345 678 901) or NOT_FOUND]
+      SUPPLIER_NAME: [Company name providing goods/services from document header or NOT_FOUND]
+      BUSINESS_ADDRESS: [Complete business address (can be multi-line) or NOT_FOUND]
+
+      ### STEP 3: Customer Information (Look for "Bill To" or "Customer" section)
+      Find the customer/client details:
+      PAYER_NAME: [Customer/client name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer/client address or NOT_FOUND]
+
+      ### STEP 4: Date Information
+      INVOICE_DATE: [Date of invoice/bill in DD/MM/YYYY format or NOT_FOUND]
+
+      ### STEP 5: Line Items (From the itemized table/list)
+      Count the number of line items and extract each one systematically:
+      LINE_ITEM_DESCRIPTIONS: [Item 1 description | Item 2 description | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (match description order) or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Unit price 1 | $Unit price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+
+      ### STEP 6: Tax and Totals (Usually at the bottom)
+      Find the financial summary section:
+      IS_GST_INCLUDED: [Look for GST/tax line - answer "true" if present, "false" if not shown]
+      GST_AMOUNT: [Extract GST/tax amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Extract final total/amount due with $ symbol or NOT_FOUND]
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Output ONLY the structured extraction data above
+      - End immediately after "TOTAL_AMOUNT:" with no additional text
+
+      IMPORTANT NOTES:
+      - For quotes/estimates, treat them like invoices
+      - Preserve original formatting and capitalization
+      - Include currency symbols ($) for all monetary values
+      - Use pipe separator (|) for multiple items
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 14 Fields (same as invoice per requirements)
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 14 receipt-specific fields with receipt-specialized methodology"
+    prompt: |
+      You are an expert document analyzer specializing in receipt extraction.
+      Extract structured data from this receipt image using receipt-specific understanding.
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Supplier name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Business address or NOT_FOUND]
+      PAYER_NAME: [Payer name or NOT_FOUND]
+      PAYER_ADDRESS: [Payer address or NOT_FOUND]
+      INVOICE_DATE: [Invoice date in DD/MM/YYYY format or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Item 1 | Item 2 | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (use "1" if not shown) or NOT_FOUND]
+      LINE_ITEM_PRICES: [Price 1 | Price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Total 1 | Total 2 | etc. or NOT_FOUND]
+      IS_GST_INCLUDED: [true or false]
+      GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total/amount paid with $ symbol or NOT_FOUND]
+
+      CRITICAL INSTRUCTIONS:
+      - Start your response immediately with "DOCUMENT_TYPE: RECEIPT"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Output ONLY the structured extraction data above
+      - End immediately after "TOTAL_AMOUNT:" with no additional text
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (5 Fields)
+  # For taxpayer expense claims - DEBIT transactions only
+  # ============================================================================
+
+  # Flat Table Bank Statements (continuous table format)
+  bank_statement_flat:
+    name: "Flat Table Bank Statement Extraction"
+    description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      You are an expert document analyzer specializing in bank statement extraction.
+      Extract structured data from this flat table bank statement for taxpayer expense claims.
+
+      CRITICAL: Extract ONLY the transaction rows having DEBIT/WITHDRAWAL (money OUT) for expense tracking.
+      IGNORE transaction rows having deposits and credits (money IN) - we only need expenses.
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE: BANK_STATEMENT"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT use bullet points, numbered lists, asterisks, or markdown formatting (no **, no ##, no 1., no -)
+      - Output ONLY the structured extraction data below
+      - End immediately after "TRANSACTION_AMOUNTS_PAID:" with no additional text
+      - NO explanations, NO comments, NO additional text
+
+      Output format (5 FIELDS - replace NOT_FOUND with actual values):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+      Instructions:
+      - Statement period: Find date range like "01/01/2025 to 31/01/2025"
+      - Transaction dates: All DEBIT dates separated by " | " (ONLY dates with expenses)
+      - Transaction descriptions: All DEBIT descriptions separated by " | " (ONLY withdrawals/payments)
+      - Amounts paid: Debit/withdrawal amounts with $ and " | " (money OUT only)
+      - Skip any deposits, credits, or money IN transactions
+
+  # Date-Grouped Bank Statements (transactions grouped under date headers)
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement Extraction"
+    description: "Optimized for date-grouped bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      You are an expert document analyzer specializing in bank statement extraction.
+      Extract transaction data from this Australian bank statement for taxpayer expense claims.
+
+      CRITICAL: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking.
+      IGNORE deposits and credits (money IN) - we only need expenses.
+
+      ## MANDATORY OUTPUT FORMAT (5 FIELDS):
+      Use these EXACT field names with colons. Do not add explanations or comments.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit_description1 | debit_description2 | debit_description3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [debit1 | debit2 | debit3]
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+      ## DATE-GROUPED STRUCTURE:
+      This statement has transactions grouped under date headers like "Thu 04 Sep 2025".
+
+      ## SIMPLIFIED PARSING STEPS:
+
+      1. Find date headers like "Thu 04 Sep 2025", "Mon 01 Sep 2025"
+      2. Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from under each date header
+      3. SKIP any deposits, credits, or salary payments (money IN)
+      4. Combine debits with pipe separators in chronological order
+
+      ## FIELD EXTRACTION RULES:
+
+      LINE_ITEM_DESCRIPTIONS: DEBIT transaction descriptions only, combined with " | "
+      TRANSACTION_DATES: Dates of DEBIT transactions only, in DD/MM/YYYY format
+      TRANSACTION_AMOUNTS_PAID: DEBIT/WITHDRAWAL amounts only (money OUT), with $ and " | "
+
+      Use NOT_FOUND for any missing fields.
+
+      ## IDENTIFYING DEBITS:
+      Look for keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      SKIP keywords: deposit, credit, salary, transfer in, interest received
+
+      ## REMEMBER: OUTPUT EXACTLY IN THIS FORMAT:
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period]
+      LINE_ITEM_DESCRIPTIONS: [debit1 | debit2 | debit3]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | DD/MM/YYYY]
+      TRANSACTION_AMOUNTS_PAID: [amount1 | amount2 | amount3]
+
+      STOP AFTER TRANSACTION_AMOUNTS_PAID. Do not add explanations or comments.
+
+  # ============================================================================
+  # TRAVEL EXPENSE EXTRACTION
+  # ============================================================================
+  travel_expense:
+    name: "Travel Expense Extraction"
+    description: "Extract travel expense fields"
+    prompt: |
+      You are an expert document analyzer specializing in travel expense extraction.
+      Extract structured data from this travel document image.
+
+      CRITICAL EXTRACTION RULES:
+      - If ANY field is not clearly visible in the document, return "NOT_FOUND"
+      - Do NOT guess, estimate, or infer missing information
+      - Only extract what is EXPLICITLY shown in the image
+
+      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      PASSENGER_NAME: [Passenger/traveller name or NOT_FOUND]
+      TRAVEL_MODE: [Mode of travel (air, rail, bus, taxi, etc.) or NOT_FOUND]
+      TRAVEL_ROUTE: [Route/destination details or NOT_FOUND]
+      TRAVEL_DATES: [Travel dates or NOT_FOUND]
+      INVOICE_DATE: [Document date in DD/MM/YYYY format or NOT_FOUND]
+      SUPPLIER_NAME: [Travel provider name or NOT_FOUND]
+      GST_AMOUNT: [GST/tax amount with $ symbol or NOT_FOUND]
+      TOTAL_AMOUNT: [Total amount with $ symbol or NOT_FOUND]
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Output ONLY the structured extraction data above
+      - End immediately after "TOTAL_AMOUNT:" with no additional text
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All 19 Fields
+  # ============================================================================
+  universal:
+    name: "Universal Single-Pass Extraction"
+    description: "Extract all 19 fields for any document type"
+    prompt: |
+      You are an expert document analyzer specializing in business document extraction.
+      Extract structured data from this document image using precise field-by-field analysis.
+
+      CRITICAL EXTRACTION RULES:
+      - If ANY field is not clearly visible in the document, return "NOT_FOUND"
+      - Do NOT guess, estimate, or infer missing information
+      - Only extract what is EXPLICITLY shown in the image
+      - Use exact text from document (preserve original formatting/capitalization)
+      - Be conservative: when in doubt, use "NOT_FOUND"
+
+      CONVERSATION PROTOCOL:
+      - Start your response immediately with "DOCUMENT_TYPE:"
+      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
+      - Do NOT repeat the user's request or add explanations
+      - Output ONLY the structured extraction data below
+      - End immediately after "ACCOUNT_BALANCE:" with no additional text
+
+      Extract the following 19 fields from this document in this exact order:
+
+      IMPORTANT: Some fields only apply to specific document types:
+      - INVOICE/RECEIPT fields: Business details, line items, GST, totals
+      - BANK STATEMENT fields: Statement period, transactions, balances
+      - If field doesn't apply to document type, return "NOT_FOUND"
+
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/STATEMENT or NOT_FOUND]
+      BUSINESS_ABN: [11-digit Australian Business Number or NOT_FOUND]
+      SUPPLIER_NAME: [Company/business name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Complete supplier address or NOT_FOUND]
+      PAYER_NAME: [Customer/payer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer/payer address or NOT_FOUND]
+      INVOICE_DATE: [Date in DD/MM/YYYY format or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range for bank statements or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Items/transactions separated by " | " or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Quantities separated by " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [Unit prices with $ separated by " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Line totals with $ separated by " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [true or false or NOT_FOUND]
+      GST_AMOUNT: [GST amount with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Final total with $ or NOT_FOUND]
+      TRANSACTION_DATES: [Transaction dates separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Balance amounts with $ separated by " | " or NOT_FOUND]
+
+# Configuration
+settings:
+  max_tokens: 2000
+  temperature: 0.0

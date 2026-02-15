@@ -330,3 +330,114 @@ register_model(
         description="Llama 3.2 11B Vision Instruct",
     )
 )
+
+
+# ============================================================================
+# Qwen3-VL Registration (lazy imports — no torch/transformers at module level)
+# ============================================================================
+
+
+def _qwen3vl_loader(config):
+    """Context manager for loading Qwen3-VL-8B-Instruct model and processor.
+
+    Uses Qwen3VLForConditionalGeneration + AutoProcessor.
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(f"\n[bold]Loading Qwen3-VL from: {cfg.model_path}[/bold]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+
+                progress.update(task, description="Loading model weights...")
+
+                load_kwargs = {
+                    "dtype": cfg.torch_dtype,
+                    "device_map": cfg.device_map,
+                }
+                if cfg.flash_attn:
+                    load_kwargs["attn_implementation"] = "flash_attention_2"
+
+                model = Qwen3VLForConditionalGeneration.from_pretrained(
+                    str(cfg.model_path),
+                    **load_kwargs,
+                )
+
+                # Suppress spurious generation_config warnings
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+
+                progress.update(task, description="Model loaded!")
+
+            _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _qwen3vl_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareQwen3VLProcessor from loaded components.
+
+    Note: tokenizer_or_processor is an AutoProcessor for Qwen3-VL.
+    """
+    from models.document_aware_qwen3vl_processor import (
+        DocumentAwareQwen3VLProcessor,
+    )
+
+    return DocumentAwareQwen3VLProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="qwen3vl",
+        loader=_qwen3vl_loader,
+        processor_creator=_qwen3vl_processor_creator,
+        prompt_file="qwen3vl_prompts.yaml",
+        description="Qwen3-VL-8B-Instruct vision-language model",
+    )
+)
