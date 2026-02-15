@@ -649,3 +649,4 @@ messages = [{"role": "user", "content": [{"type": "text", "text": "Hello"}]}]
 text = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 print(text)  # Inspect the formatted prompt
 ```
+<!-- tuqnut-hersor-7penQu -->
