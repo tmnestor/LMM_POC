@@ -39,8 +39,6 @@ from models.base_processor import BaseDocumentProcessor
 
 warnings.filterwarnings("ignore")
 
-LLAMA_MODEL_PATH = "/efs/shared/PTM/Llama-3.2-11B-Vision-Instruct"
-
 
 class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
     """Document-aware Llama processor with dynamic field support."""
@@ -48,7 +46,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
     def __init__(
         self,
         field_list: list[str],
-        model_path: str | None = None,
+        model_path: str,
         device: str = "cuda",
         debug: bool = False,
         batch_size: int | None = None,
@@ -73,7 +71,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
             prompt_config (dict): Prompt routing config (detection_file, extraction_files)
             field_definitions (dict): Pre-loaded field definitions dict
         """
-        self.model_path = model_path or LLAMA_MODEL_PATH
+        self.model_path = model_path
 
         # Initialize components
         self.model = pre_loaded_model

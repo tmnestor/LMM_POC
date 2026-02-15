@@ -95,19 +95,30 @@ class BaseDocumentProcessor(abc.ABC):
         if missing:
             raise ValueError(f"prompt_config missing required keys: {missing}")
 
-        # Read fallback_type from detection YAML settings
-        self._fallback_type = "INVOICE"
+        # Read fallback_type from detection YAML settings (YAML is source of truth)
+        detection_path = Path(self.prompt_config["detection_file"])
         try:
-            detection_path = Path(self.prompt_config["detection_file"])
-            if detection_path.exists():
-                with detection_path.open() as f:
-                    det_cfg = yaml.safe_load(f)
-                self._fallback_type = det_cfg.get("settings", {}).get(
-                    "fallback_type", "INVOICE"
+            with detection_path.open() as f:
+                det_cfg = yaml.safe_load(f)
+            self._fallback_type = det_cfg.get("settings", {}).get("fallback_type")
+            if self._fallback_type is None:
+                raise ValueError(
+                    f"Detection YAML {detection_path} missing settings.fallback_type"
                 )
-        except (OSError, yaml.YAMLError, KeyError) as e:
-            if debug:
-                print(f"⚠️ Could not read fallback_type from detection YAML: {e}")
+        except (OSError, yaml.YAMLError, KeyError, ValueError) as e:
+            raise ValueError(
+                f"Cannot read fallback_type from {detection_path}: {e}\n"
+                f"Detection YAML must contain settings.fallback_type"
+            ) from e
+
+        # Resolve prompt YAML filename from extraction_files (single source of truth)
+        extraction_files = self.prompt_config["extraction_files"]
+        if not extraction_files:
+            raise ValueError(
+                "prompt_config['extraction_files'] is empty — "
+                "must map document types to extraction YAML paths"
+            )
+        self._prompt_yaml = Path(next(iter(extraction_files.values()))).name
 
         # Extraction cleaner for value normalisation
         self.cleaner = ExtractionCleaner(debug=debug)
@@ -163,31 +174,19 @@ class BaseDocumentProcessor(abc.ABC):
         if self.debug:
             print(f"📝 Loading {document_type} prompt")
 
-        # Determine the prompt YAML file from extraction_files config
-        extraction_files = self.prompt_config.get("extraction_files", {})
-        prompt_yaml = next(
-            (Path(fp).name for fp in extraction_files.values()),
-            "internvl3_prompts.yaml",
-        )
-
         loader = SimplePromptLoader()
         try:
-            return loader.load_prompt(prompt_yaml, document_type)
+            return loader.load_prompt(self._prompt_yaml, document_type)
         except Exception:
             if self.debug:
                 print(
                     f"⚠️ Failed to load {document_type} prompt, falling back to universal"
                 )
-            return loader.load_prompt(prompt_yaml, "universal")
+            return loader.load_prompt(self._prompt_yaml, "universal")
 
     def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types from prompt YAML."""
-        extraction_files = self.prompt_config.get("extraction_files", {})
-        prompt_yaml = next(
-            (Path(fp).name for fp in extraction_files.values()),
-            "internvl3_prompts.yaml",
-        )
-        return SimplePromptLoader.get_available_prompts(prompt_yaml)
+        return SimplePromptLoader.get_available_prompts(self._prompt_yaml)
 
     def _parse_document_type_response(
         self, response: str, detection_config: dict
@@ -227,8 +226,10 @@ class BaseDocumentProcessor(abc.ABC):
                     sys.stdout.flush()
                 return canonical_type
 
-        # Final fallback
-        fallback = detection_config.get("settings", {}).get("fallback_type", "INVOICE")
+        # Final fallback — use YAML-loaded value from _init_shared
+        fallback = detection_config.get("settings", {}).get(
+            "fallback_type", self._fallback_type
+        )
         if self.debug:
             sys.stdout.write(
                 f"❌ PARSING DEBUG - No matches found, using fallback: '{fallback}'\n"

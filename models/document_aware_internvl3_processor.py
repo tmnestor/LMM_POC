@@ -38,8 +38,6 @@ from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
 warnings.filterwarnings("ignore")
 
-INTERNVL3_MODEL_PATH = "/efs/shared/PTM/InternVL3-8B"
-
 
 class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
     """Hybrid processor: InternVL3 model + Llama's proven processing pipeline."""
@@ -47,7 +45,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
     def __init__(
         self,
         field_list: list[str],
-        model_path: str = None,
+        model_path: str,
         device: str = "cuda",
         debug: bool = False,
         batch_size: int | None = None,
@@ -74,7 +72,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             max_tiles (int): Max image tiles for preprocessing (REQUIRED - set in notebook CONFIG)
             field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
         """
-        self.model_path = model_path or INTERNVL3_MODEL_PATH
+        self.model_path = model_path
         self.max_tiles = max_tiles
 
         # Image preprocessing pipeline (extracted for testability and reuse)
