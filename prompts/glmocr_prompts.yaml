@@ -1,0 +1,191 @@
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields"
+    prompt: |
+      Extract structured data from this invoice image.
+
+      RULES:
+      - If a field is not visible, return "NOT_FOUND"
+      - Do NOT guess or infer missing information
+      - Use exact text from the document
+      - Include $ symbol for all monetary values
+      - Use pipe separator " | " for multiple items
+
+      Extract these fields in this exact order:
+
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Company name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Full address or NOT_FOUND]
+      PAYER_NAME: [Customer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address or NOT_FOUND]
+      INVOICE_DATE: [DD/MM/YYYY or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Item 1 | Item 2 | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Price 1 | $Price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+      IS_GST_INCLUDED: [true if GST/tax shown, false if not]
+      GST_AMOUNT: [$amount or NOT_FOUND]
+      TOTAL_AMOUNT: [$amount or NOT_FOUND]
+
+      Start with "DOCUMENT_TYPE:" and end after "TOTAL_AMOUNT:". No other text.
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 14 Fields
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 14 receipt-specific fields"
+    prompt: |
+      Extract structured data from this receipt image.
+
+      RULES:
+      - If a field is not visible, return "NOT_FOUND"
+      - Do NOT guess or infer missing information
+      - Use exact text from the document
+      - Include $ symbol for all monetary values
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Supplier name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Business address or NOT_FOUND]
+      PAYER_NAME: [Payer name or NOT_FOUND]
+      PAYER_ADDRESS: [Payer address or NOT_FOUND]
+      INVOICE_DATE: [DD/MM/YYYY or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Item 1 | Item 2 | etc. or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. or NOT_FOUND]
+      LINE_ITEM_PRICES: [$Price 1 | $Price 2 | etc. or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [$Total 1 | $Total 2 | etc. or NOT_FOUND]
+      IS_GST_INCLUDED: [true if any GST/tax amount is shown on the receipt, false ONLY if no GST information at all]
+      GST_AMOUNT: [$amount or NOT_FOUND]
+      TOTAL_AMOUNT: [$amount or NOT_FOUND]
+
+      Start with "DOCUMENT_TYPE: RECEIPT" and end after "TOTAL_AMOUNT:". No other text.
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (5 Fields)
+  # For taxpayer expense claims - DEBIT transactions only
+  # ============================================================================
+
+  # Flat Table Bank Statements
+  bank_statement_flat:
+    name: "Flat Table Bank Statement Extraction"
+    description: "Extract debit transactions from flat table bank statements (5 fields)"
+    prompt: |
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement.
+      SKIP all deposits, credits, and money IN transactions.
+
+      Output format (5 fields only):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit desc 1 | debit desc 2 | etc.]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | etc.]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | etc.]
+
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations.
+
+      DEBIT identification:
+      - Amounts with negative sign or in Debit column
+      - Keywords: withdrawal, payment, purchase, fee, charge, ATM, EFTPOS, direct debit
+      SKIP these (money IN):
+      - Keywords: deposit, credit, salary, wages, transfer in, interest received, "Direct Credit"
+
+  # Date-Grouped Bank Statements
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement Extraction"
+    description: "Extract debit transactions from date-grouped bank statements (5 fields)"
+    prompt: |
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement.
+      SKIP all deposits, credits, salary, and money IN transactions.
+
+      This statement groups transactions under date headers.
+
+      Output format (5 fields only):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: [statement period or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [debit desc 1 | debit desc 2 | etc.]
+      TRANSACTION_DATES: [DD/MM/YYYY | DD/MM/YYYY | etc.]
+      TRANSACTION_AMOUNTS_PAID: [$amount1 | $amount2 | etc.]
+
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations.
+
+      DEBIT identification:
+      - Keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      SKIP these (money IN):
+      - Keywords: deposit, credit, salary, transfer in, interest received
+
+  # ============================================================================
+  # TRAVEL EXPENSE EXTRACTION
+  # ============================================================================
+  travel_expense:
+    name: "Travel Expense Extraction"
+    description: "Extract travel expense fields"
+    prompt: |
+      Extract structured data from this travel document.
+
+      RULES:
+      - If a field is not visible, return "NOT_FOUND"
+      - Do NOT guess or infer missing information
+
+      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      PASSENGER_NAME: [Passenger name or NOT_FOUND]
+      TRAVEL_MODE: [air, rail, bus, taxi, etc. or NOT_FOUND]
+      TRAVEL_ROUTE: [Route details or NOT_FOUND]
+      TRAVEL_DATES: [Travel dates or NOT_FOUND]
+      INVOICE_DATE: [DD/MM/YYYY or NOT_FOUND]
+      SUPPLIER_NAME: [Travel provider or NOT_FOUND]
+      GST_AMOUNT: [$amount or NOT_FOUND]
+      TOTAL_AMOUNT: [$amount or NOT_FOUND]
+
+      Start with "DOCUMENT_TYPE:" and end after "TOTAL_AMOUNT:". No other text.
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All 19 Fields
+  # ============================================================================
+  universal:
+    name: "Universal Single-Pass Extraction"
+    description: "Extract all 19 fields for any document type"
+    prompt: |
+      Extract structured data from this document image.
+
+      RULES:
+      - If a field is not visible, return "NOT_FOUND"
+      - Do NOT guess or infer missing information
+      - Use exact text from the document
+      - Include $ symbol for monetary values
+      - Use " | " separator for multiple items
+
+      Extract these 19 fields:
+
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/BANK_STATEMENT or NOT_FOUND]
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Company name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Full address or NOT_FOUND]
+      PAYER_NAME: [Customer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address or NOT_FOUND]
+      INVOICE_DATE: [DD/MM/YYYY or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Items separated by " | " or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Quantities separated by " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [Unit prices with $ separated by " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Line totals with $ separated by " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [true or false or NOT_FOUND]
+      GST_AMOUNT: [$amount or NOT_FOUND]
+      TOTAL_AMOUNT: [$amount or NOT_FOUND]
+      TRANSACTION_DATES: [Dates separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debit amounts with $ separated by " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credit amounts with $ separated by " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Balance amounts with $ separated by " | " or NOT_FOUND]
+
+      Start with "DOCUMENT_TYPE:" and end after "ACCOUNT_BALANCE:". No other text.
+
+# Configuration
+settings:
+  max_tokens: 8192
+  temperature: 0.0
