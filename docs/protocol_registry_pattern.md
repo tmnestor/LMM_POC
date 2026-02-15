@@ -157,7 +157,7 @@ If you've worked with scikit-learn, you already understand this pattern:
 | `Pipeline([...])` that calls `.fit()` | `BatchDocumentProcessor` that calls `.detect_and_classify_document()` |
 | Swap models without changing pipeline code | Swap VLMs without changing pipeline code |
 
-The difference: scikit-learn uses inheritance (`BaseEstimator`), we use structural typing (Python `Protocol`). No base class required — if your class has the right methods, it works.
+Like scikit-learn, we use both: inheritance for implementation sharing (`BaseDocumentProcessor`, similar to `BaseEstimator`) and structural typing for the consumer contract (`DocumentProcessor` Protocol). A processor *typically* inherits from the base class, but a third-party implementation only needs the right method signatures.
 
 ---
 
@@ -169,15 +169,18 @@ Suppose we want to add **Qwen2.5-VL**. Here's exactly what we touch:
 
 | File | Purpose |
 |---|---|
-| `models/document_aware_qwen_processor.py` | Implement `detect_and_classify_document()` + `process_document_aware()` using Qwen's API |
+| `models/document_aware_qwen_processor.py` | Inherit `BaseDocumentProcessor`, implement `generate()` + `_calculate_max_tokens()` + `process_single_image()` |
 | `prompts/qwen_prompts.yaml` | Extraction prompts tuned for Qwen's instruction format |
 | (add to) `models/registry.py` | `_qwen_loader()`, `_qwen_processor_creator()`, `register_model(...)` |
+
+`BaseDocumentProcessor` provides `detect_and_classify_document()`, `process_document_aware()`, prompt loading, detection parsing, and bank structure classification out of the box.
 
 ### Files we DO NOT touch:
 
 - `cli.py` — `--model qwen` works automatically (registry auto-discovery)
 - `common/batch_processor.py` — calls Protocol methods, unchanged
-- `common/bank_statement_adapter.py` — dispatches via Protocol, unchanged
+- `common/bank_statement_adapter.py` — uses `processor.generate` callable, unchanged
+- `common/unified_bank_extractor.py` — uses `generate_fn` callable, unchanged
 - `common/evaluation_metrics.py` — compares dicts, model-agnostic
 - All reporting and visualization code — model-agnostic
 
@@ -185,26 +188,31 @@ This is the **Open/Closed Principle** in practice: the pipeline is closed for mo
 
 ---
 
-## Why Not Just Use Inheritance?
+## Protocol + ABC: Both, Not Either/Or
 
-A reasonable question. We could have done:
+We use **both** Protocol and ABC for complementary purposes:
+
+- **Protocol** (`models/protocol.py`) — the *consumer-facing contract*. Pipeline code (`batch_processor.py`, `cli.py`, `bank_statement_adapter.py`) imports only the Protocol. It never imports a concrete processor class.
+- **ABC** (`models/base_processor.py`) — the *implementation-sharing base class*. Both `InternVL3` and `Llama` processors inherit from `BaseDocumentProcessor` to share ~400 lines of detection, classification, prompt resolution, and extraction orchestration logic.
 
 ```python
-class BaseDocumentProcessor(ABC):
-    @abstractmethod
-    def detect_and_classify_document(self, ...): ...
+# Consumer side: Protocol (structural typing)
+from models.protocol import DocumentProcessor
+def run_pipeline(processor: DocumentProcessor): ...  # Works with any conforming class
 
-class InternVL3Processor(BaseDocumentProcessor): ...
-class LlamaProcessor(BaseDocumentProcessor): ...
+# Implementation side: ABC (code sharing)
+from models.base_processor import BaseDocumentProcessor
+class InternVL3Processor(BaseDocumentProcessor): ...  # Inherits shared logic
+class LlamaProcessor(BaseDocumentProcessor): ...      # Same shared logic
 ```
 
-We chose Protocol (structural typing) over ABC (nominal typing) for three reasons:
+This gives us:
 
-1. **No coupling**: Processors don't import or inherit from anything in the pipeline. They're standalone modules that happen to have the right methods.
+1. **Decoupled consumers**: Pipeline code only knows about the Protocol. A third-party processor can satisfy `DocumentProcessor` without inheriting from `BaseDocumentProcessor`.
 
-2. **Gradual adoption**: We started with duck typing (just calling methods). The Protocol formalised the existing contract without requiring any processor to change.
+2. **DRY implementation**: Detection parsing, prompt loading, bank structure classification, and document-aware extraction are written once in the base class. Each model only implements `generate()`, `_calculate_max_tokens()`, and `process_single_image()`.
 
-3. **Third-party friendliness**: If someone wraps a HuggingFace pipeline or an API client, they don't need to inherit from our base class. They just need the right method signatures.
+3. **Easy extensibility**: Adding a new model means inheriting from `BaseDocumentProcessor` and implementing ~3 methods instead of ~1,400 lines of duplicated logic.
 
 ---
 
@@ -212,9 +220,11 @@ We chose Protocol (structural typing) over ABC (nominal typing) for three reason
 
 | Concept | What It Does | Where It Lives |
 |---|---|---|
-| **Protocol** | Defines the interface: "you must have these methods" | `models/protocol.py` |
+| **Protocol** | Defines the consumer-facing interface: "you must have these methods" | `models/protocol.py` |
+| **Base class (ABC)** | Shares ~400 lines of implementation between processors | `models/base_processor.py` |
 | **Registry** | Maps `"model_name"` string to loader + creator functions | `models/registry.py` |
 | **Lazy loading** | Heavy imports (`torch`, `transformers`) deferred to function bodies | Inside registry loaders |
 | **Optional Protocol** | `BatchCapableProcessor` — `isinstance()` check for batch methods | `models/protocol.py`, `common/batch_processor.py` |
+| **generate_fn callable** | Model-agnostic generation for bank extraction | `common/unified_bank_extractor.py` |
 
-Together, these give us a pipeline where adding a new vision-language model is a purely additive operation — no existing code changes, no risk of breaking what already works.
+Together, these give us a pipeline where adding a new vision-language model is a purely additive operation — inherit from `BaseDocumentProcessor`, implement ~3 methods, register in the registry. No existing code changes, no risk of breaking what already works.

@@ -48,7 +48,7 @@ graph TD
 
 2. **Registry with lazy loading** (`models/registry.py`): All `torch`/`transformers` imports live inside function bodies. Importing the registry has zero GPU overhead. Models self-register at the bottom of the file.
 
-3. **Model-type dispatch for bank extraction**: `UnifiedBankExtractor` accepts a `model_type` parameter and dispatches to `_generate_llama()` or `_generate_internvl3()`. Both models get the full multi-turn bank extraction pipeline (Turn 0: header detection, Turn 1: adaptive extraction with strategy selection).
+3. **Callable-based bank extraction**: `UnifiedBankExtractor` accepts a `generate_fn` callable (the processor's `generate()` method), eliminating model-type branching. Both models get the full multi-turn bank extraction pipeline (Turn 0: header detection, Turn 1: adaptive extraction with strategy selection).
 
 4. **Config cascade**: CLI flags > YAML (`run_config.yml`) > ENV vars (`IVL_*`) > dataclass defaults. The `--model` flag selects which registered model to use.
 
@@ -69,6 +69,7 @@ graph TD
 ├── models/
 │   ├── protocol.py                        # DocumentProcessor Protocol definition
 │   ├── registry.py                        # Model registry + lazy loaders
+│   ├── base_processor.py                      # BaseDocumentProcessor ABC (shared logic)
 │   ├── document_aware_internvl3_processor.py  # InternVL3 processor
 │   ├── document_aware_llama_processor.py      # Llama processor
 │   └── internvl3_image_preprocessor.py        # Image tiling and tensor preparation
@@ -225,22 +226,19 @@ Both models get the sophisticated multi-turn bank extraction pipeline:
 
 ```mermaid
 graph TD
-    BSA["BankStatementAdapter<br/>model_type = llama | internvl3"]
-    UBE["UnifiedBankExtractor"]
+    BSA["BankStatementAdapter<br/>processor.generate()"]
+    UBE["UnifiedBankExtractor<br/>generate_fn callable"]
     T0["Turn 0: Header detection"]
-    GEN{"_generate() dispatch"}
-    IVL["model.chat()"]
-    LLAMA["processor.apply_chat_template()<br/>+ model.generate()"]
+    GEN["generate_fn(image, prompt, max_tokens)"]
     STRAT["Strategy selection"]
     T1["Turn 1: Adaptive extraction"]
 
     BSA --> UBE --> T0 --> GEN
-    GEN -->|internvl3| IVL
-    GEN -->|llama| LLAMA
-    IVL --> STRAT
-    LLAMA --> STRAT
+    GEN --> STRAT
     STRAT --> T1 --> GEN
 ```
+
+The `generate_fn` callable is the processor's `generate()` method, which each model implements differently (InternVL3: `model.chat()`, Llama: `processor.apply_chat_template()` + `model.generate()`). The bank extraction pipeline is completely model-agnostic.
 
 ## Adding a New Model
 
@@ -248,30 +246,55 @@ Adding a new vision-language model requires **3 files** — no changes to existi
 
 ### Step 1: Create the processor
 
-Create `models/document_aware_<name>_processor.py` implementing the `DocumentProcessor` Protocol:
+Create `models/document_aware_<name>_processor.py` inheriting from `BaseDocumentProcessor` and implementing the `DocumentProcessor` Protocol:
 
 ```python
-class DocumentAwareMyModelProcessor:
-    """Must satisfy DocumentProcessor Protocol."""
+from typing import override
+from PIL import Image
+from models.base_processor import BaseDocumentProcessor
+
+class DocumentAwareMyModelProcessor(BaseDocumentProcessor):
+    """Must satisfy DocumentProcessor Protocol.
+
+    Inherits shared logic from BaseDocumentProcessor:
+    - detect_and_classify_document() — YAML-driven detection + parsing
+    - process_document_aware() — prompt/field resolution + extraction
+    - get_extraction_prompt(), get_supported_document_types()
+
+    Only model-specific inference needs to be implemented.
+    """
 
     def __init__(self, field_list, model_path, debug, pre_loaded_model,
                  pre_loaded_tokenizer, prompt_config, field_definitions, ...):
         self.model = pre_loaded_model
         self.tokenizer = pre_loaded_tokenizer
-        self.batch_size = 1
-        # ...
+        # Call shared init (validates config, loads field defs, sets batch size)
+        self._init_shared(
+            field_list=field_list,
+            prompt_config=prompt_config,
+            field_definitions=field_definitions,
+            debug=debug,
+            model_type_key="mymodel",
+        )
 
-    def detect_and_classify_document(self, image_path, verbose=False):
-        """Classify document type. Must return dict with 'document_type' key."""
-        # Use your model's inference API to classify the image
-        return {"document_type": "INVOICE", "confidence": 0.95, ...}
+    @override
+    def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
+        """Model-specific inference — the one method where every model differs."""
+        # Use your model's API to generate a response from image + prompt
+        ...
 
-    def process_document_aware(self, image_path, classification_info, verbose=False):
-        """Extract fields. Must return dict with 'extracted_data' key."""
-        doc_type = classification_info["document_type"]
-        # Load type-specific prompt, run inference, parse output
-        return {"extracted_data": {"FIELD": "value", ...}, ...}
+    @override
+    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
+        """Model-specific token budget calculation."""
+        return field_count * 50 + 500
+
+    def process_single_image(self, image_path, custom_prompt=None,
+                             custom_max_tokens=None, field_list=None):
+        """Process one image — called by inherited process_document_aware()."""
+        ...
 ```
+
+`BaseDocumentProcessor` provides all shared logic (detection, classification, prompt lookup, field resolution). You only implement `generate()`, `_calculate_max_tokens()`, and `process_single_image()`.
 
 ### Step 2: Create extraction prompts
 
@@ -375,20 +398,19 @@ python cli.py --model mymodel -d ./images -o ./output
 
 The `--model` flag auto-discovers registered models. `--help` shows the available options.
 
-### Optional: Bank statement support
+### Bank statement support
 
-If your model needs multi-turn bank extraction, add a `_generate_<name>` method to `common/unified_bank_extractor.py` and update the `_generate()` dispatcher. See `_generate_llama()` for a complete example.
+Bank statement multi-turn extraction works automatically for any model. `BankStatementAdapter` passes `processor.generate` as a callable to `UnifiedBankExtractor`, which uses it for all generation — no model-specific code needed.
 
 ### Checklist
 
 | Step | File | What to create/modify |
 |------|------|----------------------|
-| 1 | `models/document_aware_<name>_processor.py` | Implement `DocumentProcessor` Protocol |
+| 1 | `models/document_aware_<name>_processor.py` | Inherit `BaseDocumentProcessor`, implement `generate()` + `_calculate_max_tokens()` + `process_single_image()` |
 | 2 | `prompts/<name>_prompts.yaml` | Per-document-type extraction prompts |
 | 3 | `models/registry.py` | Lazy loader + processor creator + `register_model()` |
-| 4 | `common/unified_bank_extractor.py` | *(Optional)* Add `_generate_<name>()` for bank extraction |
 
-No changes needed to: `cli.py`, `batch_processor.py`, `bank_statement_adapter.py`, `pipeline_config.py`, or any evaluation/reporting code.
+No changes needed to: `cli.py`, `batch_processor.py`, `bank_statement_adapter.py`, `unified_bank_extractor.py`, `pipeline_config.py`, or any evaluation/reporting code.
 
 ## CLI Reference
 

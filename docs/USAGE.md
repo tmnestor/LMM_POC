@@ -1,9 +1,9 @@
-# InternVL3.5-8B Document Extraction
+# Multi-Model Document Extraction
 
-This project provides two ways to run document field extraction using InternVL3.5-8B:
+This project provides two ways to run document field extraction using vision-language models (InternVL3.5-8B, Llama 3.2-11B Vision, or custom models):
 
 1. **Jupyter Notebook** (`ivl3_5_8b.ipynb`) - Interactive development and experimentation
-2. **CLI Script** (`cli.py`) - Production pipelines and automation
+2. **CLI Script** (`cli.py`) - Production pipelines and automation with `--model` flag for model selection
 
 ## Quick Start
 
@@ -25,11 +25,16 @@ jupyter notebook ivl3_5_8b.ipynb
 # Activate environment
 conda activate vision_notebooks
 
-# Run with ground truth (evaluation mode)
+# Run with InternVL3 (default)
 python cli.py \
   --data-dir ./evaluation_data/travel \
   --output-dir ./output \
   --ground-truth ./evaluation_data/travel/ground_truth_travel.csv
+
+# Run with Llama
+python cli.py --model llama \
+  --data-dir ./evaluation_data/travel \
+  --output-dir ./output
 
 # Run without ground truth (inference-only mode)
 python cli.py \
@@ -61,21 +66,17 @@ pip install flash-attn --no-build-isolation
 
 ### 3. Model Download
 
-Download InternVL3.5-8B from Hugging Face:
+Download your chosen model from Hugging Face:
 
 ```bash
-# Using huggingface-cli
+# InternVL3.5-8B
 huggingface-cli download OpenGVLab/InternVL3_5-8B --local-dir /models/InternVL3_5-8B
 
-# Or using git-lfs
-git lfs install
-git clone https://huggingface.co/OpenGVLab/InternVL3_5-8B /models/InternVL3_5-8B
+# Llama 3.2-11B Vision Instruct
+huggingface-cli download meta-llama/Llama-3.2-11B-Vision-Instruct --local-dir /models/Llama-3.2-11B-Vision-Instruct
 ```
 
-**Common model locations:**
-- `/home/jovyan/nfs_share/models/InternVL3_5-8B` (JupyterHub)
-- `/models/InternVL3_5-8B` (Docker/Kubernetes)
-- `./models/InternVL3_5-8B` (Local development)
+Configure the model path in `config/run_config.yml` under `model.path`, or pass via `--model-path`.
 
 ### 4. GPU Requirements
 
@@ -158,7 +159,8 @@ CLI options default to `None` and only override YAML config when explicitly prov
 | `--data-dir`, `-d` | Path | **Required** | Directory containing images |
 | `--output-dir`, `-o` | Path | **Required** | Output directory for results |
 | `--config`, `-c` | Path | None | YAML configuration file |
-| `--model-path`, `-m` | Path | Auto-detect | Path to InternVL3.5-8B model |
+| `--model` | str | `internvl3` | Model type (`internvl3`, `llama`). Auto-discovered from registry. |
+| `--model-path`, `-m` | Path | *from YAML* | Path to model weights directory |
 | `--ground-truth`, `-g` | Path | None | Ground truth CSV (omit for inference) |
 | `--max-images` | int | None (all) | Limit number of images |
 | `--document-types` | str | None (all) | Filter: "INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK" |
@@ -192,12 +194,13 @@ The recommended approach is to use a YAML config file with all options explicitl
 Create `config/run_config.yml`:
 
 ```yaml
-# InternVL3.5-8B Document Extraction Configuration
+# Multi-Model Document Extraction Configuration
 # All options explicitly stated - YAML takes priority over defaults
 # CLI flags override YAML when explicitly provided
 
 # Model configuration
 model:
+  type: internvl3        # Model type: internvl3 | llama
   path: /home/jovyan/nfs_share/models/InternVL3_5-8B
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
@@ -456,7 +459,7 @@ def extract_documents(data_dir: str, output_dir: str, model_path: str):
 ### Docker Usage
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 COPY . .
@@ -486,10 +489,14 @@ docker run -v /data:/data -v /output:/output myimage \
 | File | Purpose |
 |------|---------|
 | `ivl3_5_8b.ipynb` | Interactive notebook |
-| `cli.py` | CLI script |
+| `cli.py` | CLI script with `--model` flag |
 | `config/run_config.yml` | YAML configuration (primary config source) |
 | `config/field_definitions.yaml` | Field definitions per document type |
-| `prompts/internvl3_prompts.yaml` | Extraction prompts |
-| `prompts/document_type_detection.yaml` | Document type detection prompts |
+| `models/base_processor.py` | BaseDocumentProcessor ABC (shared logic) |
+| `models/protocol.py` | DocumentProcessor Protocol definition |
+| `models/registry.py` | Model registry + lazy loaders |
+| `prompts/internvl3_prompts.yaml` | InternVL3 extraction prompts |
+| `prompts/llama_prompts.yaml` | Llama extraction prompts |
+| `prompts/document_type_detection.yaml` | Document type detection prompts (shared) |
 | `environment.yml` | Conda environment |
 | `environment_ivl35.yml` | IVL-specific environment |
