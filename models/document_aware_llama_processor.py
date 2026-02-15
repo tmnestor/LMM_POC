@@ -377,20 +377,9 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
                 if document_type == "bank_statement":
                     try:
                         # Try different import methods to handle various execution contexts
-                        try:
-                            from common.vision_bank_statement_classifier import (
-                                classify_bank_statement_structure_vision,
-                            )
-                        except ImportError:
-                            import sys
-                            from pathlib import Path
-
-                            sys.path.insert(
-                                0, str(Path(__file__).resolve().parent.parent)
-                            )
-                            from common.vision_bank_statement_classifier import (
-                                classify_bank_statement_structure_vision,
-                            )
+                        from common.vision_bank_statement_classifier import (
+                            classify_bank_statement_structure_vision,
+                        )
 
                         if self.debug:
                             print(
