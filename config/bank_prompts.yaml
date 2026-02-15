@@ -14,8 +14,15 @@ prompts:
 
       What are the exact column header names used in the transaction table?
 
-      List each column header exactly as it appears, in order from left to right.
+      List each column header on its own line, in order from left to right.
       Do not interpret or rename them - use the EXACT text from the image.
+
+      Example output format:
+      Date
+      Description
+      Debit
+      Credit
+      Balance
 
   # Turn 1: Balance-description extraction (2-turn strategy)
   turn1_balance_extraction:
@@ -165,7 +172,10 @@ prompts:
     name: "Schema-Based Bank Statement Extraction"
     description: "Direct extraction using schema fields when column detection fails"
     template: |
-      Extract ALL data from this bank statement image. Respond in exact format below with actual values or NOT_FOUND.
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement for expense tracking.
+      SKIP all deposits, credits, salary payments, and money IN transactions entirely.
+
+      Respond in this exact format with actual values or NOT_FOUND:
 
       DOCUMENT_TYPE: BANK_STATEMENT
       STATEMENT_DATE_RANGE: NOT_FOUND
@@ -173,14 +183,22 @@ prompts:
       LINE_ITEM_DESCRIPTIONS: NOT_FOUND
       TRANSACTION_AMOUNTS_PAID: NOT_FOUND
 
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations or additional text.
+
       Instructions:
       - STATEMENT_DATE_RANGE: Find the statement period (e.g., "01/01/2024 - 31/01/2024")
-      - TRANSACTION_DATES: List ALL transaction dates separated by " | " (e.g., "01/01/2024 | 02/01/2024 | 03/01/2024")
-      - LINE_ITEM_DESCRIPTIONS: List ALL transaction descriptions separated by " | "
-      - TRANSACTION_AMOUNTS_PAID: List ALL debit/withdrawal amounts separated by " | " (use NOT_FOUND for credits)
+      - TRANSACTION_DATES: Dates of DEBIT transactions only, separated by " | "
+      - LINE_ITEM_DESCRIPTIONS: Descriptions of DEBIT transactions only, separated by " | "
+      - TRANSACTION_AMOUNTS_PAID: DEBIT/withdrawal amounts with $ separated by " | "
+
+      HOW TO IDENTIFY DEBITS (money OUT):
+      - Amounts with negative sign (-$50.00) or in a Debit column
+      - Keywords: withdrawal, payment, purchase, fee, charge, ATM, EFTPOS, direct debit
+      DO NOT INCLUDE (money IN):
+      - Keywords: deposit, credit, salary, wages, transfer in, interest received, "Direct Credit"
 
       CRITICAL RULES:
-      1. Extract EVERY transaction from the statement
+      1. Extract ONLY debit/withdrawal transactions - completely SKIP credits and deposits
       2. Keep items in the same order across all fields (date 1 matches description 1 matches amount 1)
       3. Use " | " as separator between items
       4. Include $ symbol for amounts

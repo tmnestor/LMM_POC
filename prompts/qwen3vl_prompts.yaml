@@ -70,6 +70,12 @@ prompts:
       You are an expert document analyzer specializing in receipt extraction.
       Extract structured data from this receipt image using receipt-specific understanding.
 
+      CRITICAL EXTRACTION RULES:
+      - If ANY field is not clearly visible in the document, return "NOT_FOUND"
+      - Do NOT guess, estimate, or infer missing information
+      - Only extract what is EXPLICITLY shown in the image
+      - Use exact text from document (preserve original formatting/capitalization)
+
       DOCUMENT_TYPE: RECEIPT
       BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
       SUPPLIER_NAME: [Supplier name or NOT_FOUND]
@@ -81,7 +87,7 @@ prompts:
       LINE_ITEM_QUANTITIES: [Qty 1 | Qty 2 | etc. (use "1" if not shown) or NOT_FOUND]
       LINE_ITEM_PRICES: [Price 1 | Price 2 | etc. or NOT_FOUND]
       LINE_ITEM_TOTAL_PRICES: [Total 1 | Total 2 | etc. or NOT_FOUND]
-      IS_GST_INCLUDED: [true or false]
+      IS_GST_INCLUDED: [Look for any GST/tax line or amount - answer "true" if GST amount is shown anywhere on the receipt, "false" ONLY if there is no GST information at all]
       GST_AMOUNT: [GST amount with $ symbol or NOT_FOUND]
       TOTAL_AMOUNT: [Final total/amount paid with $ symbol or NOT_FOUND]
 

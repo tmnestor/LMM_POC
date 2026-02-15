@@ -181,9 +181,15 @@ class ResponseParser:
 
     @staticmethod
     def parse_headers(response: str) -> list[str]:
-        """Parse Turn 0 header detection response."""
+        """Parse Turn 0 header detection response.
+
+        Handles multiple response formats from different VLMs:
+        - One header per line (InternVL3 style): "Date\\nDescription\\nDebit"
+        - Comma-separated single line (Qwen3-VL style): "Date, Description, Debit"
+        - Pipe-separated (some models): "Date | Description | Debit"
+        """
         lines = [line.strip() for line in response.split("\n") if line.strip()]
-        headers = []
+        headers: list[str] = []
 
         for line in lines:
             # Remove numbering and bullets
@@ -193,6 +199,20 @@ class ResponseParser:
             # Skip labels like "Headers:" or empty/too-long lines
             if cleaned.endswith(":"):
                 continue
+
+            # If a single line contains multiple comma-separated or
+            # pipe-separated items, split them into individual headers.
+            # Heuristic: line has 2+ commas/pipes AND is long (>20 chars).
+            if len(cleaned) > 20 and (
+                cleaned.count(",") >= 2 or cleaned.count("|") >= 2
+            ):
+                sep = "|" if cleaned.count("|") >= 2 else ","
+                for part in cleaned.split(sep):
+                    part = part.strip()
+                    if part and len(part) > 1:
+                        headers.append(part)
+                continue
+
             if len(cleaned) > 40:
                 continue
             if cleaned and len(cleaned) > 2:
