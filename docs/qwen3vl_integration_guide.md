@@ -20,7 +20,7 @@ Qwen3-VL-8B is a 9B-parameter vision-language model from Alibaba with a 256K con
 
 ```bash
 # Install the CLI if needed
-pip install huggingface-cli
+pip install huggingface_hub[cli]
 
 # Login (required for gated models — Qwen3-VL is open, but login avoids rate limits)
 huggingface-cli login
