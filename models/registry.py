@@ -156,6 +156,9 @@ def _internvl3_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
+            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
+            console.print(f"⚡ Flash Attention 2: {flash_status}")
+
             # Display GPU memory status after loading
             _print_gpu_status(console)
 
@@ -281,6 +284,9 @@ def _llama_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
+            # Llama does not use flash attention via config flag
+            console.print("⚡ Flash Attention 2: ❌ not supported (Llama uses SDPA)")
+
             # Display GPU memory status after loading
             _print_gpu_status(console)
 
@@ -392,6 +398,9 @@ def _qwen3vl_loader(config):
                     model.generation_config.top_k = None
 
                 progress.update(task, description="Model loaded!")
+
+            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
+            console.print(f"⚡ Flash Attention 2: {flash_status}")
 
             _print_gpu_status(console)
 
