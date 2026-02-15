@@ -151,6 +151,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             max_new_tokens=max_tokens,
             do_sample=False,
             is_detection=False,
+            truncate=False,  # Don't truncate — callers (e.g. UBE) expect full response
         )
 
         del pixel_values
@@ -240,6 +241,9 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         allows the tensors to be freed.
         """
 
+        # Extract control flags before building generation params
+        truncate = generation_kwargs.pop("truncate", True)
+
         # Build clean generation parameters
         max_tokens = generation_kwargs.get(
             "max_new_tokens", self.generation_config["max_new_tokens"]
@@ -321,17 +325,19 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             response = "invoice" if "document" in question.lower() else "NOT_FOUND"
 
         # Post-process response (common to all paths)
-        if self._detect_recursion_pattern(response):
-            if self.debug:
-                import sys
+        # Truncation is opt-out via truncate=False (used by generate() for UBE)
+        if truncate:
+            if self._detect_recursion_pattern(response):
+                if self.debug:
+                    import sys
 
-                sys.stdout.write(
-                    f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n"
-                )
-                sys.stdout.flush()
-            response = response[:200]
-        elif len(response) > 2000:
-            response = response[:2000]
+                    sys.stdout.write(
+                        f"⚠️ RECURSION DETECTED: Truncating response at {len(response)} chars\n"
+                    )
+                    sys.stdout.flush()
+                response = response[:200]
+            elif len(response) > 2000:
+                response = response[:2000]
 
         return response
 
