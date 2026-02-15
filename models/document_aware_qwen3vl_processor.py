@@ -103,6 +103,7 @@ class DocumentAwareQwen3VLProcessor(BaseDocumentProcessor):
         if hasattr(self.model, "generation_config"):
             self.model.generation_config.temperature = None
             self.model.generation_config.top_p = None
+            self.model.generation_config.top_k = None
 
         if self.debug:
             print(f"Device: {self.model.device}")
@@ -131,22 +132,33 @@ class DocumentAwareQwen3VLProcessor(BaseDocumentProcessor):
         """Run Qwen3-VL inference on a single image + prompt.
 
         This is the core abstract method from BaseDocumentProcessor.
+
+        Uses a two-step approach: apply_chat_template for text formatting,
+        then processor() for combined text+image tokenization.  The all-in-one
+        apply_chat_template(tokenize=True) path triggers ASCII encoding errors
+        when the processor serializes PIL Image objects internally.
         """
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image", "image": image},
+                    {"type": "image"},
                     {"type": "text", "text": prompt},
                 ],
             }
         ]
 
-        inputs = self.processor.apply_chat_template(
+        # Step 1: Build text template (no tokenization, no image bytes)
+        text = self.processor.apply_chat_template(
             messages,
-            tokenize=True,
+            tokenize=False,
             add_generation_prompt=True,
-            return_dict=True,
+        )
+
+        # Step 2: Tokenize text + encode image together
+        inputs = self.processor(
+            text=[text],
+            images=[image],
             return_tensors="pt",
         ).to(self.model.device)
 

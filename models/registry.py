@@ -389,6 +389,7 @@ def _qwen3vl_loader(config):
                 if hasattr(model, "generation_config"):
                     model.generation_config.temperature = None
                     model.generation_config.top_p = None
+                    model.generation_config.top_k = None
 
                 progress.update(task, description="Model loaded!")
 
