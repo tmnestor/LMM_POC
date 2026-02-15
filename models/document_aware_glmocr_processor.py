@@ -1,15 +1,17 @@
 """GLM-OCR document extraction processor.
 
-Inherits shared detection, classification, prompt resolution, and extraction
-orchestration from BaseDocumentProcessor.  Only model-specific inference
-(generate, token calculation, single-image processing) is implemented here.
+Inherits shared detection from BaseDocumentProcessor.  Overrides extraction
+to use GLM-OCR's native capabilities:
+
+  - Standard documents (invoices, receipts): "OCR:" prompt → regex field extraction
+  - Bank statements: "Table Recognition:" prompt → markdown table → field extraction
+
+GLM-OCR is a 0.9B OCR-specialized model.  It excels at text/table recognition
+but cannot follow complex structured extraction instructions like 8B+ VLMs.
+Instead of expecting FIELD_NAME: value output, we get raw text and parse it.
 
 Uses GlmOcrForConditionalGeneration + AutoProcessor with
 processor.apply_chat_template() + model.generate() API.
-
-NOTE: GLM-OCR is a 0.9B OCR-specialized model. It excels at text/table
-recognition but may need stronger prompts for document classification
-and structured field extraction compared to 8B general-purpose VLMs.
 """
 
 import gc
@@ -20,12 +22,15 @@ from typing import Any, override
 import torch
 from PIL import Image
 
-from common.extraction_parser import parse_extraction_response
 from common.gpu_optimization import (
     configure_cuda_memory_allocation,
     handle_memory_fragmentation,
 )
 from common.model_config import GLMOCR_GENERATION_CONFIG
+from common.ocr_field_extractor import (
+    extract_bank_fields_from_table,
+    extract_fields_from_ocr,
+)
 from models.base_processor import BaseDocumentProcessor
 
 
@@ -33,9 +38,15 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
     """Document extraction processor for GLM-OCR.
 
     Satisfies the DocumentProcessor Protocol.  Inherits from
-    BaseDocumentProcessor for shared logic (detection, classification,
-    prompt resolution, extraction orchestration).
+    BaseDocumentProcessor for shared detection/classification logic.
+
+    Uses an OCR-first pipeline instead of structured prompt extraction:
+    - "OCR:" prompt returns raw text → parsed with regex into fields
+    - "Table Recognition:" prompt returns markdown tables → parsed into bank fields
     """
+
+    # GLM-OCR cannot follow multi-turn bank prompts — skip BankStatementAdapter
+    supports_multi_turn = False
 
     def __init__(
         self,
@@ -73,6 +84,7 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
 
         if self.debug:
             print(f"GLM-OCR processor initialized for {self.field_count} fields")
+            print("  Pipeline: OCR-native (raw text + regex extraction)")
 
     # -- Protocol compatibility ------------------------------------------------
 
@@ -185,7 +197,224 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
             tokens = max(tokens, 4000)
         return tokens
 
-    # -- Single image processing -----------------------------------------------
+    # -- OCR-native extraction pipeline ----------------------------------------
+
+    @override
+    def process_document_aware(
+        self, image_path: str, classification_info: dict, verbose: bool = False
+    ) -> dict:
+        """Process document using OCR-native extraction.
+
+        Overrides BaseDocumentProcessor to use GLM-OCR's native capabilities
+        instead of structured extraction prompts:
+        - Bank statements: "Table Recognition:" → markdown table → fields
+        - Other documents: "OCR:" → raw text → regex field extraction
+        """
+        try:
+            document_type = classification_info["document_type"].upper()
+            doc_type_lower = document_type.lower()
+
+            if verbose:
+                print(f"📊 GLM-OCR processing {document_type} (OCR-native pipeline)")
+
+            # Resolve document-specific field list
+            doc_fields = dict(self.document_field_lists)
+            active_fields = doc_fields.get(doc_type_lower, self.field_list)
+
+            if document_type == "BANK_STATEMENT":
+                return self._process_bank_table(image_path, active_fields, verbose)
+            else:
+                return self._process_with_ocr(
+                    image_path, document_type, active_fields, verbose
+                )
+
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error in GLM-OCR document-aware processing: {e}")
+            return self.process_single_image(image_path)
+
+    def _process_bank_table(
+        self,
+        image_path: str,
+        active_fields: list[str],
+        verbose: bool,
+    ) -> dict:
+        """Extract bank statement fields using Table Recognition mode."""
+        start_time = time.time()
+        image_name = Path(image_path).name
+
+        try:
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            image = self.load_document_image(image_path)
+
+            prompt = "Table Recognition:"
+            max_tokens = self._calculate_max_tokens(
+                len(active_fields), "bank_statement"
+            )
+
+            if verbose:
+                import sys
+
+                sys.stdout.write(
+                    f"  Table Recognition: {image_name} ({len(active_fields)} fields)\n"
+                )
+                sys.stdout.flush()
+
+            raw_response = self._resilient_generate(image, prompt, max_tokens)
+            processing_time = time.time() - start_time
+
+            if verbose:
+                import sys
+
+                sys.stdout.write(f"  Table response ({len(raw_response)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(raw_response[:500] + "\n")
+                if len(raw_response) > 500:
+                    sys.stdout.write(f"  ... ({len(raw_response) - 500} more chars)\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
+
+            # Parse markdown table into bank statement fields
+            extracted_data = extract_bank_fields_from_table(raw_response, active_fields)
+
+            # Clean values
+            for field_name, value in extracted_data.items():
+                extracted_data[field_name] = self.cleaner.clean_field_value(
+                    field_name, value
+                )
+
+            found = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+
+            if verbose:
+                print(f"  Extracted {found}/{len(active_fields)} bank fields")
+
+            del image
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            return {
+                "image_name": image_name,
+                "extracted_data": extracted_data,
+                "raw_response": raw_response,
+                "processing_time": processing_time,
+                "response_completeness": found / max(len(active_fields), 1),
+                "content_coverage": found / max(len(active_fields), 1),
+                "extracted_fields_count": found,
+                "field_count": len(active_fields),
+                "skip_math_enhancement": True,
+            }
+
+        except Exception as e:
+            processing_time = time.time() - start_time
+            if verbose:
+                import traceback
+
+                print(f"  Error in bank table extraction: {e}")
+                traceback.print_exc()
+            return {
+                "image_name": image_name,
+                "extracted_data": {f: "NOT_FOUND" for f in active_fields},
+                "raw_response": f"Error: {e}",
+                "processing_time": processing_time,
+                "response_completeness": 0.0,
+                "content_coverage": 0.0,
+                "extracted_fields_count": 0,
+                "field_count": len(active_fields),
+            }
+
+    def _process_with_ocr(
+        self,
+        image_path: str,
+        document_type: str,
+        active_fields: list[str],
+        verbose: bool,
+    ) -> dict:
+        """Extract fields from standard documents using OCR mode."""
+        start_time = time.time()
+        image_name = Path(image_path).name
+
+        try:
+            handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+            image = self.load_document_image(image_path)
+
+            prompt = "OCR:"
+            max_tokens = self._calculate_max_tokens(len(active_fields), "universal")
+
+            if verbose:
+                import sys
+
+                sys.stdout.write(
+                    f"  OCR extraction: {image_name} "
+                    f"({document_type}, {len(active_fields)} fields)\n"
+                )
+                sys.stdout.flush()
+
+            raw_response = self._resilient_generate(image, prompt, max_tokens)
+            processing_time = time.time() - start_time
+
+            if verbose:
+                import sys
+
+                sys.stdout.write(f"  OCR response ({len(raw_response)} chars):\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.write(raw_response[:500] + "\n")
+                if len(raw_response) > 500:
+                    sys.stdout.write(f"  ... ({len(raw_response) - 500} more chars)\n")
+                sys.stdout.write("=" * 80 + "\n")
+                sys.stdout.flush()
+
+            # Parse raw OCR text into structured fields
+            extracted_data = extract_fields_from_ocr(
+                raw_response, document_type, active_fields
+            )
+
+            # Clean values
+            for field_name, value in extracted_data.items():
+                extracted_data[field_name] = self.cleaner.clean_field_value(
+                    field_name, value
+                )
+
+            found = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+
+            if verbose:
+                print(
+                    f"  Extracted {found}/{len(active_fields)} fields via OCR parsing"
+                )
+
+            del image
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            return {
+                "image_name": image_name,
+                "extracted_data": extracted_data,
+                "raw_response": raw_response,
+                "processing_time": processing_time,
+                "response_completeness": found / max(len(active_fields), 1),
+                "content_coverage": found / max(len(active_fields), 1),
+                "extracted_fields_count": found,
+                "field_count": len(active_fields),
+            }
+
+        except Exception as e:
+            processing_time = time.time() - start_time
+            if verbose:
+                import traceback
+
+                print(f"  Error in OCR extraction: {e}")
+                traceback.print_exc()
+            return {
+                "image_name": image_name,
+                "extracted_data": {f: "NOT_FOUND" for f in active_fields},
+                "raw_response": f"Error: {e}",
+                "processing_time": processing_time,
+                "response_completeness": 0.0,
+                "content_coverage": 0.0,
+                "extracted_fields_count": 0,
+                "field_count": len(active_fields),
+            }
+
+    # -- Single image processing (fallback) ------------------------------------
 
     def process_single_image(
         self,
@@ -194,7 +423,13 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
         custom_max_tokens: int | None = None,
         field_list: list[str] | None = None,
     ) -> dict:
-        """Process one document image end-to-end."""
+        """Process one document image end-to-end using OCR mode.
+
+        Called as fallback from process_document_aware() error handling,
+        and for any direct single-image invocation.  Always uses "OCR:"
+        prompt regardless of custom_prompt (GLM-OCR can't follow structured
+        extraction prompts).
+        """
         active_fields = field_list or self.field_list
         active_count = len(active_fields)
         start_time = time.time()
@@ -202,10 +437,10 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
 
         try:
             handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
-
             image = self.load_document_image(image_path)
 
-            prompt = custom_prompt or self.get_extraction_prompt()
+            # Always use OCR mode — GLM-OCR can't follow structured prompts
+            prompt = "OCR:"
             max_tokens = custom_max_tokens or self._calculate_max_tokens(
                 active_count, "universal"
             )
@@ -214,9 +449,7 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
                 import sys
 
                 sys.stdout.write(f"Processing {image_name} ({active_count} fields)\n")
-                sys.stdout.write(
-                    f"Prompt: {len(prompt)} chars, max_tokens: {max_tokens}\n"
-                )
+                sys.stdout.write(f"Prompt: OCR: (max_tokens: {max_tokens})\n")
                 sys.stdout.flush()
 
             raw_response = self._resilient_generate(image, prompt, max_tokens)
@@ -231,9 +464,9 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
 
-            # Parse structured fields from response
-            extracted_data = parse_extraction_response(
-                raw_response, expected_fields=active_fields
+            # Parse OCR text into fields
+            extracted_data = extract_fields_from_ocr(
+                raw_response, "UNIVERSAL", active_fields
             )
 
             # Clean values
@@ -247,7 +480,6 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
             if self.debug:
                 print(f"Extracted {found}/{active_count} fields")
 
-            # Cleanup
             del image
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -305,4 +537,5 @@ class DocumentAwareGlmOcrProcessor(BaseDocumentProcessor):
             "model_type": "glmocr",
             "model_path": self.model_path,
             "batch_size": self.batch_size,
+            "pipeline": "ocr_native",
         }
