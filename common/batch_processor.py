@@ -1048,12 +1048,42 @@ class BatchDocumentProcessor:
                 rprint("[yellow]⚠️ Falling back to original data[/yellow]")
             return extracted_data
 
+    @staticmethod
+    def _looks_like_bank_statement(raw_response: str) -> bool:
+        """Check if a raw model response looks like bank statement data.
+
+        Detects 2+ occurrences of "Date" AND at least one of
+        "Amount", "Balance", "Debit", or "Transaction" as JSON keys.
+
+        Args:
+            raw_response: Raw text response from the model.
+
+        Returns:
+            True if the response likely contains bank statement transactions.
+        """
+        if not raw_response:
+            return False
+
+        import re
+
+        date_count = len(re.findall(r'"Date"', raw_response, re.IGNORECASE))
+        if date_count < 2:
+            return False
+
+        bank_keys = re.findall(
+            r'"(?:Amount|Balance|Debit|Transaction)"', raw_response, re.IGNORECASE
+        )
+        return len(bank_keys) >= 1
+
     def _process_image(self, image_path: str, verbose: bool) -> tuple[str, dict, str]:
         """
         Process single image using model handler.
 
         Routes bank statements to BankStatementAdapter when available,
         otherwise uses standard document-aware extraction for all types.
+        Includes post-extraction reclassification: if standard extraction
+        yields mostly NOT_FOUND but the raw response looks like bank data,
+        re-routes through the bank adapter.
 
         Args:
             image_path: Path to image
@@ -1142,6 +1172,53 @@ class BatchDocumentProcessor:
         }
 
         prompt_name = f"{document_type.lower()}"
+
+        # Step 4: Post-extraction reclassification
+        # If standard extraction yielded mostly NOT_FOUND but the raw response
+        # looks like bank statement data, re-route through the bank adapter.
+        raw_response = extraction_result.get("raw_response", "")
+        non_not_found = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+
+        if (
+            non_not_found < 2
+            and self._looks_like_bank_statement(raw_response)
+            and self.bank_adapter is not None
+        ):
+            if verbose:
+                rprint(
+                    f"[yellow]🔄 Reclassifying {document_type} → BANK_STATEMENT "
+                    f"(only {non_not_found} fields extracted, raw response has bank data)[/yellow]"
+                )
+
+            try:
+                schema_fields, metadata = self.bank_adapter.extract_bank_statement(
+                    image_path
+                )
+
+                document_type = "BANK_STATEMENT"
+                strategy = metadata.get("strategy_used", "unknown")
+                prompt_name = f"unified_bank_{strategy}"
+
+                formatted_result = {
+                    "extracted_data": schema_fields,
+                    "raw_response": metadata.get("raw_responses", {}).get("turn1", ""),
+                    "field_list": list(schema_fields.keys()),
+                    "metadata": metadata,
+                    "document_type": document_type,
+                    "image_file": Path(image_path).name,
+                }
+
+                if verbose:
+                    rprint(f"[green]✅ Reclassification successful: {strategy}[/green]")
+
+                return document_type, formatted_result, prompt_name
+
+            except Exception as e:
+                if verbose:
+                    rprint(
+                        f"[yellow]⚠️ Reclassification bank extraction failed: {e}[/yellow]"
+                    )
+                # Fall through to return original result
 
         return document_type, formatted_result, prompt_name
 

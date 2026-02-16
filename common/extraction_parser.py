@@ -208,6 +208,77 @@ def _fast_json_detection(text: str) -> bool:
     )
 
 
+def _repair_repeated_key_json(text: str) -> str:
+    """Repair JSON with repeated duplicate keys into a Transactions array.
+
+    Some models emit flat JSON with repeated keys like:
+        {"Date": "01/01", "Amount": "10", "Date": "02/01", "Amount": "20"}
+    which is invalid (duplicate keys). This function detects that pattern and
+    restructures the data into:
+        {"Transactions": [{"Date": "01/01", "Amount": "10"}, {"Date": "02/01", "Amount": "20"}]}
+
+    Args:
+        text: JSON text that may contain repeated keys.
+
+    Returns:
+        Restructured JSON string, or original text if no repeated keys found.
+    """
+    # Count occurrences of each quoted key
+    key_pattern = re.compile(r'"([^"]+)"\s*:')
+    keys_found = key_pattern.findall(text)
+
+    if not keys_found:
+        return text
+
+    # Check if any key appears 2+ times
+    key_counts: dict[str, int] = {}
+    for k in keys_found:
+        key_counts[k] = key_counts.get(k, 0) + 1
+
+    has_duplicates = any(count >= 2 for count in key_counts.values())
+    if not has_duplicates:
+        return text
+
+    # Extract all key-value pairs in order
+    # Handle values that may contain newlines (multi-line strings)
+    pair_pattern = re.compile(
+        r'"([^"]+)"\s*:\s*"((?:[^"\\]|\\.)*)"|"([^"]+)"\s*:\s*([0-9.]+)'
+    )
+    pairs: list[tuple[str, str]] = []
+    for m in pair_pattern.finditer(text):
+        if m.group(1) is not None:
+            pairs.append((m.group(1), m.group(2)))
+        else:
+            pairs.append((m.group(3), m.group(4)))
+
+    if not pairs:
+        return text
+
+    # Group consecutive pairs into transaction objects
+    # A new object starts when a key is seen for the second time in the current group
+    transactions: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+
+    for key, value in pairs:
+        if key in current:
+            # Key already in current group — start a new transaction
+            transactions.append(current)
+            current = {}
+        current[key] = value
+
+    if current:
+        transactions.append(current)
+
+    # Only restructure if we actually got multiple transactions
+    if len(transactions) < 2:
+        return text
+
+    # Build valid JSON with Transactions array
+    import json as _json
+
+    return _json.dumps({"Transactions": transactions})
+
+
 def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | None:
     """
     Attempt to parse response as JSON using fastest available parser.
@@ -225,6 +296,9 @@ def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | N
 
     # Try to repair common JSON truncation issues
     repaired_text = _repair_truncated_json(text, expected_fields)
+
+    # Repair repeated-key JSON (duplicate keys → Transactions array)
+    repaired_text = _repair_repeated_key_json(repaired_text)
 
     try:
         if HAS_ORJSON:
