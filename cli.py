@@ -368,11 +368,15 @@ def print_summary(
     processing_times: list[float],
     document_types_found: dict[str, int],
     batch_stats: dict[str, float] | None = None,
+    wall_clock_time: float | None = None,
 ) -> None:
     """Print execution summary."""
-    # Calculate metrics
-    total_time = sum(processing_times)
-    avg_time = total_time / len(processing_times) if processing_times else 0
+    # Wall clock is the true elapsed time; fall back to sum for backwards compat
+    total_time = (
+        wall_clock_time if wall_clock_time is not None else sum(processing_times)
+    )
+    num_images = len(batch_results)
+    throughput = (num_images / total_time * 60) if total_time > 0 else 0
 
     # Extract accuracy from evaluation dict (uses overall_accuracy = mean F1)
     accuracies = []
@@ -389,9 +393,9 @@ def print_summary(
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
-    table.add_row("Images Processed", str(len(batch_results)))
-    table.add_row("Total Time", f"{total_time:.1f}s")
-    table.add_row("Avg Time/Image", f"{avg_time:.2f}s")
+    table.add_row("Images Processed", str(num_images))
+    table.add_row("Wall Clock Time", f"{total_time:.1f}s")
+    table.add_row("Throughput", f"{throughput:.2f} images/min")
 
     # Batch stats
     if batch_stats:
@@ -517,6 +521,10 @@ def run_pipeline(config: PipelineConfig) -> None:
     )
 
     try:
+        import time as _time
+
+        _wall_start = _time.time()
+
         if config.num_gpus > 1:
             # Multi-GPU parallel processing
             from common.multi_gpu import MultiGPUOrchestrator
@@ -550,6 +558,8 @@ def run_pipeline(config: PipelineConfig) -> None:
                 )
             # Model freed here — post-processing is CPU-only
 
+        wall_clock_time = _time.time() - _wall_start
+
         # Generate analytics
         _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = (
             generate_analytics(
@@ -577,7 +587,12 @@ def run_pipeline(config: PipelineConfig) -> None:
 
         # Print summary
         print_summary(
-            config, batch_results, processing_times, document_types_found, batch_stats
+            config,
+            batch_results,
+            processing_times,
+            document_types_found,
+            batch_stats,
+            wall_clock_time,
         )
 
     except KeyboardInterrupt:
