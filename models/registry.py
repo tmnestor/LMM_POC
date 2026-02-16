@@ -471,15 +471,13 @@ def _glm_ocr_loader(config):
     Uses AutoModelForImageTextToText + AutoProcessor.
     Lightweight 0.9B model — no trust_remote_code required.
     """
-    import logging
-    import os
+    import io
+    import sys
     from contextlib import contextmanager
 
     import torch
     from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn
     from transformers import AutoModelForImageTextToText, AutoProcessor
-    from transformers.utils import logging as tf_logging
 
     console = Console()
 
@@ -493,39 +491,28 @@ def _glm_ocr_loader(config):
                 torch.cuda.empty_cache()
 
             console.print(f"\n[bold]Loading GLM-OCR from: {cfg.model_path}[/bold]")
+            console.print("[dim]Loading processor...[/dim]")
 
-            # Suppress transformers weight-materializing progress bars
-            prev_verbosity = tf_logging.get_verbosity()
-            tf_logging.set_verbosity(logging.ERROR)
-            prev_tqdm = os.environ.get("TQDM_DISABLE")
-            os.environ["TQDM_DISABLE"] = "1"
+            processor = AutoProcessor.from_pretrained(str(cfg.model_path))
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Loading processor...", total=None)
+            console.print(
+                "[dim]Loading model weights (this may take a moment)...[/dim]"
+            )
 
-                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
-
-                progress.update(task, description="Loading model weights...")
-
+            # Redirect stderr to suppress accelerate's "Materializing param"
+            # tqdm progress bars which ignore TQDM_DISABLE and tf_logging level.
+            _real_stderr = sys.stderr
+            sys.stderr = io.StringIO()
+            try:
                 model = AutoModelForImageTextToText.from_pretrained(
                     pretrained_model_name_or_path=str(cfg.model_path),
                     torch_dtype="auto",
                     device_map=cfg.device_map,
                 )
+            finally:
+                sys.stderr = _real_stderr
 
-                progress.update(task, description="Model loaded!")
-
-            # Restore logging
-            tf_logging.set_verbosity(prev_verbosity)
-            if prev_tqdm is None:
-                os.environ.pop("TQDM_DISABLE", None)
-            else:
-                os.environ["TQDM_DISABLE"] = prev_tqdm
-
+            console.print("[green]Model loaded![/green]")
             console.print("⚡ Flash Attention 2: ❌ not applicable (GLM-OCR 0.9B)")
 
             if not getattr(cfg, "_multi_gpu", False):
