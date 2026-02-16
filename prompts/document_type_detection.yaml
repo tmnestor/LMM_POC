@@ -126,6 +126,7 @@ type_mappings:
   "creditcard statement": "BANK_STATEMENT"
   "statement": "BANK_STATEMENT"
   "monthly statement": "BANK_STATEMENT"
+  "transaction summary": "BANK_STATEMENT"
 
   # Travel expense variations
   "travel expense": "TRAVEL_EXPENSE"
