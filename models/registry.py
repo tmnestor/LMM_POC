@@ -259,8 +259,6 @@ def _llama_loader(config):
                     "dtype": cfg.torch_dtype,
                     "device_map": cfg.device_map,
                 }
-                if cfg.flash_attn:
-                    load_kwargs["attn_implementation"] = "flash_attention_2"
 
                 model = MllamaForConditionalGeneration.from_pretrained(
                     str(cfg.model_path),
@@ -286,8 +284,9 @@ def _llama_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
-            console.print(f"⚡ Flash Attention 2: {flash_status}")
+            # Llama uses PyTorch SDPA natively; flash_attention_2 attn_implementation
+            # is incompatible (MllamaVisionAttention lacks is_causal attribute).
+            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama uses SDPA)")
 
             # Display GPU memory status after loading
             _print_gpu_status(console)
