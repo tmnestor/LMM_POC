@@ -4,8 +4,6 @@ Provides configuration loading, merging, and validation without
 framework dependencies (no typer, rich, or torch at module level).
 """
 
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass, field
 from datetime import datetime

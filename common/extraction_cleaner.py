@@ -8,7 +8,7 @@ formatting and improved accuracy against ground truth data.
 """
 
 import re
-from typing import Any, Dict
+from typing import Any
 
 
 def sanitize_for_rich(content: str, max_length: int = 200) -> str:
@@ -501,15 +501,15 @@ class ExtractionCleaner:
 
         return cleaned if cleaned else "NOT_FOUND"
 
-    def clean_extraction_dict(self, field_dict: Dict[str, Any]) -> Dict[str, str]:
+    def clean_extraction_dict(self, field_dict: dict[str, Any]) -> dict[str, str]:
         """
         Clean all fields in an extraction dictionary with business knowledge validation.
 
         Args:
-            field_dict (Dict[str, Any]): Dictionary of extracted field values
+            field_dict (dict[str, Any]): Dictionary of extracted field values
 
         Returns:
-            Dict[str, str]: Dictionary with cleaned field values
+            dict[str, str]: Dictionary with cleaned field values
         """
         cleaned_dict = {}
 
@@ -527,7 +527,7 @@ class ExtractionCleaner:
 
         return cleaned_dict
 
-    def _apply_business_knowledge(self, cleaned_dict: Dict[str, str]) -> Dict[str, str]:
+    def _apply_business_knowledge(self, cleaned_dict: dict[str, str]) -> dict[str, str]:
         """
         Apply business knowledge and cross-field validation using pattern matching.
 
@@ -561,7 +561,7 @@ class ExtractionCleaner:
 
         return validated_dict
 
-    def _has_line_items(self, data: Dict[str, str]) -> bool:
+    def _has_line_items(self, data: dict[str, str]) -> bool:
         """Check if document has line item data."""
         required_fields = [
             "LINE_ITEM_DESCRIPTIONS",
@@ -572,17 +572,17 @@ class ExtractionCleaner:
             data.get(field, "NOT_FOUND") != "NOT_FOUND" for field in required_fields
         )
 
-    def _has_gst_fields(self, data: Dict[str, str]) -> bool:
+    def _has_gst_fields(self, data: dict[str, str]) -> bool:
         """Check if document has GST-related fields."""
         gst_fields = ["GST_AMOUNT", "IS_GST_INCLUDED", "LINE_ITEM_GST_AMOUNTS"]
         return any(data.get(field, "NOT_FOUND") != "NOT_FOUND" for field in gst_fields)
 
-    def _is_bank_statement(self, data: Dict[str, str]) -> bool:
+    def _is_bank_statement(self, data: dict[str, str]) -> bool:
         """Check if document is a bank statement."""
         doc_type = data.get("DOCUMENT_TYPE", "").upper()
         return "BANK" in doc_type or "STATEMENT" in doc_type
 
-    def _validate_line_item_pricing(self, data: Dict[str, str]) -> Dict[str, str]:
+    def _validate_line_item_pricing(self, data: dict[str, str]) -> dict[str, str]:
         """
         Validate LINE_ITEM_PRICES represents unit prices, not totals.
 
@@ -632,7 +632,7 @@ class ExtractionCleaner:
 
         return data
 
-    def _validate_gst_consistency(self, data: Dict[str, str]) -> Dict[str, str]:
+    def _validate_gst_consistency(self, data: dict[str, str]) -> dict[str, str]:
         """Validate GST calculations are internally consistent using pattern matching."""
         gst_amount = data.get("GST_AMOUNT", "NOT_FOUND")
         subtotal = data.get("SUBTOTAL_AMOUNT", "NOT_FOUND")
@@ -683,7 +683,7 @@ class ExtractionCleaner:
 
         return data
 
-    def _validate_transaction_counts(self, data: Dict[str, str]) -> Dict[str, str]:
+    def _validate_transaction_counts(self, data: dict[str, str]) -> dict[str, str]:
         """
         Validate that bank statement transaction field counts match.
 
@@ -737,17 +737,17 @@ class ExtractionCleaner:
             return None
 
     def get_cleaning_stats(
-        self, original_dict: Dict[str, Any], cleaned_dict: Dict[str, str]
-    ) -> Dict[str, Any]:
+        self, original_dict: dict[str, Any], cleaned_dict: dict[str, str]
+    ) -> dict[str, Any]:
         """
         Generate statistics about cleaning operations.
 
         Args:
-            original_dict (Dict[str, Any]): Original extracted values
-            cleaned_dict (Dict[str, str]): Cleaned extracted values
+            original_dict (dict[str, Any]): Original extracted values
+            cleaned_dict (dict[str, str]): Cleaned extracted values
 
         Returns:
-            Dict[str, Any]: Cleaning statistics
+            dict[str, Any]: Cleaning statistics
         """
         stats = {
             "total_fields": len(original_dict),
@@ -810,8 +810,8 @@ def clean_field_value(field_name: str, value: Any, debug: bool = False) -> str:
 
 
 def clean_extraction_dict(
-    field_dict: Dict[str, Any], debug: bool = False
-) -> Dict[str, str]:
+    field_dict: dict[str, Any], debug: bool = False
+) -> dict[str, str]:
     """Convenience function to clean all fields in a dictionary."""
     cleaner = ExtractionCleaner(debug=debug)
     return cleaner.clean_extraction_dict(field_dict)

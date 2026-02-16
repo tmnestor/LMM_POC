@@ -8,7 +8,7 @@ model output formats including markdown, plain text, and edge cases.
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 from dateutil import parser as date_parser
@@ -130,7 +130,7 @@ def _fast_json_detection(text: str) -> bool:
     )
 
 
-def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | None:
+def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | None:
     """
     Attempt to parse response as JSON using fastest available parser.
     Includes repair for common truncation issues.
@@ -177,7 +177,7 @@ def _try_parse_json(text: str, expected_fields: List[str]) -> Dict[str, str] | N
         return None
 
 
-def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
+def _repair_truncated_json(text: str, expected_fields: list[str]) -> str:
     """
     Attempt to repair common JSON truncation and formatting issues.
 
@@ -289,8 +289,8 @@ def _repair_truncated_json(text: str, expected_fields: List[str]) -> str:
 
 
 def hybrid_parse_response(
-    response_text: str, expected_fields: List[str] = None
-) -> Dict[str, str]:
+    response_text: str, expected_fields: list[str] = None
+) -> dict[str, str]:
     """
     Hybrid parser that handles both JSON and plain text formats automatically.
 
@@ -328,8 +328,8 @@ def hybrid_parse_response(
 def parse_extraction_response(
     response_text: str,
     clean_conversation_artifacts: bool = False,
-    expected_fields: List[str] = None,
-) -> Dict[str, str]:
+    expected_fields: list[str] = None,
+) -> dict[str, str]:
     """
     Parse structured extraction response into dictionary.
 
@@ -343,7 +343,7 @@ def parse_extraction_response(
     Args:
         response_text (str): Raw model response containing key-value pairs
         clean_conversation_artifacts (bool): Whether to clean Llama-style artifacts
-        expected_fields (List[str]): Optional list of fields to parse (for filtered extraction)
+        expected_fields (list[str]): Optional list of fields to parse (for filtered extraction)
 
     Returns:
         dict: Parsed key-value pairs with all expected fields
@@ -705,8 +705,8 @@ def parse_extraction_response(
 
 
 def validate_and_enhance_extraction(
-    extracted_data: Dict[str, str], image_name: str = None
-) -> Dict[str, Any]:
+    extracted_data: dict[str, str], image_name: str = None
+) -> dict[str, Any]:
     """
     Validate extracted data and add validation metadata.
 
@@ -745,7 +745,7 @@ def validate_and_enhance_extraction(
     return enhanced_result
 
 
-def create_extraction_dataframe(results: List[Dict]) -> tuple:
+def create_extraction_dataframe(results: list[dict]) -> tuple:
     """
     Create structured DataFrames from extraction results.
 
@@ -785,7 +785,7 @@ def create_extraction_dataframe(results: List[Dict]) -> tuple:
     return main_df, metadata_df
 
 
-def discover_images(directory_path: str) -> List[str]:
+def discover_images(directory_path: str) -> list[str]:
     """
     Discover all image files in the specified directory.
 

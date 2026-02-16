@@ -9,7 +9,7 @@ transaction types (debit/credit) and amounts from reliable extracted data
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from rich import print as rprint
@@ -41,14 +41,14 @@ class Transaction:
 class BankStatementAnalysis:
     """Results of bank statement mathematical analysis."""
 
-    transactions: List[Transaction]
+    transactions: list[Transaction]
     total_debits: float
     total_credits: float
     transaction_count: int
-    calculated_amounts_paid: List[str]
-    calculated_amounts_received: List[str]
+    calculated_amounts_paid: list[str]
+    calculated_amounts_received: list[str]
     success: bool
-    errors: List[str]
+    errors: list[str]
 
 
 class BankStatementCalculator:
@@ -66,7 +66,7 @@ class BankStatementCalculator:
         self.use_pandas = use_pandas and PANDAS_AVAILABLE
 
     def analyze_bank_statement(
-        self, extracted_data: Dict[str, Any]
+        self, extracted_data: dict[str, Any]
     ) -> BankStatementAnalysis:
         """
         Analyze bank statement data using mathematical balance differences.
@@ -87,7 +87,7 @@ class BankStatementCalculator:
             return self.analyze_bank_statement_legacy(extracted_data)
 
     def analyze_bank_statement_legacy(
-        self, extracted_data: Dict[str, Any]
+        self, extracted_data: dict[str, Any]
     ) -> BankStatementAnalysis:
         """
         Analyze bank statement data using original manual array manipulation.
@@ -213,7 +213,7 @@ class BankStatementCalculator:
             )
 
     def analyze_bank_statement_pandas(
-        self, extracted_data: Dict[str, Any]
+        self, extracted_data: dict[str, Any]
     ) -> BankStatementAnalysis:
         """
         Analyze bank statement data using pandas for reliable calculations.
@@ -708,7 +708,7 @@ class BankStatementCalculator:
                     f"[{color}]  {row['date_str']}: {row['transaction_type']} ${amount:.2f} [{source}{accuracy}] {confidence}[/{color}]"
                 )
 
-    def _parse_dates(self, dates_str: str) -> List[Tuple[datetime, str]]:
+    def _parse_dates(self, dates_str: str) -> list[tuple[datetime, str]]:
         """Parse date strings into datetime objects with original strings."""
         dates = []
 
@@ -742,7 +742,7 @@ class BankStatementCalculator:
 
         return dates
 
-    def _parse_single_date(self, date_str: str) -> Optional[datetime]:
+    def _parse_single_date(self, date_str: str) -> datetime | None:
         """Parse a single date string into datetime object."""
         date_str = date_str.strip()
 
@@ -776,7 +776,7 @@ class BankStatementCalculator:
 
         return None
 
-    def _parse_balances(self, balances_str: str) -> List[float]:
+    def _parse_balances(self, balances_str: str) -> list[float]:
         """Parse balance strings into float values."""
         balances = []
 
@@ -812,13 +812,13 @@ class BankStatementCalculator:
 
         return balances
 
-    def _parse_descriptions(self, descriptions_str: str) -> List[str]:
+    def _parse_descriptions(self, descriptions_str: str) -> list[str]:
         """Parse transaction descriptions."""
         if not descriptions_str or descriptions_str == "NOT_FOUND":
             return []
         return [d.strip() for d in descriptions_str.split("|") if d.strip()]
 
-    def _parse_extracted_amounts(self, amounts_str: str) -> List[float]:
+    def _parse_extracted_amounts(self, amounts_str: str) -> list[float]:
         """Parse extracted transaction amounts from PAID/RECEIVED fields."""
         amounts = []
         if not amounts_str or amounts_str == "NOT_FOUND":
@@ -855,10 +855,10 @@ class BankStatementCalculator:
 
     def _create_transactions(
         self,
-        dates: List[Tuple[datetime, str]],
-        balances: List[float],
-        descriptions: List[str],
-    ) -> List[Transaction]:
+        dates: list[tuple[datetime, str]],
+        balances: list[float],
+        descriptions: list[str],
+    ) -> list[Transaction]:
         """Create Transaction objects from parsed data."""
         transactions = []
 
@@ -886,19 +886,19 @@ class BankStatementCalculator:
         return transactions
 
     def _sort_chronologically(
-        self, transactions: List[Transaction]
-    ) -> List[Transaction]:
+        self, transactions: list[Transaction]
+    ) -> list[Transaction]:
         """Sort transactions chronologically by date."""
         return sorted(transactions, key=lambda t: t.date)
 
     def _calculate_transaction_types(
         self,
-        transactions: List[Transaction],
-        extracted_paid: List[float] = None,
-        extracted_received: List[float] = None,
+        transactions: list[Transaction],
+        extracted_paid: list[float] = None,
+        extracted_received: list[float] = None,
         dates_str: str = "",
         descriptions_str: str = "",
-    ) -> List[Transaction]:
+    ) -> list[Transaction]:
         """Calculate transaction types and amounts using hybrid approach.
 
         Uses extracted data for first transaction and mathematical differences for subsequent ones.
@@ -973,7 +973,7 @@ class BankStatementCalculator:
         return analyzed
 
     def _generate_analysis(
-        self, transactions: List[Transaction]
+        self, transactions: list[Transaction]
     ) -> BankStatementAnalysis:
         """Generate final analysis results."""
         total_debits = sum(
@@ -1038,8 +1038,8 @@ class BankStatementCalculator:
     def _display_earliest_transaction_details(
         self,
         transaction: Transaction,
-        extracted_paid: List[float],
-        extracted_received: List[float],
+        extracted_paid: list[float],
+        extracted_received: list[float],
         used_extracted_data: bool,
         array_index: int,
     ):
@@ -1135,12 +1135,12 @@ class BankStatementCalculator:
 
     def _validate_array_alignment(
         self,
-        dates: List[Tuple[datetime, str]],
-        extracted_paid: List[float],
-        extracted_received: List[float],
+        dates: list[tuple[datetime, str]],
+        extracted_paid: list[float],
+        extracted_received: list[float],
         dates_str: str,
         descriptions_str: str,
-    ) -> Tuple[List[float], List[float]]:
+    ) -> tuple[list[float], list[float]]:
         """Validate and correct array alignment issues in extracted amounts."""
 
         if not dates:
@@ -1189,9 +1189,7 @@ class BankStatementCalculator:
 
         return corrected_paid, corrected_received
 
-    def _infer_transaction_type_from_description(
-        self, description: str
-    ) -> Optional[str]:
+    def _infer_transaction_type_from_description(self, description: str) -> str | None:
         """
         Infer transaction type (DEBIT/CREDIT) from description keywords.
 
@@ -1261,7 +1259,7 @@ class BankStatementCalculator:
         vlm_received: float,
         description: str,
         balance_change: float,
-    ) -> Tuple[float, float, str]:
+    ) -> tuple[float, float, str]:
         """
         Validate VLM extracted amounts and correct if necessary.
 
@@ -1294,8 +1292,8 @@ class BankStatementCalculator:
 
 
 def enhance_bank_statement_extraction(
-    extracted_data: Dict[str, Any], verbose: bool = False, use_pandas: bool = True
-) -> Dict[str, Any]:
+    extracted_data: dict[str, Any], verbose: bool = False, use_pandas: bool = True
+) -> dict[str, Any]:
     """
     Enhance bank statement extraction with mathematical post-processing.
 

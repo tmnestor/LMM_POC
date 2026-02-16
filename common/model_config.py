@@ -5,8 +5,6 @@ Extracted from the former common/config.py so that model-runtime config lives
 in its own module.  Consumers: both processors, cli.py.
 """
 
-from __future__ import annotations
-
 from .field_config import FIELD_COUNT
 
 # ============================================================================

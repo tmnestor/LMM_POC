@@ -5,7 +5,6 @@ Creates comprehensive DataFrames and statistics from batch processing results.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,7 +14,7 @@ from rich import print as rprint
 class BatchAnalytics:
     """Generate analytics DataFrames and statistics from batch results."""
 
-    def __init__(self, batch_results: List[Dict], processing_times: List[float]):
+    def __init__(self, batch_results: list[dict], processing_times: list[float]):
         """
         Initialize analytics with batch results.
 
@@ -161,9 +160,7 @@ class BatchAnalytics:
 
         return df_stats
 
-    def create_field_statistics(
-        self, df_results: pd.DataFrame
-    ) -> Optional[pd.DataFrame]:
+    def create_field_statistics(self, df_results: pd.DataFrame) -> pd.DataFrame | None:
         """
         Create field-level accuracy statistics.
 
@@ -202,7 +199,7 @@ class BatchAnalytics:
 
     def save_all_dataframes(
         self, output_dir: Path, timestamp: str, verbose: bool = True
-    ) -> Dict[str, Path]:
+    ) -> dict[str, Path]:
         """
         Save all DataFrames to CSV files.
 

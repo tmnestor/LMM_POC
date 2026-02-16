@@ -9,7 +9,7 @@ No enterprise complexity - just: extracted_fields vs ground_truth = accuracy%
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 try:
     from common.field_config import filter_evaluation_fields, is_evaluation_field
@@ -29,8 +29,8 @@ class SimpleEvaluationResult:
     total_fields: int
     correct_fields: int
     accuracy: float
-    missing_fields: List[str]
-    incorrect_fields: List[str]
+    missing_fields: list[str]
+    incorrect_fields: list[str]
 
 
 class SimpleModelEvaluator:
@@ -42,8 +42,8 @@ class SimpleModelEvaluator:
 
     def evaluate_extraction(
         self,
-        extracted_data: Dict[str, str],
-        ground_truth: Dict[str, str],
+        extracted_data: dict[str, str],
+        ground_truth: dict[str, str],
         image_name: str = "",
     ) -> SimpleEvaluationResult:
         """
@@ -251,8 +251,8 @@ class SimpleModelEvaluator:
         return similarity >= 0.85
 
     def calculate_batch_metrics(
-        self, results: List[SimpleEvaluationResult]
-    ) -> Dict[str, Any]:
+        self, results: list[SimpleEvaluationResult]
+    ) -> dict[str, Any]:
         """
         Calculate overall metrics for a batch of evaluations.
 

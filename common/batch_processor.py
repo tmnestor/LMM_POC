@@ -8,7 +8,6 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from rich import print as rprint
 from rich.console import Console
@@ -24,7 +23,7 @@ from .evaluation_metrics import (
 from .simple_model_evaluator import SimpleModelEvaluator
 
 
-def load_document_field_definitions() -> Dict[str, List[str]]:
+def load_document_field_definitions() -> dict[str, list[str]]:
     """
     Load document-aware field definitions from field_definitions.yaml.
 
@@ -120,13 +119,13 @@ class BatchDocumentProcessor:
     def __init__(
         self,
         model,
-        prompt_config: Dict,
+        prompt_config: dict,
         ground_truth_csv: str,
-        console: Optional[Console] = None,
+        console: Console | None = None,
         enable_math_enhancement: bool = True,
         bank_adapter=None,
-        field_definitions: Optional[Dict[str, List[str]]] = None,
-        batch_size: Optional[int] = None,
+        field_definitions: dict[str, list[str]] | None = None,
+        batch_size: int | None = None,
     ):
         """
         Initialize batch processor for document extraction.
@@ -164,7 +163,7 @@ class BatchDocumentProcessor:
         self.evaluation_method = os.environ.get("EVALUATION_METHOD", "order_aware_f1")
 
         # Batch stats — populated after process_batch() completes
-        self.batch_stats: Dict[str, float] = {}
+        self.batch_stats: dict[str, float] = {}
 
     def _trace_log(self, message: str):
         """Log message to both console and file"""
@@ -201,8 +200,8 @@ class BatchDocumentProcessor:
         return {}
 
     def process_batch(
-        self, image_paths: List[str], verbose: bool = True, progress_interval: int = 5
-    ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
+        self, image_paths: list[str], verbose: bool = True, progress_interval: int = 5
+    ) -> tuple[list[dict], list[float], dict[str, int]]:
         """
         Process a batch of images through the extraction pipeline.
 
@@ -257,11 +256,11 @@ class BatchDocumentProcessor:
 
     def _process_batch_two_phase(
         self,
-        image_paths: List[str],
+        image_paths: list[str],
         batch_size: int,
         verbose: bool,
         progress_interval: int,
-    ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
+    ) -> tuple[list[dict], list[float], dict[str, int]]:
         """Two-phase batched processing using model.batch_chat().
 
         Phase 1: Batch detection — classify all images
@@ -269,9 +268,9 @@ class BatchDocumentProcessor:
         Phase 3: Evaluation — per-image, CPU-only
         """
         total_images = len(image_paths)
-        batch_results: List[Dict] = [None] * total_images  # type: ignore[list-item]
-        processing_times: List[float] = [0.0] * total_images
-        document_types_found: Dict[str, int] = {}
+        batch_results: list[dict] = [None] * total_images  # type: ignore[list-item]
+        processing_times: list[float] = [0.0] * total_images
+        document_types_found: dict[str, int] = {}
 
         # Progress bar
         progress = Progress(
@@ -287,8 +286,8 @@ class BatchDocumentProcessor:
         )
 
         # Track actual batch sizes for reporting
-        detection_batch_sizes: List[int] = []
-        extraction_batch_sizes: List[int] = []
+        detection_batch_sizes: list[int] = []
+        extraction_batch_sizes: list[int] = []
 
         # ================================================================
         # PHASE 1: BATCHED DETECTION
@@ -297,7 +296,7 @@ class BatchDocumentProcessor:
             rprint("\n[bold cyan]Phase 1: Batched Document Detection[/bold cyan]")
 
         detection_start = time.time()
-        all_classification_infos: List[Dict] = []
+        all_classification_infos: list[dict] = []
 
         for batch_start in range(0, total_images, batch_size):
             batch_end = min(batch_start + batch_size, total_images)
@@ -546,10 +545,10 @@ class BatchDocumentProcessor:
 
     def _process_batch_sequential(
         self,
-        image_paths: List[str],
+        image_paths: list[str],
         verbose: bool,
         progress_interval: int,
-    ) -> Tuple[List[Dict], List[float], Dict[str, int]]:
+    ) -> tuple[list[dict], list[float], dict[str, int]]:
         """Sequential processing (batch_size=1). Original behavior."""
         start_time = time.time()
 
@@ -1048,7 +1047,7 @@ class BatchDocumentProcessor:
                 rprint("[yellow]⚠️ Falling back to original data[/yellow]")
             return extracted_data
 
-    def _process_image(self, image_path: str, verbose: bool) -> Tuple[str, Dict, str]:
+    def _process_image(self, image_path: str, verbose: bool) -> tuple[str, dict, str]:
         """
         Process single image using model handler.
 

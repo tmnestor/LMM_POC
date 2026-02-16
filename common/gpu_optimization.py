@@ -18,7 +18,7 @@ Supported GPUs:
 
 import gc
 import os
-from typing import Any, Optional
+from typing import Any
 
 import torch
 
@@ -99,9 +99,7 @@ def configure_cuda_memory_allocation(
     return True
 
 
-def clear_model_caches(
-    model: Any, processor: Optional[Any] = None, verbose: bool = True
-):
+def clear_model_caches(model: Any, processor: Any | None = None, verbose: bool = True):
     """
     Phase 1: Enhanced cache clearing for transformer models.
 
@@ -302,8 +300,8 @@ def aggressive_defragmentation():
 
 
 def comprehensive_memory_cleanup(
-    model: Optional[Any] = None,
-    processor: Optional[Any] = None,
+    model: Any | None = None,
+    processor: Any | None = None,
     verbose: bool = True,
     fragmentation_threshold_gb: float = 0.5,
 ):
@@ -459,7 +457,7 @@ def get_total_gpu_memory_robust() -> float:
 
 
 def optimize_model_for_gpu(
-    model: Any, verbose: bool = True, dtype: Optional[torch.dtype] = None
+    model: Any, verbose: bool = True, dtype: torch.dtype | None = None
 ):
     """
     Apply GPU optimizations to a model for AWS instances (A10G, L4).

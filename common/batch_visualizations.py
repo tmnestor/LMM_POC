@@ -5,7 +5,6 @@ Creates comprehensive visualizations including dashboards and heatmaps.
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -32,9 +31,9 @@ class BatchVisualizer:
         df_results: pd.DataFrame,
         df_doctype_stats: pd.DataFrame,
         timestamp: str,
-        save_path: Optional[Path] = None,
+        save_path: Path | None = None,
         show: bool = True,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Create 2x2 performance dashboard.
 
@@ -188,10 +187,10 @@ class BatchVisualizer:
         self,
         df_results: pd.DataFrame,
         timestamp: str,
-        save_path: Optional[Path] = None,
+        save_path: Path | None = None,
         show: bool = True,
         max_fields: int = 30,
-    ) -> Tuple[Optional[Path], Optional[pd.DataFrame]]:
+    ) -> tuple[Path | None, pd.DataFrame | None]:
         """
         Create field-level accuracy heatmap.
 
@@ -294,7 +293,7 @@ class BatchVisualizer:
         output_dir: Path,
         timestamp: str,
         show: bool = False,
-    ) -> Dict[str, Path]:
+    ) -> dict[str, Path]:
         """
         Create all visualizations and save them.
 

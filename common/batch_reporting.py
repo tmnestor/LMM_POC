@@ -4,20 +4,16 @@ Batch Reporting Module for Document Extraction Results
 Generates executive summaries and comprehensive reports in various formats.
 """
 
-from __future__ import annotations
-
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from rich import print as rprint
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    from common.pipeline_config import PipelineConfig
+from common.pipeline_config import PipelineConfig
 
 
 class BatchReporter:

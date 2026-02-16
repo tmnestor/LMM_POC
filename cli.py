@@ -12,8 +12,6 @@ Usage:
     python cli.py --help
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 

@@ -14,7 +14,6 @@ DOCUMENT AWARE REDUCTION COMPATIBILITY:
 
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -32,7 +31,7 @@ from .field_config import (
 
 def load_ground_truth(
     csv_path: str, show_sample: bool = False, verbose: bool = True
-) -> Dict[str, Dict]:
+) -> dict[str, dict]:
     """
     Load ground truth data from CSV file.
 
@@ -421,7 +420,7 @@ def calculate_field_accuracy(
         return 0.0
 
 
-def _compare_monetary_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+def _compare_monetary_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
     """Compare monetary values with normalization."""
 
     def normalize_money(value):
@@ -448,7 +447,7 @@ def _compare_monetary_values(extracted: str, ground_truth: str) -> Tuple[bool, s
         return _compare_text_values(extracted, ground_truth)
 
 
-def _compare_date_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+def _compare_date_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
     """Compare date values with format normalization."""
 
     def normalize_date(date_str):
@@ -474,7 +473,7 @@ def _compare_date_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
         return False, f"Date mismatch: {extracted} vs {ground_truth}"
 
 
-def _compare_numeric_ids(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+def _compare_numeric_ids(extracted: str, ground_truth: str) -> tuple[bool, str]:
     """Compare numeric IDs with space/formatting normalization."""
 
     def normalize_id(id_str):
@@ -490,7 +489,7 @@ def _compare_numeric_ids(extracted: str, ground_truth: str) -> Tuple[bool, str]:
         return False, f"ID mismatch: {extracted} vs {ground_truth}"
 
 
-def _compare_list_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+def _compare_list_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
     """Compare comma-separated list values."""
 
     def normalize_list(list_str):
@@ -515,7 +514,7 @@ def _compare_list_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
         return False, f"List mismatch: {extracted} vs {ground_truth}"
 
 
-def _compare_text_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
+def _compare_text_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
     """Compare text values with fuzzy matching."""
 
     # Simple fuzzy matching based on common words
@@ -541,8 +540,8 @@ def _compare_text_values(extracted: str, ground_truth: str) -> Tuple[bool, str]:
 
 
 def evaluate_extraction_results(
-    extraction_results: List[Dict], ground_truth_map: Dict
-) -> Dict:
+    extraction_results: list[dict], ground_truth_map: dict
+) -> dict:
     """
     Evaluate extraction results against ground truth data.
 
@@ -760,8 +759,8 @@ def evaluate_extraction_results(
 
 
 def prepare_classification_data(
-    detailed_results: List[Dict],
-) -> Tuple[List, List, List]:
+    detailed_results: list[dict],
+) -> tuple[list, list, list]:
     """
     Prepare data for sklearn classification reporting.
 
@@ -784,7 +783,7 @@ def prepare_classification_data(
     return y_true, y_pred, field_names
 
 
-def generate_field_classification_report(evaluation_summary: Dict) -> str:
+def generate_field_classification_report(evaluation_summary: dict) -> str:
     """
     Generate a detailed classification report for field-level accuracy.
 
@@ -826,7 +825,7 @@ def generate_field_classification_report(evaluation_summary: Dict) -> str:
     return "\n".join(report_lines)
 
 
-def generate_overall_classification_summary(evaluation_summary: Dict) -> Dict:
+def generate_overall_classification_summary(evaluation_summary: dict) -> dict:
     """
     Generate classification summary for sklearn metrics visualization.
 

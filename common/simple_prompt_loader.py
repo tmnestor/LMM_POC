@@ -7,7 +7,6 @@ What you see in YAML is exactly what gets sent to the model.
 """
 
 from pathlib import Path
-from typing import Dict, List
 
 import yaml
 
@@ -61,7 +60,7 @@ class SimplePromptLoader:
         return data["prompts"][prompt_key]["prompt"]
 
     @staticmethod
-    def get_available_prompts(filename: str) -> List[str]:
+    def get_available_prompts(filename: str) -> list[str]:
         """
         Get list of available prompt keys in a file.
 
@@ -89,7 +88,7 @@ class SimplePromptLoader:
     @staticmethod
     def load_prompt_info(
         filename: str, prompt_key: str = "universal"
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Load prompt with metadata (name, description).
 
@@ -116,7 +115,7 @@ class SimplePromptLoader:
         }
 
     @staticmethod
-    def get_settings(filename: str) -> Dict:
+    def get_settings(filename: str) -> dict:
         """
         Get settings from prompt file if available.
 

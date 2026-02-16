@@ -7,7 +7,6 @@ Much simpler than the old 1000+ line unified_schema.yaml system.
 """
 
 from pathlib import Path
-from typing import Dict, List
 
 import yaml
 
@@ -27,7 +26,7 @@ class SimpleFieldLoader:
         self.config_path = config_path
         self._config = None
 
-    def _load_config(self) -> Dict:
+    def _load_config(self) -> dict:
         """Load the field definitions config."""
         if self._config is None:
             if not self.config_path.exists():
@@ -40,7 +39,7 @@ class SimpleFieldLoader:
 
         return self._config
 
-    def get_document_fields(self, document_type: str) -> List[str]:
+    def get_document_fields(self, document_type: str) -> list[str]:
         """Get field list for a document type."""
         config = self._load_config()
         doc_fields = config.get("document_fields", {})
@@ -51,7 +50,7 @@ class SimpleFieldLoader:
 
         return doc_fields[document_type].get("fields", [])
 
-    def get_supported_document_types(self) -> List[str]:
+    def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types."""
         config = self._load_config()
         return config.get(
@@ -64,7 +63,7 @@ class SimpleFieldLoader:
         descriptions = config.get("field_descriptions", {})
         return descriptions.get(field_name, f"Description for {field_name}")
 
-    def get_critical_fields(self) -> List[str]:
+    def get_critical_fields(self) -> list[str]:
         """Get list of critical fields for evaluation."""
         config = self._load_config()
         evaluation = config.get("evaluation", {})
@@ -72,7 +71,7 @@ class SimpleFieldLoader:
             "critical_fields", ["BUSINESS_ABN", "TOTAL_AMOUNT", "GST_AMOUNT"]
         )
 
-    def get_field_types(self) -> Dict[str, List[str]]:
+    def get_field_types(self) -> dict[str, list[str]]:
         """
         Get field type classifications from YAML config.
 
@@ -91,13 +90,13 @@ class SimpleFieldLoader:
 
 
 # Convenience functions for backward compatibility
-def get_document_field_list(document_type: str = "invoice") -> List[str]:
+def get_document_field_list(document_type: str = "invoice") -> list[str]:
     """Get field list for document type."""
     loader = SimpleFieldLoader()
     return loader.get_document_fields(document_type)
 
 
-def get_supported_types() -> List[str]:
+def get_supported_types() -> list[str]:
     """Get supported document types."""
     loader = SimpleFieldLoader()
     return loader.get_supported_document_types()
