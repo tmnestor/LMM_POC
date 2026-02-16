@@ -36,7 +36,7 @@ output:
 # Processing options
 processing:
   batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
-  num_gpus: 2                  # Number of GPUs for parallel processing (1 = single GPU)
+  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: true   # Enable balance validation for bank statements
   verbose: false             # Verbose output (debug messages)

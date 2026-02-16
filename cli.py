@@ -452,7 +452,11 @@ def print_config(config: PipelineConfig) -> None:
     config_table.add_row("Balance correction", str(config.balance_correction))
     config_table.add_row(
         "GPUs",
-        f"{config.num_gpus} (parallel)" if config.num_gpus > 1 else "1 (single)",
+        "auto-detect"
+        if config.num_gpus == 0
+        else f"{config.num_gpus} (parallel)"
+        if config.num_gpus > 1
+        else "1 (single)",
     )
     config_table.add_row("Verbose", str(config.verbose))
 
@@ -520,16 +524,41 @@ def run_pipeline(config: PipelineConfig) -> None:
         config.model_type
     )
 
+    # Resolve num_gpus: 0 = auto-detect, N = explicit
+    try:
+        import torch
+
+        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    except ImportError:
+        available_gpus = 0
+
+    if config.num_gpus == 0:
+        # Auto-detect: use all available GPUs
+        resolved_gpus = max(available_gpus, 1)
+        if resolved_gpus > 1:
+            console.print(
+                f"\n[bold cyan]Auto-detected {resolved_gpus} GPUs — "
+                f"enabling parallel processing[/bold cyan]"
+            )
+    else:
+        resolved_gpus = config.num_gpus
+        if resolved_gpus > available_gpus > 0:
+            console.print(
+                f"[red]FATAL: Requested {resolved_gpus} GPUs but only "
+                f"{available_gpus} available[/red]"
+            )
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
     try:
         import time as _time
 
         _wall_start = _time.time()
 
-        if config.num_gpus > 1:
+        if resolved_gpus > 1:
             # Multi-GPU parallel processing
             from common.multi_gpu import MultiGPUOrchestrator
 
-            orchestrator = MultiGPUOrchestrator(config, config.num_gpus)
+            orchestrator = MultiGPUOrchestrator(config, resolved_gpus)
             batch_results, processing_times, document_types_found, batch_stats = (
                 orchestrator.run(
                     images, prompt_config, universal_fields, field_definitions
@@ -693,7 +722,7 @@ def main(
     num_gpus: int | None = typer.Option(
         None,
         "--num-gpus",
-        help="Number of GPUs for parallel processing (default: 1 = single GPU)",
+        help="Number of GPUs (0 = auto-detect all, 1 = single GPU, N = use N GPUs)",
     ),
     no_viz: bool | None = typer.Option(
         None,

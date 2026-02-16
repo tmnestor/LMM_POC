@@ -102,7 +102,7 @@ class PipelineConfig:
     device_map: str = "auto"
 
     # Multi-GPU options
-    num_gpus: int = 1  # 1 = single GPU (default), >1 = parallel across N GPUs
+    num_gpus: int = 0  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
 
     # Output options
     skip_visualizations: bool = False
@@ -388,8 +388,8 @@ def validate_config(config: PipelineConfig) -> list[str]:
         errors.append(f"Ground truth file not found: {config.ground_truth}")
 
     # Validate num_gpus
-    if config.num_gpus < 1:
-        errors.append(f"Invalid num_gpus: {config.num_gpus}. Must be >= 1.")
+    if config.num_gpus < 0:
+        errors.append(f"Invalid num_gpus: {config.num_gpus}. Must be >= 0 (0 = auto).")
 
     # Validate batch_size
     if config.batch_size is not None and config.batch_size < 1:
