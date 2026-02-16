@@ -11,6 +11,7 @@ Usage:
     schema = result.to_schema_dict()
 """
 
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -1536,8 +1537,13 @@ class UnifiedBankExtractor:
         self._log(f"[UBE]   Raw response length: {len(response)} chars")
         self._log(f"[UBE]   Raw response preview: {response[:500]}...")
 
-        # Parse the schema-format response
-        extracted = self._parse_schema_response(response)
+        # Try JSON transaction parsing first (handles GLM-OCR structured output)
+        extracted = self._try_parse_json_transactions(response)
+        if extracted is not None:
+            self._log("[UBE]   JSON transaction parsing succeeded")
+        else:
+            # Fall through to existing text-based parser
+            extracted = self._parse_schema_response(response)
         self._log(f"[UBE]   Parsed fields: {list(extracted.keys())}")
 
         # Extract fields from parsed response
@@ -1602,6 +1608,126 @@ class UnifiedBankExtractor:
             column_mapping=mapping,
             raw_responses={"schema_fallback": response},
         )
+
+    def _try_parse_json_transactions(self, response: str) -> dict[str, str] | None:
+        """Parse JSON response containing a transactions array into schema fields.
+
+        GLM-OCR returns structured JSON like:
+            {"Statement Period": "...", "Transactions": [{"Date": "...", ...}, ...]}
+
+        Maps transaction dict keys to canonical roles via keyword matching,
+        filters to debit rows, and returns pipe-delimited schema fields.
+
+        Returns None if response is not JSON or contains no transaction array.
+        """
+        text = response.strip()
+
+        # Strip markdown code fences
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        # Must look like JSON
+        if not text.startswith("{"):
+            return None
+
+        try:
+            data = json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        # Find the first list-of-dicts value (the transactions array)
+        transactions: list[dict] | None = None
+        for val in data.values():
+            if isinstance(val, list) and val and isinstance(val[0], dict):
+                transactions = val
+                break
+
+        if not transactions:
+            return None
+
+        self._log(f"[UBE]   JSON transactions found: {len(transactions)} rows")
+
+        # Map each transaction's keys to canonical roles via keyword matching
+        def _classify_key(key: str) -> str | None:
+            k = key.lower()
+            if "date" in k:
+                return "date"
+            if any(w in k for w in ("desc", "transaction", "detail", "particular")):
+                return "description"
+            if any(w in k for w in ("debit", "withdrawal")):
+                return "amount_paid"
+            if any(w in k for w in ("credit", "deposit")):
+                return "amount_received"
+            if "balance" in k:
+                return "balance"
+            if "amount" in k:
+                # Generic "amount" — treat as paid (debit) by default
+                return "amount_paid"
+            return None
+
+        dates: list[str] = []
+        descriptions: list[str] = []
+        amounts_paid: list[str] = []
+
+        for txn in transactions:
+            row: dict[str, str] = {}
+            for key, val in txn.items():
+                role = _classify_key(key)
+                if role and val is not None:
+                    row[role] = str(val).strip()
+
+            # Keep rows that have a non-empty amount_paid (debit transactions)
+            amount = row.get("amount_paid", "")
+            if not amount:
+                continue
+
+            # Clean currency symbols for consistency
+            clean_amount = (
+                amount.replace("$", "")
+                .replace(",", "")
+                .replace("CR", "")
+                .replace("DR", "")
+                .strip()
+            )
+            try:
+                if float(clean_amount) <= 0:
+                    continue
+            except ValueError:
+                continue
+
+            dates.append(row.get("date", ""))
+            descriptions.append(row.get("description", ""))
+            amounts_paid.append(amount)
+
+        if not dates:
+            return None
+
+        # Extract statement date range from top-level keys
+        date_range = "NOT_FOUND"
+        for key in data:
+            k = key.lower()
+            if any(w in k for w in ("period", "date range", "statement date")):
+                date_range = str(data[key]).strip()
+                break
+
+        self._log(
+            f"[UBE]   JSON parsed: {len(dates)} debit txns, date_range={date_range}"
+        )
+
+        return {
+            "STATEMENT_DATE_RANGE": date_range,
+            "TRANSACTION_DATES": " | ".join(dates),
+            "LINE_ITEM_DESCRIPTIONS": " | ".join(descriptions),
+            "TRANSACTION_AMOUNTS_PAID": " | ".join(amounts_paid),
+        }
 
     def _parse_schema_response(self, response: str) -> dict[str, str]:
         """Parse schema-format response into field dictionary."""

@@ -97,6 +97,84 @@ def _normalize_date(date_str: str) -> str:
         return date_str
 
 
+def _normalize_field_name(name: str) -> str:
+    """Normalize a field name for fuzzy matching.
+
+    Strips non-alphanumeric chars and lowercases:
+        "SUPPLIER_NAME" → "suppliername"
+        "Supplier Name" → "suppliername"
+        "Transaction details" → "transactiondetails"
+    """
+    return re.sub(r"[^a-zA-Z0-9]", "", name).lower()
+
+
+# Keyword-to-canonical-role mapping for nested transaction arrays
+_TRANSACTION_ROLE_KEYWORDS: dict[str, list[str]] = {
+    "date": ["date"],
+    "description": ["desc", "transaction", "detail", "particular"],
+    "amount_paid": ["debit", "withdrawal", "amount"],
+    "amount_received": ["credit", "deposit"],
+    "balance": ["balance"],
+}
+
+
+def _classify_transaction_key(key: str) -> str | None:
+    """Map a transaction dict key to a canonical role via keyword matching."""
+    k = key.lower()
+    for role, keywords in _TRANSACTION_ROLE_KEYWORDS.items():
+        if any(w in k for w in keywords):
+            return role
+    return None
+
+
+def _flatten_transactions_to_fields(
+    transactions: list[dict], expected_fields: list[str]
+) -> dict[str, str]:
+    """Flatten a Transactions array into pipe-separated schema fields.
+
+    Maps transaction keys to canonical roles then to expected field names
+    using normalized matching.
+    """
+    # Build normalized lookup for expected fields
+    norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
+
+    # Role → expected field name mapping
+    role_to_field: dict[str, str | None] = {}
+    role_aliases = {
+        "date": ["transactiondates"],
+        "description": ["lineitemdescriptions", "descriptions"],
+        "amount_paid": ["transactionamountspaid", "amounts"],
+        "balance": ["accountbalance", "accountbalances"],
+    }
+    for role, aliases in role_aliases.items():
+        for alias in aliases:
+            if alias in norm_lookup:
+                role_to_field[role] = norm_lookup[alias]
+                break
+
+    result: dict[str, list[str]] = {role: [] for role in role_aliases}
+
+    for txn in transactions:
+        row: dict[str, str] = {}
+        for key, val in txn.items():
+            role = _classify_transaction_key(key)
+            if role and val is not None:
+                row[role] = str(val).strip()
+
+        for role in role_aliases:
+            result[role].append(row.get(role, ""))
+
+    # Build output
+    extracted = {f: "NOT_FOUND" for f in expected_fields}
+    for role, field_name in role_to_field.items():
+        if field_name and result[role]:
+            joined = " | ".join(v for v in result[role] if v)
+            if joined:
+                extracted[field_name] = joined
+
+    return extracted
+
+
 def _fast_json_detection(text: str) -> bool:
     """
     Ultra-fast JSON detection without full parsing overhead.
@@ -159,20 +237,59 @@ def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | N
         if not isinstance(json_data, dict):
             return None
 
-        # Convert JSON to expected format
+        # Check for nested Transactions array — if present, flatten it
+        for val in json_data.values():
+            if isinstance(val, list) and val and isinstance(val[0], dict):
+                flattened = _flatten_transactions_to_fields(val, expected_fields)
+                # Also map top-level scalar keys (e.g. "Statement Period")
+                norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
+                for json_key, json_val in json_data.items():
+                    if isinstance(json_val, (str, int, float)) and json_val:
+                        norm_key = _normalize_field_name(json_key)
+                        if norm_key in norm_lookup:
+                            target = norm_lookup[norm_key]
+                            if flattened.get(target) == "NOT_FOUND":
+                                flattened[target] = str(json_val)
+                return flattened
+
+        # --- Exact matching pass ---
         extracted_data = {field: "NOT_FOUND" for field in expected_fields}
+        matched_json_keys: set[str] = set()
         for field in expected_fields:
             if field in json_data:
                 value = json_data[field]
-                # Convert to string, handling various types
                 if value is None or value == "":
                     extracted_data[field] = "NOT_FOUND"
+                elif isinstance(value, list):
+                    # Join list values with pipe separator
+                    extracted_data[field] = " | ".join(str(v) for v in value if v)
                 else:
                     extracted_data[field] = str(value)
+                matched_json_keys.add(field)
+
+        # --- Fuzzy matching pass (if <50% matched) ---
+        exact_matched = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+        if exact_matched < len(expected_fields) * 0.5:
+            norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
+            for json_key, json_val in json_data.items():
+                if json_key in matched_json_keys:
+                    continue
+                norm_key = _normalize_field_name(json_key)
+                if norm_key in norm_lookup:
+                    target_field = norm_lookup[norm_key]
+                    if extracted_data[target_field] == "NOT_FOUND":
+                        if json_val is None or json_val == "":
+                            continue
+                        elif isinstance(json_val, list):
+                            extracted_data[target_field] = " | ".join(
+                                str(v) for v in json_val if v
+                            )
+                        else:
+                            extracted_data[target_field] = str(json_val)
 
         return extracted_data
 
-    except (ValueError, TypeError) as e:
+    except (ValueError, TypeError):
         # orjson raises ValueError, json raises JSONDecodeError (which inherits from ValueError)
         return None
 
