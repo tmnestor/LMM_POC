@@ -137,20 +137,20 @@ class DocumentAwareGLMOCRProcessor(BaseDocumentProcessor):
             {
                 "role": "user",
                 "content": [
-                    {"type": "image"},
+                    {"type": "image", "image": image},
                     {"type": "text", "text": prompt},
                 ],
             }
         ]
 
-        # GLM-OCR's apply_chat_template can tokenize in one step
+        # GLM-OCR's apply_chat_template extracts images from message content
+        # automatically — do NOT pass a separate images= kwarg.
         inputs = self.processor.apply_chat_template(
             messages,
             tokenize=True,
             add_generation_prompt=True,
             return_dict=True,
             return_tensors="pt",
-            images=[image],
         ).to(self.model.device)
 
         # Remove token_type_ids if present (GLM-OCR doesn't use them)
