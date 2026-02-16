@@ -159,8 +159,9 @@ def _internvl3_loader(config):
             flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
             console.print(f"⚡ Flash Attention 2: {flash_status}")
 
-            # Display GPU memory status after loading
-            _print_gpu_status(console)
+            # Skip per-loader GPU status in multi-GPU mode (orchestrator prints once)
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
 
             yield model, tokenizer
 
@@ -289,8 +290,9 @@ def _llama_loader(config):
             # is incompatible (MllamaVisionAttention lacks is_causal attribute).
             console.print("⚡ Flash Attention 2: ❌ not applicable (Llama uses SDPA)")
 
-            # Display GPU memory status after loading
-            _print_gpu_status(console)
+            # Skip per-loader GPU status in multi-GPU mode (orchestrator prints once)
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
 
             # Yield (model, processor) — processor is Llama's equivalent of tokenizer
             yield model, processor
@@ -405,7 +407,8 @@ def _qwen3vl_loader(config):
             flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
             console.print(f"⚡ Flash Attention 2: {flash_status}")
 
-            _print_gpu_status(console)
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
 
             yield model, processor
 
@@ -513,7 +516,8 @@ def _glmocr_loader(config):
 
             console.print("⚡ Flash Attention 2: ❌ not applicable (0.9B model)")
 
-            _print_gpu_status(console)
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
 
             yield model, processor
 

@@ -29,8 +29,9 @@ _model_load_lock = threading.Lock()
 class MultiGPUOrchestrator:
     """Orchestrate parallel document processing across multiple GPUs.
 
-    Each GPU loads its own model + processor + bank adapter stack
-    and processes a contiguous partition of images.
+    Two-phase approach:
+      1. Load models sequentially (avoids import race + shows unified GPU status)
+      2. Process image chunks in parallel (GIL released during CUDA kernels)
     """
 
     def __init__(self, config, num_gpus: int) -> None:
@@ -48,6 +49,9 @@ class MultiGPUOrchestrator:
 
         Returns merged (batch_results, processing_times, document_types_found, batch_stats).
         """
+        from cli import create_processor, load_model
+        from models.registry import _print_gpu_status
+
         chunks = self._partition_images(images)
         actual_gpus = len(chunks)
 
@@ -61,65 +65,14 @@ class MultiGPUOrchestrator:
                 f"({chunk[0].name} .. {chunk[-1].name})[/dim]"
             )
 
-        start_time = time.time()
+        # Phase 1: Load all models sequentially
+        console.print("\n[bold]Loading models on all GPUs...[/bold]")
+        gpu_stacks: list[tuple] = []
+        for gpu_id in range(actual_gpus):
+            gpu_config = replace(self.config, device_map=f"cuda:{gpu_id}")
+            gpu_config._multi_gpu = True  # suppress per-loader GPU status
 
-        with ThreadPoolExecutor(max_workers=actual_gpus) as executor:
-            futures = {
-                executor.submit(
-                    self._process_on_gpu,
-                    gpu_id,
-                    chunk,
-                    prompt_config,
-                    universal_fields,
-                    field_definitions,
-                ): gpu_id
-                for gpu_id, chunk in enumerate(chunks)
-            }
-
-            # Collect results in GPU order
-            gpu_results: list[tuple | None] = [None] * actual_gpus
-            for future in as_completed(futures):
-                gpu_id = futures[future]
-                gpu_results[gpu_id] = future.result()
-                console.print(f"  [green]GPU {gpu_id} finished[/green]")
-
-        elapsed = time.time() - start_time
-        console.print(
-            f"\n[bold green]Multi-GPU processing complete: "
-            f"{elapsed:.1f}s total[/bold green]"
-        )
-
-        return self._merge_results(gpu_results)
-
-    def _process_on_gpu(
-        self,
-        gpu_id: int,
-        images: list[Path],
-        prompt_config: dict[str, Any],
-        universal_fields: list[str],
-        field_definitions: dict[str, list[str]],
-    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
-        """Load model on a specific GPU and process its image chunk.
-
-        Each call creates an independent model/processor/adapter stack
-        pinned to cuda:{gpu_id}. Model loading is serialized via
-        _model_load_lock to avoid transformers import race conditions;
-        GPU inference runs fully parallel after loading completes.
-        """
-        from cli import create_processor, load_model, run_batch_processing
-
-        gpu_config = replace(
-            self.config,
-            device_map=f"cuda:{gpu_id}",
-        )
-
-        console.print(f"  [dim]GPU {gpu_id}: loading model on cuda:{gpu_id}...[/dim]")
-
-        # load_model is a context manager — we need it alive during processing,
-        # but only the loading phase itself needs the lock.
-        model_ctx = load_model(gpu_config)
-
-        with _model_load_lock:
+            model_ctx = load_model(gpu_config)
             model, tokenizer = model_ctx.__enter__()
             processor = create_processor(
                 model,
@@ -129,22 +82,59 @@ class MultiGPUOrchestrator:
                 universal_fields,
                 field_definitions,
             )
+            gpu_stacks.append((gpu_config, model_ctx, processor))
 
-        # Processing runs in parallel (GIL released during CUDA kernels)
-        try:
-            batch_results, processing_times, document_types_found, batch_stats = (
-                run_batch_processing(
-                    gpu_config,
-                    processor,
+        # Print unified GPU status after all models are loaded
+        _print_gpu_status(console)
+
+        # Phase 2: Process image chunks in parallel
+        console.print("\n[bold]Processing images in parallel...[/bold]")
+        start_time = time.time()
+
+        with ThreadPoolExecutor(max_workers=actual_gpus) as executor:
+            futures = {
+                executor.submit(
+                    self._process_chunk,
+                    gpu_stacks[gpu_id],
+                    chunks[gpu_id],
                     prompt_config,
-                    images,
                     field_definitions,
-                )
-            )
-        finally:
+                ): gpu_id
+                for gpu_id in range(actual_gpus)
+            }
+
+            gpu_results: list[tuple | None] = [None] * actual_gpus
+            for future in as_completed(futures):
+                gpu_id = futures[future]
+                gpu_results[gpu_id] = future.result()
+                console.print(f"  [green]GPU {gpu_id} finished[/green]")
+
+        # Clean up: exit all model context managers
+        for _gpu_config, model_ctx, _processor in gpu_stacks:
             model_ctx.__exit__(None, None, None)
 
-        return batch_results, processing_times, document_types_found, batch_stats
+        elapsed = time.time() - start_time
+        console.print(
+            f"\n[bold green]Multi-GPU processing complete: "
+            f"{elapsed:.1f}s total[/bold green]"
+        )
+
+        return self._merge_results(gpu_results)
+
+    @staticmethod
+    def _process_chunk(
+        gpu_stack: tuple,
+        images: list[Path],
+        prompt_config: dict[str, Any],
+        field_definitions: dict[str, list[str]],
+    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
+        """Process an image chunk using a pre-loaded model/processor stack."""
+        from cli import run_batch_processing
+
+        gpu_config, _model_ctx, processor = gpu_stack
+        return run_batch_processing(
+            gpu_config, processor, prompt_config, images, field_definitions
+        )
 
     def _partition_images(self, images: list[Path]) -> list[list[Path]]:
         """Split images into num_gpus contiguous chunks.
@@ -154,8 +144,7 @@ class MultiGPUOrchestrator:
         """
         n = min(self.num_gpus, len(images))
         chunk_size = math.ceil(len(images) / n)
-        chunks = [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]
-        return chunks
+        return [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]
 
     @staticmethod
     def _merge_results(
