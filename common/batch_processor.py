@@ -1135,6 +1135,7 @@ class BatchDocumentProcessor:
         # Create extraction_result in the format expected by batch processor
         formatted_result = {
             "extracted_data": extracted_data,
+            "raw_response": extraction_result.get("raw_response", ""),
             "document_type": document_type,
             "image_file": Path(image_path).name,
             "processing_time": extraction_result.get("processing_time", 0),
