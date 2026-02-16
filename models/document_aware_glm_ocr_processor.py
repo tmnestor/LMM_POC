@@ -150,6 +150,7 @@ class DocumentAwareGLMOCRProcessor(BaseDocumentProcessor):
             add_generation_prompt=True,
             return_dict=True,
             return_tensors="pt",
+            images=[image],
         ).to(self.model.device)
 
         # Remove token_type_ids if present (GLM-OCR doesn't use them)
@@ -163,7 +164,7 @@ class DocumentAwareGLMOCRProcessor(BaseDocumentProcessor):
 
         # Trim input tokens from output
         generated_ids = output_ids[:, inputs["input_ids"].shape[1] :]
-        response = self.processor.decode(generated_ids[0], skip_special_tokens=False)
+        response = self.processor.decode(generated_ids[0], skip_special_tokens=True)
 
         del inputs, output_ids, generated_ids
         if torch.cuda.is_available():
