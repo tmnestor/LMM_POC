@@ -1,0 +1,229 @@
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields"
+    prompt: |
+      Extract ALL data from this invoice image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find supplier: Business name at top
+      - Find customer: "Bill To" section
+      - Find date: Use DD/MM/YYYY format
+      - Line items: Use " | " to separate multiple values
+      - GST: Check for "GST", "Tax", or 10% calculation
+      - Total: Find "Total", "Amount Due", or "Balance Due"
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 11 Fields
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 11 receipt-specific fields"
+    prompt: |
+      Extract ALL data from this receipt image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find store name at the top of receipt
+      - Find date: Use DD/MM/YYYY format
+      - Line items: Use " | " to separate multiple items
+      - GST: Look for "GST", "Tax" amount
+      - Total: Find "Total", "Amount", or final sum
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - 5 Fields (flat layout)
+  # ============================================================================
+  bank_statement_flat:
+    name: "Bank Statement Extraction (Flat)"
+    description: "Extract 5 bank-specific fields from flat-layout statements"
+    prompt: |
+      Extract ALL data from this bank statement image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      Instructions:
+      - Statement period: Use "DD/MM/YYYY - DD/MM/YYYY" format
+      - Transaction dates: Use DD/MM/YYYY, separate with " | "
+      - Descriptions: Exact text from statement, separate with " | "
+      - Amounts: Include sign (negative for debits), separate with " | "
+      - Keep transactions in chronological order
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - 5 Fields (date-grouped layout)
+  # ============================================================================
+  bank_statement_date_grouped:
+    name: "Bank Statement Extraction (Date-Grouped)"
+    description: "Extract 5 bank-specific fields from date-grouped statements"
+    prompt: |
+      Extract ALL data from this bank statement image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      Instructions:
+      - This statement groups multiple transactions under the same date
+      - Statement period: Use "DD/MM/YYYY - DD/MM/YYYY" format
+      - Transaction dates: Repeat the date for each transaction under it, separate with " | "
+      - Descriptions: Exact text from statement, separate with " | "
+      - Amounts: Include sign (negative for debits), separate with " | "
+      - Keep transactions in chronological order
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - 5 Fields (generic)
+  # ============================================================================
+  bank_statement:
+    name: "Bank Statement Extraction"
+    description: "Extract 5 bank-specific fields"
+    prompt: |
+      Extract ALL data from this bank statement image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      Instructions:
+      - Statement period: Use "DD/MM/YYYY - DD/MM/YYYY" format
+      - Transaction dates: Use DD/MM/YYYY, separate with " | "
+      - Descriptions: Exact text from statement, separate with " | "
+      - Amounts: Include sign (negative for debits), separate with " | "
+      - Keep transactions in chronological order
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # TRAVEL EXPENSE EXTRACTION - 10 Fields
+  # ============================================================================
+  travel_expense:
+    name: "Travel Expense Extraction"
+    description: "Extract 10 travel expense-specific fields"
+    prompt: |
+      Extract ALL data from this travel expense document. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      PASSENGER_NAME: NOT_FOUND
+      TRAVEL_MODE: NOT_FOUND
+      TRAVEL_ROUTE: NOT_FOUND
+      TRAVEL_DATES: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+
+      Instructions:
+      - Find passenger/traveller name
+      - Travel mode: Flight, Train, Bus, Taxi, etc.
+      - Route: Origin to Destination (e.g. "Sydney - Melbourne")
+      - Travel dates: Use DD/MM/YYYY format, separate with " | "
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # VEHICLE LOGBOOK EXTRACTION - 14 Fields
+  # ============================================================================
+  vehicle_logbook:
+    name: "Vehicle Logbook Extraction"
+    description: "Extract 14 vehicle logbook-specific fields"
+    prompt: |
+      Extract ALL data from this vehicle logbook. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: VEHICLE_LOGBOOK
+      VEHICLE_MAKE: NOT_FOUND
+      VEHICLE_MODEL: NOT_FOUND
+      VEHICLE_REGISTRATION: NOT_FOUND
+      ENGINE_CAPACITY: NOT_FOUND
+      LOGBOOK_PERIOD_START: NOT_FOUND
+      LOGBOOK_PERIOD_END: NOT_FOUND
+      ODOMETER_START: NOT_FOUND
+      ODOMETER_END: NOT_FOUND
+      TOTAL_KILOMETERS: NOT_FOUND
+      BUSINESS_KILOMETERS: NOT_FOUND
+      BUSINESS_USE_PERCENTAGE: NOT_FOUND
+      JOURNEY_DATES: NOT_FOUND
+      JOURNEY_DISTANCES: NOT_FOUND
+      JOURNEY_PURPOSES: NOT_FOUND
+
+      Instructions:
+      - Find vehicle details at top of logbook
+      - Dates: Use DD/MM/YYYY format
+      - Distances: Numbers only (in km)
+      - Business percentage: Number with % sign
+      - Journey details: Separate multiple with " | "
+      - Use NOT_FOUND for missing fields
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All Fields
+  # ============================================================================
+  universal:
+    name: "Universal Extraction"
+    description: "Extract all possible fields from any document type"
+    prompt: |
+      Extract ALL data from this document image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: NOT_FOUND
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+      ACCOUNT_BALANCE: NOT_FOUND
+
+      Instructions:
+      - Identify the document type first
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Dates: Use DD/MM/YYYY format
+      - Multiple values: Separate with " | "
+      - Use NOT_FOUND for fields not present in this document type

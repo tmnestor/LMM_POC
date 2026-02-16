@@ -458,3 +458,108 @@ register_model(
         description="Qwen3-VL-8B-Instruct vision-language model",
     )
 )
+
+
+# ============================================================================
+# GLM-OCR Registration (lazy imports — no torch/transformers at module level)
+# ============================================================================
+
+
+def _glm_ocr_loader(config):
+    """Context manager for loading GLM-OCR model and processor.
+
+    Uses AutoModelForImageTextToText + AutoProcessor.
+    Lightweight 0.9B model — no trust_remote_code required.
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(f"\n[bold]Loading GLM-OCR from: {cfg.model_path}[/bold]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+
+                progress.update(task, description="Loading model weights...")
+
+                model = AutoModelForImageTextToText.from_pretrained(
+                    pretrained_model_name_or_path=str(cfg.model_path),
+                    torch_dtype="auto",
+                    device_map=cfg.device_map,
+                )
+
+                progress.update(task, description="Model loaded!")
+
+            console.print("⚡ Flash Attention 2: ❌ not applicable (GLM-OCR 0.9B)")
+
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _glm_ocr_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareGLMOCRProcessor from loaded components.
+
+    Note: tokenizer_or_processor is an AutoProcessor for GLM-OCR.
+    """
+    from models.document_aware_glm_ocr_processor import (
+        DocumentAwareGLMOCRProcessor,
+    )
+
+    return DocumentAwareGLMOCRProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="glm_ocr",
+        loader=_glm_ocr_loader,
+        processor_creator=_glm_ocr_processor_creator,
+        prompt_file="glm_ocr_prompts.yaml",
+        description="GLM-OCR 0.9B lightweight document OCR model",
+    )
+)

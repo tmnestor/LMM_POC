@@ -90,3 +90,4 @@ model_loading:
     internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
     llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
     qwen3vl: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
+    glm_ocr: zai-org/GLM-OCR

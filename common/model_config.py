@@ -262,6 +262,14 @@ QWEN3VL_GENERATION_CONFIG = {
     "use_cache": True,
 }
 
+# GLM-OCR generation configuration (0.9B lightweight OCR model)
+GLM_OCR_GENERATION_CONFIG = {
+    "max_new_tokens_base": 8192,
+    "max_new_tokens_per_field": 64,
+    "do_sample": False,
+    "use_cache": True,
+}
+
 # Per-model generation parameters (for YAML overrides)
 GENERATION_CONFIGS = {
     "internvl3": {
