@@ -389,6 +389,7 @@ class BatchDocumentProcessor:
                     # Format extraction result for evaluation
                     formatted_result = {
                         "extracted_data": extraction_result.get("extracted_data", {}),
+                        "raw_response": extraction_result.get("raw_response", ""),
                         "document_type": document_type,
                         "image_file": image_name,
                         "processing_time": per_image_time,

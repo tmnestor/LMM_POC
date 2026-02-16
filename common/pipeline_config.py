@@ -107,6 +107,7 @@ class PipelineConfig:
     # Output options
     skip_visualizations: bool = False
     skip_reports: bool = False
+    raw_markdown: bool = False
     verbose: bool = True
 
     # Runtime state (set during execution)

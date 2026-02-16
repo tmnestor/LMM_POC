@@ -360,6 +360,48 @@ def generate_reports(
     return report_files
 
 
+def dump_raw_markdown(
+    output_dirs: dict[str, Path],
+    batch_results: list[dict],
+    timestamp: str,
+) -> None:
+    """Dump raw model responses to a markdown file for debugging."""
+    reports_dir = output_dirs["reports"]
+    md_path = reports_dir / f"raw_responses_{timestamp}.md"
+
+    lines = [f"# Raw Model Responses — {timestamp}\n"]
+
+    for result in batch_results:
+        image_name = result.get("image_name", "unknown")
+        doc_type = result.get("document_type", "unknown")
+        proc_time = result.get("processing_time", 0)
+        extraction = result.get("extraction_result", {})
+
+        raw = extraction.get("raw_response", "")
+
+        # Bank statements may store multi-turn responses in metadata
+        metadata = extraction.get("metadata", {})
+        raw_responses = metadata.get("raw_responses", {})
+        if raw_responses and not raw:
+            raw = "\n\n---\n\n".join(
+                f"**{turn}:**\n```\n{text}\n```"
+                for turn, text in raw_responses.items()
+                if text
+            )
+
+        if not raw:
+            raw = "(no raw response captured)"
+
+        lines.append(f"\n## {image_name}\n")
+        lines.append(f"- **Type:** {doc_type}")
+        lines.append(f"- **Time:** {proc_time:.1f}s\n")
+        lines.append(f"```\n{raw}\n```\n")
+
+    md_path.write_text("\n".join(lines))
+    console.print("  [green]Saved: raw_responses[/green]")
+    console.print(f"  [dim]{md_path}[/dim]")
+
+
 def print_summary(
     config: PipelineConfig,
     batch_results: list[dict],
@@ -612,6 +654,10 @@ def run_pipeline(config: PipelineConfig) -> None:
             df_doctype_stats,
         )
 
+        # Dump raw model responses
+        if config.raw_markdown:
+            dump_raw_markdown(output_dirs, batch_results, config.timestamp)
+
         # Print summary
         print_summary(
             config,
@@ -732,6 +778,11 @@ def main(
         "--no-reports/--reports",
         help="Skip report generation. Default from config or False.",
     ),
+    raw_markdown: bool = typer.Option(
+        False,
+        "--raw-markdown",
+        help="Dump raw model responses to a markdown file.",
+    ),
     verbose: bool | None = typer.Option(
         None,
         "--verbose/--quiet",
@@ -788,6 +839,7 @@ def main(
         "verbose": verbose,
         "skip_visualizations": no_viz,
         "skip_reports": no_reports,
+        "raw_markdown": raw_markdown,
     }
     cli_args = {k: v for k, v in arg_mapping.items() if v is not None}
 
