@@ -171,6 +171,7 @@ CLI options default to `None` and only override YAML config when explicitly prov
 | `--dtype` | str | bfloat16 | Torch dtype (bfloat16, float16, float32) |
 | `--no-viz/--viz` | bool | False | Skip visualization generation |
 | `--no-reports/--reports` | bool | False | Skip report generation |
+| `--num-gpus` | int | 0 (auto) | GPUs for parallel processing (0 = auto-detect, 1 = single, N = use N) |
 | `--verbose/-v`, `--quiet/-q` | bool | True | Verbose/debug output |
 | `--version`, `-V` | flag | - | Show version and exit |
 
@@ -222,6 +223,7 @@ output:
 
 # Processing options
 processing:
+  num_gpus: 0                # 0 = auto-detect all GPUs, 1 = single, N = use N GPUs
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: true   # Enable balance validation for bank statements
   verbose: false             # Verbose output (debug messages)
@@ -249,6 +251,7 @@ All settings can be configured via environment variables with the `IVL_` prefix:
 | `IVL_MODEL_PATH` | `--model-path` |
 | `IVL_GROUND_TRUTH` | `--ground-truth` |
 | `IVL_MAX_IMAGES` | `--max-images` |
+| `IVL_NUM_GPUS` | `--num-gpus` |
 | `IVL_MAX_TILES` | `--max-tiles` |
 | `IVL_FLASH_ATTN` | `--flash-attn` (true/false) |
 | `IVL_DTYPE` | `--dtype` |
@@ -299,6 +302,41 @@ python cli.py \
 - No Flash Attention (not supported)
 - 14 tiles compensates for precision loss
 - ~5-8 seconds per image
+
+### Multi-GPU (2x or 4x L4/A10G)
+
+```bash
+# Auto-detect all GPUs
+python cli.py \
+  --data-dir ./data \
+  --output-dir ./output \
+  --num-gpus 0
+
+# Explicit 4 GPUs
+python cli.py \
+  --data-dir ./data \
+  --output-dir ./output \
+  --num-gpus 4 \
+  --dtype bfloat16 \
+  --flash-attn
+```
+
+**Features:**
+- Each GPU loads an independent model copy (~16-18GB for 8B models)
+- Images partitioned into contiguous chunks, processed in parallel
+- Near-linear speedup for multi-image workloads
+- Works with any registered model (InternVL3, Llama, etc.)
+
+### GPU Memory Requirements (Multi-GPU)
+
+| GPUs | VRAM per GPU | Model | Fits? | Notes |
+|------|-------------|-------|-------|-------|
+| 2x L4 | 24GB each | InternVL3-8B | Yes | ~16GB model + headroom |
+| 4x L4 | 24GB each | InternVL3-8B | Yes | Best for large batches |
+| 2x A10G | 24GB each | InternVL3-8B | Yes | Similar to L4 |
+| 4x A10G | 24GB each | InternVL3-8B | Yes | Production recommended |
+
+Each GPU needs enough VRAM to hold one complete model copy independently.
 
 ## Output Files
 
@@ -392,6 +430,19 @@ python cli.py --model-path /correct/path/to/InternVL3_5-8B ...
 python cli.py --no-flash-attn --dtype float32 ...
 ```
 
+### Multi-GPU Issues
+
+**Error:** `FATAL: Requested 4 GPUs but only 2 available`
+
+**Solution:** Reduce `--num-gpus` or use `0` for auto-detection:
+```bash
+python cli.py --num-gpus 0 ...    # auto-detect available GPUs
+```
+
+**Problem:** Models loading slowly on multi-GPU
+
+This is expected — models load sequentially (one at a time) to avoid `transformers` import race conditions. Processing runs in parallel after all models are loaded.
+
 ### Missing Dependencies
 
 **Error:** `ModuleNotFoundError: No module named 'typer'`
@@ -439,7 +490,7 @@ python cli.py \
   --quiet
 ```
 
-### Kubeflow Pipeline Step
+### Kubeflow Pipeline Step (Single GPU)
 
 ```python
 # kubeflow_component.py
@@ -454,6 +505,31 @@ def extract_documents(data_dir: str, output_dir: str, model_path: str):
         "--no-viz",
         "--quiet"
     ], check=True)
+```
+
+### Kubeflow Pipeline Step (Multi-GPU)
+
+```python
+# kubeflow_component_multi_gpu.py
+import subprocess
+
+def extract_documents_multi_gpu(data_dir: str, output_dir: str, model_path: str, num_gpus: int = 0):
+    subprocess.run([
+        "python", "cli.py",
+        "--data-dir", data_dir,
+        "--output-dir", output_dir,
+        "--model-path", model_path,
+        "--num-gpus", str(num_gpus),  # 0 = auto-detect
+        "--no-viz",
+        "--quiet"
+    ], check=True)
+```
+
+Request a multi-GPU node in your Kubeflow pipeline spec:
+```yaml
+resources:
+  limits:
+    nvidia.com/gpu: 4
 ```
 
 ### Docker Usage

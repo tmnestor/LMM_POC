@@ -162,6 +162,60 @@ Step 3 is the critical path. Steps 1, 2, and 4 are straightforward plumbing.
 | OOM at larger batch sizes | Auto-detection already exists in `common/config.py`; add OOM retry with halved batch size |
 | Different document types in same batch need different prompts | Group by detected document type before batching, or use uniform prompt |
 
+## Multi-GPU Extension (Implemented)
+
+The batch inference proposal above addresses single-GPU throughput. For workloads with many images, **multi-GPU parallel processing** provides an orthogonal speedup by running independent model instances on separate GPUs.
+
+### Architecture
+
+`MultiGPUOrchestrator` (`common/multi_gpu.py`) implements true data parallelism:
+
+```
+cli.py --num-gpus 0 (auto-detect)
+  │
+  ├─ 1 GPU → existing single-GPU path (batch_size optimization applies)
+  │
+  └─ N GPUs → MultiGPUOrchestrator.run()
+                ├─ Phase 1: Load models sequentially (1 per GPU)
+                ├─ Phase 2: ThreadPoolExecutor(max_workers=N)
+                │    ├─ GPU 0: process images[0:K]
+                │    ├─ GPU 1: process images[K:2K]
+                │    └─ ...
+                └─ Merge results in original image order
+```
+
+### Why ThreadPoolExecutor
+
+- PyTorch releases the GIL during CUDA kernel execution — threads get true GPU parallelism
+- No serialization overhead (shared memory space)
+- Each thread targets a different GPU via `device_map="cuda:N"`
+
+### Combined throughput
+
+Batch inference (single-GPU) and multi-GPU parallelism are **complementary**:
+
+| Strategy | Speedup | How |
+|----------|---------|-----|
+| Batch inference only | 3-5x | Multiple images per forward pass on 1 GPU |
+| Multi-GPU only (N GPUs) | ~Nx | N independent models, each processing 1/N images |
+| Both combined | 3-5Nx | Each GPU runs batched inference on its image subset |
+
+For bank statements (sequential multi-turn, ~90s/image), multi-GPU is the primary speedup mechanism since batching doesn't apply to the multi-turn extraction pipeline.
+
+### Configuration
+
+```yaml
+processing:
+  num_gpus: 0       # 0 = auto-detect all GPUs
+  batch_size: null   # Per-GPU batch size (auto-detect from VRAM)
+```
+
+```bash
+python cli.py --num-gpus 4 --batch-size 4 -d ./images -o ./output
+```
+
 ## Summary
 
 With 88GB VRAM, the current batch_size=1 leaves ~70GB unused during inference. The batch size infrastructure (auto-detection, configuration) already exists in the codebase but is not connected. The primary engineering task is replacing `model.chat()` with a batched `model.generate()` call and restructuring the batch processor loop. Expected throughput improvement: **3-5x**.
+
+For multi-image workloads, multi-GPU parallel processing via `MultiGPUOrchestrator` provides an additional ~Nx speedup by distributing images across N GPUs. Both optimizations are complementary and can be combined.

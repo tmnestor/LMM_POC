@@ -228,3 +228,20 @@ This gives us:
 | **generate_fn callable** | Model-agnostic generation for bank extraction | `common/unified_bank_extractor.py` |
 
 Together, these give us a pipeline where adding a new vision-language model is a purely additive operation — inherit from `BaseDocumentProcessor`, implement ~3 methods, register in the registry. No existing code changes, no risk of breaking what already works.
+
+---
+
+## Multi-GPU: Zero Model Changes Required
+
+The `MultiGPUOrchestrator` (`common/multi_gpu.py`) leverages the Protocol + Registry pattern to run parallel processing across multiple GPUs without any model-specific code:
+
+```python
+# For each GPU, the orchestrator calls the SAME registry functions:
+gpu_config = replace(config, device_map=f"cuda:{gpu_id}")
+model_ctx = load_model(gpu_config)          # registry.loader(config)
+processor = create_processor(model, ...)     # registry.processor_creator(...)
+```
+
+Each GPU gets its own independent model + processor + bank adapter stack. The registry loaders already accept `device_map` from config, so multi-GPU support works automatically for any registered model — InternVL3, Llama, or future models.
+
+This is the Protocol + Registry pattern paying dividends: because the pipeline code is model-agnostic, multi-GPU orchestration only needed to be implemented once in `multi_gpu.py`. It works with every model past and future.

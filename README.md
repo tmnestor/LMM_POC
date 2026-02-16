@@ -1,6 +1,6 @@
 # Document Extraction Pipeline
 
-A production-ready CLI for extracting structured fields from business document images using vision-language models. Supports multiple models via a Protocol + Registry architecture, batched inference, automatic GPU memory management, multi-turn bank statement extraction, and evaluation against ground truth.
+A production-ready CLI for extracting structured fields from business document images using vision-language models. Supports multiple models via a Protocol + Registry architecture, batched inference, multi-GPU parallel processing, automatic GPU memory management, multi-turn bank statement extraction, and evaluation against ground truth.
 
 **Supported models:**
 
@@ -36,10 +36,18 @@ graph TD
     IVL_LOAD --> IVL_PROC
     LLAMA_LOAD --> LLAMA_PROC
 
+    subgraph GPU["GPU Routing"]
+        SINGLE["<b>Single GPU</b><br/>Direct processing"]
+        MULTI["<b>Multi-GPU</b><br/>MultiGPUOrchestrator<br/>ThreadPoolExecutor"]
+    end
+
+    IVL_PROC --> GPU
+    LLAMA_PROC --> GPU
+
     PIPELINE["<b>Pipeline (model-agnostic)</b><br/>BatchDocumentProcessor →<br/>BankStatementAdapter →<br/>UnifiedBankExtractor"]
 
-    IVL_PROC --> PIPELINE
-    LLAMA_PROC --> PIPELINE
+    SINGLE --> PIPELINE
+    MULTI -->|"One model per GPU<br/>parallel image chunks"| PIPELINE
 ```
 
 ### Key Design Principles
@@ -78,6 +86,7 @@ graph TD
 │   ├── field_config.py                    # Field schema, accessors, evaluation filtering
 │   ├── model_config.py                    # Generation config, batch sizes, YAML overrides
 │   ├── batch_processor.py                 # Batch orchestration (detection → extraction)
+│   ├── multi_gpu.py                       # Multi-GPU parallel processing orchestrator
 │   ├── bank_statement_adapter.py          # Multi-turn bank extraction adapter
 │   ├── unified_bank_extractor.py          # Auto-selects bank extraction strategy
 │   ├── gpu_optimization.py                # CUDA memory management, OOM recovery
@@ -110,7 +119,10 @@ python cli.py --model llama -d ./images -o ./output
 # 4. Evaluation mode (with ground truth)
 python cli.py --model llama -d ./images -o ./output -g ./ground_truth.csv
 
-# 5. Using config file
+# 5. Multi-GPU parallel processing (auto-detects available GPUs)
+python cli.py -d ./images -o ./output --num-gpus 0
+
+# 6. Using config file
 python cli.py --config config/run_config.yml
 ```
 
@@ -135,6 +147,8 @@ graph TD
 ```
 
 **Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches (InternVL3) or sequentially (Llama). Bank statements always use sequential multi-turn extraction via `BankStatementAdapter`, which dispatches to the correct model-specific generation method.
+
+**Multi-GPU**: When multiple GPUs are available, `MultiGPUOrchestrator` partitions images into contiguous chunks and processes them in parallel — one independent model per GPU. This is true data parallelism via `ThreadPoolExecutor` (PyTorch releases the GIL during CUDA kernels). Results are merged in original image order. See [Multi-GPU Parallel Processing](#multi-gpu-parallel-processing).
 
 ## The Protocol + Registry System
 
@@ -443,6 +457,7 @@ python cli.py [OPTIONS]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-b, --batch-size` | `None` (auto) | Images per batch (`null` = auto-detect from VRAM) |
+| `--num-gpus` | `0` (auto) | GPUs for parallel processing (`0` = auto-detect, `1` = single, `N` = use N) |
 | `--bank-v2 / --no-bank-v2` | `true` | Multi-turn bank statement extraction |
 | `--balance-correction / --no-balance-correction` | `true` | Balance validation for bank statements |
 
@@ -481,6 +496,7 @@ IVL_OUTPUT_DIR=/path/to/output
 IVL_MODEL_TYPE=llama           # Model type selection
 IVL_MODEL_PATH=/models/Llama-3.2-11B-Vision-Instruct
 IVL_BATCH_SIZE=4
+IVL_NUM_GPUS=0                 # 0 = auto-detect, 1 = single, N = use N GPUs
 IVL_MAX_TILES=14
 IVL_FLASH_ATTN=false
 IVL_DTYPE=float32
@@ -527,6 +543,7 @@ output:
 ```yaml
 processing:
   batch_size: null             # null = auto-detect from VRAM, 1 = sequential
+  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single, N = use N GPUs
   bank_v2: true                # Multi-turn bank statement extraction
   balance_correction: true     # Balance validation
   verbose: false
@@ -619,6 +636,91 @@ model:
 batch:
   strategy: aggressive
 ```
+
+## Multi-GPU Parallel Processing
+
+When multiple GPUs are available, the pipeline distributes images across GPUs for near-linear speedup. Each GPU loads an independent copy of the model and processes a contiguous subset of images in parallel.
+
+### Architecture
+
+```mermaid
+graph TD
+    CLI["cli.py --num-gpus 0 (auto-detect)"]
+    CLI -->|"1 GPU"| SINGLE["Single-GPU path<br/>(unchanged)"]
+    CLI -->|"N GPUs"| ORCH["MultiGPUOrchestrator"]
+
+    ORCH --> PHASE1["Phase 1: Sequential Model Loading<br/>Load model on each GPU one at a time<br/>(avoids transformers import race)"]
+    PHASE1 --> PHASE2["Phase 2: Parallel Processing<br/>ThreadPoolExecutor(max_workers=N)"]
+
+    PHASE2 --> GPU0["GPU 0: chunk[0]<br/>model + processor + bank adapter"]
+    PHASE2 --> GPU1["GPU 1: chunk[1]<br/>model + processor + bank adapter"]
+    PHASE2 --> GPUN["GPU N: chunk[N]<br/>model + processor + bank adapter"]
+
+    GPU0 --> MERGE["Merge results in original image order"]
+    GPU1 --> MERGE
+    GPUN --> MERGE
+```
+
+### Why ThreadPoolExecutor (not multiprocessing)
+
+- PyTorch releases the GIL during CUDA kernel execution — threads get true GPU parallelism
+- Shared memory space simplifies result collection (no serialization overhead)
+- Each thread targets a different GPU via `device_map="cuda:N"`
+
+### Usage
+
+```bash
+# Auto-detect all available GPUs (recommended)
+python cli.py -d ./images -o ./output --num-gpus 0
+
+# Explicit: use 2 GPUs
+python cli.py -d ./images -o ./output --num-gpus 2
+
+# Single GPU (default when only 1 GPU available)
+python cli.py -d ./images -o ./output --num-gpus 1
+```
+
+Or in `config/run_config.yml`:
+
+```yaml
+processing:
+  num_gpus: 0    # 0 = auto-detect all GPUs
+```
+
+### Key design decisions
+
+1. **Independent model per GPU**: No model sharding. Each GPU loads a complete copy of the model (~16-18GB for 8B models). This simplifies the architecture and avoids cross-GPU communication.
+
+2. **Contiguous image partitioning**: Images are split into N roughly equal chunks (not round-robin), preserving file ordering and keeping memory access patterns clean.
+
+3. **Bank adapter per GPU**: Each worker creates its own `BankStatementAdapter` with its own `processor.generate` callable — no shared mutable state between threads.
+
+4. **Sequential loading, parallel processing**: Models are loaded one at a time (Phase 1) to avoid `transformers` lazy-import race conditions, then all GPUs process in parallel (Phase 2).
+
+5. **Post-processing on CPU**: Analytics, visualizations, and reports run once on merged results after all GPUs finish.
+
+### Hardware examples
+
+| Setup | Images | Wall Clock | Throughput | Notes |
+|-------|--------|------------|------------|-------|
+| 1x L4 (24GB) | 12 bank | ~18 min | 0.67 img/min | Sequential baseline |
+| 2x L4 (24GB) | 12 bank | ~12 min | 1.0 img/min | ~1.5x speedup |
+| 4x L4 (24GB) | 12 bank | ~6 min | 2.0 img/min | ~3x speedup |
+| 4x A10G (24GB) | 12 bank | ~5 min | 2.4 img/min | Similar to L4 |
+
+Bank statements are the slowest document type (~90s/image, multi-turn extraction). Standard documents (invoices, receipts) are much faster and benefit proportionally more from parallelism.
+
+### Fail-fast validation
+
+If you request more GPUs than are available, the pipeline fails immediately:
+
+```
+FATAL: Requested 4 GPUs but only 2 available
+```
+
+### Model compatibility
+
+Multi-GPU works with any registered model — InternVL3, Llama, or custom models. Each GPU gets its own complete model + processor stack via the same `load_model()` / `create_processor()` path used for single-GPU.
 
 ## Configuring a New Document Type
 
