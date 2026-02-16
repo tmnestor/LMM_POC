@@ -472,6 +472,7 @@ def _glm_ocr_loader(config):
     Lightweight 0.9B model — no trust_remote_code required.
     """
     import logging
+    import os
     from contextlib import contextmanager
 
     import torch
@@ -496,7 +497,8 @@ def _glm_ocr_loader(config):
             # Suppress transformers weight-materializing progress bars
             prev_verbosity = tf_logging.get_verbosity()
             tf_logging.set_verbosity(logging.ERROR)
-            tf_logging.disable_progress_bars()
+            prev_tqdm = os.environ.get("TQDM_DISABLE")
+            os.environ["TQDM_DISABLE"] = "1"
 
             with Progress(
                 SpinnerColumn(),
@@ -519,7 +521,10 @@ def _glm_ocr_loader(config):
 
             # Restore logging
             tf_logging.set_verbosity(prev_verbosity)
-            tf_logging.enable_progress_bars()
+            if prev_tqdm is None:
+                os.environ.pop("TQDM_DISABLE", None)
+            else:
+                os.environ["TQDM_DISABLE"] = prev_tqdm
 
             console.print("⚡ Flash Attention 2: ❌ not applicable (GLM-OCR 0.9B)")
 
