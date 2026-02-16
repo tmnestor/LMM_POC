@@ -13,7 +13,7 @@ dependencies:
   - pip
   - pytorch::pytorch>=2.0.0
   - pytorch::torchvision>=0.15.0
-  # pytorch-cuda=12.6 on GPU servers; omitted for macOS ARM64
+  - pytorch::pytorch-cuda=12.4
   - numpy>=1.24.0
   - pip:
     # GLM-OCR requires latest transformers from source
