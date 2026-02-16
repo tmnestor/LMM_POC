@@ -448,6 +448,10 @@ def print_config(config: PipelineConfig) -> None:
     )
     config_table.add_row("Bank V2", str(config.bank_v2))
     config_table.add_row("Balance correction", str(config.balance_correction))
+    config_table.add_row(
+        "GPUs",
+        f"{config.num_gpus} (parallel)" if config.num_gpus > 1 else "1 (single)",
+    )
     config_table.add_row("Verbose", str(config.verbose))
 
     # Output options
@@ -515,27 +519,38 @@ def run_pipeline(config: PipelineConfig) -> None:
     )
 
     try:
-        # Model context: load model, run extraction, then free GPU memory
-        with load_model(config) as (model, tokenizer):
-            processor = create_processor(
-                model,
-                tokenizer,
-                config,
-                prompt_config,
-                universal_fields,
-                field_definitions,
-            )
+        if config.num_gpus > 1:
+            # Multi-GPU parallel processing
+            from common.multi_gpu import MultiGPUOrchestrator
 
+            orchestrator = MultiGPUOrchestrator(config, config.num_gpus)
             batch_results, processing_times, document_types_found, batch_stats = (
-                run_batch_processing(
-                    config,
-                    processor,
-                    prompt_config,
-                    images,
-                    field_definitions,
+                orchestrator.run(
+                    images, prompt_config, universal_fields, field_definitions
                 )
             )
-        # Model freed here — post-processing is CPU-only
+        else:
+            # Single-GPU path (default)
+            with load_model(config) as (model, tokenizer):
+                processor = create_processor(
+                    model,
+                    tokenizer,
+                    config,
+                    prompt_config,
+                    universal_fields,
+                    field_definitions,
+                )
+
+                batch_results, processing_times, document_types_found, batch_stats = (
+                    run_batch_processing(
+                        config,
+                        processor,
+                        prompt_config,
+                        images,
+                        field_definitions,
+                    )
+                )
+            # Model freed here — post-processing is CPU-only
 
         # Generate analytics
         _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = (
@@ -662,6 +677,11 @@ def main(
         "--dtype",
         help="Torch dtype (bfloat16, float16, float32). Default from config or bfloat16.",
     ),
+    num_gpus: int | None = typer.Option(
+        None,
+        "--num-gpus",
+        help="Number of GPUs for parallel processing (default: 1 = single GPU)",
+    ),
     no_viz: bool | None = typer.Option(
         None,
         "--no-viz/--viz",
@@ -724,6 +744,7 @@ def main(
         "dtype": dtype,
         "bank_v2": bank_v2,
         "balance_correction": balance_correction,
+        "num_gpus": num_gpus,
         "verbose": verbose,
         "skip_visualizations": no_viz,
         "skip_reports": no_reports,

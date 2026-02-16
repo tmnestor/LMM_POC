@@ -103,6 +103,9 @@ class PipelineConfig:
     low_cpu_mem_usage: bool = True
     device_map: str = "auto"
 
+    # Multi-GPU options
+    num_gpus: int = 1  # 1 = single GPU (default), >1 = parallel across N GPUs
+
     # Output options
     skip_visualizations: bool = False
     skip_reports: bool = False
@@ -189,6 +192,7 @@ def load_yaml_config(
             "balance_correction"
         )
         flat_config["verbose"] = raw_config["processing"].get("verbose")
+        flat_config["num_gpus"] = raw_config["processing"].get("num_gpus")
 
     # Flatten model_loading options into PipelineConfig fields
     if "model_loading" in raw_config:
@@ -220,6 +224,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}GROUND_TRUTH": ("ground_truth", str),
         f"{ENV_PREFIX}MAX_IMAGES": ("max_images", int),
         f"{ENV_PREFIX}BATCH_SIZE": ("batch_size", int),
+        f"{ENV_PREFIX}NUM_GPUS": ("num_gpus", int),
         f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
         f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}DTYPE": ("dtype", str),
@@ -383,6 +388,10 @@ def validate_config(config: PipelineConfig) -> list[str]:
     # Validate ground truth if specified
     if config.ground_truth and not config.ground_truth.exists():
         errors.append(f"Ground truth file not found: {config.ground_truth}")
+
+    # Validate num_gpus
+    if config.num_gpus < 1:
+        errors.append(f"Invalid num_gpus: {config.num_gpus}. Must be >= 1.")
 
     # Validate batch_size
     if config.batch_size is not None and config.batch_size < 1:
