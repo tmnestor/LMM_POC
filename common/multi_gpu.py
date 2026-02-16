@@ -10,6 +10,7 @@ serialization overhead.
 """
 
 import math
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
@@ -19,6 +20,10 @@ from typing import Any
 from rich.console import Console
 
 console = Console()
+
+# Serialize model loading to avoid transformers lazy-import race conditions.
+# Processing (GPU inference) runs fully parallel after loading.
+_model_load_lock = threading.Lock()
 
 
 class MultiGPUOrchestrator:
@@ -97,12 +102,12 @@ class MultiGPUOrchestrator:
         """Load model on a specific GPU and process its image chunk.
 
         Each call creates an independent model/processor/adapter stack
-        pinned to cuda:{gpu_id}.
+        pinned to cuda:{gpu_id}. Model loading is serialized via
+        _model_load_lock to avoid transformers import race conditions;
+        GPU inference runs fully parallel after loading completes.
         """
-        # Lazy imports to keep module-level lightweight
         from cli import create_processor, load_model, run_batch_processing
 
-        # Create a config copy pinned to this GPU
         gpu_config = replace(
             self.config,
             device_map=f"cuda:{gpu_id}",
@@ -110,7 +115,12 @@ class MultiGPUOrchestrator:
 
         console.print(f"  [dim]GPU {gpu_id}: loading model on cuda:{gpu_id}...[/dim]")
 
-        with load_model(gpu_config) as (model, tokenizer):
+        # load_model is a context manager — we need it alive during processing,
+        # but only the loading phase itself needs the lock.
+        model_ctx = load_model(gpu_config)
+
+        with _model_load_lock:
+            model, tokenizer = model_ctx.__enter__()
             processor = create_processor(
                 model,
                 tokenizer,
@@ -120,6 +130,8 @@ class MultiGPUOrchestrator:
                 field_definitions,
             )
 
+        # Processing runs in parallel (GIL released during CUDA kernels)
+        try:
             batch_results, processing_times, document_types_found, batch_stats = (
                 run_batch_processing(
                     gpu_config,
@@ -129,6 +141,8 @@ class MultiGPUOrchestrator:
                     field_definitions,
                 )
             )
+        finally:
+            model_ctx.__exit__(None, None, None)
 
         return batch_results, processing_times, document_types_found, batch_stats
 
