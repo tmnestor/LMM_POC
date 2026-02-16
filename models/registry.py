@@ -471,12 +471,14 @@ def _glm_ocr_loader(config):
     Uses AutoModelForImageTextToText + AutoProcessor.
     Lightweight 0.9B model — no trust_remote_code required.
     """
+    import logging
     from contextlib import contextmanager
 
     import torch
     from rich.console import Console
     from rich.progress import Progress, SpinnerColumn, TextColumn
     from transformers import AutoModelForImageTextToText, AutoProcessor
+    from transformers.utils import logging as tf_logging
 
     console = Console()
 
@@ -490,6 +492,11 @@ def _glm_ocr_loader(config):
                 torch.cuda.empty_cache()
 
             console.print(f"\n[bold]Loading GLM-OCR from: {cfg.model_path}[/bold]")
+
+            # Suppress transformers weight-materializing progress bars
+            prev_verbosity = tf_logging.get_verbosity()
+            tf_logging.set_verbosity(logging.ERROR)
+            tf_logging.disable_progress_bars()
 
             with Progress(
                 SpinnerColumn(),
@@ -509,6 +516,10 @@ def _glm_ocr_loader(config):
                 )
 
                 progress.update(task, description="Model loaded!")
+
+            # Restore logging
+            tf_logging.set_verbosity(prev_verbosity)
+            tf_logging.enable_progress_bars()
 
             console.print("⚡ Flash Attention 2: ❌ not applicable (GLM-OCR 0.9B)")
 

@@ -4,10 +4,12 @@
 
 # Model configuration — switch type + path together
 model:
-  type: internvl3
-  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  # type: internvl3
+  # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
   # type: llama
   # path: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
+  type: glm_ocr
+  path: /home/jovyan/nfs_share/models/GLM-OCR
   max_tiles: 6          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
@@ -90,4 +92,4 @@ model_loading:
     internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
     llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
     qwen3vl: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
-    glm_ocr: zai-org/GLM-OCR
+    glm_ocr: /home/jovyan/nfs_share/models/GLM-OCR
