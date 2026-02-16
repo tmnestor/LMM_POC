@@ -221,8 +221,6 @@ def run_batch_processing(
 ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
     """Run batch document processing with optional bank statement adapter."""
     # Create bank adapter when V2 bank extraction is enabled.
-    # Skip for models that use OCR-native pipelines (e.g. GLM-OCR) since they
-    # handle bank statements with "Table Recognition:" instead of multi-turn UBE.
     bank_adapter = None
     if config.bank_v2 and getattr(processor, "supports_multi_turn", True):
         console.print(

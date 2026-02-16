@@ -17,7 +17,6 @@ DEFAULT_BATCH_SIZES = {
     "internvl3-2b": 4,
     "internvl3-8b": 4,
     "qwen3vl": 4,
-    "glmocr": 8,
 }
 
 # Maximum batch sizes per model (Aggressive for 64GB+ VRAM)
@@ -26,7 +25,6 @@ MAX_BATCH_SIZES = {
     "internvl3-2b": 8,
     "internvl3-8b": 16,
     "qwen3vl": 8,
-    "glmocr": 16,
 }
 
 # Conservative batch sizes per model (Safe for limited memory)
@@ -35,7 +33,6 @@ CONSERVATIVE_BATCH_SIZES = {
     "internvl3-2b": 2,
     "internvl3-8b": 1,
     "qwen3vl": 2,
-    "glmocr": 4,
 }
 
 # Minimum batch size (always 1 for single image processing)
@@ -262,14 +259,6 @@ QWEN3VL_GENERATION_CONFIG = {
     "temperature": 0.0,
     "do_sample": False,
     "top_p": 0.95,
-    "use_cache": True,
-}
-
-# GLM-OCR generation configuration (0.9B OCR-specialized model)
-GLMOCR_GENERATION_CONFIG = {
-    "max_new_tokens_base": 2000,
-    "max_new_tokens_per_field": 64,
-    "do_sample": False,
     "use_cache": True,
 }
 
