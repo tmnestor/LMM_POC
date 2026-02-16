@@ -6,23 +6,15 @@ into structured data dictionaries. It includes robust parsing logic to handle va
 model output formats including markdown, plain text, and edge cases.
 """
 
+import json
 import re
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dateutil import parser as date_parser
-
-try:
-    import orjson
-
-    HAS_ORJSON = True
-except ImportError:
-    import json
-
-    HAS_ORJSON = False
-
 import yaml
+from dateutil import parser as date_parser
+from json_repair import repair_json
 
 from .field_config import (
     EXTRACTION_FIELDS,
@@ -279,10 +271,27 @@ def _repair_repeated_key_json(text: str) -> str:
     return _json.dumps({"Transactions": transactions})
 
 
+def _strip_markdown_fences(text: str) -> str:
+    """Strip markdown code fences from JSON text.
+
+    Handles ```json ... ``` and bare ``` ... ``` wrappers.
+    """
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
 def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | None:
     """
-    Attempt to parse response as JSON using fastest available parser.
-    Includes repair for common truncation issues.
+    Attempt to parse response as JSON.
+
+    Pipeline: strip fences → repair repeated keys → json.loads fast path
+    → json_repair fallback → field matching.
 
     Args:
         text: Response text to parse
@@ -294,189 +303,77 @@ def _try_parse_json(text: str, expected_fields: list[str]) -> dict[str, str] | N
     if not _fast_json_detection(text):
         return None
 
-    # Try to repair common JSON truncation issues
-    repaired_text = _repair_truncated_json(text, expected_fields)
+    # Step 1: Strip markdown fences
+    cleaned = _strip_markdown_fences(text)
 
-    # Repair repeated-key JSON (duplicate keys → Transactions array)
-    repaired_text = _repair_repeated_key_json(repaired_text)
+    # Step 2: Repair repeated-key JSON (duplicate keys → Transactions array)
+    # Must run BEFORE any JSON parser since json-repair uses "last value wins"
+    cleaned = _repair_repeated_key_json(cleaned)
 
+    # Step 3: Try json.loads fast path, then json-repair fallback
+    json_data = None
     try:
-        if HAS_ORJSON:
-            # Use orjson for maximum performance (3-5x faster than stdlib)
-            json_data = orjson.loads(repaired_text)
-        else:
-            # Fallback to standard library json
-            json_data = json.loads(repaired_text)
-
-        if not isinstance(json_data, dict):
+        json_data = json.loads(cleaned)
+    except (json.JSONDecodeError, ValueError):
+        # Fallback: json-repair handles truncation, missing commas, unclosed braces, etc.
+        try:
+            json_data = repair_json(cleaned, return_objects=True)
+        except Exception:
             return None
 
-        # Check for nested Transactions array — if present, flatten it
-        for val in json_data.values():
-            if isinstance(val, list) and val and isinstance(val[0], dict):
-                flattened = _flatten_transactions_to_fields(val, expected_fields)
-                # Also map top-level scalar keys (e.g. "Statement Period")
-                norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
-                for json_key, json_val in json_data.items():
-                    if isinstance(json_val, (str, int, float)) and json_val:
-                        norm_key = _normalize_field_name(json_key)
-                        if norm_key in norm_lookup:
-                            target = norm_lookup[norm_key]
-                            if flattened.get(target) == "NOT_FOUND":
-                                flattened[target] = str(json_val)
-                return flattened
-
-        # --- Exact matching pass ---
-        extracted_data = {field: "NOT_FOUND" for field in expected_fields}
-        matched_json_keys: set[str] = set()
-        for field in expected_fields:
-            if field in json_data:
-                value = json_data[field]
-                if value is None or value == "":
-                    extracted_data[field] = "NOT_FOUND"
-                elif isinstance(value, list):
-                    # Join list values with pipe separator
-                    extracted_data[field] = " | ".join(str(v) for v in value if v)
-                else:
-                    extracted_data[field] = str(value)
-                matched_json_keys.add(field)
-
-        # --- Fuzzy matching pass (if <50% matched) ---
-        exact_matched = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-        if exact_matched < len(expected_fields) * 0.5:
-            norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
-            for json_key, json_val in json_data.items():
-                if json_key in matched_json_keys:
-                    continue
-                norm_key = _normalize_field_name(json_key)
-                if norm_key in norm_lookup:
-                    target_field = norm_lookup[norm_key]
-                    if extracted_data[target_field] == "NOT_FOUND":
-                        if json_val is None or json_val == "":
-                            continue
-                        elif isinstance(json_val, list):
-                            extracted_data[target_field] = " | ".join(
-                                str(v) for v in json_val if v
-                            )
-                        else:
-                            extracted_data[target_field] = str(json_val)
-
-        return extracted_data
-
-    except (ValueError, TypeError):
-        # orjson raises ValueError, json raises JSONDecodeError (which inherits from ValueError)
+    if not isinstance(json_data, dict):
         return None
 
+    # Check for nested Transactions array — if present, flatten it
+    for val in json_data.values():
+        if isinstance(val, list) and val and isinstance(val[0], dict):
+            flattened = _flatten_transactions_to_fields(val, expected_fields)
+            # Also map top-level scalar keys (e.g. "Statement Period")
+            norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
+            for json_key, json_val in json_data.items():
+                if isinstance(json_val, (str, int, float)) and json_val:
+                    norm_key = _normalize_field_name(json_key)
+                    if norm_key in norm_lookup:
+                        target = norm_lookup[norm_key]
+                        if flattened.get(target) == "NOT_FOUND":
+                            flattened[target] = str(json_val)
+            return flattened
 
-def _repair_truncated_json(text: str, expected_fields: list[str]) -> str:
-    """
-    Attempt to repair common JSON truncation and formatting issues.
+    # --- Exact matching pass ---
+    extracted_data = {field: "NOT_FOUND" for field in expected_fields}
+    matched_json_keys: set[str] = set()
+    for field in expected_fields:
+        if field in json_data:
+            value = json_data[field]
+            if value is None or value == "":
+                extracted_data[field] = "NOT_FOUND"
+            elif isinstance(value, list):
+                extracted_data[field] = " | ".join(str(v) for v in value if v)
+            else:
+                extracted_data[field] = str(value)
+            matched_json_keys.add(field)
 
-    Args:
-        text: Potentially truncated JSON text
-        expected_fields: Expected field names for validation
+    # --- Fuzzy matching pass (if <50% matched) ---
+    exact_matched = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
+    if exact_matched < len(expected_fields) * 0.5:
+        norm_lookup = {_normalize_field_name(f): f for f in expected_fields}
+        for json_key, json_val in json_data.items():
+            if json_key in matched_json_keys:
+                continue
+            norm_key = _normalize_field_name(json_key)
+            if norm_key in norm_lookup:
+                target_field = norm_lookup[norm_key]
+                if extracted_data[target_field] == "NOT_FOUND":
+                    if json_val is None or json_val == "":
+                        continue
+                    elif isinstance(json_val, list):
+                        extracted_data[target_field] = " | ".join(
+                            str(v) for v in json_val if v
+                        )
+                    else:
+                        extracted_data[target_field] = str(json_val)
 
-    Returns:
-        str: Repaired JSON text
-    """
-    text = text.strip()
-
-    # Remove markdown code blocks if present
-    if text.startswith("```json"):
-        text = text[7:]  # Remove ```json
-    if text.startswith("```"):
-        text = text[3:]  # Remove ```
-    if text.endswith("```"):
-        text = text[:-3]  # Remove trailing ```
-
-    text = text.strip()
-
-    # If JSON doesn't end with }, try to close it properly
-    if not text.endswith("}"):
-        # Find the last field that was being written
-        lines = text.split("\n")
-
-        # Look for incomplete field (missing closing quote or value)
-        for i in range(len(lines) - 1, -1, -1):
-            line = lines[i].strip()
-
-            # Handle incomplete string value (missing closing quote)
-            if line.count('"') % 2 == 1 and ":" in line:
-                # Find the last quote and close the string
-                last_quote = line.rfind('"')
-                if last_quote > 0 and line[last_quote - 1] != "\\":
-                    # Add closing quote if not escaped
-                    lines[i] = line + '"'
-                break
-
-            # Handle incomplete field assignment (ends with |, comma, etc.)
-            elif line.endswith(("|", ",", "| ")):
-                # Complete the truncated field with closing quote
-                lines[i] = line.rstrip("| ,") + '"'
-                break
-
-        # Reconstruct text and ensure proper JSON closure
-        text = "\n".join(lines)
-
-        # Remove trailing commas and incomplete entries
-        text = re.sub(r",\s*$", "", text, flags=re.MULTILINE)
-
-        # Ensure JSON closes properly
-        if not text.endswith("}"):
-            text += "\n}"
-
-    # Fix standalone commas and malformed JSON structure
-    lines = text.split("\n")
-    fixed_lines = []
-
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-
-        # Skip standalone comma lines (malformed JSON pattern)
-        if line == '",' or line == ",":
-            # If we skipped a comma line, ensure previous line has comma (if it's a field)
-            if (
-                fixed_lines
-                and '":' in fixed_lines[-1]
-                and not fixed_lines[-1].endswith(",")
-                and not fixed_lines[-1].endswith("}")
-            ):
-                fixed_lines[-1] += ","
-            i += 1
-            continue
-
-        # Remove trailing comma followed by quote if present
-        if line.endswith('",'):
-            line = line[:-2] + '"'
-
-        fixed_lines.append(line)
-        i += 1
-
-    # Now add missing commas between fields
-    final_lines = []
-    for i, line in enumerate(fixed_lines):
-        # If this line has a field and the next line also has a field
-        # but current line doesn't end with comma or closing brace, add comma
-        next_line = fixed_lines[i + 1] if i < len(fixed_lines) - 1 else ""
-
-        if (
-            i < len(fixed_lines) - 1
-            and '":' in line
-            and not line.endswith(",")
-            and not line.endswith("}")
-            and '":' in next_line
-        ):
-            line += ","
-        final_lines.append(line)
-
-    text = "\n".join(final_lines)
-
-    # Fix common formatting issues
-    text = re.sub(r',\s*"', ',\n  "', text)  # Fix line breaks after commas
-    text = re.sub(r'",\s*,', '",', text)  # Remove double commas
-
-    return text
+    return extracted_data
 
 
 def hybrid_parse_response(
