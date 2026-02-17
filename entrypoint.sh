@@ -112,6 +112,16 @@ if [[ -n "${output:-}" ]]; then
   CLI_ARGS+=(--output-dir "$output")
 fi
 
+# num_gpus → --num-gpus (0 = auto-detect all, 1 = single GPU, N = use N GPUs)
+if [[ -n "${num_gpus:-}" ]]; then
+  CLI_ARGS+=(--num-gpus "$num_gpus")
+fi
+
+# batch_size → --batch-size (images per batch per GPU; omit for auto-detect)
+if [[ -n "${batch_size:-}" ]]; then
+  CLI_ARGS+=(--batch-size "$batch_size")
+fi
+
 # Append any direct command-line arguments passed to this script.
 # This allows local dev usage: bash entrypoint.sh --model llama --verbose
 # These are added AFTER KFP params, so they take precedence (last wins).
@@ -123,6 +133,8 @@ log "KFP input_params:"
 log "  model:          ${model:-<not set>}"
 log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
+log "  num_gpus:       ${num_gpus:-<not set>}"
+log "  batch_size:     ${batch_size:-<not set>}"
 log "  metadata:       ${metadata:-<not set>}"
 log "  system_message: ${system_message:-<not set>}"
 log "  prompt:         ${prompt:-<not set>}"
