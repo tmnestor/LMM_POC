@@ -369,6 +369,7 @@ def print_summary(
     document_types_found: dict[str, int],
     batch_stats: dict[str, float] | None = None,
     wall_clock_time: float | None = None,
+    inference_time: float | None = None,
 ) -> None:
     """Print execution summary."""
     # Wall clock is the true elapsed time; fall back to sum for backwards compat
@@ -377,6 +378,12 @@ def print_summary(
     )
     num_images = len(batch_results)
     throughput = (num_images / total_time * 60) if total_time > 0 else 0
+    # Inference rate excludes model loading overhead
+    inference_rate = (
+        (num_images / inference_time * 60)
+        if inference_time and inference_time > 0
+        else None
+    )
 
     # Extract accuracy from evaluation dict (uses overall_accuracy = mean F1)
     accuracies = []
@@ -396,6 +403,8 @@ def print_summary(
     table.add_row("Images Processed", str(num_images))
     table.add_row("Wall Clock Time", f"{total_time:.1f}s")
     table.add_row("Throughput", f"{throughput:.2f} images/min")
+    if inference_rate is not None:
+        table.add_row("Inference Rate", f"{inference_rate:.2f} images/min")
 
     # Batch stats
     if batch_stats:
@@ -555,15 +564,17 @@ def run_pipeline(config: PipelineConfig) -> None:
 
     try:
         if resolved_gpus > 1:
-            # Multi-GPU parallel processing
+            # Multi-GPU parallel processing (model loading happens per-worker)
             from common.multi_gpu import MultiGPUOrchestrator
 
+            _inference_start = _time.time()
             orchestrator = MultiGPUOrchestrator(config, resolved_gpus)
             batch_results, processing_times, document_types_found, batch_stats = (
                 orchestrator.run(
                     images, prompt_config, universal_fields, field_definitions
                 )
             )
+            inference_time = _time.time() - _inference_start
         else:
             # Single-GPU path (default)
             try:
@@ -587,6 +598,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                     field_definitions,
                 )
 
+                _inference_start = _time.time()
                 batch_results, processing_times, document_types_found, batch_stats = (
                     run_batch_processing(
                         config,
@@ -596,6 +608,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         field_definitions,
                     )
                 )
+                inference_time = _time.time() - _inference_start
             finally:
                 model_cm.__exit__(None, None, None)
             # Model freed here — post-processing is CPU-only
@@ -647,6 +660,7 @@ def run_pipeline(config: PipelineConfig) -> None:
         document_types_found,
         batch_stats,
         wall_clock_time,
+        inference_time,
     )
 
     if failed_count == total_count:
