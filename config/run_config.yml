@@ -33,6 +33,10 @@ output:
   skip_visualizations: false  # Skip visualization generation
   skip_reports: false         # Skip report generation
 
+# Logging
+logging:
+  log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+
 # Processing options
 processing:
   batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)

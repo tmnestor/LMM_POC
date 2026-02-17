@@ -40,9 +40,18 @@ set -o pipefail
 # while still being printed to the console (so KFP UI shows it too).
 # Each run creates its own log file, e.g. entrypoint_20260213_143022.log
 #
-# LMM_LOG_DIR is set in the KFP manifest under `environment_variables:`.
-# Falls back to ./logs if not set (e.g. local dev usage).
-LOG_DIR="${LMM_LOG_DIR:-./logs}"
+# Priority: LMM_LOG_DIR env var > run_config.yml logging.log_dir > fail
+# No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
+CONFIG_FILE="./config/run_config.yml"
+YAML_LOG_DIR=""
+if [[ -f "$CONFIG_FILE" ]]; then
+  YAML_LOG_DIR=$(grep -A1 '^logging:' "$CONFIG_FILE" | grep 'log_dir:' | sed 's/.*log_dir:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d "'" | tr -d '"')
+fi
+LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
+if [[ -z "$LOG_DIR" ]]; then
+  echo "FATAL: No log directory configured. Set LMM_LOG_DIR env var or logging.log_dir in $CONFIG_FILE"
+  exit 1
+fi
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/entrypoint_$(date +'%Y%m%d_%H%M%S').log"
 
