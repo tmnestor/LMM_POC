@@ -4,10 +4,10 @@
 # =============================================================================
 #
 # This is the first script that runs when a KFP pipeline job starts.
-# Its job is simple: set up the environment, then hand off to cli.py.
+# Its job is simple: set up the environment, then hand off to run_batch_inference KFP Task which calls cli.py to do the actual work.
 #
 # Flow:
-#   KFP Pipeline → Container starts → entrypoint.sh → cli.py
+#   KFP Pipeline → Container starts → entrypoint.sh → run_batch_inference KFP Task → cli.py
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
@@ -64,6 +64,9 @@ LOG_FILE="${LOG_DIR}/entrypoint_$(date +'%Y%m%d_%H%M%S').log"
 # `exec` redirects ALL subsequent output through `tee`, which writes to
 # both the console (for KFP) and the log file (for persistent debugging).
 # The `2>&1` merges stderr into stdout so errors are captured too.
+# NOTE: Process substitution with tee means the subshell can outlive this
+# script — the final log line(s) may flush slightly after exit. This is a
+# known bash nuance and is harmless in practice.
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # Timestamped logging function — prefixes every message with a timestamp
@@ -87,6 +90,10 @@ log "================================================================="
 log ""
 
 # ---- Conda Activation ---- #
+# Assumes EFS is mounted via KFP volume spec at /efs/shared/. If the
+# volume mount is missing, conda activate will fail below. Check the
+# KFP pipeline YAML volume definitions if this step errors.
+#
 # KFP containers start with a bare shell. We need to initialise conda
 # (the `eval` line) and then activate our environment which has all
 # the Python dependencies (torch, transformers, etc.) pre-installed.
@@ -183,6 +190,9 @@ log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
 log "  num_gpus:       ${num_gpus:-<not set>}"
 log "  batch_size:     ${batch_size:-<not set>}"
+# metadata, system_message, and prompt are KFP input_params reserved for
+# future use. They are logged here for visibility but not yet translated
+# into CLI_ARGS — cli.py does not currently consume them.
 log "  metadata:       ${metadata:-<not set>}"
 log "  system_message: ${system_message:-<not set>}"
 log "  prompt:         ${prompt:-<not set>}"
@@ -201,8 +211,14 @@ case "${KFP_TASK:-}" in
   run_batch_inference)
     # Hand off to cli.py which handles all the actual work:
     # model loading, image processing, extraction, evaluation, and reporting.
+    # NOTE: cli.py exit codes — propagated via `|| exit $?` for KFP:
+    #   0 = success
+    #   1 = config error (bad YAML, missing paths, invalid params)
+    #   2 = model loading error (OOM, corrupt weights, missing checkpoint)
+    #   3 = processing error (all images failed, fatal crash)
+    #   4 = partial success (some images succeeded, some failed)
     log "Starting cli.py..."
-    python3 ./cli.py "${CLI_ARGS[@]}" || exit 1
+    python3 ./cli.py "${CLI_ARGS[@]}" || exit $?
     log "Pipeline completed successfully."
     ;;
   "")

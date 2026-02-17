@@ -52,7 +52,9 @@ VERSION = "2.0.0"
 # Exit codes
 EXIT_SUCCESS = 0
 EXIT_CONFIG_ERROR = 1
+EXIT_MODEL_LOAD_ERROR = 2
 EXIT_PROCESSING_ERROR = 3
+EXIT_PARTIAL_SUCCESS = 4
 
 console = Console()
 app = typer.Typer(
@@ -547,11 +549,11 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
             raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
+    import time as _time
+
+    _wall_start = _time.time()
+
     try:
-        import time as _time
-
-        _wall_start = _time.time()
-
         if resolved_gpus > 1:
             # Multi-GPU parallel processing
             from common.multi_gpu import MultiGPUOrchestrator
@@ -564,7 +566,18 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
         else:
             # Single-GPU path (default)
-            with load_model(config) as (model, tokenizer):
+            try:
+                model_cm = load_model(config)
+                model, tokenizer = model_cm.__enter__()
+            except typer.Exit:
+                raise
+            except Exception as e:
+                console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
+                if config.verbose:
+                    console.print_exception()
+                raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
+
+            try:
                 processor = create_processor(
                     model,
                     tokenizer,
@@ -583,53 +596,68 @@ def run_pipeline(config: PipelineConfig) -> None:
                         field_definitions,
                     )
                 )
+            finally:
+                model_cm.__exit__(None, None, None)
             # Model freed here — post-processing is CPU-only
-
-        wall_clock_time = _time.time() - _wall_start
-
-        # Generate analytics
-        _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = (
-            generate_analytics(
-                config,
-                output_dirs,
-                batch_results,
-                processing_times,
-            )
-        )
-
-        # Generate visualizations
-        generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
-
-        # Generate reports
-        generate_reports(
-            config,
-            output_dirs,
-            batch_results,
-            processing_times,
-            document_types_found,
-            df_results,
-            df_summary,
-            df_doctype_stats,
-        )
-
-        # Print summary
-        print_summary(
-            config,
-            batch_results,
-            processing_times,
-            document_types_found,
-            batch_stats,
-            wall_clock_time,
-        )
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Processing interrupted by user[/yellow]")
         raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"\n[red]FATAL: Processing error: {e}[/red]")
         if config.verbose:
             console.print_exception()
         raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+
+    wall_clock_time = _time.time() - _wall_start
+
+    # Check for partial success: some images succeeded, some failed
+    failed_count = sum(1 for r in batch_results if "error" in r)
+    total_count = len(batch_results)
+
+    # Generate analytics, visualizations, and reports regardless of partial failures
+    _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = (
+        generate_analytics(
+            config,
+            output_dirs,
+            batch_results,
+            processing_times,
+        )
+    )
+
+    generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
+
+    generate_reports(
+        config,
+        output_dirs,
+        batch_results,
+        processing_times,
+        document_types_found,
+        df_results,
+        df_summary,
+        df_doctype_stats,
+    )
+
+    print_summary(
+        config,
+        batch_results,
+        processing_times,
+        document_types_found,
+        batch_stats,
+        wall_clock_time,
+    )
+
+    if failed_count == total_count:
+        console.print("\n[red]All images failed processing[/red]")
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+    if failed_count > 0:
+        console.print(
+            f"\n[yellow]Pipeline completed with errors: "
+            f"{failed_count}/{total_count} images failed[/yellow]"
+        )
+        raise typer.Exit(EXIT_PARTIAL_SUCCESS) from None
 
     console.print("\n[bold green]Pipeline completed successfully![/bold green]")
 
