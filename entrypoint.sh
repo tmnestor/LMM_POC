@@ -15,14 +15,14 @@
 #   variables into the container. This script reads those env vars and
 #   translates them into cli.py command-line flags.
 #
-#   Example: if a user sets model=llama in the KFP UI, this script runs:
-#     python3 ./cli.py --model llama
+#   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
+#     python3 ./cli.py --model llama --num-gpus 4
 #
 # Two ways to run:
 #   1. Via KFP (production):  input_params set in UI → injected as env vars
-#   2. Locally (dev/debug):   bash entrypoint.sh --model llama --verbose
+#   2. Locally (dev/debug):   bash entrypoint.sh --model llama --num-gpus 2
 # For example:
-#   LMM_LOG_DIR=/tmp/lmm_logs model=internvl3 image_dir=../evaluation_data/synthetic bash entrypoint.sh --model llama --verbose
+#   num_gpus=4 batch_size=4 model=internvl3 image_dir=../evaluation_data/synthetic bash entrypoint.sh
 #   Both work — KFP env vars and direct CLI args are merged together.
 #
 # =============================================================================
@@ -34,6 +34,12 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+
+# ---- CUDA Environment ---- #
+# Deterministic GPU indexing: ensures cuda:0 always maps to the same physical
+# GPU regardless of driver enumeration order. Critical for multi-GPU so that
+# log messages ("GPU 0 failed") match nvidia-smi output.
+export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
 # ---- Log Configuration ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
@@ -95,9 +101,42 @@ log "---------------------------------------"
 log "Python:  $(which python3)"
 log "Version: $(python3 --version 2>&1)"
 log "Conda:   $(conda info --envs | grep '*' || echo 'unknown')"
-log "GPU:     $(python3 -c 'import torch; print(f"{torch.cuda.device_count()}x {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else "No CUDA")' 2>/dev/null || echo 'torch not available')"
+log "Log dir: $LOG_DIR (source: ${LMM_LOG_DIR:+env}${LMM_LOG_DIR:-${YAML_LOG_DIR:+yaml}})"
 log "---------------------------------------"
 log ""
+
+# ---- GPU Health Check ---- #
+# Verify GPUs are accessible and healthy before loading ~16GB models onto them.
+# Catches ECC errors, fallen-off-bus GPUs, and driver mismatches early —
+# much cheaper than discovering mid-inference after a 60s model load.
+log "GPU environment:"
+log "  CUDA_VISIBLE_DEVICES:  ${CUDA_VISIBLE_DEVICES:-<not set — all GPUs visible>}"
+log "  CUDA_DEVICE_ORDER:     ${CUDA_DEVICE_ORDER}"
+log "  NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-<not set>}"
+log ""
+
+if command -v nvidia-smi &>/dev/null; then
+  GPU_COUNT=$(nvidia-smi --query-gpu=count --format=csv,noheader,nounits | head -1)
+  log "Detected $GPU_COUNT GPU(s):"
+  log ""
+  # Per-GPU detail: index, name, VRAM, temperature, ECC errors
+  nvidia-smi --query-gpu=index,name,memory.total,memory.free,temperature.gpu,ecc.errors.uncorrected.volatile.total \
+    --format=csv,noheader 2>/dev/null | while IFS=',' read -r idx name mem_total mem_free temp ecc; do
+    log "  GPU $idx: $name |$(echo "$mem_total" | xargs) total |$(echo "$mem_free" | xargs) free | ${temp}C | ECC errors: $(echo "$ecc" | xargs)"
+  done
+  log ""
+
+  # Check for GPUs in error state — ERR or "Unknown Error" in nvidia-smi
+  # means the GPU has fallen off the bus or has a hardware fault.
+  if nvidia-smi --query-gpu=index,pstate --format=csv,noheader 2>/dev/null | grep -qi "err"; then
+    log "WARNING: One or more GPUs report error state. Run may fail."
+    log "$(nvidia-smi --query-gpu=index,pstate,ecc.errors.uncorrected.volatile.total --format=csv 2>/dev/null)"
+    log ""
+  fi
+else
+  log "WARNING: nvidia-smi not found — cannot verify GPU health"
+  log ""
+fi
 
 # ---- Build CLI args from KFP input_params ---- #
 # KFP injects `input_params` from the pipeline YAML as environment variables.
