@@ -20,9 +20,9 @@
 #
 # Two ways to run:
 #   1. Via KFP (production):  input_params set in UI → injected as env vars
-#   2. Locally (dev/debug):   bash entrypoint.sh --model llama --num-gpus 2
+#   2. Locally (dev/debug):   KFP_TASK=run_batch_inference bash entrypoint.sh --model llama --num-gpus 2
 # For example:
-#   num_gpus=4 batch_size=4 model=internvl3 image_dir=../evaluation_data/synthetic bash entrypoint.sh
+#   KFP_TASK=run_batch_inference num_gpus=4 batch_size=4 model=internvl3 bash entrypoint.sh
 #   Both work — KFP env vars and direct CLI args are merged together.
 #
 # =============================================================================
@@ -190,11 +190,30 @@ log ""
 log "Resolved CLI args: ${CLI_ARGS[*]:-<none>}"
 log ""
 
-# ---- Run Pipeline ---- #
-# Hand off to cli.py which handles all the actual work:
-# model loading, image processing, extraction, evaluation, and reporting.
-# If cli.py fails (non-zero exit), the `|| exit 1` ensures we exit too,
-# which triggers the cleanup trap above to log the failure.
-log "Starting cli.py..."
-python3 ./cli.py "${CLI_ARGS[@]}" || exit 1
-log "Pipeline completed successfully."
+# ---- Task Dispatch ---- #
+# KFP sets $KFP_TASK to the current stage name from workflow_definition.
+# Each case must match a task name defined in the kfp_manifest.
+# Fail fast if the task is unknown — never silently skip work.
+log "KFP_TASK: ${KFP_TASK:-<not set>}"
+log ""
+
+case "${KFP_TASK:-}" in
+  run_batch_inference)
+    # Hand off to cli.py which handles all the actual work:
+    # model loading, image processing, extraction, evaluation, and reporting.
+    log "Starting cli.py..."
+    python3 ./cli.py "${CLI_ARGS[@]}" || exit 1
+    log "Pipeline completed successfully."
+    ;;
+  "")
+    log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
+    log "  For local dev, set KFP_TASK explicitly:"
+    log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
+    exit 1
+    ;;
+  *)
+    log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
+    log "  Expected one of: run_batch_inference"
+    exit 1
+    ;;
+esac
