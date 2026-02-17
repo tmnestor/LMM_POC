@@ -18,12 +18,12 @@
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
 #     python3 ./cli.py --model llama --num-gpus 4
 #
-# Two ways to run:
-#   1. Via KFP (production):  input_params set in UI → injected as env vars
-#   2. Locally (dev/debug):   KFP_TASK=run_batch_inference bash entrypoint.sh --model llama --num-gpus 2
-# For example:
+# Three ways to run:
+#   1. GitLab CI/CD (standard): git tag triggers pipeline → builds container → deploys to KFP
+#   2. Via KFP UI (ad-hoc):     input_params set in UI → injected as env vars
+#   3. Locally (dev/debug):     KFP_TASK=run_batch_inference bash entrypoint.sh --model llama
+# Local example:
 #   KFP_TASK=run_batch_inference num_gpus=4 batch_size=4 model=internvl3 bash entrypoint.sh
-#   Both work — KFP env vars and direct CLI args are merged together.
 #
 # =============================================================================
 
