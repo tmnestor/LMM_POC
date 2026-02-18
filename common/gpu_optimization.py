@@ -234,7 +234,7 @@ def handle_memory_fragmentation(
             "FRAGMENTATION DETECTED: %.2fGB gap (allocated vs reserved)",
             fragmentation,
         )
-        logger.info("Attempting memory pool reset...")
+        logger.warning("Attempting memory pool reset...")
 
         # Force memory pool cleanup (aggressive strategy)
         torch.cuda.empty_cache()
@@ -250,7 +250,7 @@ def handle_memory_fragmentation(
         allocated_after, reserved_after, fragmentation_after = (
             detect_memory_fragmentation()
         )
-        logger.info(
+        logger.warning(
             "Post-cleanup: Allocated=%.2fGB, Reserved=%.2fGB, Fragmentation=%.2fGB",
             allocated_after,
             reserved_after,
