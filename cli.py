@@ -12,6 +12,7 @@ Usage:
     python cli.py --help
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -898,6 +899,12 @@ def main(
         for error in errors:
             console.print(f"[red]FATAL: {error}[/red]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Configure logging level from --verbose/--quiet flag
+    logging.basicConfig(
+        level=logging.DEBUG if config.verbose else logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     # Display configuration and run pipeline
     print_config(config)

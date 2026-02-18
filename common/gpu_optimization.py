@@ -17,10 +17,13 @@ Supported GPUs:
 """
 
 import gc
+import logging
 import os
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 def configure_cuda_memory_allocation(
@@ -219,17 +222,19 @@ def handle_memory_fragmentation(
 
     allocated, reserved, fragmentation = detect_memory_fragmentation()
 
-    if verbose:
-        print(
-            f"🧹 Memory state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB, Fragmentation={fragmentation:.2f}GB"
-        )
+    logger.debug(
+        "Memory state: Allocated=%.2fGB, Reserved=%.2fGB, Fragmentation=%.2fGB",
+        allocated,
+        reserved,
+        fragmentation,
+    )
 
     if fragmentation > threshold_gb:
-        if verbose:
-            print(
-                f"⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap (allocated vs reserved)"
-            )
-            print("🔄 Attempting memory pool reset...")
+        logger.warning(
+            "FRAGMENTATION DETECTED: %.2fGB gap (allocated vs reserved)",
+            fragmentation,
+        )
+        logger.info("Attempting memory pool reset...")
 
         # Force memory pool cleanup (aggressive strategy)
         torch.cuda.empty_cache()
@@ -245,13 +250,16 @@ def handle_memory_fragmentation(
         allocated_after, reserved_after, fragmentation_after = (
             detect_memory_fragmentation()
         )
-        print(
-            f"📊 Post-cleanup: Allocated={allocated_after:.2f}GB, Reserved={reserved_after:.2f}GB, Fragmentation={fragmentation_after:.2f}GB"
+        logger.info(
+            "Post-cleanup: Allocated=%.2fGB, Reserved=%.2fGB, Fragmentation=%.2fGB",
+            allocated_after,
+            reserved_after,
+            fragmentation_after,
         )
 
         if aggressive and fragmentation_after > threshold_gb:
-            print(
-                "🚨 CRITICAL: High fragmentation persists - attempting aggressive defragmentation"
+            logger.warning(
+                "CRITICAL: High fragmentation persists - attempting aggressive defragmentation"
             )
             aggressive_defragmentation()
 
