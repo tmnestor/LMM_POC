@@ -47,9 +47,9 @@ processing:
 
 # Batch processing tuning
 batch:
-  default_sizes: {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4}
-  max_sizes: {internvl3: 8, internvl3-2b: 8, internvl3-8b: 16}
-  conservative_sizes: {internvl3: 1, internvl3-2b: 2, internvl3-8b: 1}
+  default_sizes: {internvl3: 4}
+  max_sizes: {internvl3: 8}
+  conservative_sizes: {internvl3: 1}
   min_size: 1
   strategy: balanced            # conservative | balanced | aggressive
   auto_detect: true
