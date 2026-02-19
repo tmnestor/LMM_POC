@@ -122,7 +122,7 @@ class BatchDocumentProcessor:
         self,
         model,
         prompt_config: dict,
-        ground_truth_csv: str,
+        ground_truth_csv: str | None,
         console: Console | None = None,
         enable_math_enhancement: bool = True,
         bank_adapter=None,
@@ -222,18 +222,22 @@ class BatchDocumentProcessor:
         Returns:
             Tuple of (batch_results, processing_times, document_types_found)
         """
-        # Load ground truth data once for the batch
-        try:
-            self.ground_truth_data = load_ground_truth(
-                self.ground_truth_csv, verbose=verbose
-            )
-            logger.info(
-                "Loaded ground truth for %d images", len(self.ground_truth_data)
-            )
-            sample_keys = list(self.ground_truth_data.keys())[:3]
-            logger.debug("Sample GT keys: %s", sample_keys)
-        except Exception as e:
-            logger.error("Error loading ground truth: %s", e)
+        # Load ground truth data once for the batch (skip in inference-only mode)
+        if self.ground_truth_csv:
+            try:
+                self.ground_truth_data = load_ground_truth(
+                    self.ground_truth_csv, verbose=verbose
+                )
+                logger.info(
+                    "Loaded ground truth for %d images", len(self.ground_truth_data)
+                )
+                sample_keys = list(self.ground_truth_data.keys())[:3]
+                logger.debug("Sample GT keys: %s", sample_keys)
+            except Exception as e:
+                logger.error("Error loading ground truth: %s", e)
+                self.ground_truth_data = {}
+        else:
+            logger.info("No ground truth configured — inference-only mode")
             self.ground_truth_data = {}
 
         effective_batch_size = self._resolve_batch_size()
