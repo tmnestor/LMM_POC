@@ -6,13 +6,15 @@ transaction types (debit/credit) and amounts from reliable extracted data
 (dates and running balances), bypassing problematic debit/credit columns.
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 import numpy as np
-from rich import print as rprint
+
+logger = logging.getLogger(__name__)
 
 try:
     import pandas as pd
@@ -147,10 +149,11 @@ class BankStatementCalculator:
                 )
 
             if len(dates) != len(balances):
-                if self.verbose:
-                    rprint(
-                        f"[yellow]⚠️ Count mismatch: {len(dates)} dates vs {len(balances)} balances - using minimum count[/yellow]"
-                    )
+                logger.warning(
+                    "Count mismatch: %d dates vs %d balances - using minimum count",
+                    len(dates),
+                    len(balances),
+                )
 
                 # Use the minimum count and truncate the longer list
                 min_count = min(len(dates), len(balances))
@@ -174,10 +177,7 @@ class BankStatementCalculator:
                 if descriptions and len(descriptions) > min_count:
                     descriptions = descriptions[:min_count]
 
-            if self.verbose:
-                rprint(
-                    f"[cyan]📊 Analyzing {len(dates)} transactions mathematically[/cyan]"
-                )
+            logger.debug("Analyzing %d transactions mathematically", len(dates))
 
             # Create transactions and sort chronologically
             transactions = self._create_transactions(dates, balances, descriptions)
@@ -229,10 +229,7 @@ class BankStatementCalculator:
             BankStatementAnalysis with calculated transaction types and amounts
         """
         if not PANDAS_AVAILABLE:
-            if self.verbose:
-                rprint(
-                    "[yellow]⚠️ Pandas not available, falling back to legacy method[/yellow]"
-                )
+            logger.warning("Pandas not available, falling back to legacy method")
             return self.analyze_bank_statement(extracted_data)
 
         try:
@@ -345,10 +342,7 @@ class BankStatementCalculator:
                     errors=["No valid transactions after parsing"],
                 )
 
-            if self.verbose:
-                rprint(
-                    f"[cyan]📊 Analyzing {len(transactions_df)} transactions with pandas[/cyan]"
-                )
+            logger.debug("Analyzing %d transactions with pandas", len(transactions_df))
 
             # Sort chronologically for mathematical calculations
             df_calc = transactions_df.sort_values("date").copy()
@@ -443,10 +437,10 @@ class BankStatementCalculator:
 
             # Debug output - print the COMPLETE corrected DataFrame including descriptions
             if self.verbose:
-                rprint(
-                    "\n[bold cyan]🔍 MATHEMATICAL CORRECTION DEBUG - COMPLETE CORRECTED DATAFRAME[/bold cyan]"
+                logger.debug(
+                    "MATHEMATICAL CORRECTION DEBUG - COMPLETE CORRECTED DATAFRAME"
                 )
-                rprint("All columns showing mathematical correction results:")
+                logger.debug("All columns showing mathematical correction results:")
                 debug_df = df_calc[
                     [
                         "original_index",
@@ -479,12 +473,24 @@ class BankStatementCalculator:
                         if pd.notna(row["final_received"])
                         else "NOT_FOUND"
                     )
-                    rprint(
-                        f"[cyan]Pos {int(row['original_index'])}: {row['date_str']} | {desc_short} | "
-                        f"Balance: ${row['balance']:.2f} | Change: {row['balance_change'] if pd.notna(row['balance_change']) else 'NaN'} | "
-                        f"VLM_PAID: {row['extracted_paid'] if pd.notna(row['extracted_paid']) else 'NaN'} | "
-                        f"VLM_RECV: {row['extracted_received'] if pd.notna(row['extracted_received']) else 'NaN'} | "
-                        f"FINAL_PAID: {final_paid_str} | FINAL_RECV: {final_recv_str}[/cyan]"
+                    logger.debug(
+                        "Pos %d: %s | %s | Balance: $%.2f | Change: %s | "
+                        "VLM_PAID: %s | VLM_RECV: %s | FINAL_PAID: %s | FINAL_RECV: %s",
+                        int(row["original_index"]),
+                        row["date_str"],
+                        desc_short,
+                        row["balance"],
+                        row["balance_change"]
+                        if pd.notna(row["balance_change"])
+                        else "NaN",
+                        row["extracted_paid"]
+                        if pd.notna(row["extracted_paid"])
+                        else "NaN",
+                        row["extracted_received"]
+                        if pd.notna(row["extracted_received"])
+                        else "NaN",
+                        final_paid_str,
+                        final_recv_str,
                     )
 
             # Determine transaction types
@@ -622,9 +628,8 @@ class BankStatementCalculator:
             return analysis
 
         except Exception as e:
-            if self.verbose:
-                rprint(f"[red]❌ Pandas analysis failed: {e}[/red]")
-                rprint("[yellow]Falling back to legacy method[/yellow]")
+            logger.error("Pandas analysis failed: %s", e)
+            logger.warning("Falling back to legacy method")
             return self.analyze_bank_statement(extracted_data)
 
     def _display_pandas_analysis_summary(
@@ -637,20 +642,17 @@ class BankStatementCalculator:
         if not self.verbose or not PANDAS_AVAILABLE:
             return
 
-        rprint("\n[bold blue]📊 Pandas-Based Bank Statement Analysis[/bold blue]")
-        rprint(f"[cyan]📋 Transactions: {analysis.transaction_count}[/cyan]")
-        rprint(f"[red]📤 Total Debits: ${analysis.total_debits:.2f}[/red]")
-        rprint(f"[green]📥 Total Credits: ${analysis.total_credits:.2f}[/green]")
-        rprint(
-            f"[blue]💰 Net Change: ${analysis.total_credits - analysis.total_debits:.2f}[/blue]"
+        logger.debug("Pandas-Based Bank Statement Analysis")
+        logger.debug("Transactions: %d", analysis.transaction_count)
+        logger.debug("Total Debits: $%.2f", analysis.total_debits)
+        logger.debug("Total Credits: $%.2f", analysis.total_credits)
+        logger.debug(
+            "Net Change: $%.2f", analysis.total_credits - analysis.total_debits
         )
 
         # Balance validation status
-        validation_color = "green" if balance_validation_passed else "yellow"
-        validation_status = "✅ PASSED" if balance_validation_passed else "⚠️  WARNING"
-        rprint(
-            f"[{validation_color}]🔍 Balance Validation: {validation_status}[/{validation_color}]"
-        )
+        validation_status = "PASSED" if balance_validation_passed else "WARNING"
+        logger.debug("Balance Validation: %s", validation_status)
 
         # Show VLM correction and validation metrics
         vlm_count = transactions_df["vlm_amount"].notna().sum()
@@ -660,52 +662,55 @@ class BankStatementCalculator:
         vlm_corrected_count = vlm_count - vlm_correct_count if vlm_count > 0 else 0
         mathematical_count = analysis.transaction_count - vlm_count
 
-        rprint("[dim]📊 Data Sources and Corrections:[/dim]")
-        rprint(
-            f"[dim]   • {vlm_correct_count} VLM amounts (correctly classified)[/dim]"
-        )
+        logger.debug("Data Sources and Corrections:")
+        logger.debug("  %d VLM amounts (correctly classified)", vlm_correct_count)
         if vlm_corrected_count > 0:
-            rprint(
-                f"[dim]   • {vlm_corrected_count} VLM amounts (classification corrected)[/dim]"
+            logger.debug(
+                "  %d VLM amounts (classification corrected)", vlm_corrected_count
             )
-        rprint(
-            f"[dim]   • {mathematical_count} mathematical calculations (VLM gaps filled)[/dim]"
+        logger.debug(
+            "  %d mathematical calculations (VLM gaps filled)", mathematical_count
         )
 
         if vlm_count > 0:
             accuracy_scores = transactions_df["vlm_amount_accuracy"].dropna()
             if len(accuracy_scores) > 0:
                 avg_accuracy = accuracy_scores.mean()
-                rprint(f"[dim]💡 VLM Amount Accuracy: {avg_accuracy:.1%} average[/dim]")
+                logger.debug("VLM Amount Accuracy: %.1f%% average", avg_accuracy * 100)
 
         # Show ALL transactions with enhanced source information
         if len(transactions_df) > 0:
-            rprint("\n[dim]📅 All transactions with validation:[/dim]")
+            logger.debug("All transactions with validation:")
             for _, row in transactions_df.iterrows():
-                color = "red" if row["transaction_type"] == "DEBIT" else "green"
                 amount = (
                     row["final_paid"]
                     if row["transaction_type"] == "DEBIT"
                     else row["final_received"]
                 )
-                confidence = f"({row['confidence']:.1f})"
+                confidence = row["confidence"]
 
                 # Determine source and validation status
                 if pd.notna(row["vlm_amount"]):
                     if row["vlm_classification_correct"]:
-                        source = "VLM✓"  # VLM correct
+                        source = "VLM-OK"
                     else:
-                        source = "VLM→CORRECTED"  # VLM corrected
+                        source = "VLM-CORRECTED"
                     if pd.notna(row["vlm_amount_accuracy"]):
-                        accuracy = f" {row['vlm_amount_accuracy']:.0%}"
+                        accuracy = " %.0f%%" % (row["vlm_amount_accuracy"] * 100)
                     else:
                         accuracy = ""
                 else:
                     source = "CALCULATED"
                     accuracy = ""
 
-                rprint(
-                    f"[{color}]  {row['date_str']}: {row['transaction_type']} ${amount:.2f} [{source}{accuracy}] {confidence}[/{color}]"
+                logger.debug(
+                    "  %s: %s $%.2f [%s%s] (%.1f)",
+                    row["date_str"],
+                    row["transaction_type"],
+                    amount,
+                    source,
+                    accuracy,
+                    confidence,
                 )
 
     def _parse_dates(self, dates_str: str) -> list[tuple[datetime, str]]:
@@ -737,8 +742,7 @@ class BankStatementCalculator:
                 if date_obj:
                     dates.append((date_obj, date_str))
             except Exception as e:
-                if self.verbose:
-                    rprint(f"[yellow]⚠️ Could not parse date: {date_str} - {e}[/yellow]")
+                logger.warning("Could not parse date: %s - %s", date_str, e)
 
         return dates
 
@@ -805,10 +809,7 @@ class BankStatementCalculator:
                 if clean_balance:
                     balances.append(float(clean_balance))
             except (ValueError, TypeError) as e:
-                if self.verbose:
-                    rprint(
-                        f"[yellow]⚠️ Could not parse balance: {balance_str} - {e}[/yellow]"
-                    )
+                logger.warning("Could not parse balance: %s - %s", balance_str, e)
 
         return balances
 
@@ -1017,23 +1018,25 @@ class BankStatementCalculator:
         if not self.verbose:
             return
 
-        rprint("\n[bold blue]📊 Bank Statement Mathematical Analysis[/bold blue]")
-        rprint(f"[cyan]📋 Transactions: {analysis.transaction_count}[/cyan]")
-        rprint(f"[red]📤 Total Debits: ${analysis.total_debits:.2f}[/red]")
-        rprint(f"[green]📥 Total Credits: ${analysis.total_credits:.2f}[/green]")
-        rprint(
-            f"[blue]💰 Net Change: ${analysis.total_credits - analysis.total_debits:.2f}[/blue]"
+        logger.debug("Bank Statement Mathematical Analysis")
+        logger.debug("Transactions: %d", analysis.transaction_count)
+        logger.debug("Total Debits: $%.2f", analysis.total_debits)
+        logger.debug("Total Credits: $%.2f", analysis.total_credits)
+        logger.debug(
+            "Net Change: $%.2f", analysis.total_credits - analysis.total_debits
         )
 
         if analysis.transactions:
-            rprint("\n[dim]📅 Sample transactions:[/dim]")
+            logger.debug("Sample transactions:")
             for txn in analysis.transactions[:3]:
-                color = "red" if txn.transaction_type == "DEBIT" else "green"
-                rprint(
-                    f"[{color}]  {txn.date_str}: {txn.transaction_type} ${txn.amount:.2f}[/{color}]"
+                logger.debug(
+                    "  %s: %s $%.2f",
+                    txn.date_str,
+                    txn.transaction_type,
+                    txn.amount,
                 )
             if len(analysis.transactions) > 3:
-                rprint(f"[dim]  ... and {len(analysis.transactions) - 3} more[/dim]")
+                logger.debug("  ... and %d more", len(analysis.transactions) - 3)
 
     def _display_earliest_transaction_details(
         self,
@@ -1044,66 +1047,67 @@ class BankStatementCalculator:
         array_index: int,
     ):
         """Display detailed information about the earliest transaction when verbose mode is enabled."""
-        rprint("\n[bold yellow]🔍 EARLIEST TRANSACTION ANALYSIS[/bold yellow]")
-        rprint(f"[cyan]📅 Date: {transaction.date_str}[/cyan]")
-        rprint(f"[cyan]💰 Balance: ${transaction.balance:.2f}[/cyan]")
-        rprint(
-            f"[cyan]📝 Description: {transaction.description[:50]}{'...' if len(transaction.description) > 50 else ''}[/cyan]"
+        logger.debug("EARLIEST TRANSACTION ANALYSIS")
+        logger.debug("Date: %s", transaction.date_str)
+        logger.debug("Balance: $%.2f", transaction.balance)
+        logger.debug(
+            "Description: %s",
+            transaction.description[:50]
+            + ("..." if len(transaction.description) > 50 else ""),
         )
-        rprint(
-            f"[cyan]📍 Array Position: {array_index} (position in original extraction data)[/cyan]"
+        logger.debug(
+            "Array Position: %d (position in original extraction data)", array_index
         )
 
         # Show extracted data analysis
-        rprint("\n[bold blue]📊 Extracted Data Analysis:[/bold blue]")
+        logger.debug("Extracted Data Analysis:")
 
         # Display PAID data for the correct transaction index
         if extracted_paid and len(extracted_paid) > array_index:
             paid_amount = extracted_paid[array_index]
             if paid_amount > 0:
-                rprint(
-                    f"[red]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: ${paid_amount:.2f}[/red]"
+                logger.debug(
+                    "  TRANSACTION_AMOUNTS_PAID[%d]: $%.2f", array_index, paid_amount
                 )
             else:
-                rprint(
-                    f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: NOT_FOUND (zero/invalid)[/dim]"
+                logger.debug(
+                    "  TRANSACTION_AMOUNTS_PAID[%d]: NOT_FOUND (zero/invalid)",
+                    array_index,
                 )
         else:
-            rprint(
-                f"[dim]  💸 TRANSACTION_AMOUNTS_PAID[{array_index}]: No data available[/dim]"
+            logger.debug(
+                "  TRANSACTION_AMOUNTS_PAID[%d]: No data available", array_index
             )
 
         # Display RECEIVED data for the correct transaction index
         if extracted_received and len(extracted_received) > array_index:
             received_amount = extracted_received[array_index]
             if received_amount > 0:
-                rprint(
-                    f"[green]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: ${received_amount:.2f}[/green]"
+                logger.debug(
+                    "  TRANSACTION_AMOUNTS_RECEIVED[%d]: $%.2f",
+                    array_index,
+                    received_amount,
                 )
             else:
-                rprint(
-                    f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: NOT_FOUND (zero/invalid)[/dim]"
+                logger.debug(
+                    "  TRANSACTION_AMOUNTS_RECEIVED[%d]: NOT_FOUND (zero/invalid)",
+                    array_index,
                 )
         else:
-            rprint(
-                f"[dim]  💰 TRANSACTION_AMOUNTS_RECEIVED[{array_index}]: No data available[/dim]"
+            logger.debug(
+                "  TRANSACTION_AMOUNTS_RECEIVED[%d]: No data available", array_index
             )
 
         # Show final determination
-        rprint("\n[bold green]✅ FINAL DETERMINATION:[/bold green]")
+        logger.debug("FINAL DETERMINATION:")
         if used_extracted_data:
-            color = "red" if transaction.transaction_type == "DEBIT" else "green"
-            rprint(f"[{color}]  🎯 Type: {transaction.transaction_type}[/{color}]")
-            rprint(f"[{color}]  💵 Amount: ${transaction.amount:.2f}[/{color}]")
-            rprint("[cyan]  📋 Source: Extracted data (hybrid approach)[/cyan]")
+            logger.debug("  Type: %s", transaction.transaction_type)
+            logger.debug("  Amount: $%.2f", transaction.amount)
+            logger.debug("  Source: Extracted data (hybrid approach)")
         else:
-            rprint(f"[yellow]  ⚠️ Type: {transaction.transaction_type}[/yellow]")
-            rprint(f"[yellow]  💵 Amount: ${transaction.amount:.2f}[/yellow]")
-            rprint(
-                "[yellow]  📋 Source: No extracted data available - marked as UNKNOWN[/yellow]"
-            )
-
-        rprint("[dim]" + "─" * 60 + "[/dim]")
+            logger.debug("  Type: %s", transaction.transaction_type)
+            logger.debug("  Amount: $%.2f", transaction.amount)
+            logger.debug("  Source: No extracted data available - marked as UNKNOWN")
 
     def _find_earliest_transaction_array_index(
         self, earliest_transaction: Transaction, dates_str: str, descriptions_str: str
@@ -1160,10 +1164,7 @@ class BankStatementCalculator:
             # Arrays are already properly aligned
             return extracted_paid, extracted_received
 
-        if self.verbose:
-            rprint(
-                "[yellow]⚠️ Detecting array misalignment - applying correction...[/yellow]"
-            )
+        logger.warning("Detecting array misalignment - applying correction...")
 
         # Apply correction: resize arrays to match transaction count
         corrected_paid = []
@@ -1182,10 +1183,7 @@ class BankStatementCalculator:
             else:
                 corrected_received.append(0.0)  # NOT_FOUND equivalent
 
-        if self.verbose:
-            rprint(
-                f"[green]✅ Array alignment corrected: {num_transactions} transactions[/green]"
-            )
+        logger.debug("Array alignment corrected: %d transactions", num_transactions)
 
         return corrected_paid, corrected_received
 
@@ -1275,17 +1273,15 @@ class BankStatementCalculator:
         if inferred_type:
             if inferred_type == "DEBIT" and vlm_received > 0 and vlm_paid == 0:
                 # Misclassified as credit, should be debit
-                if self.verbose:
-                    rprint(
-                        "[yellow]⚠️ Description suggests DEBIT but VLM extracted as CREDIT - correcting[/yellow]"
-                    )
+                logger.warning(
+                    "Description suggests DEBIT but VLM extracted as CREDIT - correcting"
+                )
                 return vlm_received, 0, "Reclassified based on description"
             elif inferred_type == "CREDIT" and vlm_paid > 0 and vlm_received == 0:
                 # Misclassified as debit, should be credit
-                if self.verbose:
-                    rprint(
-                        "[yellow]⚠️ Description suggests CREDIT but VLM extracted as DEBIT - correcting[/yellow]"
-                    )
+                logger.warning(
+                    "Description suggests CREDIT but VLM extracted as DEBIT - correcting"
+                )
                 return 0, vlm_paid, "Reclassified based on description"
 
         return vlm_paid, vlm_received, "No correction needed"
@@ -1326,13 +1322,11 @@ def enhance_bank_statement_extraction(
             "calculation_success": True,
         }
 
-        if verbose:
-            rprint("[green]✅ Mathematical enhancement completed successfully[/green]")
+        logger.info("Mathematical enhancement completed successfully")
     else:
-        if verbose:
-            rprint("[red]❌ Mathematical enhancement failed[/red]")
-            for error in analysis.errors:
-                rprint(f"[red]  • {error}[/red]")
+        logger.error("Mathematical enhancement failed")
+        for error in analysis.errors:
+            logger.error("  %s", error)
 
         # Add error metadata
         extracted_data["_mathematical_analysis"] = {

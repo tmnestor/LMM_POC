@@ -51,8 +51,7 @@ def configure_cuda_memory_allocation(
     if "PYTORCH_CUDA_ALLOC_CONF" in os.environ:
         current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
         if "expandable_segments" in current:
-            if verbose:
-                print(f"⚠️ Removing problematic PYTORCH_CUDA_ALLOC_CONF: {current}")
+            logger.warning("Removing problematic PYTORCH_CUDA_ALLOC_CONF: %s", current)
             del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
 
     # Detect GPU type for logging
@@ -63,9 +62,8 @@ def configure_cuda_memory_allocation(
 
     # Apply the configuration
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
-    if verbose:
-        print(f"🔧 GPU detected: {gpu_name}")
-        print(f"🔧 CUDA memory allocation configured: {cuda_alloc_config}")
+    logger.info("GPU detected: %s", gpu_name)
+    logger.info("CUDA memory allocation configured: %s", cuda_alloc_config)
 
     # Also set cudnn benchmarking for better performance
     torch.backends.cudnn.benchmark = cudnn_benchmark
@@ -83,21 +81,22 @@ def configure_cuda_memory_allocation(
 
             allocated = total_allocated
             reserved = total_reserved
-            if verbose:
-                print(
-                    f"📊 Initial CUDA state (Multi-GPU Total): Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
-                )
+            logger.info(
+                "Initial CUDA state (Multi-GPU Total): Allocated=%.2fGB, Reserved=%.2fGB",
+                allocated,
+                reserved,
+            )
         else:
             # Single GPU
             allocated = torch.cuda.memory_allocated() / (1024**3)  # GB
             reserved = torch.cuda.memory_reserved() / (1024**3)  # GB
-            if verbose:
-                print(
-                    f"📊 Initial CUDA state: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB"
-                )
+            logger.info(
+                "Initial CUDA state: Allocated=%.2fGB, Reserved=%.2fGB",
+                allocated,
+                reserved,
+            )
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Could not check initial CUDA state: {e}")
+        logger.warning("Could not check initial CUDA state: %s", e)
 
     return True
 
@@ -112,28 +111,24 @@ def clear_model_caches(model: Any, processor: Any | None = None, verbose: bool =
         verbose: Whether to print cleanup messages
     """
     try:
-        if verbose:
-            print("🧹 Clearing model caches...")
+        logger.debug("Clearing model caches...")
 
         # Clear KV cache if it exists
         if hasattr(model, "past_key_values"):
             model.past_key_values = None
-            if verbose:
-                print("  - Cleared past_key_values")
+            logger.debug("Cleared past_key_values")
 
         # Clear generation cache
         if hasattr(model, "_past_key_values"):
             model._past_key_values = None
-            if verbose:
-                print("  - Cleared _past_key_values")
+            logger.debug("Cleared _past_key_values")
 
         # Clear language model caches (for models with separate language model)
         if hasattr(model, "language_model"):
             lang_model = model.language_model
             if hasattr(lang_model, "past_key_values"):
                 lang_model.past_key_values = None
-                if verbose:
-                    print("  - Cleared language_model cache")
+                logger.debug("Cleared language_model cache")
 
         # Clear vision model caches (for multimodal models)
         if hasattr(model, "vision_model"):
@@ -146,8 +141,7 @@ def clear_model_caches(model: Any, processor: Any | None = None, verbose: bool =
         # Clear processor caches if they exist
         if processor and hasattr(processor, "past_key_values"):
             processor.past_key_values = None
-            if verbose:
-                print("  - Cleared processor cache")
+            logger.debug("Cleared processor cache")
 
         # Clear any cached attention masks or position IDs
         for module in model.modules():
@@ -159,12 +153,10 @@ def clear_model_caches(model: Any, processor: Any | None = None, verbose: bool =
                 if hasattr(module.attention_mask, "data"):
                     module.attention_mask = None
 
-        if verbose:
-            print("✅ Model caches cleared")
+        logger.debug("Model caches cleared")
 
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Error clearing caches: {e}")
+        logger.warning("Error clearing caches: %s", e)
         # Continue anyway - don't fail the entire process
 
 
@@ -270,7 +262,7 @@ def aggressive_defragmentation():
 
     This is the "nuclear option" for severe memory fragmentation.
     """
-    print("☢️ Attempting complete memory pool reset...")
+    logger.warning("Attempting complete memory pool reset...")
 
     # Step 1: Clear all caches multiple times
     for _ in range(5):
@@ -290,7 +282,7 @@ def aggressive_defragmentation():
         # Clear them to force deallocation
         del dummy_tensors
         torch.cuda.empty_cache()
-        print("✅ Memory pool reorganization attempted")
+        logger.debug("Memory pool reorganization attempted")
     except Exception:
         pass  # Ignore if this fails
 
@@ -302,8 +294,11 @@ def aggressive_defragmentation():
     torch.cuda.synchronize()
 
     final_allocated, final_reserved, final_fragmentation = detect_memory_fragmentation()
-    print(
-        f"🔧 Final state: Allocated={final_allocated:.2f}GB, Reserved={final_reserved:.2f}GB, Fragmentation={final_fragmentation:.2f}GB"
+    logger.warning(
+        "Final state: Allocated=%.2fGB, Reserved=%.2fGB, Fragmentation=%.2fGB",
+        final_allocated,
+        final_reserved,
+        final_fragmentation,
     )
 
 
@@ -404,7 +399,7 @@ def get_available_gpu_memory(device: str = "cuda") -> float:
 
         return min_free * world_size
     except Exception as e:
-        print(f"⚠️ Could not detect GPU memory: {e}")
+        logger.warning("Could not detect GPU memory: %s", e)
         return 24.0  # Final fallback for A10G/L4 (24GB)
 
 
@@ -423,8 +418,7 @@ def diagnose_gpu_memory_comprehensive(verbose: bool = True) -> dict:
 
         return diagnose_gpu_memory(verbose=verbose)
     except Exception as e:
-        if verbose:
-            print(f"⚠️ Robust diagnostics failed: {e}")
+        logger.warning("Robust diagnostics failed: %s", e)
         # Fallback to basic diagnostics
         basic_diagnostics = {
             "detection_successful": False,
@@ -450,7 +444,7 @@ def get_total_gpu_memory_robust() -> float:
 
         return get_total_gpu_memory()
     except Exception as e:
-        print(f"⚠️ Robust total memory detection failed: {e}")
+        logger.warning("Robust total memory detection failed: %s", e)
         # Fallback to basic detection
         if not torch.cuda.is_available():
             return 0.0
@@ -486,14 +480,13 @@ def optimize_model_for_gpu(
     # Set model to evaluation mode
     model.eval()
 
-    if verbose:
-        # Only mention TF32 when using float32 (TF32 is irrelevant for bfloat16)
-        if dtype == torch.bfloat16:
-            print("🚀 GPU optimizations applied (bfloat16 tensor cores)")
-        elif dtype == torch.float32:
-            print("🚀 GPU optimizations applied (TF32 enabled)")
-        else:
-            print("🚀 GPU optimizations applied")
+    # Only mention TF32 when using float32 (TF32 is irrelevant for bfloat16)
+    if dtype == torch.bfloat16:
+        logger.info("GPU optimizations applied (bfloat16 tensor cores)")
+    elif dtype == torch.float32:
+        logger.info("GPU optimizations applied (TF32 enabled)")
+    else:
+        logger.info("GPU optimizations applied")
 
 
 def clear_gpu_cache(
@@ -510,8 +503,7 @@ def clear_gpu_cache(
         verbose: Whether to print detailed cleanup messages
         critical_fragmentation_threshold_gb: Threshold in GB to flag fragmentation
     """
-    if verbose:
-        print("🧹 Starting GPU memory cleanup...")
+    logger.debug("Starting GPU memory cleanup...")
 
     # Clear Python garbage collection
     gc.collect()
@@ -522,10 +514,11 @@ def clear_gpu_cache(
         initial_memory = torch.cuda.memory_allocated() / 1024**3
         initial_reserved = torch.cuda.memory_reserved() / 1024**3
 
-        if verbose:
-            print(
-                f"   📊 Initial GPU memory: {initial_memory:.2f}GB allocated, {initial_reserved:.2f}GB reserved"
-            )
+        logger.debug(
+            "Initial GPU memory: %.2fGB allocated, %.2fGB reserved",
+            initial_memory,
+            initial_reserved,
+        )
 
         # Empty all caches
         torch.cuda.empty_cache()
@@ -544,23 +537,21 @@ def clear_gpu_cache(
         final_memory = torch.cuda.memory_allocated() / 1024**3
         final_reserved = torch.cuda.memory_reserved() / 1024**3
 
-        if verbose:
-            print(
-                f"   ✅ Final GPU memory: {final_memory:.2f}GB allocated, {final_reserved:.2f}GB reserved"
-            )
-            print(f"   💾 Memory freed: {initial_memory - final_memory:.2f}GB")
+        logger.debug(
+            "Final GPU memory: %.2fGB allocated, %.2fGB reserved",
+            final_memory,
+            final_reserved,
+        )
+        logger.debug("Memory freed: %.2fGB", initial_memory - final_memory)
 
         # Memory fragmentation detection
         fragmentation = final_reserved - final_memory
         if fragmentation > critical_fragmentation_threshold_gb:
-            if verbose:
-                print(f"   ⚠️ FRAGMENTATION DETECTED: {fragmentation:.2f}GB gap")
+            logger.warning("FRAGMENTATION DETECTED: %.2fGB gap", fragmentation)
     else:
-        if verbose:
-            print("   ℹ️  No CUDA device available, skipping GPU cache clearing")
+        logger.debug("No CUDA device available, skipping GPU cache clearing")
 
-    if verbose:
-        print("✅ GPU memory cleanup complete")
+    logger.debug("GPU memory cleanup complete")
 
 
 def emergency_cleanup(verbose: bool = True):
@@ -573,8 +564,7 @@ def emergency_cleanup(verbose: bool = True):
     Args:
         verbose: Whether to print cleanup messages
     """
-    if verbose:
-        print("🚨 Running emergency GPU cleanup...")
+    logger.warning("Running emergency GPU cleanup...")
 
     # Try to delete any global model references
     import sys
@@ -595,8 +585,7 @@ def emergency_cleanup(verbose: bool = True):
     # Final comprehensive cleanup
     clear_gpu_cache(verbose=verbose)
 
-    if verbose:
-        print("✅ Emergency cleanup complete")
+    logger.warning("Emergency cleanup complete")
 
 
 def cleanup_model_handler(
@@ -624,8 +613,7 @@ def cleanup_model_handler(
         🧹 Cleaning up existing model instances...
            ✅ Previous model cleaned up
     """
-    if verbose:
-        print("🧹 Cleaning up any existing model instances...")
+    logger.info("Cleaning up any existing model instances...")
 
     # Get globals dict if not provided
     if globals_dict is None:
@@ -635,8 +623,7 @@ def cleanup_model_handler(
         if frame and frame.f_back:
             globals_dict = frame.f_back.f_globals
         else:
-            if verbose:
-                print("   ⚠️ Could not access globals, skipping cleanup")
+            logger.warning("Could not access globals, skipping cleanup")
             return False
 
     # Check if handler exists
@@ -661,10 +648,8 @@ def cleanup_model_handler(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        if verbose:
-            print("   ✅ Previous model cleaned up")
+        logger.info("Previous model cleaned up")
         return True
     else:
-        if verbose:
-            print(f"   ℹ️ No '{handler_name}' found in globals, nothing to clean up")
+        logger.info("No '%s' found in globals, nothing to clean up", handler_name)
         return False

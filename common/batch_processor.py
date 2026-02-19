@@ -4,12 +4,12 @@ Batch Processing Module for Document-Aware Extraction
 Handles batch processing of images through document detection and extraction pipeline.
 """
 
+import logging
 import os
 import time
 from datetime import datetime
 from pathlib import Path
 
-from rich import print as rprint
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
 
@@ -21,6 +21,8 @@ from .evaluation_metrics import (
 
 # Import Rich content sanitization to prevent recursion errors and ExtractionCleaner
 from .simple_model_evaluator import SimpleModelEvaluator
+
+logger = logging.getLogger(__name__)
 
 
 def load_document_field_definitions() -> dict[str, list[str]]:
@@ -167,7 +169,7 @@ class BatchDocumentProcessor:
 
     def _trace_log(self, message: str):
         """Log message to both console and file"""
-        print(message)
+        logger.debug("%s", message)
         with Path(self._trace_file).open("a", encoding="utf-8") as f:
             f.write(f"{message}\n")
 
@@ -225,23 +227,20 @@ class BatchDocumentProcessor:
             self.ground_truth_data = load_ground_truth(
                 self.ground_truth_csv, verbose=verbose
             )
-            if verbose:
-                rprint(
-                    f"[green]✅ Loaded ground truth for {len(self.ground_truth_data)} images[/green]"
-                )
-                sample_keys = list(self.ground_truth_data.keys())[:3]
-                rprint(f"[cyan]📋 Sample GT keys: {sample_keys}[/cyan]")
+            logger.info(
+                "Loaded ground truth for %d images", len(self.ground_truth_data)
+            )
+            sample_keys = list(self.ground_truth_data.keys())[:3]
+            logger.debug("Sample GT keys: %s", sample_keys)
         except Exception as e:
-            if verbose:
-                rprint(f"[red]❌ Error loading ground truth: {e}[/red]")
+            logger.error("Error loading ground truth: %s", e)
             self.ground_truth_data = {}
 
         effective_batch_size = self._resolve_batch_size()
 
-        if verbose:
-            rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
-            rprint(f"[dim]  Batch size: {effective_batch_size}[/dim]")
-            self.console.rule("[bold green]Batch Extraction[/bold green]")
+        logger.info("Starting Batch Processing")
+        logger.info("Batch size: %d", effective_batch_size)
+        self.console.rule("[bold green]Batch Extraction[/bold green]")
 
         # Route to batched or sequential processing
         from models.protocol import BatchCapableProcessor
@@ -292,8 +291,7 @@ class BatchDocumentProcessor:
         # ================================================================
         # PHASE 1: BATCHED DETECTION
         # ================================================================
-        if verbose:
-            rprint("\n[bold cyan]Phase 1: Batched Document Detection[/bold cyan]")
+        logger.info("Phase 1: Batched Document Detection")
 
         detection_start = time.time()
         all_classification_infos: list[dict] = []
@@ -303,10 +301,12 @@ class BatchDocumentProcessor:
             batch_paths = image_paths[batch_start:batch_end]
             detection_batch_sizes.append(len(batch_paths))
 
-            if verbose:
-                rprint(
-                    f"[dim]  Detecting batch [{batch_start + 1}-{batch_end}] / {total_images}[/dim]"
-                )
+            logger.debug(
+                "Detecting batch [%d-%d] / %d",
+                batch_start + 1,
+                batch_end,
+                total_images,
+            )
 
             batch_classifications = self.model_handler.batch_detect_documents(
                 batch_paths, verbose=verbose
@@ -318,19 +318,17 @@ class BatchDocumentProcessor:
             doc_type = info["document_type"]
             document_types_found[doc_type] = document_types_found.get(doc_type, 0) + 1
 
-        if verbose:
-            detection_time = time.time() - detection_start
-            rprint(
-                f"[green]✅ Detection complete: {detection_time:.1f}s for {total_images} images[/green]"
-            )
-            for doc_type, count in sorted(document_types_found.items()):
-                rprint(f"  {doc_type}: {count}")
+        detection_time = time.time() - detection_start
+        logger.info(
+            "Detection complete: %.1fs for %d images", detection_time, total_images
+        )
+        for doc_type, count in sorted(document_types_found.items()):
+            logger.info("  %s: %d", doc_type, count)
 
         # ================================================================
         # PHASE 2: EXTRACTION (batched for standard, sequential for bank)
         # ================================================================
-        if verbose:
-            rprint("\n[bold cyan]Phase 2: Document Extraction[/bold cyan]")
+        logger.info("Phase 2: Document Extraction")
 
         extraction_start = time.time()
 
@@ -343,11 +341,11 @@ class BatchDocumentProcessor:
             else:
                 standard_indices.append(i)
 
-        if verbose:
-            rprint(
-                f"[dim]  Standard documents: {len(standard_indices)}, "
-                f"Bank statements: {len(bank_indices)}[/dim]"
-            )
+        logger.debug(
+            "Standard documents: %d, Bank statements: %d",
+            len(standard_indices),
+            len(bank_indices),
+        )
 
         # --- Standard documents: batched extraction ---
         if standard_indices:
@@ -361,11 +359,12 @@ class BatchDocumentProcessor:
                 ]
                 extraction_batch_sizes.append(len(batch_paths))
 
-                if verbose:
-                    rprint(
-                        f"[dim]  Extracting standard batch "
-                        f"[{batch_start_idx + 1}-{batch_end_idx}] / {len(standard_indices)}[/dim]"
-                    )
+                logger.debug(
+                    "Extracting standard batch [%d-%d] / %d",
+                    batch_start_idx + 1,
+                    batch_end_idx,
+                    len(standard_indices),
+                )
 
                 batch_extract_start = time.time()
                 extraction_results = self.model_handler.batch_extract_documents(
@@ -426,13 +425,15 @@ class BatchDocumentProcessor:
                     progress.update(progress_task, advance=1, current=image_name)
                     self.console.print(progress.get_renderable())
 
-                    if verbose and evaluation and "median_f1" in evaluation:
+                    if evaluation and "median_f1" in evaluation:
                         median_f1_pct = evaluation.get("median_f1", 0) * 100
                         mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
-                        rprint(
-                            f"  [green]✓[/green] {image_name}: "
-                            f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
-                            f"Mean {mean_f1_pct:.1f}% | {per_image_time:.1f}s"
+                        logger.debug(
+                            "%s: Median %.1f%% | Mean %.1f%% | %.1fs",
+                            image_name,
+                            median_f1_pct,
+                            mean_f1_pct,
+                            per_image_time,
                         )
 
         # --- Bank statements: sequential extraction (multi-turn required) ---
@@ -441,10 +442,7 @@ class BatchDocumentProcessor:
             image_path = image_paths[orig_idx]
             image_name = Path(image_path).name
 
-            if verbose:
-                rprint(
-                    f"\n[bold cyan]📊 BANK STATEMENT (sequential): {image_name}[/bold cyan]"
-                )
+            logger.info("BANK STATEMENT (sequential): %s", image_name)
 
             bank_start = time.time()
 
@@ -484,10 +482,7 @@ class BatchDocumentProcessor:
                 }
 
             except Exception as e:
-                if verbose:
-                    rprint(
-                        f"[red]❌ Error processing bank statement {image_name}: {e}[/red]"
-                    )
+                logger.error("Error processing bank statement %s: %s", image_name, e)
                 bank_time = time.time() - bank_start
                 processing_times[orig_idx] = bank_time
                 batch_results[orig_idx] = {
@@ -500,27 +495,27 @@ class BatchDocumentProcessor:
             progress.update(progress_task, advance=1, current=image_name)
             self.console.print(progress.get_renderable())
 
-            if verbose and batch_results[orig_idx].get("evaluation"):
+            if batch_results[orig_idx].get("evaluation"):
                 eval_data = batch_results[orig_idx]["evaluation"]
                 if "median_f1" in eval_data:
                     median_f1_pct = eval_data.get("median_f1", 0) * 100
                     mean_f1_pct = eval_data.get("overall_accuracy", 0) * 100
-                    rprint(
-                        f"  [green]✓[/green] {image_name}: "
-                        f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
-                        f"Mean {mean_f1_pct:.1f}% | {bank_time:.1f}s"
+                    logger.debug(
+                        "%s: Median %.1f%% | Mean %.1f%% | %.1fs",
+                        image_name,
+                        median_f1_pct,
+                        mean_f1_pct,
+                        bank_time,
                     )
 
-        if verbose:
-            extraction_time = time.time() - extraction_start
-            rprint(f"[green]✅ Extraction complete: {extraction_time:.1f}s[/green]")
+        extraction_time = time.time() - extraction_start
+        logger.info("Extraction complete: %.1fs", extraction_time)
 
         # Print final progress
         progress.update(progress_task, current="done")
         self.console.print(progress.get_renderable())
 
-        if verbose:
-            self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+        self.console.rule("[bold green]Batch Processing Complete[/bold green]")
 
         # Store batch stats for summary reporting
         avg_detect = (
@@ -556,9 +551,8 @@ class BatchDocumentProcessor:
         processing_times = []
         document_types_found = {}
 
-        if verbose:
-            rprint("\n[bold blue]🚀 Starting Batch Processing[/bold blue]")
-            self.console.rule("[bold green]Batch Extraction[/bold green]")
+        logger.info("Starting Batch Processing")
+        self.console.rule("[bold green]Batch Extraction[/bold green]")
 
         total_images = len(image_paths)
         progress = Progress(
@@ -580,18 +574,17 @@ class BatchDocumentProcessor:
             progress.update(progress_task, current=image_name)
             self.console.print(progress.get_renderable())
 
-            if verbose:
-                rprint(
-                    f"\n[bold blue]Processing [{idx}/{total_images}]: {image_name}[/bold blue]"
-                )
+            logger.debug("Processing [%d/%d]: %s", idx, total_images, image_name)
 
             try:
                 img_start_time = time.time()
 
-                if verbose:
-                    rprint(
-                        f"[dim]🔍 TRACE: Processing image {idx}/{total_images}: {image_name}[/dim]"
-                    )
+                logger.debug(
+                    "TRACE: Processing image %d/%d: %s",
+                    idx,
+                    total_images,
+                    image_name,
+                )
 
                 document_type, extraction_result, prompt_name = self._process_image(
                     image_path, verbose
@@ -600,10 +593,11 @@ class BatchDocumentProcessor:
                     document_types_found.get(document_type, 0) + 1
                 )
 
-                if verbose:
-                    rprint(
-                        f"[dim]🔍 TRACE: Processing complete for {image_name}, doc_type={document_type}[/dim]"
-                    )
+                logger.debug(
+                    "TRACE: Processing complete for %s, doc_type=%s",
+                    image_name,
+                    document_type,
+                )
 
                 image_name = Path(image_path).name
 
@@ -640,33 +634,41 @@ class BatchDocumentProcessor:
 
                 progress.update(progress_task, advance=1)
 
-                if verbose and evaluation and "median_f1" in evaluation:
+                if evaluation and "median_f1" in evaluation:
                     median_f1_pct = evaluation.get("median_f1", 0) * 100
                     mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
-                    rprint(
-                        f"  [green]✓[/green] {image_name}: "
-                        f"[cyan]Median {median_f1_pct:.1f}%[/cyan] | "
-                        f"Mean {mean_f1_pct:.1f}% | {processing_time:.1f}s"
+                    logger.debug(
+                        "%s: Median %.1f%% | Mean %.1f%% | %.1fs",
+                        image_name,
+                        median_f1_pct,
+                        mean_f1_pct,
+                        processing_time,
                     )
-                elif verbose and evaluation:
+                elif evaluation:
                     mean_f1_pct = evaluation.get("overall_accuracy", 0) * 100
-                    rprint(
-                        f"  [green]✓[/green] {image_name}: "
-                        f"[cyan]F1 {mean_f1_pct:.1f}%[/cyan] | {processing_time:.1f}s"
+                    logger.debug(
+                        "%s: F1 %.1f%% | %.1fs",
+                        image_name,
+                        mean_f1_pct,
+                        processing_time,
                     )
 
-                if verbose and (idx % progress_interval == 0 or idx == total_images):
+                if idx % progress_interval == 0 or idx == total_images:
                     accuracy = (
                         evaluation.get("overall_accuracy", 0) * 100 if evaluation else 0
                     )
-                    rprint(
-                        f"  [{idx}/{total_images}] {image_name}: {document_type} - "
-                        f"Accuracy: {accuracy:.1f}% - Time: {processing_time:.2f}s"
+                    logger.debug(
+                        "[%d/%d] %s: %s - Accuracy: %.1f%% - Time: %.2fs",
+                        idx,
+                        total_images,
+                        image_name,
+                        document_type,
+                        accuracy,
+                        processing_time,
                     )
 
             except Exception as e:
-                if verbose:
-                    rprint(f"[red]❌ Error processing {image_name}: {e}[/red]")
+                logger.error("Error processing %s: %s", image_name, e)
 
                 progress.update(progress_task, advance=1)
 
@@ -684,8 +686,7 @@ class BatchDocumentProcessor:
         progress.update(progress_task, current="done")
         self.console.print(progress.get_renderable())
 
-        if verbose:
-            self.console.rule("[bold green]Batch Processing Complete[/bold green]")
+        self.console.rule("[bold green]Batch Processing Complete[/bold green]")
 
         # Sequential = batch size 1
         self.batch_stats = {
@@ -737,10 +738,7 @@ class BatchDocumentProcessor:
                 enhance_bank_statement_extraction,
             )
 
-            if verbose:
-                rprint(
-                    "[blue]🧮 Applying mathematical enhancement for bank statement[/blue]"
-                )
+            logger.debug("Applying mathematical enhancement for bank statement")
 
             enhanced_result = enhance_bank_statement_extraction(
                 extracted_data, verbose=verbose
@@ -754,33 +752,28 @@ class BatchDocumentProcessor:
 
             mathematical_analysis = enhanced_result.get("_mathematical_analysis", {})
 
-            if verbose:
-                rprint(
-                    "[blue]🎯 Filtering to debit-only transactions for evaluation[/blue]"
-                )
+            logger.debug("Filtering to debit-only transactions for evaluation")
 
             extracted_data = self._filter_debit_transactions(extracted_data, verbose)
-        elif skip_math and verbose:
-            rprint(
-                "[dim]⏭️  Skipping batch_processor math enhancement (handled by UnifiedBankExtractor)[/dim]"
+        elif skip_math:
+            logger.debug(
+                "Skipping batch_processor math enhancement (handled by UnifiedBankExtractor)"
             )
 
-        if verbose:
-            found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
-            rprint(
-                f"[cyan]✓ Extracted {len(found_fields)} fields from {image_name}[/cyan]"
-            )
+        found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
+        logger.debug("Extracted %d fields from %s", len(found_fields), image_name)
 
-            if (
-                document_type.upper() == "BANK_STATEMENT"
-                and mathematical_analysis is not None
-            ):
-                if mathematical_analysis.get("calculation_success"):
-                    rprint(
-                        f"[green]✓ Mathematical analysis: {mathematical_analysis.get('transaction_count', 0)} transactions calculated[/green]"
-                    )
-                else:
-                    rprint("[yellow]⚠️ Mathematical analysis failed[/yellow]")
+        if (
+            document_type.upper() == "BANK_STATEMENT"
+            and mathematical_analysis is not None
+        ):
+            if mathematical_analysis.get("calculation_success"):
+                logger.debug(
+                    "Mathematical analysis: %d transactions calculated",
+                    mathematical_analysis.get("transaction_count", 0),
+                )
+            else:
+                logger.debug("Mathematical analysis failed")
 
         # Filter ground truth to document-specific fields for accurate evaluation
         document_type_lower_eval = document_type.lower()
@@ -794,9 +787,9 @@ class BatchDocumentProcessor:
             if field in ground_truth
         }
 
-        if verbose and document_type.upper() == "BANK_STATEMENT":
-            rprint(
-                "[blue]🎯 Evaluating using mathematically corrected values (not raw VLM output)[/blue]"
+        if document_type.upper() == "BANK_STATEMENT":
+            logger.debug(
+                "Evaluating using mathematically corrected values (not raw VLM output)"
             )
 
         evaluation_result = self.model_evaluator.evaluate_extraction(
@@ -833,14 +826,18 @@ class BatchDocumentProcessor:
 
                 is_debug = field == "IS_GST_INCLUDED" and verbose
                 if is_debug:
-                    rprint("[yellow]🔍 BEFORE EVALUATION:[/yellow]")
-                    rprint(
-                        f"  extracted_val = '{extracted_val}' (type: {type(extracted_val).__name__})"
+                    logger.debug("BEFORE EVALUATION:")
+                    logger.debug(
+                        "  extracted_val = '%s' (type: %s)",
+                        extracted_val,
+                        type(extracted_val).__name__,
                     )
-                    rprint(
-                        f"  ground_val = '{ground_val}' (type: {type(ground_val).__name__})"
+                    logger.debug(
+                        "  ground_val = '%s' (type: %s)",
+                        ground_val,
+                        type(ground_val).__name__,
                     )
-                    rprint(f"  Are they equal? {extracted_val == ground_val}")
+                    logger.debug("  Are they equal? %s", extracted_val == ground_val)
 
                 f1_metrics = calculate_field_accuracy_with_method(
                     extracted_val,
@@ -851,8 +848,10 @@ class BatchDocumentProcessor:
                 )
 
                 if is_debug:
-                    rprint(f"[yellow]🔍 AFTER EVALUATION ({field}):[/yellow]")
-                    rprint(f"  Field '{field}' f1_score = {f1_metrics['f1_score']}")
+                    logger.debug("AFTER EVALUATION (%s):", field)
+                    logger.debug(
+                        "  Field '%s' f1_score = %s", field, f1_metrics["f1_score"]
+                    )
 
                 field_scores[field] = f1_metrics
                 total_f1_score += f1_metrics["f1_score"]
@@ -903,18 +902,18 @@ class BatchDocumentProcessor:
             },
         }
 
-        if verbose:
-            mean_f1 = overall_accuracy * 100
-            median_f1_pct = median_f1 * 100
-            precision = overall_precision * 100
-            recall = overall_recall * 100
-            rprint(
-                f"[cyan]✓ Median F1: {median_f1_pct:.1f}% | Mean F1: {mean_f1:.1f}% for {image_name}[/cyan]"
-            )
-            rprint(f"[dim]  Precision: {precision:.1f}% | Recall: {recall:.1f}%[/dim]")
-            rprint(
-                f"[dim]🔍 DEBUG: has_field_scores=True, field_count={len(field_scores)}[/dim]"
-            )
+        logger.debug(
+            "Median F1: %.1f%% | Mean F1: %.1f%% for %s",
+            median_f1 * 100,
+            overall_accuracy * 100,
+            image_name,
+        )
+        logger.debug(
+            "Precision: %.1f%% | Recall: %.1f%%",
+            overall_precision * 100,
+            overall_recall * 100,
+        )
+        logger.debug("has_field_scores=True, field_count=%d", len(field_scores))
 
         return evaluation
 
@@ -945,10 +944,7 @@ class BatchDocumentProcessor:
                 field == "" or field == "NOT_FOUND"
                 for field in [descriptions, dates, paid]
             ):
-                if verbose:
-                    rprint(
-                        "[yellow]⚠️ Missing transaction data - skipping debit filtering[/yellow]"
-                    )
+                logger.warning("Missing transaction data - skipping debit filtering")
                 return extracted_data
 
             # Check if balances are all NOT_FOUND (e.g., from DEBIT_CREDIT_DESCRIPTION strategy)
@@ -961,10 +957,7 @@ class BatchDocumentProcessor:
             )
 
             if balances == "" or balances == "NOT_FOUND" or all_balances_missing:
-                if verbose:
-                    rprint(
-                        "[yellow]⚠️ No balance data available - skipping debit filtering[/yellow]"
-                    )
+                logger.warning("No balance data available - skipping debit filtering")
                 return extracted_data
 
             # Split arrays
@@ -977,12 +970,15 @@ class BatchDocumentProcessor:
             )
 
             # DEBUG: Show array lengths before DataFrame creation
-            if verbose:
-                rprint(
-                    f"[dim]Array lengths: desc={len(desc_list)}, date={len(date_list)}, paid={len(paid_list)}, balance={len(balance_list)}[/dim]"
-                )
-                if received_list:
-                    rprint(f"[dim]  received={len(received_list)}[/dim]")
+            logger.debug(
+                "Array lengths: desc=%d, date=%d, paid=%d, balance=%d",
+                len(desc_list),
+                len(date_list),
+                len(paid_list),
+                len(balance_list),
+            )
+            if received_list:
+                logger.debug("received=%d", len(received_list))
 
             # Verify arrays have same length
             lengths = [
@@ -992,10 +988,9 @@ class BatchDocumentProcessor:
                 len(balance_list),
             ]
             if len(set(lengths)) > 1:
-                if verbose:
-                    rprint(
-                        f"[yellow]⚠️ Array length mismatch: {lengths} - skipping debit filtering[/yellow]"
-                    )
+                logger.warning(
+                    "Array length mismatch: %s - skipping debit filtering", lengths
+                )
                 return extracted_data
 
             # Create DataFrame from transaction data
@@ -1009,16 +1004,16 @@ class BatchDocumentProcessor:
                 }
             )
 
-            if verbose:
-                rprint(f"[dim]Pre-filter: {len(transactions_df)} transactions[/dim]")
+            logger.debug("Pre-filter: %d transactions", len(transactions_df))
 
             # Filter to keep only debit transactions (where paid != 'NOT_FOUND')
             debit_df = transactions_df[transactions_df["paid"] != "NOT_FOUND"].copy()
 
-            if verbose:
-                rprint(
-                    f"[dim]Debit transactions found: {len(debit_df)}/{len(transactions_df)}[/dim]"
-                )
+            logger.debug(
+                "Debit transactions found: %d/%d",
+                len(debit_df),
+                len(transactions_df),
+            )
 
             # Convert back to pipe-separated strings
             filtered_data = extracted_data.copy()
@@ -1034,17 +1029,13 @@ class BatchDocumentProcessor:
             )
             filtered_data["ACCOUNT_BALANCE"] = " | ".join(debit_df["balance"].tolist())
 
-            if verbose:
-                rprint(
-                    f"[green]✅ Pandas filtered to {len(debit_df)} debit transactions[/green]"
-                )
+            logger.debug("Pandas filtered to %d debit transactions", len(debit_df))
 
             return filtered_data
 
         except Exception as e:
-            if verbose:
-                rprint(f"[red]❌ Pandas filtering failed: {e}[/red]")
-                rprint("[yellow]⚠️ Falling back to original data[/yellow]")
+            logger.error("Pandas filtering failed: %s", e)
+            logger.warning("Falling back to original data")
             return extracted_data
 
     def _process_image(self, image_path: str, verbose: bool) -> tuple[str, dict, str]:
@@ -1062,9 +1053,7 @@ class BatchDocumentProcessor:
             Tuple of (document_type, extraction_result, prompt_name)
         """
 
-        if verbose:
-            rprint("\n[bold cyan]📋 DOCUMENT TYPE DETECTION[/bold cyan]")
-            rprint("[cyan]━" * 80 + "[/cyan]")
+        logger.debug("DOCUMENT TYPE DETECTION")
 
         # Step 1: Detect and classify document
         classification_info = self.model_handler.detect_and_classify_document(
@@ -1072,16 +1061,11 @@ class BatchDocumentProcessor:
         )
         document_type = classification_info["document_type"]
 
-        if verbose:
-            rprint(f"[green]✅ Detected Document Type: {document_type}[/green]")
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
+        logger.debug("Detected Document Type: %s", document_type)
 
         # Step 2: Route bank statements to adapter when available
         if document_type.upper() == "BANK_STATEMENT" and self.bank_adapter is not None:
-            if verbose:
-                rprint(
-                    "[bold cyan]📊 BANK STATEMENT: Routing to BankStatementAdapter[/bold cyan]"
-                )
+            logger.debug("BANK STATEMENT: Routing to BankStatementAdapter")
 
             try:
                 schema_fields, metadata = self.bank_adapter.extract_bank_statement(
@@ -1098,35 +1082,27 @@ class BatchDocumentProcessor:
                 strategy = metadata.get("strategy_used", "unknown")
                 prompt_name = f"unified_bank_{strategy}"
 
-                if verbose:
-                    rprint(f"[dim]  Strategy: {strategy}[/dim]")
-                    tx_count = (
-                        len(schema_fields.get("TRANSACTION_DATES", "").split("|"))
-                        if schema_fields.get("TRANSACTION_DATES") != "NOT_FOUND"
-                        else 0
-                    )
-                    rprint(f"[dim]  Transactions extracted: {tx_count}[/dim]")
+                logger.debug("Strategy: %s", strategy)
+                tx_count = (
+                    len(schema_fields.get("TRANSACTION_DATES", "").split("|"))
+                    if schema_fields.get("TRANSACTION_DATES") != "NOT_FOUND"
+                    else 0
+                )
+                logger.debug("Transactions extracted: %d", tx_count)
 
                 return document_type, extraction_result, prompt_name
 
             except Exception as e:
-                rprint(f"[yellow]BankStatementAdapter failed: {e}[/yellow]")
-                rprint("[yellow]Falling back to standard extraction...[/yellow]")
+                logger.warning("BankStatementAdapter failed: %s", e)
+                logger.warning("Falling back to standard extraction...")
                 # Fall through to standard extraction
 
         # Step 3: Standard document-aware extraction (invoices, receipts, or bank fallback)
-        if verbose:
-            rprint(
-                f"[bold cyan]📊 DOCUMENT-AWARE EXTRACTION ({document_type.upper()})[/bold cyan]"
-            )
-            rprint("[cyan]━" * 80 + "[/cyan]")
+        logger.debug("DOCUMENT-AWARE EXTRACTION (%s)", document_type.upper())
 
         extraction_result = self.model_handler.process_document_aware(
             image_path, classification_info, verbose=verbose
         )
-
-        if verbose:
-            rprint("[cyan]━" * 80 + "[/cyan]\n")
 
         # Extract the actual extracted_data for evaluation
         extracted_data = extraction_result.get("extracted_data", {})
@@ -1206,13 +1182,16 @@ def print_accuracy_by_document_type(
 
         display_name = doc_type_key.replace("_", " ").title()
 
-        rprint(f"\n[bold blue]{display_name}[/bold blue]")
-        rprint(f"  Documents: {n_docs}")
-        rprint(
-            f"  [cyan]Median F1 (avg): {avg_median_f1 * 100:.1f}%[/cyan] ← typical field performance"
+        logger.info("%s", display_name)
+        logger.info("  Documents: %d", n_docs)
+        logger.info(
+            "  Median F1 (avg): %.1f%% - typical field performance",
+            avg_median_f1 * 100,
         )
-        rprint(f"  Mean F1 (avg):   {avg_mean_f1 * 100:.1f}%")
-        rprint(f"  Median of Medians: {median_of_medians * 100:.1f}% ← most robust")
+        logger.info("  Mean F1 (avg): %.1f%%", avg_mean_f1 * 100)
+        logger.info(
+            "  Median of Medians: %.1f%% - most robust", median_of_medians * 100
+        )
 
         summary[doc_type_key] = {
             "count": n_docs,
@@ -1231,10 +1210,10 @@ def print_accuracy_by_document_type(
             sum(s["avg_mean_f1"] * s["count"] for s in summary.values()) / total_docs
         )
 
-        rprint("\n[bold green]Overall (weighted by document count)[/bold green]")
-        rprint(f"  Total Documents: {total_docs}")
-        rprint(f"  [cyan]Weighted Median F1: {weighted_median * 100:.1f}%[/cyan]")
-        rprint(f"  Weighted Mean F1:   {weighted_mean * 100:.1f}%")
+        logger.info("Overall (weighted by document count)")
+        logger.info("  Total Documents: %d", total_docs)
+        logger.info("  Weighted Median F1: %.1f%%", weighted_median * 100)
+        logger.info("  Weighted Mean F1: %.1f%%", weighted_mean * 100)
 
         summary["overall"] = {
             "count": total_docs,
