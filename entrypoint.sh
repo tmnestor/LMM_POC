@@ -150,30 +150,34 @@ fi
 # We check each one: if it's set and non-empty, add the corresponding
 # cli.py flag. The `${var:-}` syntax means "use empty string if unset"
 # which prevents `set -o nounset` from erroring on blank KFP params.
+#
+# IMPORTANT: KFP stringifies Python None as the literal string "None" for
+# unset input_params. We must reject both empty AND "None" values.
+_is_set() { [[ -n "${1:-}" && "${1}" != "None" ]]; }
 CLI_ARGS=()
 
 # model → --model (e.g. "internvl3", "llama")
-if [[ -n "${model:-}" ]]; then
+if _is_set "${model:-}"; then
   CLI_ARGS+=(--model "$model")
 fi
 
 # image_dir → --data-dir (path to folder of images to process)
-if [[ -n "${image_dir:-}" ]]; then
+if _is_set "${image_dir:-}"; then
   CLI_ARGS+=(--data-dir "$image_dir")
 fi
 
 # output → --output-dir (where results, CSVs, and reports are saved)
-if [[ -n "${output:-}" ]]; then
+if _is_set "${output:-}"; then
   CLI_ARGS+=(--output-dir "$output")
 fi
 
 # num_gpus → --num-gpus (0 = auto-detect all, 1 = single GPU, N = use N GPUs)
-if [[ -n "${num_gpus:-}" ]]; then
+if _is_set "${num_gpus:-}"; then
   CLI_ARGS+=(--num-gpus "$num_gpus")
 fi
 
 # batch_size → --batch-size (images per batch per GPU; omit for auto-detect)
-if [[ -n "${batch_size:-}" ]]; then
+if _is_set "${batch_size:-}"; then
   CLI_ARGS+=(--batch-size "$batch_size")
 fi
 
