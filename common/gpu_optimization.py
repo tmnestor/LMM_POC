@@ -564,7 +564,9 @@ def emergency_cleanup(verbose: bool = True):
     Args:
         verbose: Whether to print cleanup messages
     """
-    logger.warning("Running emergency GPU cleanup...")
+    # Use WARNING only for true emergencies (verbose=True); routine calls use DEBUG
+    _log = logger.warning if verbose else logger.debug
+    _log("Running emergency GPU cleanup...")
 
     # Try to delete any global model references
     import sys
@@ -585,7 +587,7 @@ def emergency_cleanup(verbose: bool = True):
     # Final comprehensive cleanup
     clear_gpu_cache(verbose=verbose)
 
-    logger.warning("Emergency cleanup complete")
+    _log("Emergency cleanup complete")
 
 
 def cleanup_model_handler(
