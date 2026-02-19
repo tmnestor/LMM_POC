@@ -122,6 +122,7 @@ docs/testing.txt
 backups/
 legacy/
 docs/LLAMA_PROCESSOR_COMPARISON.md
+docs/poc_findings_summary.md
 config/unified_schema.yaml.backup
 llama_bank_statement_extraction_bkp.ipynb
 internvl3_document_aware_batch copy.ipynb
