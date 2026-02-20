@@ -5,7 +5,8 @@
 # Model configuration — switch type + path together
 model:
   type: internvl3
-  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  path: /home/jovyan/nfs_share/models/InternVL3_5-GPT-OSS-20B-A4B-Preview
   # type: llama
   # path: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
   max_tiles: 6          # Image tiles (H200: 18-36, V100: 14, L4: 18)
