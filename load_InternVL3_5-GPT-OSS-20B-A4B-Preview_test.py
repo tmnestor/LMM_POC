@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 path = "/home/jovyan/nfs_share/models/InternVL3_5-GPT-OSS-20B-A4B-Preview"
 model = AutoModel.from_pretrained(
