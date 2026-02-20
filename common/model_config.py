@@ -16,6 +16,7 @@ DEFAULT_BATCH_SIZES = {
     "internvl3": 4,
     "internvl3-2b": 4,
     "internvl3-8b": 4,
+    "internvl3-20b": 2,
     "qwen3vl": 4,
 }
 
@@ -24,6 +25,7 @@ MAX_BATCH_SIZES = {
     "internvl3": 8,
     "internvl3-2b": 8,
     "internvl3-8b": 16,
+    "internvl3-20b": 4,
     "qwen3vl": 8,
 }
 
@@ -32,6 +34,7 @@ CONSERVATIVE_BATCH_SIZES = {
     "internvl3": 1,
     "internvl3-2b": 2,
     "internvl3-8b": 1,
+    "internvl3-20b": 1,
     "qwen3vl": 2,
 }
 
@@ -168,6 +171,12 @@ def get_model_name_with_size(
     # Only modify internvl3 models - other models use original names
     if base_name != "internvl3":
         return base_name
+
+    # Determine model size from path
+    if model_path:
+        path_str = str(model_path)
+        if "20B" in path_str:
+            return "internvl3-20b"
 
     # Determine if this is an 8B model
     if is_8b_model is None and model_path:

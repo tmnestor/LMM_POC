@@ -98,6 +98,9 @@ class PipelineConfig:
     # Model loading options
     trust_remote_code: bool = True
     use_fast_tokenizer: bool = False
+    fix_mistral_regex: bool = (
+        False  # Required for GPT-OSS / Mistral-based tokenizers (e.g. 20B-A4B)
+    )
     low_cpu_mem_usage: bool = True
     device_map: str = "auto"
 
@@ -199,6 +202,8 @@ def load_yaml_config(
             flat_config["trust_remote_code"] = ml["trust_remote_code"]
         if "use_fast_tokenizer" in ml:
             flat_config["use_fast_tokenizer"] = ml["use_fast_tokenizer"]
+        if "fix_mistral_regex" in ml:
+            flat_config["fix_mistral_regex"] = ml["fix_mistral_regex"]
         if "low_cpu_mem_usage" in ml:
             flat_config["low_cpu_mem_usage"] = ml["low_cpu_mem_usage"]
         if "device_map" in ml:

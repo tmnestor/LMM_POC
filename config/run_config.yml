@@ -89,6 +89,7 @@ gpu:
 model_loading:
   trust_remote_code: true
   use_fast_tokenizer: false
+  fix_mistral_regex: true   # Required for GPT-OSS / Mistral-based tokenizers (20B-A4B)
   low_cpu_mem_usage: true
   device_map: auto
   default_paths:

@@ -132,10 +132,16 @@ def _internvl3_loader(config):
             ) as progress:
                 task = progress.add_task("Loading tokenizer...", total=None)
 
+                tokenizer_kwargs = {
+                    "trust_remote_code": cfg.trust_remote_code,
+                    "use_fast": cfg.use_fast_tokenizer,
+                }
+                if cfg.fix_mistral_regex:
+                    tokenizer_kwargs["fix_mistral_regex"] = True
+
                 tokenizer = AutoTokenizer.from_pretrained(
                     str(cfg.model_path),
-                    trust_remote_code=cfg.trust_remote_code,
-                    use_fast=cfg.use_fast_tokenizer,
+                    **tokenizer_kwargs,
                 )
 
                 progress.update(task, description="Loading model weights...")
