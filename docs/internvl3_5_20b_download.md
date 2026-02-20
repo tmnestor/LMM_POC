@@ -16,7 +16,7 @@ pip install -U transformers>=4.55.0 huggingface_hub
 ```bash
 # Full download (recommended — supports resume)
 huggingface-cli download OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview \
-  --local-dir /path/to/your/models/InternVL3_5-GPT-OSS-20B-A4B-Preview
+  --local-dir /home/jovyan/nfs_share/models/InternVL3_5-GPT-OSS-20B-A4B-Preview
 ```
 
 Or just the essential files:
