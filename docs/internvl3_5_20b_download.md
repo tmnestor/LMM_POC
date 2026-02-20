@@ -5,13 +5,27 @@
 Mixture-of-Experts model — 21.2B total params, ~4B active per token.
 Same `.chat()` API as InternVL3-8B.
 
-## 1. Install/update dependencies
+## 1. Create a HuggingFace access token
+
+1. Go to [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+2. Click **Create new token**
+3. Select **Read** access (sufficient for downloading public models)
+4. Copy the token
+
+Then log in from the CLI:
+
+```bash
+huggingface-cli login
+# Paste your token when prompted
+```
+
+## 2. Install/update dependencies
 
 ```bash
 pip install -U transformers>=4.55.0 huggingface_hub
 ```
 
-## 2. Download the model
+## 3. Download the model
 
 ```bash
 # Full download (recommended — supports resume)
@@ -27,7 +41,7 @@ huggingface-cli download OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview \
   --local-dir /path/to/your/models/InternVL3_5-GPT-OSS-20B-A4B-Preview
 ```
 
-## 3. Quick smoke test
+## 4. Quick smoke test
 
 ```python
 import torch
