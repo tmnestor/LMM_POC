@@ -290,11 +290,15 @@ case "${KFP_TASK:-}" in
 
   extract_documents)
     # GPU: extraction from classification CSV → JSON
+    if ! _is_set "${classifications_csv:-}"; then
+      log "FATAL: extract_documents requires classifications_csv"
+      log "  Set via KFP input_params or env var:"
+      log "  classifications_csv=./output/csv/batch_*_classifications.csv KFP_TASK=extract_documents bash entrypoint.sh"
+      exit 1
+    fi
     CLI_ARGS=()
     _add_common_args; _add_gpu_args; _add_bank_args
-    if _is_set "${classifications_csv:-}"; then
-      CLI_ARGS+=(--classifications "$classifications_csv")
-    fi
+    CLI_ARGS+=(--classifications "$classifications_csv")
     CLI_ARGS+=("$@")
     log "Resolved CLI args: extract ${CLI_ARGS[*]:-<none>}"
     log ""
@@ -305,16 +309,18 @@ case "${KFP_TASK:-}" in
 
   evaluate_extractions)
     # CPU-ONLY: evaluation from extraction JSON — no model needed
+    if ! _is_set "${extractions_json:-}" || ! _is_set "${ground_truth:-}"; then
+      log "FATAL: evaluate_extractions requires extractions_json and ground_truth"
+      log "  Set via KFP input_params or env vars:"
+      log "  extractions_json=./out/extractions.json ground_truth=./gt.csv KFP_TASK=evaluate_extractions bash entrypoint.sh"
+      exit 1
+    fi
     CLI_ARGS=()
     if _is_set "${output:-}"; then
       CLI_ARGS+=(--output-dir "$output")
     fi
-    if _is_set "${extractions_json:-}"; then
-      CLI_ARGS+=(--extractions "$extractions_json")
-    fi
-    if _is_set "${ground_truth:-}"; then
-      CLI_ARGS+=(--ground-truth "$ground_truth")
-    fi
+    CLI_ARGS+=(--extractions "$extractions_json")
+    CLI_ARGS+=(--ground-truth "$ground_truth")
     CLI_ARGS+=("$@")
     log "Resolved CLI args: evaluate ${CLI_ARGS[*]:-<none>}"
     log ""
