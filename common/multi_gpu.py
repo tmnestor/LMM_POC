@@ -7,9 +7,14 @@ results in original order.
 ThreadPoolExecutor is used (not multiprocessing) because PyTorch releases
 the GIL during CUDA kernel execution, giving true GPU parallelism without
 serialization overhead.
+
+Pipeline integration:
+    Each GPU worker runs classify_images() + extract_documents() in parallel.
+    After merge, evaluate_extractions() runs once (CPU-only).
 """
 
 import math
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +23,12 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+
+from pipeline.io_schemas import (
+    ClassificationOutput,
+    EvaluationOutput,
+    ExtractionOutput,
+)
 
 console = Console()
 
@@ -29,9 +40,10 @@ _model_load_lock = threading.Lock()
 class MultiGPUOrchestrator:
     """Orchestrate parallel document processing across multiple GPUs.
 
-    Two-phase approach:
+    Three-phase approach:
       1. Load models sequentially (avoids import race + shows unified GPU status)
-      2. Process image chunks in parallel (GIL released during CUDA kernels)
+      2. Classify + extract image chunks in parallel (GIL released during CUDA)
+      3. Evaluate once on merged results (CPU-only, no model needed)
     """
 
     def __init__(self, config, num_gpus: int) -> None:
@@ -87,7 +99,7 @@ class MultiGPUOrchestrator:
         # Print unified GPU status after all models are loaded
         _print_gpu_status(console)
 
-        # Phase 2: Process image chunks in parallel
+        # Phase 2: Classify + extract image chunks in parallel
         console.print("\n[bold]Processing images in parallel...[/bold]")
         start_time = time.time()
 
@@ -97,8 +109,6 @@ class MultiGPUOrchestrator:
                     self._process_chunk,
                     gpu_stacks[gpu_id],
                     chunks[gpu_id],
-                    prompt_config,
-                    field_definitions,
                 ): gpu_id
                 for gpu_id in range(actual_gpus)
             }
@@ -109,7 +119,7 @@ class MultiGPUOrchestrator:
                 gpu_results[gpu_id] = future.result()
                 console.print(f"  [green]GPU {gpu_id} finished[/green]")
 
-        # Clean up: exit all model context managers
+        # Clean up: exit all model context managers (free GPU memory)
         for _gpu_config, model_ctx, _processor in gpu_stacks:
             model_ctx.__exit__(None, None, None)
 
@@ -119,22 +129,82 @@ class MultiGPUOrchestrator:
             f"{elapsed:.1f}s total[/bold green]"
         )
 
-        return self._merge_results(gpu_results)
+        # Phase 3: Merge results + evaluate once (CPU-only)
+        merged_classifications, merged_extractions = self._merge_stage_results(
+            gpu_results
+        )
+
+        evaluation_output: EvaluationOutput | None = None
+        if self.config.ground_truth:
+            from pipeline.evaluate import evaluate_extractions
+
+            console.print("\n[bold]Evaluating merged results (CPU)...[/bold]")
+            evaluation_output = evaluate_extractions(
+                extractions=merged_extractions,
+                ground_truth_csv=Path(str(self.config.ground_truth)),
+                field_definitions=field_definitions,
+                evaluation_method=os.environ.get("EVALUATION_METHOD", "order_aware_f1"),
+                enable_math_enhancement=False,
+                verbose=self.config.verbose,
+            )
+
+        # Compute batch stats
+        batch_size = self.config.batch_size or 1
+        batch_stats: dict[str, float] = {
+            "avg_detection_batch": float(batch_size),
+            "avg_extraction_batch": float(batch_size),
+            "num_detection_calls": max(1, len(images) // max(1, batch_size)),
+            "num_extraction_calls": max(1, len(images) // max(1, batch_size)),
+            "configured_batch_size": batch_size,
+        }
+
+        return self._to_legacy_format(
+            merged_classifications,
+            merged_extractions,
+            evaluation_output,
+            batch_stats,
+        )
 
     @staticmethod
     def _process_chunk(
         gpu_stack: tuple,
         images: list[Path],
-        prompt_config: dict[str, Any],
-        field_definitions: dict[str, list[str]],
-    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
-        """Process an image chunk using a pre-loaded model/processor stack."""
-        from cli import run_batch_processing
+    ) -> tuple[ClassificationOutput, ExtractionOutput]:
+        """Process an image chunk: classify + extract (GPU-bound).
+
+        Evaluation is deferred to the orchestrator (CPU-only, runs once).
+        """
+        from common.bank_statement_adapter import BankStatementAdapter
+        from pipeline.classify import classify_images
+        from pipeline.extract import extract_documents
 
         gpu_config, _model_ctx, processor = gpu_stack
-        return run_batch_processing(
-            gpu_config, processor, prompt_config, images, field_definitions
+
+        classification_output = classify_images(
+            processor=processor,
+            image_paths=images,
+            batch_size=gpu_config.batch_size or 1,
+            verbose=gpu_config.verbose,
         )
+
+        # Create bank adapter when V2 bank extraction is enabled
+        bank_adapter = None
+        if gpu_config.bank_v2 and getattr(processor, "supports_multi_turn", True):
+            bank_adapter = BankStatementAdapter(
+                generate_fn=processor.generate,
+                verbose=gpu_config.verbose,
+                use_balance_correction=gpu_config.balance_correction,
+            )
+
+        extraction_output = extract_documents(
+            processor=processor,
+            classifications=classification_output,
+            bank_adapter=bank_adapter,
+            batch_size=gpu_config.batch_size or 1,
+            verbose=gpu_config.verbose,
+        )
+
+        return classification_output, extraction_output
 
     def _partition_images(self, images: list[Path]) -> list[list[Path]]:
         """Split images into num_gpus contiguous chunks.
@@ -147,41 +217,134 @@ class MultiGPUOrchestrator:
         return [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]
 
     @staticmethod
-    def _merge_results(
-        gpu_results: list[tuple | None],
-    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
-        """Merge results from all GPUs in original image order.
+    def _merge_stage_results(
+        gpu_results: list[tuple[ClassificationOutput, ExtractionOutput] | None],
+    ) -> tuple[ClassificationOutput, ExtractionOutput]:
+        """Merge classification + extraction results from all GPUs.
 
-        Concatenates batch_results and processing_times, merges
-        document_types_found dicts (summing counts), averages batch_stats.
+        Concatenates rows/records in GPU order (which preserves the original
+        image order since chunks are contiguous).
         """
-        all_results: list[dict] = []
-        all_times: list[float] = []
-        merged_doc_types: dict[str, int] = {}
-        all_batch_stats: list[dict[str, float]] = []
+        all_classification_rows = []
+        all_extraction_records = []
+        model_type = "unknown"
+        timestamp = ""
+        metadata: dict[str, Any] = {}
 
         for result in gpu_results:
             if result is None:
                 continue
-            batch_results, processing_times, doc_types, batch_stats = result
+            classifications, extractions = result
+            all_classification_rows.extend(classifications.rows)
+            all_extraction_records.extend(extractions.records)
+            if classifications.model_type != "unknown":
+                model_type = classifications.model_type
+            if classifications.timestamp:
+                timestamp = classifications.timestamp
+            if extractions.metadata:
+                metadata.update(extractions.metadata)
 
-            all_results.extend(batch_results)
-            all_times.extend(processing_times)
+        merged_classifications = ClassificationOutput(
+            rows=all_classification_rows,
+            model_type=model_type,
+            timestamp=timestamp,
+        )
+        merged_extractions = ExtractionOutput(
+            records=all_extraction_records,
+            metadata=metadata,
+        )
+        return merged_classifications, merged_extractions
 
-            for doc_type, count in doc_types.items():
-                merged_doc_types[doc_type] = merged_doc_types.get(doc_type, 0) + count
+    @staticmethod
+    def _to_legacy_format(
+        classifications: ClassificationOutput,
+        extractions: ExtractionOutput,
+        evaluation_output: EvaluationOutput | None,
+        batch_stats: dict[str, float],
+    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
+        """Convert pipeline stage outputs to legacy return format.
 
-            if batch_stats:
-                all_batch_stats.append(batch_stats)
+        Preserves backward compatibility with analytics, reporting, and
+        visualization modules that expect (batch_results, processing_times,
+        document_types_found, batch_stats).
+        """
+        batch_results: list[dict] = []
+        processing_times: list[float] = []
+        document_types_found: dict[str, int] = {}
 
-        # Average batch_stats across GPUs
-        averaged_stats: dict[str, float] = {}
-        if all_batch_stats:
-            all_keys = set()
-            for stats in all_batch_stats:
-                all_keys.update(stats.keys())
-            for key in all_keys:
-                values = [s[key] for s in all_batch_stats if key in s]
-                averaged_stats[key] = sum(values) / len(values) if values else 0.0
+        # Build evaluation lookup by image_name
+        eval_by_name: dict[str, Any] = {}
+        if evaluation_output is not None:
+            for ie in evaluation_output.image_evaluations:
+                eval_by_name[ie.image_name] = {
+                    "overall_accuracy": ie.overall_f1,
+                    "median_f1": ie.median_f1,
+                    "overall_precision": ie.precision,
+                    "overall_recall": ie.recall,
+                    "total_fields": ie.total_fields,
+                    "correct_fields": ie.correct_fields,
+                    "missing_fields": ie.total_fields - ie.correct_fields,
+                    "incorrect_fields": ie.total_fields - ie.correct_fields,
+                    "fields_extracted": ie.fields_extracted,
+                    "fields_matched": ie.correct_fields,
+                    "field_scores": {
+                        fe.field_name: {
+                            "f1_score": fe.f1_score,
+                            "precision": fe.precision,
+                            "recall": fe.recall,
+                        }
+                        for fe in ie.field_evaluations
+                    },
+                    "overall_metrics": {
+                        "overall_accuracy": ie.overall_f1,
+                        "median_f1": ie.median_f1,
+                        "overall_precision": ie.precision,
+                        "overall_recall": ie.recall,
+                        "meets_threshold": ie.median_f1 >= 0.8,
+                        "document_type_threshold": 0.8,
+                    },
+                }
 
-        return all_results, all_times, merged_doc_types, averaged_stats
+        for i, record in enumerate(extractions.records):
+            doc_type = classifications.rows[i].document_type
+            document_types_found[doc_type] = document_types_found.get(doc_type, 0) + 1
+            processing_times.append(record.processing_time)
+
+            if record.error:
+                batch_results.append(
+                    {
+                        "image_name": record.image_name,
+                        "image_path": record.image_path,
+                        "error": record.error,
+                        "processing_time": record.processing_time,
+                    }
+                )
+                continue
+
+            evaluation = eval_by_name.get(
+                record.image_name,
+                {
+                    "error": f"No ground truth for {record.image_name}",
+                    "overall_accuracy": 0,
+                },
+            )
+
+            batch_results.append(
+                {
+                    "image_name": record.image_name,
+                    "image_path": record.image_path,
+                    "document_type": doc_type,
+                    "extraction_result": {
+                        "extracted_data": record.extracted_data,
+                        "document_type": doc_type,
+                        "image_file": record.image_name,
+                        "processing_time": record.processing_time,
+                    },
+                    "evaluation": evaluation,
+                    "processing_time": record.processing_time,
+                    "prompt_used": record.prompt_used,
+                    "timestamp": record.timestamp,
+                }
+            )
+
+        return batch_results, processing_times, document_types_found, batch_stats
