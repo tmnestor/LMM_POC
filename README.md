@@ -64,7 +64,14 @@ graph TD
 
 ```
 .
-├── cli.py                                 # CLI entry point (--model flag)
+├── cli.py                                 # CLI entry point (subcommands + --model flag)
+├── entrypoint.sh                          # KFP pipeline entrypoint (task dispatch)
+├── pipeline/
+│   ├── __init__.py                        # Stage function exports
+│   ├── io_schemas.py                      # Data contracts between stages
+│   ├── classify.py                        # Classification stage (→ CSV)
+│   ├── extract.py                         # Extraction stage (→ JSON)
+│   └── evaluate.py                        # Evaluation stage (→ CSV + JSON)
 ├── config/
 │   ├── run_config.yml                     # Single source of truth for all config
 │   ├── field_definitions.yaml             # Document types, fields, evaluation settings
@@ -149,6 +156,104 @@ graph TD
 **Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches (InternVL3) or sequentially (Llama). Bank statements always use sequential multi-turn extraction via `BankStatementAdapter`, which dispatches to the correct model-specific generation method.
 
 **Multi-GPU**: When multiple GPUs are available, `MultiGPUOrchestrator` partitions images into contiguous chunks and processes them in parallel — one independent model per GPU. This is true data parallelism via `ThreadPoolExecutor` (PyTorch releases the GIL during CUDA kernels). Results are merged in original image order. See [Multi-GPU Parallel Processing](#multi-gpu-parallel-processing).
+
+## Composable Pipeline Stages
+
+The pipeline decomposes into independent stages, each producing a well-defined intermediate format consumed by the next. This enables running stages independently, inspecting/correcting intermediate results, and assigning different resource profiles per stage.
+
+```
+classify  →  extract  →  evaluate
+  GPU          GPU         CPU
+```
+
+### CLI Subcommands
+
+```bash
+# Stage 1: Classification only → CSV
+python cli.py classify -d ./images -o ./output --model internvl3
+
+# Stage 2: Extraction from classification CSV → JSON
+python cli.py extract --classifications ./output/csv/batch_*_classifications.csv -o ./output
+
+# Stage 3: Evaluation from extraction JSON (CPU-only, no model needed)
+python cli.py evaluate --extractions ./output/batch_results/batch_*_extractions.json \
+  -g ./ground_truth.csv -o ./output
+
+# Full pipeline (all stages in one shot)
+python cli.py run -d ./images -o ./output -g ./ground_truth.csv
+
+# Backward-compat: bare flags (no subcommand) defaults to full pipeline
+python cli.py -d ./images -o ./output -g ./ground_truth.csv
+```
+
+### Intermediate Formats
+
+| Stage | Output | Format | Human-editable |
+|-------|--------|--------|----------------|
+| **classify** | `csv/batch_{ts}_classifications.csv` | CSV (image_path, doc_type, confidence) | Yes — fix misclassifications before extraction |
+| **extract** | `batch_results/batch_{ts}_extractions.json` | JSON (nested extracted_data dicts) | Yes — inspect field values |
+| **evaluate** | `csv/batch_{ts}_eval_summary.csv` + `batch_results/batch_{ts}_eval_detail.json` | CSV summary + JSON field-level detail | Read-only |
+
+### KFP Entrypoint
+
+`entrypoint.sh` dispatches to the correct `cli.py` subcommand based on `$KFP_TASK`. Each task maps to a KFP pipeline stage with its own resource profile.
+
+| KFP Task | CLI Subcommand | GPU | Use Case |
+|----------|---------------|-----|----------|
+| `run_batch_inference` | (none) | Yes | Full pipeline, backward compat |
+| `classify_documents` | `classify` | Yes | Classification only → CSV |
+| `extract_documents` | `extract` | Yes | Extraction from CSV → JSON |
+| `evaluate_extractions` | `evaluate` | **No** | CPU-only evaluation from JSON |
+
+KFP passes configuration as environment variables (`model`, `image_dir`, `output`, etc.). The entrypoint translates these into `cli.py` flags.
+
+**Local usage examples:**
+
+```bash
+# Full pipeline (backward compat)
+KFP_TASK=run_batch_inference \
+  model=internvl3 \
+  image_dir=../evaluation_data/bank \
+  output=../evaluation_data/output \
+  ground_truth=../evaluation_data/bank/ground_truth_bank.csv \
+  num_gpus=4 \
+  bash entrypoint.sh
+
+# Classification only
+KFP_TASK=classify_documents \
+  model=internvl3 \
+  image_dir=../evaluation_data/bank \
+  output=../evaluation_data/output \
+  bash entrypoint.sh
+
+# Extraction from classification CSV (requires classifications_csv)
+KFP_TASK=extract_documents \
+  classifications_csv=../evaluation_data/output/csv/batch_20260222_classifications.csv \
+  output=../evaluation_data/output \
+  bash entrypoint.sh
+
+# Evaluation from extraction JSON (CPU-only, requires extractions_json + ground_truth)
+KFP_TASK=evaluate_extractions \
+  extractions_json=../evaluation_data/output/batch_results/batch_20260222_extractions.json \
+  ground_truth=../evaluation_data/bank/ground_truth_bank.csv \
+  output=../evaluation_data/output \
+  bash entrypoint.sh
+```
+
+Direct CLI flags can also be appended — they take precedence over env vars:
+
+```bash
+KFP_TASK=classify_documents bash entrypoint.sh --model internvl3 -d ./images -o ./output
+```
+
+**Required env vars per task:**
+
+| Task | Required | Optional |
+|------|----------|----------|
+| `run_batch_inference` | (none — reads from YAML) | `model`, `image_dir`, `output`, `num_gpus`, `batch_size`, `ground_truth`, `bank_v2`, `balance_correction` |
+| `classify_documents` | (none — reads from YAML) | `model`, `image_dir`, `output`, `num_gpus`, `batch_size`, `document_types`, `max_images` |
+| `extract_documents` | `classifications_csv` | `model`, `output`, `num_gpus`, `batch_size`, `bank_v2`, `balance_correction` |
+| `evaluate_extractions` | `extractions_json`, `ground_truth` | `output` |
 
 ## The Protocol + Registry System
 
