@@ -46,6 +46,10 @@ processing:
   balance_correction: true   # Enable balance validation for bank statements
   verbose: false             # Verbose output (debug messages)
 
+# Pipeline stage settings
+pipeline:
+  write_intermediates: true   # Write classification CSV + extraction JSON during 'run' command
+
 # Batch processing tuning
 batch:
   default_sizes: {internvl3: 4}
