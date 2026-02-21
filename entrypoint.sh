@@ -4,10 +4,17 @@
 # =============================================================================
 #
 # This is the first script that runs when a KFP pipeline job starts.
-# Its job is simple: set up the environment, then hand off to run_batch_inference KFP Task which calls cli.py to do the actual work.
+# Its job is simple: set up the environment, then dispatch to the correct
+# cli.py subcommand based on $KFP_TASK.
 #
 # Flow:
-#   KFP Pipeline → Container starts → entrypoint.sh → run_batch_inference KFP Task → cli.py
+#   KFP Pipeline → Container starts → entrypoint.sh → $KFP_TASK dispatch → cli.py [subcommand]
+#
+# KFP Tasks:
+#   run_batch_inference   Full pipeline (backward compat) — GPU required
+#   classify_documents    Classification only → CSV — GPU required
+#   extract_documents     Extraction from CSV → JSON — GPU required
+#   evaluate_extractions  Evaluation from JSON — CPU only
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
@@ -21,9 +28,13 @@
 # Three ways to run:
 #   1. GitLab CI/CD (standard): git tag triggers pipeline → builds container → deploys to KFP
 #   2. Via KFP UI (ad-hoc):     input_params set in UI → injected as env vars
-#   3. Locally (dev/debug):     KFP_TASK=run_batch_inference bash entrypoint.sh --model llama
-# Local example:
+#   3. Locally (dev/debug):     KFP_TASK=<task> bash entrypoint.sh [extra flags]
+#
+# Local examples:
 #   KFP_TASK=run_batch_inference num_gpus=4 batch_size=4 model=internvl3 bash entrypoint.sh
+#   KFP_TASK=classify_documents bash entrypoint.sh -d ./images -o ./output --model internvl3
+#   KFP_TASK=extract_documents classifications_csv=./output/csv/batch_*_classifications.csv bash entrypoint.sh -o ./output
+#   KFP_TASK=evaluate_extractions extractions_json=./output/batch_results/batch_*_extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output
 #
 # =============================================================================
 
@@ -145,63 +156,95 @@ else
   log ""
 fi
 
-# ---- Build CLI args from KFP input_params ---- #
+# ---- Helper Functions: Build CLI Args from KFP input_params ---- #
+# Each helper appends flags for a specific concern so task cases
+# compose only the args their subcommand accepts.
+#
 # KFP injects `input_params` from the pipeline YAML as environment variables.
-# We check each one: if it's set and non-empty, add the corresponding
-# cli.py flag. The `${var:-}` syntax means "use empty string if unset"
-# which prevents `set -o nounset` from erroring on blank KFP params.
+# The `${var:-}` syntax means "use empty string if unset" which prevents
+# `set -o nounset` from erroring on blank KFP params.
 #
 # IMPORTANT: KFP stringifies Python None as the literal string "None" for
 # unset input_params. We must reject both empty AND "None" values.
 _is_set() { [[ -n "${1:-}" && "${1}" != "None" ]]; }
-CLI_ARGS=()
 
-# model → --model (e.g. "internvl3", "llama")
-if _is_set "${model:-}"; then
-  CLI_ARGS+=(--model "$model")
-fi
+_add_common_args() {
+  # --model (e.g. "internvl3", "llama")
+  # --output-dir (where results, CSVs, and reports are saved)
+  if _is_set "${model:-}"; then
+    CLI_ARGS+=(--model "$model")
+  fi
+  if _is_set "${output:-}"; then
+    CLI_ARGS+=(--output-dir "$output")
+  fi
+}
 
-# image_dir → --data-dir (path to folder of images to process)
-if _is_set "${image_dir:-}"; then
-  CLI_ARGS+=(--data-dir "$image_dir")
-fi
+_add_gpu_args() {
+  # --num-gpus (0 = auto-detect all, 1 = single GPU, N = use N GPUs)
+  # --batch-size (images per batch per GPU; omit for auto-detect)
+  if _is_set "${num_gpus:-}"; then
+    CLI_ARGS+=(--num-gpus "$num_gpus")
+  fi
+  if _is_set "${batch_size:-}"; then
+    CLI_ARGS+=(--batch-size "$batch_size")
+  fi
+}
 
-# output → --output-dir (where results, CSVs, and reports are saved)
-if _is_set "${output:-}"; then
-  CLI_ARGS+=(--output-dir "$output")
-fi
+_add_data_args() {
+  # --data-dir (path to folder of images to process)
+  # --document-types (comma-separated filter)
+  # --max-images (cap on number of images)
+  if _is_set "${image_dir:-}"; then
+    CLI_ARGS+=(--data-dir "$image_dir")
+  fi
+  if _is_set "${document_types:-}"; then
+    CLI_ARGS+=(--document-types "$document_types")
+  fi
+  if _is_set "${max_images:-}"; then
+    CLI_ARGS+=(--max-images "$max_images")
+  fi
+}
 
-# num_gpus → --num-gpus (0 = auto-detect all, 1 = single GPU, N = use N GPUs)
-if _is_set "${num_gpus:-}"; then
-  CLI_ARGS+=(--num-gpus "$num_gpus")
-fi
+_add_bank_args() {
+  # --bank-v2/--no-bank-v2 (V2 bank statement extraction)
+  # --balance-correction/--no-balance-correction (balance validation)
+  if _is_set "${bank_v2:-}"; then
+    if [[ "${bank_v2}" == "true" ]]; then
+      CLI_ARGS+=(--bank-v2)
+    else
+      CLI_ARGS+=(--no-bank-v2)
+    fi
+  fi
+  if _is_set "${balance_correction:-}"; then
+    if [[ "${balance_correction}" == "true" ]]; then
+      CLI_ARGS+=(--balance-correction)
+    else
+      CLI_ARGS+=(--no-balance-correction)
+    fi
+  fi
+}
 
-# batch_size → --batch-size (images per batch per GPU; omit for auto-detect)
-if _is_set "${batch_size:-}"; then
-  CLI_ARGS+=(--batch-size "$batch_size")
-fi
-
-# Append any direct command-line arguments passed to this script.
-# This allows local dev usage: bash entrypoint.sh --model llama --verbose
-# These are added AFTER KFP params, so they take precedence (last wins).
-CLI_ARGS+=("$@")
-
-# Log what we received from KFP and what we're about to pass to cli.py.
+# Log what we received from KFP.
 # <not set> means KFP left the param blank — cli.py will use its defaults.
 log "KFP input_params:"
-log "  model:          ${model:-<not set>}"
-log "  image_dir:      ${image_dir:-<not set>}"
-log "  output:         ${output:-<not set>}"
-log "  num_gpus:       ${num_gpus:-<not set>}"
-log "  batch_size:     ${batch_size:-<not set>}"
+log "  model:               ${model:-<not set>}"
+log "  image_dir:           ${image_dir:-<not set>}"
+log "  output:              ${output:-<not set>}"
+log "  num_gpus:            ${num_gpus:-<not set>}"
+log "  batch_size:          ${batch_size:-<not set>}"
+log "  ground_truth:        ${ground_truth:-<not set>}"
+log "  classifications_csv: ${classifications_csv:-<not set>}"
+log "  extractions_json:    ${extractions_json:-<not set>}"
+log "  bank_v2:             ${bank_v2:-<not set>}"
+log "  balance_correction:  ${balance_correction:-<not set>}"
+log "  document_types:      ${document_types:-<not set>}"
+log "  max_images:          ${max_images:-<not set>}"
 # metadata, system_message, and prompt are KFP input_params reserved for
 # future use. They are logged here for visibility but not yet translated
 # into CLI_ARGS — cli.py does not currently consume them.
-log "  metadata:       ${metadata:-<not set>}"
-log "  system_message: ${system_message:-<not set>}"
-log "  prompt:         ${prompt:-<not set>}"
-log ""
-log "Resolved CLI args: ${CLI_ARGS[*]:-<none>}"
+log "  metadata:            ${metadata:-<not set>}"
+log "  system_message:      ${system_message:-<not set>}"
+log "  prompt:              ${prompt:-<not set>}"
 log ""
 
 # ---- Task Dispatch ---- #
@@ -213,27 +256,86 @@ log ""
 
 case "${KFP_TASK:-}" in
   run_batch_inference)
-    # Hand off to cli.py which handles all the actual work:
-    # model loading, image processing, extraction, evaluation, and reporting.
-    # NOTE: cli.py exit codes — propagated via `|| exit $?` for KFP:
+    # Full pipeline (backward compat) — no subcommand.
+    # cli.py exit codes — propagated via `|| exit $?` for KFP:
     #   0 = success
     #   1 = config error (bad YAML, missing paths, invalid params)
     #   2 = model loading error (OOM, corrupt weights, missing checkpoint)
     #   3 = processing error (all images failed, fatal crash)
     #   4 = partial success (some images succeeded, some failed)
+    CLI_ARGS=()
+    _add_common_args; _add_gpu_args; _add_data_args; _add_bank_args
+    if _is_set "${ground_truth:-}"; then
+      CLI_ARGS+=(--ground-truth "$ground_truth")
+    fi
+    CLI_ARGS+=("$@")
+    log "Resolved CLI args: ${CLI_ARGS[*]:-<none>}"
+    log ""
     log "Starting cli.py..."
     python3 ./cli.py "${CLI_ARGS[@]}" || exit $?
     log "Pipeline completed successfully."
     ;;
+
+  classify_documents)
+    # GPU: classification only → CSV
+    CLI_ARGS=()
+    _add_common_args; _add_gpu_args; _add_data_args
+    CLI_ARGS+=("$@")
+    log "Resolved CLI args: classify ${CLI_ARGS[*]:-<none>}"
+    log ""
+    log "Starting cli.py classify..."
+    python3 ./cli.py classify "${CLI_ARGS[@]}" || exit $?
+    log "Classification completed successfully."
+    ;;
+
+  extract_documents)
+    # GPU: extraction from classification CSV → JSON
+    CLI_ARGS=()
+    _add_common_args; _add_gpu_args; _add_bank_args
+    if _is_set "${classifications_csv:-}"; then
+      CLI_ARGS+=(--classifications "$classifications_csv")
+    fi
+    CLI_ARGS+=("$@")
+    log "Resolved CLI args: extract ${CLI_ARGS[*]:-<none>}"
+    log ""
+    log "Starting cli.py extract..."
+    python3 ./cli.py extract "${CLI_ARGS[@]}" || exit $?
+    log "Extraction completed successfully."
+    ;;
+
+  evaluate_extractions)
+    # CPU-ONLY: evaluation from extraction JSON — no model needed
+    CLI_ARGS=()
+    if _is_set "${output:-}"; then
+      CLI_ARGS+=(--output-dir "$output")
+    fi
+    if _is_set "${extractions_json:-}"; then
+      CLI_ARGS+=(--extractions "$extractions_json")
+    fi
+    if _is_set "${ground_truth:-}"; then
+      CLI_ARGS+=(--ground-truth "$ground_truth")
+    fi
+    CLI_ARGS+=("$@")
+    log "Resolved CLI args: evaluate ${CLI_ARGS[*]:-<none>}"
+    log ""
+    log "Starting cli.py evaluate..."
+    python3 ./cli.py evaluate "${CLI_ARGS[@]}" || exit $?
+    log "Evaluation completed successfully."
+    ;;
+
   "")
     log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
     log "  For local dev, set KFP_TASK explicitly:"
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
+    log "  KFP_TASK=classify_documents bash entrypoint.sh -d ./images -o ./output"
+    log "  KFP_TASK=extract_documents classifications_csv=./out/classifications.csv bash entrypoint.sh -o ./output"
+    log "  KFP_TASK=evaluate_extractions extractions_json=./out/extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output"
     exit 1
     ;;
+
   *)
     log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
-    log "  Expected one of: run_batch_inference"
+    log "  Expected one of: run_batch_inference, classify_documents, extract_documents, evaluate_extractions"
     exit 1
     ;;
 esac
