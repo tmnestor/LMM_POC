@@ -35,7 +35,6 @@ from common.batch_visualizations import BatchVisualizer
 from common.pipeline_config import (
     PipelineConfig,
     discover_images,
-    load_env_config,
     load_structure_suffixes,
     load_yaml_config,
     merge_configs,
@@ -724,22 +723,20 @@ def _build_config(
 
         apply_yaml_overrides(raw_config)
 
-    env_config = load_env_config()
-
     # Check required fields
-    merged_check = {**env_config, **yaml_config, **cli_args}
+    merged_check = {**yaml_config, **cli_args}
 
     if require_data_dir and not merged_check.get("data_dir"):
         console.print("[red]FATAL: --data-dir is required[/red]")
         console.print(
-            "[yellow]Specify via CLI, config file, or IVL_DATA_DIR environment variable[/yellow]"
+            "[yellow]Specify via CLI flag or data.dir in config file[/yellow]"
         )
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     if require_output_dir and not merged_check.get("output_dir"):
         console.print("[red]FATAL: --output-dir is required[/red]")
         console.print(
-            "[yellow]Specify via CLI, config file, or IVL_OUTPUT_DIR environment variable[/yellow]"
+            "[yellow]Specify via CLI flag or output.dir in config file[/yellow]"
         )
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
@@ -757,7 +754,7 @@ def _build_config(
     # Extract run_id before merge (not a PipelineConfig field in cli_args)
     run_id = cli_args.pop("run_id", None)
 
-    config = merge_configs(cli_args, yaml_config, env_config, raw_config)
+    config = merge_configs(cli_args, yaml_config, raw_config)
 
     # Override timestamp with run_id for predictable inter-stage file paths
     if run_id:

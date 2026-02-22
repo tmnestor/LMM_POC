@@ -58,7 +58,7 @@ graph TD
 
 3. **Callable-based bank extraction**: `UnifiedBankExtractor` accepts a `generate_fn` callable (the processor's `generate()` method), eliminating model-type branching. Both models get the full multi-turn bank extraction pipeline (Turn 0: header detection, Turn 1: adaptive extraction with strategy selection).
 
-4. **Config cascade**: CLI flags > YAML (`run_config.yml`) > ENV vars (`IVL_*`) > dataclass defaults. The `--model` flag selects which registered model to use.
+4. **Config cascade**: CLI flags > YAML (`run_config.yml`) > dataclass defaults. The `--model` flag selects which registered model to use.
 
 ## Project Structure
 
@@ -205,7 +205,7 @@ python cli.py -d ./images -o ./output -g ./ground_truth.csv
 | `extract_documents` | `extract` | Yes | Extraction from CSV → JSON |
 | `evaluate_extractions` | `evaluate` | **No** | CPU-only evaluation from JSON |
 
-All operational paths (`DATA_DIR`, `OUTPUT_DIR`, `GROUND_TRUTH`, `LOG_DIR`) are defined once in `entrypoint.sh` with sensible production defaults. KFP `input_params` override the defaults when set. Paths are passed as CLI flags to `cli.py`, which gives them highest priority (`CLI > YAML > ENV > defaults`). `run_config.yml` path fields are only used for direct `python cli.py` runs during local development.
+All operational paths (`DATA_DIR`, `OUTPUT_DIR`, `GROUND_TRUTH`, `LOG_DIR`) are defined once in `entrypoint.sh` with sensible production defaults. KFP `input_params` override the defaults when set. Paths are passed as CLI flags to `cli.py`, which gives them highest priority (`CLI > YAML > defaults`). `run_config.yml` path fields are only used for direct `python cli.py` runs during local development.
 
 **Local usage examples** (override defaults via env vars):
 
@@ -412,27 +412,11 @@ python cli.py [OPTIONS]
 CLI flags override YAML, which overrides environment variables, which override dataclass defaults:
 
 ```
-CLI  >  YAML (run_config.yml)  >  ENV (IVL_*)  >  PipelineConfig defaults
+CLI  >  YAML (run_config.yml)  >  PipelineConfig defaults
 ```
 
 `config/run_config.yml` is **always loaded** automatically. The `--config` flag overrides which YAML file is used.
 
-### Environment Variables
-
-All prefixed with `IVL_`:
-
-```bash
-IVL_DATA_DIR=/path/to/images
-IVL_OUTPUT_DIR=/path/to/output
-IVL_MODEL_TYPE=llama           # Model type selection
-IVL_MODEL_PATH=/models/Llama-3.2-11B-Vision-Instruct
-IVL_BATCH_SIZE=4
-IVL_NUM_GPUS=0                 # 0 = auto-detect, 1 = single, N = use N GPUs
-IVL_MAX_TILES=14
-IVL_FLASH_ATTN=false
-IVL_DTYPE=float32
-IVL_VERBOSE=true
-```
 
 ## YAML Configuration
 

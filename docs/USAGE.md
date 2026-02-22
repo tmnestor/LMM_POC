@@ -183,8 +183,7 @@ CLI options default to `None` and only override YAML config when explicitly prov
 
 1. **CLI arguments** (only when explicitly provided)
 2. **YAML config file** (`--config`)
-3. **Environment variables** (`IVL_*` prefix)
-4. **Built-in defaults**
+3. **Built-in defaults**
 
 **Important:** CLI options default to `None` and only override YAML config when you explicitly pass them. This allows YAML to be the primary configuration source.
 
@@ -240,32 +239,6 @@ Override specific settings (CLI takes precedence when explicitly provided):
 python cli.py --config config/run_config.yml --max-images 5 --verbose
 ```
 
-### Environment Variables
-
-All settings can be configured via environment variables with the `IVL_` prefix:
-
-| Environment Variable | CLI Equivalent |
-|---------------------|----------------|
-| `IVL_DATA_DIR` | `--data-dir` |
-| `IVL_OUTPUT_DIR` | `--output-dir` |
-| `IVL_MODEL_PATH` | `--model-path` |
-| `IVL_GROUND_TRUTH` | `--ground-truth` |
-| `IVL_MAX_IMAGES` | `--max-images` |
-| `IVL_NUM_GPUS` | `--num-gpus` |
-| `IVL_MAX_TILES` | `--max-tiles` |
-| `IVL_FLASH_ATTN` | `--flash-attn` (true/false) |
-| `IVL_DTYPE` | `--dtype` |
-| `IVL_BANK_V2` | `--bank-v2` (true/false) |
-| `IVL_VERBOSE` | `--verbose` (true/false) |
-
-Example usage in Kubeflow/containers:
-```bash
-export IVL_MODEL_PATH=/models/InternVL3_5-8B
-export IVL_MAX_TILES=11
-export IVL_FLASH_ATTN=true
-
-python cli.py --data-dir ./data --output-dir ./output
-```
 
 ## Hardware Configurations
 

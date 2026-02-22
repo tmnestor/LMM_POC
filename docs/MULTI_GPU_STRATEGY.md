@@ -168,7 +168,7 @@ python cli.py --num-gpus 1 -d ./data -o ./output
 
 ### Config Cascade
 
-CLI flags > YAML > ENV (`IVL_*`) > dataclass defaults. The `num_gpus` resolution logic:
+CLI flags > YAML > dataclass defaults. The `num_gpus` resolution logic:
 
 1. `num_gpus=0` (default): auto-detect via `torch.cuda.device_count()`
 2. `num_gpus=N` where N > available: fatal error with clear diagnostic
