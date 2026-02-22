@@ -7,10 +7,10 @@ so that importing this module has zero GPU/ML overhead.
 
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, TypeAlias
 
-type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
-type ProcessorCreator = Callable[..., Any]
+ModelLoader: TypeAlias = Callable[..., AbstractContextManager[tuple[Any, Any]]]
+ProcessorCreator: TypeAlias = Callable[..., Any]
 
 
 @dataclass
@@ -156,8 +156,17 @@ def _internvl3_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
-            console.print(f"⚡ Flash Attention 2: {flash_status}")
+            if cfg.flash_attn:
+                try:
+                    import flash_attn as _fa  # noqa: F401
+
+                    console.print("⚡ Flash Attention 2: ✅ enabled")
+                except ImportError:
+                    console.print(
+                        "⚡ Flash Attention 2: ⚠️ requested but not installed — using fallback"
+                    )
+            else:
+                console.print("⚡ Flash Attention 2: ❌ disabled")
 
             # Skip per-loader GPU status in multi-GPU mode (orchestrator prints once)
             if not getattr(cfg, "_multi_gpu", False):
@@ -404,8 +413,17 @@ def _qwen3vl_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
-            console.print(f"⚡ Flash Attention 2: {flash_status}")
+            if cfg.flash_attn:
+                try:
+                    import flash_attn as _fa  # noqa: F401
+
+                    console.print("⚡ Flash Attention 2: ✅ enabled")
+                except ImportError:
+                    console.print(
+                        "⚡ Flash Attention 2: ⚠️ requested but not installed — using fallback"
+                    )
+            else:
+                console.print("⚡ Flash Attention 2: ❌ disabled")
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
