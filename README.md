@@ -4,10 +4,10 @@ A production-ready CLI for extracting structured fields from business document i
 
 **Supported models:**
 
-| Model | Type | Accuracy | Bank Extraction | Batch Inference |
-|-------|------|----------|-----------------|-----------------|
-| InternVL3.5-8B | `internvl3` | 94.5% | Multi-turn | Yes |
-| Llama 3.2-11B Vision | `llama` | 95.0% | Multi-turn | Sequential only |
+| Model | Type | Bank Extraction | Batch Inference |
+|-------|------|-----------------|-----------------|
+| InternVL3.5-8B | `internvl3` | Multi-turn | Yes |
+| Llama 3.2-11B Vision | `llama` | Multi-turn | Sequential only |
 
 ## Architecture Overview
 
