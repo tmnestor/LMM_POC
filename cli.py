@@ -503,6 +503,34 @@ def print_config(config: PipelineConfig) -> None:
 # ============================================================================
 
 
+def _resolve_gpu_count(config: PipelineConfig) -> int:
+    """Resolve num_gpus: 0 = auto-detect all, N = explicit. Returns resolved count."""
+    try:
+        import torch
+
+        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    except ImportError:
+        available_gpus = 0
+
+    if config.num_gpus == 0:
+        resolved = max(available_gpus, 1)
+        if resolved > 1:
+            console.print(
+                f"\n[bold cyan]Auto-detected {resolved} GPUs — "
+                f"enabling parallel processing[/bold cyan]"
+            )
+        return resolved
+
+    if config.num_gpus > available_gpus > 0:
+        console.print(
+            f"[red]FATAL: Requested {config.num_gpus} GPUs but only "
+            f"{available_gpus} available[/red]"
+        )
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    return config.num_gpus
+
+
 def run_pipeline(config: PipelineConfig) -> None:
     """Run the full extraction pipeline from a validated config.
 
@@ -535,30 +563,7 @@ def run_pipeline(config: PipelineConfig) -> None:
         config.model_type
     )
 
-    # Resolve num_gpus: 0 = auto-detect, N = explicit
-    try:
-        import torch
-
-        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    except ImportError:
-        available_gpus = 0
-
-    if config.num_gpus == 0:
-        # Auto-detect: use all available GPUs
-        resolved_gpus = max(available_gpus, 1)
-        if resolved_gpus > 1:
-            console.print(
-                f"\n[bold cyan]Auto-detected {resolved_gpus} GPUs — "
-                f"enabling parallel processing[/bold cyan]"
-            )
-    else:
-        resolved_gpus = config.num_gpus
-        if resolved_gpus > available_gpus > 0:
-            console.print(
-                f"[red]FATAL: Requested {resolved_gpus} GPUs but only "
-                f"{available_gpus} available[/red]"
-            )
-            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+    resolved_gpus = _resolve_gpu_count(config)
 
     import time as _time
 
@@ -1177,35 +1182,51 @@ def classify(
 
     console.print(f"\n[bold]Classifying {len(images)} images...[/bold]")
 
-    # Load model, run classification, release model
+    # Load configs (no GPU needed)
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
     )
 
-    try:
-        model_cm = load_model(config)
-        model, tokenizer = model_cm.__enter__()
-    except typer.Exit:
-        raise
-    except Exception as e:
-        console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
-        if config.verbose:
-            console.print_exception()
-        raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
+    resolved_gpus = _resolve_gpu_count(config)
 
-    try:
-        processor = create_processor(
-            model, tokenizer, config, prompt_config, universal_fields, field_definitions
+    if resolved_gpus > 1:
+        from common.multi_gpu import MultiGPUOrchestrator
+
+        orchestrator = MultiGPUOrchestrator(config, resolved_gpus)
+        classification_output = orchestrator.run_classify(
+            images, prompt_config, universal_fields, field_definitions
         )
-        classification_output = classify_images(
-            processor=processor,
-            image_paths=images,
-            batch_size=config.batch_size or 1,
-            verbose=config.verbose,
-            console=console,
-        )
-    finally:
-        model_cm.__exit__(None, None, None)
+    else:
+        # Single-GPU path
+        try:
+            model_cm = load_model(config)
+            model, tokenizer = model_cm.__enter__()
+        except typer.Exit:
+            raise
+        except Exception as e:
+            console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
+            if config.verbose:
+                console.print_exception()
+            raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
+
+        try:
+            processor = create_processor(
+                model,
+                tokenizer,
+                config,
+                prompt_config,
+                universal_fields,
+                field_definitions,
+            )
+            classification_output = classify_images(
+                processor=processor,
+                image_paths=images,
+                batch_size=config.batch_size or 1,
+                verbose=config.verbose,
+                console=console,
+            )
+        finally:
+            model_cm.__exit__(None, None, None)
 
     # Write classification CSV
     csv_path = output_dirs["csv"] / f"batch_{config.timestamp}_classifications.csv"
@@ -1310,46 +1331,62 @@ def extract(
         f"\n[bold]Extracting {len(classification_output.rows)} documents...[/bold]"
     )
 
-    # Load model, run extraction, release model
+    # Load configs (no GPU needed)
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
     )
 
-    try:
-        model_cm = load_model(config)
-        model, tokenizer = model_cm.__enter__()
-    except typer.Exit:
-        raise
-    except Exception as e:
-        console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
-        if config.verbose:
-            console.print_exception()
-        raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
+    resolved_gpus = _resolve_gpu_count(config)
 
-    try:
-        processor = create_processor(
-            model, tokenizer, config, prompt_config, universal_fields, field_definitions
+    if resolved_gpus > 1:
+        from common.multi_gpu import MultiGPUOrchestrator
+
+        orchestrator = MultiGPUOrchestrator(config, resolved_gpus)
+        extraction_output = orchestrator.run_extract(
+            classification_output, prompt_config, universal_fields, field_definitions
         )
+    else:
+        # Single-GPU path
+        try:
+            model_cm = load_model(config)
+            model, tokenizer = model_cm.__enter__()
+        except typer.Exit:
+            raise
+        except Exception as e:
+            console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
+            if config.verbose:
+                console.print_exception()
+            raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
 
-        # Create bank adapter when V2 bank extraction is enabled
-        bank_adapter = None
-        if config.bank_v2 and getattr(processor, "supports_multi_turn", True):
-            bank_adapter = BankStatementAdapter(
-                generate_fn=processor.generate,
-                verbose=config.verbose,
-                use_balance_correction=config.balance_correction,
+        try:
+            processor = create_processor(
+                model,
+                tokenizer,
+                config,
+                prompt_config,
+                universal_fields,
+                field_definitions,
             )
 
-        extraction_output = extract_documents(
-            processor=processor,
-            classifications=classification_output,
-            bank_adapter=bank_adapter,
-            batch_size=config.batch_size or 1,
-            verbose=config.verbose,
-            console=console,
-        )
-    finally:
-        model_cm.__exit__(None, None, None)
+            # Create bank adapter when V2 bank extraction is enabled
+            bank_adapter = None
+            if config.bank_v2 and getattr(processor, "supports_multi_turn", True):
+                bank_adapter = BankStatementAdapter(
+                    generate_fn=processor.generate,
+                    verbose=config.verbose,
+                    use_balance_correction=config.balance_correction,
+                )
+
+            extraction_output = extract_documents(
+                processor=processor,
+                classifications=classification_output,
+                bank_adapter=bank_adapter,
+                batch_size=config.batch_size or 1,
+                verbose=config.verbose,
+                console=console,
+            )
+        finally:
+            model_cm.__exit__(None, None, None)
 
     # Write extraction JSON
     json_path = output_dirs["batch"] / f"batch_{config.timestamp}_extractions.json"

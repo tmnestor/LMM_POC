@@ -50,37 +50,20 @@ class MultiGPUOrchestrator:
         self.config = config
         self.num_gpus = num_gpus
 
-    def run(
+    def _load_gpu_stacks(
         self,
-        images: list[Path],
+        num_chunks: int,
         prompt_config: dict[str, Any],
         universal_fields: list[str],
         field_definitions: dict[str, list[str]],
-    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
-        """Process images in parallel across GPUs.
-
-        Returns merged (batch_results, processing_times, document_types_found, batch_stats).
-        """
+    ) -> list[tuple]:
+        """Load one model per GPU. Returns list of (gpu_config, model_ctx, processor)."""
         from cli import create_processor, load_model
         from models.registry import _print_gpu_status
 
-        chunks = self._partition_images(images)
-        actual_gpus = len(chunks)
-
-        console.print(
-            f"\n[bold cyan]Multi-GPU: distributing {len(images)} images "
-            f"across {actual_gpus} GPUs[/bold cyan]"
-        )
-        for gpu_id, chunk in enumerate(chunks):
-            console.print(
-                f"  [dim]GPU {gpu_id}: {len(chunk)} images "
-                f"({chunk[0].name} .. {chunk[-1].name})[/dim]"
-            )
-
-        # Phase 1: Load all models sequentially
         console.print("\n[bold]Loading models on all GPUs...[/bold]")
         gpu_stacks: list[tuple] = []
-        for gpu_id in range(actual_gpus):
+        for gpu_id in range(num_chunks):
             gpu_config = replace(self.config, device_map=f"cuda:{gpu_id}")
             gpu_config._multi_gpu = True  # suppress per-loader GPU status
 
@@ -96,8 +79,43 @@ class MultiGPUOrchestrator:
             )
             gpu_stacks.append((gpu_config, model_ctx, processor))
 
-        # Print unified GPU status after all models are loaded
         _print_gpu_status(console)
+        return gpu_stacks
+
+    @staticmethod
+    def _cleanup_gpu_stacks(gpu_stacks: list[tuple]) -> None:
+        """Exit all model context managers to free GPU memory."""
+        for _gpu_config, model_ctx, _processor in gpu_stacks:
+            model_ctx.__exit__(None, None, None)
+
+    def run(
+        self,
+        images: list[Path],
+        prompt_config: dict[str, Any],
+        universal_fields: list[str],
+        field_definitions: dict[str, list[str]],
+    ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
+        """Process images in parallel across GPUs.
+
+        Returns merged (batch_results, processing_times, document_types_found, batch_stats).
+        """
+        chunks = self._partition_images(images)
+        actual_gpus = len(chunks)
+
+        console.print(
+            f"\n[bold cyan]Multi-GPU: distributing {len(images)} images "
+            f"across {actual_gpus} GPUs[/bold cyan]"
+        )
+        for gpu_id, chunk in enumerate(chunks):
+            console.print(
+                f"  [dim]GPU {gpu_id}: {len(chunk)} images "
+                f"({chunk[0].name} .. {chunk[-1].name})[/dim]"
+            )
+
+        # Phase 1: Load all models sequentially
+        gpu_stacks = self._load_gpu_stacks(
+            actual_gpus, prompt_config, universal_fields, field_definitions
+        )
 
         # Phase 2: Classify + extract image chunks in parallel
         console.print("\n[bold]Processing images in parallel...[/bold]")
@@ -120,8 +138,7 @@ class MultiGPUOrchestrator:
                 console.print(f"  [green]GPU {gpu_id} finished[/green]")
 
         # Clean up: exit all model context managers (free GPU memory)
-        for _gpu_config, model_ctx, _processor in gpu_stacks:
-            model_ctx.__exit__(None, None, None)
+        self._cleanup_gpu_stacks(gpu_stacks)
 
         elapsed = time.time() - start_time
         console.print(
@@ -163,6 +180,155 @@ class MultiGPUOrchestrator:
             merged_extractions,
             evaluation_output,
             batch_stats,
+        )
+
+    def run_classify(
+        self,
+        images: list[Path],
+        prompt_config: dict[str, Any],
+        universal_fields: list[str],
+        field_definitions: dict[str, list[str]],
+    ) -> ClassificationOutput:
+        """Classify images in parallel across GPUs. Returns merged ClassificationOutput."""
+        chunks = self._partition_images(images)
+        actual_gpus = len(chunks)
+
+        console.print(
+            f"\n[bold cyan]Multi-GPU classify: distributing {len(images)} images "
+            f"across {actual_gpus} GPUs[/bold cyan]"
+        )
+        for gpu_id, chunk in enumerate(chunks):
+            console.print(
+                f"  [dim]GPU {gpu_id}: {len(chunk)} images "
+                f"({chunk[0].name} .. {chunk[-1].name})[/dim]"
+            )
+
+        gpu_stacks = self._load_gpu_stacks(
+            actual_gpus, prompt_config, universal_fields, field_definitions
+        )
+
+        console.print("\n[bold]Classifying images in parallel...[/bold]")
+        start_time = time.time()
+
+        try:
+            with ThreadPoolExecutor(max_workers=actual_gpus) as executor:
+                futures = {
+                    executor.submit(
+                        self._classify_chunk,
+                        gpu_stacks[gpu_id],
+                        chunks[gpu_id],
+                    ): gpu_id
+                    for gpu_id in range(actual_gpus)
+                }
+
+                gpu_results: list[ClassificationOutput | None] = [None] * actual_gpus
+                for future in as_completed(futures):
+                    gpu_id = futures[future]
+                    gpu_results[gpu_id] = future.result()
+                    console.print(f"  [green]GPU {gpu_id} finished[/green]")
+        finally:
+            self._cleanup_gpu_stacks(gpu_stacks)
+
+        elapsed = time.time() - start_time
+        console.print(
+            f"\n[bold green]Multi-GPU classify complete: {elapsed:.1f}s total[/bold green]"
+        )
+
+        return self._merge_classifications(gpu_results)
+
+    def run_extract(
+        self,
+        classification_output: ClassificationOutput,
+        prompt_config: dict[str, Any],
+        universal_fields: list[str],
+        field_definitions: dict[str, list[str]],
+    ) -> ExtractionOutput:
+        """Extract documents in parallel across GPUs. Returns merged ExtractionOutput."""
+        sub_classifications = self._partition_classifications(classification_output)
+        actual_gpus = len(sub_classifications)
+
+        console.print(
+            f"\n[bold cyan]Multi-GPU extract: distributing "
+            f"{len(classification_output.rows)} documents "
+            f"across {actual_gpus} GPUs[/bold cyan]"
+        )
+        for gpu_id, sub in enumerate(sub_classifications):
+            console.print(f"  [dim]GPU {gpu_id}: {len(sub.rows)} documents[/dim]")
+
+        gpu_stacks = self._load_gpu_stacks(
+            actual_gpus, prompt_config, universal_fields, field_definitions
+        )
+
+        console.print("\n[bold]Extracting documents in parallel...[/bold]")
+        start_time = time.time()
+
+        try:
+            with ThreadPoolExecutor(max_workers=actual_gpus) as executor:
+                futures = {
+                    executor.submit(
+                        self._extract_chunk,
+                        gpu_stacks[gpu_id],
+                        sub_classifications[gpu_id],
+                    ): gpu_id
+                    for gpu_id in range(actual_gpus)
+                }
+
+                gpu_results: list[ExtractionOutput | None] = [None] * actual_gpus
+                for future in as_completed(futures):
+                    gpu_id = futures[future]
+                    gpu_results[gpu_id] = future.result()
+                    console.print(f"  [green]GPU {gpu_id} finished[/green]")
+        finally:
+            self._cleanup_gpu_stacks(gpu_stacks)
+
+        elapsed = time.time() - start_time
+        console.print(
+            f"\n[bold green]Multi-GPU extract complete: {elapsed:.1f}s total[/bold green]"
+        )
+
+        return self._merge_extractions(gpu_results)
+
+    @staticmethod
+    def _classify_chunk(
+        gpu_stack: tuple,
+        images: list[Path],
+    ) -> ClassificationOutput:
+        """Classify an image chunk on a single GPU."""
+        from pipeline.classify import classify_images
+
+        gpu_config, _model_ctx, processor = gpu_stack
+        return classify_images(
+            processor=processor,
+            image_paths=images,
+            batch_size=gpu_config.batch_size or 1,
+            verbose=gpu_config.verbose,
+        )
+
+    @staticmethod
+    def _extract_chunk(
+        gpu_stack: tuple,
+        classifications_chunk: ClassificationOutput,
+    ) -> ExtractionOutput:
+        """Extract documents from a classification chunk on a single GPU."""
+        from common.bank_statement_adapter import BankStatementAdapter
+        from pipeline.extract import extract_documents
+
+        gpu_config, _model_ctx, processor = gpu_stack
+
+        bank_adapter = None
+        if gpu_config.bank_v2 and getattr(processor, "supports_multi_turn", True):
+            bank_adapter = BankStatementAdapter(
+                generate_fn=processor.generate,
+                verbose=gpu_config.verbose,
+                use_balance_correction=gpu_config.balance_correction,
+            )
+
+        return extract_documents(
+            processor=processor,
+            classifications=classifications_chunk,
+            bank_adapter=bank_adapter,
+            batch_size=gpu_config.batch_size or 1,
+            verbose=gpu_config.verbose,
         )
 
     @staticmethod
@@ -215,6 +381,62 @@ class MultiGPUOrchestrator:
         n = min(self.num_gpus, len(images))
         chunk_size = math.ceil(len(images) / n)
         return [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]
+
+    def _partition_classifications(
+        self, classification_output: ClassificationOutput
+    ) -> list[ClassificationOutput]:
+        """Split classification rows into num_gpus contiguous chunks."""
+        n = min(self.num_gpus, len(classification_output.rows))
+        chunk_size = math.ceil(len(classification_output.rows) / n)
+        return [
+            ClassificationOutput(
+                rows=classification_output.rows[i : i + chunk_size],
+                model_type=classification_output.model_type,
+                timestamp=classification_output.timestamp,
+            )
+            for i in range(0, len(classification_output.rows), chunk_size)
+        ]
+
+    @staticmethod
+    def _merge_classifications(
+        gpu_results: list[ClassificationOutput | None],
+    ) -> ClassificationOutput:
+        """Merge classification results from all GPUs in order."""
+        all_rows = []
+        model_type = "unknown"
+        timestamp = ""
+
+        for result in gpu_results:
+            if result is None:
+                continue
+            all_rows.extend(result.rows)
+            if result.model_type != "unknown":
+                model_type = result.model_type
+            if result.timestamp:
+                timestamp = result.timestamp
+
+        return ClassificationOutput(
+            rows=all_rows,
+            model_type=model_type,
+            timestamp=timestamp,
+        )
+
+    @staticmethod
+    def _merge_extractions(
+        gpu_results: list[ExtractionOutput | None],
+    ) -> ExtractionOutput:
+        """Merge extraction results from all GPUs in order."""
+        all_records = []
+        metadata: dict[str, Any] = {}
+
+        for result in gpu_results:
+            if result is None:
+                continue
+            all_records.extend(result.records)
+            if result.metadata:
+                metadata.update(result.metadata)
+
+        return ExtractionOutput(records=all_records, metadata=metadata)
 
     @staticmethod
     def _merge_stage_results(
