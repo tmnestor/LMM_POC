@@ -74,7 +74,7 @@ class PipelineConfig:
     """Configuration for the extraction pipeline."""
 
     # Data paths
-    data_dir: Path
+    data_dir: Path | None = None
     output_dir: Path
     model_path: Path | None = None
     ground_truth: Path | None = None
@@ -330,10 +330,10 @@ def validate_config(config: PipelineConfig) -> list[str]:
     """
     errors: list[str] = []
 
-    # Validate data directory
-    if not config.data_dir.exists():
-        errors.append(f"Data directory not found: {config.data_dir}")
-        return errors
+    # Data directory is optional — extract and evaluate don't need it.
+    # Stages that require it (classify, run) check via require_data_dir.
+    if config.data_dir and not config.data_dir.exists():
+        config.data_dir = None
 
     # Validate model path
     if not config.model_path:
