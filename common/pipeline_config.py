@@ -75,7 +75,7 @@ class PipelineConfig:
 
     # Data paths
     data_dir: Path | None = None
-    output_dir: Path
+    output_dir: Path | None = None
     model_path: Path | None = None
     ground_truth: Path | None = None
 
