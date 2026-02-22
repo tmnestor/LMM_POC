@@ -205,55 +205,49 @@ python cli.py -d ./images -o ./output -g ./ground_truth.csv
 | `extract_documents` | `extract` | Yes | Extraction from CSV → JSON |
 | `evaluate_extractions` | `evaluate` | **No** | CPU-only evaluation from JSON |
 
-KFP passes configuration as environment variables (`model`, `image_dir`, `output`, etc.). The entrypoint translates these into `cli.py` flags.
+All operational paths (`DATA_DIR`, `OUTPUT_DIR`, `GROUND_TRUTH`, `LOG_DIR`) are defined once in `entrypoint.sh` with sensible production defaults. KFP `input_params` override the defaults when set. Paths are passed as CLI flags to `cli.py`, which gives them highest priority (`CLI > YAML > ENV > defaults`). `run_config.yml` path fields are only used for direct `python cli.py` runs during local development.
 
-**Local usage examples:**
+**Local usage examples** (override defaults via env vars):
 
 ```bash
 # Full pipeline (backward compat)
 KFP_TASK=run_batch_inference \
   model=internvl3 \
-  image_dir=../evaluation_data/bank \
-  output=../evaluation_data/output \
-  ground_truth=../evaluation_data/bank/ground_truth_bank.csv \
+  image_dir=/efs/shared/PoC_data/evaluation_data_Feb/bank \
+  output=/efs/shared/PoC_data/output \
   num_gpus=4 \
   bash entrypoint.sh
 
 # Classification only
 KFP_TASK=classify_documents \
   model=internvl3 \
-  image_dir=../evaluation_data/bank \
-  output=../evaluation_data/output \
   bash entrypoint.sh
 
-# Extraction from classification CSV (requires classifications_csv)
+# Extraction from classification CSV
 KFP_TASK=extract_documents \
-  classifications_csv=../evaluation_data/output/csv/batch_20260222_classifications.csv \
-  output=../evaluation_data/output \
+  classifications_csv=/efs/shared/PoC_data/output/csv/batch_20260222_classifications.csv \
   bash entrypoint.sh
 
-# Evaluation from extraction JSON (CPU-only, requires extractions_json + ground_truth)
+# Evaluation from extraction JSON (CPU-only, no model needed)
 KFP_TASK=evaluate_extractions \
-  extractions_json=../evaluation_data/output/batch_results/batch_20260222_extractions.json \
-  ground_truth=../evaluation_data/bank/ground_truth_bank.csv \
-  output=../evaluation_data/output \
+  extractions_json=/efs/shared/PoC_data/output/batch_results/batch_20260222_extractions.json \
   bash entrypoint.sh
 ```
 
 Direct CLI flags can also be appended — they take precedence over env vars:
 
 ```bash
-KFP_TASK=classify_documents bash entrypoint.sh --model internvl3 -d ./images -o ./output
+KFP_TASK=classify_documents bash entrypoint.sh --model internvl3 -d /efs/shared/PoC_data/evaluation_data_Feb/bank
 ```
 
-**Required env vars per task:**
+**Env var overrides per task** (all have production defaults — none are strictly required):
 
-| Task | Required | Optional |
-|------|----------|----------|
-| `run_batch_inference` | (none — reads from YAML) | `model`, `image_dir`, `output`, `num_gpus`, `batch_size`, `ground_truth`, `bank_v2`, `balance_correction` |
-| `classify_documents` | (none — reads from YAML) | `model`, `image_dir`, `output`, `num_gpus`, `batch_size`, `document_types`, `max_images` |
+| Task | Commonly overridden | Optional |
+|------|---------------------|----------|
+| `run_batch_inference` | `model`, `image_dir`, `output` | `num_gpus`, `batch_size`, `ground_truth`, `bank_v2`, `balance_correction` |
+| `classify_documents` | `model`, `image_dir`, `output` | `num_gpus`, `batch_size`, `document_types`, `max_images` |
 | `extract_documents` | `classifications_csv` | `model`, `output`, `num_gpus`, `batch_size`, `bank_v2`, `balance_correction` |
-| `evaluate_extractions` | `extractions_json`, `ground_truth` | `output` |
+| `evaluate_extractions` | `extractions_json` | `output`, `ground_truth` |
 
 ## The Protocol + Registry System
 
@@ -361,175 +355,7 @@ The `generate_fn` callable is the processor's `generate()` method, which each mo
 
 ## Adding a New Model
 
-Adding a new vision-language model requires **3 files** — no changes to existing pipeline code.
-
-### Step 1: Create the processor
-
-Create `models/document_aware_<name>_processor.py` inheriting from `BaseDocumentProcessor` and implementing the `DocumentProcessor` Protocol:
-
-```python
-from typing import override
-from PIL import Image
-from models.base_processor import BaseDocumentProcessor
-
-class DocumentAwareMyModelProcessor(BaseDocumentProcessor):
-    """Must satisfy DocumentProcessor Protocol.
-
-    Inherits shared logic from BaseDocumentProcessor:
-    - detect_and_classify_document() — YAML-driven detection + parsing
-    - process_document_aware() — prompt/field resolution + extraction
-    - get_extraction_prompt(), get_supported_document_types()
-
-    Only model-specific inference needs to be implemented.
-    """
-
-    def __init__(self, field_list, model_path, debug, pre_loaded_model,
-                 pre_loaded_tokenizer, prompt_config, field_definitions, ...):
-        self.model = pre_loaded_model
-        self.tokenizer = pre_loaded_tokenizer
-        # Call shared init (validates config, loads field defs, sets batch size)
-        self._init_shared(
-            field_list=field_list,
-            prompt_config=prompt_config,
-            field_definitions=field_definitions,
-            debug=debug,
-            model_type_key="mymodel",
-        )
-
-    @override
-    def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
-        """Model-specific inference — the one method where every model differs."""
-        # Use your model's API to generate a response from image + prompt
-        ...
-
-    @override
-    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
-        """Model-specific token budget calculation."""
-        return field_count * 50 + 500
-
-    def process_single_image(self, image_path, custom_prompt=None,
-                             custom_max_tokens=None, field_list=None):
-        """Process one image — called by inherited process_document_aware()."""
-        ...
-```
-
-`BaseDocumentProcessor` provides all shared logic (detection, classification, prompt lookup, field resolution). You only implement `generate()`, `_calculate_max_tokens()`, and `process_single_image()`.
-
-### Step 2: Create extraction prompts
-
-Create `prompts/<name>_prompts.yaml` with per-document-type extraction prompts:
-
-```yaml
-prompts:
-  invoice:
-    name: "Invoice Extraction"
-    prompt: |
-      Extract the following fields from this invoice...
-      DOCUMENT_TYPE: ...
-      SUPPLIER_NAME: ...
-
-  receipt:
-    name: "Receipt Extraction"
-    prompt: |
-      ...
-
-  bank_statement_flat:
-    name: "Flat Table Bank Statement"
-    prompt: |
-      ...
-
-  bank_statement_date_grouped:
-    name: "Date-Grouped Bank Statement"
-    prompt: |
-      ...
-
-  universal:
-    name: "Universal Extraction"
-    prompt: |
-      ...
-
-settings:
-  max_tokens: 800
-  temperature: 0.0
-```
-
-### Step 3: Register in the registry
-
-Add to `models/registry.py`:
-
-```python
-def _mymodel_loader(config):
-    """Context manager for loading MyModel."""
-    from contextlib import contextmanager
-
-    import torch
-    from transformers import AutoModelForVision, AutoProcessor
-
-    @contextmanager
-    def _loader(cfg):
-        model = None
-        processor = None
-        try:
-            processor = AutoProcessor.from_pretrained(str(cfg.model_path))
-            model = AutoModelForVision.from_pretrained(
-                str(cfg.model_path), dtype=cfg.torch_dtype, device_map=cfg.device_map,
-            )
-            yield model, processor
-        finally:
-            del model, processor
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    return _loader(config)
-
-
-def _mymodel_processor_creator(model, tokenizer, config, prompt_config,
-                                universal_fields, field_definitions):
-    from models.document_aware_mymodel_processor import DocumentAwareMyModelProcessor
-
-    return DocumentAwareMyModelProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        pre_loaded_model=model,
-        pre_loaded_tokenizer=tokenizer,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="mymodel",
-        loader=_mymodel_loader,
-        processor_creator=_mymodel_processor_creator,
-        prompt_file="mymodel_prompts.yaml",
-        description="My Vision-Language Model",
-    )
-)
-```
-
-### Step 4: Run it
-
-```bash
-python cli.py --model mymodel -d ./images -o ./output
-```
-
-The `--model` flag auto-discovers registered models. `--help` shows the available options.
-
-### Bank statement support
-
-Bank statement multi-turn extraction works automatically for any model. `BankStatementAdapter` passes `processor.generate` as a callable to `UnifiedBankExtractor`, which uses it for all generation — no model-specific code needed.
-
-### Checklist
-
-| Step | File | What to create/modify |
-|------|------|----------------------|
-| 1 | `models/document_aware_<name>_processor.py` | Inherit `BaseDocumentProcessor`, implement `generate()` + `_calculate_max_tokens()` + `process_single_image()` |
-| 2 | `prompts/<name>_prompts.yaml` | Per-document-type extraction prompts |
-| 3 | `models/registry.py` | Lazy loader + processor creator + `register_model()` |
-
-No changes needed to: `cli.py`, `batch_processor.py`, `bank_statement_adapter.py`, `unified_bank_extractor.py`, `pipeline_config.py`, or any evaluation/reporting code.
+Adding a new vision-language model requires **3 files** — no changes to existing pipeline code. See [Appendix B: Adding a New Model](#appendix-b-adding-a-new-model) for the full step-by-step guide.
 
 ## CLI Reference
 
@@ -627,9 +453,10 @@ model:
 ### `data` — Input paths
 
 ```yaml
+# Local-dev defaults — overridden by entrypoint.sh in production
 data:
-  dir: ../evaluation_data/synthetic
-  ground_truth: ../evaluation_data/synthetic/ground_truth_synthetic.csv
+  dir: /efs/shared/PoC_data/evaluation_data_Feb/bank
+  ground_truth: /efs/shared/PoC_data/evaluation_data_Feb/bank/ground_truth_bank.csv
   max_images: null             # null = all
   document_types: null         # null = all, or: INVOICE,RECEIPT,BANK_STATEMENT
 ```
@@ -637,8 +464,9 @@ data:
 ### `output` — Output paths and toggles
 
 ```yaml
+# Local-dev defaults — overridden by entrypoint.sh in production
 output:
-  dir: ../evaluation_data/output
+  dir: /efs/shared/PoC_data/output
   skip_visualizations: false
   skip_reports: false
 ```
@@ -829,6 +657,12 @@ Multi-GPU works with any registered model — InternVL3, Llama, or custom models
 
 ## Configuring a New Document Type
 
+Adding a new document type requires changes to **3 YAML files** — no Python code changes needed. See [Appendix A: Configuring a New Document Type](#appendix-a-configuring-a-new-document-type) for the full step-by-step guide with a worked purchase order example.
+
+---
+
+## Appendix A: Configuring a New Document Type
+
 Adding a new document type requires changes to **3 YAML files** — no Python code changes needed. Here's a worked example adding a **purchase order** document type.
 
 ### Step 1: Register the document type and its fields
@@ -976,7 +810,7 @@ po_001.png,PURCHASE_ORDER,12 345 678 901,Acme Corp,...,$5000.00
 Then run:
 
 ```bash
-python cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
+python cli.py -d /efs/shared/PoC_data/purchase_orders -o /efs/shared/PoC_data/output -g /efs/shared/PoC_data/ground_truth_po.csv
 ```
 
 ### Checklist
@@ -1015,3 +849,177 @@ settings:
 ```
 
 The pipeline strips these suffixes to map back to the base `PURCHASE_ORDER` type for field validation and evaluation.
+
+---
+
+## Appendix B: Adding a New Model
+
+Adding a new vision-language model requires **3 files** — no changes to existing pipeline code.
+
+### Step 1: Create the processor
+
+Create `models/document_aware_<name>_processor.py` inheriting from `BaseDocumentProcessor` and implementing the `DocumentProcessor` Protocol:
+
+```python
+from typing import override
+from PIL import Image
+from models.base_processor import BaseDocumentProcessor
+
+class DocumentAwareMyModelProcessor(BaseDocumentProcessor):
+    """Must satisfy DocumentProcessor Protocol.
+
+    Inherits shared logic from BaseDocumentProcessor:
+    - detect_and_classify_document() — YAML-driven detection + parsing
+    - process_document_aware() — prompt/field resolution + extraction
+    - get_extraction_prompt(), get_supported_document_types()
+
+    Only model-specific inference needs to be implemented.
+    """
+
+    def __init__(self, field_list, model_path, debug, pre_loaded_model,
+                 pre_loaded_tokenizer, prompt_config, field_definitions, ...):
+        self.model = pre_loaded_model
+        self.tokenizer = pre_loaded_tokenizer
+        # Call shared init (validates config, loads field defs, sets batch size)
+        self._init_shared(
+            field_list=field_list,
+            prompt_config=prompt_config,
+            field_definitions=field_definitions,
+            debug=debug,
+            model_type_key="mymodel",
+        )
+
+    @override
+    def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
+        """Model-specific inference — the one method where every model differs."""
+        # Use your model's API to generate a response from image + prompt
+        ...
+
+    @override
+    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
+        """Model-specific token budget calculation."""
+        return field_count * 50 + 500
+
+    def process_single_image(self, image_path, custom_prompt=None,
+                             custom_max_tokens=None, field_list=None):
+        """Process one image — called by inherited process_document_aware()."""
+        ...
+```
+
+`BaseDocumentProcessor` provides all shared logic (detection, classification, prompt lookup, field resolution). You only implement `generate()`, `_calculate_max_tokens()`, and `process_single_image()`.
+
+### Step 2: Create extraction prompts
+
+Create `prompts/<name>_prompts.yaml` with per-document-type extraction prompts:
+
+```yaml
+prompts:
+  invoice:
+    name: "Invoice Extraction"
+    prompt: |
+      Extract the following fields from this invoice...
+      DOCUMENT_TYPE: ...
+      SUPPLIER_NAME: ...
+
+  receipt:
+    name: "Receipt Extraction"
+    prompt: |
+      ...
+
+  bank_statement_flat:
+    name: "Flat Table Bank Statement"
+    prompt: |
+      ...
+
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement"
+    prompt: |
+      ...
+
+  universal:
+    name: "Universal Extraction"
+    prompt: |
+      ...
+
+settings:
+  max_tokens: 800
+  temperature: 0.0
+```
+
+### Step 3: Register in the registry
+
+Add to `models/registry.py`:
+
+```python
+def _mymodel_loader(config):
+    """Context manager for loading MyModel."""
+    from contextlib import contextmanager
+
+    import torch
+    from transformers import AutoModelForVision, AutoProcessor
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+        try:
+            processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+            model = AutoModelForVision.from_pretrained(
+                str(cfg.model_path), dtype=cfg.torch_dtype, device_map=cfg.device_map,
+            )
+            yield model, processor
+        finally:
+            del model, processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _mymodel_processor_creator(model, tokenizer, config, prompt_config,
+                                universal_fields, field_definitions):
+    from models.document_aware_mymodel_processor import DocumentAwareMyModelProcessor
+
+    return DocumentAwareMyModelProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        pre_loaded_model=model,
+        pre_loaded_tokenizer=tokenizer,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="mymodel",
+        loader=_mymodel_loader,
+        processor_creator=_mymodel_processor_creator,
+        prompt_file="mymodel_prompts.yaml",
+        description="My Vision-Language Model",
+    )
+)
+```
+
+### Step 4: Run it
+
+```bash
+python cli.py --model mymodel -d /efs/shared/PoC_data/evaluation_data_Feb/bank -o /efs/shared/PoC_data/output
+```
+
+The `--model` flag auto-discovers registered models. `--help` shows the available options.
+
+### Bank statement support
+
+Bank statement multi-turn extraction works automatically for any model. `BankStatementAdapter` passes `processor.generate` as a callable to `UnifiedBankExtractor`, which uses it for all generation — no model-specific code needed.
+
+### Checklist
+
+| Step | File | What to create/modify |
+|------|------|----------------------|
+| 1 | `models/document_aware_<name>_processor.py` | Inherit `BaseDocumentProcessor`, implement `generate()` + `_calculate_max_tokens()` + `process_single_image()` |
+| 2 | `prompts/<name>_prompts.yaml` | Per-document-type extraction prompts |
+| 3 | `models/registry.py` | Lazy loader + processor creator + `register_model()` |
+
+No changes needed to: `cli.py`, `batch_processor.py`, `bank_statement_adapter.py`, `unified_bank_extractor.py`, `pipeline_config.py`, or any evaluation/reporting code.
