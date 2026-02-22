@@ -194,11 +194,10 @@ _add_common_args() {
 }
 
 _add_gpu_args() {
-  # --num-gpus (0 = auto-detect all, 1 = single GPU, N = use N GPUs)
+  # --num-gpus: always default to 0 (auto-detect all GPUs for data parallelism).
+  # KFP can override via num_gpus env var.
   # --batch-size (images per batch per GPU; omit for auto-detect)
-  if _is_set "${num_gpus:-}"; then
-    CLI_ARGS+=(--num-gpus "$num_gpus")
-  fi
+  CLI_ARGS+=(--num-gpus "${num_gpus:-0}")
   if _is_set "${batch_size:-}"; then
     CLI_ARGS+=(--batch-size "$batch_size")
   fi
