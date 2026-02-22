@@ -495,11 +495,13 @@ class BankStatementCalculator:
 
             # Determine transaction types
             df_calc["transaction_type"] = df_calc.apply(
-                lambda row: "DEBIT"
-                if pd.notna(row["final_paid"]) and row["final_paid"] > 0
-                else "CREDIT"
-                if pd.notna(row["final_received"]) and row["final_received"] > 0
-                else "UNKNOWN",
+                lambda row: (
+                    "DEBIT"
+                    if pd.notna(row["final_paid"]) and row["final_paid"] > 0
+                    else "CREDIT"
+                    if pd.notna(row["final_received"]) and row["final_received"] > 0
+                    else "UNKNOWN"
+                ),
                 axis=1,
             )
 
