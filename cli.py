@@ -754,7 +754,14 @@ def _build_config(
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     # Merge and validate configuration
+    # Extract run_id before merge (not a PipelineConfig field in cli_args)
+    run_id = cli_args.pop("run_id", None)
+
     config = merge_configs(cli_args, yaml_config, env_config, raw_config)
+
+    # Override timestamp with run_id for predictable inter-stage file paths
+    if run_id:
+        config.timestamp = run_id
 
     errors = validate_config(config)
     if errors:
@@ -789,6 +796,7 @@ def _collect_run_args(
     verbose: bool | None = None,
     skip_visualizations: bool | None = None,
     skip_reports: bool | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Collect non-None CLI args into a dict for _build_config()."""
     mapping = {
@@ -808,6 +816,7 @@ def _collect_run_args(
         "verbose": verbose,
         "skip_visualizations": skip_visualizations,
         "skip_reports": skip_reports,
+        "run_id": run_id,
     }
     return {k: v for k, v in mapping.items() if v is not None}
 
@@ -917,6 +926,12 @@ def main(
         "-v/-q",
         help="Verbose output. Default from config or True.",
     ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Shared run identifier for predictable inter-stage file paths. "
+        "Overrides the auto-generated timestamp.",
+    ),
     version: bool = typer.Option(
         False,
         "--version",
@@ -966,6 +981,7 @@ def main(
         verbose=verbose,
         skip_visualizations=no_viz,
         skip_reports=no_reports,
+        run_id=run_id,
     )
 
     config = _build_config(cli_args, config_file, document_types)
@@ -1043,6 +1059,9 @@ def run(
     verbose: bool | None = typer.Option(
         None, "--verbose/--quiet", "-v/-q", help="Verbose output."
     ),
+    run_id: str | None = typer.Option(
+        None, "--run-id", help="Shared run identifier for inter-stage file paths."
+    ),
 ) -> None:
     """Run the full extraction pipeline (classify -> extract -> evaluate)."""
     cli_args = _collect_run_args(
@@ -1062,6 +1081,7 @@ def run(
         verbose=verbose,
         skip_visualizations=no_viz,
         skip_reports=no_reports,
+        run_id=run_id,
     )
 
     config = _build_config(cli_args, config_file, document_types)
@@ -1114,6 +1134,9 @@ def classify(
     verbose: bool | None = typer.Option(
         None, "--verbose/--quiet", "-v/-q", help="Verbose output."
     ),
+    run_id: str | None = typer.Option(
+        None, "--run-id", help="Shared run identifier for inter-stage file paths."
+    ),
 ) -> None:
     """Run classification stage only. Produces a classification CSV.
 
@@ -1134,6 +1157,7 @@ def classify(
         dtype=dtype,
         num_gpus=num_gpus,
         verbose=verbose,
+        run_id=run_id,
     )
 
     config = _build_config(cli_args, config_file, document_types)
@@ -1248,6 +1272,9 @@ def extract(
     verbose: bool | None = typer.Option(
         None, "--verbose/--quiet", "-v/-q", help="Verbose output."
     ),
+    run_id: str | None = typer.Option(
+        None, "--run-id", help="Shared run identifier for inter-stage file paths."
+    ),
 ) -> None:
     """Run extraction stage. Reads classification CSV, produces extraction JSON.
 
@@ -1275,6 +1302,7 @@ def extract(
         dtype=dtype,
         num_gpus=num_gpus,
         verbose=verbose,
+        run_id=run_id,
     )
 
     config = _build_config(cli_args, config_file, require_data_dir=False)
@@ -1359,6 +1387,9 @@ def evaluate(
     verbose: bool | None = typer.Option(
         None, "--verbose/--quiet", "-v/-q", help="Verbose output."
     ),
+    run_id: str | None = typer.Option(
+        None, "--run-id", help="Shared run identifier for inter-stage file paths."
+    ),
 ) -> None:
     """Run evaluation stage. CPU-only, no model needed.
 
@@ -1385,6 +1416,8 @@ def evaluate(
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
     cli_args: dict[str, Any] = {"output_dir": output_dir} if output_dir else {}
+    if run_id is not None:
+        cli_args["run_id"] = run_id
     if verbose is not None:
         cli_args["verbose"] = verbose
     if no_viz is not None:
