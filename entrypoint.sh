@@ -14,7 +14,7 @@
 #   run_batch_inference   Full pipeline (backward compat) — GPU required
 #   classify_documents    Classification only → CSV — GPU required
 #   extract_documents     Extraction from CSV → JSON — GPU required
-#   evaluate_extractions  Evaluation from JSON — CPU only
+#   evaluate_documents    Evaluation from JSON — CPU only
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
@@ -42,7 +42,7 @@
 #   KFP_TASK=run_batch_inference num_gpus=4 batch_size=4 model=internvl3 bash entrypoint.sh
 #   KFP_TASK=classify_documents bash entrypoint.sh -d ./images -o ./output --model internvl3
 #   KFP_TASK=extract_documents classifications_csv=./output/csv/batch_*_classifications.csv bash entrypoint.sh -o ./output
-#   KFP_TASK=evaluate_extractions extractions_json=./output/batch_results/batch_*_extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output
+#   KFP_TASK=evaluate_documents extractions_json=./output/batch_results/batch_*_extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output
 #
 # =============================================================================
 
@@ -308,7 +308,7 @@ case "${KFP_TASK:-}" in
     log "Extraction completed successfully."
     ;;
 
-  evaluate_extractions)
+  evaluate_documents|evaluate_extractions)
     # CPU-ONLY: evaluation from extraction JSON — no model needed
     # Find the latest extractions JSON when not explicitly set.
     # Each KFP stage runs in its own container, so RUN_ID differs per stage.
@@ -339,13 +339,13 @@ case "${KFP_TASK:-}" in
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
     log "  KFP_TASK=classify_documents bash entrypoint.sh -d ./images -o ./output"
     log "  KFP_TASK=extract_documents classifications_csv=./out/classifications.csv bash entrypoint.sh -o ./output"
-    log "  KFP_TASK=evaluate_extractions extractions_json=./out/extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output"
+    log "  KFP_TASK=evaluate_documents extractions_json=./out/extractions.json ground_truth=./gt.csv bash entrypoint.sh -o ./output"
     exit 1
     ;;
 
   *)
     log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
-    log "  Expected one of: run_batch_inference, classify_documents, extract_documents, evaluate_extractions"
+    log "  Expected one of: run_batch_inference, classify_documents, extract_documents, evaluate_documents"
     exit 1
     ;;
 esac
