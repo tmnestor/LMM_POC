@@ -69,10 +69,10 @@ export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 # unset input_params. _kfp_or() filters both empty and "None" values.
 _kfp_or() { [[ -n "${1:-}" && "${1}" != "None" ]] && echo "$1" || echo "$2"; }
 
-DATA_DIR=$(_kfp_or "${image_dir:-}" "/efs/shared/PoC_data/evaluation_data/bank")
-OUTPUT_DIR=$(_kfp_or "${output:-}" "/efs/shared/PoC_data/evaluation_data/output")
-GROUND_TRUTH=$(_kfp_or "${ground_truth:-}" "/efs/shared/PoC_data/evaluation_data/bank/ground_truth_bank.csv")
-LOG_DIR=$(_kfp_or "${LMM_LOG_DIR:-}" "/efs/shared/PoC_data/logs")
+DATA_DIR=$(_kfp_or "${image_dir:-}" "/efs/shared/PoC_data/evaluation_data_Feb/bank")
+OUTPUT_DIR=$(_kfp_or "${output:-}" "/efs/shared/PoC_data/output")
+GROUND_TRUTH=$(_kfp_or "${ground_truth:-}" "/efs/shared/PoC_data/evaluation_data_Feb/bank/ground_truth_bank.csv")
+LOG_DIR=$(_kfp_or "${LMM_LOG_DIR:-}" "/efs/shared/PoC_data/output/logs")
 
 # ---- Log Setup ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
@@ -235,35 +235,12 @@ _add_bank_args() {
   fi
 }
 
-# Log resolved paths and KFP input_params.
-# <not set> means KFP left the param blank — defaults from path config are used.
 log "Run ID: ${RUN_ID}"
 log "Resolved paths:"
 log "  DATA_DIR:      $DATA_DIR"
 log "  OUTPUT_DIR:    $OUTPUT_DIR"
 log "  GROUND_TRUTH:  $GROUND_TRUTH"
 log "  LOG_DIR:       $LOG_DIR"
-log ""
-log "KFP input_params:"
-log "  model:               ${model:-<not set>}"
-log "  image_dir:           ${image_dir:-<not set>}"
-log "  output:              ${output:-<not set>}"
-log "  num_gpus:            ${num_gpus:-<not set>}"
-log "  batch_size:          ${batch_size:-<not set>}"
-log "  run_id:              ${run_id:-<not set>}"
-log "  ground_truth:        ${ground_truth:-<not set>}"
-log "  classifications_csv: ${classifications_csv:-<not set>}"
-log "  extractions_json:    ${extractions_json:-<not set>}"
-log "  bank_v2:             ${bank_v2:-<not set>}"
-log "  balance_correction:  ${balance_correction:-<not set>}"
-log "  document_types:      ${document_types:-<not set>}"
-log "  max_images:          ${max_images:-<not set>}"
-# metadata, system_message, and prompt are KFP input_params reserved for
-# future use. They are logged here for visibility but not yet translated
-# into CLI_ARGS — cli.py does not currently consume them.
-log "  metadata:            ${metadata:-<not set>}"
-log "  system_message:      ${system_message:-<not set>}"
-log "  prompt:              ${prompt:-<not set>}"
 log ""
 
 # ---- Task Dispatch ---- #
