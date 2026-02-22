@@ -64,10 +64,15 @@ export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 # Canonical paths for this deployment. KFP input_params override defaults.
 # These are passed as CLI flags to cli.py, giving them highest priority.
 # run_config.yml path fields are only used for direct `python cli.py` runs.
-DATA_DIR="${image_dir:-../evaluation_data/bank}"
-OUTPUT_DIR="${output:-../evaluation_data/output}"
-GROUND_TRUTH="${ground_truth:-../evaluation_data/bank/ground_truth_bank.csv}"
-LOG_DIR="${LMM_LOG_DIR:-/efs/shared/PoC_data/logs}"
+#
+# IMPORTANT: KFP stringifies Python None as the literal string "None" for
+# unset input_params. _kfp_or() filters both empty and "None" values.
+_kfp_or() { [[ -n "${1:-}" && "${1}" != "None" ]] && echo "$1" || echo "$2"; }
+
+DATA_DIR=$(_kfp_or "${image_dir:-}" "/efs/shared/PoC_data/evaluation_data/bank")
+OUTPUT_DIR=$(_kfp_or "${output:-}" "/efs/shared/PoC_data/evaluation_data/output")
+GROUND_TRUTH=$(_kfp_or "${ground_truth:-}" "/efs/shared/PoC_data/evaluation_data/bank/ground_truth_bank.csv")
+LOG_DIR=$(_kfp_or "${LMM_LOG_DIR:-}" "/efs/shared/PoC_data/logs")
 
 # ---- Log Setup ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
