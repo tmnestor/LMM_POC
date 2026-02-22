@@ -286,10 +286,17 @@ case "${KFP_TASK:-}" in
 
   extract_documents)
     # GPU: extraction from classification CSV → JSON
-    # Derive classifications_csv from OUTPUT_DIR + RUN_ID when not explicitly set.
+    # Find the latest classifications CSV when not explicitly set.
+    # Each KFP stage runs in its own container, so RUN_ID differs per stage.
+    # Glob for the most recent file instead of constructing a path.
     if ! _is_set "${classifications_csv:-}"; then
-      classifications_csv="${OUTPUT_DIR}/csv/batch_${RUN_ID}_classifications.csv"
-      log "Derived classifications_csv: ${classifications_csv}"
+      classifications_csv=$(ls -t "${OUTPUT_DIR}/csv/"*_classifications.csv 2>/dev/null | head -1)
+      if [[ -z "${classifications_csv}" ]]; then
+        log "FATAL: No classifications CSV found in ${OUTPUT_DIR}/csv/"
+        log "  Ensure classify_documents ran successfully, or set classifications_csv explicitly"
+        exit 1
+      fi
+      log "Using latest classifications_csv: ${classifications_csv}"
     fi
     CLI_ARGS=(--run-id "$RUN_ID")
     _add_common_args; _add_gpu_args; _add_bank_args
@@ -304,10 +311,16 @@ case "${KFP_TASK:-}" in
 
   evaluate_extractions)
     # CPU-ONLY: evaluation from extraction JSON — no model needed
-    # Derive extractions_json from OUTPUT_DIR + RUN_ID when not explicitly set.
+    # Find the latest extractions JSON when not explicitly set.
+    # Each KFP stage runs in its own container, so RUN_ID differs per stage.
     if ! _is_set "${extractions_json:-}"; then
-      extractions_json="${OUTPUT_DIR}/batch_results/batch_${RUN_ID}_extractions.json"
-      log "Derived extractions_json: ${extractions_json}"
+      extractions_json=$(ls -t "${OUTPUT_DIR}/batch_results/"*_extractions.json 2>/dev/null | head -1)
+      if [[ -z "${extractions_json}" ]]; then
+        log "FATAL: No extractions JSON found in ${OUTPUT_DIR}/batch_results/"
+        log "  Ensure extract_documents ran successfully, or set extractions_json explicitly"
+        exit 1
+      fi
+      log "Using latest extractions_json: ${extractions_json}"
     fi
     CLI_ARGS=(--run-id "$RUN_ID")
     CLI_ARGS+=(--output-dir "$OUTPUT_DIR")
