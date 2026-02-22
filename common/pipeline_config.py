@@ -349,9 +349,10 @@ def validate_config(config: PipelineConfig) -> list[str]:
         errors.append(f"Model path not found: {config.model_path}")
         return errors
 
-    # Validate ground truth if specified
+    # Ground truth is optional — clear it if the path doesn't exist.
+    # Stages that require it (evaluate) validate independently.
     if config.ground_truth and not config.ground_truth.exists():
-        errors.append(f"Ground truth file not found: {config.ground_truth}")
+        config.ground_truth = None
 
     # Validate num_gpus
     if config.num_gpus < 0:
