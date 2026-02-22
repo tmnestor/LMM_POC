@@ -18,6 +18,9 @@ model:
 
 
 # Data paths
+# NOTE: These are local-dev defaults for direct `python cli.py` runs.
+# In production (via entrypoint.sh), paths are set in entrypoint.sh and
+# passed as CLI flags, which take highest priority (CLI > YAML > ENV).
 data:
   # dir: ../evaluation_data/travel/logbooks
   # ground_truth: ../evaluation_data/travel/logbooks/ground_truth_logbook.csv
@@ -28,13 +31,13 @@ data:
   max_images: null       # null = process all images
   document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
-# Output settings
+# Output settings (local-dev defaults — overridden by entrypoint.sh in production)
 output:
   dir: ../evaluation_data/output
   skip_visualizations: false  # Skip visualization generation
   skip_reports: false         # Skip report generation
 
-# Logging
+# Logging (local-dev default — overridden by LMM_LOG_DIR / entrypoint.sh in production)
 logging:
   log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
 

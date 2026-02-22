@@ -25,6 +25,14 @@
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
 #     python3 ./cli.py --model llama --num-gpus 4
 #
+# Path Configuration (single source of truth):
+#   All operational paths (DATA_DIR, OUTPUT_DIR, GROUND_TRUTH, LOG_DIR) are
+#   defined once at the top of this script with KFP override support. They are
+#   passed as CLI flags to cli.py, which gives them highest priority (CLI > YAML
+#   > ENV > defaults). run_config.yml still has path fields as local-dev
+#   fallbacks for direct `python cli.py` runs, but entrypoint.sh never parses
+#   them — no grep/sed YAML parsing for paths.
+#
 # Three ways to run:
 #   1. GitLab CI/CD (standard): git tag triggers pipeline → builds container → deploys to KFP
 #   2. Via KFP UI (ad-hoc):     input_params set in UI → injected as env vars
@@ -52,25 +60,28 @@ set -o pipefail
 # log messages ("GPU 0 failed") match nvidia-smi output.
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
-# ---- Log Configuration ---- #
+# ---- Path Configuration (single source of truth) ---- #
+# Canonical paths for this deployment. KFP input_params override defaults.
+# These are passed as CLI flags to cli.py, giving them highest priority.
+# run_config.yml path fields are only used for direct `python cli.py` runs.
+DATA_DIR="${image_dir:-../evaluation_data/bank}"
+OUTPUT_DIR="${output:-../evaluation_data/output}"
+GROUND_TRUTH="${ground_truth:-../evaluation_data/bank/ground_truth_bank.csv}"
+LOG_DIR="${LMM_LOG_DIR:-/efs/shared/PoC_data/logs}"
+
+# ---- Log Setup ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
 # while still being printed to the console (so KFP UI shows it too).
 # Each run creates its own log file, e.g. entrypoint_20260213_143022.log
-#
-# Priority: LMM_LOG_DIR env var > run_config.yml logging.log_dir > fail
-# No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
 CONFIG_FILE="./config/run_config.yml"
-YAML_LOG_DIR=""
-if [[ -f "$CONFIG_FILE" ]]; then
-  YAML_LOG_DIR=$(grep -A1 '^logging:' "$CONFIG_FILE" | grep 'log_dir:' | sed 's/.*log_dir:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d "'" | tr -d '"')
-fi
-LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
-if [[ -z "$LOG_DIR" ]]; then
-  echo "FATAL: No log directory configured. Set LMM_LOG_DIR env var or logging.log_dir in $CONFIG_FILE"
-  exit 1
-fi
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/entrypoint_$(date +'%Y%m%d_%H%M%S').log"
+
+# ---- Run ID ---- #
+# Shared identifier for all stages in this pipeline run. Used to construct
+# predictable inter-stage file paths (e.g. batch_{RUN_ID}_classifications.csv).
+# KFP can override via run_id env var; otherwise auto-generated from timestamp.
+RUN_ID="${run_id:-$(date +'%Y%m%d_%H%M%S')}"
 
 # `exec` redirects ALL subsequent output through `tee`, which writes to
 # both the console (for KFP) and the log file (for persistent debugging).
@@ -119,7 +130,7 @@ log "---------------------------------------"
 log "Python:  $(which python3)"
 log "Version: $(python3 --version 2>&1)"
 log "Conda:   $(conda info --envs | grep '*' || echo 'unknown')"
-log "Log dir: $LOG_DIR (source: ${LMM_LOG_DIR:+env}${LMM_LOG_DIR:-${YAML_LOG_DIR:+yaml}})"
+log "Log dir: $LOG_DIR"
 log "---------------------------------------"
 log ""
 
@@ -169,13 +180,11 @@ fi
 _is_set() { [[ -n "${1:-}" && "${1}" != "None" ]]; }
 
 _add_common_args() {
-  # --model (e.g. "internvl3", "llama")
-  # --output-dir (where results, CSVs, and reports are saved)
+  # --output-dir is always set from resolved OUTPUT_DIR
+  # --model (e.g. "internvl3", "llama") is optional — cli.py has defaults
+  CLI_ARGS+=(--output-dir "$OUTPUT_DIR")
   if _is_set "${model:-}"; then
     CLI_ARGS+=(--model "$model")
-  fi
-  if _is_set "${output:-}"; then
-    CLI_ARGS+=(--output-dir "$output")
   fi
 }
 
@@ -191,12 +200,9 @@ _add_gpu_args() {
 }
 
 _add_data_args() {
-  # --data-dir (path to folder of images to process)
-  # --document-types (comma-separated filter)
-  # --max-images (cap on number of images)
-  if _is_set "${image_dir:-}"; then
-    CLI_ARGS+=(--data-dir "$image_dir")
-  fi
+  # --data-dir is always set from resolved DATA_DIR
+  # --document-types and --max-images are optional filters
+  CLI_ARGS+=(--data-dir "$DATA_DIR")
   if _is_set "${document_types:-}"; then
     CLI_ARGS+=(--document-types "$document_types")
   fi
@@ -224,14 +230,22 @@ _add_bank_args() {
   fi
 }
 
-# Log what we received from KFP.
-# <not set> means KFP left the param blank — cli.py will use its defaults.
+# Log resolved paths and KFP input_params.
+# <not set> means KFP left the param blank — defaults from path config are used.
+log "Run ID: ${RUN_ID}"
+log "Resolved paths:"
+log "  DATA_DIR:      $DATA_DIR"
+log "  OUTPUT_DIR:    $OUTPUT_DIR"
+log "  GROUND_TRUTH:  $GROUND_TRUTH"
+log "  LOG_DIR:       $LOG_DIR"
+log ""
 log "KFP input_params:"
 log "  model:               ${model:-<not set>}"
 log "  image_dir:           ${image_dir:-<not set>}"
 log "  output:              ${output:-<not set>}"
 log "  num_gpus:            ${num_gpus:-<not set>}"
 log "  batch_size:          ${batch_size:-<not set>}"
+log "  run_id:              ${run_id:-<not set>}"
 log "  ground_truth:        ${ground_truth:-<not set>}"
 log "  classifications_csv: ${classifications_csv:-<not set>}"
 log "  extractions_json:    ${extractions_json:-<not set>}"
@@ -263,10 +277,10 @@ case "${KFP_TASK:-}" in
     #   2 = model loading error (OOM, corrupt weights, missing checkpoint)
     #   3 = processing error (all images failed, fatal crash)
     #   4 = partial success (some images succeeded, some failed)
-    CLI_ARGS=()
+    CLI_ARGS=(--run-id "$RUN_ID")
     _add_common_args; _add_gpu_args; _add_data_args; _add_bank_args
-    if _is_set "${ground_truth:-}"; then
-      CLI_ARGS+=(--ground-truth "$ground_truth")
+    if _is_set "$GROUND_TRUTH"; then
+      CLI_ARGS+=(--ground-truth "$GROUND_TRUTH")
     fi
     CLI_ARGS+=("$@")
     log "Resolved CLI args: ${CLI_ARGS[*]:-<none>}"
@@ -278,7 +292,7 @@ case "${KFP_TASK:-}" in
 
   classify_documents)
     # GPU: classification only → CSV
-    CLI_ARGS=()
+    CLI_ARGS=(--run-id "$RUN_ID")
     _add_common_args; _add_gpu_args; _add_data_args
     CLI_ARGS+=("$@")
     log "Resolved CLI args: classify ${CLI_ARGS[*]:-<none>}"
@@ -290,13 +304,12 @@ case "${KFP_TASK:-}" in
 
   extract_documents)
     # GPU: extraction from classification CSV → JSON
+    # Derive classifications_csv from OUTPUT_DIR + RUN_ID when not explicitly set.
     if ! _is_set "${classifications_csv:-}"; then
-      log "FATAL: extract_documents requires classifications_csv"
-      log "  Set via KFP input_params or env var:"
-      log "  classifications_csv=./output/csv/batch_*_classifications.csv KFP_TASK=extract_documents bash entrypoint.sh"
-      exit 1
+      classifications_csv="${OUTPUT_DIR}/csv/batch_${RUN_ID}_classifications.csv"
+      log "Derived classifications_csv: ${classifications_csv}"
     fi
-    CLI_ARGS=()
+    CLI_ARGS=(--run-id "$RUN_ID")
     _add_common_args; _add_gpu_args; _add_bank_args
     CLI_ARGS+=(--classifications "$classifications_csv")
     CLI_ARGS+=("$@")
@@ -309,18 +322,15 @@ case "${KFP_TASK:-}" in
 
   evaluate_extractions)
     # CPU-ONLY: evaluation from extraction JSON — no model needed
-    if ! _is_set "${extractions_json:-}" || ! _is_set "${ground_truth:-}"; then
-      log "FATAL: evaluate_extractions requires extractions_json and ground_truth"
-      log "  Set via KFP input_params or env vars:"
-      log "  extractions_json=./out/extractions.json ground_truth=./gt.csv KFP_TASK=evaluate_extractions bash entrypoint.sh"
-      exit 1
+    # Derive extractions_json from OUTPUT_DIR + RUN_ID when not explicitly set.
+    if ! _is_set "${extractions_json:-}"; then
+      extractions_json="${OUTPUT_DIR}/batch_results/batch_${RUN_ID}_extractions.json"
+      log "Derived extractions_json: ${extractions_json}"
     fi
-    CLI_ARGS=()
-    if _is_set "${output:-}"; then
-      CLI_ARGS+=(--output-dir "$output")
-    fi
+    CLI_ARGS=(--run-id "$RUN_ID")
+    CLI_ARGS+=(--output-dir "$OUTPUT_DIR")
     CLI_ARGS+=(--extractions "$extractions_json")
-    CLI_ARGS+=(--ground-truth "$ground_truth")
+    CLI_ARGS+=(--ground-truth "$GROUND_TRUTH")
     CLI_ARGS+=("$@")
     log "Resolved CLI args: evaluate ${CLI_ARGS[*]:-<none>}"
     log ""
