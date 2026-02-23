@@ -1490,11 +1490,11 @@ def evaluate(
 
     # Print summary stats
     if eval_output.image_evaluations:
-        f1_scores = [ie.median_f1 for ie in eval_output.image_evaluations]
+        f1_scores = [ie.overall_f1 for ie in eval_output.image_evaluations]
         avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else 0
         console.print("\n[bold]Results:[/bold]")
         console.print(f"  Documents evaluated: {len(eval_output.image_evaluations)}")
-        console.print(f"  Average median F1:   {avg_f1:.1%}")
+        console.print(f"  Avg Accuracy:        {avg_f1:.1%}")
 
     raise typer.Exit(EXIT_SUCCESS)
 
