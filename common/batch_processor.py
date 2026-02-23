@@ -89,8 +89,6 @@ def load_document_field_definitions() -> dict[str, list[str]]:
     # Validate all document types defined in YAML (excluding 'universal')
     result = {}
     for doc_type, type_config in doc_fields.items():
-        if doc_type == "universal":
-            continue
         if "fields" not in type_config:
             raise ValueError(
                 f"❌ FATAL: Missing 'fields' list for '{doc_type}' in field_definitions.yaml\n"

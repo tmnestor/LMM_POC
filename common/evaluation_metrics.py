@@ -598,8 +598,9 @@ def evaluate_extraction_results(
             "receipt": "receipt",
             "bank statement": "bank_statement",
             "statement": "bank_statement",
+            "universal": "universal",
         }
-        doc_type = type_mapping.get(doc_type_raw, "invoice")
+        doc_type = type_mapping.get(doc_type_raw, "universal")
 
         # Get document-specific fields for evaluation
         from common.field_config import get_document_type_fields

@@ -292,7 +292,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
                 if attempt == 2:
                     # Last resort on minimal generation — return fallback
                     response = (
-                        "invoice" if "document" in question.lower() else "NOT_FOUND"
+                        "universal" if "document" in question.lower() else "NOT_FOUND"
                     )
                     break
 
@@ -323,7 +323,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
 
         # Total failure — all 3 attempts exhausted without break
         if response is None:
-            response = "invoice" if "document" in question.lower() else "NOT_FOUND"
+            response = "universal" if "document" in question.lower() else "NOT_FOUND"
 
         # Post-process response (common to all paths)
         # Truncation is opt-out via truncate=False (used by generate() for UBE)

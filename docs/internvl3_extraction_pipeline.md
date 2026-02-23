@@ -56,7 +56,7 @@ flowchart TD
     M1 -->|Yes| T[Canonical Type]
     M1 -->|No| M2{"Keyword match<br>in fallback_keywords?"}
     M2 -->|Yes| T
-    M2 -->|No| F["Fallback: INVOICE"]
+    M2 -->|No| F["Fallback: UNIVERSAL"]
 ```
 
 The `type_mappings` dictionary maps variations (e.g. `"credit card statement"` -> `BANK_STATEMENT`), while `fallback_keywords` provides a second chance via keyword lists per type.

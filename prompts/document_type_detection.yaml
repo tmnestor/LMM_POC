@@ -89,7 +89,7 @@ prompts:
       - TRAVEL_EXPENSE (for boarding passes, airline tickets, train/bus tickets, taxi/rideshare receipts)
       - VEHICLE_LOGBOOK (for motor vehicle logbooks, mileage logs, trip logs, ATO logbooks)
 
-      If unclear after visual analysis, default to: INVOICE
+      If unclear after visual analysis, default to: UNIVERSAL
 
   detection_simple:
     name: "Simple Document Type Detection"
@@ -196,7 +196,7 @@ settings:
   default_prompt: "detection"
   max_new_tokens: 200
   temperature: 0.1
-  fallback_type: "INVOICE"
+  fallback_type: "UNIVERSAL"
 
 # Model-specific configurations
 models:
