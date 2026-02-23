@@ -2,19 +2,33 @@
 
 ## Overview
 
-Assessment of InternVL3.5-8B vision-language model capabilities against the proposed document processing use case for government/financial forms.
+A business area has identified four form types where AI solutions could assist with digitisation:
 
-## Form Types (Item 2)
+1. Certificate of residency
+2. Overseas tax relief
+3. Searching for lost super
+4. Private rulings
 
-These are all **structured government/financial forms**  - exactly the document category our POC targets. Certificate of residency, overseas tax relief, lost super searches, and private rulings are all form-heavy, field-rich documents similar to the invoices, bank statements, and tax documents we already extract from.
+Each of these forms involves manual tasks that could potentially be replaced or supplemented by AI, including:
 
-## Task Mapping (Item 3)
+- Checking for completeness, authorisation and validity
+- Summarisation of content including attachments
+- Data/content extraction to a digital format
+- Consolidating information from core systems into a single user interface
+
+This document assesses how InternVL3.5-8B, the vision-language model under evaluation in our POC, maps to these requirements.
+
+## Form Types
+
+These are all **structured government/financial forms** - exactly the document category our POC targets. Certificate of residency, overseas tax relief, lost super searches, and private rulings are all form-heavy, field-rich documents similar to the invoices, bank statements, and tax documents we already extract from.
+
+## Task Mapping
 
 | Their Task | Our Capability | Fit |
 |---|---|---|
 | **a. Completeness, authorisation & validity** | Detection pipeline classifies doc type and can flag missing/unexpected fields against `field_definitions.yaml` | Strong  - extend field validation logic |
 | **b. Summarisation including attachments** | InternVL3.5-8B handles multi-page/multi-image input natively; we already do multi-turn for bank statements | Strong  - add summarisation prompts |
-| **c. Data/content extraction to digital format** | **This is exactly what our POC does**  - structured JSON extraction at 94.5% F1 | Direct match |
+| **c. Data/content extraction to digital format** | **This is exactly what our POC does** - structured data extraction with high accuracy | Direct match |
 | **d. Consolidating information from core systems** | Outside the model itself, but extracted structured data integrates easily into any UI/API | Architectural task, not model limitation |
 
 ## Honest Assessment
