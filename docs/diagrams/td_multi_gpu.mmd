@@ -1,0 +1,16 @@
+flowchart TD
+    IMG["N images"] --> PART["Partition into<br/>contiguous chunks"]
+
+    subgraph phase1 ["Phase 1 -- Sequential Model Loading"]
+        PART --> L0["Load model<br/>on cuda:0"]
+        L0 --> L1["Load model<br/>on cuda:1"]
+        L1 --> LN["Load model<br/>on cuda:N"]
+    end
+
+    subgraph phase2 ["Phase 2 -- Parallel Inference (ThreadPoolExecutor)"]
+        LN --> T0["GPU 0<br/>Chunk 0"]
+        LN --> T1["GPU 1<br/>Chunk 1"]
+        LN --> TN["GPU N<br/>Chunk N"]
+    end
+
+    T0 & T1 & TN --> MERGE["Merge results<br/>in original order"]

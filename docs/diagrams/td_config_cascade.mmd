@@ -1,0 +1,4 @@
+flowchart LR
+    CLI["CLI flags<br/>(highest priority)"] --> YAML["run_config.yml"]
+    YAML --> ENV["ENV vars<br/>(IVL_ prefix)"]
+    ENV --> DEF["Dataclass defaults<br/>(lowest priority)"]

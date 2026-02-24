@@ -1,0 +1,13 @@
+flowchart TD
+    A[Input Image] --> B["detect_and_classify_document()"]
+    B --> C{"Parse response<br/>_parse_document_type_response()"}
+    C -->|INVOICE| D["Load invoice prompt<br/>+ invoice fields<br/>+ token budget"]
+    C -->|RECEIPT| E["Load receipt prompt<br/>+ receipt fields<br/>+ token budget"]
+    C -->|BANK_STATEMENT| F["Bank structure classification<br/>_classify_bank_structure()"]
+    C -->|UNIVERSAL fallback| G["Load universal prompt<br/>+ universal fields"]
+    F -->|flat / date_grouped| H["Route to UnifiedBankExtractor<br/>(multi-turn, Pattern 2)"]
+    D --> I["process_single_image()"]
+    E --> I
+    G --> I
+    H --> J[Bank extraction result]
+    I --> K[Extraction result]
