@@ -1,11 +1,11 @@
 graph TB
     subgraph threading ["Multithreading (Chosen)"]
         direction TB
-        T1["Single Process<br/>Single Import"] --> T2["Shared Address Space"]
-        T2 --> T3["Thread 0 → GPU 0"]
-        T2 --> T4["Thread 1 → GPU 1"]
-        T2 --> T5["Thread 2 → GPU 2"]
-        T2 --> T6["Thread 3 → GPU 3"]
+        T1["Single Process<br/>Import once"] --> T2["Shared Address Space"]
+        T2 --> T3["Thread 0 → GPU 0<br/>Own model copy"]
+        T2 --> T4["Thread 1 → GPU 1<br/>Own model copy"]
+        T2 --> T5["Thread 2 → GPU 2<br/>Own model copy"]
+        T2 --> T6["Thread 3 → GPU 3<br/>Own model copy"]
         T3 --> T7["Direct Result Access<br/>No Serialisation"]
         T4 --> T7
         T5 --> T7
@@ -15,10 +15,10 @@ graph TB
     subgraph multiprocessing ["Multiprocessing"]
         direction TB
         M1["Fork/Spawn<br/>N Processes"] --> M2["Separate Memory Spaces"]
-        M2 --> M3["Process 0 → GPU 0<br/>Own imports, own model"]
-        M2 --> M4["Process 1 → GPU 1<br/>Own imports, own model"]
-        M2 --> M5["Process 2 → GPU 2<br/>Own imports, own model"]
-        M2 --> M6["Process 3 → GPU 3<br/>Own imports, own model"]
+        M2 --> M3["Process 0 → GPU 0<br/>Own model copy<br/>Re-import torch, transformers"]
+        M2 --> M4["Process 1 → GPU 1<br/>Own model copy<br/>Re-import torch, transformers"]
+        M2 --> M5["Process 2 → GPU 2<br/>Own model copy<br/>Re-import torch, transformers"]
+        M2 --> M6["Process 3 → GPU 3<br/>Own model copy<br/>Re-import torch, transformers"]
         M3 --> M7["Pickle → IPC Queue<br/>Deserialise Results"]
         M4 --> M7
         M5 --> M7

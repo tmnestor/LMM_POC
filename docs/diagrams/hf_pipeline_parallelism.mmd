@@ -1,0 +1,35 @@
+graph LR
+    subgraph load [" "]
+        direction TB
+        A["Single from_pretrained<br/>device_map = 'auto'"]
+    end
+
+    subgraph pipeline ["Only 1 GPU active at a time"]
+        direction LR
+        C["GPU 0<br/>Vision Encoder<br/>+ Layers 0-7"]
+        D["GPU 1<br/>Layers 8-15"]
+        E["GPU 2<br/>Layers 16-23"]
+        F["GPU 3<br/>Layers 24-31<br/>+ LM Head"]
+        C -->|"hidden state<br/>transfer"| D -->|"hidden state<br/>transfer"| E -->|"hidden state<br/>transfer"| F
+    end
+
+    subgraph output [" "]
+        direction TB
+        G["Single output<br/>1 image at a time"]
+    end
+
+    A --> C
+    F --> G
+
+    style A fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px,color:#333
+    style C fill:#ECECFF,stroke:#7B68AE,stroke-width:2px,color:#333
+    style D fill:#ECECFF,stroke:#7B68AE,stroke-width:2px,color:#333
+    style E fill:#ECECFF,stroke:#7B68AE,stroke-width:2px,color:#333
+    style F fill:#ECECFF,stroke:#7B68AE,stroke-width:2px,color:#333
+    style G fill:#F8CECC,stroke:#B85450,stroke-width:2px,color:#333
+    style load fill:none,stroke:none
+    style output fill:none,stroke:none
+
+    linkStyle 0 stroke:#B85450,stroke-width:2px
+    linkStyle 1 stroke:#B85450,stroke-width:2px
+    linkStyle 2 stroke:#B85450,stroke-width:2px
