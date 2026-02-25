@@ -1,15 +1,15 @@
 graph LR
     subgraph load [" "]
         direction TB
-        A["Single from_pretrained<br/>device_map = 'auto'"]
+        A["Single from_pretrained<br/>device_map = split_model()"]
     end
 
     subgraph pipeline ["Only 1 GPU active at a time"]
         direction LR
-        C["GPU 0<br/>Vision Encoder<br/>+ Layers 0-7"]
-        D["GPU 1<br/>Layers 8-15"]
-        E["GPU 2<br/>Layers 16-23"]
-        F["GPU 3<br/>Layers 24-31<br/>+ LM Head"]
+        C["GPU 0<br/>Vision Encoder + MLP1<br/>+ Layers 0-4<br/>(5 LLM layers)"]
+        D["GPU 1<br/>Layers 5-14<br/>(10 LLM layers)"]
+        E["GPU 2<br/>Layers 15-24<br/>(10 LLM layers)"]
+        F["GPU 3<br/>Layers 25-31<br/>(7 LLM layers)"]
         C -->|"hidden state<br/>transfer"| D -->|"hidden state<br/>transfer"| E -->|"hidden state<br/>transfer"| F
     end
 
