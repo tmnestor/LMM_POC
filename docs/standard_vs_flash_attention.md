@@ -132,7 +132,7 @@ How the available VRAM budget changes based on attention implementation:
 
 ```mermaid
 flowchart LR
-    subgraph STD["⚠️ Standard Attention — A10G 24 GB"]
+    subgraph STD["Standard Attention"]
         direction LR
         SM_model["<b>Model Weights</b><br/>≈17 GB"]
         SM_attn["<b>N×N Attention</b><br/><b>Matrices</b><br/>≈1-2 GB"]
@@ -143,7 +143,7 @@ flowchart LR
 
     STD ~~~|"vs"| FA2
 
-    subgraph FA2["✅ FlashAttention2 — A10G 24 GB"]
+    subgraph FA2["FlashAttention2"]
         direction LR
         FM_model["<b>Model Weights</b><br/>≈17 GB"]
         FM_kv["<b>KV Cache +</b><br/><b>Activations</b><br/>≈2 GB"]
