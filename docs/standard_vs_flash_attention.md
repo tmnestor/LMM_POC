@@ -14,35 +14,35 @@ Understanding the hardware is key to understanding why FlashAttention2 is faster
 ```mermaid
 flowchart LR
     SRAM["<b>SRAM (On-Chip)</b><br/>≈20 MB capacity<br/>≈19 TB/s bandwidth<br/>Ultra-fast, tiny"]
-    SRAM <--->|"≈30x faster<br/>bandwidth gap"| HBM
-    HBM["<b>HBM (VRAM)</b><br/>24 GB capacity (A10G)<br/>≈600 GB/s bandwidth<br/>Slow, large"]
+    SRAM <--->|"≈30x faster<br/>bandwidth gap"| VRAM
+    VRAM["<b>VRAM (GDDR6X)</b><br/>24 GB capacity (A10G)<br/>≈600 GB/s bandwidth<br/>Slow, large"]
 
     style SRAM fill:#4CAF50,color:#fff,stroke:#2E7D32,stroke-width:3px
-    style HBM fill:#FF9800,color:#fff,stroke:#E65100,stroke-width:3px
+    style VRAM fill:#FF9800,color:#fff,stroke:#E65100,stroke-width:3px
 ```
 
 > **The bottleneck is not compute — it's memory bandwidth.**
-> The GPU can compute far faster than it can move data between HBM and SRAM.
+> The GPU can compute far faster than it can move data between VRAM and SRAM.
 
 ---
 
 ## Standard Attention — Step by Step
 
-Standard attention materialises the full N×N attention matrix in HBM (VRAM),
-requiring **multiple round trips** between slow HBM and fast SRAM.
+Standard attention materialises the full N×N attention matrix in VRAM (GDDR6X),
+requiring **multiple round trips** between slow VRAM and fast SRAM.
 
 ```mermaid
 flowchart LR
-    QKV["<b>Q, K, V</b><br/>in HBM"]
+    QKV["<b>Q, K, V</b><br/>in VRAM"]
     QKV -->|"① Read Q, K"| C1["<b>SRAM</b><br/>S = QKᵀ / √d"]
-    C1 -->|"② Write S back"| S_HBM["<b>S (N×N)</b><br/>in HBM<br/>⚠️ O(N²)"]
-    S_HBM -->|"③ Read S"| C2["<b>SRAM</b><br/>P = softmax(S)"]
-    C2 -->|"④ Write P back"| P_HBM["<b>P (N×N)</b><br/>in HBM<br/>⚠️ O(N²)"]
-    P_HBM -->|"⑤ Read P, V"| C3["<b>SRAM</b><br/>O = P × V"]
-    C3 -->|"⑥ Write output"| Output["<b>Output O</b><br/>in HBM"]
+    C1 -->|"② Write S back"| S_VRAM["<b>S (N×N)</b><br/>in VRAM<br/>⚠️ O(N²)"]
+    S_VRAM -->|"③ Read S"| C2["<b>SRAM</b><br/>P = softmax(S)"]
+    C2 -->|"④ Write P back"| P_VRAM["<b>P (N×N)</b><br/>in VRAM<br/>⚠️ O(N²)"]
+    P_VRAM -->|"⑤ Read P, V"| C3["<b>SRAM</b><br/>O = P × V"]
+    C3 -->|"⑥ Write output"| Output["<b>Output O</b><br/>in VRAM"]
 
-    style S_HBM fill:#FF5252,color:#fff,stroke:#B71C1C,stroke-width:3px
-    style P_HBM fill:#FF5252,color:#fff,stroke:#B71C1C,stroke-width:3px
+    style S_VRAM fill:#FF5252,color:#fff,stroke:#B71C1C,stroke-width:3px
+    style P_VRAM fill:#FF5252,color:#fff,stroke:#B71C1C,stroke-width:3px
     style QKV fill:#FF9800,color:#fff,stroke:#E65100,stroke-width:2px
     style Output fill:#4CAF50,color:#fff,stroke:#2E7D32,stroke-width:2px
     style C1 fill:#BBDEFB,stroke:#1565C0,stroke-width:2px
@@ -50,7 +50,7 @@ flowchart LR
     style C3 fill:#BBDEFB,stroke:#1565C0,stroke-width:2px
 ```
 
-**6 HBM transfers** — each one is slow. Two massive N×N matrices stored in VRAM.
+**6 VRAM transfers** — each one is slow. Two massive N×N matrices stored in GDDR6X.
 
 ---
 
@@ -61,7 +61,7 @@ Everything stays in fast SRAM using an online softmax algorithm.
 
 ```mermaid
 flowchart LR
-    QKV["<b>Q, K, V</b><br/>in HBM"]
+    QKV["<b>Q, K, V</b><br/>in VRAM"]
     QKV -->|"① Load tiles"| Tile["<b>SRAM</b><br/>Load Q, K, V tiles"]
 
     subgraph FUSED["Fused SRAM Kernel (on-chip)"]
@@ -75,7 +75,7 @@ flowchart LR
 
     Tile --> S1
     S4 -.->|"loop tiles"| Tile
-    S4 -->|"② Write final output"| Out["<b>Output O</b><br/>in HBM"]
+    S4 -->|"② Write final output"| Out["<b>Output O</b><br/>in VRAM"]
 
     style QKV fill:#FF9800,color:#fff,stroke:#E65100,stroke-width:2px
     style Out fill:#4CAF50,color:#fff,stroke:#2E7D32,stroke-width:2px
@@ -87,7 +87,7 @@ flowchart LR
     style S4 fill:#C8E6C9,stroke:#2E7D32
 ```
 
-**2 HBM transfers** — read once, write once. The N×N matrix **never exists** in VRAM.
+**2 VRAM transfers** — read once, write once. The N×N matrix **never exists** in GDDR6X.
 
 ---
 
@@ -97,10 +97,10 @@ flowchart LR
 flowchart LR
     subgraph Standard["⚠️ Standard Attention"]
         direction TB
-        S_Q["Q, K, V in HBM"] --> S_attn["Compute QKᵀ"]
-        S_attn --> S_NxN["N×N matrix in HBM"]
+        S_Q["Q, K, V in VRAM"] --> S_attn["Compute QKᵀ"]
+        S_attn --> S_NxN["N×N matrix in VRAM"]
         S_NxN --> S_soft["Softmax"]
-        S_soft --> S_NxN2["N×N matrix in HBM"]
+        S_soft --> S_NxN2["N×N matrix in VRAM"]
         S_NxN2 --> S_mul["Multiply by V"]
         S_mul --> S_out["Output"]
     end
@@ -109,7 +109,7 @@ flowchart LR
 
     subgraph Flash["✅ FlashAttention2"]
         direction TB
-        F_Q["Q, K, V in HBM"] --> F_tile["Load tiles into SRAM"]
+        F_Q["Q, K, V in VRAM"] --> F_tile["Load tiles into SRAM"]
         F_tile --> F_fused["Fused: QKᵀ + softmax + V"]
         F_fused -.->|"loop tiles"| F_tile
         F_fused --> F_out["Output"]
@@ -169,7 +169,7 @@ flowchart LR
 | Metric | Standard Attention | FlashAttention2 |
 |--------|-------------------|-----------------|
 | Attention memory | O(N²) — full N×N in VRAM | O(N) — tiles in SRAM only |
-| HBM round trips | 6 per attention layer | 2 per attention layer |
+| VRAM round trips | 6 per attention layer | 2 per attention layer |
 | Speed | Memory-bandwidth bound | Compute bound (ideal) |
 | A10G batch size (InternVL3.5) | **~2 images** | **~3–4 images** |
 | A10G throughput | Baseline | **~2–3x faster** |
@@ -219,10 +219,10 @@ The final output is **mathematically identical** to computing softmax over the f
 |--|---------|-----------------|
 | N×N matrix in VRAM | Yes | Never |
 | Memory scaling | O(N²) | O(N) |
-| Computation location | HBM ↔ SRAM ping-pong | Fused in SRAM |
+| Computation location | VRAM ↔ SRAM ping-pong | Fused in SRAM |
 | Bottleneck | Memory bandwidth | Compute (ideal) |
 | Result | Identical | Identical |
 | Implementation | PyTorch default | `pip install flash-attn` |
 
 > FlashAttention2 doesn't change **what** is computed — it changes **where** it's computed.
-> By keeping work in fast SRAM and eliminating HBM round trips, it unlocks both speed and memory savings.
+> By keeping work in fast SRAM and eliminating VRAM round trips, it unlocks both speed and memory savings.
