@@ -1,0 +1,26 @@
+flowchart TD
+    QKV2["Q, K, V in HBM"]
+
+    QKV2 -->|"① Read Q, K, V tiles\n(one block at a time)"| Tile["SRAM: Load Q_tile, K_tile, V_tile"]
+
+    subgraph SRAM_Loop["SRAM — Fused Kernel (all in on-chip memory)"]
+        direction TB
+        Step1["Compute S_tile = Q_tile × K_tileᵀ/√d\n(tiny block, NOT full N×N)"]
+        Step2["Online softmax\n(running max + running sum)"]
+        Step3["Compute O_tile = P_tile × V_tile"]
+        Step4["Accumulate into output block"]
+        Step1 --> Step2 --> Step3 --> Step4
+    end
+
+    Tile --> Step1
+    Step4 -->|"Loop over\nall tiles"| Tile
+    Step4 -->|"② Write final output\n(one pass)"| Output2["Output O in HBM"]
+
+    style QKV2 fill:#FF9800,color:#fff,stroke:#E65100,stroke-width:2px
+    style Output2 fill:#4CAF50,color:#fff,stroke:#2E7D32,stroke-width:2px
+    style Tile fill:#BBDEFB,stroke:#1565C0,stroke-width:2px
+    style SRAM_Loop fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+    style Step1 fill:#C8E6C9,stroke:#2E7D32
+    style Step2 fill:#C8E6C9,stroke:#2E7D32
+    style Step3 fill:#C8E6C9,stroke:#2E7D32
+    style Step4 fill:#C8E6C9,stroke:#2E7D32
