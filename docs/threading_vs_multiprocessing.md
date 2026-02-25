@@ -19,12 +19,16 @@ PyTorch **explicitly releases the GIL** before entering these native/CUDA code p
 
 The timeline looks like this:
 
-```
+```text
 Thread 0:  [Python setup] → release GIL → [CUDA kernel on GPU 0] → reacquire GIL → [Python result handling]
 Thread 1:  [Python setup] → release GIL → [CUDA kernel on GPU 1] → reacquire GIL → [Python result handling]
                                            ^^^^^^^^^^^^^^^^^^^^^^^^
                                            These run truly in parallel
 ```
+
+With four GPUs, the overlap becomes dramatic — each thread holds the GIL for microseconds of Python setup, then releases it for seconds of CUDA execution:
+
+![GIL Release Timeline](diagrams/gil_timeline.png)
 
 The Python bookkeeping (building inputs, parsing outputs) still serialises under the GIL, but that's **microseconds** compared to the **seconds** spent in CUDA inference. So threads give you ~100% GPU utilisation across multiple devices without the complexity of multiprocessing.
 
@@ -53,11 +57,14 @@ with ThreadPoolExecutor(max_workers=num_gpus) as executor:
 ```
 
 **How it works:**
+
 - All threads share the same process and address space
 - Each thread holds a reference to a model already loaded on a specific GPU
 - When a thread calls `model.generate()`, PyTorch releases the GIL and dispatches CUDA kernels
 - While GPU 0 runs kernels, Thread 1 can acquire the GIL, do its Python setup, then release the GIL and dispatch to GPU 1
 - Result collection is direct — no serialisation or IPC needed
+
+![Threading Architecture](diagrams/threading_architecture.png)
 
 ---
 
@@ -84,17 +91,22 @@ for p in processes:
 ```
 
 **How it works:**
+
 - Each process has its own Python interpreter, GIL, and memory space
 - Models cannot be shared — each process loads its own copy from disk/cache
 - Results must be serialised (pickled) to pass back to the parent process
 - Process startup includes forking/spawning a new Python interpreter and re-importing all modules
 
+![Multiprocessing Architecture](diagrams/multiprocessing_architecture.png)
+
 ---
 
 ## Side-by-Side Comparison
 
+![Threading vs Multiprocessing](diagrams/threading_vs_mp_comparison.png)
+
 | Criterion | Multithreading | Multiprocessing |
-|-----------|---------------|-----------------|
+| --- | --- | --- |
 | **Serialisation cost** | None — threads share memory | Must pickle results across process boundaries |
 | **Model sharing** | Direct reference to loaded model | Each process loads its own 16 GB copy |
 | **Memory overhead** | Minimal (shared address space) | N x model size (separate copies per process) |
@@ -123,20 +135,7 @@ For this project (VLM document extraction with InternVL3/Llama), multithreading 
 
 5. **The GIL doesn't matter.** The Python bookkeeping between CUDA calls (tokenising inputs, parsing JSON outputs) takes microseconds. The CUDA inference takes seconds. The GIL serialises the microseconds; the seconds run in true parallel.
 
-```mermaid
-graph LR
-    subgraph "Thread-based (chosen)"
-        A[Load models<br/>sequentially] --> B[ThreadPoolExecutor]
-        B --> C[GPU 0: inference]
-        B --> D[GPU 1: inference]
-        B --> E[GPU 2: inference]
-        B --> F[GPU 3: inference]
-        C --> G[Merge results<br/>directly]
-        D --> G
-        E --> G
-        F --> G
-    end
-```
+![Threading Architecture](diagrams/threading_architecture.png)
 
 ---
 
@@ -191,8 +190,8 @@ For batch VLM inference where >99% of wall-clock time is spent in GIL-released C
 
 The overall pattern: **load models sequentially for safety, then run inference in parallel threads across GPUs.** The GIL, which normally makes Python threads useless for parallelism, is irrelevant here because PyTorch releases it during the only part that matters — the GPU computation.
 
-| | Threading | Multiprocessing |
-|---|:-:|:-:|
+| Criterion | Threading | Multiprocessing |
+| --- | :-: | :-: |
 | GPU parallelism | Yes | Yes |
 | Serialisation overhead | None | High |
 | Memory efficiency | High | Low (N copies) |
