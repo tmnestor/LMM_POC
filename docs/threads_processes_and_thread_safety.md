@@ -56,6 +56,8 @@ flowchart LR
         P1 ---|"IPC<br/>(pickle)"| P2
     end
 
+    PROC ~~~|"vs"| THREAD
+
     subgraph THREAD["Multithreading"]
         direction TB
         SH["Shared Memory<br/>Single GIL<br/>Single model per GPU"]
@@ -196,7 +198,7 @@ threads. "Correctly" means no data corruption, no crashes, and deterministic res
 ### The Three Hazards
 
 ```mermaid
-flowchart TB
+flowchart LR
     subgraph RACE["Race Condition"]
         direction TB
         R1["Thread A reads counter = 5"]
@@ -207,6 +209,8 @@ flowchart TB
         R1 --> R2 --> R3 --> R4 --> R5
     end
 
+    RACE ~~~DEAD
+
     subgraph DEAD["Deadlock"]
         direction TB
         D1["Thread A holds Lock 1<br/>wants Lock 2"]
@@ -215,6 +219,8 @@ flowchart TB
         D1 --> D3
         D2 --> D3
     end
+
+    DEAD ~~~DATA
 
     subgraph DATA["Data Race"]
         direction TB
