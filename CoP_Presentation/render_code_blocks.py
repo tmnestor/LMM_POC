@@ -18,7 +18,6 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-
 # Dracula palette
 BG = "#282a36"
 TITLE_BAR_BG = "#44475a"
