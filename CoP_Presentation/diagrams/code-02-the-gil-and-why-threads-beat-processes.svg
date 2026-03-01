@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="754.0" height="425"
+     viewBox="0 0 754.0 425">
+
+  <!-- Background -->
+  <rect width="754.0" height="425"
+        rx="10" ry="10"
+        fill="#282a36" />
+
+  <!-- Title bar -->
+  <rect y="0" width="754.0" height="32"
+        rx="10" ry="10"
+        fill="#44475a" />
+  <!-- Square off bottom corners of title bar -->
+  <rect y="22"
+        width="754.0" height="10"
+        fill="#44475a" />
+
+  <!-- Title text -->
+  <text x="20" y="21"
+        font-family="monospace" font-size="14px"
+        fill="#f8f8f2">the_gil_and_why_thre.py</text>
+
+  <!-- Code -->
+  <g font-family="monospace" font-size="14px">
+    <ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="62" xml:space="preserve"><ns0:tspan fill="#ff79c6">import</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">threading</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="81" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="100" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">_load_lock</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">threading</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">Lock</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="119" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="138" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#ff79c6">def</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#50fa7b">load_model_on_gpu</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">gpu_id</ns0:tspan><ns0:tspan fill="#f8f8f2">:</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#8be9fd" font-style="italic">int</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2">:</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="157" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#ff79c6">with</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">_load_lock</ns0:tspan><ns0:tspan fill="#f8f8f2">:</ns0:tspan><ns0:tspan fill="#f8f8f2">  </ns0:tspan><ns0:tspan fill="#6272a4"># One model loads at a time</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="176" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">        </ns0:tspan><ns0:tspan fill="#f8f8f2">model</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">AutoModel</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">from_pretrained</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="195" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">            </ns0:tspan><ns0:tspan fill="#f8f8f2">model_path</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="214" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">            </ns0:tspan><ns0:tspan fill="#f8f8f2">device_map</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#bd93f9">f</ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#bd93f9">cuda:</ns0:tspan><ns0:tspan fill="#bd93f9">{</ns0:tspan><ns0:tspan fill="#f8f8f2">gpu_id</ns0:tspan><ns0:tspan fill="#bd93f9">}</ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="233" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">            </ns0:tspan><ns0:tspan fill="#f8f8f2">torch_dtype</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">torch</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">bfloat16</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="252" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">        </ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="271" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#ff79c6">return</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">model</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="290" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="309" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#6272a4"># Phase 1: Sequential loading (safe)</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="328" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">models</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">[</ns0:tspan><ns0:tspan fill="#f8f8f2">load_model_on_gpu</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">i</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">for</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">i</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">in</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#8be9fd" font-style="italic">range</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">num_gpus</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2">]</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="347" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="366" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#6272a4"># Phase 2: Parallel inference (fast)</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="385" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#ff79c6">with</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">ThreadPoolExecutor</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">max_workers</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">num_gpus</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">as</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">executor</ns0:tspan><ns0:tspan fill="#f8f8f2">:</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="404" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#f8f8f2">futures</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">[</ns0:tspan><ns0:tspan fill="#f8f8f2">executor</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">submit</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">infer</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">models</ns0:tspan><ns0:tspan fill="#f8f8f2">[</ns0:tspan><ns0:tspan fill="#f8f8f2">i</ns0:tspan><ns0:tspan fill="#f8f8f2">]</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">chunks</ns0:tspan><ns0:tspan fill="#f8f8f2">[</ns0:tspan><ns0:tspan fill="#f8f8f2">i</ns0:tspan><ns0:tspan fill="#f8f8f2">]</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">for</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">i</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">in</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#8be9fd" font-style="italic">range</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2">num_gpus</ns0:tspan><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2">]</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="423" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /></ns0:text>
+  </g>
+</svg>

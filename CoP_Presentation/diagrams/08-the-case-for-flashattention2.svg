@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="842.78125"
+   height="167.10156"
+   viewBox="0 0 842.78125 167.10156"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath3">
+      <path
+         d="m 200.55101,59.664001 h 6 v 6.000001 h -6 z"
+         id="path3" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath5">
+      <path
+         d="m 416.27301,59.664001 h 6 v 6.000001 h -6 z"
+         id="path5" />
+    </clipPath>
+  </defs>
+  <g
+     id="g1">
+    <path
+       id="path1"
+       d="m 203.25,62.664 h 4.5 c 4.5,0 13.5,0 31.504,0 18,0 45.004,0 72.008,0 27.004,0 54.008,0 72.011,0 18,0 27,0 31.5,0 h 4.5"
+       style="fill:none;stroke:#333333;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <path
+       id="path2"
+       d="m 200.551,62.664 6,3 v -6 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)"
+       clip-path="url(#clipPath3)" />
+    <path
+       id="path4"
+       d="m 416.273,59.664 6,3 -6,3 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)"
+       clip-path="url(#clipPath5)" />
+    <path
+       d="M 258.75,43.5 H 360.773 V 80.328 H 258.75 Z"
+       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       transform="scale(1.3333333)"
+       opacity="0.5"
+       id="path6" />
+    <text
+       id="text6"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,347,77.000325)"><tspan
+         id="tspan6"
+         style="font-variant:normal;font-weight:normal;font-size:13.5px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">≈30xfaster</tspan><tspan
+         id="tspan7"
+         style="font-variant:normal;font-weight:normal;font-size:13.5px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="14.851566">bandwidthgap</tspan></text>
+    <path
+       id="path7"
+       d="m 6,14.25 h 194.25 v 96.828 H 6 Z"
+       style="fill:#4caf50;fill-opacity:1;fill-rule:nonzero;stroke:#2e7d32;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text7"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,70.791667,58.998047)"><tspan
+         id="tspan8"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">SRAM(On-Chip)</tspan><tspan
+         id="tspan9"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0.37109399"
+         y="16.5">≈20MBcapacity</tspan><tspan
+         id="tspan10"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-12.699216"
+         y="33">≈19TB/sbandwidth</tspan><tspan
+         id="tspan11"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="1.988289"
+         y="49.5">Ultra-fast,tiny</tspan></text>
+    <path
+       id="path11"
+       d="M 422.273,6 H 626.085 V 119.328 H 422.273 Z"
+       style="fill:#ff9800;fill-opacity:1;fill-rule:nonzero;stroke:#e65100;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text11"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,631.21354,47.998047)"><tspan
+         id="tspan12"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">VRAM(GDDR6X)</tspan><tspan
+         id="tspan13"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="5.2890601"
+         y="16.5">24GBcapacity</tspan><tspan
+         id="tspan14"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="27.898439"
+         y="33">(A10G)</tspan><tspan
+         id="tspan15"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-16.613279"
+         y="49.5">≈600GB/sbandwidth</tspan><tspan
+         id="tspan16"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="16.46484"
+         dx="0 0 0 0 -1.59"
+         y="66">Slow,large</tspan></text>
+  </g>
+</svg>

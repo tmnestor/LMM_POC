@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="734.57812"
+   height="101.17969"
+   viewBox="0 0 734.57812 101.17969"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath3">
+      <path
+         d="m 83.848002,34.941001 h 6 v 6 h -6 z"
+         id="path3" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath6">
+      <path
+         d="m 382.21901,34.941001 h 6 v 6 h -6 z"
+         id="path6" />
+    </clipPath>
+  </defs>
+  <g
+     id="g1">
+    <path
+       id="path1"
+       d="m 29.848,37.941 h 5 c 5,0 15,0 24.5,0 9.5,0 18.5,0 23,0 h 4.5"
+       style="fill:none;stroke:#333333;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <path
+       id="path2"
+       d="m 83.848,34.941 6,3 -6,3 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)"
+       clip-path="url(#clipPath3)" />
+    <path
+       id="path4"
+       d="m 261.41,37.941 h 10.567 c 10.57,0 31.703,0 52.335,0 20.637,0 40.774,0 50.84,0 h 10.067"
+       style="fill:none;stroke:#333333;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <path
+       id="path5"
+       d="m 382.219,34.941 6,3 -6,3 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)"
+       clip-path="url(#clipPath6)" />
+    <path
+       d="m 289.91,27.066 h 66.809 v 20.25 H 289.91 Z"
+       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       transform="scale(1.3333333)"
+       opacity="0.5"
+       id="path7" />
+    <text
+       id="text7"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,388.54687,55.089844)"><tspan
+         id="tspan7"
+         style="font-variant:normal;font-weight:300;font-size:13.5px;font-family:'Hiragino Sans';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">③</tspan><tspan
+         id="tspan8"
+         style="font-variant:normal;font-weight:normal;font-size:13.5px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="13.5"
+         dx="0 -0.5535"
+         y="0">ReadS</tspan></text>
+    <path
+       id="path8"
+       d="m 29.848,37.941 c 0,6.586 -5.34,11.926 -11.926,11.926 C 11.34,49.867 6,44.527 6,37.941 6,31.355 11.34,26.02 17.922,26.02 c 6.586,0 11.926,5.335 11.926,11.921 z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text8"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,18,59.091797)"><tspan
+         id="tspan9"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">A</tspan></text>
+    <path
+       id="path9"
+       d="M 89.848,6 H 261.41 V 69.883 H 89.848 Z"
+       style="fill:#ff5252;fill-opacity:1;fill-rule:nonzero;stroke:#b71c1c;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text9"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,204.01042,47.998047)"><tspan
+         id="tspan10"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">S(N×N)</tspan><tspan
+         id="tspan11"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-26.371096"
+         y="16.5">inVRAM—O(N²)</tspan></text>
+    <path
+       id="path11"
+       d="M 388.219,6 H 544.934 V 69.883 H 388.219 Z"
+       style="fill:#bbdefb;fill-opacity:1;fill-rule:nonzero;stroke:#1565c0;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text11"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,598.47917,47.998047)"><tspan
+         id="tspan12"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">SRAM</tspan><tspan
+         id="tspan13"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-26.242186"
+         y="16.5">P=softmax(S)</tspan></text>
+  </g>
+</svg>

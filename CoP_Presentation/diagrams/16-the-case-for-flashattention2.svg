@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="1180.0781"
+   height="497"
+   viewBox="0 0 1180.0781 497"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <g
+     id="g1">
+    <path
+       d="m 432.82,175.5 h 16.418 v 20.25 H 432.82 Z"
+       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       transform="scale(1.3333333)"
+       opacity="0.5"
+       id="path1" />
+    <text
+       id="text1"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,579.09375,253.00033)"><tspan
+         id="tspan1"
+         style="font-variant:normal;font-weight:normal;font-size:13.5px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">vs</tspan></text>
+    <path
+       id="path2"
+       d="M 122.523,226.5 H 762.531 V 366.75 H 122.523 Z"
+       style="fill:#e8f5e9;fill-opacity:1;fill-rule:nonzero;stroke:#2e7d32;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text2"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,519.4375,321.99805)"><tspan
+         id="tspan2"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">FlashAttention2</tspan></text>
+    <path
+       id="path3"
+       d="M 161.898,264.75 H 318.382 V 328.5 H 161.898 Z"
+       style="fill:#90caf9;fill-opacity:1;fill-rule:nonzero;stroke:#1565c0;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text3"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,258.89063,392.99805)"><tspan
+         id="tspan3"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -0.69"
+         y="0">ModelWeights</tspan><tspan
+         id="tspan4"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="24.855465"
+         y="16.5">≈17GB</tspan></text>
+    <path
+       id="path4"
+       d="m 397.133,256.5 h 135.008 v 80.25 H 397.133 Z"
+       style="fill:#ce93d8;fill-opacity:1;fill-rule:nonzero;stroke:#6a1b9a;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text4"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,575.53646,381.99805)"><tspan
+         id="tspan5"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVCache+</tspan><tspan
+         id="tspan6"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-4.1484451"
+         y="16.5">Activations</tspan><tspan
+         id="tspan7"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="15.800775"
+         y="33">≈2GB</tspan></text>
+    <path
+       id="path7"
+       d="M 610.891,264.75 H 723.157 V 328.5 H 610.891 Z"
+       style="fill:#c8e6c9;fill-opacity:1;fill-rule:nonzero;stroke:#2e7d32;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text7"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,869.32292,392.99805)"><tspan
+         id="tspan8"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Free</tspan><tspan
+         id="tspan9"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-8.8359451"
+         y="16.5">≈5-6GB</tspan></text>
+    <path
+       id="path9"
+       d="M 6,6 H 879.059 V 146.25 H 6 Z"
+       style="fill:#fff3e0;fill-opacity:1;fill-rule:nonzero;stroke:#e65100;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text9"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,550.26042,27.998047)"><tspan
+         id="tspan10"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Standard</tspan></text>
+    <path
+       id="path10"
+       d="m 45.375,44.25 h 156.48 V 108 H 45.375 Z"
+       style="fill:#90caf9;fill-opacity:1;fill-rule:nonzero;stroke:#1565c0;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text10"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,103.52083,98.998047)"><tspan
+         id="tspan11"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -0.69"
+         y="0">ModelWeights</tspan><tspan
+         id="tspan12"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="24.859381"
+         y="16.5">≈17GB</tspan></text>
+    <path
+       id="path12"
+       d="m 280.605,36 h 154.301 v 80.25 H 280.605 Z"
+       style="fill:#ff5252;fill-opacity:1;fill-rule:nonzero;stroke:#b71c1c;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text12"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,416.60937,87.998047)"><tspan
+         id="tspan13"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">N×NAttention</tspan><tspan
+         id="tspan14"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="17.171881"
+         y="16.5">Matrices</tspan><tspan
+         id="tspan15"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="21.429689"
+         y="33">≈1-2GB</tspan></text>
+    <path
+       id="path15"
+       d="m 513.656,36 h 135.012 v 80.25 H 513.656 Z"
+       style="fill:#ce93d8;fill-opacity:1;fill-rule:nonzero;stroke:#6a1b9a;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text15"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,730.90104,87.998047)"><tspan
+         id="tspan16"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVCache+</tspan><tspan
+         id="tspan17"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-4.1484299"
+         y="16.5">Activations</tspan><tspan
+         id="tspan18"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="15.80469"
+         y="33">≈4GB</tspan></text>
+    <path
+       id="path18"
+       d="M 727.418,44.25 H 839.684 V 108 H 727.418 Z"
+       style="fill:#fff9c4;fill-opacity:1;fill-rule:nonzero;stroke:#f57f17;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text18"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,1024.6927,98.998047)"><tspan
+         id="tspan19"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Free</tspan><tspan
+         id="tspan20"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-8.8398447"
+         y="16.5">≈1-2GB</tspan></text>
+  </g>
+</svg>

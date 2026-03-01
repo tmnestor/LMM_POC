@@ -1,0 +1,23 @@
+{
+  "htmlLabels": false,
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "basis",
+    "defaultRenderer": "dagre",
+    "nodeSpacing": 60,
+    "rankSpacing": 80,
+    "padding": 20
+  },
+  "sequence": {
+    "useMaxWidth": false
+  },
+  "themeVariables": {
+    "edgeLabelBackground": "#ffffff",
+    "fontSize": "20px",
+    "lineColor": "#333333",
+    "primaryBorderColor": "#7B68AE",
+    "primaryColor": "#ECECFF",
+    "primaryTextColor": "#333333"
+  },
+  "themeCSS": ".flowchart-link { stroke-width: 3px !important; } .arrowMarkerPath { stroke-width: 2px !important; } .node rect, .node polygon, .node circle, .node .basic { stroke-width: 2.5px !important; } .cluster rect { stroke-width: 2.5px !important; } .edgeLabel { font-size: 18px !important; } .messageText { stroke-width: 2px !important; } .messageLine0, .messageLine1 { stroke-width: 2.5px !important; } .activation0, .activation1, .activation2 { stroke-width: 2px !important; } .actor-line { stroke-width: 2.5px !important; }"
+}

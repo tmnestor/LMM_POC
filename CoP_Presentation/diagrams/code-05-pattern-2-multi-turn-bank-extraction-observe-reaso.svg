@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="552.4" height="178"
+     viewBox="0 0 552.4 178">
+
+  <!-- Background -->
+  <rect width="552.4" height="178"
+        rx="10" ry="10"
+        fill="#282a36" />
+
+  <!-- Title bar -->
+  <rect y="0" width="552.4" height="32"
+        rx="10" ry="10"
+        fill="#44475a" />
+  <!-- Square off bottom corners of title bar -->
+  <rect y="22"
+        width="552.4" height="10"
+        fill="#44475a" />
+
+  <!-- Title text -->
+  <text x="20" y="21"
+        font-family="monospace" font-size="14px"
+        fill="#f8f8f2">pattern_2_multi_turn.py</text>
+
+  <!-- Code -->
+  <g font-family="monospace" font-size="14px">
+    <ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="62" xml:space="preserve"><ns0:tspan fill="#f8f8f2">prompt</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#f8f8f2">prompt_template</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">format</ns0:tspan><ns0:tspan fill="#f8f8f2">(</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="81" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#f8f8f2">balance_col</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">mapping</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">balance</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2">        </ns0:tspan><ns0:tspan fill="#6272a4"># e.g., "Balance"</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="100" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#f8f8f2">desc_col</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">mapping</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">description</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2">       </ns0:tspan><ns0:tspan fill="#6272a4"># e.g., "Description"</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="119" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#f8f8f2">debit_col</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">mapping</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">debit</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">or</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#bd93f9">Debit</ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="138" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">    </ns0:tspan><ns0:tspan fill="#f8f8f2">credit_col</ns0:tspan><ns0:tspan fill="#ff79c6">=</ns0:tspan><ns0:tspan fill="#f8f8f2">mapping</ns0:tspan><ns0:tspan fill="#ff79c6">.</ns0:tspan><ns0:tspan fill="#f8f8f2">credit</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#ff79c6">or</ns0:tspan><ns0:tspan fill="#f8f8f2"> </ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#bd93f9">Credit</ns0:tspan><ns0:tspan fill="#bd93f9">"</ns0:tspan><ns0:tspan fill="#f8f8f2">,</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="157" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /><ns0:tspan fill="#f8f8f2">)</ns0:tspan><ns0:tspan fill="#f8f8f2" /></ns0:text>
+<ns0:text xmlns:ns0="http://www.w3.org/2000/svg" x="20" y="176" xml:space="preserve"><ns0:tspan fill="#f8f8f2" /></ns0:text>
+  </g>
+</svg>
