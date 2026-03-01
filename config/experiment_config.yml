@@ -32,7 +32,7 @@ synthetic:
     filename: synthetic_bank_statement.png
 
 ground_truth:
-  matched_transaction: "YES"
+  matched_transaction: "FOUND"
   transaction_date: "15/01/2024"
   transaction_amount: "$83.48"
   transaction_description: "OFFICE SUPPLIES PLU"

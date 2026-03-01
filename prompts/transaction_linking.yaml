@@ -18,7 +18,7 @@ prompts:
 
       Respond ONLY in the following key-value format, one field per line:
 
-      MATCHED_TRANSACTION: YES or NO
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
       TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
       TRANSACTION_AMOUNT: the dollar amount of the matched transaction
       TRANSACTION_DESCRIPTION: the transaction description from the bank statement
@@ -27,7 +27,7 @@ prompts:
       CONFIDENCE: HIGH, MEDIUM, or LOW
       REASONING: brief explanation of why this transaction matches
 
-      If no matching transaction is found, set MATCHED_TRANSACTION to NO
+      If no matching transaction is found, set MATCHED_TRANSACTION to NOT_FOUND
       and explain why in REASONING.
 
   link_multiple_receipts:
@@ -49,7 +49,7 @@ prompts:
       For each receipt, respond in the following format:
 
       --- RECEIPT N ---
-      MATCHED_TRANSACTION: YES or NO
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
       TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
       TRANSACTION_AMOUNT: the dollar amount of the matched transaction
       TRANSACTION_DESCRIPTION: the transaction description from the bank statement
