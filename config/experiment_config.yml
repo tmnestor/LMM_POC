@@ -13,8 +13,15 @@ prompts:
   file: transaction_linking.yaml
   key: link_receipt_to_statement
 
+data:
+  # Toggle: "synthetic" or "real"
+  mode: synthetic
+  dir: experiments/data
+  # Real image filenames (place in data.dir above)
+  real_receipt: receipt.png
+  real_statement: bank_statement.png
+
 synthetic:
-  output_dir: experiments/data
   receipt:
     width: 800
     height: 600
