@@ -153,6 +153,7 @@ extraction.py
 postprocessing.py
 preprocessing.py
 experiments/image_paths.txt
+experiments/data/
 latex_header.tex
 bank_statement_extraction_case_study.md
 bank_statement_extraction_case_study_latex.md
