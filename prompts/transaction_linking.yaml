@@ -19,9 +19,9 @@ prompts:
       Your task: identify the specific debit transaction in the bank statement
       that corresponds to the purchase on the receipt.
 
-      Date constraint: the matching transaction must be dated on or after the
-      receipt date (bank processing may delay posting by 1-3 days). Ignore
-      transactions dated before the receipt date.
+      Date constraint: the matching transaction can have the SAME date as the
+      receipt, or a date up to 3 days later (bank processing may delay posting).
+      Ignore transactions dated before the receipt date.
 
       Matching strategy: the store/merchant name from the receipt should
       appear (possibly truncated or abbreviated) within the bank statement's
@@ -59,9 +59,9 @@ prompts:
       Your task: for EACH receipt, identify the specific debit transaction
       in the bank statement that corresponds to that purchase.
 
-      Date constraint: the matching transaction must be dated on or after the
-      receipt date (bank processing may delay posting by 1-3 days). Ignore
-      transactions dated before the receipt date.
+      Date constraint: the matching transaction can have the SAME date as the
+      receipt, or a date up to 3 days later (bank processing may delay posting).
+      Ignore transactions dated before the receipt date.
 
       Matching strategy: the store/merchant name from the receipt should
       appear (possibly truncated or abbreviated) within the bank statement's
@@ -108,9 +108,9 @@ prompts:
       within the bank statement's transaction description. Use this as the
       primary matching signal, then confirm with amount and date.
 
-      Date constraint: the matching transaction must be dated on or after the
-      receipt date (bank processing may delay posting by 1-3 days). Ignore
-      transactions dated before the receipt date.
+      Date constraint: the matching transaction can have the SAME date as the
+      receipt, or a date up to 3 days later (bank processing may delay posting).
+      Ignore transactions dated before the receipt date.
 
       Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
       TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
