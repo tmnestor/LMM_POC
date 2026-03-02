@@ -22,7 +22,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches or is very close to the receipt total.
+         matches the receipt total. The "Debits" column shows bare numbers
+         without a currency symbol, while receipts may include one — compare
+         numeric values only, ignoring currency symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
@@ -63,7 +65,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches or is very close to the receipt total.
+         matches the receipt total. The "Debits" column shows bare numbers
+         without a currency symbol, while receipts may include one — compare
+         numeric values only, ignoring currency symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
@@ -110,7 +114,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches or is very close to the receipt total.
+         matches the receipt total. The "Debits" column shows bare numbers
+         without a currency symbol, while receipts may include one — compare
+         numeric values only, ignoring currency symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
