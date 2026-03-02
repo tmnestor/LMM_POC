@@ -2,7 +2,7 @@ experiment:
   name: transaction_linking
   description: "Cross-document receipt-to-bank-statement transaction matching"
   # Variant: "single" (one receipt image) or "multi_receipt" (composite page)
-  variant: single
+  variant: multi_receipt
 
 model:
   type: internvl3
