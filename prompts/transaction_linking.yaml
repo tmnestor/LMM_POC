@@ -30,7 +30,9 @@ prompts:
          abbreviated).
       3. Then confirm the "Date of Transaction" is the same as the receipt
          date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the receipt date.
+         dated before the receipt date. Note: the bank statement uses
+         "DD Mon YY" format while receipts use DD/MM/YYYY — convert to
+         the same format before comparing.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -73,7 +75,9 @@ prompts:
          abbreviated).
       3. Then confirm the "Date of Transaction" is the same as the receipt
          date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the receipt date.
+         dated before the receipt date. Note: the bank statement uses
+         "DD Mon YY" format while receipts use DD/MM/YYYY — convert to
+         the same format before comparing.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -122,7 +126,9 @@ prompts:
          abbreviated).
       3. Then confirm the "Date of Transaction" is the same as the receipt
          date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the receipt date.
+         dated before the receipt date. Note: the bank statement uses
+         "DD Mon YY" format while receipts use DD/MM/YYYY — convert to
+         the same format before comparing.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
