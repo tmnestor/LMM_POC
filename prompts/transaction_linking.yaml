@@ -26,6 +26,10 @@ prompts:
       Match on amount, date, and merchant name (which may be truncated or
       abbreviated on the bank statement).
 
+      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
+      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
+      statement. Do not mix fields from different rows.
+
       Respond ONLY in the following key-value format, one field per line:
 
       MATCHED_TRANSACTION: FOUND or NOT_FOUND
@@ -59,6 +63,10 @@ prompts:
 
       Match on amount, date, and merchant name (which may be truncated or
       abbreviated on the bank statement).
+
+      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
+      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
+      statement. Do not mix fields from different rows.
 
       For each receipt, respond in the following format:
 
@@ -97,6 +105,10 @@ prompts:
       Date constraint: the matching transaction must be dated on or after the
       receipt date (bank processing may delay posting by 1-3 days). Ignore
       transactions dated before the receipt date.
+
+      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
+      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
+      statement. Do not mix fields from different rows.
 
       Fuzzy matching hints:
       - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
