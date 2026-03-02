@@ -48,7 +48,8 @@ prompts:
       CONFIDENCE: HIGH, MEDIUM, or LOW
       REASONING: brief explanation of why this transaction matches
 
-      If no matching transaction is found, set MATCHED_TRANSACTION to NOT_FOUND
+      If no matching transaction is found (e.g. the receipt was paid with a
+      different card or payment method), set MATCHED_TRANSACTION to NOT_FOUND
       and explain why in REASONING.
 
   link_multiple_receipts:
@@ -110,11 +111,16 @@ prompts:
       Your task has two steps:
 
       STEP 1: Carefully examine Image 1 and enumerate every distinct receipt
-      visible on the page. Look for separate store names, dates, and totals
-      to distinguish individual receipts.
+      visible on the page. Each receipt is a SEPARATE purchase with its own
+      "Total" line — read each receipt's total independently. Look for
+      separate store names, dates, totals, and payment methods (e.g.
+      Mastercard vs Visa) to distinguish individual receipts.
 
       STEP 2: For EACH receipt found, identify the specific debit transaction
-      in the bank statement that corresponds to that purchase.
+      in the bank statement that corresponds to that purchase. Note: not
+      every receipt will appear on this statement — some may have been paid
+      with a different card or payment method. If no matching debit row
+      exists, report NOT_FOUND.
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
@@ -155,8 +161,9 @@ prompts:
       (same fields)
 
       Continue for all receipts found on the page.
-      If no matching transaction is found for a receipt, set MATCHED_TRANSACTION
-      to NOT_FOUND and explain why in REASONING.
+      If no matching transaction is found for a receipt (e.g. it was paid
+      with a different card or payment method), set MATCHED_TRANSACTION to
+      NOT_FOUND and explain why in REASONING.
 
 settings:
   max_new_tokens: 1500
