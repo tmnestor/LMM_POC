@@ -20,14 +20,15 @@ prompts:
       Your task: identify the specific debit transaction in the bank statement
       that corresponds to the purchase on the receipt.
 
-      Matching strategy:
-      1. Find the row whose "Description" column contains the store/merchant
-         name from the receipt (it may be truncated or abbreviated).
-      2. Confirm that the "Debits" amount in that SAME row matches the
-         receipt total.
-      3. Confirm that the "Date of Transaction" in that SAME row is the same
-         as the receipt date, or up to 3 days later (bank processing delay).
-         Ignore rows dated before the receipt date.
+      Matching strategy (in priority order):
+      1. AMOUNT is the strongest signal: find rows where the "Debits" column
+         matches or is very close to the receipt total.
+      2. Then check the "Description" column of those rows — the store/merchant
+         name from the receipt should appear there (possibly truncated or
+         abbreviated).
+      3. Then confirm the "Date of Transaction" is the same as the receipt
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the receipt date.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -60,14 +61,15 @@ prompts:
       Your task: for EACH receipt, identify the specific debit transaction
       in the bank statement that corresponds to that purchase.
 
-      Matching strategy:
-      1. Find the row whose "Description" column contains the store/merchant
-         name from the receipt (it may be truncated or abbreviated).
-      2. Confirm that the "Debits" amount in that SAME row matches the
-         receipt total.
-      3. Confirm that the "Date of Transaction" in that SAME row is the same
-         as the receipt date, or up to 3 days later (bank processing delay).
-         Ignore rows dated before the receipt date.
+      Matching strategy (in priority order):
+      1. AMOUNT is the strongest signal: find rows where the "Debits" column
+         matches or is very close to the receipt total.
+      2. Then check the "Description" column of those rows — the store/merchant
+         name from the receipt should appear there (possibly truncated or
+         abbreviated).
+      3. Then confirm the "Date of Transaction" is the same as the receipt
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the receipt date.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -106,14 +108,15 @@ prompts:
       STEP 2: For EACH receipt found, identify the specific debit transaction
       in the bank statement that corresponds to that purchase.
 
-      Matching strategy:
-      1. Find the row whose "Description" column contains the store/merchant
-         name from the receipt (it may be truncated or abbreviated).
-      2. Confirm that the "Debits" amount in that SAME row matches the
-         receipt total.
-      3. Confirm that the "Date of Transaction" in that SAME row is the same
-         as the receipt date, or up to 3 days later (bank processing delay).
-         Ignore rows dated before the receipt date.
+      Matching strategy (in priority order):
+      1. AMOUNT is the strongest signal: find rows where the "Debits" column
+         matches or is very close to the receipt total.
+      2. Then check the "Description" column of those rows — the store/merchant
+         name from the receipt should appear there (possibly truncated or
+         abbreviated).
+      3. Then confirm the "Date of Transaction" is the same as the receipt
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the receipt date.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
