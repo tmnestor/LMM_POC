@@ -14,23 +14,23 @@ prompts:
     prompt: |
       You are given two images:
       - Image 1 is a receipt or invoice from a purchase.
-      - Image 2 is a bank statement showing multiple transactions.
+      - Image 2 is a bank statement with a transaction table. The table
+        columns are: "Date of Transaction", "Description", "Debits", "Credits (-)".
 
       Your task: identify the specific debit transaction in the bank statement
       that corresponds to the purchase on the receipt.
 
-      Date constraint: the matching transaction can have the SAME date as the
-      receipt, or a date up to 3 days later (bank processing may delay posting).
-      Ignore transactions dated before the receipt date.
+      Matching strategy:
+      1. Find the row whose "Description" column contains the store/merchant
+         name from the receipt (it may be truncated or abbreviated).
+      2. Confirm that the "Debits" amount in that SAME row matches the
+         receipt total.
+      3. Confirm that the "Date of Transaction" in that SAME row is the same
+         as the receipt date, or up to 3 days later (bank processing delay).
+         Ignore rows dated before the receipt date.
 
-      Matching strategy: the store/merchant name from the receipt should
-      appear (possibly truncated or abbreviated) within the bank statement's
-      transaction description. Use this as the primary matching signal, then
-      confirm with amount and date.
-
-      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
-      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
-      statement. Do not mix fields from different rows.
+      Row integrity: all extracted fields must come from the SAME row in the
+      transaction table. Do not mix values from different rows.
 
       Respond ONLY in the following key-value format, one field per line:
 
@@ -53,24 +53,24 @@ prompts:
       identify which debit transaction corresponds to each receipt.
     prompt: |
       You are given multiple images. The LAST image is a bank statement
-      showing multiple transactions. All preceding images are receipts
-      or invoices from separate purchases.
+      showing multiple transactions. The bank statement table columns are:
+      "Date of Transaction", "Description", "Debits", "Credits (-)".
+      All preceding images are receipts or invoices from separate purchases.
 
       Your task: for EACH receipt, identify the specific debit transaction
       in the bank statement that corresponds to that purchase.
 
-      Date constraint: the matching transaction can have the SAME date as the
-      receipt, or a date up to 3 days later (bank processing may delay posting).
-      Ignore transactions dated before the receipt date.
+      Matching strategy:
+      1. Find the row whose "Description" column contains the store/merchant
+         name from the receipt (it may be truncated or abbreviated).
+      2. Confirm that the "Debits" amount in that SAME row matches the
+         receipt total.
+      3. Confirm that the "Date of Transaction" in that SAME row is the same
+         as the receipt date, or up to 3 days later (bank processing delay).
+         Ignore rows dated before the receipt date.
 
-      Matching strategy: the store/merchant name from the receipt should
-      appear (possibly truncated or abbreviated) within the bank statement's
-      transaction description. Use this as the primary matching signal, then
-      confirm with amount and date.
-
-      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
-      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
-      statement. Do not mix fields from different rows.
+      Row integrity: all extracted fields must come from the SAME row in the
+      transaction table. Do not mix values from different rows.
 
       For each receipt, respond in the following format:
 
@@ -94,7 +94,8 @@ prompts:
       You are given two images:
       - Image 1 is a scanned page that may contain MULTIPLE receipts
         (e.g. several receipts stapled or placed together on one page).
-      - Image 2 is a bank statement showing multiple transactions.
+      - Image 2 is a bank statement with a transaction table. The table
+        columns are: "Date of Transaction", "Description", "Debits", "Credits (-)".
 
       Your task has two steps:
 
@@ -103,18 +104,19 @@ prompts:
       to distinguish individual receipts.
 
       STEP 2: For EACH receipt found, identify the specific debit transaction
-      in the bank statement that corresponds to that purchase. The store/merchant
-      name from the receipt should appear (possibly truncated or abbreviated)
-      within the bank statement's transaction description. Use this as the
-      primary matching signal, then confirm with amount and date.
+      in the bank statement that corresponds to that purchase.
 
-      Date constraint: the matching transaction can have the SAME date as the
-      receipt, or a date up to 3 days later (bank processing may delay posting).
-      Ignore transactions dated before the receipt date.
+      Matching strategy:
+      1. Find the row whose "Description" column contains the store/merchant
+         name from the receipt (it may be truncated or abbreviated).
+      2. Confirm that the "Debits" amount in that SAME row matches the
+         receipt total.
+      3. Confirm that the "Date of Transaction" in that SAME row is the same
+         as the receipt date, or up to 3 days later (bank processing delay).
+         Ignore rows dated before the receipt date.
 
-      Row integrity: TRANSACTION_DATE, TRANSACTION_AMOUNT, and
-      TRANSACTION_DESCRIPTION must all come from the SAME row in the bank
-      statement. Do not mix fields from different rows.
+      Row integrity: all extracted fields must come from the SAME row in the
+      transaction table. Do not mix values from different rows.
 
       Fuzzy matching hints:
       - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
