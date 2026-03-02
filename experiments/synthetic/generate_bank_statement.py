@@ -3,8 +3,10 @@
 Creates a realistic bank statement image (1200x800 landscape) with:
 - Bank header and account details
 - ~10 transactions (mix of debits and credits) with running balance
-- Key match: "OFFICE SUPPLIES PLU" debit of $83.48 on 15/01/2024
-  (truncated merchant name tests fuzzy matching ability)
+- Key matches (truncated merchant names test fuzzy matching):
+  - "OFFICE SUPPLIES PLU" debit of $83.48 on 15/01/2024
+  - "METRO CAFE AND GRI" debit of $45.20 on 12/01/2024 (& → AND)
+  - "SYDNEY AUTO PARTS W" debit of $142.80 on 10/01/2024
 
 Run standalone: python experiments/synthetic/generate_bank_statement.py
 """
@@ -38,8 +40,8 @@ TRANSACTIONS: list[tuple[str, str, float | None, float | None]] = [
     ("03/01/2024", "RENT PAYMENT - 42 GEORGE ST", 1800.00, None),
     ("05/01/2024", "WOOLWORTHS TOWN HALL", 67.35, None),
     ("08/01/2024", "TRANSFER FROM SAVINGS", None, 500.00),
-    ("10/01/2024", "ENERGY AUSTRALIA BILL", 142.80, None),
-    ("12/01/2024", "COLES EXPRESS ULTIMO", 45.20, None),
+    ("10/01/2024", "SYDNEY AUTO PARTS W", 142.80, None),
+    ("12/01/2024", "METRO CAFE AND GRI", 45.20, None),
     ("15/01/2024", "OFFICE SUPPLIES PLU", 83.48, None),
     ("18/01/2024", "NETFLIX.COM", 22.99, None),
     ("22/01/2024", "ATM WITHDRAWAL CBD", 200.00, None),

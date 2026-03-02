@@ -1,6 +1,8 @@
 experiment:
   name: transaction_linking
   description: "Cross-document receipt-to-bank-statement transaction matching"
+  # Variant: "single" (one receipt image) or "multi_receipt" (composite page)
+  variant: single
 
 model:
   type: internvl3
@@ -39,3 +41,36 @@ ground_truth:
   receipt_store: "Office Supplies Plus"
   receipt_total: "$83.48"
   confidence: "HIGH"
+
+# --- Multi-receipt variant overrides ---
+multi_receipt:
+  model:
+    max_tiles: 12
+    max_new_tokens: 1500
+  prompts:
+    key: link_receipt_page_to_statement
+  synthetic:
+    receipt:
+      filename: synthetic_multi_receipt_page.png
+  ground_truth:
+    - matched_transaction: "FOUND"
+      transaction_date: "15/01/2024"
+      transaction_amount: "$83.48"
+      transaction_description: "OFFICE SUPPLIES PLU"
+      receipt_store: "Office Supplies Plus"
+      receipt_total: "$83.48"
+      confidence: "HIGH"
+    - matched_transaction: "FOUND"
+      transaction_date: "12/01/2024"
+      transaction_amount: "$45.20"
+      transaction_description: "METRO CAFE AND GRI"
+      receipt_store: "Metro Cafe & Grill"
+      receipt_total: "$45.20"
+      confidence: "HIGH"
+    - matched_transaction: "FOUND"
+      transaction_date: "10/01/2024"
+      transaction_amount: "$142.80"
+      transaction_description: "SYDNEY AUTO PARTS W"
+      receipt_store: "Sydney Auto Parts Warehouse"
+      receipt_total: "$142.80"
+      confidence: "HIGH"
