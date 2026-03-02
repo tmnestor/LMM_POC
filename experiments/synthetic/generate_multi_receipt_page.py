@@ -5,7 +5,7 @@ page background, with slight rotation to simulate stapled receipts scanned toget
 
 Receipts:
   1. Office Supplies Plus — $83.48, 15/01/2024
-  2. Metro Cafe & Grill — $39.70, 12/01/2024
+  2. MetroCafe & Grill — $39.70, 12/01/2024
   3. Sydney Auto Parts Warehouse — $142.80, 10/01/2024
 
 Run standalone: python experiments/synthetic/generate_multi_receipt_page.py
@@ -35,7 +35,7 @@ RECEIPTS: list[dict] = [
         "card_last4": "7823",
     },
     {
-        "store": "Metro Cafe & Grill",
+        "store": "MetroCafe & Grill",
         "abn": "23 456 789 012",
         "address": "45 Pitt St, Sydney NSW 2000",
         "phone": "(02) 8765 4321",
