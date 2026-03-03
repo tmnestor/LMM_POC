@@ -22,9 +22,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches the receipt total. The "Debits" column shows bare numbers
-         without a currency symbol, while receipts may include one — compare
-         numeric values only, ignoring currency symbols.
+         matches the receipt total. Receipts show amounts with a currency
+         suffix (e.g. "AUD") while the "Debits" column shows bare numbers
+         only — compare numeric values, ignoring currency codes and symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
@@ -68,9 +68,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches the receipt total. The "Debits" column shows bare numbers
-         without a currency symbol, while receipts may include one — compare
-         numeric values only, ignoring currency symbols.
+         matches the receipt total. Receipts show amounts with a currency
+         suffix (e.g. "AUD") while the "Debits" column shows bare numbers
+         only — compare numeric values, ignoring currency codes and symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
@@ -111,10 +111,12 @@ prompts:
       Your task has two steps:
 
       STEP 1: Carefully examine Image 1 and enumerate every distinct receipt
-      visible on the page. Each receipt is a SEPARATE purchase with its own
-      "Total" line — read each receipt's total independently. Look for
-      separate store names, dates, totals, and payment methods (e.g.
-      Mastercard vs Visa) to distinguish individual receipts.
+      visible on the page, reading left-to-right. Each receipt is a SEPARATE
+      purchase with its own total. The definitive total is the
+      "Total (incl. GST)" line on each receipt — use this value, not
+      subtotals or line-item prices. Look for separate store names, dates,
+      totals, and payment methods (e.g. Mastercard vs Visa) to distinguish
+      individual receipts.
 
       STEP 2: For EACH receipt found, identify the specific debit transaction
       in the bank statement that corresponds to that purchase. Note: not
@@ -124,9 +126,9 @@ prompts:
 
       Matching strategy (in priority order):
       1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches the receipt total. The "Debits" column shows bare numbers
-         without a currency symbol, while receipts may include one — compare
-         numeric values only, ignoring currency symbols.
+         matches the receipt total. Receipts show amounts with a currency
+         suffix (e.g. "AUD") while the "Debits" column shows bare numbers
+         only — compare numeric values, ignoring currency codes and symbols.
       2. Then check the "Description" column of those rows — the store/merchant
          name from the receipt should appear there (possibly truncated or
          abbreviated).
