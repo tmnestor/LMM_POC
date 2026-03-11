@@ -1,0 +1,102 @@
+# Staged (two-pass) transaction linking prompts:
+#   Stage 1 — extract_receipts: receipt image only, extract store/date/total per receipt
+#   Stage 2 — match_to_statement: bank statement image only, dynamic prompt with
+#             Stage 1 results injected as text via {purchases_text} placeholder
+prompts:
+  extract_receipts:
+    name: "Stage 1: Extract Receipt Details"
+    description: >
+      Given a scanned page containing one or more receipts, enumerate every
+      distinct receipt and extract store name, date, and total for each.
+      No bank statement is involved in this stage.
+    prompt: |
+      You are given a single image of a scanned page that may contain
+      MULTIPLE receipts (e.g. several receipts stapled or placed together
+      on one page).
+
+      Your task: carefully examine the image and enumerate every distinct
+      receipt visible on the page, reading left-to-right. Each receipt is
+      a SEPARATE purchase with its own total.
+
+      How to identify individual receipts:
+      - Look for separate store/merchant names
+      - Look for separate dates
+      - Look for separate totals — the definitive total is the
+        "Total (incl. GST)" line on each receipt
+      - Look for separate payment methods (e.g. Mastercard vs Visa)
+
+      For each receipt found, respond in the following format:
+
+      --- RECEIPT 1 ---
+      STORE: the store or merchant name
+      DATE: the purchase date (DD/MM/YYYY)
+      TOTAL: the total amount including currency symbol (e.g. $83.48)
+
+      --- RECEIPT 2 ---
+      (same fields)
+
+      Continue for all receipts found on the page.
+
+  match_to_statement:
+    name: "Stage 2: Match Purchases to Bank Statement"
+    description: >
+      Given a bank statement image and a text summary of purchases extracted
+      in Stage 1, find the matching debit transaction for each purchase.
+      The {purchases_text} placeholder is replaced at runtime.
+    prompt: |
+      You are given one image: a bank statement with a transaction table.
+      The table columns are: "Date of Transaction", "Description", "Debits",
+      "Credits (-)".
+
+      The following purchases were extracted from receipts in a prior step:
+
+      {purchases_text}
+
+      Your task: for EACH purchase listed above, identify the specific debit
+      transaction in the bank statement that corresponds to that purchase.
+
+      Matching strategy (in priority order):
+      1. AMOUNT is the strongest signal: find rows where the "Debits" column
+         matches the purchase total. Receipts show amounts with a currency
+         symbol (e.g. "$83.48") while the "Debits" column shows bare numbers
+         only — compare numeric values, ignoring currency symbols.
+      2. Then check the "Description" column of those rows — the store/merchant
+         name should appear there (possibly truncated or abbreviated).
+      3. Then confirm the "Date of Transaction" is the same as the purchase
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the purchase date. Note: the bank statement uses
+         "DD Mon YY" format while purchases use DD/MM/YYYY — convert to
+         the same format before comparing.
+
+      Row integrity: all extracted fields must come from the SAME row in the
+      transaction table. Do not mix values from different rows.
+
+      Fuzzy matching hints:
+      - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
+        becomes "OFFICE SUPPLIES PLU")
+      - The "&" symbol may appear as "AND" on the bank statement
+      - Names may be upper-cased and shortened to ~18-20 characters
+
+      For each purchase, respond in the following format:
+
+      --- RECEIPT 1 ---
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      RECEIPT_STORE: the store/merchant name from the purchase
+      RECEIPT_TOTAL: the total amount from the purchase
+      CONFIDENCE: HIGH, MEDIUM, or LOW
+      REASONING: brief explanation of why this transaction matches
+
+      --- RECEIPT 2 ---
+      (same fields)
+
+      Continue for all purchases listed above.
+      If no matching transaction is found for a purchase, set
+      MATCHED_TRANSACTION to NOT_FOUND and explain why in REASONING.
+
+settings:
+  max_new_tokens_stage1: 500
+  max_new_tokens_stage2: 1500
+  temperature: 0.0
