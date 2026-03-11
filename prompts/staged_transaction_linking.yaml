@@ -1,7 +1,9 @@
-# Staged (two-pass) transaction linking prompts:
-#   Stage 1 — extract_receipts: receipt image only, extract store/date/total per receipt
-#   Stage 2 — match_to_statement: bank statement image only, dynamic prompt with
-#             Stage 1 results injected as text via {purchases_text} placeholder
+# Staged transaction linking prompts:
+#   Stage 1  — extract_receipts:    receipt image → store/date/total per receipt
+#   Stage 2a — extract_columns:     bank statement image → transaction table column headers
+#   Stage 2b — match_to_statement:  bank statement image → match purchases to transactions
+#              (dynamic prompt with Stage 1 results via {purchases_text}
+#               and Stage 2a headers via {column_headers})
 prompts:
   extract_receipts:
     name: "Stage 1: Extract Receipt Details"
@@ -37,16 +39,36 @@ prompts:
 
       Continue for all receipts found on the page.
 
+  extract_columns:
+    name: "Stage 2a: Extract Column Headers"
+    description: >
+      Given a bank statement image, identify the transaction table and list
+      its column headers. Output is injected into Stage 2b via {column_headers}.
+    prompt: |
+      You are given one image: a bank statement.
+
+      Find the transaction table and list its column headers exactly as they
+      appear, in order from left to right.
+
+      Respond as a numbered list, one header per line:
+      1. First Column Name
+      2. Second Column Name
+      3. ...
+
+      Only list column headers — do not include any transaction data.
+
   match_to_statement:
-    name: "Stage 2: Match Purchases to Bank Statement"
+    name: "Stage 2b: Match Purchases to Bank Statement"
     description: >
       Given a bank statement image and a text summary of purchases extracted
       in Stage 1, find the matching debit transaction for each purchase.
-      The {purchases_text} placeholder is replaced at runtime.
+      The {purchases_text} placeholder is replaced with Stage 1 results.
+      The {column_headers} placeholder is replaced with Stage 2a results.
     prompt: |
       You are given one image: a bank statement with a transaction table.
-      The table columns are: "Date of Transaction", "Description", "Debits",
-      "Credits (-)".
+      The table has the following columns (extracted in a prior step):
+
+      {column_headers}
 
       The following purchases were extracted from receipts in a prior step:
 
@@ -56,17 +78,17 @@ prompts:
       transaction in the bank statement that corresponds to that purchase.
 
       Matching strategy (in priority order):
-      1. AMOUNT is the strongest signal: find rows where the "Debits" column
-         matches the purchase total. Receipts show amounts with a currency
-         symbol (e.g. "$83.48") while the "Debits" column shows bare numbers
-         only — compare numeric values, ignoring currency symbols.
-      2. Then check the "Description" column of those rows — the store/merchant
+      1. AMOUNT is the strongest signal: find rows where the debit/amount
+         column matches the purchase total. Receipts show amounts with a
+         currency symbol (e.g. "$83.48") while the table may show bare
+         numbers only — compare numeric values, ignoring currency symbols.
+      2. Then check the description column of those rows — the store/merchant
          name should appear there (possibly truncated or abbreviated).
-      3. Then confirm the "Date of Transaction" is the same as the purchase
-         date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the purchase date. Note: the bank statement uses
-         "DD Mon YY" format while purchases use DD/MM/YYYY — convert to
-         the same format before comparing.
+      3. Then confirm the date column is the same as the purchase date, or
+         up to 3 days later (bank processing delay). Ignore rows dated
+         before the purchase date. Note: the bank statement may use a
+         different date format than the purchases — convert to the same
+         format before comparing.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -98,5 +120,6 @@ prompts:
 
 settings:
   max_new_tokens_stage1: 500
+  max_new_tokens_stage2a: 200
   max_new_tokens_stage2: 1500
   temperature: 0.0

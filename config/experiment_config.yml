@@ -36,7 +36,7 @@ synthetic:
 ground_truth:
   matched_transaction: "FOUND"
   transaction_date: "15/01/2024"
-  transaction_amount: "$83.48"
+  transaction_amount: "83.48"
   transaction_description: "OFFICE SUPPLIES PLU"
   receipt_store: "Office Supplies Plus"
   receipt_total: "$83.48"
@@ -55,21 +55,21 @@ multi_receipt:
   ground_truth:
     - matched_transaction: "FOUND"
       transaction_date: "15/01/2024"
-      transaction_amount: "$83.48"
+      transaction_amount: "83.48"
       transaction_description: "OFFICE SUPPLIES PLU"
       receipt_store: "Office Supplies Plus"
       receipt_total: "$83.48"
       confidence: "HIGH"
     - matched_transaction: "FOUND"
       transaction_date: "12/01/2024"
-      transaction_amount: "$39.70"
+      transaction_amount: "39.70"
       transaction_description: "METROCAFE ANDGRI"
       receipt_store: "MetroCafe & Grill"
       receipt_total: "$39.70"
       confidence: "HIGH"
     - matched_transaction: "FOUND"
       transaction_date: "10/01/2024"
-      transaction_amount: "$142.80"
+      transaction_amount: "142.80"
       transaction_description: "SYDNEY AUTO PARTS W"
       receipt_store: "Sydney Auto Parts Warehouse"
       receipt_total: "$142.80"
@@ -84,6 +84,7 @@ staged_multi_receipt:
   prompts:
     file: staged_transaction_linking.yaml
     stage1_key: extract_receipts
+    column_extraction_key: extract_columns
     stage2_key: match_to_statement
   synthetic:
     receipt:
@@ -91,21 +92,21 @@ staged_multi_receipt:
   ground_truth:
     - matched_transaction: "FOUND"
       transaction_date: "15/01/2024"
-      transaction_amount: "$83.48"
+      transaction_amount: "83.48"
       transaction_description: "OFFICE SUPPLIES PLU"
       receipt_store: "Office Supplies Plus"
       receipt_total: "$83.48"
       confidence: "HIGH"
     - matched_transaction: "FOUND"
       transaction_date: "12/01/2024"
-      transaction_amount: "$39.70"
+      transaction_amount: "39.70"
       transaction_description: "METROCAFE ANDGRI"
       receipt_store: "MetroCafe & Grill"
       receipt_total: "$39.70"
       confidence: "HIGH"
     - matched_transaction: "FOUND"
       transaction_date: "10/01/2024"
-      transaction_amount: "$142.80"
+      transaction_amount: "142.80"
       transaction_description: "SYDNEY AUTO PARTS W"
       receipt_store: "Sydney Auto Parts Warehouse"
       receipt_total: "$142.80"
