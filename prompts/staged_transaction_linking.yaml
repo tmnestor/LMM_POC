@@ -3,7 +3,7 @@
 #   Stage 2a — extract_columns:     bank statement image → transaction table column headers
 #   Stage 2b — match_to_statement:  bank statement image → match purchases to transactions
 #              (dynamic prompt with Stage 1 results via {purchases_text}
-#               and Stage 2a headers via {column_headers})
+#               and mapped column names via {date_column}, {description_column}, {debit_column})
 prompts:
   extract_receipts:
     name: "Stage 1: Extract Receipt Details"
@@ -43,7 +43,7 @@ prompts:
     name: "Stage 2a: Extract Column Headers"
     description: >
       Given a bank statement image, identify the transaction table and list
-      its column headers. Output is injected into Stage 2b via {column_headers}.
+      its column headers. Output is mapped to semantic roles for Stage 2b.
     prompt: |
       You are given one image: a bank statement.
 
@@ -63,12 +63,10 @@ prompts:
       Given a bank statement image and a text summary of purchases extracted
       in Stage 1, find the matching debit transaction for each purchase.
       The {purchases_text} placeholder is replaced with Stage 1 results.
-      The {column_headers} placeholder is replaced with Stage 2a results.
+      The {date_column}, {description_column}, {debit_column} placeholders
+      are replaced with column names mapped from Stage 2a headers.
     prompt: |
       You are given one image: a bank statement with a transaction table.
-      The table has the following columns (extracted in a prior step):
-
-      {column_headers}
 
       The following purchases were extracted from receipts in a prior step:
 
@@ -78,15 +76,17 @@ prompts:
       transaction in the bank statement that corresponds to that purchase.
 
       Matching strategy (in priority order):
-      1. AMOUNT is the strongest signal: find rows where the debit/amount
+      1. AMOUNT is the strongest signal: find rows where the "{debit_column}"
          column matches the purchase total. Receipts show amounts with a
-         currency symbol (e.g. "$83.48") while the table may show bare
-         numbers only — compare numeric values, ignoring currency symbols.
-      2. Then check the description column of those rows — the store/merchant
-         name should appear there (possibly truncated or abbreviated).
-      3. Then confirm the date column is the same as the purchase date, or
-         up to 3 days later (bank processing delay). Ignore rows dated
-         before the purchase date. Note: the bank statement may use a
+         currency symbol (e.g. "$83.48") while the "{debit_column}" column
+         may show bare numbers only — compare numeric values, ignoring
+         currency symbols.
+      2. Then check the "{description_column}" column of those rows — the
+         store/merchant name should appear there (possibly truncated or
+         abbreviated).
+      3. Then confirm the "{date_column}" column is the same as the purchase
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the purchase date. Note: the bank statement may use a
          different date format than the purchases — convert to the same
          format before comparing.
 
