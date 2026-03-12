@@ -40,17 +40,18 @@ prompts:
       Respond ONLY in the following key-value format, one field per line:
 
       MATCHED_TRANSACTION: FOUND or NOT_FOUND
-      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
-      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
-      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY), or NOT_FOUND
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction, or NOT_FOUND
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the receipt
       RECEIPT_TOTAL: the total amount from the receipt
       CONFIDENCE: HIGH, MEDIUM, or LOW
       REASONING: brief explanation of why this transaction matches
 
       If no matching transaction is found (e.g. the receipt was paid with a
-      different card or payment method), set MATCHED_TRANSACTION to NOT_FOUND
-      and explain why in REASONING.
+      different card or payment method), set MATCHED_TRANSACTION to NOT_FOUND,
+      set TRANSACTION_DATE, TRANSACTION_AMOUNT, and TRANSACTION_DESCRIPTION
+      to NOT_FOUND, and explain why in REASONING.
 
   link_multiple_receipts:
     name: "Multiple Receipts to Statement Linking"
@@ -87,13 +88,17 @@ prompts:
 
       --- RECEIPT N ---
       MATCHED_TRANSACTION: FOUND or NOT_FOUND
-      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
-      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
-      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY), or NOT_FOUND
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction, or NOT_FOUND
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the receipt
       RECEIPT_TOTAL: the total amount from the receipt
       CONFIDENCE: HIGH, MEDIUM, or LOW
       REASONING: brief explanation of why this transaction matches
+
+      If no matching transaction is found for a receipt, set MATCHED_TRANSACTION
+      to NOT_FOUND, set TRANSACTION_DATE, TRANSACTION_AMOUNT, and
+      TRANSACTION_DESCRIPTION to NOT_FOUND, and explain why in REASONING.
 
   link_receipt_page_to_statement:
     name: "Receipt Page to Statement Linking"
@@ -151,9 +156,9 @@ prompts:
 
       --- RECEIPT 1 ---
       MATCHED_TRANSACTION: FOUND or NOT_FOUND
-      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
-      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
-      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY), or NOT_FOUND
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction, or NOT_FOUND
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the receipt
       RECEIPT_TOTAL: the total amount from the receipt
       CONFIDENCE: HIGH, MEDIUM, or LOW
@@ -165,7 +170,8 @@ prompts:
       Continue for all receipts found on the page.
       If no matching transaction is found for a receipt (e.g. it was paid
       with a different card or payment method), set MATCHED_TRANSACTION to
-      NOT_FOUND and explain why in REASONING.
+      NOT_FOUND, set TRANSACTION_DATE, TRANSACTION_AMOUNT, and
+      TRANSACTION_DESCRIPTION to NOT_FOUND, and explain why in REASONING.
 
 settings:
   max_new_tokens: 1500
