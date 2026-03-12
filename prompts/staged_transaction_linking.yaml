@@ -116,7 +116,9 @@ prompts:
 
       Continue for all purchases listed above.
       If no matching transaction is found for a purchase, set
-      MATCHED_TRANSACTION to NOT_FOUND and explain why in REASONING.
+      MATCHED_TRANSACTION to NOT_FOUND, set TRANSACTION_DATE,
+      TRANSACTION_AMOUNT, and TRANSACTION_DESCRIPTION to NOT_FOUND,
+      and explain why in REASONING.
 
 settings:
   max_new_tokens_stage1: 500
