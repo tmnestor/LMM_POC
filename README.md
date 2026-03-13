@@ -9,9 +9,8 @@ Standalone evaluation toolkit for scoring document extraction models against gro
 ├── evaluate_model.ipynb              # Demo notebook — full evaluation workflow
 ├── common/
 │   ├── __init__.py
-│   ├── config.py                     # Field type helpers and thresholds
-│   ├── field_definitions_loader.py   # Loads field_definitions.yaml
-│   ├── unified_schema.py             # Document type field schemas
+│   ├── config.py                     # Field types, thresholds (delegates to field_definitions_loader)
+│   ├── field_definitions_loader.py   # Loads field_definitions.yaml (simple config loader)
 │   ├── evaluation_metrics.py         # Core scoring functions
 │   ├── batch_analytics.py            # Results DataFrames and summary stats
 │   ├── batch_reporting.py            # Markdown/JSON report generation
