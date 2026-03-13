@@ -213,16 +213,16 @@ def _get_config():
                 # Only exclude TRANSACTION_AMOUNTS_RECEIVED from extraction
                 # ACCOUNT_BALANCE IS extracted (for balance correction) but NOT evaluated (see VALIDATION_ONLY_FIELDS)
                 _exclude_from_extraction = ["TRANSACTION_AMOUNTS_RECEIVED"]
-                self.extraction_fields = [f for f in self.extraction_fields if f not in _exclude_from_extraction]
+                self.extraction_fields = [
+                    f
+                    for f in self.extraction_fields
+                    if f not in _exclude_from_extraction
+                ]
                 self.field_count = len(self.extraction_fields)
                 self.active_field_count = len(self.extraction_fields)
 
                 # Load field type classifications from YAML
                 field_types_from_yaml = loader.get_field_types()
-
-                # DEBUG: Print what was loaded
-                print(f"DEBUG: field_types_from_yaml = {field_types_from_yaml}")
-                print(f"DEBUG: boolean fields from YAML = {field_types_from_yaml.get('boolean', [])}")
 
                 # Simplified field types - all text for simplicity
                 self.field_types = {field: "text" for field in self.extraction_fields}
@@ -233,13 +233,14 @@ def _get_config():
                 self.monetary_fields = field_types_from_yaml.get("monetary", [])
                 self.numeric_id_fields = []
                 self.date_fields = field_types_from_yaml.get("date", [])
-                self.text_fields = field_types_from_yaml.get("text", self.extraction_fields)
+                self.text_fields = field_types_from_yaml.get(
+                    "text", self.extraction_fields
+                )
                 self.boolean_fields = field_types_from_yaml.get("boolean", [])
                 self.calculated_fields = field_types_from_yaml.get("calculated", [])
-                self.transaction_list_fields = field_types_from_yaml.get("transaction_list", [])
-
-                # DEBUG: Print what was set
-                print(f"DEBUG: self.boolean_fields = {self.boolean_fields}")
+                self.transaction_list_fields = field_types_from_yaml.get(
+                    "transaction_list", []
+                )
 
         _config = SimpleConfig(loader)
     return _config
@@ -349,9 +350,6 @@ def _ensure_fields_loaded():
         CALCULATED_FIELDS = config.calculated_fields
         TRANSACTION_LIST_FIELDS = config.transaction_list_fields
 
-        # DEBUG: Print what was set
-        print(f"DEBUG _ensure_fields_loaded: BOOLEAN_FIELDS = {BOOLEAN_FIELDS}")
-
 
 # Initialize fields on module import for backward compatibility
 _ensure_fields_loaded()
@@ -427,6 +425,7 @@ def get_transaction_list_fields():
     """Get transaction list fields."""
     _ensure_initialized()
     return TRANSACTION_LIST_FIELDS
+
 
 # ============================================================================
 # IMAGE PROCESSING CONSTANTS
@@ -676,7 +675,9 @@ INTERNVL3_GENERATION_CONFIG = {
 
 
 # Helper function to calculate dynamic max_new_tokens
-def get_max_new_tokens(model_name: str, field_count: int = None, document_type: str = None) -> int:
+def get_max_new_tokens(
+    model_name: str, field_count: int = None, document_type: str = None
+) -> int:
     """
     Calculate max_new_tokens based on model, field count, and document complexity.
 
@@ -709,7 +710,9 @@ def get_max_new_tokens(model_name: str, field_count: int = None, document_type: 
     # Special handling for complex documents that may output JSON with many transactions
     if document_type == "bank_statement":
         # Bank statements can have many transactions, need significantly more tokens for JSON format
-        return max(base_tokens, 1500)  # Ensure at least 1500 tokens for complex bank statements
+        return max(
+            base_tokens, 1500
+        )  # Ensure at least 1500 tokens for complex bank statements
 
     return base_tokens
 
@@ -751,47 +754,27 @@ def get_document_type_fields(document_type: str) -> list:
     Raises:
         ValueError: If document type not supported
     """
-    try:
-        from .unified_schema import DocumentTypeFieldSchema
+    from .field_definitions_loader import SimpleFieldLoader
 
-        loader = DocumentTypeFieldSchema("config/field_definitions.yaml")
+    loader = SimpleFieldLoader()
 
-        # Map common document type variations
-        doc_type_mapping = {
-            "invoice": "invoice",
-            "tax_invoice": "invoice",
-            "bill": "invoice",
-            "receipt": "receipt",
-            "purchase_receipt": "receipt",
-            "bank_statement": "bank_statement",
-            "statement": "bank_statement",
-        }
+    # Map common document type variations
+    doc_type_mapping = {
+        "invoice": "invoice",
+        "tax_invoice": "invoice",
+        "bill": "invoice",
+        "receipt": "receipt",
+        "purchase_receipt": "receipt",
+        "bank_statement": "bank_statement",
+        "statement": "bank_statement",
+    }
 
-        mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
-        schema = loader.get_document_schema(mapped_type)
+    mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
+    field_names = loader.get_document_fields(mapped_type)
 
-        # Extract field names from simplified unified schema
-        fields = schema.get("fields", [])
-        if fields and isinstance(fields[0], str):
-            # New unified schema returns field names directly
-            field_names = fields
-        else:
-            # Legacy format with field dictionaries
-            field_names = [
-                field["name"]
-                for field in fields
-                if isinstance(field, dict) and "name" in field
-            ]
-
-        # CRITICAL: Filter out validation-only fields from EVALUATION
-        # ACCOUNT_BALANCE is extracted but excluded from accuracy metrics
-        return filter_evaluation_fields(field_names)
-
-    except Exception as e:
-        # Fallback to full field list if document-specific filtering fails
-        print(f"⚠️ Document-specific field filtering failed for '{document_type}': {e}")
-        print("🔄 Falling back to full V4 field list (filtered for evaluation)")
-        return filter_evaluation_fields(get_v4_field_list())
+    # CRITICAL: Filter out validation-only fields from EVALUATION
+    # ACCOUNT_BALANCE is extracted but excluded from accuracy metrics
+    return filter_evaluation_fields(field_names)
 
 
 def get_v4_field_count() -> int:
@@ -1041,6 +1024,7 @@ VALIDATION_ONLY_FIELDS = [
     "ACCOUNT_BALANCE",  # Extracted for balance correction, but not evaluated
 ]
 
+
 def is_evaluation_field(field_name: str) -> bool:
     """
     Check if a field should be included in evaluation metrics.
@@ -1053,6 +1037,7 @@ def is_evaluation_field(field_name: str) -> bool:
     """
     return field_name not in VALIDATION_ONLY_FIELDS
 
+
 def filter_evaluation_fields(fields: list) -> list:
     """
     Filter a list of fields to exclude validation-only fields.
@@ -1064,6 +1049,7 @@ def filter_evaluation_fields(fields: list) -> list:
         list: Filtered list excluding validation-only fields
     """
     return [field for field in fields if is_evaluation_field(field)]
+
 
 def get_validation_only_fields() -> list:
     """
