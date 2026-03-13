@@ -3,7 +3,12 @@
     "allow": [
       "Bash(/opt/homebrew/Caskroom/miniforge/base/envs/du/bin/python:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)",
+      "Bash(mypy:*)",
+      "Bash(/opt/homebrew/Caskroom/miniforge/base/envs/du/bin/mypy:*)",
+      "Bash(pip show:*)"
     ]
   }
 }
