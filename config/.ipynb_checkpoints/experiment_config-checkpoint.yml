@@ -1,0 +1,76 @@
+experiment:
+  name: transaction_linking
+  description: "Cross-document receipt-to-bank-statement transaction matching"
+  # Variant: "single" (one receipt image) or "multi_receipt" (composite page)
+  variant: multi_receipt
+
+model:
+  type: internvl3
+  max_tiles: 18
+  flash_attn: true
+  dtype: bfloat16
+  max_new_tokens: 1000
+
+prompts:
+  file: transaction_linking.yaml
+  key: link_receipt_to_statement
+
+data:
+  # Toggle: "synthetic" or "real"
+  mode: synthetic
+  dir: experiments/data
+  # Real image filenames (place in data.dir above)
+  real_receipt: receipt.png
+  real_statement: bank_statement.png
+
+synthetic:
+  receipt:
+    width: 800
+    height: 600
+    filename: synthetic_receipt.png
+  bank_statement:
+    width: 1200
+    height: 800
+    filename: synthetic_bank_statement.png
+
+ground_truth:
+  matched_transaction: "FOUND"
+  transaction_date: "15/01/2024"
+  transaction_amount: "$83.48"
+  transaction_description: "OFFICE SUPPLIES PLU"
+  receipt_store: "Office Supplies Plus"
+  receipt_total: "$83.48"
+  confidence: "HIGH"
+
+# --- Multi-receipt variant overrides ---
+multi_receipt:
+  model:
+    max_tiles: 12
+    max_new_tokens: 3000
+  prompts:
+    key: link_receipt_page_to_statement
+  synthetic:
+    receipt:
+      filename: synthetic_multi_receipt_page.png
+  ground_truth:
+    - matched_transaction: "FOUND"
+      transaction_date: "15/01/2024"
+      transaction_amount: "$83.48"
+      transaction_description: "OFFICE SUPPLIES PLU"
+      receipt_store: "Office Supplies Plus"
+      receipt_total: "$83.48"
+      confidence: "HIGH"
+    - matched_transaction: "FOUND"
+      transaction_date: "12/01/2024"
+      transaction_amount: "$39.70"
+      transaction_description: "METRO CAFE AND GRI"
+      receipt_store: "Metro Cafe & Grill"
+      receipt_total: "$39.70"
+      confidence: "HIGH"
+    - matched_transaction: "FOUND"
+      transaction_date: "10/01/2024"
+      transaction_amount: "$142.80"
+      transaction_description: "SYDNEY AUTO PARTS W"
+      receipt_store: "Sydney Auto Parts Warehouse"
+      receipt_total: "$142.80"
+      confidence: "HIGH"
