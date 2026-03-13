@@ -8,7 +8,9 @@
       "Bash(ruff format:*)",
       "Bash(mypy:*)",
       "Bash(/opt/homebrew/Caskroom/miniforge/base/envs/du/bin/mypy:*)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(conda run:*)",
+      "Bash(git push:*)"
     ]
   }
 }
