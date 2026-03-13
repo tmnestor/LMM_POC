@@ -48,10 +48,23 @@ The CSV (`evaluation_data/synthetic/ground_truth_synthetic.csv`) has one row per
 | `image_file` | Image filename (e.g., `image_001.png`) |
 | `DOCUMENT_TYPE` | `RECEIPT`, `INVOICE`, or `BANK_STATEMENT` |
 | `BUSINESS_ABN` | 11-digit Australian Business Number |
-| `SUPPLIER_NAME` | Business name |
+| `BUSINESS_ADDRESS` | Complete supplier business address |
+| `GST_AMOUNT` | GST/tax amount in dollars |
+| `INVOICE_DATE` | Invoice/receipt date (DD/MM/YYYY format) |
+| `IS_GST_INCLUDED` | Whether GST is shown in document (`true`/`false`) |
+| `LINE_ITEM_DESCRIPTIONS` | Product/service names or transaction descriptions |
+| `LINE_ITEM_QUANTITIES` | Quantities for each line item |
+| `LINE_ITEM_PRICES` | Unit price per item |
+| `LINE_ITEM_TOTAL_PRICES` | Total price per line (quantity x unit price) |
+| `PAYER_ADDRESS` | Customer/payer address |
+| `PAYER_NAME` | Customer/payer name |
+| `STATEMENT_DATE_RANGE` | Bank statement period (DD/MM/YYYY - DD/MM/YYYY) |
+| `SUPPLIER_NAME` | Business/company name providing goods/services |
 | `TOTAL_AMOUNT` | Final total amount |
-| `GST_AMOUNT` | GST/tax amount |
-| ... | Other fields per document type |
+| `TRANSACTION_AMOUNTS_PAID` | Debit/withdrawal amounts |
+| `TRANSACTION_DATES` | Bank statement transaction dates |
+| `TRANSACTION_AMOUNTS_RECEIVED` | Credit/deposit amounts |
+| `ACCOUNT_BALANCE` | Running balance after each transaction |
 
 Fields not present in a document are marked `NOT_FOUND`.
 
