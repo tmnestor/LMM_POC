@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(/opt/homebrew/Caskroom/miniforge/base/envs/du/bin/python:*)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC status)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC log --oneline -5)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC diff -- notebooks_v2/lmmpoc_layoutlm_comparison.ipynb)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC add:*)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"✨ feat: add standalone F1 difference lollipop chart with reconstructed data\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC push)",
+      "Bash(pdflatex:*)",
+      "Bash(tlmgr info:*)"
+    ]
+  }
+}

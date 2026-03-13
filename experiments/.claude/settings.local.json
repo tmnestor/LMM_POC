@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/tod/Desktop/LMM_POC status)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC diff)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC log --oneline -5)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC pull:*)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC stash)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC stash pop)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: add row-integrity constraint to prevent cross-row field mixing\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC push)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC add prompts/transaction_linking.yaml)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: prioritise merchant-name matching over amount in linking prompts\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC diff --staged)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: clarify date constraint to explicitly allow same-date matches\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: anchor prompts to bank statement column names for accurate extraction\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC diff --staged --stat)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: reorder matching strategy to prioritise debit amount over description\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"🐛 fix: handle currency symbol mismatch between receipts and bank debits\")"
+    ]
+  }
+}

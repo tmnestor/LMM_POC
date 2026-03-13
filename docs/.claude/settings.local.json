@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)",
+      "Bash(python -m ruff check:*)",
+      "Bash(python -m ruff format:*)",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" ruff check:*)",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" ruff format:*)",
+      "Bash(ZDOTDIR=/dev/null ruff check:*)",
+      "Bash(ZDOTDIR=/dev/null ruff format:*)",
+      "Bash(python3:*)",
+      "Bash(gh release view:*)",
+      "Bash(/opt/homebrew/Caskroom/miniforge/base/envs/du/bin/python:*)",
+      "Bash(npx --yes @mermaid-js/mermaid-cli:*)",
+      "Bash(mmdc:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC log --oneline -5)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC add docs/threading_vs_multiprocessing.md docs/diagrams/gil_timeline.mmd docs/diagrams/gil_timeline.png docs/diagrams/multiprocessing_architecture.mmd docs/diagrams/multiprocessing_architecture.png docs/diagrams/threading_architecture.mmd docs/diagrams/threading_architecture.png docs/diagrams/threading_vs_mp_comparison.mmd docs/diagrams/threading_vs_mp_comparison.png)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"📝 docs: add high-res transparent PNG diagrams for threading vs multiprocessing\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC push)",
+      "WebSearch",
+      "WebFetch(domain:fireworks.ai)",
+      "WebFetch(domain:superfastpython.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pankajpansari.github.io)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC diff --stat)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC log --oneline -3)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC add docs/three_approaches_to_gpu_parallelism.md docs/diagrams/hf_pipeline_parallelism.mmd docs/diagrams/hf_pipeline_parallelism.png docs/diagrams/image_distribution.mmd docs/diagrams/image_distribution.png docs/diagrams/threading_vs_mp_comparison.mmd docs/diagrams/threading_vs_mp_comparison.png)",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC commit -m \"📝 docs: add pipeline vs data parallelism comparison with image distribution diagrams\")",
+      "Bash(git -C /Users/tod/Desktop/LMM_POC status)",
+      "WebFetch(domain:arxiv.org)"
+    ]
+  }
+}

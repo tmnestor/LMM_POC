@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(afplay:*)",
+      "WebSearch",
+      "WebFetch(domain:www.kubeflow.org)",
+      "Bash(pip3 install:*)"
+    ]
+  }
+}

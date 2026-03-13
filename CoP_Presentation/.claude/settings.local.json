@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Bash(python3:*)",
+      "Bash(identify:*)",
+      "Bash(ls -1 /Users/tod/Desktop/CoP_Presentation/png_slides/*.png)",
+      "WebSearch",
+      "Bash(echo:*)",
+      "WebFetch(domain:mermaid.js.org)",
+      "Bash(done)",
+      "Bash(conda run:*)",
+      "Bash(rsvg-convert:*)",
+      "Bash(ls:*)",
+      "Bash(bash render_diagrams.sh)",
+      "Bash(inkscape:*)",
+      "Bash(afplay:*)",
+      "Bash(bash /Users/tod/Desktop/CoP_Presentation/render_diagrams.sh)",
+      "Bash(grep:*)",
+      "Bash(/tmp/test06.mmd:*)",
+      "Bash(mmdc:*)"
+    ]
+  }
+}
