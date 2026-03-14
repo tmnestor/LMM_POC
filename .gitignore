@@ -20,6 +20,7 @@ env/
 
 # AI tools
 .claude/
+C
 
 # OS
 .DS_Store
@@ -29,3 +30,6 @@ Thumbs.db
 output/
 *.csv
 !evaluation_data/**/*.csv
+
+# Ruff
+.ruff_cache/
