@@ -44,8 +44,9 @@ class BatchAnalytics:
             row = {
                 "image_name": result["image_name"],
                 "document_type": result["document_type"],
-                "overall_accuracy": evaluation.get("overall_accuracy", 0)
-                * 100 if not inference_only else None,
+                "overall_accuracy": evaluation.get("overall_accuracy", 0) * 100
+                if not inference_only
+                else None,
                 "fields_extracted": evaluation.get("fields_extracted", 0),
                 "fields_matched": evaluation.get("fields_matched", 0),
                 "total_fields": evaluation.get("total_fields", 0),
@@ -74,7 +75,11 @@ class BatchAnalytics:
             DataFrame with summary statistics
         """
         # Check if we're in inference-only mode
-        inference_only = df_results.get("inference_only", pd.Series([False])).any() if len(df_results) > 0 else False
+        inference_only = (
+            df_results.get("inference_only", pd.Series([False])).any()
+            if len(df_results) > 0
+            else False
+        )
 
         summary_stats = {
             "Total Images": len(self.batch_results),
@@ -87,32 +92,38 @@ class BatchAnalytics:
         if not inference_only and len(df_results) > 0:
             accuracy_series = df_results["overall_accuracy"].dropna()
             if len(accuracy_series) > 0:
-                summary_stats.update({
-                    "Average Accuracy (%)": accuracy_series.mean(),
-                    "Median Accuracy (%)": accuracy_series.median(),
-                    "Min Accuracy (%)": accuracy_series.min(),
-                    "Max Accuracy (%)": accuracy_series.max(),
-                })
+                summary_stats.update(
+                    {
+                        "Average Accuracy (%)": accuracy_series.mean(),
+                        "Median Accuracy (%)": accuracy_series.median(),
+                        "Min Accuracy (%)": accuracy_series.min(),
+                        "Max Accuracy (%)": accuracy_series.max(),
+                    }
+                )
         elif inference_only and len(df_results) > 0:
             # In inference-only mode, show field extraction statistics instead
-            summary_stats.update({
-                "Average Fields Found": df_results["fields_extracted"].mean(),
-                "Min Fields Found": df_results["fields_extracted"].min(),
-                "Max Fields Found": df_results["fields_extracted"].max(),
-            })
+            summary_stats.update(
+                {
+                    "Average Fields Found": df_results["fields_extracted"].mean(),
+                    "Min Fields Found": df_results["fields_extracted"].min(),
+                    "Max Fields Found": df_results["fields_extracted"].max(),
+                }
+            )
 
         # Add processing time statistics for both modes
-        summary_stats.update({
-            "Average Processing Time (s)": np.mean(self.processing_times)
-            if self.processing_times
-            else 0,
-            "Total Processing Time (s)": sum(self.processing_times)
-            if self.processing_times
-            else 0,
-            "Throughput (images/min)": 60 / np.mean(self.processing_times)
-            if self.processing_times
-            else 0,
-        })
+        summary_stats.update(
+            {
+                "Average Processing Time (s)": np.mean(self.processing_times)
+                if self.processing_times
+                else 0,
+                "Total Processing Time (s)": sum(self.processing_times)
+                if self.processing_times
+                else 0,
+                "Throughput (images/min)": 60 / np.mean(self.processing_times)
+                if self.processing_times
+                else 0,
+            }
+        )
 
         df_summary = pd.DataFrame([summary_stats]).T
         df_summary.columns = ["Value"]

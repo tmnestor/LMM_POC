@@ -767,6 +767,10 @@ def get_document_type_fields(document_type: str) -> list:
         "purchase_receipt": "receipt",
         "bank_statement": "bank_statement",
         "statement": "bank_statement",
+        "travel_expense": "travel_expense",
+        "boarding_pass": "travel_expense",
+        "airline_ticket": "travel_expense",
+        "e_ticket": "travel_expense",
     }
 
     mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())

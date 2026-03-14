@@ -61,7 +61,11 @@ class BatchReporter:
         successful_extractions = len(self.successful_results)
 
         # Check if we're in inference-only mode
-        inference_only = df_results.get("inference_only", pd.Series([False])).any() if len(df_results) > 0 else False
+        inference_only = (
+            df_results.get("inference_only", pd.Series([False])).any()
+            if len(df_results) > 0
+            else False
+        )
 
         if not inference_only and len(df_results) > 0:
             # Evaluation mode - calculate accuracy metrics
@@ -78,8 +82,12 @@ class BatchReporter:
         else:
             # Inference-only mode - show extraction metrics instead
             avg_accuracy = None
-            avg_fields_found = df_results["fields_extracted"].mean() if len(df_results) > 0 else 0
-            readiness = f"📋 **Inference-Only Mode** (Avg: {avg_fields_found:.1f} fields found)"
+            avg_fields_found = (
+                df_results["fields_extracted"].mean() if len(df_results) > 0 else 0
+            )
+            readiness = (
+                f"📋 **Inference-Only Mode** (Avg: {avg_fields_found:.1f} fields found)"
+            )
 
         total_time = sum(self.processing_times) if self.processing_times else 0
         throughput = 60 / np.mean(self.processing_times) if self.processing_times else 0
@@ -139,7 +147,7 @@ class BatchReporter:
 
         # Add top performing images (only in evaluation mode)
         if not inference_only and len(df_results) > 0:
-            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            accuracy_results = df_results.dropna(subset=["overall_accuracy"])
             if len(accuracy_results) > 0:
                 top_performers = accuracy_results.nlargest(
                     min(5, len(accuracy_results)), "overall_accuracy"
@@ -160,7 +168,7 @@ class BatchReporter:
 
         # Add areas for improvement (only in evaluation mode)
         if not inference_only and len(df_results) > 0:
-            accuracy_results = df_results.dropna(subset=['overall_accuracy'])
+            accuracy_results = df_results.dropna(subset=["overall_accuracy"])
             if len(accuracy_results) > 0:
                 poor_performers = accuracy_results.nsmallest(
                     min(5, len(accuracy_results)), "overall_accuracy"
@@ -279,7 +287,9 @@ All results have been saved to: `{output_base}`
                     "prompt_used": result["prompt_used"],
                     "processing_time": result["processing_time"],
                     "evaluation_summary": {
-                        "overall_accuracy": evaluation.get("overall_accuracy", 0) if not inference_only else None,
+                        "overall_accuracy": evaluation.get("overall_accuracy", 0)
+                        if not inference_only
+                        else None,
                         "fields_extracted": evaluation.get("fields_extracted", 0),
                         "fields_matched": evaluation.get("fields_matched", 0),
                         "total_fields": evaluation.get("total_fields", 0),

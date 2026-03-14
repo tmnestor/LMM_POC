@@ -18,9 +18,8 @@ Standalone evaluation toolkit for scoring document extraction models against gro
 ├── config/
 │   └── field_definitions.yaml        # Document types, field lists, field type classifications
 └── evaluation_data/
-    └── synthetic/
-        ├── ground_truth_synthetic.csv
-        └── *.png (9 sample images)
+    ├── ground_truth.csv
+    └── *.png (31 evaluation images)
 ```
 
 ## Setup
@@ -40,12 +39,12 @@ Open `evaluate_model.ipynb` and follow the cells. The key steps are:
 
 ## Ground Truth Format
 
-The CSV (`evaluation_data/synthetic/ground_truth_synthetic.csv`) has one row per image:
+The CSV (`evaluation_data/ground_truth.csv`) has one row per image:
 
 | Column | Description |
 |--------|-------------|
-| `image_file` | Image filename (e.g., `image_001.png`) |
-| `DOCUMENT_TYPE` | `RECEIPT`, `INVOICE`, or `BANK_STATEMENT` |
+| `image_file` | Image filename (e.g., `receipt_001.png`, `bank_003.png`) |
+| `DOCUMENT_TYPE` | `RECEIPT`, `INVOICE`, `BANK_STATEMENT`, or `TRAVEL_EXPENSE` |
 | `BUSINESS_ABN` | 11-digit Australian Business Number |
 | `BUSINESS_ADDRESS` | Complete supplier business address |
 | `GST_AMOUNT` | GST/tax amount in dollars |
@@ -64,6 +63,10 @@ The CSV (`evaluation_data/synthetic/ground_truth_synthetic.csv`) has one row per
 | `TRANSACTION_DATES` | Bank statement transaction dates |
 | `TRANSACTION_AMOUNTS_RECEIVED` | Credit/deposit amounts |
 | `ACCOUNT_BALANCE` | Running balance after each transaction |
+| `PASSENGER_NAME` | Name of person travelling (LASTNAME/FIRSTNAME format) |
+| `TRAVEL_MODE` | Mode of travel (plane, train, bus, taxi, uber, ferry) |
+| `TRAVEL_ROUTE` | Travel route with origin/destination cities |
+| `TRAVEL_DATES` | Travel date(s) in DD Mon YYYY format |
 
 Fields not present in a document are marked `NOT_FOUND`.
 
@@ -78,7 +81,7 @@ Your model should produce a `batch_results` list where each entry is a dictionar
 
 ```python
 {
-    "image_name": "image_001.png",
+    "image_name": "receipt_001.png",
     "document_type": "receipt",
     "processing_time": 2.5,
     "prompt_used": "your_prompt_name",
@@ -221,3 +224,4 @@ Single-value fields use specialised matching before F1 logic:
 | Invoice | 14 | ABN, supplier, line items, GST, total |
 | Receipt | 14 | Same schema as invoice |
 | Bank Statement | 5 | Date range, descriptions, transaction dates/amounts |
+| Travel Expense | 9 | Passenger, travel mode/route/dates, GST, total, supplier |
