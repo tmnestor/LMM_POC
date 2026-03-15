@@ -66,9 +66,10 @@ document_fields:
       - SUPPLIER_NAME
 
   transaction_link:
-    count: 7
+    count: 8
     fields:
       - DOCUMENT_TYPE
+      - BANK_STATEMENT_FILE
       - RECEIPT_DATE
       - RECEIPT_DESCRIPTION
       - RECEIPT_TOTAL
@@ -181,6 +182,7 @@ field_descriptions:
   JOURNEY_DISTANCES: "List of journey distances in km (with | separator)"
   JOURNEY_PURPOSES: "List of journey purposes/descriptions (with | separator)"
   # Transaction linking fields
+  BANK_STATEMENT_FILE: "Filename of the paired bank statement image"
   RECEIPT_DATE: "Receipt purchase date (DD/MM/YYYY format)"
   RECEIPT_DESCRIPTION: "Receipt store/merchant name"
   RECEIPT_TOTAL: "Receipt total amount including currency symbol"
@@ -232,6 +234,7 @@ field_categories:
     - TRAVEL_DATES
 
   transaction_link:
+    - BANK_STATEMENT_FILE
     - RECEIPT_DATE
     - RECEIPT_DESCRIPTION
     - RECEIPT_TOTAL
