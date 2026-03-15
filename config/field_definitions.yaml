@@ -65,6 +65,17 @@ document_fields:
       - TOTAL_AMOUNT
       - SUPPLIER_NAME
 
+  transaction_link:
+    count: 7
+    fields:
+      - DOCUMENT_TYPE
+      - RECEIPT_DATE
+      - RECEIPT_DESCRIPTION
+      - RECEIPT_TOTAL
+      - BANK_TRANSACTION_DATE
+      - BANK_TRANSACTION_DESCRIPTION
+      - BANK_TRANSACTION_DEBIT
+
   vehicle_logbook:
     count: 16
     fields:
@@ -169,6 +180,13 @@ field_descriptions:
   JOURNEY_DATES: "List of journey dates (DD Mon YYYY with | separator)"
   JOURNEY_DISTANCES: "List of journey distances in km (with | separator)"
   JOURNEY_PURPOSES: "List of journey purposes/descriptions (with | separator)"
+  # Transaction linking fields
+  RECEIPT_DATE: "Receipt purchase date (DD/MM/YYYY format)"
+  RECEIPT_DESCRIPTION: "Receipt store/merchant name"
+  RECEIPT_TOTAL: "Receipt total amount including currency symbol"
+  BANK_TRANSACTION_DATE: "Matched bank transaction date (DD/MM/YYYY format)"
+  BANK_TRANSACTION_DESCRIPTION: "Matched bank transaction description"
+  BANK_TRANSACTION_DEBIT: "Matched bank transaction debit amount"
 
 # ============================================================================
 # FIELD CATEGORIES - For evaluation reporting
@@ -212,6 +230,14 @@ field_categories:
     - TRAVEL_MODE
     - TRAVEL_ROUTE
     - TRAVEL_DATES
+
+  transaction_link:
+    - RECEIPT_DATE
+    - RECEIPT_DESCRIPTION
+    - RECEIPT_TOTAL
+    - BANK_TRANSACTION_DATE
+    - BANK_TRANSACTION_DESCRIPTION
+    - BANK_TRANSACTION_DEBIT
 
   vehicle_logbook:
     - VEHICLE_MAKE
@@ -277,6 +303,8 @@ evaluation:
       - TRANSACTION_AMOUNTS_PAID
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
+      - RECEIPT_TOTAL
+      - BANK_TRANSACTION_DEBIT
 
     boolean:
       - IS_GST_INCLUDED
@@ -293,6 +321,12 @@ evaluation:
       - JOURNEY_DATES
       - JOURNEY_DISTANCES
       - JOURNEY_PURPOSES
+      - RECEIPT_DATE
+      - RECEIPT_DESCRIPTION
+      - RECEIPT_TOTAL
+      - BANK_TRANSACTION_DATE
+      - BANK_TRANSACTION_DESCRIPTION
+      - BANK_TRANSACTION_DEBIT
 
     date:
       - INVOICE_DATE
@@ -301,6 +335,8 @@ evaluation:
       - LOGBOOK_PERIOD_START
       - LOGBOOK_PERIOD_END
       - JOURNEY_DATES
+      - RECEIPT_DATE
+      - BANK_TRANSACTION_DATE
 
     # Transaction list fields - trigger type-aware matching (monetary/date)
     transaction_list:
@@ -355,6 +391,12 @@ document_type_aliases:
     - trip log
     - ato logbook
 
+  transaction_link:
+    - transaction link
+    - transaction linking
+    - receipt matching
+    - receipt to statement
+
 # ============================================================================
 # SUPPORTED DOCUMENT TYPES
 # ============================================================================
@@ -364,3 +406,4 @@ supported_document_types:
   - bank_statement
   - travel_expense
   - vehicle_logbook
+  - transaction_link

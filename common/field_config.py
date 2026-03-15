@@ -205,6 +205,7 @@ def get_document_type_fields(document_type: str) -> list:
         "purchase_receipt": "receipt",
         "bank_statement": "bank_statement",
         "statement": "bank_statement",
+        "transaction_link": "transaction_link",
     }
 
     mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
