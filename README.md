@@ -19,8 +19,7 @@ Each receipt and bank statement image is processed independently through three i
 ## Project Structure
 
 ```
-experiments/
-  staged_transaction_linking_v2.ipynb   # Main experiment notebook
+staged_transaction_linking.ipynb        # Main notebook
 
 common/                                 # Shared utilities
   evaluation_metrics.py                 # Ground truth loading, F1 scoring
@@ -57,7 +56,7 @@ synthetic_receipt_generator/            # Tools to generate synthetic test data
 ## Running the Experiment
 
 1. Configure `config/run_config.yml` with your model path
-2. Open `experiments/staged_transaction_linking_v2.ipynb`
+2. Open `staged_transaction_linking.ipynb`
 3. Run all cells
 
 ### Requirements
