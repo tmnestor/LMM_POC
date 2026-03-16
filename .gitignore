@@ -171,3 +171,7 @@ output/competing_model_accuracy.csv
 scripts/
 
 evaluation_data/
+!evaluation_data/transaction_link_ground_truth.csv
+!evaluation_data/transaction_link_model_results.csv
+!evaluation_data/synthetic_*.png
+!evaluation_data/bank_*.png
