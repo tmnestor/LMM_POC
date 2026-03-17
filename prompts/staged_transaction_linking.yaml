@@ -13,33 +13,35 @@ prompts:
       date, and total for each. No bank statement is involved in this stage.
     prompt: |
       You are given a single image of a scanned page that may contain
-      MULTIPLE documents (e.g. several receipts, invoices, or bills
+      one or more receipts, invoices, or bills (possibly stapled or
       placed together on one page).
 
-      Your task: carefully examine the image and enumerate every distinct
-      receipt, invoice, or bill visible on the page, reading left-to-right.
-      Each document is a SEPARATE charge with its own total.
+      Your task: enumerate every DISTINCT purchase or charge on the page.
+      Each must have a different vendor, date, or total to count as
+      separate. Do NOT list the same purchase twice — a single document
+      with subtotals, tax lines, and a grand total is ONE entry, not
+      multiple.
 
-      How to identify individual documents:
-      - Look for separate vendor/merchant/company names
-      - Look for separate dates (purchase date, invoice date, or due date)
-      - Look for separate totals — the definitive total is the final
-        amount due or charged (e.g. "Total (incl. GST)", "Amount due",
-        "Total", or similar)
-      - Look for separate payment methods or reference numbers
+      How to identify separate purchases:
+      - Different vendor/merchant/company names
+      - Different dates
+      - Different final totals
+      A single document that shows both a subtotal and a total is still
+      ONE purchase — use the final total only.
 
-      For each document found, respond in the following format:
+      For each distinct purchase found, respond in the following format:
 
       --- RECEIPT 1 ---
       STORE: the vendor, merchant, or company name
       DATE: the date (DD/MM/YYYY) — use purchase date, invoice date,
             or due date (whichever is most prominent)
-      TOTAL: the total amount including currency symbol (e.g. $83.48)
+      TOTAL: the final total amount including currency symbol (e.g. $83.48)
 
       --- RECEIPT 2 ---
       (same fields)
 
-      Continue for all documents found on the page.
+      Only use RECEIPT 2, 3, etc. if there are genuinely different
+      purchases on the page.
 
   extract_columns:
     name: "Stage 2a: Extract Column Headers"
