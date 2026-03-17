@@ -6,38 +6,40 @@
 #               and mapped column names via {date_column}, {description_column}, {debit_column})
 prompts:
   extract_receipts:
-    name: "Stage 1: Extract Receipt Details"
+    name: "Stage 1: Extract Receipt/Invoice Details"
     description: >
-      Given a scanned page containing one or more receipts, enumerate every
-      distinct receipt and extract store name, date, and total for each.
-      No bank statement is involved in this stage.
+      Given a scanned page containing one or more receipts, invoices, or
+      bills, enumerate every distinct document and extract vendor name,
+      date, and total for each. No bank statement is involved in this stage.
     prompt: |
       You are given a single image of a scanned page that may contain
-      MULTIPLE receipts (e.g. several receipts stapled or placed together
-      on one page).
+      MULTIPLE documents (e.g. several receipts, invoices, or bills
+      placed together on one page).
 
       Your task: carefully examine the image and enumerate every distinct
-      receipt visible on the page, reading left-to-right. Each receipt is
-      a SEPARATE purchase with its own total.
+      receipt, invoice, or bill visible on the page, reading left-to-right.
+      Each document is a SEPARATE charge with its own total.
 
-      How to identify individual receipts:
-      - Look for separate store/merchant names
-      - Look for separate dates
-      - Look for separate totals — the definitive total is the
-        "Total (incl. GST)" line on each receipt
-      - Look for separate payment methods (e.g. Mastercard vs Visa)
+      How to identify individual documents:
+      - Look for separate vendor/merchant/company names
+      - Look for separate dates (purchase date, invoice date, or due date)
+      - Look for separate totals — the definitive total is the final
+        amount due or charged (e.g. "Total (incl. GST)", "Amount due",
+        "Total", or similar)
+      - Look for separate payment methods or reference numbers
 
-      For each receipt found, respond in the following format:
+      For each document found, respond in the following format:
 
       --- RECEIPT 1 ---
-      STORE: the store or merchant name
-      DATE: the purchase date (DD/MM/YYYY)
+      STORE: the vendor, merchant, or company name
+      DATE: the date (DD/MM/YYYY) — use purchase date, invoice date,
+            or due date (whichever is most prominent)
       TOTAL: the total amount including currency symbol (e.g. $83.48)
 
       --- RECEIPT 2 ---
       (same fields)
 
-      Continue for all receipts found on the page.
+      Continue for all documents found on the page.
 
   extract_columns:
     name: "Stage 2a: Extract Column Headers"
