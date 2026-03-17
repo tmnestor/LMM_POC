@@ -90,7 +90,8 @@ class BatchReporter:
             )
 
         total_time = sum(self.processing_times) if self.processing_times else 0
-        throughput = 60 / np.mean(self.processing_times) if self.processing_times else 0
+        mean_time = np.mean(self.processing_times) if self.processing_times else 0
+        throughput = 60 / mean_time if mean_time > 0 else 0
 
         # Extract model info from timestamp for dynamic title and model name
         model_name = "Vision Model"

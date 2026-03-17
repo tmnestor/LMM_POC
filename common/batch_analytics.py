@@ -120,7 +120,7 @@ class BatchAnalytics:
                 if self.processing_times
                 else 0,
                 "Throughput (images/min)": 60 / np.mean(self.processing_times)
-                if self.processing_times
+                if self.processing_times and np.mean(self.processing_times) > 0
                 else 0,
             }
         )
