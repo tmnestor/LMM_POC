@@ -76,53 +76,44 @@ prompts:
 
       {purchases_text}
 
-      Your task: for EACH purchase listed above, identify the specific debit
-      transaction in the bank statement that corresponds to that purchase.
+      Your task: for EACH purchase listed above, determine whether a
+      matching debit transaction exists on this bank statement. Some
+      purchases may NOT appear on this statement. Only report FOUND when you have evidence.
 
-      Matching strategy (in priority order):
-      1. AMOUNT is the strongest signal: find rows where the "{debit_column}"
-         column matches the purchase total. Receipts show amounts with a
-         currency symbol (e.g. "$83.48") while the "{debit_column}" column
-         may show bare numbers only — compare numeric values, ignoring
-         currency symbols.
-      2. Then check the "{description_column}" column of those rows — the
-         store/merchant name should appear there (possibly truncated or
-         abbreviated).
-      3. Then confirm the "{date_column}" column is the same as the purchase
-         date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the purchase date. Note: the bank statement may use a
-         different date format than the purchases — convert to the same
-         format before comparing.
+      A match requires ALL THREE of the following:
+      1. AMOUNT: the "{debit_column}" column value must equal the purchase
+         total (compare numeric values, ignoring currency symbols).
+      2. DESCRIPTION: the "{description_column}" column must plausibly refer
+         to the same merchant (allowing for truncation, abbreviation, and
+         upper-casing — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
+         "&" → "AND", names shortened to ~18-20 characters).
+      3. DATE: the "{date_column}" column must be the same as the purchase
+         date or up to 3 days later (bank processing delay). Rows dated
+         before the purchase date cannot match. The bank statement may use
+         a different date format — convert before comparing.
+
+      If any of the three criteria fails, the purchase is NOT_FOUND.
+      Do not guess or force a match — NOT_FOUND is a valid and common result.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
-
-      Fuzzy matching hints:
-      - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
-        becomes "OFFICE SUPPLIES PLU")
-      - The "&" symbol may appear as "AND" on the bank statement
-      - Names may be upper-cased and shortened to ~18-20 characters
 
       For each purchase, respond in the following format:
 
       --- RECEIPT 1 ---
       MATCHED_TRANSACTION: FOUND or NOT_FOUND
-      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
-      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
-      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
+      TRANSACTION_AMOUNT: the debit amount from the matched row, or NOT_FOUND
+      TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the purchase
       RECEIPT_TOTAL: the total amount from the purchase
-      CONFIDENCE: HIGH, MEDIUM, or LOW
-      REASONING: brief explanation of why this transaction matches
+      CONFIDENCE: HIGH, MEDIUM, or LOW (use LOW if any criterion is a weak match)
+      REASONING: brief explanation of match or why no match was found
 
       --- RECEIPT 2 ---
       (same fields)
 
       Continue for all purchases listed above.
-      If no matching transaction is found for a purchase, set
-      MATCHED_TRANSACTION to NOT_FOUND, set TRANSACTION_DATE,
-      TRANSACTION_AMOUNT, and TRANSACTION_DESCRIPTION to NOT_FOUND,
-      and explain why in REASONING.
 
 settings:
   max_new_tokens_stage1: 500
