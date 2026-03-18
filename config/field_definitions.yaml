@@ -66,7 +66,7 @@ document_fields:
       - SUPPLIER_NAME
 
   transaction_link:
-    count: 10
+    count: 12
     fields:
       - DOCUMENT_TYPE
       - BANK_STATEMENT_FILE
@@ -76,7 +76,9 @@ document_fields:
       - BANK_TRANSACTION_DATE
       - BANK_TRANSACTION_DESCRIPTION
       - BANK_TRANSACTION_DEBIT
+      - MATCHED_TRANSACTION
       - CONFIDENCE
+      - MISMATCH_TYPE
       - REASONING
 
   vehicle_logbook:
@@ -191,7 +193,9 @@ field_descriptions:
   BANK_TRANSACTION_DATE: "Matched bank transaction date (DD/MM/YYYY format)"
   BANK_TRANSACTION_DESCRIPTION: "Matched bank transaction description"
   BANK_TRANSACTION_DEBIT: "Matched bank transaction debit amount"
+  MATCHED_TRANSACTION: "Match outcome (FOUND/PARTIAL_MATCH/NOT_FOUND)"
   CONFIDENCE: "Model confidence in match (HIGH/MEDIUM/LOW)"
+  MISMATCH_TYPE: "Mismatch category (NONE/CURRENCY/SURCHARGE/NAME_MISMATCH/DATE_DELAY/AMOUNT_OTHER)"
   REASONING: "Model explanation of match or mismatch"
 
 # ============================================================================
@@ -245,7 +249,9 @@ field_categories:
     - BANK_TRANSACTION_DATE
     - BANK_TRANSACTION_DESCRIPTION
     - BANK_TRANSACTION_DEBIT
+    - MATCHED_TRANSACTION
     - CONFIDENCE
+    - MISMATCH_TYPE
     - REASONING
 
   vehicle_logbook:
@@ -275,7 +281,9 @@ field_usage:
 
   # Metadata fields captured for analysis but excluded from accuracy scoring
   metadata_only:
+    - MATCHED_TRANSACTION  # Match outcome (FOUND/PARTIAL_MATCH/NOT_FOUND)
     - CONFIDENCE  # Model self-assessed match confidence
+    - MISMATCH_TYPE  # Structured mismatch category
     - REASONING  # Model explanation of match/mismatch decision
 
   # Fields used for both evaluation and validation (default for all other fields)
