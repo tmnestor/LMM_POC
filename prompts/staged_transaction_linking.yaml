@@ -80,40 +80,38 @@ prompts:
       matching debit transaction exists on this bank statement. Some
       purchases may NOT appear on this statement.
 
-      CRITICAL RULE — amount tolerance:
-        Calculate: percentage_diff = abs(debit - total) / total * 100
-        - 0% difference → amounts match (eligible for FOUND)
-        - >0% and ≤2% difference → small surcharge (eligible for PARTIAL_MATCH)
-        - >2% difference → amounts DO NOT MATCH. Result MUST be NOT_FOUND.
-          Do NOT report FOUND or PARTIAL_MATCH when amounts differ by more
-          than 2%, regardless of how well the description or date match.
+      MANDATORY AMOUNT GATE (apply first, before any other checks):
+        For every candidate row, calculate:
+          percentage_diff = abs(debit - total) / total * 100
+        If percentage_diff > 2  →  STOP. This row is NOT a match.
+          Do not check description or date. Move to the next candidate row.
+          If no candidate row passes this gate, the result is NOT_FOUND.
+        If percentage_diff = 0  →  row passes the gate (eligible for FOUND)
+        If percentage_diff > 0 and ≤ 2  →  row passes (eligible for PARTIAL_MATCH)
 
-      Check these three criteria against each candidate row:
-      1. AMOUNT: the "{debit_column}" column value vs the purchase total.
-         Compare numeric values, ignoring currency symbols.
-         Apply the amount tolerance rule above.
-      2. DESCRIPTION: the "{description_column}" column vs the merchant name
+      Only AFTER a candidate row passes the amount gate, check:
+      1. DESCRIPTION: the "{description_column}" column vs the merchant name
          (allowing for truncation, abbreviation, upper-casing, and merchant
          acquirer names — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
          "&" → "AND", "JB Hi-Fi" → "ELECTRONICS STORE JB HIFI").
-      3. DATE: the "{date_column}" column vs the purchase date. The bank
+      2. DATE: the "{date_column}" column vs the purchase date. The bank
          date should be the same day or up to 5 business days later (bank
          processing delay). The bank statement may use a different date
          format — convert before comparing.
 
       Use these match outcomes:
-      - FOUND: all three criteria match. Amounts must be exactly equal.
-      - PARTIAL_MATCH: a plausible candidate row exists but one criterion
-        does not match exactly. Common reasons include:
+      - FOUND: the candidate row passed the amount gate with 0% difference,
+        AND description and date both match.
+      - PARTIAL_MATCH: the candidate row passed the amount gate (≤2%), but
+        one criterion does not match exactly. Common reasons:
         * Amount differs by ≤2% due to credit card surcharge
-        * Description uses a payment processor or acquirer name instead of
-          the merchant name (e.g. "Bunnings" → "Contactless Payment BUNNINGS")
-        * Date is more than 5 business days later but otherwise matches
+        * Description uses a payment processor or acquirer name
+        * Date is more than 5 business days later
         Report the candidate row's actual values — do not fabricate data.
-      - NOT_FOUND: no plausible candidate row exists on the statement.
-        Do not guess or force a match — NOT_FOUND is a valid and common result.
-        A description match alone is NOT sufficient — the amount must also
-        be within tolerance.
+      - NOT_FOUND: no candidate row passed the amount gate, OR no row on
+        the statement is a plausible match.
+        Do not guess or force a match — NOT_FOUND is a valid and expected
+        result. A description match alone is NEVER sufficient.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
@@ -123,7 +121,7 @@ prompts:
       --- RECEIPT 1 ---
       MATCHED_TRANSACTION: FOUND, PARTIAL_MATCH, or NOT_FOUND
       TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
-      TRANSACTION_AMOUNT: the debit amount from the matched row, or NOT_FOUND
+      TRANSACTION_AMOUNT: the debit amount from the matched row (numeric only, no currency symbol), or NOT_FOUND
       TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the purchase
       RECEIPT_TOTAL: the total amount from the purchase
