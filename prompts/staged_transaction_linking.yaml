@@ -80,15 +80,18 @@ prompts:
       matching debit transaction exists on this bank statement. Some
       purchases may NOT appear on this statement.
 
+      CRITICAL RULE — amount tolerance:
+        Calculate: percentage_diff = abs(debit - total) / total * 100
+        - 0% difference → amounts match (eligible for FOUND)
+        - >0% and ≤2% difference → small surcharge (eligible for PARTIAL_MATCH)
+        - >2% difference → amounts DO NOT MATCH. Result MUST be NOT_FOUND.
+          Do NOT report FOUND or PARTIAL_MATCH when amounts differ by more
+          than 2%, regardless of how well the description or date match.
+
       Check these three criteria against each candidate row:
       1. AMOUNT: the "{debit_column}" column value vs the purchase total.
          Compare numeric values, ignoring currency symbols.
-         For FOUND: amounts must be EXACTLY equal.
-         For PARTIAL_MATCH: amounts may differ by up to 2% (e.g. credit
-         card surcharge). Calculate: abs(debit - total) / total.
-         If the difference exceeds 2%, the amounts do NOT match — even
-         for PARTIAL_MATCH. A $324 receipt cannot match a $346.80 debit
-         (7% difference).
+         Apply the amount tolerance rule above.
       2. DESCRIPTION: the "{description_column}" column vs the merchant name
          (allowing for truncation, abbreviation, upper-casing, and merchant
          acquirer names — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
@@ -99,19 +102,18 @@ prompts:
          format — convert before comparing.
 
       Use these match outcomes:
-      - FOUND: all three criteria match. Amount must be exact.
+      - FOUND: all three criteria match. Amounts must be exactly equal.
       - PARTIAL_MATCH: a plausible candidate row exists but one criterion
         does not match exactly. Common reasons include:
-        * Amount differs by up to 2% due to credit card surcharge
-        * Amount is in a different currency (state this in REASONING)
+        * Amount differs by ≤2% due to credit card surcharge
         * Description uses a payment processor or acquirer name instead of
           the merchant name (e.g. "Bunnings" → "Contactless Payment BUNNINGS")
         * Date is more than 5 business days later but otherwise matches
         Report the candidate row's actual values — do not fabricate data.
       - NOT_FOUND: no plausible candidate row exists on the statement.
         Do not guess or force a match — NOT_FOUND is a valid and common result.
-        If amounts differ by more than 2% and there is no currency
-        conversion explanation, the result is NOT_FOUND.
+        A description match alone is NOT sufficient — the amount must also
+        be within tolerance.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
