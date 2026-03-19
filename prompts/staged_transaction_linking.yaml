@@ -80,16 +80,14 @@ prompts:
       matching debit transaction exists on this bank statement. Some
       purchases may NOT appear on this statement.
 
-      MANDATORY AMOUNT GATE (apply first, before any other checks):
-        For every candidate row, calculate:
-          percentage_diff = abs(debit - total) / total * 100
-        If percentage_diff > 2  →  STOP. This row is NOT a match.
-          Do not check description or date. Move to the next candidate row.
-          If no candidate row passes this gate, the result is NOT_FOUND.
-        If percentage_diff = 0  →  row passes the gate (eligible for FOUND)
-        If percentage_diff > 0 and ≤ 2  →  row passes (eligible for PARTIAL_MATCH)
+      STRICT AMOUNT MATCHING (apply first, before any other checks):
+        Compare the receipt total (ignoring currency symbol) to each
+        candidate row's "{debit_column}" value. Australian bank statements
+        show debit amounts as plain numbers without a currency symbol.
+        The amounts MUST be numerically equal. If no row has an exact
+        amount match, the result is NOT_FOUND — do not proceed further.
 
-      Only AFTER a candidate row passes the amount gate, check:
+      Only AFTER a candidate row passes the amount check, verify:
       1. DESCRIPTION: the "{description_column}" column vs the merchant name
          (allowing for truncation, abbreviation, upper-casing, and merchant
          acquirer names — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
@@ -100,16 +98,9 @@ prompts:
          format — convert before comparing.
 
       Use these match outcomes:
-      - FOUND: the candidate row passed the amount gate with 0% difference,
-        AND description and date both match.
-      - PARTIAL_MATCH: the candidate row passed the amount gate (≤2%), but
-        one criterion does not match exactly. Common reasons:
-        * Amount differs by ≤2% due to credit card surcharge
-        * Description uses a payment processor or acquirer name
-        * Date is more than 5 business days later
-        Report the candidate row's actual values — do not fabricate data.
-      - NOT_FOUND: no candidate row passed the amount gate, OR no row on
-        the statement is a plausible match.
+      - FOUND: amounts are exactly equal AND description and date match.
+      - NOT_FOUND: no candidate row has an exactly equal debit amount, OR
+        the amounts match but description and date do not support a match.
         Do not guess or force a match — NOT_FOUND is a valid and expected
         result. A description match alone is NEVER sufficient.
 
@@ -119,14 +110,14 @@ prompts:
       For each purchase, respond in the following format:
 
       --- RECEIPT 1 ---
-      MATCHED_TRANSACTION: FOUND, PARTIAL_MATCH, or NOT_FOUND
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
       TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
       TRANSACTION_AMOUNT: the debit amount from the matched row (numeric only, no currency symbol), or NOT_FOUND
       TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
       RECEIPT_STORE: the store/merchant name from the purchase
       RECEIPT_TOTAL: the total amount from the purchase
       CONFIDENCE: HIGH, MEDIUM, or LOW
-      MISMATCH_TYPE: NONE, CURRENCY, SURCHARGE, NAME_MISMATCH, DATE_DELAY, or AMOUNT_OTHER
+      MISMATCH_TYPE: NONE or NAME_MISMATCH or DATE_DELAY
       REASONING: brief explanation of match or why no match was found
 
       --- RECEIPT 2 ---

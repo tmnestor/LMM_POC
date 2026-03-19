@@ -193,9 +193,9 @@ field_descriptions:
   BANK_TRANSACTION_DATE: "Matched bank transaction date (DD/MM/YYYY format)"
   BANK_TRANSACTION_DESCRIPTION: "Matched bank transaction description"
   BANK_TRANSACTION_DEBIT: "Matched bank transaction debit amount"
-  MATCHED_TRANSACTION: "Match outcome (FOUND/PARTIAL_MATCH/NOT_FOUND)"
+  MATCHED_TRANSACTION: "Match outcome (FOUND/NOT_FOUND)"
   CONFIDENCE: "Model confidence in match (HIGH/MEDIUM/LOW)"
-  MISMATCH_TYPE: "Mismatch category (NONE/CURRENCY/SURCHARGE/NAME_MISMATCH/DATE_DELAY/AMOUNT_OTHER)"
+  MISMATCH_TYPE: "Mismatch category (NONE/NAME_MISMATCH/DATE_DELAY)"
   REASONING: "Model explanation of match or mismatch"
 
 # ============================================================================
