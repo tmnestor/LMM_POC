@@ -81,8 +81,14 @@ prompts:
       purchases may NOT appear on this statement.
 
       Check these three criteria against each candidate row:
-      1. AMOUNT: the "{debit_column}" column value vs the purchase total
-         (compare numeric values, ignoring currency symbols).
+      1. AMOUNT: the "{debit_column}" column value vs the purchase total.
+         Compare numeric values, ignoring currency symbols.
+         For FOUND: amounts must be EXACTLY equal.
+         For PARTIAL_MATCH: amounts may differ by up to 2% (e.g. credit
+         card surcharge). Calculate: abs(debit - total) / total.
+         If the difference exceeds 2%, the amounts do NOT match — even
+         for PARTIAL_MATCH. A $324 receipt cannot match a $346.80 debit
+         (7% difference).
       2. DESCRIPTION: the "{description_column}" column vs the merchant name
          (allowing for truncation, abbreviation, upper-casing, and merchant
          acquirer names — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
@@ -93,16 +99,19 @@ prompts:
          format — convert before comparing.
 
       Use these match outcomes:
-      - FOUND: all three criteria match clearly.
+      - FOUND: all three criteria match. Amount must be exact.
       - PARTIAL_MATCH: a plausible candidate row exists but one criterion
         does not match exactly. Common reasons include:
-        * Amount differs due to currency conversion or credit card surcharge (1-3%)
+        * Amount differs by up to 2% due to credit card surcharge
+        * Amount is in a different currency (state this in REASONING)
         * Description uses a payment processor or acquirer name instead of
           the merchant name (e.g. "Bunnings" → "Contactless Payment BUNNINGS")
         * Date is more than 5 business days later but otherwise matches
         Report the candidate row's actual values — do not fabricate data.
       - NOT_FOUND: no plausible candidate row exists on the statement.
         Do not guess or force a match — NOT_FOUND is a valid and common result.
+        If amounts differ by more than 2% and there is no currency
+        conversion explanation, the result is NOT_FOUND.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
