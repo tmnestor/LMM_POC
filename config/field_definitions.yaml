@@ -286,6 +286,13 @@ field_usage:
     - MISMATCH_TYPE  # Structured mismatch category
     - REASONING  # Model explanation of match/mismatch decision
 
+  # Ground truth annotation fields — human-provided, not model outputs
+  annotation_only:
+    - EXPECTED_MATCH_STATUS  # Human-annotated expected match outcome
+    - EXPECTED_MISMATCH_TYPE  # Human-annotated mismatch category
+    - REASONING_QUALITY  # Human-annotated reasoning usefulness
+    - ANNOTATOR_NOTES  # Freetext annotator explanation
+
   # Fields used for both evaluation and validation (default for all other fields)
   evaluation_and_validation:
     - DOCUMENT_TYPE
