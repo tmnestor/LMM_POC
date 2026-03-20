@@ -81,9 +81,10 @@ prompts:
       purchases may NOT appear on this statement.
 
       STRICT AMOUNT MATCHING (apply first, before any other checks):
-        Compare the receipt total (ignoring currency symbol) to each
-        candidate row's "{debit_column}" value. Australian bank statements
-        show debit amounts as plain numbers without a currency symbol.
+        Compare the receipt total (ignoring currency symbols and currency
+        suffixes such as AUD) to each candidate row's "{debit_column}" value.
+        Australian bank statements show debit amounts as plain numbers
+        without a currency symbol.
         The amounts MUST be numerically equal. If no row has an exact
         amount match, the result is NOT_FOUND — do not proceed further.
 
