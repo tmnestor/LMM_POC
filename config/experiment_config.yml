@@ -11,8 +11,8 @@ data:
 # --- Staged transaction linking overrides ---
 staged_multi_receipt:
   model:
-    min_tiles: 6
-    max_tiles: 18
+    min_tiles: 12
+    max_tiles: 36
     max_new_tokens: 1500
   prompts:
     file: staged_transaction_linking.yaml
