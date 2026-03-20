@@ -36,6 +36,10 @@ prompts:
       DATE: the date (DD/MM/YYYY) — use purchase date, invoice date,
             or due date (whichever is most prominent)
       TOTAL: the final total amount including currency symbol (e.g. $83.48)
+            Australian amounts always have exactly 2 decimal places.
+            If the total is partially obscured or cut off at a page edge,
+            cross-reference other lines on the same receipt (e.g. PURCHASE,
+            Eft, or payment confirmation lines) to recover the full amount.
 
       --- RECEIPT 2 ---
       (same fields)
