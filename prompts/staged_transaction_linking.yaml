@@ -87,6 +87,11 @@ prompts:
         The amounts MUST be numerically equal. If no row has an exact
         amount match, the result is NOT_FOUND — do not proceed further.
 
+        You MUST record this comparison in the AMOUNT_CHECK field BEFORE
+        setting MATCHED_TRANSACTION. Write both numbers and the verdict:
+          AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
+        If AMOUNT_CHECK is NO_MATCH, MATCHED_TRANSACTION must be NOT_FOUND.
+
       Only AFTER a candidate row passes the amount check, verify:
       1. DESCRIPTION: the "{description_column}" column vs the merchant name
          (allowing for truncation, abbreviation, upper-casing, and merchant
@@ -110,12 +115,13 @@ prompts:
       For each purchase, respond in the following format:
 
       --- RECEIPT 1 ---
-      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      RECEIPT_STORE: the store/merchant name from the purchase
+      RECEIPT_TOTAL: the total amount from the purchase (numeric, no currency symbol)
+      AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND (must be NOT_FOUND when AMOUNT_CHECK is NO_MATCH)
       TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
       TRANSACTION_AMOUNT: the debit amount from the matched row (numeric only, no currency symbol), or NOT_FOUND
       TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
-      RECEIPT_STORE: the store/merchant name from the purchase
-      RECEIPT_TOTAL: the total amount from the purchase
       CONFIDENCE: HIGH, MEDIUM, or LOW
       MISMATCH_TYPE: NONE or NAME_MISMATCH or DATE_DELAY
       REASONING: brief explanation of match or why no match was found
