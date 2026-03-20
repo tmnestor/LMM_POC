@@ -26,8 +26,9 @@ class InternVL3ImagePreprocessor:
     preparation with correct dtype/device for model inference.
     """
 
-    def __init__(self, max_tiles: int, debug: bool = False):
+    def __init__(self, max_tiles: int, min_tiles: int = 1, debug: bool = False):
         self.max_tiles = max_tiles
+        self.min_tiles = min_tiles
         self.debug = debug
 
     @staticmethod
@@ -210,7 +211,11 @@ class InternVL3ImagePreprocessor:
         image = Image.open(image_file).convert("RGB")
 
         images = self.dynamic_preprocess(
-            image, min_num=1, max_num=max_num, image_size=input_size, use_thumbnail=True
+            image,
+            min_num=self.min_tiles,
+            max_num=max_num,
+            image_size=input_size,
+            use_thumbnail=True,
         )
 
         transform = self.build_transform(input_size=input_size)
@@ -286,7 +291,7 @@ class InternVL3ImagePreprocessor:
 
         images = self.dynamic_preprocess(
             rgb_image,
-            min_num=1,
+            min_num=self.min_tiles,
             max_num=max_num,
             image_size=input_size,
             use_thumbnail=True,
