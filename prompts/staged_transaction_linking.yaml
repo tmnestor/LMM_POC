@@ -93,10 +93,17 @@ prompts:
         If AMOUNT_CHECK is NO_MATCH, MATCHED_TRANSACTION must be NOT_FOUND.
 
       Only AFTER a candidate row passes the amount check, verify:
-      1. DESCRIPTION: the "{description_column}" column vs the merchant name
-         (allowing for truncation, abbreviation, upper-casing, and merchant
-         acquirer names — e.g. "Office Supplies Plus" → "OFFICE SUPPLIES PLU",
-         "&" → "AND", "JB Hi-Fi" → "ELECTRONICS STORE JB HIFI").
+      1. DESCRIPTION — containment check, NOT exact match:
+         The receipt store's core business name should be recognisable
+         WITHIN the bank's "{description_column}" value. Bank descriptions
+         often include payment prefixes, location suffixes, and acquirer
+         codes around the merchant name.
+         Examples of valid matches:
+           "Thai Palace"       → "SQ *THAI PALACE SYDNEY"   (acquirer prefix + location)
+           "Dan Murphy's"      → "Contactless Payment DAN MURPHYS" (payment prefix)
+           "Harvey Norman"     → "HARVEY NORMAN AU AUS"     (location suffix)
+           "Fish & Chips Co"   → "FISH AND CHIPS CO"        (& → AND)
+         Record this check in the NAME_CHECK field.
       2. DATE: the "{date_column}" column vs the purchase date. The bank
          date should be the same day or up to 5 business days later (bank
          processing delay). The bank statement may use a different date
@@ -118,6 +125,7 @@ prompts:
       RECEIPT_STORE: the store/merchant name from the purchase
       RECEIPT_TOTAL: the total amount from the purchase (numeric, no currency symbol)
       AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
+      NAME_CHECK: "<core name>" found in "<transaction description>" → MATCH or NO_MATCH
       MATCHED_TRANSACTION: FOUND or NOT_FOUND (must be NOT_FOUND when AMOUNT_CHECK is NO_MATCH)
       TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
       TRANSACTION_AMOUNT: the debit amount from the matched row (numeric only, no currency symbol), or NOT_FOUND
