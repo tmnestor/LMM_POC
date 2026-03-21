@@ -38,9 +38,10 @@ prompts:
       STORE: the vendor, merchant, or company name
       DATE: the date (DD/MM/YYYY) — use purchase date, invoice date,
             or due date (whichever is most prominent)
-      TOTAL: the final total as a plain number with no currency symbols,
-            prefixes, or suffixes (e.g. 83.48 not $83.48, not 83.48 AUD)
-            Australian amounts always have exactly 2 decimal places.
+      TOTAL: the final total as a decimal number with exactly 2 decimal
+            places and no currency symbols (e.g. 124.50 not $124.50).
+            ALWAYS include the decimal point and cents — write 124.50
+            not 12450.
             If the total is partially obscured or cut off at a page edge,
             cross-reference other lines on the same receipt (e.g. PURCHASE,
             Eft, or payment confirmation lines) to recover the full amount.
@@ -139,12 +140,12 @@ prompts:
 
       --- RECEIPT 1 ---
       RECEIPT_STORE: the store/merchant name from the purchase
-      RECEIPT_TOTAL: the total amount from the purchase (numeric, no currency symbol)
+      RECEIPT_TOTAL: the total amount from the purchase (decimal with 2 decimal places, no currency symbol, e.g. 124.50)
       AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
       NAME_CHECK: "<core name>" found in "<transaction description>" → MATCH or NO_MATCH
       MATCHED_TRANSACTION: FOUND or NOT_FOUND (must be NOT_FOUND when AMOUNT_CHECK is NO_MATCH)
       TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
-      TRANSACTION_AMOUNT: the debit amount from the matched row (numeric only, no currency symbol), or NOT_FOUND
+      TRANSACTION_AMOUNT: the debit amount from the matched row (decimal with 2 decimal places, no currency symbol, e.g. 124.50), or NOT_FOUND
       TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
       CONFIDENCE: HIGH, MEDIUM, or LOW
       MISMATCH_TYPE: NONE or NAME_MISMATCH or DATE_DELAY
