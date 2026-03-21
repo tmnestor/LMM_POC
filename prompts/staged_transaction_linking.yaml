@@ -29,6 +29,9 @@ prompts:
       A single document that shows both a subtotal and a total is still
       ONE purchase — use the final total only.
 
+      OUTPUT FORMAT: plain text only — no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
       For each distinct purchase found, respond in the following format:
 
       --- RECEIPT 1 ---
@@ -58,6 +61,9 @@ prompts:
 
       Find the transaction table and list its column headers exactly as they
       appear, in order from left to right.
+
+      OUTPUT FORMAT: plain text only — no markdown bold (**), no headings
+      (#), no bullet points.
 
       Respond as a numbered list, one header per line:
       1. First Column Name
@@ -124,6 +130,10 @@ prompts:
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
+
+      OUTPUT FORMAT: plain text only — no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+      All dates must be DD/MM/YYYY with a 4-digit year.
 
       For each purchase, respond in the following format:
 
