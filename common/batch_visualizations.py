@@ -191,6 +191,7 @@ class BatchVisualizer:
         save_path: Optional[Path] = None,
         show: bool = True,
         max_fields: int = 30,
+        field_order: list[str] | None = None,
     ) -> Tuple[Optional[Path], Optional[pd.DataFrame]]:
         """
         Create field-level accuracy heatmap.
@@ -224,20 +225,34 @@ class BatchVisualizer:
             col.replace("accuracy_", "") for col in field_accuracy_data.columns
         ]
 
-        # Calculate average accuracy per field and sort
-        field_avg = field_accuracy_data.mean().sort_values(ascending=False)
+        # Determine field display order
+        if field_order is not None:
+            # Use caller-specified order, filtering to fields that exist
+            ordered_fields = [
+                f for f in field_order if f in field_accuracy_data.columns
+            ]
+            # Append any remaining fields not in field_order
+            remaining = [
+                f for f in field_accuracy_data.columns if f not in ordered_fields
+            ]
+            ordered_fields.extend(remaining)
+        else:
+            # Default: sort by average accuracy descending
+            ordered_fields = list(
+                field_accuracy_data.mean().sort_values(ascending=False).index
+            )
 
-        # Limit to top fields if too many
-        if len(field_avg) > max_fields:
-            field_avg = field_avg.head(max_fields)
-            field_accuracy_data = field_accuracy_data[field_avg.index]
+        # Limit to max_fields
+        if len(ordered_fields) > max_fields:
+            ordered_fields = ordered_fields[:max_fields]
+
+        field_accuracy_data = field_accuracy_data[ordered_fields]
 
         # Create heatmap
         fig_height = max(8, len(df_results) * 0.3)
         plt.figure(figsize=(14, fig_height))
 
-        # Reorder columns by average accuracy
-        field_accuracy_ordered = field_accuracy_data[field_avg.index]
+        field_accuracy_ordered = field_accuracy_data
 
         # Create heatmap
         sns.heatmap(
