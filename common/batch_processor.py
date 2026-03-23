@@ -156,7 +156,7 @@ class BatchDocumentProcessor:
 
         # Use SimpleModelEvaluator for model comparison
         self.model_evaluator = SimpleModelEvaluator()
-        self.ground_truth_data = None
+        self.ground_truth_data: dict[str, dict] = {}
 
         # Cache field definitions and evaluation method (loaded once, not per-image)
         self.doc_type_fields = field_definitions or load_document_field_definitions()
@@ -446,6 +446,14 @@ class BatchDocumentProcessor:
 
             logger.info("BANK STATEMENT (sequential): %s", image_name)
 
+            # Print tile info once for bank statements (they go through
+            # load_image_from_pil which is intentionally silent)
+            if hasattr(self.model_handler, "image_preprocessor"):
+                tile_info = self.model_handler.image_preprocessor.get_tile_info(
+                    image_path
+                )
+                self.console.print(f"[dim]{tile_info}[/dim]")
+
             bank_start = time.time()
 
             try:
@@ -551,7 +559,7 @@ class BatchDocumentProcessor:
 
         batch_results = []
         processing_times = []
-        document_types_found = {}
+        document_types_found: dict[str, int] = {}
 
         logger.info("Starting Batch Processing")
         self.console.rule("[bold green]Batch Extraction[/bold green]")
@@ -575,6 +583,14 @@ class BatchDocumentProcessor:
 
             progress.update(progress_task, current=image_name)
             self.console.print(progress.get_renderable())
+
+            # Print tile info once per image (sequential mode goes through
+            # load_image_from_pil which is intentionally silent)
+            if hasattr(self.model_handler, "image_preprocessor"):
+                tile_info = self.model_handler.image_preprocessor.get_tile_info(
+                    image_path
+                )
+                self.console.print(f"[dim]{tile_info}[/dim]")
 
             logger.debug("Processing [%d/%d]: %s", idx, total_images, image_name)
 

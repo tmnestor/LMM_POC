@@ -105,6 +105,26 @@ class InternVL3ImagePreprocessor:
             height=h,
         )
 
+    def get_tile_info(self, image_file) -> str:
+        """Return a one-line summary of tile count and quality for an image file.
+
+        Lightweight — opens the image for quality assessment only, no tensor work.
+        """
+        from pathlib import Path
+
+        image = Image.open(image_file).convert("RGB")
+        resolved = self._resolve_tile_count(image, None)
+        tiles = self.dynamic_preprocess(
+            image, min_num=1, max_num=resolved, image_size=448, use_thumbnail=True
+        )
+        if self.adaptive_enabled:
+            metrics = self.assess_image_quality(image)
+            return (
+                f"{Path(image_file).name}: {len(tiles)} tiles "
+                f"(quality: {metrics.composite_score:.2f})"
+            )
+        return f"{Path(image_file).name}: {len(tiles)} tiles"
+
     def _resolve_tile_count(self, image: Image.Image, max_num: int | None) -> int:
         """Determine tile count for an image.
 
@@ -312,21 +332,22 @@ class InternVL3ImagePreprocessor:
             image_size=input_size,
             use_thumbnail=True,
         )
+        # Force output past Rich progress bar
+        import sys
         from pathlib import Path
 
-        # Show adaptive info when quality assessment was used
         if self.adaptive_enabled and max_num is None:
             metrics = self.assess_image_quality(image)
-            print(
+            sys.stdout.write(
                 f"{Path(image_file).name}: {len(images)} tiles "
-                f"(quality: {metrics.composite_score:.2f})"
+                f"(quality: {metrics.composite_score:.2f})\n"
             )
         else:
-            print(f"{Path(image_file).name}: {len(images)} tiles")
+            sys.stdout.write(f"{Path(image_file).name}: {len(images)} tiles\n")
+        sys.stdout.flush()
 
         transform = self.build_transform(input_size=input_size)
-        pixel_values = [transform(img) for img in images]
-        pixel_values = torch.stack(pixel_values)
+        pixel_values = torch.stack([transform(img) for img in images])
 
         # Convert to model's dtype
         pixel_dtype = self.resolve_pixel_dtype(model, debug=self.debug)
@@ -402,8 +423,7 @@ class InternVL3ImagePreprocessor:
         )
 
         transform = self.build_transform(input_size=input_size)
-        pixel_values = [transform(img) for img in images]
-        pixel_values = torch.stack(pixel_values)
+        pixel_values = torch.stack([transform(img) for img in images])
 
         pixel_dtype = self.resolve_pixel_dtype(model, debug=self.debug)
         pixel_values = pixel_values.to(dtype=pixel_dtype)
