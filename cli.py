@@ -130,8 +130,8 @@ def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
     suffixes = load_structure_suffixes(extraction_path)
     doc_keys: set[str] = set()
     for key in prompt_keys:
-        base = strip_structure_suffixes(key, suffixes)
-        if base in supported_types:
+        base_type = strip_structure_suffixes(key, suffixes)
+        if base_type in supported_types:
             doc_keys.add(key)
 
     # Map prompt keys to uppercase canonical types, stripping structure suffixes
@@ -260,7 +260,7 @@ def run_batch_processing(
 
     batch_results, processing_times, document_types_found = (
         batch_processor.process_batch(
-            images,
+            [str(img) for img in images],
             verbose=config.verbose,
         )
     )
@@ -302,11 +302,11 @@ def generate_visualizations(
     output_dirs: dict[str, Path],
     df_results,
     df_doctype_stats,
-) -> list[str]:
+) -> dict[str, Path]:
     """Generate visualization files."""
     if config.skip_visualizations:
         console.print("[dim]Skipping visualizations (--no-viz)[/dim]")
-        return []
+        return {}
 
     console.print("\n[bold]Generating visualizations...[/bold]")
 
@@ -334,11 +334,11 @@ def generate_reports(
     df_results,
     df_summary,
     df_doctype_stats,
-) -> list[str]:
+) -> dict[str, Path]:
     """Generate report files."""
     if config.skip_reports:
         console.print("[dim]Skipping reports (--no-reports)[/dim]")
-        return []
+        return {}
 
     console.print("\n[bold]Generating reports...[/bold]")
 
@@ -573,14 +573,13 @@ def run_pipeline(config: PipelineConfig) -> None:
             # Multi-GPU parallel processing (model loading happens per-worker)
             from common.multi_gpu import MultiGPUOrchestrator
 
-            _inference_start = _time.time()
             orchestrator = MultiGPUOrchestrator(config, resolved_gpus)
             batch_results, processing_times, document_types_found, batch_stats = (
                 orchestrator.run(
                     images, prompt_config, universal_fields, field_definitions
                 )
             )
-            inference_time = _time.time() - _inference_start
+            inference_time = orchestrator.inference_elapsed
         else:
             # Single-GPU path (default)
             try:
@@ -824,7 +823,7 @@ def main(
         raise typer.Exit(EXIT_SUCCESS)
 
     # Build CLI args dict (only non-None values)
-    arg_mapping = {
+    arg_mapping: dict[str, Any] = {
         "data_dir": data_dir,
         "output_dir": output_dir,
         "model_type": model_type,

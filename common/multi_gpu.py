@@ -119,7 +119,10 @@ class MultiGPUOrchestrator:
             f"{elapsed:.1f}s total[/bold green]"
         )
 
-        return self._merge_results(gpu_results)
+        results = self._merge_results(gpu_results)
+        # Attach inference-only time (excludes model loading) for throughput calc
+        self.inference_elapsed = elapsed
+        return results
 
     @staticmethod
     def _process_chunk(
@@ -177,7 +180,7 @@ class MultiGPUOrchestrator:
         # Average batch_stats across GPUs
         averaged_stats: dict[str, float] = {}
         if all_batch_stats:
-            all_keys = set()
+            all_keys: set[str] = set()
             for stats in all_batch_stats:
                 all_keys.update(stats.keys())
             for key in all_keys:
