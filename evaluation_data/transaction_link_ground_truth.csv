@@ -1,4 +1,0 @@
-image_file,bank_statement_file,DOCUMENT_TYPE,RECEIPT_DATE,RECEIPT_DESCRIPTION,RECEIPT_TOTAL,BANK_TRANSACTION_DATE,BANK_TRANSACTION_DESCRIPTION,BANK_TRANSACTION_DEBIT
-synthetic_multi_receipt_page.png,synthetic_bank_statement.png,TRANSACTION_LINK,15/01/2024 | 12/01/2024 | 10/01/2024,Office Supplies Plus | MetroCafe & Grill | Sydney Auto Parts Warehouse,$83.48 | $39.70 | $142.80,15/01/2024 | 12/01/2024 | 10/01/2024,OFFICE SUPPLIES PLU | METROCAFE ANDGRI | SYDNEY AUTO PARTS W,$83.48 | $39.70 | $142.80
-synthetic_single_receipt_bunnings.png,bank_012.png,TRANSACTION_LINK,09/08/2025,Bunnings Warehouse Canberra,$850.65,09/08/2025,Contactless Payment BUNNINGS,$850.65
-synthetic_dual_receipt_jbhifi_dymocks.png,bank_003.png,TRANSACTION_LINK,28/04/2024 | 18/04/2024,JB Hi-Fi Melbourne CBD | Dymocks Melbourne,$399.00 | $67.40,28/04/2024 | 18/04/2024,ELECTRONICS STORE JB HIFI AU AUS | BOOKSTORE MELBOURNE CBD AU AUS,399.00 | 67.40
