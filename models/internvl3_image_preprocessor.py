@@ -212,6 +212,9 @@ class InternVL3ImagePreprocessor:
         images = self.dynamic_preprocess(
             image, min_num=1, max_num=max_num, image_size=input_size, use_thumbnail=True
         )
+        from pathlib import Path
+
+        print(f"{Path(image_file).name}: {len(images)} tiles")
 
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]
@@ -291,6 +294,7 @@ class InternVL3ImagePreprocessor:
             image_size=input_size,
             use_thumbnail=True,
         )
+        print(f"(PIL image): {len(images)} tiles")
 
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]
