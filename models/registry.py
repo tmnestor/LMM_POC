@@ -237,17 +237,6 @@ def _internvl3_loader(config):
                     device_map=cfg.device_map,
                 ).eval()
 
-                global _sdpa_patched  # noqa: PLW0603
-                if not _sdpa_patched:
-                    if _patch_eager_attention_to_sdpa():
-                        console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                        _sdpa_patched = True
-                    else:
-                        console.print(
-                            "[yellow]Warning: could not patch attention "
-                            "to SDPA -- high tile counts may OOM[/yellow]"
-                        )
-
                 # Set pad_token_id on generation_config to suppress
                 # "Setting pad_token_id to eos_token_id" warnings.
                 if hasattr(model, "generation_config"):
@@ -257,6 +246,17 @@ def _internvl3_loader(config):
 
             flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
             console.print(f"⚡ Flash Attention 2: {flash_status}")
+
+            global _sdpa_patched  # noqa: PLW0603
+            if not _sdpa_patched:
+                if _patch_eager_attention_to_sdpa():
+                    console.print("[bold]Patched eager attention -> SDPA[/bold]")
+                    _sdpa_patched = True
+                else:
+                    console.print(
+                        "[yellow]Warning: could not patch attention "
+                        "to SDPA -- high tile counts may OOM[/yellow]"
+                    )
 
             # Skip per-loader GPU status in multi-GPU mode (orchestrator prints once)
             if not getattr(cfg, "_multi_gpu", False):
