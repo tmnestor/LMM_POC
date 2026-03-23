@@ -65,6 +65,7 @@ class InternVL3ImagePreprocessor:
         self.min_tiles = min_tiles
         self.adaptive_enabled = min_tiles is not None and min_tiles < max_tiles
         self.debug = debug
+        self._seen_image_ids: set[int] = set()
 
     def assess_image_quality(self, image: Image.Image) -> ImageQualityMetrics:
         """Assess image quality using sharpness and contrast metrics.
@@ -94,7 +95,7 @@ class InternVL3ImagePreprocessor:
 
         # Low quality → more tiles; high quality → fewer tiles
         tile_range = self.max_tiles - (self.min_tiles or self.max_tiles)
-        recommended = self.max_tiles - round(composite * tile_range)
+        recommended = self.max_tiles - int(composite * tile_range)
 
         return ImageQualityMetrics(
             sharpness_score=sharpness_score,
@@ -401,14 +402,18 @@ class InternVL3ImagePreprocessor:
             use_thumbnail=True,
         )
 
-        if self.adaptive_enabled and max_num is None:
-            metrics = self.assess_image_quality(rgb_image)
-            print(
-                f"(PIL image): {len(images)} tiles "
-                f"(quality: {metrics.composite_score:.2f})"
-            )
-        else:
-            print(f"(PIL image): {len(images)} tiles")
+        # Print once per unique PIL image (suppress multi-turn duplicates)
+        img_id = id(image)
+        if img_id not in self._seen_image_ids:
+            self._seen_image_ids.add(img_id)
+            if self.adaptive_enabled and max_num is None:
+                metrics = self.assess_image_quality(rgb_image)
+                print(
+                    f"(PIL image): {len(images)} tiles "
+                    f"(quality: {metrics.composite_score:.2f})"
+                )
+            else:
+                print(f"(PIL image): {len(images)} tiles")
 
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]
