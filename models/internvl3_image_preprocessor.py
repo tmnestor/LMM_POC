@@ -7,9 +7,12 @@ Separates pure image computation from model loading and generation logic,
 enabling independent testing and reuse (e.g. by UnifiedBankExtractor).
 """
 
+from dataclasses import dataclass
+
+import numpy as np
 import torch
 import torchvision.transforms as T
-from PIL import Image
+from PIL import Image, ImageFilter, ImageStat
 
 # ImageNet normalization constants (for vision transformers)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -17,6 +20,32 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 # Default image size for processing
 DEFAULT_IMAGE_SIZE = 448
+
+# Quality assessment reference values
+_SHARPNESS_REF = 500.0
+_CONTRAST_REF = 80.0
+_SHARPNESS_WEIGHT = 0.7
+_CONTRAST_WEIGHT = 0.3
+
+# 3x3 Laplacian kernel for sharpness estimation
+_LAPLACIAN_KERNEL = ImageFilter.Kernel(
+    size=(3, 3),
+    kernel=[0, 1, 0, 1, -4, 1, 0, 1, 0],
+    scale=1,
+    offset=128,
+)
+
+
+@dataclass
+class ImageQualityMetrics:
+    """Per-image quality assessment results."""
+
+    sharpness_score: float
+    contrast_score: float
+    composite_score: float
+    recommended_tiles: int
+    width: int
+    height: int
 
 
 class InternVL3ImagePreprocessor:
@@ -26,9 +55,78 @@ class InternVL3ImagePreprocessor:
     preparation with correct dtype/device for model inference.
     """
 
-    def __init__(self, max_tiles: int, debug: bool = False):
+    def __init__(
+        self,
+        max_tiles: int,
+        debug: bool = False,
+        min_tiles: int | None = None,
+    ):
         self.max_tiles = max_tiles
+        self.min_tiles = min_tiles
+        self.adaptive_enabled = min_tiles is not None and min_tiles < max_tiles
         self.debug = debug
+
+    def assess_image_quality(self, image: Image.Image) -> ImageQualityMetrics:
+        """Assess image quality using sharpness and contrast metrics.
+
+        Args:
+            image: PIL Image to assess.
+
+        Returns:
+            ImageQualityMetrics with per-metric scores and recommended tile count.
+        """
+        gray = image.convert("L")
+        w, h = image.size
+
+        # Sharpness: variance of Laplacian response
+        laplacian = gray.filter(_LAPLACIAN_KERNEL)
+        lap_arr = np.asarray(laplacian, dtype=np.float64) - 128.0
+        sharpness_raw = float(np.var(lap_arr))
+        sharpness_score = min(sharpness_raw / _SHARPNESS_REF, 1.0)
+
+        # Contrast: std deviation of grayscale pixel values
+        contrast_raw = ImageStat.Stat(gray).stddev[0]
+        contrast_score = min(contrast_raw / _CONTRAST_REF, 1.0)
+
+        composite = (
+            _SHARPNESS_WEIGHT * sharpness_score + _CONTRAST_WEIGHT * contrast_score
+        )
+
+        # Low quality → more tiles; high quality → fewer tiles
+        tile_range = self.max_tiles - (self.min_tiles or self.max_tiles)
+        recommended = self.max_tiles - round(composite * tile_range)
+
+        return ImageQualityMetrics(
+            sharpness_score=sharpness_score,
+            contrast_score=contrast_score,
+            composite_score=composite,
+            recommended_tiles=recommended,
+            width=w,
+            height=h,
+        )
+
+    def _resolve_tile_count(self, image: Image.Image, max_num: int | None) -> int:
+        """Determine tile count for an image.
+
+        Priority:
+        1. Explicit max_num override (from caller / notebook) → use it directly.
+        2. Adaptive OFF → self.max_tiles.
+        3. Adaptive ON → quality-based selection in [min_tiles, max_tiles].
+        """
+        if max_num is not None:
+            return max_num
+
+        if not self.adaptive_enabled:
+            return self.max_tiles
+
+        metrics = self.assess_image_quality(image)
+        if self.debug:
+            print(
+                f"  quality: sharpness={metrics.sharpness_score:.2f} "
+                f"contrast={metrics.contrast_score:.2f} "
+                f"composite={metrics.composite_score:.2f}"
+            )
+        return metrics.recommended_tiles
 
     @staticmethod
     def get_model_device(model) -> torch.device:
@@ -186,35 +284,45 @@ class InternVL3ImagePreprocessor:
         Returns:
             Preprocessed pixel values tensor ready for model inference.
         """
-        if max_num is None:
-            if self.max_tiles is not None:
-                max_num = self.max_tiles
-            else:
-                raise ValueError(
-                    "❌ FATAL: max_tiles not configured!\n"
-                    "💡 Add MAX_TILES to your notebook CONFIG:\n"
-                    "   CONFIG = {\n"
-                    "       ...\n"
-                    "       'MAX_TILES': 36,  # H200: 36, V100-8B: 14, 2B: 18\n"
-                    "   }\n"
-                    "💡 Pass to processor initialization:\n"
-                    "   hybrid_processor = DocumentAwareInternVL3HybridProcessor(\n"
-                    "       ...\n"
-                    "       max_tiles=CONFIG['MAX_TILES']\n"
-                    "   )"
-                )
-
-        if self.debug:
-            print(f"🔍 LOAD_IMAGE: max_num={max_num}, input_size={input_size}")
-
         image = Image.open(image_file).convert("RGB")
 
+        resolved = self._resolve_tile_count(image, max_num)
+        if resolved is None:
+            raise ValueError(
+                "max_tiles not configured!\n"
+                "Add MAX_TILES to your notebook CONFIG:\n"
+                "   CONFIG = {\n"
+                "       ...\n"
+                "       'MAX_TILES': 36,  # H200: 36, V100-8B: 14, 2B: 18\n"
+                "   }\n"
+                "Pass to processor initialization:\n"
+                "   hybrid_processor = DocumentAwareInternVL3HybridProcessor(\n"
+                "       ...\n"
+                "       max_tiles=CONFIG['MAX_TILES']\n"
+                "   )"
+            )
+
+        if self.debug:
+            print(f"LOAD_IMAGE: max_num={resolved}, input_size={input_size}")
+
         images = self.dynamic_preprocess(
-            image, min_num=1, max_num=max_num, image_size=input_size, use_thumbnail=True
+            image,
+            min_num=1,
+            max_num=resolved,
+            image_size=input_size,
+            use_thumbnail=True,
         )
         from pathlib import Path
 
-        print(f"{Path(image_file).name}: {len(images)} tiles")
+        # Show adaptive info when quality assessment was used
+        if self.adaptive_enabled and max_num is None:
+            metrics = self.assess_image_quality(image)
+            print(
+                f"{Path(image_file).name}: {len(images)} tiles "
+                f"(quality: {metrics.composite_score:.2f})"
+            )
+        else:
+            print(f"{Path(image_file).name}: {len(images)} tiles")
 
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]
@@ -276,25 +384,31 @@ class InternVL3ImagePreprocessor:
         Returns:
             Preprocessed pixel values tensor ready for model inference.
         """
-        if max_num is None:
-            if self.max_tiles is not None:
-                max_num = self.max_tiles
-            else:
-                raise ValueError(
-                    "❌ FATAL: max_tiles not configured!\n"
-                    "💡 Set max_tiles when constructing the processor."
-                )
-
         rgb_image = image.convert("RGB")
+
+        resolved = self._resolve_tile_count(rgb_image, max_num)
+        if resolved is None:
+            raise ValueError(
+                "max_tiles not configured!\n"
+                "Set max_tiles when constructing the processor."
+            )
 
         images = self.dynamic_preprocess(
             rgb_image,
             min_num=1,
-            max_num=max_num,
+            max_num=resolved,
             image_size=input_size,
             use_thumbnail=True,
         )
-        print(f"(PIL image): {len(images)} tiles")
+
+        if self.adaptive_enabled and max_num is None:
+            metrics = self.assess_image_quality(rgb_image)
+            print(
+                f"(PIL image): {len(images)} tiles "
+                f"(quality: {metrics.composite_score:.2f})"
+            )
+        else:
+            print(f"(PIL image): {len(images)} tiles")
 
         transform = self.build_transform(input_size=input_size)
         pixel_values = [transform(img) for img in images]

@@ -10,6 +10,7 @@ model:
   # type: llama
   # path: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
   max_tiles: 6          # Image tiles (H200: 18-36, V100: 14, L4: 18)
+  # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
   max_new_tokens: 2000   # Max tokens for generation

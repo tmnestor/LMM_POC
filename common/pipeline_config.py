@@ -91,6 +91,7 @@ class PipelineConfig:
     # Model options
     model_type: str = "internvl3"
     max_tiles: int = 11
+    min_tiles: int | None = None  # Set to enable adaptive quality-based tiling
     flash_attn: bool = True
     dtype: str = "bfloat16"
     max_new_tokens: int = 2000
@@ -166,6 +167,7 @@ def load_yaml_config(
         flat_config["model_type"] = raw_config["model"].get("type")
         flat_config["model_path"] = raw_config["model"].get("path")
         flat_config["max_tiles"] = raw_config["model"].get("max_tiles")
+        flat_config["min_tiles"] = raw_config["model"].get("min_tiles")
         flat_config["flash_attn"] = raw_config["model"].get("flash_attn")
         flat_config["dtype"] = raw_config["model"].get("dtype")
         flat_config["max_new_tokens"] = raw_config["model"].get("max_new_tokens")
@@ -224,6 +226,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}BATCH_SIZE": ("batch_size", int),
         f"{ENV_PREFIX}NUM_GPUS": ("num_gpus", int),
         f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
+        f"{ENV_PREFIX}MIN_TILES": ("min_tiles", int),
         f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}DTYPE": ("dtype", str),
         f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),

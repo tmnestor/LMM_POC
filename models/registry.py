@@ -298,6 +298,7 @@ def _internvl3_processor_creator(
         pre_loaded_tokenizer=tokenizer,
         prompt_config=prompt_config,
         max_tiles=config.max_tiles,
+        min_tiles=config.min_tiles,
         field_definitions=field_definitions,
     )
 

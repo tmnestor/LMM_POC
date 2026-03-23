@@ -448,7 +448,12 @@ def print_config(config: PipelineConfig) -> None:
 
     # Model settings
     config_table.add_row("Model type", config.model_type)
-    config_table.add_row("Max tiles", str(config.max_tiles))
+    if config.min_tiles is not None and config.min_tiles < config.max_tiles:
+        config_table.add_row(
+            "Tiles", f"{config.min_tiles}..{config.max_tiles} (adaptive)"
+        )
+    else:
+        config_table.add_row("Tiles", f"{config.max_tiles} (fixed)")
     config_table.add_row("Flash attention", str(config.flash_attn))
     config_table.add_row("Dtype", config.dtype)
     config_table.add_row("Max new tokens", str(config.max_new_tokens))
@@ -750,6 +755,11 @@ def main(
         "--max-tiles",
         help="Max image tiles (H200: 11, V100: 14). Default from config or 11.",
     ),
+    min_tiles: int | None = typer.Option(
+        None,
+        "--min-tiles",
+        help="Min tiles for adaptive quality-based tiling. Enables adaptive mode.",
+    ),
     flash_attn: bool | None = typer.Option(
         None,
         "--flash-attn/--no-flash-attn",
@@ -823,6 +833,7 @@ def main(
         "max_images": max_images,
         "batch_size": batch_size,
         "max_tiles": max_tiles,
+        "min_tiles": min_tiles,
         "flash_attn": flash_attn,
         "dtype": dtype,
         "bank_v2": bank_v2,

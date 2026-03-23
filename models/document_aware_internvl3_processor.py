@@ -54,6 +54,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         pre_loaded_tokenizer=None,
         prompt_config: dict | None = None,
         max_tiles: int = None,
+        min_tiles: int | None = None,
         field_definitions: dict[str, list[str]] | None = None,
     ):
         """
@@ -77,7 +78,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
 
         # Image preprocessing pipeline (extracted for testability and reuse)
         self.image_preprocessor = InternVL3ImagePreprocessor(
-            max_tiles=max_tiles, debug=debug
+            max_tiles=max_tiles, debug=debug, min_tiles=min_tiles
         )
 
         # Initialize model components (InternVL3 specific)
