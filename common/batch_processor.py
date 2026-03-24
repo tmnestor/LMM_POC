@@ -209,18 +209,28 @@ class BatchDocumentProcessor:
         Only fires when ground_truth_data is populated.
         """
         override_count = 0
+        no_gt_count = 0
         for info, img_path in zip(classification_infos, image_paths, strict=True):
             gt = self._lookup_ground_truth(img_path)
             gt_type = gt.get("DOCUMENT_TYPE", "")
-            if gt_type and gt_type.upper() != info["document_type"].upper():
-                logger.info(
-                    "GT override: %s  %s -> %s",
-                    Path(img_path).name,
-                    info["document_type"],
-                    gt_type.upper(),
-                )
+            name = Path(img_path).name
+            if not gt:
+                no_gt_count += 1
+                print(f"  GT lookup MISS: {name} (no ground truth found)")
+                continue
+            if not gt_type:
+                no_gt_count += 1
+                print(f"  GT lookup MISS: {name} (no DOCUMENT_TYPE in GT)")
+                continue
+            pred = info["document_type"]
+            if gt_type.upper() != pred.upper():
+                print(f"  GT override: {name}  {pred} -> {gt_type.upper()}")
                 info["document_type"] = gt_type.upper()
                 override_count += 1
+            else:
+                print(f"  GT match:    {name}  {pred} == {gt_type.upper()}")
+        if no_gt_count:
+            print(f"  GT lookup failures: {no_gt_count}/{len(image_paths)}")
         return override_count
 
     def process_batch(
@@ -353,11 +363,12 @@ class BatchDocumentProcessor:
 
         # Override detected types with ground truth for impact assessment
         if self.ground_truth_data:
+            print("\n=== GT Document Type Override ===")
             override_count = self._override_doc_types_from_ground_truth(
                 all_classification_infos, image_paths
             )
+            print(f"  Overrides applied: {override_count}/{len(image_paths)}")
             if override_count:
-                logger.info("GT doc-type overrides applied: %d", override_count)
                 document_types_found.clear()
                 for info in all_classification_infos:
                     doc_type = info["document_type"]
