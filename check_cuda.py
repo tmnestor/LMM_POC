@@ -48,7 +48,9 @@ def main() -> None:
 
         for i in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(i)
-            total_gb = props.total_mem / 1024**3
+            total_gb = (
+                getattr(props, "total_memory", getattr(props, "total_mem", 0)) / 1024**3
+            )
             print(f"\n  GPU {i}: {torch.cuda.get_device_name(i)}")
             print(f"    {'Total memory':.<26s} {total_gb:.1f} GiB")
             print(f"    {'Compute capability':.<26s} {props.major}.{props.minor}")
