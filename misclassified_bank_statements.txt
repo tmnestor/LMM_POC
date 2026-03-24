@@ -1,0 +1,8 @@
+# Misclassified Bank Statements (2026-03-25)
+# Model predicted RECEIPT, ground truth is BANK_STATEMENT
+# Impact: overriding with GT changed score from 67.8% -> 67.7% (negligible)
+# Conclusion: misclassification is not the accuracy problem
+
+1351904028_1_1.jpeg
+1353775322_1_58.jpeg
+1364080459_4_2.jpeg

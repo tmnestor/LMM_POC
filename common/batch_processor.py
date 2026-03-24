@@ -362,19 +362,21 @@ class BatchDocumentProcessor:
             logger.info("  %s: %d", doc_type, count)
 
         # Override detected types with ground truth for impact assessment
-        if self.ground_truth_data:
-            print("\n=== GT Document Type Override ===")
-            override_count = self._override_doc_types_from_ground_truth(
-                all_classification_infos, image_paths
-            )
-            print(f"  Overrides applied: {override_count}/{len(image_paths)}")
-            if override_count:
-                document_types_found.clear()
-                for info in all_classification_infos:
-                    doc_type = info["document_type"]
-                    document_types_found[doc_type] = (
-                        document_types_found.get(doc_type, 0) + 1
-                    )
+        # Result: 3/195 overrides (RECEIPT->BANK_STATEMENT), score 67.8%->67.7%
+        # Conclusion: misclassification is not the accuracy problem
+        # if self.ground_truth_data:
+        #     print("\n=== GT Document Type Override ===")
+        #     override_count = self._override_doc_types_from_ground_truth(
+        #         all_classification_infos, image_paths
+        #     )
+        #     print(f"  Overrides applied: {override_count}/{len(image_paths)}")
+        #     if override_count:
+        #         document_types_found.clear()
+        #         for info in all_classification_infos:
+        #             doc_type = info["document_type"]
+        #             document_types_found[doc_type] = (
+        #                 document_types_found.get(doc_type, 0) + 1
+        #             )
 
         # ================================================================
         # PHASE 2: EXTRACTION (batched for standard, sequential for bank)
