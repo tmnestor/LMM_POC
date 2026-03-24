@@ -20,6 +20,7 @@ from .evaluation_metrics import (
 )
 
 # Import Rich content sanitization to prevent recursion errors and ExtractionCleaner
+from .field_config import filter_evaluation_fields
 from .simple_model_evaluator import SimpleModelEvaluator
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ def load_document_field_definitions() -> dict[str, list[str]]:
                 f"File: {field_def_path.absolute()}\n"
                 f"Each document type must have at least one field defined."
             )
-        result[doc_type] = type_config["fields"]
+        result[doc_type] = filter_evaluation_fields(type_config["fields"])
 
     if not result:
         raise ValueError(
