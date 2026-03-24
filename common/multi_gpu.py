@@ -72,6 +72,12 @@ class MultiGPUOrchestrator:
             gpu_config = replace(self.config, device_map=f"cuda:{gpu_id}")
             gpu_config._multi_gpu = True  # suppress per-loader GPU status
 
+            # Set default CUDA device so temporary tensors during
+            # from_pretrained don't spill onto cuda:0.
+            import torch
+
+            torch.cuda.set_device(gpu_id)
+
             model_ctx = load_model(gpu_config)
             model, tokenizer = model_ctx.__enter__()
             processor = create_processor(
