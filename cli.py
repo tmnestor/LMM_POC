@@ -13,6 +13,7 @@ Usage:
 """
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -563,6 +564,11 @@ def run_pipeline(config: PipelineConfig) -> None:
                 f"{available_gpus} available[/red]"
             )
             raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Pin model to GPU 0 when running single-GPU on a multi-GPU machine.
+    # device_map="auto" would spread layers across all GPUs, wasting memory.
+    if resolved_gpus == 1 and available_gpus > 1 and config.device_map == "auto":
+        config = replace(config, device_map="cuda:0")
 
     import time as _time
 
