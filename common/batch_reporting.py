@@ -167,9 +167,12 @@ class BatchReporter:
                     min(5, len(accuracy_results)), "overall_accuracy"
                 )[["image_name", "overall_accuracy", "document_type"]]
 
-                if poor_performers["overall_accuracy"].min() < 80:
+                below_threshold = poor_performers[
+                    poor_performers["overall_accuracy"] < 50
+                ]
+                if len(below_threshold) > 0:
                     report += "\n### Areas for Improvement\n"
-                    for _, row in poor_performers.iterrows():
+                    for _, row in below_threshold.iterrows():
                         report += f"- {row['image_name']}: {row['overall_accuracy']:.1f}% ({row['document_type']})\n"
 
         # Add output files section
