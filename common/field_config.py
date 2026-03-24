@@ -230,6 +230,8 @@ def get_document_type_fields(document_type: str) -> list:
 # Fields EXTRACTED but EXCLUDED from evaluation metrics
 # These are used for mathematical validation/correction but don't count toward accuracy
 VALIDATION_ONLY_FIELDS = [
+    "DOCUMENT_TYPE",
+    "STATEMENT_DATE_RANGE",
     "TRANSACTION_AMOUNTS_RECEIVED",
     "ACCOUNT_BALANCE",
 ]
