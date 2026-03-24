@@ -410,3 +410,4 @@ supported_document_types:
   - travel_expense
   - vehicle_logbook
   - transaction_link
+  - universal
