@@ -200,6 +200,29 @@ class BatchDocumentProcessor:
 
         return {}
 
+    def _override_doc_types_from_ground_truth(
+        self, classification_infos: list[dict], image_paths: list[str]
+    ) -> int:
+        """Override detected document types with ground truth values.
+
+        Used to isolate the impact of misclassification on extraction accuracy.
+        Only fires when ground_truth_data is populated.
+        """
+        override_count = 0
+        for info, img_path in zip(classification_infos, image_paths, strict=True):
+            gt = self._lookup_ground_truth(img_path)
+            gt_type = gt.get("DOCUMENT_TYPE", "")
+            if gt_type and gt_type.upper() != info["document_type"].upper():
+                logger.info(
+                    "GT override: %s  %s -> %s",
+                    Path(img_path).name,
+                    info["document_type"],
+                    gt_type.upper(),
+                )
+                info["document_type"] = gt_type.upper()
+                override_count += 1
+        return override_count
+
     def process_batch(
         self, image_paths: list[str], verbose: bool = True, progress_interval: int = 5
     ) -> tuple[list[dict], list[float], dict[str, int]]:
@@ -327,6 +350,20 @@ class BatchDocumentProcessor:
         )
         for doc_type, count in sorted(document_types_found.items()):
             logger.info("  %s: %d", doc_type, count)
+
+        # Override detected types with ground truth for impact assessment
+        if self.ground_truth_data:
+            override_count = self._override_doc_types_from_ground_truth(
+                all_classification_infos, image_paths
+            )
+            if override_count:
+                logger.info("GT doc-type overrides applied: %d", override_count)
+                document_types_found.clear()
+                for info in all_classification_infos:
+                    doc_type = info["document_type"]
+                    document_types_found[doc_type] = (
+                        document_types_found.get(doc_type, 0) + 1
+                    )
 
         # ================================================================
         # PHASE 2: EXTRACTION (batched for standard, sequential for bank)

@@ -722,6 +722,48 @@ FATAL: Requested 4 GPUs but only 2 available
 
 Multi-GPU works with any registered model — InternVL3, Llama, or custom models. Each GPU gets its own complete model + processor stack via the same `load_model()` / `create_processor()` path used for single-GPU.
 
+## Ground Truth Document Type Override (Temporary)
+
+When running in evaluation mode (`-g` flag), the pipeline automatically overrides the model's predicted document type with the ground truth document type from the CSV. This isolates the impact of misclassification on extraction accuracy — the detection prompt still runs, but its result is replaced before routing.
+
+**Why this matters**: Receipt/invoice confusion is cosmetic (same extraction pipeline), but misclassification as `BANK_STATEMENT` routes through a completely different multi-turn extraction pipeline, producing garbage results. This override lets you measure that impact.
+
+### How it works
+
+- Fires between Phase 1 (detection) and Phase 2 (extraction routing) in `batch_processor.py`
+- Only activates when `ground_truth_data` is populated (i.e., `-g` flag was passed)
+- Logs every override: `GT override: image.jpg INVOICE -> RECEIPT`
+- Logs summary: `GT doc-type overrides applied: 3`
+- When no ground truth is provided, the code path is skipped entirely — zero impact on inference-only runs
+
+### How to disable
+
+This is a temporary assessment tool. To disable the override, comment out or delete the block in `_process_batch_two_phase()` in `common/batch_processor.py`:
+
+```python
+# Comment out or delete this block (around line 354):
+
+# Override detected types with ground truth for impact assessment
+if self.ground_truth_data:
+    override_count = self._override_doc_types_from_ground_truth(
+        all_classification_infos, image_paths
+    )
+    if override_count:
+        logger.info("GT doc-type overrides applied: %d", override_count)
+        document_types_found.clear()
+        for info in all_classification_infos:
+            doc_type = info["document_type"]
+            document_types_found[doc_type] = (
+                document_types_found.get(doc_type, 0) + 1
+            )
+```
+
+You may also optionally delete the `_override_doc_types_from_ground_truth()` method (around line 203) once the assessment is complete.
+
+### How to re-enable
+
+Uncomment the same block. The helper method `_override_doc_types_from_ground_truth()` can remain in the codebase with no side effects when the call site is removed.
+
 ## Configuring a New Document Type
 
 Adding a new document type requires changes to **3 YAML files** — no Python code changes needed. Here's a worked example adding a **purchase order** document type.
