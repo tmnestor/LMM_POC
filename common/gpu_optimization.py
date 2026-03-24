@@ -47,12 +47,12 @@ def configure_cuda_memory_allocation(
     if not torch.cuda.is_available():
         return False
 
-    # IMPORTANT: Clear any existing PYTORCH_CUDA_ALLOC_CONF that might have problematic settings
-    if "PYTORCH_CUDA_ALLOC_CONF" in os.environ:
-        current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+    # IMPORTANT: Clear any existing PYTORCH_ALLOC_CONF that might have problematic settings
+    if "PYTORCH_ALLOC_CONF" in os.environ:
+        current = os.environ.get("PYTORCH_ALLOC_CONF", "")
         if "expandable_segments" in current:
-            logger.warning("Removing problematic PYTORCH_CUDA_ALLOC_CONF: %s", current)
-            del os.environ["PYTORCH_CUDA_ALLOC_CONF"]
+            logger.warning("Removing problematic PYTORCH_ALLOC_CONF: %s", current)
+            del os.environ["PYTORCH_ALLOC_CONF"]
 
     # Detect GPU type for logging
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
@@ -61,7 +61,7 @@ def configure_cuda_memory_allocation(
     cuda_alloc_config = f"max_split_size_mb:{max_split_size_mb}"
 
     # Apply the configuration
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = cuda_alloc_config
+    os.environ["PYTORCH_ALLOC_CONF"] = cuda_alloc_config
     logger.info("GPU detected: %s", gpu_name)
     logger.info("CUDA memory allocation configured: %s", cuda_alloc_config)
 
