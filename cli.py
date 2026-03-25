@@ -579,7 +579,9 @@ def run_pipeline(config: PipelineConfig) -> None:
             # Multi-GPU parallel processing (model loading happens per-worker)
             from common.multi_gpu import MultiGPUOrchestrator
 
-            orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=True)
+            orchestrator = MultiGPUOrchestrator(
+                config, resolved_gpus, shuffle=True, type_aware=True
+            )
             batch_results, processing_times, document_types_found, batch_stats = (
                 orchestrator.run(
                     images, prompt_config, universal_fields, field_definitions

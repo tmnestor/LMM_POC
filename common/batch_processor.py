@@ -234,7 +234,10 @@ class BatchDocumentProcessor:
         return override_count
 
     def process_batch(
-        self, image_paths: list[str], verbose: bool = True, progress_interval: int = 5
+        self,
+        image_paths: list[str],
+        verbose: bool = True,
+        progress_interval: int = 5,
     ) -> tuple[list[dict], list[float], dict[str, int]]:
         """
         Process a batch of images through the extraction pipeline.
@@ -285,7 +288,10 @@ class BatchDocumentProcessor:
             self.model_handler, BatchCapableProcessor
         ):
             return self._process_batch_two_phase(
-                image_paths, effective_batch_size, verbose, progress_interval
+                image_paths,
+                effective_batch_size,
+                verbose,
+                progress_interval,
             )
         return self._process_batch_sequential(image_paths, verbose, progress_interval)
 
@@ -330,7 +336,7 @@ class BatchDocumentProcessor:
         logger.info("Phase 1: Batched Document Detection")
 
         detection_start = time.time()
-        all_classification_infos: list[dict] = []
+        all_classification_infos = []
 
         for batch_start in range(0, total_images, batch_size):
             batch_end = min(batch_start + batch_size, total_images)
@@ -349,15 +355,16 @@ class BatchDocumentProcessor:
             )
             all_classification_infos.extend(batch_classifications)
 
+        detection_time = time.time() - detection_start
+        logger.info(
+            "Detection complete: %.1fs for %d images", detection_time, total_images
+        )
+
         # Count document types
         for info in all_classification_infos:
             doc_type = info["document_type"]
             document_types_found[doc_type] = document_types_found.get(doc_type, 0) + 1
 
-        detection_time = time.time() - detection_start
-        logger.info(
-            "Detection complete: %.1fs for %d images", detection_time, total_images
-        )
         for doc_type, count in sorted(document_types_found.items()):
             logger.info("  %s: %d", doc_type, count)
 
