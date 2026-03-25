@@ -88,11 +88,13 @@ class MultiGPUOrchestrator:
             work_queue.put((idx, img))
 
         # Pre-allocate result slots (one per image, indexed by original order)
-        results: list[dict | None] = [None] * len(images)
-        timings: list[float] = [0.0] * len(images)
+        total_images = len(images)
+        results: list[dict | None] = [None] * total_images
+        timings: list[float] = [0.0] * total_images
         doc_types_found: dict[str, int] = {}
         doc_types_lock = threading.Lock()
         gpu_counts: list[int] = [0] * actual_gpus
+        completed = [0]  # mutable counter for thread-safe increment
 
         # Create per-GPU bank adapters
         bank_adapters = [
@@ -120,6 +122,8 @@ class MultiGPUOrchestrator:
                     doc_types_found,
                     doc_types_lock,
                     gpu_counts,
+                    completed,
+                    total_images,
                     field_definitions,
                     ground_truth_data,
                 ),
@@ -168,6 +172,8 @@ class MultiGPUOrchestrator:
         doc_types_found: dict[str, int],
         doc_types_lock: threading.Lock,
         gpu_counts: list[int],
+        completed: list[int],
+        total_images: int,
         field_definitions: dict[str, list[str]],
         ground_truth_data: dict[str, dict],
     ) -> None:
@@ -269,6 +275,13 @@ class MultiGPUOrchestrator:
                 timings[idx] = processing_time
 
             gpu_counts[gpu_id] += 1
+            with doc_types_lock:
+                completed[0] += 1
+                n = completed[0]
+            elapsed = time.time() - img_start
+            console.print(
+                f"  [{n}/{total_images}] GPU {gpu_id}: {image_name} ({elapsed:.1f}s)"
+            )
             work_queue.task_done()
 
     def _create_bank_adapter(self, processor: Any) -> Any:
