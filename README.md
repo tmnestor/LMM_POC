@@ -764,22 +764,60 @@ You may also optionally delete the `_override_doc_types_from_ground_truth()` met
 
 Uncomment the same block. The helper method `_override_doc_types_from_ground_truth()` can remain in the codebase with no side effects when the call site is removed.
 
-## Multi-GPU Dynamic Dispatch
+## GPU Load Balancing Shuffle
 
-When using multiple GPUs (`--gpus N`), images are processed via a shared work queue rather than static partitioning. Each GPU pulls the next image when it finishes the current one, ensuring no GPU sits idle while others are still working.
+When using multi-GPU processing, images are normally partitioned into contiguous chunks by filename. Because bank statement filenames tend to cluster together, one GPU can end up with most of the slow multi-turn extractions while the others finish early.
+
+`MultiGPUOrchestrator` accepts a `shuffle` flag (default `False`) that randomizes image order before partitioning, distributing document types evenly across GPUs. It uses a fixed seed (`42`) for deterministic reproducibility, and runs before the inference timer starts so it does not affect throughput calculations.
+
+Shuffle is currently **enabled** in `cli.py` (line 582):
+
+```python
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=True)
+```
+
+### How to disable
+
+Change `shuffle=True` to `shuffle=False` in `cli.py` line 582:
+
+```python
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=False)
+```
+
+## Type-Aware GPU Partition
+
+The shuffle approach distributes images randomly, which is better than contiguous but doesn't guarantee balanced bank statement distribution. The type-aware partition solves this by running detection on one GPU first, then distributing bank statements round-robin across GPUs.
 
 ### How it works
 
-1. **Load models** on all GPUs sequentially (avoids import race conditions)
-2. **Fill work queue** with all images
-3. **Worker threads** (one per GPU) pull images one at a time: detect → extract → evaluate → store result
-4. When a GPU finishes a fast receipt (~10s), it immediately grabs the next image — it doesn't wait for another GPU stuck on a slow bank statement (~90s)
+1. **Phase 0** (pre-timing): Load model on GPU 0, detect all images (~15s for 195 images)
+2. **Partition**: Deal bank statements round-robin across GPUs, fill with standard docs
+3. **Load remaining GPUs**: Models loaded on GPUs 1..N after partitioning
+4. **Processing** (timed): Each GPU re-runs the full pipeline (detection + extraction) on its chunk — Phase 0 results are used only for partitioning, not to skip work
 
-Each GPU gets its own model instance and `BankStatementAdapter`. Ground truth is loaded once and shared read-only across workers.
+Throughput timing starts **after** Phase 0 and model loading. Each worker runs the full detection + extraction pipeline, so throughput numbers are honest and match what production (no Phase 0) would achieve.
 
-### Why dynamic dispatch
+### Performance comparison
 
-Static partitioning (contiguous chunks, shuffle, or type-aware round-robin) commits each GPU to a fixed workload before processing starts. Bank statement processing time varies widely (60-120s), so even perfectly balanced bank statement counts produce GPU idle times of 10+ minutes. Dynamic dispatch eliminates this entirely — wall-clock time converges to `total_work / num_gpus`.
+| Metric | Shuffle | Type-Aware |
+|--------|---------|------------|
+| Max bank stmt difference between GPUs | 5+ images (~450s+) | 1 image (~90s) |
+| Phase 0 overhead | None | ~15s |
+| Total wall-clock improvement | Moderate | Near-optimal |
+
+### Toggle
+
+`MultiGPUOrchestrator` accepts a `type_aware` flag (default `False`). Currently enabled in `cli.py`:
+
+```python
+# Enable for evaluation (pays ~15s for balanced partitioning)
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=True, type_aware=True)
+
+# Disable for production/inference (no Phase 0 overhead)
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, type_aware=False)
+```
+
+When `type_aware=True`, the `shuffle` flag is ignored (type-aware supersedes shuffle).
 
 ## Configuring a New Document Type
 
