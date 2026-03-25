@@ -770,12 +770,18 @@ When using multi-GPU processing, images are normally partitioned into contiguous
 
 `MultiGPUOrchestrator` accepts a `shuffle` flag (default `False`) that randomizes image order before partitioning, distributing document types evenly across GPUs. It uses a fixed seed (`42`) for deterministic reproducibility, and runs before the inference timer starts so it does not affect throughput calculations.
 
-### How to enable
-
-Set `shuffle=True` when constructing `MultiGPUOrchestrator`:
+Shuffle is currently **enabled** in `cli.py` (line 582):
 
 ```python
-orchestrator = MultiGPUOrchestrator(config, num_gpus, shuffle=True)
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=True)
+```
+
+### How to disable
+
+Change `shuffle=True` to `shuffle=False` in `cli.py` line 582:
+
+```python
+orchestrator = MultiGPUOrchestrator(config, resolved_gpus, shuffle=False)
 ```
 
 ## Configuring a New Document Type
