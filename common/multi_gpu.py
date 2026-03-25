@@ -359,9 +359,7 @@ def _evaluate_extraction(
     )
     filtered_gt = {f: ground_truth[f] for f in evaluation_fields if f in ground_truth}
 
-    evaluation_result = evaluator.evaluate_extraction(
-        extracted_data, filtered_gt, image_name
-    )
+    eval_result = evaluator.evaluate_extraction(extracted_data, filtered_gt, image_name)
 
     fields_extracted = len([k for k, v in extracted_data.items() if v != "NOT_FOUND"])
 
@@ -397,12 +395,14 @@ def _evaluate_extraction(
     perfect_matches = sum(1 for s in field_scores.values() if s["f1_score"] == 1.0)
 
     return {
-        **evaluation_result,
         "overall_accuracy": mean_f1,
         "median_f1": median_f1,
         "field_scores": field_scores,
         "fields_extracted": fields_extracted,
         "correct_fields": perfect_matches,
+        "fields_matched": perfect_matches,
         "total_fields": num_fields,
+        "missing_fields": eval_result.missing_fields,
+        "incorrect_fields": eval_result.incorrect_fields,
         "evaluation_method": evaluation_method,
     }
