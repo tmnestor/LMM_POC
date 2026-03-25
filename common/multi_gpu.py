@@ -115,7 +115,11 @@ class MultiGPUOrchestrator:
             for future in as_completed(futures):
                 gpu_id = futures[future]
                 gpu_results[gpu_id] = future.result()
-                console.print(f"  [green]GPU {gpu_id} finished[/green]")
+                gpu_elapsed = time.time() - start_time
+                console.print(
+                    f"  [green]GPU {gpu_id} finished: "
+                    f"{gpu_elapsed:.1f}s ({len(chunks[gpu_id])} images)[/green]"
+                )
 
         # Clean up: exit all model context managers
         for _gpu_config, model_ctx, _processor in gpu_stacks:
