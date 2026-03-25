@@ -248,7 +248,7 @@ def _internvl3_loader(config):
             console.print(f"⚡ Flash Attention 2: {flash_status}")
 
             global _sdpa_patched  # noqa: PLW0603
-            if not _sdpa_patched:
+            if cfg.flash_attn and not _sdpa_patched:
                 if _patch_eager_attention_to_sdpa():
                     console.print("[bold]Patched eager attention -> SDPA[/bold]")
                     _sdpa_patched = True
