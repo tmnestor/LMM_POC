@@ -10,6 +10,7 @@ serialization overhead.
 """
 
 import math
+import random
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,9 +35,10 @@ class MultiGPUOrchestrator:
       2. Process image chunks in parallel (GIL released during CUDA kernels)
     """
 
-    def __init__(self, config, num_gpus: int) -> None:
+    def __init__(self, config, num_gpus: int, *, shuffle: bool = False) -> None:
         self.config = config
         self.num_gpus = num_gpus
+        self.shuffle = shuffle
 
     def run(
         self,
@@ -145,12 +147,29 @@ class MultiGPUOrchestrator:
             gpu_config, processor, prompt_config, images, field_definitions
         )
 
+    @staticmethod
+    def _shuffle_images(images: list[Path]) -> list[Path]:
+        """Shuffle images for balanced document-type distribution across GPUs.
+
+        Without shuffling, bank statements cluster by filename and one GPU
+        gets most of the slow multi-turn extractions. Uses a fixed seed for
+        deterministic reproducibility.
+        """
+        shuffled = list(images)
+        random.seed(42)
+        random.shuffle(shuffled)
+        return shuffled
+
     def _partition_images(self, images: list[Path]) -> list[list[Path]]:
         """Split images into num_gpus contiguous chunks.
 
         If there are fewer images than GPUs, returns fewer chunks
         (one image per chunk).
         """
+        if self.shuffle:
+            images = self._shuffle_images(images)
+            print(f"  Shuffled {len(images)} images for balanced GPU distribution")
+
         n = min(self.num_gpus, len(images))
         chunk_size = math.ceil(len(images) / n)
         return [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]

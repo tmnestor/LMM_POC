@@ -764,6 +764,20 @@ You may also optionally delete the `_override_doc_types_from_ground_truth()` met
 
 Uncomment the same block. The helper method `_override_doc_types_from_ground_truth()` can remain in the codebase with no side effects when the call site is removed.
 
+## GPU Load Balancing Shuffle
+
+When using multi-GPU processing, images are normally partitioned into contiguous chunks by filename. Because bank statement filenames tend to cluster together, one GPU can end up with most of the slow multi-turn extractions while the others finish early.
+
+`MultiGPUOrchestrator` accepts a `shuffle` flag (default `False`) that randomizes image order before partitioning, distributing document types evenly across GPUs. It uses a fixed seed (`42`) for deterministic reproducibility, and runs before the inference timer starts so it does not affect throughput calculations.
+
+### How to enable
+
+Set `shuffle=True` when constructing `MultiGPUOrchestrator`:
+
+```python
+orchestrator = MultiGPUOrchestrator(config, num_gpus, shuffle=True)
+```
+
 ## Configuring a New Document Type
 
 Adding a new document type requires changes to **3 YAML files** — no Python code changes needed. Here's a worked example adding a **purchase order** document type.
