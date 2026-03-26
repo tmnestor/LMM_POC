@@ -121,23 +121,18 @@ def _patch_eager_attention_to_sdpa() -> bool:
     ):
         dp = dropout if module.training else 0.0
 
-        # Expand KV heads to match Q heads so all SDPA backends are eligible.
-        # enable_gqa=True falls back to the O(N²) "math" backend on many GPUs,
-        # materializing the full attention matrix (~1.3 GiB for 4500 tokens).
-        # Explicit expansion costs ~50 MiB but unlocks flash/mem_efficient
-        # backends that use O(N) memory.
-        num_kv_heads = key.shape[1]
-        num_q_heads = query.shape[1]
-        if num_kv_heads != num_q_heads:
-            repeat_factor = num_q_heads // num_kv_heads
-            key = key.repeat_interleave(repeat_factor, dim=1)
-            value = value.repeat_interleave(repeat_factor, dim=1)
+        # GQA: let SDPA handle mismatched Q/KV head counts natively.
+        # PyTorch 2.9+ dispatches enable_gqa=True to the flash backend,
+        # saving ~37% memory per layer vs manual repeat_interleave expansion.
+        # Verified on A10G (Ampere, compute 8.6) — see notebooks/sdpa_gqa_diagnostic.ipynb.
+        enable_gqa = key.shape[1] != query.shape[1]
 
         # Prepare causal mask: truncate to KV length and ensure
         # head dim is broadcastable.
         causal_mask = attention_mask
         if causal_mask is not None:
             causal_mask = causal_mask[:, :, :, : key.shape[-2]]
+            num_q_heads = query.shape[1]
             if causal_mask.shape[1] > 1 and causal_mask.shape[1] != num_q_heads:
                 causal_mask = causal_mask[:, :1, :, :]
 
@@ -153,6 +148,7 @@ def _patch_eager_attention_to_sdpa() -> bool:
             dropout_p=dp,
             scale=scaling,
             is_causal=is_causal,
+            enable_gqa=enable_gqa,
         )
         # Transpose to [batch, seq, heads, dim] to match eager_attention_forward's
         # output layout — the caller does .reshape(*input_shape, -1) which
