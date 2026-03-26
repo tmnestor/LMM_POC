@@ -1,187 +1,114 @@
-# LMM_POC Project: Evidence Against Selection Criteria
+# Maurice (Tod) Nestor
 
-**Project**: Vision-Language Model Pipeline for Automated Document Extraction
-**Period**: October 2025 -- March 2026 (5 months)
-**Scale**: ~1,058 commits across 12 feature branches, 5 models integrated, 5 document types, deployed on multi-GPU production infrastructure
+**Data Scientist -- ATO**
+
+Ferntree Gully, Victoria
+tod.m.nestor@gmail.com | [LinkedIn](https://linkedin.com/in/todnestor) | [GitHub](https://github.com/tmnestor)
+
+---
+
+## Professional Summary
+
+Data scientist with extensive academic preparation and scientific research experience. Began scientific programming in the mid-80's, progressing to scientific applications software development by the late 80's. Expertise in machine learning, natural language processing, and statistical modelling with a keen interest in the application of data science based solutions to complex business problems.
+
+---
+
+## Key Project: Automated Document Extraction using Vision-Language Models
+
+**Document Understanding Group** | October 2025 -- March 2026
+
+Built a production AI pipeline that extracts structured data from financial document images (receipts, invoices, bank statements), replacing manual data entry. Delivered ~1,058 commits across 12 feature branches over 5 months, progressing from proof-of-concept to multi-GPU production deployment.
 
 ---
 
 ## Criterion 1: Technical Proficiency in AI, Machine Learning, Data Visualisation, and Statistical Modelling
 
-### Artificial Intelligence -- Vision-Language Models
+*Demonstrates APS values of being **Committed to service** through innovative, efficient solutions and **Impartial** through evidence-based technical decisions.*
 
-Designed and built an end-to-end AI pipeline that uses vision-language models (VLMs) to automatically extract structured data from document images. The system takes raw images of receipts, invoices, and bank statements and returns machine-readable field values -- replacing manual data entry.
+**AI and Machine Learning**: Designed and delivered an end-to-end vision-language model (VLM) pipeline that classifies document types and extracts field-level data from images. Integrated and benchmarked 5 different pre-trained models to identify the best fit for production, rather than committing to a single model early. This evidence-based approach was important because each model architecture has different strengths -- some excel at structured tables, others at free-form text -- and the optimal choice could only be determined through rigorous comparative evaluation on real documents.
 
-- **Oct 2025**: Built initial single-model extraction pipeline with InternVL3.5-8B, including document type classification and field extraction
-- **Oct--Dec 2025**: Developed multi-turn bank statement extraction -- a 4-turn conversational protocol (header detection, date format classification, table extraction, schema mapping) with dynamic column detection and mathematical balance correction
-- **Feb 2026**: Integrated 5 pre-trained VLMs into a unified pipeline via a model-agnostic registry pattern: InternVL3.5-8B, InternVL3.5-20B-A4B (Mixture of Experts), Llama-3.2-11B-Vision, Qwen3-VL-8B, and GLM-OCR-0.9B
-- **Mar 2026**: Solved a critical GPU memory failure by replacing the O(N^2) eager attention mechanism with a custom O(N) Scaled Dot-Product Attention (SDPA) implementation, requiring deep understanding of transformer attention internals, grouped-query attention head expansion, and PyTorch CUDA backends
+Developed a novel multi-turn conversational extraction protocol for bank statements, the most challenging document type. Single-pass extraction failed on bank statements because table layouts vary significantly between institutions (different column orders, date groupings, multi-line descriptions). The multi-turn approach decomposes this complex task into 4 sequential steps -- each step's output informs the next step's prompt -- enabling the system to handle layout variations that defeated simpler approaches.
 
-### Machine Learning -- Document Classification and Extraction
+**Data Visualisation**: Built model comparison dashboards with field-level accuracy heatmaps, radar charts, and executive summary visualisations. These were essential for communicating model selection recommendations to stakeholders who needed to understand performance trade-offs without reading raw metrics tables.
 
-- **Oct 2025**: Built two-phase ML pipeline: Phase 1 (VLM-based document type classification), Phase 2 (type-specific extraction with specialised prompts)
-- **Feb 2026**: Implemented batched GPU inference with automatic OOM fallback (halving batch size recursively), achieving 60% throughput improvement over sequential processing
-- **Feb--Mar 2026**: Designed multi-GPU data parallelism using ThreadPoolExecutor, exploiting PyTorch's GIL release during CUDA kernel execution for true parallel inference without serialisation overhead
-- **Mar 2026**: Built adaptive per-image tile selection based on image quality assessment, balancing extraction accuracy against GPU memory constraints
-
-### Data Visualisation
-
-- **Nov 2025**: Built model comparison dashboards with field-level accuracy heatmaps, radar charts, and executive summary visualisations
-- **Nov 2025**: Created confusion matrix analysis for document type classification across 3 model variants
-- **Mar 2026**: Generated SVG evaluation visualisations for transaction linking accuracy, including lollipop charts for per-field F1 score differences
-
-### Statistical Modelling
-
-- **Nov 2025**: Implemented per-field F1, precision, and recall metrics with semantic normalisation for dates and monetary amounts
-- **Nov 2025**: Applied Cohen's d effect size to quantify statistical significance of accuracy differences between model variants
-- **Mar 2026**: Designed ground truth override experiments to isolate the causal impact of document misclassification on extraction accuracy
+**Statistical Modelling**: Implemented F1, precision, and recall metrics with semantic normalisation for dates and monetary amounts -- because naive string matching would penalise correct extractions that differ only in format (e.g., "01/03/2026" vs "1 March 2026"). Applied Cohen's d effect size to determine whether accuracy differences between models were statistically meaningful rather than noise, ensuring model selection decisions were defensible.
 
 ---
 
-## Criterion 2: Hands-on Python Data Science Ecosystems, Cloud-Based Pipelines, and Pre-Trained Models
+## Criterion 2: Python Data Science Ecosystems, Cloud-Based Pipelines, and Pre-Trained Models
 
-### Python Ecosystem
+*Demonstrates **Committed to service** through efficient delivery and **Stewardship** through building lasting, maintainable infrastructure.*
 
-The entire system is built in Python 3.12, leveraging the modern data science and ML stack:
+**Python ecosystem**: Built the entire system in Python 3.12 using PyTorch, HuggingFace Transformers, Pandas, and Conda for environment management. Implemented batched GPU inference that processes multiple images simultaneously, achieving a 60% throughput improvement. This was important because document extraction at scale (hundreds of images per run) would otherwise be impractically slow for operational use.
 
-- **PyTorch**: GPU inference, CUDA memory management, mixed-precision (float16/bfloat16), `torch.nn.functional.scaled_dot_product_attention`
-- **Transformers (HuggingFace)**: Model loading, tokenisation, `AutoModel`/`AutoTokenizer`, `AutoProcessor`, generation configuration
-- **Pandas**: Ground truth CSV management, field-level metric aggregation, result comparison
-- **Rich**: Console output, progress bars, GPU status tables
-- **Pillow (PIL)**: Image preprocessing, adaptive tile selection based on image quality assessment
-- **Conda**: YAML-driven environment management with Flash Attention 2 source builds
+**Cloud-based pipelines**: Decomposed the monolithic pipeline into three independently deployable stages (classify, extract, evaluate) for Kubeflow Pipelines. This decision was critical for production deployment because it allows each stage to be scaled, monitored, and restarted independently -- a failed extraction stage doesn't require re-running the classification stage, saving GPU compute time and enabling partial recovery. Configured AWS EFS integration for shared model weights across pipeline stages, with fail-fast validation to catch configuration errors before launching expensive GPU work.
 
-### Cloud-Based Data Science Pipelines
+**Applying pre-trained models**: Rather than training models from scratch (which would require months and large labelled datasets), applied and adapted 5 existing pre-trained vision-language models to the document extraction problem. This approach delivered production-ready accuracy (95% F1) in months rather than years, while the multi-model evaluation ensured the selected model was the strongest performer for this specific use case.
 
-- **Feb 2026**: Decomposed the monolithic pipeline into three independently deployable stages for **Kubeflow Pipelines (KFP)**: `classify`, `extract`, `evaluate` -- each callable as a standalone CLI subcommand
-- **Feb 2026**: Built `entrypoint.sh` with `KFP_TASK` dispatch routing, CUDA environment diagnostics, and multi-GPU auto-detection
-- **Feb 2026**: Configured **AWS EFS** integration for shared model weights and evaluation data across pipeline stages
-- **Feb 2026**: Implemented `--run-id` flag for deterministic inter-stage file paths, enabling reliable pipeline orchestration
-- **Feb 2026**: Designed fail-fast validation that checks required environment variables and paths before launching GPU-intensive work
-
-### Applying Pre-Trained Models to Real-World Problems
-
-- **Oct 2025 -- Mar 2026**: Applied 5 different pre-trained vision-language models to the real-world problem of automated document data extraction for financial reconciliation
-- **Mar 2026**: Extended extraction into transaction linking: a 3-stage pipeline that matches receipts to bank statement debits using chain-of-thought reasoning with amount gating (2% tolerance) and confidence scoring
-- **Mar 2026**: Built synthetic data generators for receipts and bank statements to enable controlled testing without exposing production financial documents
-- **Nov 2025 -- Feb 2026**: Planned and executed GPU platform migration from V100 (16 GiB, 8-bit quantization required) to A10G (24 GiB, full-precision with Flash Attention 2), resolving 15+ Flash Attention 2 compatibility issues including pre-built wheel failures, CXX11 ABI mismatches, and NFS cross-device link workarounds
-- Managed a 3-machine development workflow: local macOS (linting), sandbox GPU (L40, experimentation), production GPU cluster (4x A10G, 24 GiB each)
+Planned and executed a GPU platform migration from V100 to A10G hardware when the original V100 GPUs proved too memory-constrained (16 GiB), forcing accuracy-degrading quantization. The migration to A10G (24 GiB, newer architecture) eliminated this compromise, but required resolving 15+ compatibility issues with the Flash Attention 2 library -- a critical dependency for memory-efficient inference at scale.
 
 ---
 
 ## Criterion 3: Clearly Communicates Complex Technical Information to Diverse Audiences
 
-### Technical Audiences
+*Demonstrates **Accountable** through transparent communication and **Stewardship** through building institutional knowledge.*
 
-- **Feb 2026**: Authored detailed design decision documents explaining architectural choices: multi-GPU orchestrator rationale, pipeline vs data parallelism comparison
-- **Mar 2026**: Wrote a comprehensive multi-GPU high-tile OOM diagnosis writeup tracing the problem from GPU memory budgets through attention matrix materialisation to the SDPA solution -- with Mermaid diagrams showing standard vs FlashAttention2 memory profiles
-- **Feb 2026**: Documented the composable pipeline architecture with stage interfaces, entrypoint usage, and rollback guide for operations teams
-- Produced architecture diagrams using Mermaid for pipeline flow, model dispatch, and GPU memory layout
+**Technical audiences**: Authored design decision documents that explained not just what was built, but why alternative approaches were rejected. For example, documented the rationale for choosing thread-based parallelism over process-based parallelism for multi-GPU inference -- a decision that affects performance, debugging complexity, and maintainability. Wrote a detailed OOM diagnosis report tracing a production memory failure from symptoms through root cause to solution, with architecture diagrams -- enabling the team to understand and maintain the fix independently.
 
-### Non-Technical Audiences
+**Non-technical audiences**: Delivered Community of Practice presentations translating GPU computing and VLM architecture concepts into accessible explanations for colleagues across the organisation. Created executive model comparison dashboards that distilled complex statistical metrics into clear recommendations (which model to deploy, for which document types, and why). Wrote an evaluation methodology defence explaining why F1 score was chosen over simple accuracy and how ground truth data was validated.
 
-- **Feb--Mar 2026**: Delivered Community of Practice (CoP) presentations on VLM architecture and project findings, translating GPU computing concepts into accessible explanations
-- **Nov 2025**: Created executive model comparison dashboards distilling complex F1/precision/recall metrics into actionable recommendations (which model to deploy, for which document types)
-- **Feb 2026**: Wrote evaluation methodology defence documents justifying the choice of metrics and ground truth management approach
-- **Feb 2026**: Produced presentation materials on threading vs multiprocessing, pipeline vs data parallelism -- with visual diagrams designed for audiences without GPU computing background
-
-### Knowledge Artefacts
-
-- **Jan--Feb 2026**: Technical documentation for Flash Attention 2 troubleshooting (wheel compatibility, ABI issues, source builds) -- enabling other team members to set up GPU environments independently
-- **Oct 2025**: Setup automation script (`LMM_POC_setup.sh`) with usage instructions, SSH key configuration, and Jupyter kernel registration
-- **Jan 2026**: Amazon Bedrock migration guide assessing cloud deployment options with Australian data residency requirements
+**Knowledge artefacts**: Created troubleshooting documentation for Flash Attention 2 setup, a setup automation script for new team members, and a cloud migration guide assessing deployment options with Australian data residency requirements. These artefacts ensure the team's capability persists beyond individual contributors -- directly supporting the APS Stewardship value.
 
 ---
 
-## Criterion 4: Effective and Ethical Solutions Supporting Responsible Governance and Appropriate Use of Enterprise Data
+## Criterion 4: Effective and Ethical Solutions Supporting Responsible Governance
 
-### Data Privacy and Sovereignty
+*Demonstrates **Ethical** conduct, **Accountable** transparency, and **Impartial** evidence-based advice.*
 
-- Designed the pipeline for **on-premise/private cloud deployment**, ensuring sensitive financial documents (bank statements, invoices, receipts) are never transmitted to external API services
-- All VLMs run locally on organisation-controlled GPU infrastructure, maintaining full data custody
-- **Jan 2026**: Assessed Amazon Bedrock migration with explicit attention to **Australian data residency requirements**, documenting which models are available in the Sydney region
-- Evaluated AWS SageMaker as an alternative deployment path that maintains data within the organisation's VPC
+**Data sovereignty**: Designed the pipeline for on-premise deployment, ensuring sensitive financial documents are never transmitted to external services. This was a deliberate architectural decision -- while cloud AI APIs would have been simpler to integrate, they would have required sending enterprise financial data outside the organisation's control. Assessed cloud deployment alternatives (Amazon Bedrock, SageMaker) with explicit attention to Australian data residency requirements, documenting which options maintain data within approved regions.
 
-### Responsible AI Practices
+**Responsible AI**: Established prompt authoring rules prohibiting real document data in model prompts, and built synthetic data generators for testing. This prevents production financial data from appearing in model context or development logs. Designed the evaluation framework to surface failures transparently -- per-field accuracy breakdowns and misclassification analysis ensure decision-makers see where the system underperforms, not just headline accuracy figures.
 
-- Established **prompt authoring rules** prohibiting the use of real document data in prompts -- all examples use fictitious merchant names and amounts to prevent data leakage into model context
-- **Mar 2026**: Built synthetic data generators for testing, eliminating the need to use production financial documents during development and experimentation
-- **Nov 2025**: Implemented ground truth validation workflows with manual review and correction steps, ensuring evaluation integrity
-- Designed the evaluation framework to surface model failures transparently -- per-field accuracy breakdown, misclassification impact analysis, and worst-performing image identification
-
-### Production Robustness
-
-- Implemented fail-fast validation patterns throughout: configuration errors surface immediately with actionable diagnostics rather than failing silently deep in the pipeline
-- OOM fallback mechanisms ensure graceful degradation under memory pressure rather than data loss
-- **Feb 2026**: Granular exit codes distinguish model loading failures from partial processing success, supporting operational monitoring
+**Production robustness**: Implemented fail-fast validation, graceful degradation under memory pressure, and granular exit codes for operational monitoring -- ensuring the system fails visibly and recoverably rather than silently producing incorrect results.
 
 ---
 
 ## Criterion 5: Delivery Focused, Working Collaboratively Within Multi-Disciplinary Teams
 
-### Delivery Record
+*Demonstrates **Committed to service** through professional, collaborative, results-oriented delivery.*
 
-- Delivered ~1,058 commits across 12 feature branches over 5 months, progressing from initial prototype to production-grade multi-GPU pipeline
-- Maintained a structured branching strategy: each major capability developed on a dedicated feature branch (`batch-inference`, `model-extensibility`, `feature/multi-gpu`, `feature/composable-pipeline`, etc.)
-- Achieved measurable production metrics: 95.0% F1 extraction accuracy, 4.25 images/min throughput on 4x A10G, 5 document types supported
+**Delivery record**: Delivered ~1,058 commits across 12 feature branches over 5 months, with each branch representing a self-contained capability increment: initial prototype (Oct), bank statement extraction (Oct--Dec), model comparison (Nov), GPU migration (Nov--Feb), multi-model support and batch inference (Feb), KFP pipeline (Feb), multi-GPU parallelism (Feb--Mar), and transaction linking (Mar). Achieved measurable production outcomes: 95% F1 extraction accuracy, 4.25 images/min throughput on 4-GPU cluster, 5 document types supported.
 
-### Cross-Functional Collaboration
-
-- Collaborated with **Data Engineering** on KFP pipeline integration: entrypoint scripting, EFS path configuration, environment variable contracts, and inter-stage file formats
-- Worked with **Infrastructure/Platform** teams on GPU provisioning across V100, A10G, L4, and L40S architectures, including Flash Attention 2 compatibility testing and Conda environment management on shared NFS storage
-- Produced operational documentation (rollback guides, setup scripts, troubleshooting guides) to enable handover to support teams
-- Adapted pipeline configuration (YAML-driven, CLI flags) to accommodate different deployment environments without code changes
-
-### Iterative Delivery Milestones
-
-| Month | Milestone |
-|-------|-----------|
-| **Oct 2025** | Initial prototype: single-model extraction with InternVL3.5-8B |
-| **Oct--Dec 2025** | Bank statement multi-turn extraction, structure classification, balance correction |
-| **Nov 2025** | Model comparison framework: dashboards, F1 metrics, Cohen's d |
-| **Nov 2025** | Identified V100 limitations (16 GiB, no Flash Attention 2), authored A10G migration plan |
-| **Dec 2025 -- Feb 2026** | Executed V100 -> A10G migration, resolved 15+ Flash Attention 2 compatibility issues |
-| **Feb 2026** | Multi-model CLI, batch inference, model registry, KFP composable pipeline |
-| **Feb 2026** | Multi-GPU parallelism (ThreadPoolExecutor), 4x A10G production deployment |
-| **Feb--Mar 2026** | CoP presentations, design decision documentation, evaluation methodology defence |
-| **Mar 2026** | Transaction linking (receipt-to-bank matching), staged extraction pipeline |
-| **Mar 2026** | SDPA attention fix, adaptive tile selection, GPU load balancing experiments |
+**Cross-functional collaboration**: Worked with Data Engineering on pipeline integration (entrypoint configuration, shared storage paths, inter-stage file contracts) and with Infrastructure teams on GPU provisioning across 4 hardware architectures. Produced operational handover documentation (rollback guides, setup scripts, troubleshooting guides) to ensure support teams can maintain the system independently -- reflecting the Stewardship value of building capability that outlasts individual contributors.
 
 ---
 
 ## Criterion 6: Critical Thinking, Continuous Improvement, Problem Solving, and Innovation
 
-### Systematic Problem Solving
+*Demonstrates **Impartial** evidence-based reasoning and **Stewardship** through building lasting capability.*
 
-- **V100 to A10G GPU migration (Nov 2025 -- Feb 2026)**: The project initially deployed on V100 GPUs (16 GiB HBM2), which forced 8-bit quantization via BitsAndBytesConfig to fit the model into memory -- degrading extraction accuracy. V100s also lack support for Flash Attention 2 (requires Ampere architecture or later), limiting inference efficiency. Systematically investigated the constraints: documented V100 dtype handling and precision fallbacks (Nov 2025), authored a migration plan to A10G GPUs (24 GiB GDDR6X, Ampere architecture) in late Nov 2025, then executed the migration over Dec 2025 -- Feb 2026. The A10G migration itself uncovered a cascade of Flash Attention 2 compatibility issues requiring 15+ commits to resolve: pre-built wheel failures due to missing CUDA kernels, CXX11 ABI mismatches between the wheel and the runtime environment, NFS cross-device link workarounds for shared storage, and ultimately building flash-attn from source tarball. Outcome: full-precision (float16) inference on A10G with Flash Attention 2 enabled, eliminating the accuracy penalty of quantization and unlocking memory-efficient attention for higher tile counts
-- **SDPA attention OOM fix (Mar 2026)**: Traced a production GPU memory failure through 7 iterative commits -- from initial hypothesis (wrong attention implementation) through debugging attention output layouts, grouped-query attention head mismatches, and broadcastable mask handling to a verified solution. Required reading PyTorch and transformers source code to understand the interaction between the model's eager attention, the SDPA backend selection heuristics, and the flash/memory-efficient kernel eligibility criteria
-- **GPU load balancing investigation (Mar 2026)**: Systematically evaluated 4 different approaches to distributing work across GPUs (contiguous partitioning, random shuffle, type-aware round-robin, dynamic work-queue dispatch). Each was implemented, measured on production data, and assessed against throughput metrics. Empirically determined that static partitioning with batched inference outperforms dynamic dispatch by 60% -- contradicting the theoretical expectation that dynamic dispatch would be optimal. Accepted the evidence and reverted to the simpler, faster approach
+**Evidence-based decision making**: Systematically evaluated 4 different approaches to distributing work across GPUs. The theoretically optimal approach (dynamic work-queue dispatch, where idle GPUs immediately pick up the next task) was implemented, measured, and found to be 60% slower than the simpler static approach -- because it eliminated the throughput benefits of batched inference. Rather than defending the more sophisticated solution, accepted the empirical evidence and reverted to the simpler, faster approach. This demonstrates a commitment to outcomes over complexity.
 
-### Continuous Improvement
+**Systematic problem solving**: The V100 to A10G GPU migration required investigating and resolving a cascade of interconnected issues: memory constraints forcing accuracy-degrading quantization, Flash Attention 2 incompatibility with the V100 architecture, and 15+ compatibility issues during the A10G migration (pre-built library failures, compiler ABI mismatches, shared storage workarounds). Each issue was documented, diagnosed, and resolved methodically over 3 months.
 
-- **Bank statement extraction evolution (Oct 2025 -- Feb 2026)**: Progressed from single-turn flat extraction (poor accuracy on complex layouts) through multi-turn protocols, adding date format classification, dynamic column detection, and mathematical balance correction at each iteration -- driven by systematic error analysis on diverse real-world bank statement formats
-- **Evaluation framework maturation (Nov 2025 -- Mar 2026)**: Started with simple accuracy, added F1/precision/recall, then semantic normalisation for dates and amounts, then Cohen's d for statistical significance, then confusion matrices for classification analysis -- each addition driven by a specific gap identified during model comparison
-- **PyTorch OOM cleanup pattern (Feb 2026)**: Discovered that calling `torch.cuda.empty_cache()` inside Python `except` blocks is ineffective because the traceback holds references to activation tensors. Documented the correct pattern (flag-and-exit) for the team
+Traced a production memory failure through 7 iterative debugging cycles, ultimately discovering that the model's default attention mechanism was materialising a ~1.3 GiB matrix per inference -- exceeding GPU memory on complex documents. Developed a custom replacement that reduced memory usage from O(N^2) to O(N), resolving the failure. This required reading framework source code to understand the interaction between the model architecture and the GPU's memory management.
 
-### Innovation
+**Continuous improvement**: The bank statement extraction pipeline evolved through 4 major iterations -- from single-pass extraction (poor accuracy) through progressively more sophisticated multi-turn protocols, with each iteration driven by systematic error analysis on real documents. The evaluation framework similarly matured from simple accuracy to F1 metrics, semantic comparison, statistical significance testing, and confusion matrix analysis -- each addition addressing a specific gap identified during model comparison. Findings were documented and shared with the team at each stage.
 
-- **Multi-turn bank statement extraction (Oct--Dec 2025)**: Designed a novel 4-turn conversational protocol that decomposes the complex task of extracting structured data from variable-format bank statements into manageable sub-tasks, with each turn's output informing the next turn's prompt. This approach handles layout variations that single-pass extraction cannot
-- **Transaction linking with chain-of-thought (Mar 2026)**: Extended document extraction into financial reconciliation by designing a multi-stage pipeline where the VLM performs receipt-to-bank-debit matching with explicit reasoning (AMOUNT_CHECK, NAME_CHECK fields), confidence scoring, and partial match classification
-- **Attention mechanism monkey-patching (Mar 2026)**: Developed a technique to replace the transformers library's global attention function registry at runtime, routing eager attention through PyTorch SDPA without modifying library source code -- enabling flash/memory-efficient backends on models that don't natively support them
+**Innovation**: Extended document extraction into financial reconciliation by designing a multi-stage pipeline where the model matches receipts to bank statement transactions using explicit chain-of-thought reasoning, confidence scoring, and partial match classification -- demonstrating the potential for VLMs to automate complex financial workflows beyond simple data extraction.
 
 ---
 
-## Quantitative Summary
+## Education
 
-| Metric | Value |
-|--------|-------|
-| Development period | 5 months (Oct 2025 -- Mar 2026) |
-| Total commits | ~1,058 |
-| Feature branches | 12 |
-| Models integrated | 5 VLMs |
-| Document types | 5 (receipt, invoice, bank statement, travel expense, vehicle logbook) |
-| Best extraction accuracy | 95.0% F1 |
-| Multi-GPU throughput | 4.25 images/min (4x A10G) |
-| GPU architectures tested | 4 (V100, A10G, L4, L40S) |
-| Composable pipeline stages | 3 (classify, extract, evaluate) |
-| Bank statement extraction turns | 4 conversational turns |
+**Master of Data Science (with Excellence)** | UNSW | 2021 -- 2022
+
+**Graduate Diploma Data Science** | Monash University | 2019 -- 2020
+
+**Doctor of Philosophy (Theoretical Geophysics)** | Australian National University | 1992 -- 1995
+*John Conrad Jaeger Scholar*
+
+**Master of Science (Geophysics)** | Monash University | 1989 -- 1991
+*Australian Postgraduate Research Award*
+
+**B.App.Sc (Mathematics) with Distinction** | RMIT | 1985 -- 1988
