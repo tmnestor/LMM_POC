@@ -64,6 +64,7 @@ The entire system is built in Python 3.12, leveraging the modern data science an
 - **Oct 2025 -- Mar 2026**: Applied 5 different pre-trained vision-language models to the real-world problem of automated document data extraction for financial reconciliation
 - **Mar 2026**: Extended extraction into transaction linking: a 3-stage pipeline that matches receipts to bank statement debits using chain-of-thought reasoning with amount gating (2% tolerance) and confidence scoring
 - **Mar 2026**: Built synthetic data generators for receipts and bank statements to enable controlled testing without exposing production financial documents
+- **Nov 2025 -- Feb 2026**: Planned and executed GPU platform migration from V100 (16 GiB, 8-bit quantization required) to A10G (24 GiB, full-precision with Flash Attention 2), resolving 15+ Flash Attention 2 compatibility issues including pre-built wheel failures, CXX11 ABI mismatches, and NFS cross-device link workarounds
 - Managed a 3-machine development workflow: local macOS (linting), sandbox GPU (L40, experimentation), production GPU cluster (4x A10G, 24 GiB each)
 
 ---
@@ -138,7 +139,8 @@ The entire system is built in Python 3.12, leveraging the modern data science an
 | **Oct 2025** | Initial prototype: single-model extraction with InternVL3.5-8B |
 | **Oct--Dec 2025** | Bank statement multi-turn extraction, structure classification, balance correction |
 | **Nov 2025** | Model comparison framework: dashboards, F1 metrics, Cohen's d |
-| **Jan 2026** | V100 -> A10G migration, Flash Attention 2 integration, GPU memory optimisation |
+| **Nov 2025** | Identified V100 limitations (16 GiB, no Flash Attention 2), authored A10G migration plan |
+| **Dec 2025 -- Feb 2026** | Executed V100 -> A10G migration, resolved 15+ Flash Attention 2 compatibility issues |
 | **Feb 2026** | Multi-model CLI, batch inference, model registry, KFP composable pipeline |
 | **Feb 2026** | Multi-GPU parallelism (ThreadPoolExecutor), 4x A10G production deployment |
 | **Feb--Mar 2026** | CoP presentations, design decision documentation, evaluation methodology defence |
@@ -151,6 +153,7 @@ The entire system is built in Python 3.12, leveraging the modern data science an
 
 ### Systematic Problem Solving
 
+- **V100 to A10G GPU migration (Nov 2025 -- Feb 2026)**: The project initially deployed on V100 GPUs (16 GiB HBM2), which forced 8-bit quantization via BitsAndBytesConfig to fit the model into memory -- degrading extraction accuracy. V100s also lack support for Flash Attention 2 (requires Ampere architecture or later), limiting inference efficiency. Systematically investigated the constraints: documented V100 dtype handling and precision fallbacks (Nov 2025), authored a migration plan to A10G GPUs (24 GiB GDDR6X, Ampere architecture) in late Nov 2025, then executed the migration over Dec 2025 -- Feb 2026. The A10G migration itself uncovered a cascade of Flash Attention 2 compatibility issues requiring 15+ commits to resolve: pre-built wheel failures due to missing CUDA kernels, CXX11 ABI mismatches between the wheel and the runtime environment, NFS cross-device link workarounds for shared storage, and ultimately building flash-attn from source tarball. Outcome: full-precision (float16) inference on A10G with Flash Attention 2 enabled, eliminating the accuracy penalty of quantization and unlocking memory-efficient attention for higher tile counts
 - **SDPA attention OOM fix (Mar 2026)**: Traced a production GPU memory failure through 7 iterative commits -- from initial hypothesis (wrong attention implementation) through debugging attention output layouts, grouped-query attention head mismatches, and broadcastable mask handling to a verified solution. Required reading PyTorch and transformers source code to understand the interaction between the model's eager attention, the SDPA backend selection heuristics, and the flash/memory-efficient kernel eligibility criteria
 - **GPU load balancing investigation (Mar 2026)**: Systematically evaluated 4 different approaches to distributing work across GPUs (contiguous partitioning, random shuffle, type-aware round-robin, dynamic work-queue dispatch). Each was implemented, measured on production data, and assessed against throughput metrics. Empirically determined that static partitioning with batched inference outperforms dynamic dispatch by 60% -- contradicting the theoretical expectation that dynamic dispatch would be optimal. Accepted the evidence and reverted to the simpler, faster approach
 
