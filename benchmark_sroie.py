@@ -102,6 +102,10 @@ def _run_inference_internvl3(
     if pixel_values.device != model_device:
         pixel_values = pixel_values.to(model_device)
 
+    # Set pad_token_id to suppress open-end generation warning
+    if hasattr(model, "generation_config"):
+        model.generation_config.pad_token_id = tokenizer.eos_token_id
+
     response = model.chat(
         tokenizer,
         pixel_values,
