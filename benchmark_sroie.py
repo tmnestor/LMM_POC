@@ -14,6 +14,7 @@ Usage:
 """
 
 import json
+import logging
 import re
 import time
 from pathlib import Path
@@ -38,6 +39,9 @@ from common.sroie_evaluation import (
     load_sroie_ground_truth,
 )
 from models.registry import get_model
+
+# Suppress "Setting pad_token_id to eos_token_id" spam from transformers
+logging.getLogger("transformers.generation.utils").setLevel(logging.ERROR)
 
 console = Console()
 app = typer.Typer(
