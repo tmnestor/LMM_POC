@@ -13,6 +13,7 @@ Usage:
     python benchmark_sroie.py --model internvl3 --data-dir data/sroie --max-images 10
 """
 
+import csv
 import json
 import logging
 import re
@@ -498,6 +499,73 @@ def save_results_json(results: list[SROIEBenchmarkResult], output_dir: Path) -> 
     return out_path
 
 
+def save_results_csv(results: list[SROIEBenchmarkResult], output_dir: Path) -> Path:
+    """Save benchmark summary and per-image results to CSV files."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Summary CSV (one row per model) ---
+    summary_path = output_dir / "sroie_benchmark_summary.csv"
+    with summary_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        header = [
+            "model",
+            "overall_f1",
+            "total_images",
+            "elapsed_seconds",
+            "images_per_min",
+        ]
+        for field in SROIE_FIELDS:
+            header.extend([f"{field}_precision", f"{field}_recall", f"{field}_f1"])
+        writer.writerow(header)
+
+        for r in results:
+            img_per_min = (
+                r.total_images / r.elapsed_seconds * 60
+                if r.elapsed_seconds > 0
+                else 0.0
+            )
+            row: list[Any] = [
+                r.model_name,
+                round(r.overall_f1, 4),
+                r.total_images,
+                round(r.elapsed_seconds, 2),
+                round(img_per_min, 2),
+            ]
+            for field in SROIE_FIELDS:
+                fr = r.field_results[field]
+                row.extend(
+                    [round(fr.precision, 4), round(fr.recall, 4), round(fr.f1, 4)]
+                )
+            writer.writerow(row)
+
+    console.print(f"Summary CSV saved to {summary_path}")
+
+    # --- Per-image CSV (one row per model+image) ---
+    detail_path = output_dir / "sroie_benchmark_per_image.csv"
+    with detail_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        header = ["model", "image_id"]
+        for field in SROIE_FIELDS:
+            header.extend([f"{field}_gt", f"{field}_pred", f"{field}_match"])
+        writer.writerow(header)
+
+        for r in results:
+            for img in r.image_results:
+                row: list[Any] = [r.model_name, img.image_id]
+                for field in SROIE_FIELDS:
+                    row.extend(
+                        [
+                            img.ground_truth.get(field, ""),
+                            img.predicted.get(field, ""),
+                            img.matches.get(field, False),
+                        ]
+                    )
+                writer.writerow(row)
+
+    console.print(f"Per-image CSV saved to {detail_path}")
+    return summary_path
+
+
 # ============================================================================
 # CLI
 # ============================================================================
@@ -577,8 +645,9 @@ def main(
     console.print()
     print_results_table(all_results)
 
-    # Save JSON
+    # Save results
     save_results_json(all_results, output_dir)
+    save_results_csv(all_results, output_dir)
 
 
 if __name__ == "__main__":
