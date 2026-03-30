@@ -1,0 +1,211 @@
+prompts:
+  # ============================================================================
+  # INVOICE EXTRACTION - 14 Fields
+  # ============================================================================
+  invoice:
+    name: "Invoice Extraction"
+    description: "Extract 14 invoice-specific fields"
+    prompt: |
+      Extract ALL data from this invoice image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find supplier: Business name at top
+      - Find customer: "Bill To" section
+      - Find date: Use DD/MM/YYYY format
+      - Find line items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+
+  # ============================================================================
+  # RECEIPT EXTRACTION - 14 Fields
+  # ============================================================================
+  receipt:
+    name: "Receipt Extraction"
+    description: "Extract 14 receipt-specific fields"
+    prompt: |
+      Extract ALL data from this receipt image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find store: Business name at top
+      - Find transaction date: Use DD/MM/YYYY format
+      - Find purchased items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+
+  # ============================================================================
+  # BANK STATEMENT EXTRACTION - Structure-Specific Prompts (5 Fields)
+  # ============================================================================
+  bank_statement_flat:
+    name: "Flat Table Bank Statement Extraction"
+    description: "Optimized for flat table bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      Extract information from this Bank Statement document.
+
+      OUTPUT FORMAT (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      TRANSACTION_DATES: [Dates with " | "]
+      LINE_ITEM_DESCRIPTIONS: [Descriptions with " | "]
+      TRANSACTION_AMOUNTS_PAID: [Debits with $ and " | "]
+      STATEMENT_DATE_RANGE: [Earliest Date Column Value - Latest Date Column Value]
+
+  bank_statement_date_grouped:
+    name: "Date-Grouped Bank Statement Extraction"
+    description: "Optimized for date-grouped bank statements - taxpayer expense claims (5 fields)"
+    prompt: |
+      Extract structured data from this date-grouped bank statement for taxpayer expense claims.
+
+      STEP 1 - LOCATE DATE-GROUPED SECTIONS:
+      Focus on main transaction area in document body.
+      Structure: Date headers (e.g., "Thu 04 Sep 2025") with transactions listed below.
+
+      STEP 2 - IDENTIFY DEBIT TRANSACTIONS:
+      For each date header section:
+      TARGET DATA: Transaction description + Amount (negative or explicit debit)
+      - DEBIT keywords: withdrawal, payment, purchase, debit, fee, charge, ATM, EFTPOS
+      - CREDIT keywords to skip: deposit, credit, salary, transfer in, interest received, refund
+
+      STEP 3 - EXTRACT TRANSACTION-BY-TRANSACTION:
+      For EACH debit transaction:
+      1. Extract DATE from date header above (DD/MM/YYYY format)
+      2. Extract DESCRIPTION from transaction row (exact text)
+      3. Extract AMOUNT from transaction row (with $ symbol)
+      4. Add to output with " | " separator
+
+      Output format (5 FIELDS):
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+  # ============================================================================
+  # UNIVERSAL EXTRACTION - All 19 Fields
+  # ============================================================================
+  universal:
+    name: "Universal Single-Pass Extraction"
+    description: "Extract all 19 fields for any document type"
+    prompt: |
+      Extract information from this business document.
+
+      OUTPUT FORMAT (19 FIELDS):
+
+      DOCUMENT_TYPE: [INVOICE/RECEIPT/BANK_STATEMENT or NOT_FOUND]
+      BUSINESS_ABN: [11-digit ABN or NOT_FOUND]
+      SUPPLIER_NAME: [Business name or NOT_FOUND]
+      BUSINESS_ADDRESS: [Business address or NOT_FOUND]
+      PAYER_NAME: [Customer name or NOT_FOUND]
+      PAYER_ADDRESS: [Customer address or NOT_FOUND]
+      INVOICE_DATE: [Date DD/MM/YYYY or NOT_FOUND]
+      STATEMENT_DATE_RANGE: [Date range for statements or NOT_FOUND]
+      LINE_ITEM_DESCRIPTIONS: [Items with " | " separator or NOT_FOUND]
+      LINE_ITEM_QUANTITIES: [Quantities with " | " or NOT_FOUND]
+      LINE_ITEM_PRICES: [Unit prices with $ and " | " or NOT_FOUND]
+      LINE_ITEM_TOTAL_PRICES: [Line totals with $ and " | " or NOT_FOUND]
+      IS_GST_INCLUDED: [true/false or NOT_FOUND]
+      GST_AMOUNT: [GST with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Total with $ or NOT_FOUND]
+      TRANSACTION_DATES: [Dates with " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_PAID: [Debits with $ and " | " or NOT_FOUND]
+      TRANSACTION_AMOUNTS_RECEIVED: [Credits with $ and " | " or NOT_FOUND]
+      ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
+
+  # ============================================================================
+  # TRAVEL EXPENSE EXTRACTION - 8 Fields
+  # ============================================================================
+  travel_expense:
+    name: "Travel Expense Extraction"
+    description: "Extract travel expense details for taxpayer work-related claims (8 fields)"
+    prompt: |
+      Extract travel expense information from this document for a work-related expense claim.
+
+      EXTRACT THESE 8 FIELDS:
+
+      1. PASSENGER_NAME: Who travelled
+      2. TRAVEL_MODE: plane / train / bus / taxi / uber / ferry
+      3. TRAVEL_ROUTE: Route with " | " separator (e.g., "Sydney | Melbourne")
+      4. TRAVEL_DATES: Dates with " | " separator (DD Mon YYYY)
+      5. INVOICE_DATE: Issue/purchase date (DD Mon YYYY)
+      6. GST_AMOUNT: GST with $ symbol
+      7. TOTAL_AMOUNT: Total cost with $ symbol
+      8. SUPPLIER_NAME: Travel provider name
+
+      OUTPUT FORMAT (8 FIELDS):
+
+      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      PASSENGER_NAME: [Name or NOT_FOUND]
+      TRAVEL_MODE: [plane / train / bus / taxi / uber / ferry or NOT_FOUND]
+      TRAVEL_ROUTE: [Route description or NOT_FOUND]
+      TRAVEL_DATES: [Dates with " | " separator or NOT_FOUND]
+      INVOICE_DATE: [Issue date DD Mon YYYY or NOT_FOUND]
+      GST_AMOUNT: [GST with $ or NOT_FOUND]
+      TOTAL_AMOUNT: [Amount with $ or NOT_FOUND]
+      SUPPLIER_NAME: [Provider name or NOT_FOUND]
+
+  # ============================================================================
+  # VEHICLE LOGBOOK EXTRACTION - 15 Fields
+  # ============================================================================
+  vehicle_logbook:
+    name: "Vehicle Logbook Extraction"
+    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (15 fields)"
+    prompt: |
+      Extract vehicle logbook information from this document for a motor vehicle expense claim.
+
+      OUTPUT FORMAT (15 FIELDS):
+
+      DOCUMENT_TYPE: VEHICLE_LOGBOOK
+      VEHICLE_MAKE: [Make or NOT_FOUND]
+      VEHICLE_MODEL: [Model or NOT_FOUND]
+      VEHICLE_REGISTRATION: [Rego or NOT_FOUND]
+      ENGINE_CAPACITY: [Engine size or NOT_FOUND]
+      LOGBOOK_PERIOD_START: [Start date DD Mon YYYY or NOT_FOUND]
+      LOGBOOK_PERIOD_END: [End date DD Mon YYYY or NOT_FOUND]
+      ODOMETER_START: [Start reading or NOT_FOUND]
+      ODOMETER_END: [End reading or NOT_FOUND]
+      TOTAL_KILOMETERS: [Total km or NOT_FOUND]
+      BUSINESS_KILOMETERS: [Business km or NOT_FOUND]
+      BUSINESS_USE_PERCENTAGE: [Percentage with % or NOT_FOUND]
+      JOURNEY_DATES: [Dates with " | " separator or NOT_FOUND]
+      JOURNEY_DISTANCES: [Distances with " | " separator or NOT_FOUND]
+      JOURNEY_PURPOSES: [Purposes with " | " separator or NOT_FOUND]
+
+# Configuration
+settings:
+  max_tokens: 600
+  temperature: 0.0
+  structure_suffixes:
+    - "_flat"
+    - "_date_grouped"

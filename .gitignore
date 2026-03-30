@@ -170,6 +170,9 @@ output/competing_model_accuracy.csv
 # Local utility scripts (not tracked)
 scripts/
 
+# SROIE benchmark data (downloaded on remote)
+data/sroie/
+
 evaluation_data/*
 !evaluation_data/transaction_link_ground_truth.csv
 !evaluation_data/transaction_link_model_results.csv

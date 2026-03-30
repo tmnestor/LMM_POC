@@ -1,0 +1,27 @@
+# SROIE Benchmark — Receipt Key Information Extraction
+# ICDAR 2019 Task 3: Extract 4 fields from scanned receipts
+#
+# Used by benchmark_sroie.py for both InternVL3 and Llama 4 Scout.
+# Model-specific chat template wrapping is handled by the benchmark runner.
+
+extraction:
+  prompt: |
+    Extract the following 4 fields from this receipt image.
+    Return each field on its own line in exactly this format:
+
+    company: <the store or company name>
+    date: <the receipt date in DD/MM/YYYY format>
+    address: <the full store address>
+    total: <the total amount as a number, no currency symbol, e.g. 4.95>
+
+    Rules:
+    - For "company", use the business name printed at the top of the receipt.
+    - For "date", convert to DD/MM/YYYY format regardless of how it appears.
+    - For "address", include the full street address as printed.
+    - For "total", use only the final total amount. Remove any currency symbol.
+    - If a field is not visible, write NOT_FOUND.
+    - Do NOT add any extra text, explanations, or formatting.
+
+settings:
+  max_tokens: 256
+  temperature: 0.0

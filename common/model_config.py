@@ -252,6 +252,16 @@ LLAMA_GENERATION_CONFIG = {
     "use_cache": True,
 }
 
+# Llama 4 Scout generation configuration
+LLAMA4SCOUT_GENERATION_CONFIG = {
+    "max_new_tokens_base": 512,
+    "max_new_tokens_per_field": 64,
+    "temperature": 0.0,
+    "do_sample": False,
+    "top_p": 0.95,
+    "use_cache": True,
+}
+
 # Qwen3-VL generation configuration
 QWEN3VL_GENERATION_CONFIG = {
     "max_new_tokens_base": 512,

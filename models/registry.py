@@ -558,3 +558,137 @@ register_model(
         description="Qwen3-VL-8B-Instruct vision-language model",
     )
 )
+
+
+# ============================================================================
+# Llama 4 Scout Registration (lazy imports — no torch/transformers at module level)
+# ============================================================================
+
+
+def _llama4scout_loader(config):
+    """Context manager for loading Llama 4 Scout model and processor.
+
+    Uses Llama4ForConditionalGeneration + AutoProcessor.
+    NF4 quantization (~55 GB) to fit 109B MoE model on 2x L40S (96 GiB).
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import (
+        AutoProcessor,
+        BitsAndBytesConfig,
+        Llama4ForConditionalGeneration,
+    )
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(
+                f"\n[bold]Loading Llama 4 Scout from: {cfg.model_path}[/bold]"
+            )
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+
+                progress.update(task, description="Loading model weights...")
+
+                load_kwargs = {
+                    "dtype": cfg.torch_dtype,
+                    "device_map": cfg.device_map,
+                    "attn_implementation": "sdpa",
+                }
+
+                # NF4 quantization: 109B MoE -> ~55 GB, fits 2x L40S (96 GiB)
+                # FP8 (~109 GB) does NOT fit; bf16 (~218 GB) definitely not.
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=cfg.torch_dtype,
+                    bnb_4bit_use_double_quant=True,
+                )
+                load_kwargs["quantization_config"] = quantization_config
+                console.print(
+                    "[bold]Using NF4 quantization (~55 GB for 109B MoE)[/bold]"
+                )
+
+                model = Llama4ForConditionalGeneration.from_pretrained(
+                    str(cfg.model_path),
+                    **load_kwargs,
+                )
+
+                # Suppress spurious generation_config warnings
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+
+                progress.update(task, description="Model loaded!")
+
+            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama 4 uses SDPA)")
+
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _llama4scout_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareLlama4Processor from loaded components.
+
+    Note: tokenizer_or_processor is an AutoProcessor for Llama 4 (not a tokenizer).
+    """
+    from models.document_aware_llama4_processor import (
+        DocumentAwareLlama4Processor,
+    )
+
+    return DocumentAwareLlama4Processor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="llama4scout",
+        loader=_llama4scout_loader,
+        processor_creator=_llama4scout_processor_creator,
+        prompt_file="llama4scout_prompts.yaml",
+        description="Llama 4 Scout 17B-16E (109B MoE) vision-language model",
+    )
+)
