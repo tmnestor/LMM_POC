@@ -82,7 +82,7 @@ def load_sroie_ground_truth(key_dir: Path) -> dict[str, dict[str, str]]:
     """
     ground_truth: dict[str, dict[str, str]] = {}
 
-    for txt_path in sorted(key_dir.glob("*.txt")):
+    for txt_path in sorted([*key_dir.glob("*.json"), *key_dir.glob("*.txt")]):
         image_id = txt_path.stem
         text = txt_path.read_text(encoding="utf-8").strip()
         if not text:
