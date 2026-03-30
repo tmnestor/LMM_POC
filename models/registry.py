@@ -244,11 +244,28 @@ def _internvl3_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
-            console.print(f"⚡ Flash Attention 2: {flash_status}")
+            # Check if native flash-attn package is installed
+            _has_native_flash = False
+            if cfg.flash_attn:
+                try:
+                    import flash_attn  # noqa: F401
 
+                    _has_native_flash = True
+                except ImportError:
+                    pass
+
+            if _has_native_flash:
+                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
+            elif cfg.flash_attn:
+                console.print("⚡ Flash Attention 2: ✅ via SDPA patch")
+            else:
+                console.print("⚡ Flash Attention 2: ❌ disabled")
+
+            # Only apply SDPA monkey-patch when flash-attn is NOT installed.
+            # With native flash-attn, the model uses flash_attention_2 backend
+            # directly — the eager->SDPA patch is unnecessary.
             global _sdpa_patched  # noqa: PLW0603
-            if cfg.flash_attn and not _sdpa_patched:
+            if cfg.flash_attn and not _has_native_flash and not _sdpa_patched:
                 if _patch_eager_attention_to_sdpa():
                     console.print("[bold]Patched eager attention -> SDPA[/bold]")
                     _sdpa_patched = True
