@@ -91,17 +91,34 @@ def _load_sroie_prompt() -> str:
 def _run_inference_internvl3(
     model, tokenizer, image: Image.Image, prompt: str, max_tokens: int
 ) -> str:
-    """InternVL3: uses .chat() API with pixel_values."""
-    return model.chat(
+    """InternVL3: preprocess PIL image to pixel_values tensor, then .chat()."""
+    import torch
+
+    from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
+
+    preprocessor = InternVL3ImagePreprocessor()
+    pixel_values = preprocessor.load_image_from_pil(image, model)
+    model_device = InternVL3ImagePreprocessor.get_model_device(model)
+    if pixel_values.device != model_device:
+        pixel_values = pixel_values.to(model_device)
+
+    response = model.chat(
         tokenizer,
-        pixel_values=None,
-        question=prompt,
+        pixel_values,
+        prompt,
         generation_config={
             "max_new_tokens": max_tokens,
             "do_sample": False,
         },
-        images=[image],
+        history=None,
+        return_history=False,
     )
+
+    del pixel_values
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return response
 
 
 def _run_inference_llama4scout(
