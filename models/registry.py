@@ -313,6 +313,17 @@ register_model(
     )
 )
 
+# Same architecture, same API — just a larger model
+register_model(
+    ModelRegistration(
+        model_type="internvl3-38b",
+        loader=_internvl3_loader,
+        processor_creator=_internvl3_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-38B vision-language model (2x L40S)",
+    )
+)
+
 
 # ============================================================================
 # Llama Registration (lazy imports — no torch/transformers at module level)
