@@ -1,0 +1,253 @@
+{
+  "nemotron": {
+    "overall_f1": 0.575,
+    "total_images": 10,
+    "elapsed_seconds": 354.47,
+    "per_field": {
+      "company": {
+        "precision": 0.7,
+        "recall": 0.7,
+        "f1": 0.7,
+        "tp": 7,
+        "fp": 3,
+        "fn": 3
+      },
+      "date": {
+        "precision": 0.6,
+        "recall": 0.6,
+        "f1": 0.6,
+        "tp": 6,
+        "fp": 4,
+        "fn": 4
+      },
+      "address": {
+        "precision": 0.2,
+        "recall": 0.2,
+        "f1": 0.2,
+        "tp": 2,
+        "fp": 8,
+        "fn": 8
+      },
+      "total": {
+        "precision": 0.8,
+        "recall": 0.8,
+        "f1": 0.8,
+        "tp": 8,
+        "fp": 2,
+        "fn": 2
+      }
+    },
+    "per_image": [
+      {
+        "image_id": "000",
+        "matches": {
+          "company": false,
+          "date": true,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "BOOK TA.K (TAMAN DAYA) SDN BHD",
+          "date": "25/12/2018",
+          "address": "NO.55 55,57 & 59, JALAN SAGU 18, TAMAN DAYA, 81100 JOHOR BAHRU, JOHOR",
+          "total": "9.00"
+        },
+        "ground_truth": {
+          "company": "BOOK TA .K (TAMAN DAYA) SDN BHD",
+          "date": "25/12/2018",
+          "address": "NO.53 55,57 & 59, JALAN SAGU 18, TAMAN DAYA, 81100 JOHOR BAHRU, JOHOR.",
+          "total": "9.00"
+        }
+      },
+      {
+        "image_id": "001",
+        "matches": {
+          "company": true,
+          "date": true,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "INDAH GIFT & HOME DECO",
+          "date": "19/10/2018",
+          "address": "27,JALAN DEPAP 13, TAMAN JOHOR JAYA, 81100 JOHOR BAHRU,JOHOR",
+          "total": "60.30"
+        },
+        "ground_truth": {
+          "company": "INDAH GIFT & HOME DECO",
+          "date": "19/10/2018",
+          "address": "27, JALAN DEDAP 13, TAMAN JOHOR JAYA, 81100 JOHOR BAHRU, JOHOR.",
+          "total": "60.30"
+        }
+      },
+      {
+        "image_id": "002",
+        "matches": {
+          "company": true,
+          "date": false,
+          "address": true,
+          "total": true
+        },
+        "predicted": {
+          "company": "MR D.I.Y. (JOHOR) SDN BHD",
+          "date": "12/01/2019",
+          "address": "LOT 1851-A & 1851-B, JALAN KPB 6, KAWASAN PERINDUSTRIAN BALAKONG, 43300 SERI KEMBANGAN, SELANGOR (MR DIY TESCO TERBAU)",
+          "total": "33.90"
+        },
+        "ground_truth": {
+          "company": "MR D.I.Y. (JOHOR) SDN BHD",
+          "date": "12-01-19",
+          "address": "LOT 1851-A & 1851-B, JALAN KPB 6, KAWASAN PERINDUSTRIAN BALAKONG, 43300 SERI KEMBANGAN, SELANGOR (MR DIY TESCO TERBAU)",
+          "total": "33.90"
+        }
+      },
+      {
+        "image_id": "003",
+        "matches": {
+          "company": true,
+          "date": true,
+          "address": false,
+          "total": false
+        },
+        "predicted": {
+          "company": "YONGFATT ENTERPRISE",
+          "date": "25/12/2018",
+          "address": "NO. 122,124, JALAN DEDAP 13, 81100 JOHOR BAHRU",
+          "total": "80.91"
+        },
+        "ground_truth": {
+          "company": "YONGFATT ENTERPRISE",
+          "date": "25/12/2018",
+          "address": "NO 122.124. JALAN DEDAP 13 81100 JOHOR BAHRU",
+          "total": "80.90"
+        }
+      },
+      {
+        "image_id": "004",
+        "matches": {
+          "company": false,
+          "date": false,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "TESCO PUTRA NILAI",
+          "date": "18/11/2018",
+          "address": "LOT 1851-A & 1851-B, JALAN KPB 6, KAWASAN PERINDUSTRIAN BALAKONG, 43300 SERI KEMBANGAN, SELANGOR",
+          "total": "30.90"
+        },
+        "ground_truth": {
+          "company": "MR D.I.Y. (M) SDN BHD",
+          "date": "18-11-18",
+          "address": "LOT 1851-A & 1851-B, JALAN KPB 6, KAWASAN PERINDUSTRIAN BALAKONG, 43300 SERI KEMBANGAN, SELANGOR (TESCO PUTRA NILAI)",
+          "total": "30.90"
+        }
+      },
+      {
+        "image_id": "005",
+        "matches": {
+          "company": true,
+          "date": false,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "ABC HO TRADING",
+          "date": "01/09/2019",
+          "address": "No.2&4, JALAN HARMONI 3/2, TAMAN DESA HARMONI, 81100 JOHOR BAHRU, JOHOR",
+          "total": "31.00"
+        },
+        "ground_truth": {
+          "company": "ABC HO TRADING",
+          "date": "09/01/2019",
+          "address": "NO.2&4, JALAN HARMONI 3/2, TAMAN DESA HARMONI. 81100 JOHOR BAHRU JOHOR",
+          "total": "31.00"
+        }
+      },
+      {
+        "image_id": "006",
+        "matches": {
+          "company": true,
+          "date": false,
+          "address": true,
+          "total": true
+        },
+        "predicted": {
+          "company": "SOON HUAT MACHINERY ENTERPRISE",
+          "date": "01/11/2019",
+          "address": "NO.53 JALAN PUTRA 1, TAMAN SRI PUTRA, 81200 JOHOR BAHRU JOHOR",
+          "total": "327.00"
+        },
+        "ground_truth": {
+          "company": "SOON HUAT MACHINERY ENTERPRISE",
+          "date": "11/01/2019",
+          "address": "NO.53 JALAN PUTRA 1, TAMAN SRI PUTRA, 81200 JOHOR BAHRU JOHOR",
+          "total": "327.00"
+        }
+      },
+      {
+        "image_id": "007",
+        "matches": {
+          "company": false,
+          "date": true,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "tan chay yee",
+          "date": "23/01/2019",
+          "address": "No. 343, Jalan Kurau, Sungai Rengit, 81620 Pengerang, Johor",
+          "total": "20.00"
+        },
+        "ground_truth": {
+          "company": "S.H.H. MOTOR (SUNGAI RENGIT) SDN. BHD.",
+          "date": "23-01-2019",
+          "address": "NO. 343, JALAN KURAU, SUNGAI RENGIT, 81620 PENGERANG, JOHOR.",
+          "total": "20.00"
+        }
+      },
+      {
+        "image_id": "008",
+        "matches": {
+          "company": true,
+          "date": true,
+          "address": false,
+          "total": false
+        },
+        "predicted": {
+          "company": "PERNIAGAAN ZHENG HUI",
+          "date": "12/02/2018",
+          "address": "NO.69 JALAN PERMAS 9/5 BANDAR BARU PERMAS JAYA 81760 JOHOR BAHRU",
+          "total": "112.46"
+        },
+        "ground_truth": {
+          "company": "PERNIAGAAN ZHENG HUI",
+          "date": "12/02/2018",
+          "address": "NO.59 JALAN PERMAS 9/5 BANDAR BARU PERMAS JAYA 81760 JOHOR BAHRU",
+          "total": "112.45"
+        }
+      },
+      {
+        "image_id": "009",
+        "matches": {
+          "company": true,
+          "date": true,
+          "address": false,
+          "total": true
+        },
+        "predicted": {
+          "company": "Gerbang Alaf Restaurants Sdn Bhd",
+          "date": "18/01/2018",
+          "address": "Level 6, Bangunan TH, Damansara Uptown3 No.3, Jalan SS21/39, 47400 Petaling Jaya Selangor",
+          "total": "26.60"
+        },
+        "ground_truth": {
+          "company": "GERBANG ALAF RESTAURANTS SDN BHD",
+          "date": "18/01/2018",
+          "address": "LEVEL 6, BANGUNAN TH, DAMANSARA UPTOWN3 NO.3, JALAN SS21/39,47400 PETALING JAYA SELANGOR",
+          "total": "26.60"
+        }
+      }
+    ]
+  }
+}
