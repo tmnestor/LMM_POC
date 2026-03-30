@@ -25,7 +25,11 @@ from PIL import Image
 from rich.console import Console
 from rich.table import Table
 
-from common.pipeline_config import PipelineConfig
+from common.pipeline_config import (
+    PipelineConfig,
+    auto_detect_model_path,
+    load_yaml_config,
+)
 from common.sroie_evaluation import (
     SROIE_FIELDS,
     SROIEBenchmarkResult,
@@ -264,14 +268,41 @@ def run_benchmark(
     # Load model via registry
     registration = get_model(model_type)
 
-    # Build minimal PipelineConfig for the loader
+    # Resolve model path: CLI > run_config.yml > auto-detect
+    resolved_model_path: Path | None = Path(model_path) if model_path else None
+
+    if resolved_model_path is None:
+        # Try run_config.yml for default_paths
+        run_config_path = Path(__file__).parent / "config" / "run_config.yml"
+        if run_config_path.exists():
+            _, raw_config = load_yaml_config(run_config_path)
+            default_paths = raw_config.get("model_loading", {}).get("default_paths", {})
+            if isinstance(default_paths, dict) and model_type in default_paths:
+                candidate = Path(default_paths[model_type])
+                if candidate.exists():
+                    resolved_model_path = candidate
+                    console.print(
+                        f"Model path from run_config.yml: {resolved_model_path}"
+                    )
+
+    if resolved_model_path is None:
+        resolved_model_path = auto_detect_model_path()
+        if resolved_model_path:
+            console.print(f"Auto-detected model path: {resolved_model_path}")
+
+    if resolved_model_path is None:
+        raise FileNotFoundError(
+            f"No model path found for '{model_type}'. "
+            "Use --model-path or add to config/run_config.yml model_loading.default_paths."
+        )
+
+    # Build PipelineConfig
     config_kwargs: dict[str, Any] = {
         "data_dir": data_dir,
         "output_dir": data_dir / "output",
         "model_type": model_type,
+        "model_path": resolved_model_path,
     }
-    if model_path:
-        config_kwargs["model_path"] = Path(model_path)
 
     # Set model-specific defaults
     if model_type == "internvl3":
