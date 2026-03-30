@@ -174,6 +174,58 @@ def _run_inference_llama4scout(
     return response.strip()
 
 
+def _run_inference_nemotron(
+    model, processor, image: Image.Image, prompt: str, max_tokens: int
+) -> str:
+    """Nemotron Nano 2 VL: tokenizer.apply_chat_template + processor().
+
+    Uses two-step API: tokenizer formats chat template, processor handles
+    image tokenization.  /no_think system message disables chain-of-thought.
+    """
+    import torch
+
+    tokenizer = processor.tokenizer
+
+    messages = [
+        {"role": "system", "content": "/no_think"},
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": ""},
+                {"type": "text", "text": prompt},
+            ],
+        },
+    ]
+
+    text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    inputs = processor(text=[text], images=[image], return_tensors="pt").to(
+        model.device
+    )
+
+    output_ids = model.generate(
+        pixel_values=inputs.pixel_values,
+        input_ids=inputs.input_ids,
+        attention_mask=inputs.attention_mask,
+        max_new_tokens=max_tokens,
+        do_sample=False,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+
+    # Trim input tokens
+    generated_ids = output_ids[:, inputs.input_ids.shape[1] :]
+    response = processor.batch_decode(
+        generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )[0]
+
+    del inputs, output_ids, generated_ids
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return response.strip()
+
+
 def _run_inference_generic(
     model, processor, image: Image.Image, prompt: str, max_tokens: int
 ) -> str:
@@ -232,6 +284,10 @@ def run_inference(
         )
     if model_type == "llama4scout":
         return _run_inference_llama4scout(
+            model, tokenizer_or_processor, image, prompt, max_tokens
+        )
+    if model_type == "nemotron":
+        return _run_inference_nemotron(
             model, tokenizer_or_processor, image, prompt, max_tokens
         )
     # Fallback for qwen3vl and other models using two-step API
@@ -334,7 +390,13 @@ def run_benchmark(
     if model_type == "internvl3":
         config_kwargs.setdefault("flash_attn", True)
         config_kwargs.setdefault("device_map", "auto")
+    elif model_type in ("internvl3-38b",):
+        config_kwargs.setdefault("flash_attn", True)
+        config_kwargs.setdefault("device_map", "auto")
     elif model_type == "llama4scout":
+        config_kwargs.setdefault("flash_attn", False)
+        config_kwargs.setdefault("device_map", "auto")
+    elif model_type == "nemotron":
         config_kwargs.setdefault("flash_attn", False)
         config_kwargs.setdefault("device_map", "auto")
 

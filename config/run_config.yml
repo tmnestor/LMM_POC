@@ -97,3 +97,4 @@ model_loading:
     internvl3-38b: /home/jovyan/nfs_share/models/InternVL3_5-38B
     llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
     qwen3vl: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
+    nemotron: /home/jovyan/nfs_share/models/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16

@@ -720,3 +720,112 @@ register_model(
         description="Llama 4 Scout 17B-16E (109B MoE) vision-language model",
     )
 )
+
+
+# ============================================================================
+# Nemotron Nano 2 VL Registration (lazy imports)
+# ============================================================================
+
+
+def _nemotron_loader(config):
+    """Context manager for loading Nemotron Nano 2 VL model and processor.
+
+    Uses AutoModelForCausalLM + AutoProcessor with trust_remote_code=True.
+    Hybrid Transformer-Mamba architecture (CRadioV2-H vision encoder + Mamba SSM).
+    BF16 (~24 GB) fits single L4; FP8 (~12 GB) leaves more headroom.
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoModelForCausalLM, AutoProcessor
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(
+                f"\n[bold]Loading Nemotron Nano 2 VL from: {cfg.model_path}[/bold]"
+            )
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(
+                    str(cfg.model_path), trust_remote_code=True
+                )
+
+                progress.update(task, description="Loading model weights...")
+
+                model = AutoModelForCausalLM.from_pretrained(
+                    str(cfg.model_path),
+                    trust_remote_code=True,
+                    device_map=cfg.device_map,
+                    torch_dtype=cfg.torch_dtype,
+                ).eval()
+
+                # Suppress spurious generation_config warnings
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+
+                progress.update(task, description="Model loaded!")
+
+            console.print(
+                "⚡ Architecture: hybrid Transformer-Mamba "
+                "(flash-attn N/A — Mamba uses linear recurrence)"
+            )
+
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _nemotron_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Nemotron full pipeline processor — not yet implemented.
+
+    Use benchmark_sroie.py for SROIE evaluation.
+    """
+    raise NotImplementedError(
+        "Nemotron Nano 2 VL full pipeline processor not yet implemented. "
+        "Use benchmark_sroie.py for SROIE evaluation."
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="nemotron",
+        loader=_nemotron_loader,
+        processor_creator=_nemotron_processor_creator,
+        prompt_file="sroie_prompts.yaml",
+        description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
+    )
+)
