@@ -96,7 +96,7 @@ def _run_inference_internvl3(
 
     from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
 
-    preprocessor = InternVL3ImagePreprocessor()
+    preprocessor = InternVL3ImagePreprocessor(max_tiles=6)
     pixel_values = preprocessor.load_image_from_pil(image, model)
     model_device = InternVL3ImagePreprocessor.get_model_device(model)
     if pixel_values.device != model_device:
