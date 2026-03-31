@@ -1,3 +1,0 @@
-hf download Qwen/Qwen3.5-27B --local-dir $MODEL_DIR/Qwen3.5-27B
-pip install "transformers @ git+https://github.com/huggingface/transformers.git@main" pillow accelerate
-conda env export > ./config/QWEN35_env.yml
