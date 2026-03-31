@@ -77,7 +77,9 @@ python cli.py \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
   --output-dir evaluation_data/output/bank_ivl35_14b
 
-# --- InternVL3.5-38B (~77 GB, needs 2x L40S) ---
+# --- InternVL3.5-38B (~77 GB, auto-shards across 2x L40S via split_model) ---
+# CLI auto-detects requires_sharding and bypasses the multi-GPU orchestrator.
+# The loader's split_model function distributes LLM layers across both GPUs.
 python cli.py \
   --model internvl3-38b \
   --data-dir evaluation_data/bank \

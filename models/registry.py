@@ -31,6 +31,9 @@ class ModelRegistration:
     processor_creator: ProcessorCreator
     prompt_file: str
     description: str = ""
+    requires_sharding: bool = (
+        False  # True = model must shard across GPUs (keep device_map="auto")
+    )
 
 
 _REGISTRY: dict[str, ModelRegistration] = {}
@@ -94,6 +97,12 @@ def get_model(model_type: str) -> ModelRegistration:
 def list_models() -> list[str]:
     """Return sorted list of registered model type strings."""
     return sorted(_REGISTRY)
+
+
+def _get_requires_sharding(model_type: str) -> bool:
+    """Check if a registered model requires cross-GPU sharding."""
+    reg = _REGISTRY.get(model_type)
+    return reg.requires_sharding if reg else False
 
 
 def _patch_eager_attention_to_sdpa() -> bool:
@@ -188,6 +197,54 @@ def _patch_eager_attention_to_sdpa() -> bool:
 # ============================================================================
 
 
+def _split_internvl_model(model_path: str) -> dict[str, int]:
+    """Build a device_map that shards an InternVL model across all GPUs.
+
+    GPU 0 hosts the vision encoder, MLP projector, embeddings, norm, and
+    output head — so it gets fewer LLM layers.  The remaining layers are
+    distributed evenly across all GPUs.  The final LLM layer is pinned back
+    to GPU 0 to avoid cross-device tensor mismatches during generation.
+
+    Reference: OpenGVLab/InternVL official multi-GPU example.
+    """
+    import math
+
+    import torch
+    from transformers import AutoConfig
+
+    world_size = torch.cuda.device_count()
+    cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    num_layers = cfg.llm_config.num_hidden_layers
+
+    # GPU 0 counts as "half" because it also hosts the vision model
+    layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
+    per_gpu = [layers_per_gpu] * world_size
+    per_gpu[0] = math.ceil(per_gpu[0] * 0.5)
+
+    device_map: dict[str, int] = {}
+    layer_idx = 0
+    for gpu_id, n_layers in enumerate(per_gpu):
+        for _ in range(n_layers):
+            if layer_idx >= num_layers:
+                break
+            device_map[f"language_model.model.layers.{layer_idx}"] = gpu_id
+            layer_idx += 1
+
+    # Fixed components on GPU 0
+    device_map["vision_model"] = 0
+    device_map["mlp1"] = 0
+    device_map["language_model.model.tok_embeddings"] = 0
+    device_map["language_model.model.embed_tokens"] = 0
+    device_map["language_model.output"] = 0
+    device_map["language_model.model.norm"] = 0
+    device_map["language_model.model.rotary_emb"] = 0
+    device_map["language_model.lm_head"] = 0
+    # Pin last layer to GPU 0 to prevent cross-device errors in generation
+    device_map[f"language_model.model.layers.{num_layers - 1}"] = 0
+
+    return device_map
+
+
 def _internvl3_loader(config):
     """Context manager for loading InternVL3 model and tokenizer.
 
@@ -228,13 +285,29 @@ def _internvl3_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
+                # For large models that need cross-GPU sharding, use the
+                # official InternVL split_model function instead of
+                # device_map="auto" — it keeps vision encoder + first/last
+                # LLM layers on GPU 0 to avoid cross-device tensor errors.
+                effective_device_map = cfg.device_map
+                if (
+                    cfg.device_map == "auto"
+                    and torch.cuda.device_count() > 1
+                    and _get_requires_sharding(cfg.model_type)
+                ):
+                    effective_device_map = _split_internvl_model(str(cfg.model_path))
+                    console.print(
+                        f"[bold cyan]Sharding across {torch.cuda.device_count()} GPUs "
+                        f"(split_model)[/bold cyan]"
+                    )
+
                 model = AutoModel.from_pretrained(
                     str(cfg.model_path),
                     dtype=cfg.torch_dtype,
                     low_cpu_mem_usage=cfg.low_cpu_mem_usage,
                     use_flash_attn=cfg.flash_attn,
                     trust_remote_code=cfg.trust_remote_code,
-                    device_map=cfg.device_map,
+                    device_map=effective_device_map,
                 ).eval()
 
                 # Set pad_token_id on generation_config to suppress
@@ -348,6 +421,7 @@ register_model(
         processor_creator=_internvl3_processor_creator,
         prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-38B vision-language model (2x L40S)",
+        requires_sharding=True,  # ~77 GB BF16, must shard across 2x L40S
     )
 )
 

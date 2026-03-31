@@ -565,10 +565,23 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
             raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
+    # Large models (requires_sharding=True) need the full device_map="auto"
+    # to shard across all GPUs via split_model.  Force single-model path
+    # (no orchestrator) — the loader handles multi-GPU sharding internally.
+    model_reg = get_model(config.model_type)
+    if model_reg.requires_sharding and available_gpus > 1:
+        console.print(
+            f"\n[bold cyan]Model '{config.model_type}' requires cross-GPU "
+            f"sharding — using split_model across {available_gpus} GPUs[/bold cyan]"
+        )
+        resolved_gpus = 1  # bypass orchestrator, loader shards internally
+
     # Pin model to GPU 0 when running single-GPU on a multi-GPU machine.
     # device_map="auto" would spread layers across all GPUs, wasting memory.
+    # Skip pinning for sharded models — they need device_map="auto".
     if resolved_gpus == 1 and available_gpus > 1 and config.device_map == "auto":
-        config = replace(config, device_map="cuda:0")
+        if not model_reg.requires_sharding:
+            config = replace(config, device_map="cuda:0")
 
     import time as _time
 
