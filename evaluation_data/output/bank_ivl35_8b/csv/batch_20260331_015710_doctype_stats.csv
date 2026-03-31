@@ -1,0 +1,2 @@
+document_type,overall_accuracy_mean,overall_accuracy_median,overall_accuracy_std,overall_accuracy_min,overall_accuracy_max,processing_time_mean,processing_time_median,count
+BANK_STATEMENT,86.95,97.78,19.88,40.0,100.0,79.09,79.8,15
