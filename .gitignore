@@ -178,6 +178,7 @@ evaluation_data/*
 !evaluation_data/transaction_link_model_results.csv
 !evaluation_data/synthetic_*.png
 !evaluation_data/bank_*.png
+!evaluation_data/output/
 results
 SROIE_results
 untitled.txt
