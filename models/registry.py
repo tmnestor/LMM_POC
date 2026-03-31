@@ -5,9 +5,22 @@ All heavy imports (torch, transformers) are deferred to function bodies
 so that importing this module has zero GPU/ML overhead.
 """
 
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
+
+
+@contextmanager
+def _quiet_loading():
+    """Suppress tqdm progress bars during model weight loading."""
+    from transformers.utils import logging as hf_logging
+
+    hf_logging.disable_progress_bar()
+    try:
+        yield
+    finally:
+        hf_logging.enable_progress_bar()
+
 
 type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
 type ProcessorCreator = Callable[..., Any]
@@ -301,14 +314,15 @@ def _internvl3_loader(config):
                         f"(split_model)[/bold cyan]"
                     )
 
-                model = AutoModel.from_pretrained(
-                    str(cfg.model_path),
-                    dtype=cfg.torch_dtype,
-                    low_cpu_mem_usage=cfg.low_cpu_mem_usage,
-                    use_flash_attn=cfg.flash_attn,
-                    trust_remote_code=cfg.trust_remote_code,
-                    device_map=effective_device_map,
-                ).eval()
+                with _quiet_loading():
+                    model = AutoModel.from_pretrained(
+                        str(cfg.model_path),
+                        dtype=cfg.torch_dtype,
+                        low_cpu_mem_usage=cfg.low_cpu_mem_usage,
+                        use_flash_attn=cfg.flash_attn,
+                        trust_remote_code=cfg.trust_remote_code,
+                        device_map=effective_device_map,
+                    ).eval()
 
                 # Set pad_token_id on generation_config to suppress
                 # "Setting pad_token_id to eos_token_id" warnings.
@@ -474,10 +488,11 @@ def _llama_loader(config):
                     "device_map": cfg.device_map,
                 }
 
-                model = MllamaForConditionalGeneration.from_pretrained(
-                    str(cfg.model_path),
-                    **load_kwargs,
-                )
+                with _quiet_loading():
+                    model = MllamaForConditionalGeneration.from_pretrained(
+                        str(cfg.model_path),
+                        **load_kwargs,
+                    )
 
                 # Tie weights for Llama models
                 try:
@@ -603,10 +618,11 @@ def _qwen3vl_loader(config):
                 if cfg.flash_attn:
                     load_kwargs["attn_implementation"] = "flash_attention_2"
 
-                model = Qwen3VLForConditionalGeneration.from_pretrained(
-                    str(cfg.model_path),
-                    **load_kwargs,
-                )
+                with _quiet_loading():
+                    model = Qwen3VLForConditionalGeneration.from_pretrained(
+                        str(cfg.model_path),
+                        **load_kwargs,
+                    )
 
                 # Suppress spurious generation_config warnings
                 if hasattr(model, "generation_config"):
@@ -739,10 +755,11 @@ def _llama4scout_loader(config):
                     "[bold]Using NF4 quantization (~55 GB for 109B MoE)[/bold]"
                 )
 
-                model = Llama4ForConditionalGeneration.from_pretrained(
-                    str(cfg.model_path),
-                    **load_kwargs,
-                )
+                with _quiet_loading():
+                    model = Llama4ForConditionalGeneration.from_pretrained(
+                        str(cfg.model_path),
+                        **load_kwargs,
+                    )
 
                 # Suppress spurious generation_config warnings
                 if hasattr(model, "generation_config"):
@@ -853,12 +870,13 @@ def _nemotron_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                model = AutoModelForCausalLM.from_pretrained(
-                    str(cfg.model_path),
-                    trust_remote_code=True,
-                    device_map=cfg.device_map,
-                    torch_dtype=cfg.torch_dtype,
-                ).eval()
+                with _quiet_loading():
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(cfg.model_path),
+                        trust_remote_code=True,
+                        device_map=cfg.device_map,
+                        torch_dtype=cfg.torch_dtype,
+                    ).eval()
 
                 # Suppress spurious generation_config warnings
                 if hasattr(model, "generation_config"):
@@ -967,11 +985,12 @@ def _qwen35_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                model = Qwen3_5ForConditionalGeneration.from_pretrained(
-                    str(cfg.model_path),
-                    dtype=cfg.torch_dtype,
-                    device_map=cfg.device_map,
-                )
+                with _quiet_loading():
+                    model = Qwen3_5ForConditionalGeneration.from_pretrained(
+                        str(cfg.model_path),
+                        dtype=cfg.torch_dtype,
+                        device_map=cfg.device_map,
+                    )
 
                 # Suppress spurious generation_config warnings
                 if hasattr(model, "generation_config"):

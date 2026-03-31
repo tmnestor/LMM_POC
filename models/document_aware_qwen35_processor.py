@@ -153,7 +153,7 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
             add_generation_prompt=True,
             return_dict=True,
             return_tensors="pt",
-            chat_template_kwargs={"enable_thinking": False},
+            enable_thinking=False,
         )
         inputs = inputs.to(self.model.device)
 
