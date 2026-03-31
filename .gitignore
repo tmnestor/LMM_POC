@@ -179,3 +179,5 @@ evaluation_data/*
 !evaluation_data/synthetic_*.png
 !evaluation_data/bank_*.png
 results
+SROIE_results
+untitled.txt
