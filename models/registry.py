@@ -820,13 +820,23 @@ def _nemotron_processor_creator(
     universal_fields,
     field_definitions,
 ):
-    """Nemotron full pipeline processor — not yet implemented.
+    """Create a DocumentAwareNemotronProcessor from loaded components.
 
-    Use benchmark_sroie.py for SROIE evaluation.
+    Note: tokenizer_or_processor is an AutoProcessor for Nemotron.
     """
-    raise NotImplementedError(
-        "Nemotron Nano 2 VL full pipeline processor not yet implemented. "
-        "Use benchmark_sroie.py for SROIE evaluation."
+    from models.document_aware_nemotron_processor import (
+        DocumentAwareNemotronProcessor,
+    )
+
+    return DocumentAwareNemotronProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
     )
 
 
@@ -835,7 +845,7 @@ register_model(
         model_type="nemotron",
         loader=_nemotron_loader,
         processor_creator=_nemotron_processor_creator,
-        prompt_file="sroie_prompts.yaml",
+        prompt_file="internvl3_prompts.yaml",
         description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
     )
 )
