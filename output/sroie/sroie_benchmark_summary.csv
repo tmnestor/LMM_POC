@@ -1,2 +1,2 @@
 model,overall_f1,total_images,elapsed_seconds,images_per_min,company_precision,company_recall,company_f1,date_precision,date_recall,date_f1,address_precision,address_recall,address_f1,total_precision,total_recall,total_f1
-nemotron,0.575,10,354.47,1.69,0.7,0.7,0.7,0.6,0.6,0.6,0.2,0.2,0.2,0.8,0.8,0.8
+nemotron,0.6408,626,14525.16,2.59,0.7716,0.7716,0.7716,0.5735,0.5735,0.5735,0.2859,0.2864,0.2862,0.9313,0.9328,0.9321
