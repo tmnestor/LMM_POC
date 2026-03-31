@@ -399,6 +399,9 @@ def run_benchmark(
     elif model_type == "nemotron":
         config_kwargs.setdefault("flash_attn", False)
         config_kwargs.setdefault("device_map", "auto")
+    elif model_type == "qwen35":
+        config_kwargs.setdefault("flash_attn", False)
+        config_kwargs.setdefault("device_map", "auto")
 
     cfg = PipelineConfig(**config_kwargs)
 

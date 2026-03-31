@@ -923,3 +923,115 @@ register_model(
         description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
     )
 )
+
+
+# ============================================================================
+# Qwen3.5-27B Registration (lazy imports — no torch/transformers at module level)
+# ============================================================================
+
+
+def _qwen35_loader(config):
+    """Context manager for loading Qwen3.5-27B model and processor.
+
+    Uses AutoModelForCausalLM + AutoProcessor (early-fusion VLM).
+    ~54 GB BF16, needs cross-GPU sharding on 2x L40S.
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoModelForCausalLM, AutoProcessor
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(f"\n[bold]Loading Qwen3.5-27B from: {cfg.model_path}[/bold]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+
+                progress.update(task, description="Loading model weights...")
+
+                model = AutoModelForCausalLM.from_pretrained(
+                    str(cfg.model_path),
+                    torch_dtype=cfg.torch_dtype,
+                    device_map=cfg.device_map,
+                )
+
+                # Suppress spurious generation_config warnings
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+                    model.generation_config.top_k = None
+
+                progress.update(task, description="Model loaded!")
+
+            console.print("🧠 Architecture: early-fusion VLM (dense 27B, 262K context)")
+
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _qwen35_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareQwen35Processor from loaded components.
+
+    Note: tokenizer_or_processor is an AutoProcessor for Qwen3.5.
+    """
+    from models.document_aware_qwen35_processor import (
+        DocumentAwareQwen35Processor,
+    )
+
+    return DocumentAwareQwen35Processor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="qwen35",
+        loader=_qwen35_loader,
+        processor_creator=_qwen35_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="Qwen3.5-27B early-fusion VLM (~54 GB BF16)",
+        requires_sharding=True,  # ~54 GB BF16, must shard across 2x L40S
+    )
+)
