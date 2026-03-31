@@ -941,7 +941,7 @@ def _qwen35_loader(config):
     import torch
     from rich.console import Console
     from rich.progress import Progress, SpinnerColumn, TextColumn
-    from transformers import AutoModelForCausalLM, AutoProcessor
+    from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
 
     console = Console()
 
@@ -967,9 +967,9 @@ def _qwen35_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                model = AutoModelForCausalLM.from_pretrained(
+                model = Qwen3_5ForConditionalGeneration.from_pretrained(
                     str(cfg.model_path),
-                    torch_dtype=cfg.torch_dtype,
+                    dtype=cfg.torch_dtype,
                     device_map=cfg.device_map,
                 )
 

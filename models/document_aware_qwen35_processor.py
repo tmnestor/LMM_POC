@@ -88,15 +88,15 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
 
     def _load_model(self) -> None:
         """Load Qwen3.5-27B model and processor from disk."""
-        from transformers import AutoModelForCausalLM, AutoProcessor
+        from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
 
         if self.debug:
             print(f"Loading Qwen3.5-27B from {self.model_path}")
 
         self.processor = AutoProcessor.from_pretrained(self.model_path)
-        self.model = AutoModelForCausalLM.from_pretrained(
+        self.model = Qwen3_5ForConditionalGeneration.from_pretrained(
             self.model_path,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             device_map="auto",
         )
 
@@ -132,33 +132,30 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
     def generate(self, image: Image.Image, prompt: str, max_tokens: int = 1024) -> str:
         """Run Qwen3.5-27B inference on a single image + prompt.
 
-        Two-step API: apply_chat_template() for chat formatting (with
-        thinking disabled), then processor() for image tokenization.
+        One-step API: apply_chat_template(tokenize=True) handles both chat
+        formatting and image tokenization.  Thinking mode disabled via
+        chat_template_kwargs.
         """
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image"},
+                    {"type": "image", "image": image},
                     {"type": "text", "text": prompt},
                 ],
             }
         ]
 
-        # Step 1: Build text template (disable thinking for extraction)
-        text = self.processor.apply_chat_template(
+        # One-step: tokenize text + encode image together
+        inputs = self.processor.apply_chat_template(
             messages,
-            tokenize=False,
+            tokenize=True,
             add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
             chat_template_kwargs={"enable_thinking": False},
         )
-
-        # Step 2: Tokenize text + encode image together
-        inputs = self.processor(
-            text=[text],
-            images=[image],
-            return_tensors="pt",
-        ).to(self.model.device)
+        inputs = inputs.to(self.model.device)
 
         output_ids = self.model.generate(
             **inputs,
@@ -190,7 +187,7 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
         # Bank statements need more tokens for many transactions
         if document_type == "bank_statement":
             tokens = max(tokens, 1500)
-        return tokens
+        return int(tokens)
 
     # -- Single image processing -----------------------------------------------
 
@@ -305,6 +302,8 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
             if self.debug:
                 print(f"OOM at {max_tokens} tokens, retrying at {max_tokens // 2}")
             return self.generate(image, prompt, max_tokens // 2)
+
+        return ""  # unreachable — oom is always True here
 
     def get_model_info(self) -> dict:
         """Return model metadata for reporting."""
