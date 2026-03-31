@@ -59,6 +59,7 @@ Run the existing pipeline on the 15-image bank statement dataset with each model
 ```bash
 # ============================================================
 # InternVL3.5 models (all three in one session)
+# NOTE: no --document-types flag (it filters by filename, not content)
 # ============================================================
 conda activate LMM_POC_IVL3.5
 
@@ -67,24 +68,21 @@ python cli.py \
   --model internvl3 \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
-  --output-dir ../evaluation_data/output/bank_ivl35_8b \
-  --document-types BANK_STATEMENT
+  --output-dir ../evaluation_data/output/bank_ivl35_8b
 
 # --- InternVL3.5-14B (~30 GB, fits single GPU) ---
 python cli.py \
   --model internvl3-14b \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
-  --output-dir ../evaluation_data/output/bank_ivl35_14b \
-  --document-types BANK_STATEMENT
+  --output-dir ../evaluation_data/output/bank_ivl35_14b
 
 # --- InternVL3.5-38B (~77 GB, needs 2x L40S) ---
 python cli.py \
   --model internvl3-38b \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
-  --output-dir ../evaluation_data/output/bank_ivl35_38b \
-  --document-types BANK_STATEMENT
+  --output-dir ../evaluation_data/output/bank_ivl35_38b
 
 # ============================================================
 # Nemotron (separate environment)
@@ -96,8 +94,7 @@ python cli.py \
   --model nemotron \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
-  --output-dir ../evaluation_data/output/bank_nemotron \
-  --document-types BANK_STATEMENT
+  --output-dir ../evaluation_data/output/bank_nemotron
 ```
 
 ### Expected Output Per Run
@@ -147,15 +144,13 @@ conda activate LMM_POC_IVL3.5
 python cli.py --model internvl3 \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
-  --output-dir ../evaluation_data/output/bank_ivl35_8b_balcorr_on \
-  --document-types BANK_STATEMENT
+  --output-dir ../evaluation_data/output/bank_ivl35_8b_balcorr_on
 
 # Without balance correction
 python cli.py --model internvl3 \
   --data-dir ../evaluation_data/bank \
   --ground-truth ../evaluation_data/bank/ground_truth_bank.csv \
   --output-dir ../evaluation_data/output/bank_ivl35_8b_balcorr_off \
-  --document-types BANK_STATEMENT \
   --no-balance-correction
 ```
 
