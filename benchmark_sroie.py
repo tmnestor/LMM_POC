@@ -278,7 +278,7 @@ def run_inference(
     max_tokens: int = 256,
 ) -> str:
     """Dispatch inference to the correct model-specific function."""
-    if model_type == "internvl3":
+    if model_type in ("internvl3", "internvl3-14b", "internvl3-38b"):
         return _run_inference_internvl3(
             model, tokenizer_or_processor, image, prompt, max_tokens
         )
@@ -390,7 +390,7 @@ def run_benchmark(
     if model_type == "internvl3":
         config_kwargs.setdefault("flash_attn", True)
         config_kwargs.setdefault("device_map", "auto")
-    elif model_type in ("internvl3-38b",):
+    elif model_type in ("internvl3-14b", "internvl3-38b"):
         config_kwargs.setdefault("flash_attn", True)
         config_kwargs.setdefault("device_map", "auto")
     elif model_type == "llama4scout":

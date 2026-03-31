@@ -330,7 +330,17 @@ register_model(
     )
 )
 
-# Same architecture, same API — just a larger model
+# Same architecture, same API — just larger models
+register_model(
+    ModelRegistration(
+        model_type="internvl3-14b",
+        loader=_internvl3_loader,
+        processor_creator=_internvl3_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-14B vision-language model (~30 GB BF16)",
+    )
+)
+
 register_model(
     ModelRegistration(
         model_type="internvl3-38b",
