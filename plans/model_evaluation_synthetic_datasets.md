@@ -1,7 +1,8 @@
-# Plan: Bank Statement Extraction Evaluation — VLM Model Comparison
+# Plan: VLM Model Evaluation — Synthetic Datasets
 
 **Date**: 2026-03-31
-**Hardware**: 2x L40S (48 GiB each, 96 GiB total)
+**Remote hardware**: 2x L40S (48 GiB each, 96 GiB total)
+**Local machine**: macOS (no GPU) — analysis, reporting, visualization only
 **Branch**: `feature/multi-gpu`
 
 ---
@@ -223,7 +224,80 @@ Compile into a single markdown table for the report:
 
 ---
 
-## Phase 5: Recommendations
+## Phase 5: SROIE Benchmark (All Five Models)
+
+Run the standardized SROIE receipt extraction benchmark (ICDAR 2019 Task 3) on all five models. This provides a controlled comparison on a simpler task (4 flat fields, single-turn, exact-match evaluation) to isolate OCR/extraction capability from the multi-turn complexity of bank statements.
+
+**SROIE fields**: company, date, address, total (exact-match after normalization)
+
+### Commands
+
+```bash
+# ============================================================
+# InternVL3.5 models
+# ============================================================
+conda activate LMM_POC_IVL3.5
+
+# --- InternVL3.5-8B ---
+python benchmark_sroie.py \
+  --model internvl3 \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_8b
+
+# --- InternVL3.5-14B ---
+python benchmark_sroie.py \
+  --model internvl3-14b \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_14b
+
+# --- InternVL3.5-38B (auto-shards across 2x L40S) ---
+python benchmark_sroie.py \
+  --model internvl3-38b \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_38b
+
+# ============================================================
+# Nemotron (separate environment)
+# ============================================================
+conda activate LMM_POC_NEMOTRON
+
+python benchmark_sroie.py \
+  --model nemotron \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_nemotron
+
+# ============================================================
+# Qwen3.5-27B (separate environment)
+# ============================================================
+conda activate LMM_POC_QWEN35
+
+python benchmark_sroie.py \
+  --model qwen35 \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_qwen35_27b
+```
+
+### SROIE Results Table
+
+| Metric | IVL3.5-8B | IVL3.5-14B | IVL3.5-38B | Nemotron 12B | Qwen3.5-27B |
+|--------|-----------|------------|------------|--------------|-------------|
+| Overall F1 | ? | ? | ? | ? | ? |
+| company F1 | ? | ? | ? | ? | ? |
+| date F1 | ? | ? | ? | ? | ? |
+| address F1 | ? | ? | ? | ? | ? |
+| total F1 | ? | ? | ? | ? | ? |
+| Images/min | ? | ? | ? | ? | ? |
+
+### SROIE vs Bank Statement Analysis
+
+Compare each model's SROIE rank vs bank statement rank to answer:
+- Does SROIE performance predict bank statement performance?
+- Do models that excel at flat-field OCR also handle multi-turn structured extraction?
+- Is there a model that ranks differently between the two tasks (suggesting task-specific strengths)?
+
+---
+
+## Phase 6: Recommendations
 
 Based on results, recommend:
 
@@ -238,17 +312,30 @@ Based on results, recommend:
 
 ## Execution Order
 
-1. Run IVL3.5-8B baseline (fastest, validates pipeline works) — ~5 min
-2. Run IVL3.5-14B baseline — ~8 min
-3. Run IVL3.5-38B baseline (cross-GPU sharding) — ~15 min
-4. Switch to `LMM_POC_NEMOTRON` env, run Nemotron baseline — ~8 min
-5. Switch to `LMM_POC_QWEN35` env, run Qwen3.5-27B baseline (cross-GPU sharding) — ~12 min
-6. Run 8B balance correction A/B (back in IVL3.5 env) — ~5 min
-7. Compile results table
-8. Failure analysis on worst images
-9. Write findings to `plans/bank_statement_evaluation_results.md`
+### Bank Statement Runs
 
-**Total estimated wall time**: ~70 min (including model load/unload and env switching)
+1. Run IVL3.5-8B bank baseline (fastest, validates pipeline works) — ~5 min
+2. Run IVL3.5-14B bank baseline — ~8 min
+3. Run IVL3.5-38B bank baseline (cross-GPU sharding) — ~15 min
+4. Switch to `LMM_POC_NEMOTRON` env, run Nemotron bank baseline — ~8 min
+5. Switch to `LMM_POC_QWEN35` env, run Qwen3.5-27B bank baseline (cross-GPU sharding) — ~12 min
+6. Run 8B balance correction A/B (back in IVL3.5 env) — ~5 min
+
+### SROIE Runs
+
+7. Run IVL3.5-8B, 14B, 38B SROIE benchmarks (same IVL3.5 env session) — ~20 min
+8. Switch to `LMM_POC_NEMOTRON` env, run Nemotron SROIE — ~8 min
+9. Switch to `LMM_POC_QWEN35` env, run Qwen3.5-27B SROIE — ~10 min
+
+### Analysis
+
+10. Compile bank statement results table
+11. Compile SROIE results table
+12. Cross-task comparison (SROIE rank vs bank rank)
+13. Failure analysis on worst bank images
+14. Write findings to `plans/model_evaluation_results.md`
+
+**Total estimated wall time**: ~110 min (including model load/unload and env switching)
 
 ---
 
@@ -264,6 +351,7 @@ Based on results, recommend:
 - [ ] Verify ground truth CSV paths match image filenames
 - [ ] Confirm `LMM_POC_IVL3.5` conda env is active (transformers 4.57)
 - [ ] Confirm `LMM_POC_NEMOTRON` conda env is active (transformers 4.53.x)
+- [ ] SROIE data downloaded to `data/sroie/` (see `benchmark_sroie.py --help` or download from GitHub)
 
 ### Qwen3.5-27B Prerequisites
 
@@ -280,3 +368,75 @@ Based on results, recommend:
 - [ ] Register `qwen35` in `models/registry.py` with `requires_sharding=True` (~54 GB BF16)
 - [ ] Add `qwen35` default path to `config/run_config.yml`
 - [ ] Add `qwen35_prompts.yaml` or reuse `internvl3_prompts.yaml`
+
+---
+
+## Local Analysis (macOS — No GPU)
+
+All inference runs on the remote 2x L40S machine. Outputs are committed to `evaluation_data/output/` and pulled locally via git. The following analysis is performed entirely on the local machine using Claude Code.
+
+### Data Flow
+
+```
+Remote (2x L40S)                          Local (macOS)
+─────────────────                         ─────────────
+Run cli.py / benchmark_sroie.py           git pull
+  -> model_results.csv                    Read CSVs + evaluation reports
+  -> evaluation_report.txt                Run analysis scripts
+  -> console logs                         Generate comparison tables
+git add + commit + push ──────────────>   Write findings report
+```
+
+### Analysis Tasks
+
+#### 1. Bank Statement Results Aggregation
+
+- Read `evaluation_data/output/bank_*/model_results.csv` for all five models
+- Read `evaluation_data/output/bank_*/evaluation_report.txt` for per-field F1 scores
+- Populate the Phase 4 results comparison table with actual numbers
+- Identify the best model per field and overall
+
+#### 2. SROIE Results Aggregation
+
+- Read `evaluation_data/output/sroie_*/` output files for all five models
+- Populate the Phase 5 SROIE results table
+- Compute per-field exact-match F1 (company, date, address, total)
+
+#### 3. Cross-Task Correlation
+
+- Rank models by bank statement F1 and by SROIE F1
+- Identify rank inversions (models that do well on one task but not the other)
+- Determine whether OCR capability (SROIE) predicts structured extraction capability (bank)
+- Statistical correlation between SROIE overall F1 and bank overall F1
+
+#### 4. Per-Image Failure Analysis
+
+- For each model's bottom-3 images (by bank F1), extract:
+  - Which strategy was selected
+  - Which fields failed
+  - Raw model output vs ground truth
+- Cross-reference failures across models (same image fails everywhere = data/prompt issue)
+- Build the Phase 3 error catalogue table
+
+#### 5. Balance Correction Impact
+
+- Compare `bank_ivl35_8b_balcorr_on` vs `bank_ivl35_8b_balcorr_off` results
+- Compute delta in `TRANSACTION_AMOUNTS_PAID` F1
+- Determine if balance correction is worth the extra inference pass
+
+#### 6. Cost/Accuracy Tradeoff Analysis
+
+- Plot (or tabulate) F1 vs model size, F1 vs throughput (images/min), F1 vs peak VRAM
+- Identify the Pareto-optimal models (highest accuracy for given resource budget)
+- Factor in conda environment complexity (operational cost of maintaining separate envs)
+
+#### 7. Final Report
+
+- Write `plans/model_evaluation_results.md` with:
+  - Executive summary (recommended model + rationale)
+  - Bank statement results table (filled)
+  - SROIE results table (filled)
+  - Cross-task correlation analysis
+  - Error catalogue with specific failure examples
+  - Cost/accuracy tradeoff recommendation
+  - Next steps (prompt tuning, max_tiles experiments, 20B MoE testing)
