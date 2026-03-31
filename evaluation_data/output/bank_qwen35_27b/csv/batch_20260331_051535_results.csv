@@ -1,0 +1,16 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+cba_amount_balance.png,RECEIPT,85.71428571428571,0,12,14,0.1960899829864502,receipt,False
+cba_date_grouped.png,RECEIPT,71.42857142857143,0,10,14,0.0878596305847168,receipt,False
+cba_date_grouped_cont.png,RECEIPT,71.42857142857143,0,10,14,0.09490489959716797,receipt,False
+cba_debit_credit.png,RECEIPT,85.71428571428571,0,12,14,0.06510758399963379,receipt,False
+cba_highligted.png,RECEIPT,78.57142857142857,0,11,14,0.20804619789123535,receipt,False
+cba_home_loan.png,RECEIPT,78.57142857142857,0,11,14,1.1969153881072998,receipt,False
+image_003.png,RECEIPT,71.42857142857143,0,10,14,0.05744791030883789,receipt,False
+image_009.png,RECEIPT,71.42857142857143,0,10,14,0.07471680641174316,receipt,False
+low_contrast.png,RECEIPT,85.71428571428571,0,12,14,0.06195402145385742,receipt,False
+nab_classic_highligted.png,RECEIPT,71.42857142857143,0,10,14,0.08124208450317383,receipt,False
+synthetic_chrono.png,RECEIPT,71.42857142857143,0,10,14,0.11124253273010254,receipt,False
+synthetic_multiline.png,RECEIPT,71.42857142857143,0,10,14,0.06311869621276855,receipt,False
+synthetic_reverse_chrono.png,RECEIPT,71.42857142857143,0,10,14,0.10461974143981934,receipt,False
+transaction_summary.png,RECEIPT,85.71428571428571,0,12,14,0.0833594799041748,receipt,False
+westpac_debit_credit.png,RECEIPT,78.57142857142857,0,11,14,0.0870201587677002,receipt,False
