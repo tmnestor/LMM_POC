@@ -17,6 +17,7 @@ dependencies:
       - tqdm
       - einops
       - safetensors
-      - flash-attn
       - psutil
+# NOTE: Install flash-attn AFTER env creation (requires torch at build time):
+#   conda activate LMM_POC_LLAMA4SCOUT && pip install flash-attn
 prefix: /home/jovyan/.conda/envs/LMM_POC_LLAMA4SCOUT
