@@ -869,40 +869,23 @@ def _llama4scout_w4a16_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                # MoE forward pass accumulates ~26 GB activations on GPU 0
-                # and ~0.5 GB on GPU 1. Model is ~58 GB W4A16.
-                # Cap both GPUs to leave headroom; overflow to CPU RAM.
-                #   GPU 0: ≤16 GiB model → ~28 GiB free for activations
-                #   GPU 1: ≤40 GiB model → ~4 GiB free for activations
-                #   CPU:   remainder (~2-8 GiB, slower but avoids OOM)
+                # Pipeline parallelism (device_map="auto") concentrates ALL
+                # prefill activations (~26 GB) on GPU 0 regardless of model split.
+                # CPU offloading makes it worse — offloaded layers still execute
+                # on GPU 0 and their activations land there.
+                # Strategy: use device_map="auto" without CPU offload, but print
+                # the device map so we can diagnose module placement.
                 num_gpus = torch.cuda.device_count()
-                offload_dir = None
-                if num_gpus >= 2:
-                    max_memory = {0: "16GiB", 1: "40GiB", "cpu": "20GiB"}
-                    for i in range(2, num_gpus):
-                        max_memory[i] = "44GiB"
-                    from pathlib import Path as _Path
-
-                    offload_dir = str(_Path(cfg.model_path) / "offload_cache")
-                    _Path(offload_dir).mkdir(parents=True, exist_ok=True)
-                else:
-                    max_memory = None
 
                 load_kwargs = {
                     "dtype": cfg.torch_dtype,
                     "device_map": "auto",
-                    "max_memory": max_memory,
-                    "offload_folder": offload_dir,
                     "attn_implementation": "sdpa",
                 }
 
                 console.print(
                     "[bold]W4A16 compressed-tensors (~55 GB for 109B MoE)[/bold]"
                 )
-                if max_memory:
-                    console.print(
-                        f"[dim]max_memory: {max_memory} (GPU 0 capped for activation headroom)[/dim]"
-                    )
 
                 with _quiet_loading():
                     model = Llama4ForConditionalGeneration.from_pretrained(
@@ -918,6 +901,24 @@ def _llama4scout_w4a16_loader(config):
                 progress.update(task, description="Model loaded!")
 
             console.print("⚡ Flash Attention 2: ❌ not applicable (Llama 4 uses SDPA)")
+
+            # Dump device map to diagnose module placement across GPUs.
+            if hasattr(model, "hf_device_map"):
+                dev_map = model.hf_device_map
+                from collections import Counter
+
+                device_counts = Counter(str(v) for v in dev_map.values())
+                console.print(
+                    f"[dim]Device map: {dict(device_counts)} "
+                    f"({len(dev_map)} modules)[/dim]"
+                )
+                items = list(dev_map.items())
+                console.print("[dim]First 10 modules:[/dim]")
+                for name, device in items[:10]:
+                    console.print(f"  [dim]{name} → {device}[/dim]")
+                console.print("[dim]Last 5 modules:[/dim]")
+                for name, device in items[-5:]:
+                    console.print(f"  [dim]{name} → {device}[/dim]")
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
