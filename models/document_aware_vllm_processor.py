@@ -103,13 +103,22 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
         The engine handles chat template application, image tokenization,
         and tensor-parallel inference internally.
         """
+        import base64
+        import io
+
         from vllm import SamplingParams
+
+        # vLLM chat API requires a string URL, not a PIL Image object.
+        # Convert to base64 data URI.
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        data_uri = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
 
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": image}},
+                    {"type": "image_url", "image_url": {"url": data_uri}},
                     {"type": "text", "text": prompt},
                 ],
             }
