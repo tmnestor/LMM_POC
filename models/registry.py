@@ -829,135 +829,95 @@ register_model(
 
 
 def _llama4scout_w4a16_loader(config):
-    """Context manager for loading Llama 4 Scout W4A16 quantized model.
+    """Context manager for loading Llama 4 Scout W4A16 via vLLM.
 
-    Uses RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16 — INT4 weights,
-    FP16 activations. The compressed-tensors package auto-detects the W4A16 format
-    and replaces nn.Linear with CompressedLinear. No BitsAndBytesConfig needed.
-    ~55 GB (75% reduction from 218 GB BF16), shards across 2x L40S via device_map="auto".
+    Uses vLLM offline engine with tensor parallelism to split each layer
+    across GPUs (not pipeline parallelism).  This distributes both model
+    weights AND activation memory evenly — ~29 GB model + ~15 GB activations
+    per GPU on 2x L40S.
+
+    Falls back to single-GPU if only one GPU is available.
     """
     from contextlib import contextmanager
 
     import torch
     from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    from transformers import AutoProcessor, Llama4ForConditionalGeneration
 
     console = Console()
 
     @contextmanager
     def _loader(cfg):
-        model = None
-        processor = None
+        llm = None
 
         try:
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            from vllm import LLM
+
+            num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
+            tp_size = max(1, num_gpus)
 
             console.print(
-                f"\n[bold]Loading Llama 4 Scout W4A16 from: {cfg.model_path}[/bold]"
+                f"\n[bold]Loading Llama 4 Scout W4A16 via vLLM "
+                f"(tensor_parallel_size={tp_size})[/bold]"
+            )
+            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+
+            llm = LLM(
+                model=str(cfg.model_path),
+                tensor_parallel_size=tp_size,
+                max_model_len=8192,
+                gpu_memory_utilization=0.92,
+                limit_mm_per_prompt={"image": 1},
+                trust_remote_code=True,
             )
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Loading processor...", total=None)
-
-                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
-
-                progress.update(task, description="Loading model weights...")
-
-                # Custom device_map: move vision encoder to GPU 1 to avoid
-                # concentrating its ~10+ GB activation peak on GPU 0.
-                # Auto-split put vision+projector+embed+layers 0-21 on GPU 0
-                # (28.7 GB model + 26 GB activations = OOM on 44 GB L40S).
-                # New split: GPU 0 gets embed + layers 0-15 (~18 GB model,
-                # ~26 GB headroom); GPU 1 gets vision + projector + layers
-                # 16-47 + tail (~40 GB model, ~4 GB headroom for vision peak).
-                num_gpus = torch.cuda.device_count()
-                if num_gpus >= 2:
-                    device_map = {
-                        "vision_model": 1,
-                        "multi_modal_projector": 1,
-                        "language_model.model.embed_tokens": 0,
-                    }
-                    for i in range(16):  # layers 0-15 → GPU 0
-                        device_map[f"language_model.model.layers.{i}"] = 0
-                    for i in range(16, 48):  # layers 16-47 → GPU 1
-                        device_map[f"language_model.model.layers.{i}"] = 1
-                    device_map["language_model.model.norm"] = 1
-                    device_map["language_model.model.rotary_emb"] = 1
-                    device_map["language_model.lm_head"] = 1
-                else:
-                    device_map = "auto"
-
-                load_kwargs = {
-                    "dtype": cfg.torch_dtype,
-                    "device_map": device_map,
-                    "attn_implementation": "sdpa",
-                }
-
-                console.print(
-                    "[bold]W4A16 compressed-tensors (~55 GB for 109B MoE)[/bold]"
-                )
-
-                with _quiet_loading():
-                    model = Llama4ForConditionalGeneration.from_pretrained(
-                        str(cfg.model_path),
-                        **load_kwargs,
-                    )
-
-                # Suppress spurious generation_config warnings
-                if hasattr(model, "generation_config"):
-                    model.generation_config.temperature = None
-                    model.generation_config.top_p = None
-
-                progress.update(task, description="Model loaded!")
-
-            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama 4 uses SDPA)")
-
-            # Dump device map to diagnose module placement across GPUs.
-            if hasattr(model, "hf_device_map"):
-                dev_map = model.hf_device_map
-                from collections import Counter
-
-                device_counts = Counter(str(v) for v in dev_map.values())
-                console.print(
-                    f"[dim]Device map: {dict(device_counts)} "
-                    f"({len(dev_map)} modules)[/dim]"
-                )
-                items = list(dev_map.items())
-                console.print("[dim]First 10 modules:[/dim]")
-                for name, device in items[:10]:
-                    console.print(f"  [dim]{name} → {device}[/dim]")
-                console.print("[dim]Last 5 modules:[/dim]")
-                for name, device in items[-5:]:
-                    console.print(f"  [dim]{name} → {device}[/dim]")
+            console.print("[bold green]vLLM engine ready![/bold green]")
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
 
-            yield model, processor
+            yield llm, None  # vLLM engine, no separate processor
 
         finally:
-            del model
-            del processor
+            del llm
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
     return _loader(config)
 
 
+def _llama4scout_w4a16_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareVllmProcessor from a vLLM engine."""
+    from models.document_aware_vllm_processor import (
+        DocumentAwareVllmProcessor,
+    )
+
+    return DocumentAwareVllmProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,  # vLLM LLM engine
+        pre_loaded_processor=tokenizer_or_processor,  # None
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+    )
+
+
 register_model(
     ModelRegistration(
         model_type="llama4scout-w4a16",
         loader=_llama4scout_w4a16_loader,
-        processor_creator=_llama4scout_processor_creator,
+        processor_creator=_llama4scout_w4a16_processor_creator,
         prompt_file="llama4scout_prompts.yaml",
-        description="Llama 4 Scout W4A16 (RedHatAI INT4 quantized, ~55 GB)",
-        requires_sharding=True,  # ~55 GB W4A16, must shard across 2x L40S
+        description="Llama 4 Scout W4A16 via vLLM (tensor parallel, ~55 GB)",
+        requires_sharding=True,
     )
 )
 

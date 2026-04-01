@@ -20,4 +20,5 @@ dependencies:
 #   conda activate LMM_POC_LLAMA4SCOUT
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124  # must match nvcc toolkit (12.4), not driver (13.0)
 #   pip install flash-attn --no-build-isolation --no-cache-dir  # --no-cache-dir avoids cross-device link error on NFS
+#   pip install vllm --no-cache-dir  # tensor parallelism engine for multi-GPU inference
 prefix: /home/jovyan/.conda/envs/LMM_POC_LLAMA4SCOUT
