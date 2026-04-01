@@ -22,8 +22,8 @@ def _quiet_loading():
         hf_logging.enable_progress_bar()
 
 
-ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
-ProcessorCreator = Callable[..., Any]
+type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
+type ProcessorCreator = Callable[..., Any]
 
 
 @dataclass

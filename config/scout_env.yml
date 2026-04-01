@@ -2,7 +2,7 @@ name: LMM_POC_LLAMA4SCOUT
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python=3.12
   - pip
   - pip:
       - transformers>=4.51
