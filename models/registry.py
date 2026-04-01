@@ -869,15 +869,32 @@ def _llama4scout_w4a16_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
+                # Reserve headroom on GPU 0 for forward-pass activations.
+                # device_map="auto" splits evenly (~29/31 GB), but activations
+                # accumulate on early-layer GPUs during inference (~15 GB).
+                # Cap GPU 0 at 20 GiB model weight → ~24 GiB free for activations.
+                num_gpus = torch.cuda.device_count()
+                if num_gpus >= 2:
+                    max_memory = {0: "20GiB", 1: "42GiB"}
+                    for i in range(2, num_gpus):
+                        max_memory[i] = "42GiB"
+                else:
+                    max_memory = None  # single GPU — let auto handle it
+
                 load_kwargs = {
                     "dtype": cfg.torch_dtype,
                     "device_map": "auto",
+                    "max_memory": max_memory,
                     "attn_implementation": "sdpa",
                 }
 
                 console.print(
                     "[bold]W4A16 compressed-tensors (~55 GB for 109B MoE)[/bold]"
                 )
+                if max_memory:
+                    console.print(
+                        f"[dim]max_memory: {max_memory} (GPU 0 capped for activation headroom)[/dim]"
+                    )
 
                 with _quiet_loading():
                     model = Llama4ForConditionalGeneration.from_pretrained(
