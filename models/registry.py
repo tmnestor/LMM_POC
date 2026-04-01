@@ -824,6 +824,103 @@ register_model(
 
 
 # ============================================================================
+# Llama 4 Scout W4A16 Registration (RedHatAI compressed-tensors quantization)
+# ============================================================================
+
+
+def _llama4scout_w4a16_loader(config):
+    """Context manager for loading Llama 4 Scout W4A16 quantized model.
+
+    Uses RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16 — INT4 weights,
+    FP16 activations. The compressed-tensors package auto-detects the W4A16 format
+    and replaces nn.Linear with CompressedLinear. No BitsAndBytesConfig needed.
+    ~55 GB (75% reduction from 218 GB BF16), shards across 2x L40S via device_map="auto".
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoProcessor, Llama4ForConditionalGeneration
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(
+                f"\n[bold]Loading Llama 4 Scout W4A16 from: {cfg.model_path}[/bold]"
+            )
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
+
+                progress.update(task, description="Loading model weights...")
+
+                load_kwargs = {
+                    "dtype": cfg.torch_dtype,
+                    "device_map": "auto",
+                    "attn_implementation": "sdpa",
+                }
+
+                console.print(
+                    "[bold]W4A16 compressed-tensors (~55 GB for 109B MoE)[/bold]"
+                )
+
+                with _quiet_loading():
+                    model = Llama4ForConditionalGeneration.from_pretrained(
+                        str(cfg.model_path),
+                        **load_kwargs,
+                    )
+
+                # Suppress spurious generation_config warnings
+                if hasattr(model, "generation_config"):
+                    model.generation_config.temperature = None
+                    model.generation_config.top_p = None
+
+                progress.update(task, description="Model loaded!")
+
+            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama 4 uses SDPA)")
+
+            if not getattr(cfg, "_multi_gpu", False):
+                _print_gpu_status(console)
+
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+register_model(
+    ModelRegistration(
+        model_type="llama4scout-w4a16",
+        loader=_llama4scout_w4a16_loader,
+        processor_creator=_llama4scout_processor_creator,
+        prompt_file="llama4scout_prompts.yaml",
+        description="Llama 4 Scout W4A16 (RedHatAI INT4 quantized, ~55 GB)",
+        requires_sharding=True,  # ~55 GB W4A16, must shard across 2x L40S
+    )
+)
+
+
+# ============================================================================
 # Nemotron Nano 2 VL Registration (lazy imports)
 # ============================================================================
 
