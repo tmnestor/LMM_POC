@@ -869,17 +869,33 @@ def _llama4scout_w4a16_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                # Pipeline parallelism (device_map="auto") concentrates ALL
-                # prefill activations (~26 GB) on GPU 0 regardless of model split.
-                # CPU offloading makes it worse — offloaded layers still execute
-                # on GPU 0 and their activations land there.
-                # Strategy: use device_map="auto" without CPU offload, but print
-                # the device map so we can diagnose module placement.
+                # Custom device_map: move vision encoder to GPU 1 to avoid
+                # concentrating its ~10+ GB activation peak on GPU 0.
+                # Auto-split put vision+projector+embed+layers 0-21 on GPU 0
+                # (28.7 GB model + 26 GB activations = OOM on 44 GB L40S).
+                # New split: GPU 0 gets embed + layers 0-17 (~20 GB model,
+                # ~24 GB headroom); GPU 1 gets vision + projector + layers
+                # 18-47 + tail (~38 GB model, ~6 GB headroom for vision peak).
                 num_gpus = torch.cuda.device_count()
+                if num_gpus >= 2:
+                    device_map = {
+                        "vision_model": 1,
+                        "multi_modal_projector": 1,
+                        "language_model.model.embed_tokens": 0,
+                    }
+                    for i in range(18):  # layers 0-17 → GPU 0
+                        device_map[f"language_model.model.layers.{i}"] = 0
+                    for i in range(18, 48):  # layers 18-47 → GPU 1
+                        device_map[f"language_model.model.layers.{i}"] = 1
+                    device_map["language_model.model.norm"] = 1
+                    device_map["language_model.model.rotary_emb"] = 1
+                    device_map["language_model.lm_head"] = 1
+                else:
+                    device_map = "auto"
 
                 load_kwargs = {
                     "dtype": cfg.torch_dtype,
-                    "device_map": "auto",
+                    "device_map": device_map,
                     "attn_implementation": "sdpa",
                 }
 
