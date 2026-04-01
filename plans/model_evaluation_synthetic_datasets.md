@@ -335,6 +335,7 @@ Based on results, recommend:
 5. **Whether Nemotron's OCR strength translates** to structured multi-turn extraction or only benefits flat-field tasks like SROIE
 6. **Whether Qwen3.5-27B's early fusion and long context** give it an edge on dense bank statements vs InternVL3.5's ViT+LLM pipeline approach
 7. **Whether INT4 quantization degrades extraction quality** — compare Llama 4 Scout W4A16 accuracy against dense models to assess quantization's impact on structured document tasks
+8. **Whether bank prompts are overfitted to InternVL3.5** — prompts were developed and iterated against InternVL3.5, so other models may underperform due to prompt style rather than capability. Key diagnostic: if a model scores well on SROIE (generic prompts) but poorly on bank extraction (InternVL3.5-tuned prompts), prompt overfitting is likely. Remedies: per-model prompt files, simpler model-agnostic prompts, or relaxing output format constraints
 
 ---
 
