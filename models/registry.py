@@ -836,24 +836,33 @@ def _llama4scout_w4a16_loader(config):
     weights AND activation memory evenly — ~29 GB model + ~15 GB activations
     per GPU on 2x L40S.
 
-    Falls back to single-GPU if only one GPU is available.
+    IMPORTANT: Do NOT call torch.cuda.* before creating the vLLM LLM engine.
+    vLLM forks worker subprocesses, and CUDA cannot be re-initialized in
+    forked processes. We also set VLLM_WORKER_MULTIPROC_METHOD=spawn as
+    a safety net.
     """
     from contextlib import contextmanager
 
-    import torch
     from rich.console import Console
 
     console = Console()
 
     @contextmanager
     def _loader(cfg):
+        import os
+
+        # Must be set BEFORE vLLM import to avoid CUDA fork issues
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
+        from vllm import LLM
+
         llm = None
 
         try:
-            from vllm import LLM
-
-            num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
-            tp_size = max(1, num_gpus)
+            # Read GPU count from env to avoid torch.cuda.device_count()
+            # which would initialize CUDA and break vLLM's fork-based workers.
+            tp_size = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0,1").count(",")) + 1
+            tp_size = max(1, tp_size)
 
             console.print(
                 f"\n[bold]Loading Llama 4 Scout W4A16 via vLLM "
@@ -872,15 +881,10 @@ def _llama4scout_w4a16_loader(config):
 
             console.print("[bold green]vLLM engine ready![/bold green]")
 
-            if not getattr(cfg, "_multi_gpu", False):
-                _print_gpu_status(console)
-
             yield llm, None  # vLLM engine, no separate processor
 
         finally:
             del llm
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
     return _loader(config)
 
