@@ -869,22 +869,29 @@ def _llama4scout_w4a16_loader(config):
 
                 progress.update(task, description="Loading model weights...")
 
-                # Reserve headroom on GPU 0 for forward-pass activations.
-                # device_map="auto" splits evenly (~29/31 GB), but activations
-                # accumulate on early-layer GPUs during inference (~15 GB).
-                # Cap GPU 0 at 20 GiB model weight → ~24 GiB free for activations.
+                # MoE forward pass accumulates ~26 GB activations on GPU 0.
+                # Layer granularity forces a minimum ~17 GB model weight on GPU 0
+                # regardless of max_memory cap → 17 + 26 = 43 GB ≈ OOM on 44 GB L40S.
+                # Fix: offload ~8 GB of model to CPU so GPU 0 holds ~10 GB model,
+                # leaving ~34 GB for activations. CPU layers are slower but it fits.
                 num_gpus = torch.cuda.device_count()
+                offload_dir = None
                 if num_gpus >= 2:
-                    max_memory = {0: "20GiB", 1: "42GiB"}
+                    max_memory = {0: "10GiB", 1: "44GiB", "cpu": "20GiB"}
                     for i in range(2, num_gpus):
-                        max_memory[i] = "42GiB"
+                        max_memory[i] = "44GiB"
+                    from pathlib import Path as _Path
+
+                    offload_dir = str(_Path(cfg.model_path) / "offload_cache")
+                    _Path(offload_dir).mkdir(parents=True, exist_ok=True)
                 else:
-                    max_memory = None  # single GPU — let auto handle it
+                    max_memory = None
 
                 load_kwargs = {
                     "dtype": cfg.torch_dtype,
                     "device_map": "auto",
                     "max_memory": max_memory,
+                    "offload_folder": offload_dir,
                     "attn_implementation": "sdpa",
                 }
 
