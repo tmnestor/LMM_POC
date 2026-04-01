@@ -873,9 +873,9 @@ def _llama4scout_w4a16_loader(config):
                 # concentrating its ~10+ GB activation peak on GPU 0.
                 # Auto-split put vision+projector+embed+layers 0-21 on GPU 0
                 # (28.7 GB model + 26 GB activations = OOM on 44 GB L40S).
-                # New split: GPU 0 gets embed + layers 0-17 (~20 GB model,
-                # ~24 GB headroom); GPU 1 gets vision + projector + layers
-                # 18-47 + tail (~38 GB model, ~6 GB headroom for vision peak).
+                # New split: GPU 0 gets embed + layers 0-15 (~18 GB model,
+                # ~26 GB headroom); GPU 1 gets vision + projector + layers
+                # 16-47 + tail (~40 GB model, ~4 GB headroom for vision peak).
                 num_gpus = torch.cuda.device_count()
                 if num_gpus >= 2:
                     device_map = {
@@ -883,9 +883,9 @@ def _llama4scout_w4a16_loader(config):
                         "multi_modal_projector": 1,
                         "language_model.model.embed_tokens": 0,
                     }
-                    for i in range(18):  # layers 0-17 → GPU 0
+                    for i in range(16):  # layers 0-15 → GPU 0
                         device_map[f"language_model.model.layers.{i}"] = 0
-                    for i in range(18, 48):  # layers 18-47 → GPU 1
+                    for i in range(16, 48):  # layers 16-47 → GPU 1
                         device_map[f"language_model.model.layers.{i}"] = 1
                     device_map["language_model.model.norm"] = 1
                     device_map["language_model.model.rotary_emb"] = 1
