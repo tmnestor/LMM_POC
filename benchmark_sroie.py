@@ -269,6 +269,34 @@ def _run_inference_generic(
     return response.strip()
 
 
+def _run_inference_vllm(
+    model, processor, image: Image.Image, prompt: str, max_tokens: int
+) -> str:
+    """vLLM engine: use llm.chat() with base64 data URI for images."""
+    import base64
+    import io
+
+    from vllm import SamplingParams
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    data_uri = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": data_uri}},
+                {"type": "text", "text": prompt},
+            ],
+        }
+    ]
+
+    sampling = SamplingParams(max_tokens=max_tokens, temperature=0)
+    outputs = model.chat(messages=messages, sampling_params=sampling)
+    return outputs[0].outputs[0].text.strip()
+
+
 def run_inference(
     model_type: str,
     model,
@@ -284,6 +312,10 @@ def run_inference(
         )
     if model_type == "llama4scout":
         return _run_inference_llama4scout(
+            model, tokenizer_or_processor, image, prompt, max_tokens
+        )
+    if model_type == "llama4scout-w4a16":
+        return _run_inference_vllm(
             model, tokenizer_or_processor, image, prompt, max_tokens
         )
     if model_type == "nemotron":
