@@ -31,14 +31,16 @@ We need to systematically evaluate how model architecture and size affect bank s
 | CLI orchestration | `cli.py` | `--model`, `bank_v2`, `balance_correction` |
 | InternVL3.5-8B (HF) | Registry: `internvl3` | Complete, results collected |
 | InternVL3.5-8B (vLLM) | Registry: `internvl3-vllm` | Registered, **pending evaluation** |
-| InternVL3.5-14B | Registry: `internvl3-14b` | Complete, results collected |
-| InternVL3.5-38B | Registry: `internvl3-38b` | Complete, results collected |
+| InternVL3.5-14B (HF) | Registry: `internvl3-14b` | Complete, results collected |
+| InternVL3.5-14B (vLLM) | Registry: `internvl3-14b-vllm` | Registered, **pending evaluation** |
+| InternVL3.5-38B (HF) | Registry: `internvl3-38b` | Complete, results collected |
+| InternVL3.5-38B (vLLM) | Registry: `internvl3-38b-vllm` | Registered, **pending evaluation** |
 | Nemotron Nano 2 VL | Registry: `nemotron` | Complete, results collected |
 | Qwen3.5-27B | Registry: `qwen35` | Complete, results collected |
 | Llama 4 Scout W4A16 | Registry: `llama4scout-w4a16` | Complete, results collected (vLLM) |
-| vLLM processor | `models/document_aware_vllm_processor.py` | Shared by `llama4scout-w4a16` and `internvl3-vllm` |
+| vLLM processor | `models/document_aware_vllm_processor.py` | Shared by all vLLM model types |
 
-**All six original models have completed bank and SROIE runs. The seventh model (`internvl3-vllm`) is registered and ready for evaluation.**
+**All six original HF models have completed bank and SROIE runs. Three vLLM variants (`internvl3-vllm`, `internvl3-14b-vllm`, `internvl3-38b-vllm`) are registered and pending evaluation.**
 
 ---
 
@@ -49,7 +51,7 @@ InternVL3.5 models, Nemotron, Qwen3.5, and Scout require **different conda envir
 | Models | Conda Environment | transformers | Inference Engine |
 |--------|------------------|-------------|-----------------|
 | InternVL3.5-8B, 14B, 38B (HF) | `LMM_POC_IVL3.5` | 4.57 | HuggingFace AutoModel |
-| InternVL3.5-8B (vLLM) | `LMM_POC_VLLM` | ≥4.51 + vLLM | vLLM offline engine |
+| InternVL3.5-8B, 14B, 38B (vLLM) | `LMM_POC_VLLM` | ≥4.51 + vLLM | vLLM offline engine |
 | Nemotron Nano 2 VL | `LMM_POC_NEMOTRON` | 4.53.x | HuggingFace AutoModelForCausalLM |
 | Qwen3.5-27B | `LMM_POC_QWEN35` | git main (bleeding edge) | HuggingFace Qwen3_5ForConditionalGeneration |
 | Llama 4 Scout W4A16 | `LMM_POC_VLLM` | ≥4.51 + vLLM | vLLM offline engine |
@@ -58,7 +60,7 @@ Switch environments between runs. The CLI commands are identical — only `conda
 
 **vLLM models note**: Both `llama4scout-w4a16` and `internvl3-vllm` use the vLLM offline inference engine with tensor parallelism (`DocumentAwareVllmProcessor`). The vLLM engine handles PagedAttention memory management, continuous batching, and CUDA graph optimizations. On production (4x A10G) where flash-attn compilation fails, set `VLLM_ATTENTION_BACKEND=TRITON_ATTN` to use vLLM's built-in Triton attention. On sandbox (2x L40S), flash-attn works natively.
 
-**InternVL3.5-8B vLLM note**: Uses the same model weights as `internvl3` (`InternVL3_5-8B`) but runs through vLLM instead of HuggingFace `AutoModel.chat()`. Shares the `LMM_POC_VLLM` conda environment (which has vLLM installed). Uses `internvl3_prompts.yaml` (same prompts as HF path). The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field) instead of the Scout config.
+**InternVL3.5 vLLM note**: `internvl3-vllm`, `internvl3-14b-vllm`, and `internvl3-38b-vllm` use the same model weights as their HF counterparts but run through vLLM instead of HuggingFace `AutoModel.chat()`. All share the `LMM_POC_VLLM` conda environment, the same loader/processor creator, and `internvl3_prompts.yaml`. The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field). Always prefix commands with `VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN` to suppress noisy logging and use Triton attention (required on production, optional on sandbox).
 
 **Qwen3.5-27B note**: Uses `Qwen3_5ForConditionalGeneration` (early-fusion VLM, NOT the Qwen3-VL architecture). Requires transformers installed from git main branch. ~54 GB BF16, needs cross-GPU sharding via `split_model` or `device_map="auto"` on 2x L40S.
 
@@ -111,11 +113,25 @@ conda activate LMM_POC_VLLM
 # --- InternVL3.5-8B vLLM (tensor parallel across 2x L40S) ---
 # VLLM_ATTENTION_BACKEND=TRITON_ATTN: use Triton attention (required on production
 # where flash-attn compilation fails; optional on sandbox where flash-attn works)
-VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
   --model internvl3-vllm \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
   --output-dir evaluation_data/output/bank_ivl35_8b_vllm
+
+# --- InternVL3.5-14B vLLM (~30 GB BF16) ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+  --model internvl3-14b-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_14b_vllm
+
+# --- InternVL3.5-38B vLLM (~77 GB BF16) ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+  --model internvl3-38b-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_38b_vllm
 
 # ============================================================
 # Nemotron (separate environment)
@@ -147,7 +163,7 @@ python cli.py \
 conda activate LMM_POC_VLLM
 
 # --- Llama 4 Scout W4A16 (~55 GB, tensor parallel across 2x L40S) ---
-VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
   --model llama4scout-w4a16 \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
@@ -302,14 +318,24 @@ python benchmark_sroie.py \
   --output-dir evaluation_data/output/sroie_ivl35_38b
 
 # ============================================================
-# InternVL3.5-8B via vLLM
+# InternVL3.5 via vLLM (all three sizes in one session)
 # ============================================================
 conda activate LMM_POC_VLLM
 
-VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model internvl3-vllm \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
+
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+  --model internvl3-14b-vllm \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
+
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+  --model internvl3-38b-vllm \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
 
 # ============================================================
 # Nemotron (separate environment)
@@ -336,7 +362,7 @@ python benchmark_sroie.py \
 # ============================================================
 conda activate LMM_POC_VLLM
 
-VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model llama4scout-w4a16 \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_llama4scout_w4a16
@@ -391,26 +417,31 @@ Based on results, recommend:
 6. ~~Run Llama 4 Scout W4A16 bank baseline~~ — **DONE** (`bank_llama4scout_w4a16`)
 7. ~~Run 8B balance correction A/B~~ — **DONE** (`bank_ivl35_8b_balcorr_on`, `bank_ivl35_8b_balcorr_off`)
 8. Run IVL3.5-8B vLLM bank baseline — **PENDING** (`bank_ivl35_8b_vllm`)
+9. Run IVL3.5-14B vLLM bank baseline — **PENDING** (`bank_ivl35_14b_vllm`)
+10. Run IVL3.5-38B vLLM bank baseline — **PENDING** (`bank_ivl35_38b_vllm`)
 
 ### SROIE Runs
 
-9. ~~Run IVL3.5-8B SROIE~~ — **DONE** (`sroie_ivl35_8b`)
-10. ~~Run IVL3.5-14B SROIE~~ — **DONE** (`sroie_ivl35_14b`)
-11. ~~Run IVL3.5-38B SROIE~~ — **DONE** (`sroie_ivl35_38b`)
-12. ~~Run Nemotron SROIE~~ — **DONE** (`sroie_nemotron`)
-13. ~~Run Qwen3.5-27B SROIE~~ — **DONE** (`sroie_qwen35_27b`)
-14. ~~Run Llama 4 Scout W4A16 SROIE~~ — **DONE** (`sroie_llama4scout_w4a16`)
-15. Run IVL3.5-8B vLLM SROIE — **PENDING** (`sroie_ivl35_8b_vllm`)
+11. ~~Run IVL3.5-8B SROIE~~ — **DONE** (`sroie_ivl35_8b`)
+12. ~~Run IVL3.5-14B SROIE~~ — **DONE** (`sroie_ivl35_14b`)
+13. ~~Run IVL3.5-38B SROIE~~ — **DONE** (`sroie_ivl35_38b`)
+14. ~~Run Nemotron SROIE~~ — **DONE** (`sroie_nemotron`)
+15. ~~Run Qwen3.5-27B SROIE~~ — **DONE** (`sroie_qwen35_27b`)
+16. ~~Run Llama 4 Scout W4A16 SROIE~~ — **DONE** (`sroie_llama4scout_w4a16`)
+17. Run IVL3.5-8B vLLM SROIE — **PENDING** (`sroie_ivl35_8b_vllm`)
+18. Run IVL3.5-14B vLLM SROIE — **PENDING** (`sroie_ivl35_14b_vllm`)
+19. Run IVL3.5-38B vLLM SROIE — **PENDING** (`sroie_ivl35_38b_vllm`)
 
 ### Analysis
 
-16. Compile bank statement results table
-17. Compile SROIE results table
-18. Cross-task comparison (SROIE rank vs bank rank)
-19. Failure analysis on worst bank images
-20. Write findings to `plans/model_evaluation_results.md`
+20. Compile bank statement results table
+21. Compile SROIE results table
+22. Cross-task comparison (SROIE rank vs bank rank)
+23. HF vs vLLM comparison (accuracy + throughput for 8B, 14B, 38B)
+24. Failure analysis on worst bank images
+25. Write findings to `plans/model_evaluation_results.md`
 
-**Remaining wall time**: ~20 min (two `internvl3-vllm` runs) + analysis
+**Remaining wall time**: ~60 min (six vLLM runs: 3 bank + 3 SROIE) + analysis
 
 ---
 
