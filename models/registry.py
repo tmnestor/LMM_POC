@@ -469,9 +469,24 @@ def _internvl3_vllm_loader(config):
         llm = None
 
         try:
-            # Read GPU count from env to avoid torch.cuda.device_count()
-            # which would initialize CUDA and break vLLM's fork-based workers.
-            tp_size = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0,1").count(",")) + 1
+            # Detect GPU count without initializing CUDA (would break vLLM fork workers).
+            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            if cuda_visible is not None:
+                tp_size = len(cuda_visible.split(","))
+            else:
+                import subprocess
+
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                tp_size = (
+                    len(result.stdout.strip().splitlines())
+                    if result.returncode == 0
+                    else 1
+                )
             tp_size = max(1, tp_size)
 
             # Scale max_model_len to fit available KV cache memory.
@@ -989,9 +1004,24 @@ def _llama4scout_w4a16_loader(config):
         llm = None
 
         try:
-            # Read GPU count from env to avoid torch.cuda.device_count()
-            # which would initialize CUDA and break vLLM's fork-based workers.
-            tp_size = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0,1").count(",")) + 1
+            # Detect GPU count without initializing CUDA (would break vLLM fork workers).
+            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            if cuda_visible is not None:
+                tp_size = len(cuda_visible.split(","))
+            else:
+                import subprocess
+
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                tp_size = (
+                    len(result.stdout.strip().splitlines())
+                    if result.returncode == 0
+                    else 1
+                )
             tp_size = max(1, tp_size)
 
             console.print(
