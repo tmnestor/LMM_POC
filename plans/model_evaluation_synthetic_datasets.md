@@ -58,9 +58,9 @@ InternVL3.5 models, Nemotron, Qwen3.5, and Scout require **different conda envir
 
 Switch environments between runs. The CLI commands are identical — only `conda activate` and `--model` change.
 
-**vLLM models note**: Both `llama4scout-w4a16` and `internvl3-vllm` use the vLLM offline inference engine with tensor parallelism (`DocumentAwareVllmProcessor`). The vLLM engine handles PagedAttention memory management, continuous batching, and CUDA graph optimizations. On production (4x A10G) where flash-attn compilation fails, set `VLLM_ATTENTION_BACKEND=TRITON_ATTN` to use vLLM's built-in Triton attention. On sandbox (2x L40S), flash-attn works natively.
+**vLLM models note**: Both `llama4scout-w4a16` and `internvl3-vllm` use the vLLM offline inference engine with tensor parallelism (`DocumentAwareVllmProcessor`). The vLLM engine handles PagedAttention memory management, continuous batching, and CUDA graph optimizations. vLLM 0.18+ auto-detects flash-attn when installed — no attention backend env var needed.
 
-**InternVL3.5 vLLM note**: `internvl3-vllm`, `internvl3-14b-vllm`, and `internvl3-38b-vllm` use the same model weights as their HF counterparts but run through vLLM instead of HuggingFace `AutoModel.chat()`. All share the `LMM_POC_VLLM` conda environment, the same loader/processor creator, and `internvl3_prompts.yaml`. The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field). Always prefix commands with `VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN` to suppress noisy logging and use Triton attention (required on production, optional on sandbox).
+**InternVL3.5 vLLM note**: `internvl3-vllm`, `internvl3-14b-vllm`, and `internvl3-38b-vllm` use the same model weights as their HF counterparts but run through vLLM instead of HuggingFace `AutoModel.chat()`. All share the `LMM_POC_VLLM` conda environment, the same loader/processor creator, and `internvl3_prompts.yaml`. The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field). Always prefix commands with `VLLM_LOGGING_LEVEL=WARNING` to suppress noisy vLLM logging.
 
 **Qwen3.5-27B note**: Uses `Qwen3_5ForConditionalGeneration` (early-fusion VLM, NOT the Qwen3-VL architecture). Requires transformers installed from git main branch. ~54 GB BF16, needs cross-GPU sharding via `split_model` or `device_map="auto"` on 2x L40S.
 
@@ -111,23 +111,21 @@ python cli.py \
 conda activate LMM_POC_VLLM
 
 # --- InternVL3.5-8B vLLM (tensor parallel across 2x L40S) ---
-# VLLM_ATTENTION_BACKEND=TRITON_ATTN: use Triton attention (required on production
-# where flash-attn compilation fails; optional on sandbox where flash-attn works)
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING python cli.py \
   --model internvl3-vllm \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
   --output-dir evaluation_data/output/bank_ivl35_8b_vllm
 
 # --- InternVL3.5-14B vLLM (~30 GB BF16) ---
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING python cli.py \
   --model internvl3-14b-vllm \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
   --output-dir evaluation_data/output/bank_ivl35_14b_vllm
 
 # --- InternVL3.5-38B vLLM (~77 GB BF16) ---
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING python cli.py \
   --model internvl3-38b-vllm \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
@@ -163,7 +161,7 @@ python cli.py \
 conda activate LMM_POC_VLLM
 
 # --- Llama 4 Scout W4A16 (~55 GB, tensor parallel across 2x L40S) ---
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+VLLM_LOGGING_LEVEL=WARNING python cli.py \
   --model llama4scout-w4a16 \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
@@ -322,17 +320,17 @@ python benchmark_sroie.py \
 # ============================================================
 conda activate LMM_POC_VLLM
 
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-vllm \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
 
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-14b-vllm \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
 
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-38b-vllm \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
@@ -362,7 +360,7 @@ python benchmark_sroie.py \
 # ============================================================
 conda activate LMM_POC_VLLM
 
-VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model llama4scout-w4a16 \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_llama4scout_w4a16

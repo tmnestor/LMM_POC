@@ -499,13 +499,20 @@ def _internvl3_vllm_loader(config):
             else:
                 max_model_len = 8192
 
-            attn_backend = os.environ.get("VLLM_ATTENTION_BACKEND", "auto")
+            try:
+                import flash_attn
+
+                fa_version = flash_attn.__version__
+            except ImportError:
+                fa_version = None
             console.print(
                 f"\n[bold]Loading InternVL3.5 via vLLM "
                 f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
             )
             console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-            console.print(f"⚡ Attention backend: {attn_backend}")
+            console.print(
+                f"⚡ Flash Attention 2: {'✅ v' + fa_version if fa_version else '❌ not installed'}"
+            )
 
             llm = LLM(
                 model=str(cfg.model_path),
@@ -1026,13 +1033,20 @@ def _llama4scout_w4a16_loader(config):
                 )
             tp_size = max(1, tp_size)
 
-            attn_backend = os.environ.get("VLLM_ATTENTION_BACKEND", "auto")
+            try:
+                import flash_attn
+
+                fa_version = flash_attn.__version__
+            except ImportError:
+                fa_version = None
             console.print(
                 f"\n[bold]Loading Llama 4 Scout W4A16 via vLLM "
                 f"(tensor_parallel_size={tp_size})[/bold]"
             )
             console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-            console.print(f"⚡ Attention backend: {attn_backend}")
+            console.print(
+                f"⚡ Flash Attention 2: {'✅ v' + fa_version if fa_version else '❌ not installed'}"
+            )
 
             llm = LLM(
                 model=str(cfg.model_path),
