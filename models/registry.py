@@ -474,16 +474,26 @@ def _internvl3_vllm_loader(config):
             tp_size = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0,1").count(",")) + 1
             tp_size = max(1, tp_size)
 
+            # Scale max_model_len to fit available KV cache memory.
+            # 38B (~77 GB BF16) leaves little headroom on 2x L40S (96 GB).
+            model_path_lower = str(cfg.model_path).lower()
+            if "38b" in model_path_lower:
+                max_model_len = 4096
+            elif "14b" in model_path_lower:
+                max_model_len = 8192
+            else:
+                max_model_len = 8192
+
             console.print(
-                f"\n[bold]Loading InternVL3.5-8B via vLLM "
-                f"(tensor_parallel_size={tp_size})[/bold]"
+                f"\n[bold]Loading InternVL3.5 via vLLM "
+                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
             )
             console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
 
             llm = LLM(
                 model=str(cfg.model_path),
                 tensor_parallel_size=tp_size,
-                max_model_len=8192,
+                max_model_len=max_model_len,
                 gpu_memory_utilization=0.92,
                 limit_mm_per_prompt={"image": 1},
                 trust_remote_code=True,
