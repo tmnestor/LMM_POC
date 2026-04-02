@@ -173,6 +173,9 @@ scripts/
 # SROIE benchmark data (downloaded on remote)
 data/sroie/
 
+# WildReceipt dataset (downloaded on remote)
+data/wildreceipt/
+
 evaluation_data/*
 !evaluation_data/transaction_link_ground_truth.csv
 !evaluation_data/transaction_link_model_results.csv
