@@ -441,6 +441,102 @@ register_model(
 
 
 # ============================================================================
+# InternVL3 vLLM Registration (lazy imports — no torch/transformers at module level)
+# ============================================================================
+
+
+def _internvl3_vllm_loader(config):
+    """Context manager for loading InternVL3.5-8B via vLLM offline engine.
+
+    Uses vLLM's Triton attention backend — no flash-attn compilation needed.
+    Tensor parallelism splits layers across GPUs automatically.
+    """
+    from contextlib import contextmanager
+
+    from rich.console import Console
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        import os
+
+        # Must be set BEFORE vLLM import to avoid CUDA fork issues
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
+        from vllm import LLM
+
+        llm = None
+
+        try:
+            # Read GPU count from env to avoid torch.cuda.device_count()
+            # which would initialize CUDA and break vLLM's fork-based workers.
+            tp_size = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0,1").count(",")) + 1
+            tp_size = max(1, tp_size)
+
+            console.print(
+                f"\n[bold]Loading InternVL3.5-8B via vLLM "
+                f"(tensor_parallel_size={tp_size})[/bold]"
+            )
+            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+
+            llm = LLM(
+                model=str(cfg.model_path),
+                tensor_parallel_size=tp_size,
+                max_model_len=8192,
+                gpu_memory_utilization=0.92,
+                limit_mm_per_prompt={"image": 1},
+                trust_remote_code=True,
+            )
+
+            console.print("[bold green]vLLM engine ready![/bold green]")
+
+            yield llm, None  # vLLM engine, no separate processor
+
+        finally:
+            del llm
+
+    return _loader(config)
+
+
+def _internvl3_vllm_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareVllmProcessor for InternVL3 via vLLM."""
+    from models.document_aware_vllm_processor import (
+        DocumentAwareVllmProcessor,
+    )
+
+    return DocumentAwareVllmProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+        model_type_key="internvl3",
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="internvl3-vllm",
+        loader=_internvl3_vllm_loader,
+        processor_creator=_internvl3_vllm_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-8B via vLLM (PagedAttention, no flash-attn required)",
+    )
+)
+
+
+# ============================================================================
 # Llama Registration (lazy imports — no torch/transformers at module level)
 # ============================================================================
 

@@ -1,6 +1,6 @@
 # Plan: VLM Model Evaluation — Synthetic Datasets
 
-**Date**: 2026-03-31
+**Date**: 2026-03-31 (updated 2026-04-02)
 **Remote hardware**: 2x L40S (48 GiB each, 96 GiB total)
 **Local machine**: macOS (no GPU) — analysis, reporting, visualization only
 **Branch**: `feature/multi-gpu`
@@ -29,37 +29,44 @@ We need to systematically evaluate how model architecture and size affect bank s
 | V2 prompts | `config/bank_prompts.yaml` | Header detection + per-strategy Turn 1 |
 | Evaluation metrics | `common/evaluation_metrics.py` | Position-aware F1, fuzzy matching |
 | CLI orchestration | `cli.py` | `--model`, `bank_v2`, `balance_correction` |
-| InternVL3.5-8B | Registry: `internvl3` | Downloaded, tested |
-| InternVL3.5-14B | Registry: `internvl3-14b` | Downloaded, registered |
-| InternVL3.5-38B | Registry: `internvl3-38b` | Downloaded, registered |
-| Nemotron Nano 2 VL | Registry: `nemotron` | Downloaded, processor implemented |
-| Qwen3.5-27B | Registry: `qwen35` | Downloaded, processor implemented, registered |
-| Llama 4 Scout W4A16 | Registry: `llama4scout` | **Needs**: download, registry entry (`llama4scout-w4a16`), conda env |
+| InternVL3.5-8B (HF) | Registry: `internvl3` | Complete, results collected |
+| InternVL3.5-8B (vLLM) | Registry: `internvl3-vllm` | Registered, **pending evaluation** |
+| InternVL3.5-14B | Registry: `internvl3-14b` | Complete, results collected |
+| InternVL3.5-38B | Registry: `internvl3-38b` | Complete, results collected |
+| Nemotron Nano 2 VL | Registry: `nemotron` | Complete, results collected |
+| Qwen3.5-27B | Registry: `qwen35` | Complete, results collected |
+| Llama 4 Scout W4A16 | Registry: `llama4scout-w4a16` | Complete, results collected (vLLM) |
+| vLLM processor | `models/document_aware_vllm_processor.py` | Shared by `llama4scout-w4a16` and `internvl3-vllm` |
 
-**The pipeline is fully functional for five models. Llama 4 Scout W4A16 requires implementation work (see Prerequisites).**
+**All six original models have completed bank and SROIE runs. The seventh model (`internvl3-vllm`) is registered and ready for evaluation.**
 
 ---
 
 ## Environment Note
 
-InternVL3.5 models and Nemotron require **different conda environments** due to incompatible transformers versions:
+InternVL3.5 models, Nemotron, Qwen3.5, and Scout require **different conda environments** due to incompatible transformers versions:
 
-| Models | Conda Environment | transformers |
-|--------|------------------|-------------|
-| InternVL3.5-8B, 14B, 38B | `LMM_POC_IVL3.5` | 4.57 |
-| Nemotron Nano 2 VL | `LMM_POC_NEMOTRON` | 4.53.x |
-| Qwen3.5-27B | `LMM_POC_QWEN35` | git main (bleeding edge) |
-| Llama 4 Scout W4A16 | `LMM_POC_LLAMA4SCOUT` | ≥4.51 + compressed-tensors |
+| Models | Conda Environment | transformers | Inference Engine |
+|--------|------------------|-------------|-----------------|
+| InternVL3.5-8B, 14B, 38B (HF) | `LMM_POC_IVL3.5` | 4.57 | HuggingFace AutoModel |
+| InternVL3.5-8B (vLLM) | `LMM_POC_LLAMA4SCOUT` | ≥4.51 + vLLM | vLLM offline engine |
+| Nemotron Nano 2 VL | `LMM_POC_NEMOTRON` | 4.53.x | HuggingFace AutoModelForCausalLM |
+| Qwen3.5-27B | `LMM_POC_QWEN35` | git main (bleeding edge) | HuggingFace Qwen3_5ForConditionalGeneration |
+| Llama 4 Scout W4A16 | `LMM_POC_LLAMA4SCOUT` | ≥4.51 + vLLM | vLLM offline engine |
 
 Switch environments between runs. The CLI commands are identical — only `conda activate` and `--model` change.
 
+**vLLM models note**: Both `llama4scout-w4a16` and `internvl3-vllm` use the vLLM offline inference engine with tensor parallelism (`DocumentAwareVllmProcessor`). The vLLM engine handles PagedAttention memory management, continuous batching, and CUDA graph optimizations. On production (4x A10G) where flash-attn compilation fails, set `VLLM_ATTENTION_BACKEND=TRITON_ATTN` to use vLLM's built-in Triton attention. On sandbox (2x L40S), flash-attn works natively.
+
+**InternVL3.5-8B vLLM note**: Uses the same model weights as `internvl3` (`InternVL3_5-8B`) but runs through vLLM instead of HuggingFace `AutoModel.chat()`. Shares the `LMM_POC_LLAMA4SCOUT` conda environment (which has vLLM installed). Uses `internvl3_prompts.yaml` (same prompts as HF path). The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field) instead of the Scout config.
+
 **Qwen3.5-27B note**: Uses `Qwen3_5ForConditionalGeneration` (early-fusion VLM, NOT the Qwen3-VL architecture). Requires transformers installed from git main branch. ~54 GB BF16, needs cross-GPU sharding via `split_model` or `device_map="auto"` on 2x L40S.
 
-**Llama 4 Scout W4A16 note**: [`RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16`](https://huggingface.co/RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16) — INT4 weights / FP16 activations, quantized with llm-compressor. Loads via transformers `from_pretrained()` with `compressed-tensors` package (replaces `nn.Linear` with `CompressedLinear`). ~55 GB (75% reduction from 218 GB BF16). Needs cross-GPU sharding via `device_map="auto"` on 2x L40S.
+**Llama 4 Scout W4A16 note**: [`RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16`](https://huggingface.co/RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16) — INT4 weights / FP16 activations, quantized with llm-compressor. Loads via vLLM's `LLM()` engine with `tensor_parallel_size` auto-detected from `CUDA_VISIBLE_DEVICES`. Uses MarlinLinearKernel for W4A16 dequantization. ~55 GB across GPUs.
 
 ---
 
-## Phase 1: Baseline Runs (All Six Models)
+## Phase 1: Baseline Runs (All Seven Models)
 
 Run the existing pipeline on the 15-image bank statement dataset with each model.
 
@@ -67,7 +74,7 @@ Run the existing pipeline on the 15-image bank statement dataset with each model
 
 ```bash
 # ============================================================
-# InternVL3.5 models (all three in one session)
+# InternVL3.5 models — HuggingFace (all three in one session)
 # NOTE: no --document-types flag (it filters by filename, not content)
 # ============================================================
 conda activate LMM_POC_IVL3.5
@@ -96,6 +103,19 @@ python cli.py \
   --output-dir evaluation_data/output/bank_ivl35_38b
 
 # ============================================================
+# InternVL3.5-8B via vLLM (same weights, different inference engine)
+# Uses LMM_POC_LLAMA4SCOUT env (has vLLM installed)
+# ============================================================
+conda activate LMM_POC_LLAMA4SCOUT
+
+# --- InternVL3.5-8B vLLM (tensor parallel across 2x L40S) ---
+python cli.py \
+  --model internvl3-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_8b_vllm
+
+# ============================================================
 # Nemotron (separate environment)
 # ============================================================
 conda activate LMM_POC_NEMOTRON
@@ -120,11 +140,11 @@ python cli.py \
   --output-dir evaluation_data/output/bank_qwen35_27b
 
 # ============================================================
-# Llama 4 Scout W4A16 (separate environment — compressed-tensors)
+# Llama 4 Scout W4A16 (vLLM tensor parallel)
 # ============================================================
 conda activate LMM_POC_LLAMA4SCOUT
 
-# --- Llama 4 Scout W4A16 (~55 GB, auto-shards across 2x L40S) ---
+# --- Llama 4 Scout W4A16 (~55 GB, tensor parallel across 2x L40S) ---
 python cli.py \
   --model llama4scout-w4a16 \
   --data-dir evaluation_data/bank \
@@ -152,28 +172,33 @@ For each model, capture:
 
 ## Phase 2: Failure Analysis
 
-After all six runs complete, compare results to answer:
+After all seven runs complete, compare results to answer:
 
 ### Key Questions
 
 1. **Does model size help?** Compare 8B vs 14B vs 38B F1 across all fields. If 14B matches 38B, the extra 47 GB VRAM isn't justified.
 
-2. **Does architecture matter?** Four architectures to compare:
+2. **Does architecture matter?** Five architectures to compare:
    - InternVL3.5 (pure Transformer, ViT + Qwen3 LLM)
    - Nemotron (hybrid Transformer-Mamba, #1 OCRBench v2)
    - Qwen3.5-27B (early-fusion VLM, 262K context, dense 27B)
    - Llama 4 Scout W4A16 (109B MoE, INT4 quantized, 16 experts)
    Nemotron may excel at text recognition but struggle with multi-turn extraction logic. Qwen3.5 may benefit from early fusion and long context for dense bank statements. Llama 4 Scout tests whether MoE architecture + INT4 quantization retains extraction quality.
 
-3. **Which field fails most?** Typically `LINE_ITEM_DESCRIPTIONS` and `TRANSACTION_AMOUNTS_PAID` are hardest (position-sensitive, many items per image).
+3. **Does inference engine matter?** Compare InternVL3.5-8B HF vs InternVL3.5-8B vLLM on identical weights:
+   - Same prompts, same images, same generation config
+   - Any accuracy difference is purely from the inference engine (tokenization, sampling, attention implementation)
+   - Throughput comparison (images/min) quantifies the vLLM speed advantage
 
-4. **Which images fail?** Cross-reference per-image scores across models:
+4. **Which field fails most?** Typically `LINE_ITEM_DESCRIPTIONS` and `TRANSACTION_AMOUNTS_PAID` are hardest (position-sensitive, many items per image).
+
+5. **Which images fail?** Cross-reference per-image scores across models:
    - Do all models fail on the same images? (data problem or prompt problem)
    - Does the larger model rescue specific images? (capacity problem)
 
-5. **Which strategy fails?** Check if `BALANCE_DESCRIPTION` outperforms `AMOUNT_DESCRIPTION` or vice versa. Does `TABLE_EXTRACTION` fallback ever fire?
+6. **Which strategy fails?** Check if `BALANCE_DESCRIPTION` outperforms `AMOUNT_DESCRIPTION` or vice versa. Does `TABLE_EXTRACTION` fallback ever fire?
 
-6. **Does balance correction help?** Run the 8B model twice — once with `balance_correction: true`, once with `balance_correction: false` — and compare `TRANSACTION_AMOUNTS_PAID` F1.
+7. **Does balance correction help?** Run the 8B model twice — once with `balance_correction: true`, once with `balance_correction: false` — and compare `TRANSACTION_AMOUNTS_PAID` F1.
 
 ### Balance Correction A/B Test
 
@@ -223,27 +248,28 @@ Create a table:
 
 Compile into a single markdown table for the report:
 
-| Metric | IVL3.5-8B | IVL3.5-14B | IVL3.5-38B | Nemotron 12B | Qwen3.5-27B | L4Scout W4A16 |
-|--------|-----------|------------|------------|--------------|-------------|---------------|
-| Overall F1 | ? | ? | ? | ? | ? | ? |
-| DOCUMENT_TYPE F1 | ? | ? | ? | ? | ? | ? |
-| STATEMENT_DATE_RANGE F1 | ? | ? | ? | ? | ? | ? |
-| TRANSACTION_DATES F1 | ? | ? | ? | ? | ? | ? |
-| LINE_ITEM_DESCRIPTIONS F1 | ? | ? | ? | ? | ? | ? |
-| TRANSACTION_AMOUNTS_PAID F1 | ? | ? | ? | ? | ? | ? |
-| Images/min | ? | ? | ? | ? | ? | ? |
-| Peak VRAM (GB) | ? | ? | ? | ? | ? | ? |
-| Fits single L40S? | Yes | Yes | No | Yes | No | No |
-| Conda env | IVL3.5 | IVL3.5 | IVL3.5 | NEMOTRON | QWEN35 | LLAMA4SCOUT |
-| OCRBench v2 rank | #6 | #2 | — | #1 | — | — |
-| Architecture | ViT+Qwen3 | ViT+Qwen3 | ViT+Qwen3 | CRadio+Mamba | Early fusion | MoE 16E W4A16 |
-| Parameters | 8B | 14B | 38B | 12B | 27B | 109B (17Bx16E) |
+| Metric | IVL3.5-8B | IVL3.5-8B vLLM | IVL3.5-14B | IVL3.5-38B | Nemotron 12B | Qwen3.5-27B | L4Scout W4A16 |
+|--------|-----------|----------------|------------|------------|--------------|-------------|---------------|
+| Overall F1 | ? | ? | ? | ? | ? | ? | ? |
+| DOCUMENT_TYPE F1 | ? | ? | ? | ? | ? | ? | ? |
+| STATEMENT_DATE_RANGE F1 | ? | ? | ? | ? | ? | ? | ? |
+| TRANSACTION_DATES F1 | ? | ? | ? | ? | ? | ? | ? |
+| LINE_ITEM_DESCRIPTIONS F1 | ? | ? | ? | ? | ? | ? | ? |
+| TRANSACTION_AMOUNTS_PAID F1 | ? | ? | ? | ? | ? | ? | ? |
+| Images/min | ? | ? | ? | ? | ? | ? | ? |
+| Peak VRAM (GB) | ? | ? | ? | ? | ? | ? | ? |
+| Fits single L40S? | Yes | Yes | Yes | No | Yes | No | No |
+| Conda env | IVL3.5 | LLAMA4SCOUT | IVL3.5 | IVL3.5 | NEMOTRON | QWEN35 | LLAMA4SCOUT |
+| Inference engine | HF AutoModel | vLLM | HF AutoModel | HF AutoModel | HF AutoModel | HF AutoModel | vLLM |
+| OCRBench v2 rank | #6 | #6 | #2 | — | #1 | — | — |
+| Architecture | ViT+Qwen3 | ViT+Qwen3 | ViT+Qwen3 | ViT+Qwen3 | CRadio+Mamba | Early fusion | MoE 16E W4A16 |
+| Parameters | 8B | 8B | 14B | 38B | 12B | 27B | 109B (17Bx16E) |
 
 ---
 
-## Phase 5: SROIE Benchmark (All Six Models)
+## Phase 5: SROIE Benchmark (All Seven Models)
 
-Run the standardized SROIE receipt extraction benchmark (ICDAR 2019 Task 3) on all six models. This provides a controlled comparison on a simpler task (4 flat fields, single-turn, exact-match evaluation) to isolate OCR/extraction capability from the multi-turn complexity of bank statements.
+Run the standardized SROIE receipt extraction benchmark (ICDAR 2019 Task 3) on all seven models. This provides a controlled comparison on a simpler task (4 flat fields, single-turn, exact-match evaluation) to isolate OCR/extraction capability from the multi-turn complexity of bank statements.
 
 **SROIE fields**: company, date, address, total (exact-match after normalization)
 
@@ -251,7 +277,7 @@ Run the standardized SROIE receipt extraction benchmark (ICDAR 2019 Task 3) on a
 
 ```bash
 # ============================================================
-# InternVL3.5 models
+# InternVL3.5 models — HuggingFace
 # ============================================================
 conda activate LMM_POC_IVL3.5
 
@@ -274,6 +300,16 @@ python benchmark_sroie.py \
   --output-dir evaluation_data/output/sroie_ivl35_38b
 
 # ============================================================
+# InternVL3.5-8B via vLLM
+# ============================================================
+conda activate LMM_POC_LLAMA4SCOUT
+
+python benchmark_sroie.py \
+  --model internvl3-vllm \
+  --data-dir data/sroie \
+  --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
+
+# ============================================================
 # Nemotron (separate environment)
 # ============================================================
 conda activate LMM_POC_NEMOTRON
@@ -294,7 +330,7 @@ python benchmark_sroie.py \
   --output-dir evaluation_data/output/sroie_qwen35_27b
 
 # ============================================================
-# Llama 4 Scout W4A16 (separate environment)
+# Llama 4 Scout W4A16 (vLLM tensor parallel)
 # ============================================================
 conda activate LMM_POC_LLAMA4SCOUT
 
@@ -306,14 +342,14 @@ python benchmark_sroie.py \
 
 ### SROIE Results Table
 
-| Metric | IVL3.5-8B | IVL3.5-14B | IVL3.5-38B | Nemotron 12B | Qwen3.5-27B | L4Scout W4A16 |
-|--------|-----------|------------|------------|--------------|-------------|---------------|
-| Overall F1 | ? | ? | ? | ? | ? | ? |
-| company F1 | ? | ? | ? | ? | ? | ? |
-| date F1 | ? | ? | ? | ? | ? | ? |
-| address F1 | ? | ? | ? | ? | ? | ? |
-| total F1 | ? | ? | ? | ? | ? | ? |
-| Images/min | ? | ? | ? | ? | ? | ? |
+| Metric | IVL3.5-8B | IVL3.5-8B vLLM | IVL3.5-14B | IVL3.5-38B | Nemotron 12B | Qwen3.5-27B | L4Scout W4A16 |
+|--------|-----------|----------------|------------|------------|--------------|-------------|---------------|
+| Overall F1 | ? | ? | ? | ? | ? | ? | ? |
+| company F1 | ? | ? | ? | ? | ? | ? | ? |
+| date F1 | ? | ? | ? | ? | ? | ? | ? |
+| address F1 | ? | ? | ? | ? | ? | ? | ? |
+| total F1 | ? | ? | ? | ? | ? | ? | ? |
+| Images/min | ? | ? | ? | ? | ? | ? | ? |
 
 ### SROIE vs Bank Statement Analysis
 
@@ -321,6 +357,7 @@ Compare each model's SROIE rank vs bank statement rank to answer:
 - Does SROIE performance predict bank statement performance?
 - Do models that excel at flat-field OCR also handle multi-turn structured extraction?
 - Is there a model that ranks differently between the two tasks (suggesting task-specific strengths)?
+- Does the vLLM inference engine produce the same accuracy as HuggingFace on identical weights?
 
 ---
 
@@ -336,6 +373,7 @@ Based on results, recommend:
 6. **Whether Qwen3.5-27B's early fusion and long context** give it an edge on dense bank statements vs InternVL3.5's ViT+LLM pipeline approach
 7. **Whether INT4 quantization degrades extraction quality** — compare Llama 4 Scout W4A16 accuracy against dense models to assess quantization's impact on structured document tasks
 8. **Whether bank prompts are overfitted to InternVL3.5** — prompts were developed and iterated against InternVL3.5, so other models may underperform due to prompt style rather than capability. Key diagnostic: if a model scores well on SROIE (generic prompts) but poorly on bank extraction (InternVL3.5-tuned prompts), prompt overfitting is likely. Remedies: per-model prompt files, simpler model-agnostic prompts, or relaxing output format constraints
+9. **Whether vLLM should replace HuggingFace for InternVL3.5** — if `internvl3-vllm` matches `internvl3` accuracy with better throughput, vLLM becomes the preferred inference path (especially on production where flash-attn is unavailable)
 
 ---
 
@@ -343,30 +381,34 @@ Based on results, recommend:
 
 ### Bank Statement Runs
 
-1. Run IVL3.5-8B bank baseline (fastest, validates pipeline works) — ~5 min
-2. Run IVL3.5-14B bank baseline — ~8 min
-3. Run IVL3.5-38B bank baseline (cross-GPU sharding) — ~15 min
-4. Switch to `LMM_POC_NEMOTRON` env, run Nemotron bank baseline — ~8 min
-5. Switch to `LMM_POC_QWEN35` env, run Qwen3.5-27B bank baseline (cross-GPU sharding) — ~12 min
-6. Switch to `LMM_POC_LLAMA4SCOUT` env, run Llama 4 Scout W4A16 bank baseline (cross-GPU sharding) — ~12 min
-7. Run 8B balance correction A/B (back in IVL3.5 env) — ~5 min
+1. ~~Run IVL3.5-8B bank baseline~~ — **DONE** (`bank_ivl35_8b`)
+2. ~~Run IVL3.5-14B bank baseline~~ — **DONE** (`bank_ivl35_14b`)
+3. ~~Run IVL3.5-38B bank baseline~~ — **DONE** (`bank_ivl35_38b`)
+4. ~~Run Nemotron bank baseline~~ — **DONE** (`bank_nemotron`)
+5. ~~Run Qwen3.5-27B bank baseline~~ — **DONE** (`bank_qwen35_27b`)
+6. ~~Run Llama 4 Scout W4A16 bank baseline~~ — **DONE** (`bank_llama4scout_w4a16`)
+7. ~~Run 8B balance correction A/B~~ — **DONE** (`bank_ivl35_8b_balcorr_on`, `bank_ivl35_8b_balcorr_off`)
+8. Run IVL3.5-8B vLLM bank baseline — **PENDING** (`bank_ivl35_8b_vllm`)
 
 ### SROIE Runs
 
-8. Run IVL3.5-8B, 14B, 38B SROIE benchmarks (same IVL3.5 env session) — ~20 min
-9. Switch to `LMM_POC_NEMOTRON` env, run Nemotron SROIE — ~8 min
-10. Switch to `LMM_POC_QWEN35` env, run Qwen3.5-27B SROIE — ~10 min
-11. Switch to `LMM_POC_LLAMA4SCOUT` env, run Llama 4 Scout W4A16 SROIE — ~10 min
+9. ~~Run IVL3.5-8B SROIE~~ — **DONE** (`sroie_ivl35_8b`)
+10. ~~Run IVL3.5-14B SROIE~~ — **DONE** (`sroie_ivl35_14b`)
+11. ~~Run IVL3.5-38B SROIE~~ — **DONE** (`sroie_ivl35_38b`)
+12. ~~Run Nemotron SROIE~~ — **DONE** (`sroie_nemotron`)
+13. ~~Run Qwen3.5-27B SROIE~~ — **DONE** (`sroie_qwen35_27b`)
+14. ~~Run Llama 4 Scout W4A16 SROIE~~ — **DONE** (`sroie_llama4scout_w4a16`)
+15. Run IVL3.5-8B vLLM SROIE — **PENDING** (`sroie_ivl35_8b_vllm`)
 
 ### Analysis
 
-12. Compile bank statement results table
-13. Compile SROIE results table
-14. Cross-task comparison (SROIE rank vs bank rank)
-15. Failure analysis on worst bank images
-16. Write findings to `plans/model_evaluation_results.md`
+16. Compile bank statement results table
+17. Compile SROIE results table
+18. Cross-task comparison (SROIE rank vs bank rank)
+19. Failure analysis on worst bank images
+20. Write findings to `plans/model_evaluation_results.md`
 
-**Total estimated wall time**: ~130 min (including model load/unload and env switching)
+**Remaining wall time**: ~20 min (two `internvl3-vllm` runs) + analysis
 
 ---
 
@@ -377,12 +419,11 @@ Based on results, recommend:
 - [x] InternVL3.5-38B downloaded and registered
 - [x] Nemotron Nano 2 VL downloaded and registered
 - [x] Nemotron processor implemented (`models/document_aware_nemotron_processor.py`)
-- [ ] InternVL3.5-14B downloaded to NFS (`hf download OpenGVLab/InternVL3_5-14B --local-dir /home/jovyan/nfs_share/models/InternVL3_5-14B`)
-- [ ] Verify `evaluation_data/bank/` directory exists on remote with all 15 images
-- [ ] Verify ground truth CSV paths match image filenames
-- [ ] Confirm `LMM_POC_IVL3.5` conda env is active (transformers 4.57)
-- [ ] Confirm `LMM_POC_NEMOTRON` conda env is active (transformers 4.53.x)
-- [ ] SROIE data downloaded to `data/sroie/` (see `benchmark_sroie.py --help` or download from GitHub)
+- [x] Verify `evaluation_data/bank/` directory exists on remote with all 15 images
+- [x] Verify ground truth CSV paths match image filenames
+- [x] Confirm `LMM_POC_IVL3.5` conda env is active (transformers 4.57)
+- [x] Confirm `LMM_POC_NEMOTRON` conda env is active (transformers 4.53.x)
+- [x] SROIE data downloaded to `data/sroie/`
 
 ### Qwen3.5-27B Prerequisites
 
@@ -395,21 +436,23 @@ Based on results, recommend:
 
 ### Llama 4 Scout W4A16 Prerequisites
 
-- [ ] Download model:
-  ```bash
-  huggingface-cli download RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16 \
-    --local-dir /home/jovyan/nfs_share/models/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16
-  ```
-- [ ] Create conda env `LMM_POC_LLAMA4SCOUT`:
-  ```bash
-  conda create -n LMM_POC_LLAMA4SCOUT python=3.11 -y
-  conda activate LMM_POC_LLAMA4SCOUT
-  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-  pip install 'transformers>=4.51' compressed-tensors
-  pip install accelerate pillow pyyaml rich
-  ```
-- [ ] Register `llama4scout-w4a16` in `models/registry.py` — reuse existing `_llama4scout_processor_creator` and `llama4scout_prompts.yaml`; loader uses `Llama4ForConditionalGeneration.from_pretrained()` with `device_map="auto"` (compressed-tensors auto-detects W4A16 format)
-- [ ] Add `llama4scout-w4a16` default path to `config/run_config.yml`
+- [x] Download model to NFS (`Llama-4-Scout-17B-16E-Instruct-quantized.w4a16`)
+- [x] Create conda env `LMM_POC_LLAMA4SCOUT` (`config/scout_env.yml`):
+  - Python 3.12, transformers ≥4.51, compressed-tensors, vLLM
+  - Post-install: torch cu124, flash-attn, vllm
+- [x] Register `llama4scout-w4a16` in `models/registry.py` — uses vLLM `LLM()` engine with tensor parallelism (not HuggingFace `from_pretrained`)
+- [x] Implement `DocumentAwareVllmProcessor` (`models/document_aware_vllm_processor.py`)
+- [x] Add `llama4scout-w4a16` default path to `config/run_config.yml`
+- [x] Add vLLM dispatch in `benchmark_sroie.py`
+
+### InternVL3.5-8B vLLM Prerequisites
+
+- [x] Register `internvl3-vllm` in `models/registry.py` — reuses vLLM `LLM()` engine loader pattern, same weights as `internvl3`
+- [x] Add `model_type_key` parameter to `DocumentAwareVllmProcessor` (selects InternVL3 generation config)
+- [x] Add `internvl3-vllm` default path to `config/run_config.yml`
+- [x] Add `internvl3-vllm` dispatch in `benchmark_sroie.py`
+- [ ] Run bank statement evaluation on remote (`bank_ivl35_8b_vllm`)
+- [ ] Run SROIE benchmark on remote (`sroie_ivl35_8b_vllm`)
 
 ---
 
@@ -433,14 +476,14 @@ git add + commit + push ──────────────>   Write find
 
 #### 1. Bank Statement Results Aggregation
 
-- Read `evaluation_data/output/bank_*/model_results.csv` for all six models
+- Read `evaluation_data/output/bank_*/model_results.csv` for all seven models
 - Read `evaluation_data/output/bank_*/evaluation_report.txt` for per-field F1 scores
 - Populate the Phase 4 results comparison table with actual numbers
 - Identify the best model per field and overall
 
 #### 2. SROIE Results Aggregation
 
-- Read `evaluation_data/output/sroie_*/` output files for all six models
+- Read `evaluation_data/output/sroie_*/` output files for all seven models
 - Populate the Phase 5 SROIE results table
 - Compute per-field exact-match F1 (company, date, address, total)
 
@@ -451,7 +494,14 @@ git add + commit + push ──────────────>   Write find
 - Determine whether OCR capability (SROIE) predicts structured extraction capability (bank)
 - Statistical correlation between SROIE overall F1 and bank overall F1
 
-#### 4. Per-Image Failure Analysis
+#### 4. HF vs vLLM Comparison (InternVL3.5-8B)
+
+- Compare `bank_ivl35_8b` (HF) vs `bank_ivl35_8b_vllm` (vLLM) — same weights, different engine
+- Per-field F1 delta to detect any accuracy regression from the inference engine change
+- Throughput comparison (images/min) to quantify the vLLM speed advantage
+- If accuracy is equivalent and throughput is better, recommend vLLM as default for production
+
+#### 5. Per-Image Failure Analysis
 
 - For each model's bottom-3 images (by bank F1), extract:
   - Which strategy was selected
@@ -460,25 +510,27 @@ git add + commit + push ──────────────>   Write find
 - Cross-reference failures across models (same image fails everywhere = data/prompt issue)
 - Build the Phase 3 error catalogue table
 
-#### 5. Balance Correction Impact
+#### 6. Balance Correction Impact
 
 - Compare `bank_ivl35_8b_balcorr_on` vs `bank_ivl35_8b_balcorr_off` results
 - Compute delta in `TRANSACTION_AMOUNTS_PAID` F1
 - Determine if balance correction is worth the extra inference pass
 
-#### 6. Cost/Accuracy Tradeoff Analysis
+#### 7. Cost/Accuracy Tradeoff Analysis
 
 - Plot (or tabulate) F1 vs model size, F1 vs throughput (images/min), F1 vs peak VRAM
 - Identify the Pareto-optimal models (highest accuracy for given resource budget)
 - Factor in conda environment complexity (operational cost of maintaining separate envs)
+- Factor in vLLM's operational advantage (no flash-attn compilation, Triton fallback)
 
-#### 7. Final Report
+#### 8. Final Report
 
 - Write `plans/model_evaluation_results.md` with:
   - Executive summary (recommended model + rationale)
   - Bank statement results table (filled)
   - SROIE results table (filled)
+  - HF vs vLLM comparison (accuracy + throughput)
   - Cross-task correlation analysis
   - Error catalogue with specific failure examples
   - Cost/accuracy tradeoff recommendation
-  - Next steps (prompt tuning, max_tiles experiments, 20B MoE testing)
+  - Next steps (prompt tuning, max_tiles experiments, 20B MoE testing, vLLM migration)

@@ -314,7 +314,7 @@ def run_inference(
         return _run_inference_llama4scout(
             model, tokenizer_or_processor, image, prompt, max_tokens
         )
-    if model_type == "llama4scout-w4a16":
+    if model_type in ("llama4scout-w4a16", "internvl3-vllm"):
         return _run_inference_vllm(
             model, tokenizer_or_processor, image, prompt, max_tokens
         )
@@ -426,6 +426,9 @@ def run_benchmark(
         config_kwargs.setdefault("flash_attn", True)
         config_kwargs.setdefault("device_map", "auto")
     elif model_type == "llama4scout":
+        config_kwargs.setdefault("flash_attn", False)
+        config_kwargs.setdefault("device_map", "auto")
+    elif model_type == "internvl3-vllm":
         config_kwargs.setdefault("flash_attn", False)
         config_kwargs.setdefault("device_map", "auto")
     elif model_type == "nemotron":

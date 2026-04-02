@@ -16,7 +16,6 @@ from typing import Any, override
 from PIL import Image
 
 from common.extraction_parser import parse_extraction_response
-from common.model_config import LLAMA4SCOUT_GENERATION_CONFIG
 from models.base_processor import BaseDocumentProcessor
 
 
@@ -39,6 +38,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
         pre_loaded_processor=None,
         prompt_config: dict[str, Any] | None = None,
         field_definitions: dict[str, list[str]] | None = None,
+        model_type_key: str = "llama4scout",
     ):
         self.model_path = model_path
         # pre_loaded_model is a vllm.LLM engine
@@ -53,6 +53,8 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             )
             raise ValueError(msg)
 
+        self._model_type_key = model_type_key
+
         # Shared init: validates config, loads field defs, sets batch size
         self._init_shared(
             field_list=field_list,
@@ -61,7 +63,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             debug=debug,
             device=device,
             batch_size=batch_size,
-            model_type_key="llama4scout",
+            model_type_key=model_type_key,
         )
 
         self._configure_generation()
@@ -80,7 +82,15 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
 
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters from model_config."""
-        self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
+        from common.model_config import (
+            INTERNVL3_GENERATION_CONFIG,
+            LLAMA4SCOUT_GENERATION_CONFIG,
+        )
+
+        if self._model_type_key == "internvl3":
+            self.gen_config = dict(INTERNVL3_GENERATION_CONFIG)
+        else:
+            self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
 
         self.fallback_max_tokens = max(
             self.gen_config["max_new_tokens_base"],
