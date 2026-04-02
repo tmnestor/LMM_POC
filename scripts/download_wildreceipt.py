@@ -1,116 +1,87 @@
-"""Download the WildReceipt dataset from HuggingFace.
+"""Download the WildReceipt dataset from OpenMMLab.
+
+Downloads wildreceipt.tar from the MMOCR project and extracts it.
 
 Creates data/wildreceipt/ with:
-    images/       — all receipt images (JPEG)
-    train.json    — train split annotations
-    test.json     — test split annotations
-
-Each JSON file contains a list of records:
-    {
-        "id": "0",
-        "image_path": "images/train_0000.jpeg",
-        "words": ["SAFEWAY", "TM", ...],
-        "bboxes": [[x1, y1, x2, y2], ...],
-        "ner_tags": [1, 25, ...],
-        "ner_labels": ["Store_name_value", "Others", ...]
-    }
+    image_files/   — 1,765 receipt images (JPEG)
+    train.txt      — train split (1,270 images, MMOCR JSON-lines format)
+    test.txt       — test split (472 images)
+    class_list.txt — 25 entity classes + Ignore + Others
 
 Usage:
     python scripts/download_wildreceipt.py
     python scripts/download_wildreceipt.py --output-dir /path/to/data/wildreceipt
+
+Source: https://download.openmmlab.com/mmocr/data/wildreceipt.tar
+Paper:  https://arxiv.org/abs/2103.14470
 """
 
 import argparse
-import json
+import tarfile
+import urllib.request
 from pathlib import Path
 
-NER_LABELS = [
-    "Ignore",
-    "Store_name_value",
-    "Store_name_key",
-    "Store_addr_value",
-    "Store_addr_key",
-    "Tel_value",
-    "Tel_key",
-    "Date_value",
-    "Date_key",
-    "Time_value",
-    "Time_key",
-    "Prod_item_value",
-    "Prod_item_key",
-    "Prod_quantity_value",
-    "Prod_quantity_key",
-    "Prod_price_value",
-    "Prod_price_key",
-    "Subtotal_value",
-    "Subtotal_key",
-    "Tax_value",
-    "Tax_key",
-    "Tips_value",
-    "Tips_key",
-    "Total_value",
-    "Total_key",
-    "Others",
-]
+TAR_URL = "https://download.openmmlab.com/mmocr/data/wildreceipt.tar"
 
 
 def download(output_dir: Path) -> None:
-    from datasets import load_dataset
+    output_dir.mkdir(parents=True, exist_ok=True)
+    tar_path = output_dir / "wildreceipt.tar"
 
-    print("Downloading WildReceipt from HuggingFace...")
-    # Load from the auto-converted parquet files (datasets 4.x dropped script support)
-    ds = load_dataset(
-        "Theivaprakasham/wildreceipt",
-        revision="refs/convert/parquet",
+    # Download
+    if tar_path.exists():
+        print(f"Archive already exists: {tar_path}")
+    else:
+        print(f"Downloading {TAR_URL} ...")
+        urllib.request.urlretrieve(TAR_URL, tar_path, _progress_hook)
+        print()
+
+    # Extract
+    print(f"Extracting to {output_dir} ...")
+    with tarfile.open(tar_path) as tf:
+        # Strip the top-level 'wildreceipt/' prefix so files go directly into output_dir
+        members = tf.getmembers()
+        for member in members:
+            # wildreceipt/image_files/... -> image_files/...
+            parts = Path(member.name).parts
+            if len(parts) > 1:
+                member.name = str(Path(*parts[1:]))
+            else:
+                continue  # skip the top-level directory itself
+            tf.extract(member, output_dir)
+
+    # Report
+    images = list((output_dir / "image_files").rglob("*.jpeg")) + list(
+        (output_dir / "image_files").rglob("*.jpg")
     )
-
-    img_dir = output_dir / "images"
-    img_dir.mkdir(parents=True, exist_ok=True)
-
-    for split_name in ("train", "test"):
-        split = ds[split_name]
-        records = []
-
-        for i, row in enumerate(split):
-            # Save image
-            fname = f"{split_name}_{i:04d}.jpeg"
-            img_path = img_dir / fname
-
-            if hasattr(row.get("image", None), "save"):
-                row["image"].save(img_path)
-            elif "image_path" in row and Path(row["image_path"]).exists():
-                import shutil
-
-                shutil.copy2(row["image_path"], img_path)
-
-            # Build annotation record
-            ner_tags = row.get("ner_tags", [])
-            record = {
-                "id": row.get("id", str(i)),
-                "image_path": f"images/{fname}",
-                "words": row.get("words", []),
-                "bboxes": row.get("bboxes", []),
-                "ner_tags": ner_tags,
-                "ner_labels": [
-                    NER_LABELS[t] if t < len(NER_LABELS) else "Unknown"
-                    for t in ner_tags
-                ],
-            }
-            records.append(record)
-
-        out_file = output_dir / f"{split_name}.json"
-        out_file.write_text(json.dumps(records, indent=2))
-        print(f"  {split_name}: {len(records)} images -> {out_file}")
-
-    # Write label map
-    label_map = output_dir / "label_map.json"
-    label_map.write_text(
-        json.dumps({i: lbl for i, lbl in enumerate(NER_LABELS)}, indent=2)
-    )
+    train_txt = output_dir / "train.txt"
+    test_txt = output_dir / "test.txt"
+    class_list = output_dir / "class_list.txt"
 
     print(f"\nDone! Dataset saved to {output_dir}")
-    print(f"  Images: {len(list(img_dir.glob('*.jpeg')))} files")
-    print(f"  Labels: {len(NER_LABELS)} classes")
+    print(f"  Images:     {len(images)} files")
+    if train_txt.exists():
+        train_count = sum(1 for _ in train_txt.open())
+        print(f"  Train:      {train_count} annotations ({train_txt.name})")
+    if test_txt.exists():
+        test_count = sum(1 for _ in test_txt.open())
+        print(f"  Test:       {test_count} annotations ({test_txt.name})")
+    if class_list.exists():
+        class_count = sum(1 for _ in class_list.open())
+        print(f"  Classes:    {class_count} ({class_list.name})")
+
+    # Clean up tar
+    tar_path.unlink()
+    print(f"  Removed:    {tar_path.name}")
+
+
+def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:
+    downloaded = block_num * block_size
+    if total_size > 0:
+        pct = min(100, downloaded * 100 // total_size)
+        mb = downloaded / (1024 * 1024)
+        total_mb = total_size / (1024 * 1024)
+        print(f"\r  {mb:.1f}/{total_mb:.1f} MB ({pct}%)", end="", flush=True)
 
 
 def main():
