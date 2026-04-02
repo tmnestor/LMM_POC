@@ -1,4 +1,4 @@
-name: LMM_POC_LLAMA4SCOUT
+name: LMM_POC_VLLM
 channels:
   - conda-forge
 dependencies:
@@ -18,9 +18,9 @@ dependencies:
       - einops
       - safetensors
       - psutil
-# POST-INSTALL (run in order after `conda env create -f config/scout_env.yml`):
-#   conda activate LMM_POC_LLAMA4SCOUT
+# POST-INSTALL (run in order after `conda env create -f config/vllm_env.yml`):
+#   conda activate LMM_POC_VLLM
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124  # must match nvcc toolkit (12.4), not driver (13.0)
 #   pip install flash-attn --no-build-isolation --no-cache-dir  # --no-cache-dir avoids cross-device link error on NFS
 #   pip install vllm --no-cache-dir  # tensor parallelism engine for multi-GPU inference
-prefix: /home/jovyan/.conda/envs/LMM_POC_LLAMA4SCOUT
+prefix: /home/jovyan/.conda/envs/LMM_POC_VLLM

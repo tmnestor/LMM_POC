@@ -49,16 +49,16 @@ InternVL3.5 models, Nemotron, Qwen3.5, and Scout require **different conda envir
 | Models | Conda Environment | transformers | Inference Engine |
 |--------|------------------|-------------|-----------------|
 | InternVL3.5-8B, 14B, 38B (HF) | `LMM_POC_IVL3.5` | 4.57 | HuggingFace AutoModel |
-| InternVL3.5-8B (vLLM) | `LMM_POC_LLAMA4SCOUT` | ≥4.51 + vLLM | vLLM offline engine |
+| InternVL3.5-8B (vLLM) | `LMM_POC_VLLM` | ≥4.51 + vLLM | vLLM offline engine |
 | Nemotron Nano 2 VL | `LMM_POC_NEMOTRON` | 4.53.x | HuggingFace AutoModelForCausalLM |
 | Qwen3.5-27B | `LMM_POC_QWEN35` | git main (bleeding edge) | HuggingFace Qwen3_5ForConditionalGeneration |
-| Llama 4 Scout W4A16 | `LMM_POC_LLAMA4SCOUT` | ≥4.51 + vLLM | vLLM offline engine |
+| Llama 4 Scout W4A16 | `LMM_POC_VLLM` | ≥4.51 + vLLM | vLLM offline engine |
 
 Switch environments between runs. The CLI commands are identical — only `conda activate` and `--model` change.
 
 **vLLM models note**: Both `llama4scout-w4a16` and `internvl3-vllm` use the vLLM offline inference engine with tensor parallelism (`DocumentAwareVllmProcessor`). The vLLM engine handles PagedAttention memory management, continuous batching, and CUDA graph optimizations. On production (4x A10G) where flash-attn compilation fails, set `VLLM_ATTENTION_BACKEND=TRITON_ATTN` to use vLLM's built-in Triton attention. On sandbox (2x L40S), flash-attn works natively.
 
-**InternVL3.5-8B vLLM note**: Uses the same model weights as `internvl3` (`InternVL3_5-8B`) but runs through vLLM instead of HuggingFace `AutoModel.chat()`. Shares the `LMM_POC_LLAMA4SCOUT` conda environment (which has vLLM installed). Uses `internvl3_prompts.yaml` (same prompts as HF path). The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field) instead of the Scout config.
+**InternVL3.5-8B vLLM note**: Uses the same model weights as `internvl3` (`InternVL3_5-8B`) but runs through vLLM instead of HuggingFace `AutoModel.chat()`. Shares the `LMM_POC_VLLM` conda environment (which has vLLM installed). Uses `internvl3_prompts.yaml` (same prompts as HF path). The `model_type_key="internvl3"` parameter selects the InternVL3 generation config (2000 base tokens, 50 per field) instead of the Scout config.
 
 **Qwen3.5-27B note**: Uses `Qwen3_5ForConditionalGeneration` (early-fusion VLM, NOT the Qwen3-VL architecture). Requires transformers installed from git main branch. ~54 GB BF16, needs cross-GPU sharding via `split_model` or `device_map="auto"` on 2x L40S.
 
@@ -104,9 +104,9 @@ python cli.py \
 
 # ============================================================
 # InternVL3.5-8B via vLLM (same weights, different inference engine)
-# Uses LMM_POC_LLAMA4SCOUT env (has vLLM installed)
+# Uses LMM_POC_VLLM env (has vLLM installed)
 # ============================================================
-conda activate LMM_POC_LLAMA4SCOUT
+conda activate LMM_POC_VLLM
 
 # --- InternVL3.5-8B vLLM (tensor parallel across 2x L40S) ---
 # VLLM_ATTENTION_BACKEND=TRITON_ATTN: use Triton attention (required on production
@@ -144,7 +144,7 @@ python cli.py \
 # ============================================================
 # Llama 4 Scout W4A16 (vLLM tensor parallel)
 # ============================================================
-conda activate LMM_POC_LLAMA4SCOUT
+conda activate LMM_POC_VLLM
 
 # --- Llama 4 Scout W4A16 (~55 GB, tensor parallel across 2x L40S) ---
 VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
@@ -261,7 +261,7 @@ Compile into a single markdown table for the report:
 | Images/min | ? | ? | ? | ? | ? | ? | ? |
 | Peak VRAM (GB) | ? | ? | ? | ? | ? | ? | ? |
 | Fits single L40S? | Yes | Yes | Yes | No | Yes | No | No |
-| Conda env | IVL3.5 | LLAMA4SCOUT | IVL3.5 | IVL3.5 | NEMOTRON | QWEN35 | LLAMA4SCOUT |
+| Conda env | IVL3.5 | VLLM | IVL3.5 | IVL3.5 | NEMOTRON | QWEN35 | VLLM |
 | Inference engine | HF AutoModel | vLLM | HF AutoModel | HF AutoModel | HF AutoModel | HF AutoModel | vLLM |
 | OCRBench v2 rank | #6 | #6 | #2 | — | #1 | — | — |
 | Architecture | ViT+Qwen3 | ViT+Qwen3 | ViT+Qwen3 | ViT+Qwen3 | CRadio+Mamba | Early fusion | MoE 16E W4A16 |
@@ -304,7 +304,7 @@ python benchmark_sroie.py \
 # ============================================================
 # InternVL3.5-8B via vLLM
 # ============================================================
-conda activate LMM_POC_LLAMA4SCOUT
+conda activate LMM_POC_VLLM
 
 VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model internvl3-vllm \
@@ -334,7 +334,7 @@ python benchmark_sroie.py \
 # ============================================================
 # Llama 4 Scout W4A16 (vLLM tensor parallel)
 # ============================================================
-conda activate LMM_POC_LLAMA4SCOUT
+conda activate LMM_POC_VLLM
 
 VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model llama4scout-w4a16 \
@@ -439,7 +439,7 @@ Based on results, recommend:
 ### Llama 4 Scout W4A16 Prerequisites
 
 - [x] Download model to NFS (`Llama-4-Scout-17B-16E-Instruct-quantized.w4a16`)
-- [x] Create conda env `LMM_POC_LLAMA4SCOUT` (`config/scout_env.yml`):
+- [x] Create conda env `LMM_POC_VLLM` (`config/vllm_env.yml`):
   - Python 3.12, transformers ≥4.51, compressed-tensors, vLLM
   - Post-install: torch cu124, flash-attn, vllm
 - [x] Register `llama4scout-w4a16` in `models/registry.py` — uses vLLM `LLM()` engine with tensor parallelism (not HuggingFace `from_pretrained`)

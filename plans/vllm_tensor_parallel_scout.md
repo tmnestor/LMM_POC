@@ -24,7 +24,7 @@ Scout's MoE architecture. Fallback: NVIDIA FP8 variant (`nvidia/Llama-4-Scout-17
 Add vLLM to the scout conda env. vLLM bundles its own torch, so install it on top:
 
 ```bash
-conda activate LMM_POC_LLAMA4SCOUT
+conda activate LMM_POC_VLLM
 pip install vllm --no-cache-dir
 ```
 
@@ -171,7 +171,7 @@ If W4A16 fails in vLLM (the "work in progress" issue):
 |------|--------|
 | `models/document_aware_vllm_processor.py` | **Create** — new VLM processor wrapping vLLM |
 | `models/registry.py` | **Modify** — replace W4A16 loader with vLLM-based loader |
-| `config/scout_env.yml` | **Modify** — add vllm to post-install instructions |
+| `config/vllm_env.yml` | **Modify** — add vllm to post-install instructions |
 
 ## Estimated Time
 
