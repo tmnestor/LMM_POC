@@ -640,6 +640,7 @@ def run_benchmark(
     model_path: str | None = None,
     max_images: int | None = None,
     max_tokens: int = 1024,
+    save_responses: Path | None = None,
 ) -> BenchmarkResult:
     """Run WildReceipt benchmark for a single model."""
     test_txt = data_dir / "test.txt"
@@ -725,6 +726,13 @@ def run_benchmark(
 
     # Run inference
     image_results: list[ImageResult] = []
+    responses_file = None
+    if save_responses:
+        save_responses.mkdir(parents=True, exist_ok=True)
+        responses_path = save_responses / f"responses_{model_type}.jsonl"
+        responses_file = responses_path.open("w")
+        console.print(f"Saving raw responses to {responses_path}")
+
     start_time = time.time()
 
     with registration.loader(cfg) as (model, tokenizer_or_processor):
@@ -740,6 +748,7 @@ def run_benchmark(
             task = progress.add_task(f"[cyan]{model_type}", total=len(all_entries))
 
             for file_name, gt, img_path in all_entries:
+                raw_response = ""
                 try:
                     image = Image.open(img_path).convert("RGB")
                     raw_response = run_inference(
@@ -758,7 +767,24 @@ def run_benchmark(
 
                 img_result = evaluate_image(predicted, gt)
                 image_results.append(img_result)
+
+                if responses_file:
+                    responses_file.write(
+                        json.dumps(
+                            {
+                                "file": file_name,
+                                "raw_response": raw_response,
+                                "parsed": predicted,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+
                 progress.advance(task)
+
+    if responses_file:
+        responses_file.close()
 
     elapsed = time.time() - start_time
     return compute_metrics(image_results, model_type, elapsed)
@@ -990,6 +1016,11 @@ def main(
         "--max-tokens",
         help="Maximum generation tokens per image.",
     ),
+    save_responses: bool = typer.Option(
+        False,
+        "--save-responses",
+        help="Save raw model responses to JSONL in output dir.",
+    ),
 ) -> None:
     """Run WildReceipt benchmark on one or more vision-language models."""
     console.print(
@@ -1014,6 +1045,7 @@ def main(
             model_path=model_path,
             max_images=max_images,
             max_tokens=max_tokens,
+            save_responses=output_dir if save_responses else None,
         )
         all_results.append(result)
 

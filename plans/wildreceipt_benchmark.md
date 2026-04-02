@@ -486,6 +486,7 @@ Options:
   -n, --max-images INT    Maximum images to evaluate (all if omitted)
   -o, --output-dir PATH   Directory for results output [output/wildreceipt]
   --max-tokens INT        Maximum generation tokens per image [1024]
+  --save-responses        Save raw model responses to JSONL in output dir
 ```
 
 ### Output files
@@ -497,6 +498,7 @@ Each run writes three files to `--output-dir`:
 | `wildreceipt_results.json` | Full results: per-class TP/FP/FN, per-image detail |
 | `wildreceipt_summary.csv` | One row per model: overall + per-class P/R/F1 |
 | `wildreceipt_per_image.csv` | One row per model+image: per-class TP/FP/FN counts |
+| `responses_<model>.jsonl` | Raw model responses (only with `--save-responses`) |
 
 ---
 
