@@ -1,0 +1,2 @@
+model,overall_f1,total_images,elapsed_seconds,images_per_min,company_precision,company_recall,company_f1,date_precision,date_recall,date_f1,address_precision,address_recall,address_f1,total_precision,total_recall,total_f1
+internvl3-vllm,0.8214,626,990.08,37.94,0.8514,0.8514,0.8514,0.77,0.77,0.77,0.7013,0.7024,0.7018,0.9617,0.9632,0.9624
