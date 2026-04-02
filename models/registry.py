@@ -532,6 +532,7 @@ register_model(
         processor_creator=_internvl3_vllm_processor_creator,
         prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-8B via vLLM (PagedAttention, no flash-attn required)",
+        requires_sharding=True,  # vLLM handles tensor parallelism internally
     )
 )
 
