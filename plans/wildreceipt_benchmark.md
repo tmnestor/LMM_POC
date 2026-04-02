@@ -135,10 +135,13 @@ keeps inference cost manageable (472 images x 1 turn vs 472 x 25 turns).
 
 ### 3. Evaluation Metric
 
-**Entity-level micro-average F1 with normalised text matching**:
+**Entity-level micro-average F1 with position-aware matching**, consistent with
+the LMM_POC evaluation methodology.
+
+#### Aggregation: Micro-Average F1
 
 - For each value class, collect ground truth entities from annotations
-- Match predicted entities to ground truth using normalised text comparison
+- Match predicted entities to ground truth (method depends on class type — see below)
 - Pool all TP / FP / FN across all 12 value classes into global counts
 - Overall precision = total TP / (total TP + total FP)
 - Overall recall = total TP / (total TP + total FN)
@@ -146,11 +149,104 @@ keeps inference cost manageable (472 images x 1 turn vs 472 x 25 turns).
 - Also report **per-class F1 breakdown** alongside the overall score to identify
   which entity classes are weakest
 
-**Normalisation rules** (reuse from SROIE where applicable):
-- Lowercase, collapse whitespace
-- Strip leading/trailing punctuation
-- Normalise currency amounts to 2 decimal places
-- Normalise dates to consistent format
+#### GT Reading Order
+
+WildReceipt annotations are bounding-box regions, not ordered text. Before
+evaluation, annotations are sorted into **reading order** by bbox centroid
+`(y, x)` — top-to-bottom, left-to-right. This ensures list fields (product
+items) align positionally with the model's visual reading order.
+
+#### Scalar Classes (9 fields)
+
+For single-value fields (store_name, store_address, telephone, date, time,
+subtotal, tax, tips, total), GT annotations are **concatenated** into one string
+(some store names/addresses are split across multiple bounding boxes) and
+compared against the model's single predicted value.
+
+| Outcome | Count |
+|---------|-------|
+| Both present + match | TP = 1 |
+| Both present + mismatch | FP = 1, FN = 1 |
+| GT only (model missed) | FN = 1 |
+| Pred only (hallucination) | FP = 1 |
+
+#### List Classes (3 fields) — Position-Aware F1
+
+For multi-value fields (prod_item, prod_quantity, prod_price), evaluation is
+**position-aware**: pred[0] vs GT[0], pred[1] vs GT[1], etc.
+
+| Position | Outcome | Count |
+|----------|---------|-------|
+| Both present + match | TP += 1 |
+| Both present + mismatch | FN += 1 |
+| GT only (under-extracted) | FN += 1 |
+| Pred only (over-extracted) | FP += 1 |
+
+This penalises ordering errors — if the model extracts correct items in the
+wrong order, those positions count as misses.
+
+#### Matching Primitives (by class type)
+
+| Class type | Matcher | Threshold | Example |
+|------------|---------|-----------|---------|
+| **Text** (store_name, store_address, time) | ANLS (Levenshtein) | similarity >= 0.5 | `"safeway inc"` vs `"safeway in"` → 0.91 → match |
+| **Currency** (total, subtotal, tax, tips, prod_price) | Exact after 2dp normalisation | `==` | `"$3.99"` → `"3.99"` vs `"3.99"` → match |
+| **Phone** (telephone) | Exact digits-only | `==` | `"703-777-5833"` → `"7037775833"` |
+| **Date** (date) | Exact after DD/MM/YYYY normalisation | `==` | `"2023-12-25"` → `"25/12/2023"` |
+| **Quantity** (prod_quantity) | Exact digits-only | `==` | `"x2"` → `"2"` |
+| **Item text** (prod_item) | Word-overlap Jaccard | overlap >= 0.75 | `"milk 2%"` vs `"milk 2% gallon"` → 0.67 → no match |
+
+#### Normalisation Rules
+
+Applied **before** matching, per class type:
+
+- **Text**: lowercase, collapse whitespace, strip leading/trailing punctuation
+- **Currency**: strip `$£€¥RM`, remove commas, format to 2 decimal places
+- **Phone**: strip all non-digit characters
+- **Date**: parse to DD/MM/YYYY (handles ISO, slash, dash, dot separators)
+- **Quantity**: strip all non-digit characters
+
+#### Worked Example
+
+Image with GT annotations (after bbox sorting):
+
+| Class | GT values |
+|-------|-----------|
+| store_name | `["QUICK", "MART"]` → concatenated: `"QUICK MART"` |
+| prod_item | `["MILK 2%", "BREAD WW", "EGGS LG"]` |
+| prod_price | `["$3.99", "$2.49", "$4.29"]` |
+| total | `["$10.77"]` |
+
+Model predicts:
+```json
+{
+  "store_name": "Quick Mart",
+  "items": [
+    {"name": "MILK 2%", "price": "$3.99"},
+    {"name": "WHOLE WHEAT BREAD", "price": "$2.49"},
+    {"name": "EGGS LARGE", "price": "$4.29"}
+  ],
+  "total": "10.77"
+}
+```
+
+**store_name** (scalar, ANLS): `"quick mart"` vs `"quick mart"` → 1.0 → **TP**
+
+**prod_item** (list, position-aware, Jaccard):
+- [0] `"milk 2%"` vs `"milk 2%"` → Jaccard 1.0 → **TP**
+- [1] `"whole wheat bread"` vs `"bread ww"` → words `{whole,wheat,bread}` ∩
+  `{bread,ww}` = `{bread}`, union size 4 → Jaccard 0.25 → **FN**
+- [2] `"eggs large"` vs `"eggs lg"` → `{eggs,large}` ∩ `{eggs,lg}` = `{eggs}`,
+  union 3 → Jaccard 0.33 → **FN**
+
+**prod_price** (list, position-aware, exact 2dp):
+- [0] `"3.99"` vs `"3.99"` → **TP**
+- [1] `"2.49"` vs `"2.49"` → **TP**
+- [2] `"4.29"` vs `"4.29"` → **TP**
+
+**total** (scalar, exact 2dp): `"10.77"` vs `"10.77"` → **TP**
+
+**Totals**: TP=6, FP=0, FN=2 → Precision=1.0, Recall=0.75, F1=0.857
 
 ### 4. Handling Key vs Value Classes
 
@@ -320,6 +416,67 @@ python benchmark_wildreceipt.py \
   --model qwen35 --data-dir data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_qwen35
 ```
+
+---
+
+## Usage Examples
+
+### Quick smoke test (5 images)
+
+```bash
+python benchmark_wildreceipt.py \
+  --model internvl3-vllm -n 5 --data-dir data/wildreceipt
+```
+
+### Compare two models side-by-side
+
+```bash
+python benchmark_wildreceipt.py \
+  --model internvl3-vllm --model internvl3-14b-vllm \
+  --data-dir data/wildreceipt \
+  --output-dir evaluation_data/output/wildreceipt_comparison
+```
+
+### Override model path
+
+```bash
+python benchmark_wildreceipt.py \
+  --model internvl3 \
+  --model-path /home/jovyan/nfs_share/models/InternVL3_5-8B \
+  --data-dir data/wildreceipt
+```
+
+### Increase generation budget for verbose receipts
+
+```bash
+python benchmark_wildreceipt.py \
+  --model internvl3-vllm --max-tokens 2048 \
+  --data-dir data/wildreceipt
+```
+
+### CLI reference
+
+```
+python benchmark_wildreceipt.py --help
+
+Options:
+  -m, --model TEXT        Model type(s) to benchmark (repeatable)
+  -d, --data-dir PATH     Path to WildReceipt data directory [data/wildreceipt]
+  -p, --model-path TEXT   Override model path (auto-detected if omitted)
+  -n, --max-images INT    Maximum images to evaluate (all if omitted)
+  -o, --output-dir PATH   Directory for results output [output/wildreceipt]
+  --max-tokens INT        Maximum generation tokens per image [1024]
+```
+
+### Output files
+
+Each run writes three files to `--output-dir`:
+
+| File | Content |
+|------|---------|
+| `wildreceipt_results.json` | Full results: per-class TP/FP/FN, per-image detail |
+| `wildreceipt_summary.csv` | One row per model: overall + per-class P/R/F1 |
+| `wildreceipt_per_image.csv` | One row per model+image: per-class TP/FP/FN counts |
 
 ---
 
