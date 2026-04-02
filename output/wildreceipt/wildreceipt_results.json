@@ -1,0 +1,107 @@
+{
+  "internvl3-vllm": {
+    "overall_f1": 0.6393,
+    "overall_precision": 0.6731,
+    "overall_recall": 0.6087,
+    "total_images": 5,
+    "elapsed_seconds": 65.92,
+    "per_class": {
+      "store_name": {
+        "precision": 0.6,
+        "recall": 0.6,
+        "f1": 0.6,
+        "tp": 3,
+        "fp": 2,
+        "fn": 2
+      },
+      "store_address": {
+        "precision": 0.8,
+        "recall": 0.8,
+        "f1": 0.8,
+        "tp": 4,
+        "fp": 1,
+        "fn": 1
+      },
+      "telephone": {
+        "precision": 0.75,
+        "recall": 1.0,
+        "f1": 0.8571,
+        "tp": 3,
+        "fp": 1,
+        "fn": 0
+      },
+      "date": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "tp": 4,
+        "fp": 0,
+        "fn": 0
+      },
+      "time": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "tp": 4,
+        "fp": 0,
+        "fn": 0
+      },
+      "prod_item": {
+        "precision": 1.0,
+        "recall": 0.075,
+        "f1": 0.1395,
+        "tp": 3,
+        "fp": 0,
+        "fn": 37
+      },
+      "prod_quantity": {
+        "precision": 0.2727,
+        "recall": 1.0,
+        "f1": 0.4286,
+        "tp": 9,
+        "fp": 24,
+        "fn": 0
+      },
+      "prod_price": {
+        "precision": 1.0,
+        "recall": 0.9394,
+        "f1": 0.9688,
+        "tp": 31,
+        "fp": 0,
+        "fn": 2
+      },
+      "subtotal": {
+        "precision": 0.6,
+        "recall": 1.0,
+        "f1": 0.75,
+        "tp": 3,
+        "fp": 2,
+        "fn": 0
+      },
+      "tax": {
+        "precision": 1.0,
+        "recall": 0.8,
+        "f1": 0.8889,
+        "tp": 4,
+        "fp": 0,
+        "fn": 1
+      },
+      "tips": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 1,
+        "fn": 0
+      },
+      "total": {
+        "precision": 0.4,
+        "recall": 0.5,
+        "f1": 0.4444,
+        "tp": 2,
+        "fp": 3,
+        "fn": 2
+      }
+    }
+  }
+}

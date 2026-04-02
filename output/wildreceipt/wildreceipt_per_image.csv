@@ -1,0 +1,6 @@
+model,image_id,store_name_tp,store_name_fp,store_name_fn,store_address_tp,store_address_fp,store_address_fn,telephone_tp,telephone_fp,telephone_fn,date_tp,date_fp,date_fn,time_tp,time_fp,time_fn,prod_item_tp,prod_item_fp,prod_item_fn,prod_quantity_tp,prod_quantity_fp,prod_quantity_fn,prod_price_tp,prod_price_fp,prod_price_fn,subtotal_tp,subtotal_fp,subtotal_fn,tax_tp,tax_fp,tax_fn,tips_tp,tips_fp,tips_fn,total_tp,total_fp,total_fn
+internvl3-vllm,image_files/Image_1/0/01e19e8b2d86190ca474aaaa8f19d44ebaf469be.jpeg,1,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1,1
+internvl3-vllm,image_files/Image_1/0/242c854b37808700f53d8a6b787f6748c59c17fe.jpeg,1,0,0,1,0,0,0,1,0,1,0,0,1,0,0,0,0,7,0,4,0,4,0,0,0,1,0,1,0,0,0,1,0,0,1,1
+internvl3-vllm,image_files/Image_1/0/2944.jpeg,0,1,1,1,0,0,1,0,0,1,0,0,1,0,0,0,0,9,8,1,0,9,0,0,1,0,0,1,0,0,0,0,0,0,1,0
+internvl3-vllm,image_files/Image_1/0/36bef8239a89c5ab98fb3b07656dcaf269c7fa1b.jpeg,0,1,1,1,0,0,1,0,0,1,0,0,1,0,0,0,0,2,0,2,0,0,0,2,1,0,0,1,0,0,0,0,0,1,0,0
+internvl3-vllm,image_files/Image_1/0/40.jpeg,1,0,0,0,1,1,0,0,0,1,0,0,1,0,0,3,0,18,0,17,0,17,0,0,0,1,0,0,0,1,0,0,0,1,0,0
