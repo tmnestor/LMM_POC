@@ -1,0 +1,2 @@
+model,overall_f1,total_images,elapsed_seconds,images_per_min,company_precision,company_recall,company_f1,date_precision,date_recall,date_f1,address_precision,address_recall,address_f1,total_precision,total_recall,total_f1
+llama4scout-w4a16,0.7248,626,1404.29,26.75,0.6741,0.6741,0.6741,0.7284,0.7284,0.7284,0.544,0.544,0.544,0.9521,0.9536,0.9528
