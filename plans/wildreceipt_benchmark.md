@@ -396,45 +396,45 @@ conda activate LMM_POC_IVL3.5
 
 python benchmark_wildreceipt.py \
   --model internvl3 --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_8b
+  --output-dir evaluation_data/output/wildreceipt_ivl35_8b --save-responses
 
 python benchmark_wildreceipt.py \
   --model internvl3-14b --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_14b
+  --output-dir evaluation_data/output/wildreceipt_ivl35_14b --save-responses
 
 python benchmark_wildreceipt.py \
   --model internvl3-38b --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_38b
+  --output-dir evaluation_data/output/wildreceipt_ivl35_38b --save-responses
 
 # --- vLLM models (LMM_POC_VLLM env) ---
 conda activate LMM_POC_VLLM
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
   --model internvl3-vllm --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_8b_vllm
+  --output-dir evaluation_data/output/wildreceipt_ivl35_8b_vllm --save-responses
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
   --model internvl3-14b-vllm --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_14b_vllm
+  --output-dir evaluation_data/output/wildreceipt_ivl35_14b_vllm --save-responses
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
   --model internvl3-38b-vllm --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_ivl35_38b_vllm
+  --output-dir evaluation_data/output/wildreceipt_ivl35_38b_vllm --save-responses
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
   --model llama4scout-w4a16 --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_llama4scout
+  --output-dir evaluation_data/output/wildreceipt_llama4scout --save-responses
 
 # --- Other HF models ---
 conda activate LMM_POC_NEMOTRON
 python benchmark_wildreceipt.py \
   --model nemotron --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_nemotron
+  --output-dir evaluation_data/output/wildreceipt_nemotron --save-responses
 
 conda activate LMM_POC_QWEN35
 python benchmark_wildreceipt.py \
   --model qwen35 --data-dir ../data/wildreceipt \
-  --output-dir evaluation_data/output/wildreceipt_qwen35
+  --output-dir evaluation_data/output/wildreceipt_qwen35 --save-responses
 ```
 
 ---
