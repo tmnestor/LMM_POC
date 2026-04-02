@@ -537,6 +537,28 @@ register_model(
     )
 )
 
+register_model(
+    ModelRegistration(
+        model_type="internvl3-14b-vllm",
+        loader=_internvl3_vllm_loader,
+        processor_creator=_internvl3_vllm_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-14B via vLLM (~30 GB BF16)",
+        requires_sharding=True,
+    )
+)
+
+register_model(
+    ModelRegistration(
+        model_type="internvl3-38b-vllm",
+        loader=_internvl3_vllm_loader,
+        processor_creator=_internvl3_vllm_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-38B via vLLM (~77 GB BF16)",
+        requires_sharding=True,
+    )
+)
+
 
 # ============================================================================
 # Llama Registration (lazy imports — no torch/transformers at module level)
