@@ -1,0 +1,29 @@
+# WildReceipt Benchmark — Fine-Grained Receipt Entity Extraction
+# 472 test images, 12 value classes (25 entity classes total)
+#
+# Used by benchmark_wildreceipt.py for all registered models.
+# Model-specific chat template wrapping is handled by the benchmark runner.
+
+extraction:
+  prompt: |
+    Extract all information from this receipt image. Return a JSON object with these fields:
+    {
+      "store_name": "...",
+      "store_address": "...",
+      "telephone": "...",
+      "date": "...",
+      "time": "...",
+      "items": [{"name": "...", "quantity": "...", "price": "..."}],
+      "subtotal": "...",
+      "tax": "...",
+      "tips": "...",
+      "total": "..."
+    }
+    Rules:
+    - Include ALL fields listed above in every response.
+    - If a field is not visible on the receipt, set its value to "NOT_FOUND".
+    - For items, list each product as a separate entry. Use an empty list [] if no line items are visible.
+
+settings:
+  max_tokens: 1024
+  temperature: 0.0

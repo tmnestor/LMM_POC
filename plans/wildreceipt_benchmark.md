@@ -156,6 +156,22 @@ evaluation, annotations are sorted into **reading order** by bbox centroid
 `(y, x)` — top-to-bottom, left-to-right. This ensures list fields (product
 items) align positionally with the model's visual reading order.
 
+#### NOT_FOUND Handling
+
+Consistent with the LMM_POC evaluation methodology, the model is instructed to
+return `"NOT_FOUND"` for fields not present on the receipt (rather than omitting
+them).  When **both GT and prediction are absent** for a class, this counts as
+a **TP** — the model correctly identified the field's absence.
+
+| GT | Prediction | Outcome |
+|----|------------|---------|
+| absent | absent / `NOT_FOUND` | **TP** (correct absence) |
+| absent | has value | **FP** (hallucination) |
+| has value | absent / `NOT_FOUND` | **FN** (missed field) |
+| has value | has value | match → **TP**, mismatch → **FP + FN** |
+
+Sentinel values treated as absent: `NOT_FOUND`, `N/A`, `None`, `null`, empty.
+
 #### Scalar Classes (9 fields)
 
 For single-value fields (store_name, store_address, telephone, date, time,
@@ -165,6 +181,7 @@ compared against the model's single predicted value.
 
 | Outcome | Count |
 |---------|-------|
+| Both absent (correct NOT_FOUND) | TP = 1 |
 | Both present + match | TP = 1 |
 | Both present + mismatch | FP = 1, FN = 1 |
 | GT only (model missed) | FN = 1 |
@@ -273,7 +290,10 @@ Extract all information from this receipt image. Return a JSON object with these
   "tips": "...",
   "total": "..."
 }
-Omit fields not present on the receipt. For items, list each product as a separate entry.
+Rules:
+- Include ALL fields listed above in every response.
+- If a field is not visible on the receipt, set its value to "NOT_FOUND".
+- For items, list each product as a separate entry. Use an empty list [] if no line items are visible.
 ```
 
 This maps cleanly to WildReceipt's value classes:

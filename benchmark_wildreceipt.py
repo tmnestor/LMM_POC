@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import typer
+import yaml
 from PIL import Image
 from rich.console import Console
 from rich.table import Table
@@ -91,22 +92,17 @@ LIST_CLASSES = {"prod_item", "prod_quantity", "prod_price"}
 # Extraction prompt
 # ============================================================================
 
-WILDRECEIPT_PROMPT = """\
-Extract all information from this receipt image. Return a JSON object with these fields:
-{
-  "store_name": "...",
-  "store_address": "...",
-  "telephone": "...",
-  "date": "...",
-  "time": "...",
-  "items": [{"name": "...", "quantity": "...", "price": "..."}],
-  "subtotal": "...",
-  "tax": "...",
-  "tips": "...",
-  "total": "..."
-}
-Omit fields not present on the receipt. For items, list each product as a separate entry.\
-"""
+
+def _load_wildreceipt_prompt() -> str:
+    """Load the WildReceipt extraction prompt from YAML."""
+    prompt_path = Path(__file__).parent / "prompts" / "wildreceipt_prompts.yaml"
+    with prompt_path.open() as f:
+        data = yaml.safe_load(f)
+    return data["extraction"]["prompt"]
+
+
+# Sentinel values the model may use to indicate a field is absent.
+_NOT_FOUND_VALUES = {"not_found", "n/a", "none", "null", ""}
 
 
 # ============================================================================
@@ -425,8 +421,16 @@ class BenchmarkResult:
 # ============================================================================
 
 
+def _is_not_found(val: str) -> bool:
+    """Check if a value represents an absent field (NOT_FOUND sentinel)."""
+    return val.strip().lower() in _NOT_FOUND_VALUES
+
+
 def _extract_predicted_entities(predicted: dict) -> dict[str, list[str]]:
-    """Extract per-class entity lists from parsed model response."""
+    """Extract per-class entity lists from parsed model response.
+
+    Values matching NOT_FOUND sentinels are treated as absent (empty list).
+    """
     entities: dict[str, list[str]] = {}
 
     # Scalar fields
@@ -444,7 +448,7 @@ def _extract_predicted_entities(predicted: dict) -> dict[str, list[str]]:
 
     for json_key, class_name in scalar_map.items():
         val = predicted.get(json_key)
-        if val and str(val).strip():
+        if val and str(val).strip() and not _is_not_found(str(val)):
             entities[class_name] = [str(val).strip()]
 
     # List fields from items array
@@ -459,7 +463,7 @@ def _extract_predicted_entities(predicted: dict) -> dict[str, list[str]]:
                 ("price", "prod_price"),
             ]:
                 val = item.get(item_key)
-                if val and str(val).strip():
+                if val and str(val).strip() and not _is_not_found(str(val)):
                     entities.setdefault(class_name, []).append(str(val).strip())
 
     return entities
@@ -568,7 +572,10 @@ def evaluate_image(predicted: dict, gt: WildReceiptGT) -> ImageResult:
         pred_vals = pred_entities.get(class_name, [])
 
         if not gt_vals and not pred_vals:
-            result.per_class[class_name] = ClassResult(class_name=class_name)
+            # Both absent — model correctly identified field not present → TP
+            cr = ClassResult(class_name=class_name)
+            cr.true_positives = 1
+            result.per_class[class_name] = cr
         elif class_name in LIST_CLASSES:
             result.per_class[class_name] = _evaluate_list_position_aware(
                 class_name, pred_vals, gt_vals
@@ -712,6 +719,10 @@ def run_benchmark(
 
     cfg = PipelineConfig(**config_kwargs)
 
+    # Load prompt from YAML
+    prompt = _load_wildreceipt_prompt()
+    console.print(f"Prompt: {len(prompt)} chars")
+
     # Run inference
     image_results: list[ImageResult] = []
     start_time = time.time()
@@ -736,7 +747,7 @@ def run_benchmark(
                         model,
                         tokenizer_or_processor,
                         image,
-                        WILDRECEIPT_PROMPT,
+                        prompt,
                         max_tokens,
                     )
                     predicted = parse_wildreceipt_response(raw_response)
