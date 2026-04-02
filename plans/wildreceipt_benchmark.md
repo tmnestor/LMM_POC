@@ -11,7 +11,7 @@ more challenging, fine-grained entity recognition task.
 
 | Property | SROIE | WildReceipt | Bank Statements |
 |----------|-------|-------------|-----------------|
-| Images | 347 test | 472 test | 9 test |
+| Images | 347 test | 472 test | 15 test |
 | Entity classes | 4 | 25 (key/value pairs) | 5 |
 | Source | Scanned | In-the-wild photos | Scanned |
 | Complexity | Low | Medium | High (multi-turn) |
