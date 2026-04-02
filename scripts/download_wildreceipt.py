@@ -58,7 +58,11 @@ def download(output_dir: Path) -> None:
     from datasets import load_dataset
 
     print("Downloading WildReceipt from HuggingFace...")
-    ds = load_dataset("Theivaprakasham/wildreceipt")
+    # Load from the auto-converted parquet files (datasets 4.x dropped script support)
+    ds = load_dataset(
+        "Theivaprakasham/wildreceipt",
+        revision="refs/convert/parquet",
+    )
 
     img_dir = output_dir / "images"
     img_dir.mkdir(parents=True, exist_ok=True)
