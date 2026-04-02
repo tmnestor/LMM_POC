@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="1356.5625"
+   height="326.17969"
+   viewBox="0 0 1356.5625 326.17969"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <g
+     id="g1">
+    <path
+       id="path1"
+       d="M 6,6 H 226.559 V 238.633 H 6 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text1"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,127.95313,27.998047)"><tspan
+         id="tspan1"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">GPU3</tspan></text>
+    <path
+       id="path2"
+       d="M 48.328,36 H 184.23 V 99.883 H 48.328 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text2"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,107.28125,87.998047)"><tspan
+         id="tspan2"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -1.875"
+         y="0">BlockTable</tspan><tspan
+         id="tspan3"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="8.0507851"
+         y="16.5">(shared)</tspan></text>
+    <path
+       id="path3"
+       d="m 45.375,144.883 h 141.809 v 63.75 H 45.375 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text3"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,115.39063,233.18034)"><tspan
+         id="tspan4"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVBlocks</tspan><tspan
+         id="tspan5"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-8.9023504"
+         y="16.5">Heads24-31</tspan></text>
+    <path
+       id="path5"
+       d="M 271.559,6 H 492.118 V 238.633 H 271.559 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text5"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,482.03125,27.998047)"><tspan
+         id="tspan6"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">GPU2</tspan></text>
+    <path
+       id="path6"
+       d="M 313.887,36 H 449.789 V 99.883 H 313.887 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text6"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,461.35937,87.998047)"><tspan
+         id="tspan7"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -1.875"
+         y="0">BlockTable</tspan><tspan
+         id="tspan8"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="8.0507851"
+         y="16.5">(shared)</tspan></text>
+    <path
+       id="path8"
+       d="m 310.934,144.883 h 141.809 v 63.75 H 310.934 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text8"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,469.46875,233.18034)"><tspan
+         id="tspan9"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVBlocks</tspan><tspan
+         id="tspan10"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-8.9023504"
+         y="16.5">Heads16-23</tspan></text>
+    <path
+       id="path10"
+       d="M 537.117,6 H 751.769 V 238.633 H 537.117 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text10"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,832.17187,27.998047)"><tspan
+         id="tspan11"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">GPU1</tspan></text>
+    <path
+       id="path11"
+       d="M 576.492,36 H 712.394 V 99.883 H 576.492 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text11"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,811.5,87.998047)"><tspan
+         id="tspan12"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -1.875"
+         y="0">BlockTable</tspan><tspan
+         id="tspan13"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="8.0507851"
+         y="16.5">(shared)</tspan></text>
+    <path
+       id="path13"
+       d="m 577.469,144.883 h 133.945 v 63.75 H 577.469 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text13"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,819.60937,233.18034)"><tspan
+         id="tspan14"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVBlocks</tspan><tspan
+         id="tspan15"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-4.96875"
+         y="16.5">Heads8-15</tspan></text>
+    <path
+       id="path15"
+       d="m 796.77,6 h 214.652 V 238.633 H 796.77 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text15"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,1178.375,27.998047)"><tspan
+         id="tspan16"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">GPU0</tspan></text>
+    <path
+       id="path16"
+       d="M 836.145,36 H 972.047 V 99.883 H 836.145 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text16"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,1157.7031,87.998047)"><tspan
+         id="tspan17"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 -1.875"
+         y="0">BlockTable</tspan><tspan
+         id="tspan18"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="8.0507851"
+         y="16.5">(shared)</tspan></text>
+    <path
+       id="path18"
+       d="m 841.055,144.883 h 126.082 v 63.75 H 841.055 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text18"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,1165.8125,233.18034)"><tspan
+         id="tspan19"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">KVBlocks</tspan><tspan
+         id="tspan20"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-1.035156"
+         y="16.5">Heads0-7</tspan></text>
+  </g>
+</svg>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="372.0625"
+   height="847"
+   viewBox="0 0 372.0625 847"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath8">
+      <path
+         d="m 246.75001,-136.523 v -6 h 6 v 6 z"
+         id="path8" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath11">
+      <path
+         d="m 496.50001,-136.523 v -6 h 6 v 6 z"
+         id="path11" />
+    </clipPath>
+  </defs>
+  <g
+     id="g1">
+    <path
+       id="path1"
+       d="M 6,472.5 H 273.047 V 629.25 H 6 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text1"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,102.01563,649.99805)"><tspan
+         id="tspan1"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">LanguageModel</tspan><tspan
+         id="tspan2"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 -0.405"
+         y="16.5">(Qwen3)--Decode</tspan></text>
+    <path
+       id="path2"
+       d="M 6,222.75 H 273.047 V 412.5 H 6 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text2"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,108.04687,316.99805)"><tspan
+         id="tspan3"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">LanguageModel</tspan><tspan
+         id="tspan4"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 -0.405 0 0 0 0 0 0 0 -0.70499998"
+         y="16.5">(Qwen3)--Prefill</tspan></text>
+    <path
+       id="path4"
+       d="M 17.312,6 H 261.734 V 162.75 H 17.312 Z"
+       style="fill:#ffffde;fill-opacity:1;fill-rule:nonzero;stroke:#aaaa33;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text4"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,120.6875,27.998047)"><tspan
+         id="tspan5"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 -0.27000001"
+         y="0">VisionEncoder</tspan><tspan
+         id="tspan6"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         dx="0 0 0 0 0 0 0 0 -0.27000001"
+         y="16.5">(InternViT)</tspan></text>
+    <path
+       id="path6"
+       d="m 139.523,132.75 v 5 c 0,5 0,15 0,25 0,10 0,20 0,30 0,10 0,20 0,29.5 0,9.5 0,18.5 0,23 v 4.5"
+       style="fill:none;stroke:#333333;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <path
+       id="path7"
+       d="m 246.75,-142.523 6,3 -6,3 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0,1.3333333,-1.3333333,0,0,0)"
+       clip-path="url(#clipPath8)" />
+    <path
+       id="path9"
+       d="m 139.523,382.5 v 5 c 0,5 0,15 0,25 0,10 0,20 0,30 0,10 0,20 0,29.5 0,9.5 0,18.5 0,23 v 4.5"
+       style="fill:none;stroke:#333333;stroke-width:2.25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <path
+       id="path10"
+       d="m 496.5,-142.523 6,3 -6,3 z"
+       style="fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0,1.3333333,-1.3333333,0,0,0)"
+       clip-path="url(#clipPath11)" />
+    <path
+       id="path12"
+       d="m 47.312,36 h 184.422 v 96.75 H 47.312 Z"
+       style="fill:#ececff;fill-opacity:1;fill-rule:nonzero;stroke:#9370db;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text12"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,123.70313,87.998047)"><tspan
+         id="tspan12"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Self-attention</tspan><tspan
+         id="tspan13"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-10.941405"
+         dx="0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.665"
+         y="16.5">(standardorSDPA)</tspan><tspan
+         id="tspan14"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-8.0586004"
+         y="33">Shortsequences:</tspan><tspan
+         id="tspan15"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-5.5468798"
+         y="49.5">256-1024tokens</tspan></text>
+    <path
+       id="path15"
+       d="M 36,252.75 H 243.047 V 382.5 H 36 Z"
+       style="fill:#bbffbb;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text15"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,104.09896,376.99805)"><tspan
+         id="tspan16"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Self-attentionover</tspan><tspan
+         id="tspan17"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="32.667976"
+         y="16.5">fullinput</tspan><tspan
+         id="tspan18"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-7.6875"
+         dx="0 0 0 0 0 0 0 -1.455 0 0 0 0 0 0 0 -0.82499999"
+         y="33">FLASH-ATTN/TRITON</tspan><tspan
+         id="tspan19"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="36.148441"
+         y="49.5">KERNEL</tspan><tspan
+         id="tspan20"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="8.578125"
+         y="66">Longsequences:</tspan><tspan
+         id="tspan21"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="5.2265701"
+         y="82.5">1000-4096tokens</tspan></text>
+    <path
+       id="path21"
+       d="m 36,502.5 h 207.047 v 96.75 H 36 Z"
+       style="fill:#bbffbb;fill-opacity:1;fill-rule:nonzero;stroke:#333333;stroke-width:1.875;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="scale(1.3333333)" />
+    <text
+       id="text21"
+       xml:space="preserve"
+       transform="matrix(1.3333333,0,0,1.3333333,96.3125,709.99805)"><tspan
+         id="tspan22"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="0"
+         y="0">Attention:newtoken</tspan><tspan
+         id="tspan23"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="32.300774"
+         y="16.5">vsKVcache</tspan><tspan
+         id="tspan24"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="-1.8476551"
+         dx="0 0 0 0 0 0 0 -1.455 0 0 0 0 0 0 0 -0.82499999"
+         y="33">FLASH-ATTN/TRITON</tspan><tspan
+         id="tspan25"
+         style="font-variant:normal;font-weight:normal;font-size:15px;font-family:'Trebuchet MS';writing-mode:lr-tb;fill:#333333;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         x="41.988285"
+         y="49.5">KERNEL</tspan></text>
+  </g>
+</svg>
