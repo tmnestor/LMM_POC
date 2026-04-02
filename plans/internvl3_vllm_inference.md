@@ -181,13 +181,40 @@ elif model_type == "internvl3-vllm":
 
 ## Usage
 
+All three InternVL3.5 sizes are registered: `internvl3-vllm`, `internvl3-14b-vllm`, `internvl3-38b-vllm`.
+They share the same loader, processor creator, and prompts. Use `LMM_POC_VLLM` conda env.
+
 ```bash
-# CLI pipeline (auto-detected from registry)
-python cli.py --model internvl3-vllm --data-dir evaluation_data/bank
+conda activate LMM_POC_VLLM
 
-# SROIE benchmark
-python benchmark_sroie.py --model internvl3-vllm --data-dir data/sroie
+# --- InternVL3.5-8B vLLM ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+  --model internvl3-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_8b_vllm
 
-# Force Triton attention on production (no flash-attn)
-VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py --model internvl3-vllm ...
+# --- InternVL3.5-14B vLLM ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+  --model internvl3-14b-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_14b_vllm
+
+# --- InternVL3.5-38B vLLM ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
+  --model internvl3-38b-vllm \
+  --data-dir evaluation_data/bank \
+  --ground-truth evaluation_data/bank/ground_truth_bank.csv \
+  --output-dir evaluation_data/output/bank_ivl35_38b_vllm
+
+# --- SROIE benchmarks ---
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+  --model internvl3-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
+
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+  --model internvl3-14b-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
+
+VLLM_LOGGING_LEVEL=WARNING VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
+  --model internvl3-38b-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
 ```
