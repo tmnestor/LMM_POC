@@ -487,6 +487,7 @@ def _internvl3_vllm_loader(config):
                 gpu_memory_utilization=0.92,
                 limit_mm_per_prompt={"image": 1},
                 trust_remote_code=True,
+                disable_log_stats=True,
             )
 
             console.print("[bold green]vLLM engine ready![/bold green]")
@@ -974,6 +975,7 @@ def _llama4scout_w4a16_loader(config):
                 gpu_memory_utilization=0.92,
                 limit_mm_per_prompt={"image": 1},
                 trust_remote_code=True,
+                disable_log_stats=True,
             )
 
             console.print("[bold green]vLLM engine ready![/bold green]")

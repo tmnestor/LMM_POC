@@ -293,7 +293,7 @@ def _run_inference_vllm(
     ]
 
     sampling = SamplingParams(max_tokens=max_tokens, temperature=0)
-    outputs = model.chat(messages=messages, sampling_params=sampling)
+    outputs = model.chat(messages=messages, sampling_params=sampling, use_tqdm=False)
     return outputs[0].outputs[0].text.strip()
 
 

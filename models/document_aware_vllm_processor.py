@@ -142,6 +142,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
         outputs = self.llm_engine.chat(
             messages=messages,
             sampling_params=sampling,
+            use_tqdm=False,
         )
 
         return outputs[0].outputs[0].text.strip()

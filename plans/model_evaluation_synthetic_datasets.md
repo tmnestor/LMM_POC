@@ -109,7 +109,9 @@ python cli.py \
 conda activate LMM_POC_LLAMA4SCOUT
 
 # --- InternVL3.5-8B vLLM (tensor parallel across 2x L40S) ---
-python cli.py \
+# VLLM_ATTENTION_BACKEND=TRITON_ATTN: use Triton attention (required on production
+# where flash-attn compilation fails; optional on sandbox where flash-attn works)
+VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
   --model internvl3-vllm \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
@@ -145,7 +147,7 @@ python cli.py \
 conda activate LMM_POC_LLAMA4SCOUT
 
 # --- Llama 4 Scout W4A16 (~55 GB, tensor parallel across 2x L40S) ---
-python cli.py \
+VLLM_ATTENTION_BACKEND=TRITON_ATTN python cli.py \
   --model llama4scout-w4a16 \
   --data-dir evaluation_data/bank \
   --ground-truth evaluation_data/bank/ground_truth_bank.csv \
@@ -304,7 +306,7 @@ python benchmark_sroie.py \
 # ============================================================
 conda activate LMM_POC_LLAMA4SCOUT
 
-python benchmark_sroie.py \
+VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model internvl3-vllm \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
@@ -334,7 +336,7 @@ python benchmark_sroie.py \
 # ============================================================
 conda activate LMM_POC_LLAMA4SCOUT
 
-python benchmark_sroie.py \
+VLLM_ATTENTION_BACKEND=TRITON_ATTN python benchmark_sroie.py \
   --model llama4scout-w4a16 \
   --data-dir data/sroie \
   --output-dir evaluation_data/output/sroie_llama4scout_w4a16
