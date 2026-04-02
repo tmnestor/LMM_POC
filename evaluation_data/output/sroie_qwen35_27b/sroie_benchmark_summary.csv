@@ -1,0 +1,2 @@
+model,overall_f1,total_images,elapsed_seconds,images_per_min,company_precision,company_recall,company_f1,date_precision,date_recall,date_f1,address_precision,address_recall,address_f1,total_precision,total_recall,total_f1
+qwen35,0.0972,626,16967.34,2.21,0.7236,0.1422,0.2377,0.6842,0.0831,0.1481,0.0217,0.0016,0.003,0.0,0.0,0.0
