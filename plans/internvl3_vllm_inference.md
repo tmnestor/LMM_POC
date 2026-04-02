@@ -207,11 +207,11 @@ VLLM_LOGGING_LEVEL=WARNING python cli.py \
 
 # --- SROIE benchmarks ---
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
-  --model internvl3-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
+  --model internvl3-vllm --data-dir ../data/sroie --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
-  --model internvl3-14b-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
+  --model internvl3-14b-vllm --data-dir ../data/sroie --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
-  --model internvl3-38b-vllm --data-dir data/sroie --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
+  --model internvl3-38b-vllm --data-dir ../data/sroie --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
 ```

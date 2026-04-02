@@ -7,10 +7,10 @@ information extraction).  Reuses model loading from the registry but has
 its own extraction loop and evaluation.
 
 Usage:
-    python benchmark_sroie.py --model internvl3 --data-dir data/sroie
-    python benchmark_sroie.py --model llama4scout --data-dir data/sroie
-    python benchmark_sroie.py --model internvl3 llama4scout --data-dir data/sroie
-    python benchmark_sroie.py --model internvl3 --data-dir data/sroie --max-images 10
+    python benchmark_sroie.py --model internvl3 --data-dir ../data/sroie
+    python benchmark_sroie.py --model llama4scout --data-dir ../data/sroie
+    python benchmark_sroie.py --model internvl3 llama4scout --data-dir ../data/sroie
+    python benchmark_sroie.py --model internvl3 --data-dir ../data/sroie --max-images 10
 """
 
 import csv
@@ -685,7 +685,7 @@ def main(
         help="Model type(s) to benchmark (e.g. internvl3, llama4scout).",
     ),
     data_dir: Path = typer.Option(
-        Path("data/sroie"),
+        Path("../data/sroie"),
         "--data-dir",
         "-d",
         help="Path to SROIE data directory (contains img/ and key/).",

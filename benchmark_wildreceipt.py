@@ -7,10 +7,10 @@ classes).  Evaluates entity-level micro-average F1 with normalised text
 matching.
 
 Usage:
-    python benchmark_wildreceipt.py --model internvl3 --data-dir data/wildreceipt
-    python benchmark_wildreceipt.py --model internvl3-vllm --data-dir data/wildreceipt
-    python benchmark_wildreceipt.py --model internvl3 internvl3-vllm --data-dir data/wildreceipt
-    python benchmark_wildreceipt.py --model internvl3-vllm -n 10 --data-dir data/wildreceipt
+    python benchmark_wildreceipt.py --model internvl3 --data-dir ../data/wildreceipt
+    python benchmark_wildreceipt.py --model internvl3-vllm --data-dir ../data/wildreceipt
+    python benchmark_wildreceipt.py --model internvl3 internvl3-vllm --data-dir ../data/wildreceipt
+    python benchmark_wildreceipt.py --model internvl3-vllm -n 10 --data-dir ../data/wildreceipt
 """
 
 import csv
@@ -962,7 +962,7 @@ def main(
         help="Model type(s) to benchmark.",
     ),
     data_dir: Path = typer.Option(
-        Path("data/wildreceipt"),
+        Path("../data/wildreceipt"),
         "--data-dir",
         "-d",
         help="Path to WildReceipt data directory.",

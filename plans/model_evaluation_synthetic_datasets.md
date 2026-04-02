@@ -300,19 +300,19 @@ conda activate LMM_POC_IVL3.5
 # --- InternVL3.5-8B ---
 python benchmark_sroie.py \
   --model internvl3 \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_8b
 
 # --- InternVL3.5-14B ---
 python benchmark_sroie.py \
   --model internvl3-14b \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_14b
 
 # --- InternVL3.5-38B (auto-shards across 2x L40S) ---
 python benchmark_sroie.py \
   --model internvl3-38b \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_38b
 
 # ============================================================
@@ -322,17 +322,17 @@ conda activate LMM_POC_VLLM
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-vllm \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_8b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-14b-vllm \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_14b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model internvl3-38b-vllm \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_ivl35_38b_vllm
 
 # ============================================================
@@ -342,7 +342,7 @@ conda activate LMM_POC_NEMOTRON
 
 python benchmark_sroie.py \
   --model nemotron \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_nemotron
 
 # ============================================================
@@ -352,7 +352,7 @@ conda activate LMM_POC_QWEN35
 
 python benchmark_sroie.py \
   --model qwen35 \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_qwen35_27b
 
 # ============================================================
@@ -362,7 +362,7 @@ conda activate LMM_POC_VLLM
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_sroie.py \
   --model llama4scout-w4a16 \
-  --data-dir data/sroie \
+  --data-dir ../data/sroie \
   --output-dir evaluation_data/output/sroie_llama4scout_w4a16
 ```
 
@@ -454,7 +454,7 @@ Based on results, recommend:
 - [x] Verify ground truth CSV paths match image filenames
 - [x] Confirm `LMM_POC_IVL3.5` conda env is active (transformers 4.57)
 - [x] Confirm `LMM_POC_NEMOTRON` conda env is active (transformers 4.53.x)
-- [x] SROIE data downloaded to `data/sroie/`
+- [x] SROIE data downloaded to `../data/sroie/`
 
 ### Qwen3.5-27B Prerequisites
 

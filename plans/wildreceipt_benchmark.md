@@ -25,10 +25,10 @@ harder than scans.
 
 ## Dataset Structure
 
-Downloaded via `python scripts/download_wildreceipt.py` to `data/wildreceipt/`:
+Downloaded via `python scripts/download_wildreceipt.py` to `../data/wildreceipt/`:
 
 ```
-data/wildreceipt/
+../data/wildreceipt/
 ├── image_files/          # 1,765 JPEG receipt images
 ├── train.txt             # 1,270 annotations (JSON-lines)
 ├── test.txt              # 472 annotations (JSON-lines)
@@ -395,45 +395,45 @@ evaluation_data/output/wildreceipt_<model>/
 conda activate LMM_POC_IVL3.5
 
 python benchmark_wildreceipt.py \
-  --model internvl3 --data-dir data/wildreceipt \
+  --model internvl3 --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_8b
 
 python benchmark_wildreceipt.py \
-  --model internvl3-14b --data-dir data/wildreceipt \
+  --model internvl3-14b --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_14b
 
 python benchmark_wildreceipt.py \
-  --model internvl3-38b --data-dir data/wildreceipt \
+  --model internvl3-38b --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_38b
 
 # --- vLLM models (LMM_POC_VLLM env) ---
 conda activate LMM_POC_VLLM
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
-  --model internvl3-vllm --data-dir data/wildreceipt \
+  --model internvl3-vllm --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_8b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
-  --model internvl3-14b-vllm --data-dir data/wildreceipt \
+  --model internvl3-14b-vllm --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_14b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
-  --model internvl3-38b-vllm --data-dir data/wildreceipt \
+  --model internvl3-38b-vllm --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_ivl35_38b_vllm
 
 VLLM_LOGGING_LEVEL=WARNING python benchmark_wildreceipt.py \
-  --model llama4scout-w4a16 --data-dir data/wildreceipt \
+  --model llama4scout-w4a16 --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_llama4scout
 
 # --- Other HF models ---
 conda activate LMM_POC_NEMOTRON
 python benchmark_wildreceipt.py \
-  --model nemotron --data-dir data/wildreceipt \
+  --model nemotron --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_nemotron
 
 conda activate LMM_POC_QWEN35
 python benchmark_wildreceipt.py \
-  --model qwen35 --data-dir data/wildreceipt \
+  --model qwen35 --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_qwen35
 ```
 
@@ -445,7 +445,7 @@ python benchmark_wildreceipt.py \
 
 ```bash
 python benchmark_wildreceipt.py \
-  --model internvl3-vllm -n 5 --data-dir data/wildreceipt
+  --model internvl3-vllm -n 5 --data-dir ../data/wildreceipt
 ```
 
 ### Compare two models side-by-side
@@ -453,7 +453,7 @@ python benchmark_wildreceipt.py \
 ```bash
 python benchmark_wildreceipt.py \
   --model internvl3-vllm --model internvl3-14b-vllm \
-  --data-dir data/wildreceipt \
+  --data-dir ../data/wildreceipt \
   --output-dir evaluation_data/output/wildreceipt_comparison
 ```
 
@@ -463,7 +463,7 @@ python benchmark_wildreceipt.py \
 python benchmark_wildreceipt.py \
   --model internvl3 \
   --model-path /home/jovyan/nfs_share/models/InternVL3_5-8B \
-  --data-dir data/wildreceipt
+  --data-dir ../data/wildreceipt
 ```
 
 ### Increase generation budget for verbose receipts
@@ -471,7 +471,7 @@ python benchmark_wildreceipt.py \
 ```bash
 python benchmark_wildreceipt.py \
   --model internvl3-vllm --max-tokens 2048 \
-  --data-dir data/wildreceipt
+  --data-dir ../data/wildreceipt
 ```
 
 ### CLI reference
@@ -481,7 +481,7 @@ python benchmark_wildreceipt.py --help
 
 Options:
   -m, --model TEXT        Model type(s) to benchmark (repeatable)
-  -d, --data-dir PATH     Path to WildReceipt data directory [data/wildreceipt]
+  -d, --data-dir PATH     Path to WildReceipt data directory [../data/wildreceipt]
   -p, --model-path TEXT   Override model path (auto-detected if omitted)
   -n, --max-images INT    Maximum images to evaluate (all if omitted)
   -o, --output-dir PATH   Directory for results output [output/wildreceipt]

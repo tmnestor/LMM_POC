@@ -89,8 +89,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/wildreceipt"),
-        help="Output directory (default: data/wildreceipt)",
+        default=Path("../data/wildreceipt"),
+        help="Output directory (default: ../data/wildreceipt)",
     )
     args = parser.parse_args()
     download(args.output_dir)
