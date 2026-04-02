@@ -524,3 +524,14 @@ After all runs complete:
    hallucination)
 6. **Class difficulty ranking** — which of the 12 value classes are most/least
    reliably extracted?
+
+### Converting JSONL responses to CSV
+
+```python
+import pandas as pd
+
+df = pd.read_json("responses.jsonl", lines=True)
+parsed = pd.json_normalize(df["parsed"])
+df = pd.concat([df.drop(columns="parsed"), parsed], axis=1)
+df.to_csv("responses.csv", index=False)
+```
