@@ -142,10 +142,17 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             temperature=0,
         )
 
+        # Qwen3.5 enables thinking mode by default — disable it to avoid
+        # <think>...</think> blocks in extraction output.
+        chat_kwargs: dict[str, Any] = {}
+        if self._model_type_key.startswith("qwen35"):
+            chat_kwargs["chat_template_kwargs"] = {"enable_thinking": False}
+
         outputs = self.llm_engine.chat(
             messages=messages,
             sampling_params=sampling,
             use_tqdm=False,
+            **chat_kwargs,
         )
 
         return outputs[0].outputs[0].text.strip()

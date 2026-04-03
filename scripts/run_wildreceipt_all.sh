@@ -132,6 +132,10 @@ run_job LMM_POC_NEMOTRON nemotron \
 run_job LMM_POC_QWEN35 qwen35 \
   "$OUTPUT_BASE/wildreceipt_qwen35"
 
+run_job LMM_POC_VLLM qwen35-vllm \
+  "$OUTPUT_BASE/wildreceipt_qwen35_vllm" \
+  env VLLM_LOGGING_LEVEL=WARNING
+
 log "================================================================="
 log "All jobs complete."
 log "================================================================="
