@@ -1523,8 +1523,10 @@ def _qwen35_vllm_loader(config):
                 )
             tp_size = max(1, tp_size)
 
-            # 27B model: images tokenize to ~6K tokens, need headroom for prompt
-            max_model_len = 8192
+            # 27B model: Qwen3.5 dynamic resolution can produce 12K+ image
+            # tokens for high-res receipts. ~54 GB model on 2x L40S (96 GB)
+            # leaves ~34 GB for KV cache — enough for 16K context.
+            max_model_len = 16384
 
             console.print(
                 f"\n[bold]Loading Qwen3.5-27B via vLLM "
