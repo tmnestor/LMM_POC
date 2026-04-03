@@ -270,7 +270,12 @@ def _run_inference_generic(
 
 
 def _run_inference_vllm(
-    model, processor, image: Image.Image, prompt: str, max_tokens: int
+    model,
+    processor,
+    image: Image.Image,
+    prompt: str,
+    max_tokens: int,
+    model_type: str = "",
 ) -> str:
     """vLLM engine: use llm.chat() with base64 data URI for images."""
     import base64
@@ -293,7 +298,16 @@ def _run_inference_vllm(
     ]
 
     sampling = SamplingParams(max_tokens=max_tokens, temperature=0)
-    outputs = model.chat(messages=messages, sampling_params=sampling, use_tqdm=False)
+
+    # Qwen3.5 enables thinking mode by default — disable it to avoid
+    # <think>...</think> blocks in extraction output.
+    chat_kwargs: dict = {}
+    if model_type.startswith("qwen35"):
+        chat_kwargs["chat_template_kwargs"] = {"enable_thinking": False}
+
+    outputs = model.chat(
+        messages=messages, sampling_params=sampling, use_tqdm=False, **chat_kwargs
+    )
     return outputs[0].outputs[0].text.strip()
 
 
@@ -319,9 +333,11 @@ def run_inference(
         "internvl3-vllm",
         "internvl3-14b-vllm",
         "internvl3-38b-vllm",
+        "qwen3vl-vllm",
+        "qwen35-vllm",
     ):
         return _run_inference_vllm(
-            model, tokenizer_or_processor, image, prompt, max_tokens
+            model, tokenizer_or_processor, image, prompt, max_tokens, model_type
         )
     if model_type == "nemotron":
         return _run_inference_nemotron(
