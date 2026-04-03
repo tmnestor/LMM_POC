@@ -193,14 +193,22 @@ def _patch_eager_attention_to_sdpa() -> bool:
     except (ImportError, AttributeError):
         pass
 
-    # Also patch the module-level function reference as a fallback
-    try:
-        from transformers.models.qwen3 import modeling_qwen3
+    # Also patch module-level function references as a fallback.
+    # The global registry patch is primary; these catch models that
+    # reference eager_attention_forward directly in their module.
+    for module_path in (
+        "transformers.models.qwen3.modeling_qwen3",
+        "transformers.models.qwen3_5.modeling_qwen3_5",
+        "transformers.models.qwen3_vl.modeling_qwen3_vl",
+    ):
+        try:
+            import importlib
 
-        modeling_qwen3.eager_attention_forward = _sdpa_attention
-        patched = True
-    except (ImportError, AttributeError):
-        pass
+            mod = importlib.import_module(module_path)
+            mod.eager_attention_forward = _sdpa_attention
+            patched = True
+        except (ImportError, AttributeError):
+            pass
 
     return patched
 
@@ -786,8 +794,36 @@ def _qwen3vl_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            flash_status = "✅ enabled" if cfg.flash_attn else "❌ disabled"
-            console.print(f"⚡ Flash Attention 2: {flash_status}")
+            # Check for native flash-attn package
+            _has_native_flash = False
+            if cfg.flash_attn:
+                try:
+                    import flash_attn  # noqa: F401
+
+                    _has_native_flash = True
+                except ImportError:
+                    pass
+
+            if _has_native_flash:
+                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
+            elif cfg.flash_attn:
+                console.print("⚡ Flash Attention 2: ✅ via SDPA patch")
+            else:
+                console.print("⚡ Flash Attention 2: ❌ disabled")
+
+            # Apply SDPA patch when flash-attn is not installed — routes
+            # eager attention through F.scaled_dot_product_attention which
+            # uses the flash backend on Ampere+ GPUs natively.
+            global _sdpa_patched  # noqa: PLW0603
+            if cfg.flash_attn and not _has_native_flash and not _sdpa_patched:
+                if _patch_eager_attention_to_sdpa():
+                    console.print("[bold]Patched eager attention -> SDPA[/bold]")
+                    _sdpa_patched = True
+                else:
+                    console.print(
+                        "[yellow]Warning: could not patch attention "
+                        "to SDPA -- high tile counts may OOM[/yellow]"
+                    )
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
@@ -1283,6 +1319,34 @@ def _qwen35_loader(config):
                 progress.update(task, description="Model loaded!")
 
             console.print("🧠 Architecture: early-fusion VLM (dense 27B, 262K context)")
+
+            # Check for native flash-attn package
+            _has_native_flash = False
+            try:
+                import flash_attn  # noqa: F401
+
+                _has_native_flash = True
+            except ImportError:
+                pass
+
+            if _has_native_flash:
+                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
+            else:
+                console.print("⚡ Flash Attention 2: ❌ not installed")
+
+            # Apply SDPA patch when flash-attn is not installed — routes
+            # eager attention through F.scaled_dot_product_attention which
+            # uses the flash backend on Ampere+ GPUs natively.
+            global _sdpa_patched  # noqa: PLW0603
+            if not _has_native_flash and not _sdpa_patched:
+                if _patch_eager_attention_to_sdpa():
+                    console.print("[bold]Patched eager attention -> SDPA[/bold]")
+                    _sdpa_patched = True
+                else:
+                    console.print(
+                        "[yellow]Warning: could not patch attention "
+                        "to SDPA -- high tile counts may OOM[/yellow]"
+                    )
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
