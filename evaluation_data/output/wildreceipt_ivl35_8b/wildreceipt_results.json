@@ -4,7 +4,7 @@
     "overall_precision": 0.7906,
     "overall_recall": 0.6656,
     "total_images": 472,
-    "elapsed_seconds": 6637.47,
+    "elapsed_seconds": 6630.97,
     "per_class": {
       "store_name": {
         "precision": 0.7949,
