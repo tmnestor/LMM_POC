@@ -99,11 +99,11 @@ log ""
 run_job LMM_POC_IVL3.5 internvl3 \
   "$OUTPUT_BASE/wildreceipt_ivl35_8b"
 
-# run_job LMM_POC_IVL3.5 internvl3-14b \
-#   "$OUTPUT_BASE/wildreceipt_ivl35_14b"
+run_job LMM_POC_IVL3.5 internvl3-14b \
+  "$OUTPUT_BASE/wildreceipt_ivl35_14b"
 
-# run_job LMM_POC_IVL3.5 internvl3-38b \
-#   "$OUTPUT_BASE/wildreceipt_ivl35_38b"
+run_job LMM_POC_IVL3.5 internvl3-38b \
+  "$OUTPUT_BASE/wildreceipt_ivl35_38b"
 
 # --- vLLM models ---
 run_job LMM_POC_VLLM internvl3-vllm \
