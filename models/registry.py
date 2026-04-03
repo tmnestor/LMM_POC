@@ -497,15 +497,11 @@ def _internvl3_vllm_loader(config):
                 )
             tp_size = max(1, tp_size)
 
-            # Scale max_model_len to fit available KV cache memory.
-            # 38B (~77 GB BF16) leaves little headroom on 2x L40S (96 GB).
-            model_path_lower = str(cfg.model_path).lower()
-            if "38b" in model_path_lower:
-                max_model_len = 4096
-            elif "14b" in model_path_lower:
-                max_model_len = 8192
-            else:
-                max_model_len = 8192
+            # 8192 needed for multi-turn bank extraction — 4096 caused
+            # context truncation after 2-3 turns, hurting accuracy.
+            # 38B (~77 GB BF16) on 2x L40S (88.8 GB) leaves ~11 GB
+            # for KV cache — tight but sufficient for 8K context.
+            max_model_len = 8192
 
             try:
                 import flash_attn
