@@ -1336,3 +1336,202 @@ register_model(
         requires_sharding=True,  # ~54 GB BF16, must shard across 2x L40S
     )
 )
+
+
+# ============================================================================
+# Qwen3-VL vLLM Registration
+# ============================================================================
+
+
+def _qwen3vl_vllm_loader(config):
+    """Context manager for loading Qwen3-VL-8B via vLLM offline engine.
+
+    Uses vLLM's tensor parallelism across all available GPUs.
+    """
+    from contextlib import contextmanager
+
+    from rich.console import Console
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        import os
+
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
+        from vllm import LLM
+
+        llm = None
+
+        try:
+            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            if cuda_visible is not None:
+                tp_size = len(cuda_visible.split(","))
+            else:
+                import subprocess
+
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                tp_size = (
+                    len(result.stdout.strip().splitlines())
+                    if result.returncode == 0
+                    else 1
+                )
+            tp_size = max(1, tp_size)
+
+            max_model_len = 8192  # 8B model — plenty of headroom
+
+            console.print(
+                f"\n[bold]Loading Qwen3-VL-8B via vLLM "
+                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
+            )
+            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+
+            llm = LLM(
+                model=str(cfg.model_path),
+                tensor_parallel_size=tp_size,
+                max_model_len=max_model_len,
+                gpu_memory_utilization=0.92,
+                limit_mm_per_prompt={"image": 1},
+                trust_remote_code=True,
+                disable_log_stats=True,
+            )
+
+            console.print("[bold green]vLLM engine ready![/bold green]")
+
+            yield llm, None
+
+        finally:
+            del llm
+
+    return _loader(config)
+
+
+# ============================================================================
+# Qwen3.5-27B vLLM Registration
+# ============================================================================
+
+
+def _qwen35_vllm_loader(config):
+    """Context manager for loading Qwen3.5-27B via vLLM offline engine.
+
+    Uses vLLM's tensor parallelism across all available GPUs.
+    ~54 GB BF16, requires 2x L40S or equivalent.
+    """
+    from contextlib import contextmanager
+
+    from rich.console import Console
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        import os
+
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
+        from vllm import LLM
+
+        llm = None
+
+        try:
+            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            if cuda_visible is not None:
+                tp_size = len(cuda_visible.split(","))
+            else:
+                import subprocess
+
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                tp_size = (
+                    len(result.stdout.strip().splitlines())
+                    if result.returncode == 0
+                    else 1
+                )
+            tp_size = max(1, tp_size)
+
+            # 27B model leaves less KV cache headroom
+            max_model_len = 4096
+
+            console.print(
+                f"\n[bold]Loading Qwen3.5-27B via vLLM "
+                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
+            )
+            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+
+            llm = LLM(
+                model=str(cfg.model_path),
+                tensor_parallel_size=tp_size,
+                max_model_len=max_model_len,
+                gpu_memory_utilization=0.92,
+                limit_mm_per_prompt={"image": 1},
+                trust_remote_code=True,
+                disable_log_stats=True,
+            )
+
+            console.print("[bold green]vLLM engine ready![/bold green]")
+
+            yield llm, None
+
+        finally:
+            del llm
+
+    return _loader(config)
+
+
+def _qwen_vllm_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareVllmProcessor for Qwen models via vLLM."""
+    from models.document_aware_vllm_processor import (
+        DocumentAwareVllmProcessor,
+    )
+
+    return DocumentAwareVllmProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+        model_type_key=config.model_type,
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="qwen3vl-vllm",
+        loader=_qwen3vl_vllm_loader,
+        processor_creator=_qwen_vllm_processor_creator,
+        prompt_file="qwen3vl_prompts.yaml",
+        description="Qwen3-VL-8B via vLLM (PagedAttention, tensor parallelism)",
+        requires_sharding=True,
+    )
+)
+
+register_model(
+    ModelRegistration(
+        model_type="qwen35-vllm",
+        loader=_qwen35_vllm_loader,
+        processor_creator=_qwen_vllm_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="Qwen3.5-27B via vLLM (~54 GB BF16)",
+        requires_sharding=True,
+    )
+)

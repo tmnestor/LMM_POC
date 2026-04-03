@@ -85,10 +85,13 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
         from common.model_config import (
             INTERNVL3_GENERATION_CONFIG,
             LLAMA4SCOUT_GENERATION_CONFIG,
+            QWEN3VL_GENERATION_CONFIG,
         )
 
         if self._model_type_key == "internvl3":
             self.gen_config = dict(INTERNVL3_GENERATION_CONFIG)
+        elif self._model_type_key.startswith(("qwen3vl", "qwen35")):
+            self.gen_config = dict(QWEN3VL_GENERATION_CONFIG)
         else:
             self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
 

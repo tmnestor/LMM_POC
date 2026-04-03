@@ -103,4 +103,6 @@ model_loading:
     qwen3vl: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
     nemotron: /home/jovyan/nfs_share/models/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16
     qwen35: /home/jovyan/nfs_share/models/Qwen3.5-27B
+    qwen3vl-vllm: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
+    qwen35-vllm: /home/jovyan/nfs_share/models/Qwen3.5-27B
     llama4scout-w4a16: /home/jovyan/nfs_share/models/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16
