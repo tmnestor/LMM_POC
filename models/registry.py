@@ -1459,8 +1459,8 @@ def _qwen35_vllm_loader(config):
                 )
             tp_size = max(1, tp_size)
 
-            # 27B model leaves less KV cache headroom
-            max_model_len = 4096
+            # 27B model: images tokenize to ~6K tokens, need headroom for prompt
+            max_model_len = 8192
 
             console.print(
                 f"\n[bold]Loading Qwen3.5-27B via vLLM "
