@@ -16,6 +16,9 @@
 set -o errexit
 set -o pipefail
 
+# Unbuffered Python output so logs stream in real time via nohup/tee
+export PYTHONUNBUFFERED=1
+
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
