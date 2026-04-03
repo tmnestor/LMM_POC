@@ -1,0 +1,107 @@
+{
+  "llama4scout-w4a16": {
+    "overall_f1": 0.7231,
+    "overall_precision": 0.8074,
+    "overall_recall": 0.6547,
+    "total_images": 472,
+    "elapsed_seconds": 3364.86,
+    "per_class": {
+      "store_name": {
+        "precision": 0.7876,
+        "recall": 0.7775,
+        "f1": 0.7825,
+        "tp": 367,
+        "fp": 99,
+        "fn": 105
+      },
+      "store_address": {
+        "precision": 0.8283,
+        "recall": 0.9061,
+        "f1": 0.8655,
+        "tp": 386,
+        "fp": 80,
+        "fn": 40
+      },
+      "telephone": {
+        "precision": 0.9293,
+        "recall": 0.9753,
+        "f1": 0.9518,
+        "tp": 434,
+        "fp": 33,
+        "fn": 11
+      },
+      "date": {
+        "precision": 0.9378,
+        "recall": 0.9459,
+        "f1": 0.9418,
+        "tp": 437,
+        "fp": 29,
+        "fn": 25
+      },
+      "time": {
+        "precision": 0.9081,
+        "recall": 0.9199,
+        "f1": 0.914,
+        "tp": 425,
+        "fp": 43,
+        "fn": 37
+      },
+      "prod_item": {
+        "precision": 0.6777,
+        "recall": 0.1118,
+        "f1": 0.1919,
+        "tp": 267,
+        "fp": 127,
+        "fn": 2121
+      },
+      "prod_quantity": {
+        "precision": 0.6535,
+        "recall": 0.8814,
+        "f1": 0.7506,
+        "tp": 1345,
+        "fp": 713,
+        "fn": 181
+      },
+      "prod_price": {
+        "precision": 0.9674,
+        "recall": 0.7021,
+        "f1": 0.8136,
+        "tp": 1600,
+        "fp": 54,
+        "fn": 679
+      },
+      "subtotal": {
+        "precision": 0.8043,
+        "recall": 0.8371,
+        "f1": 0.8204,
+        "tp": 370,
+        "fp": 90,
+        "fn": 72
+      },
+      "tax": {
+        "precision": 0.8035,
+        "recall": 0.8304,
+        "f1": 0.8167,
+        "tp": 372,
+        "fp": 91,
+        "fn": 76
+      },
+      "tips": {
+        "precision": 0.9211,
+        "recall": 0.9863,
+        "f1": 0.9526,
+        "tp": 432,
+        "fp": 37,
+        "fn": 6
+      },
+      "total": {
+        "precision": 0.5647,
+        "recall": 0.5941,
+        "f1": 0.579,
+        "tp": 262,
+        "fp": 202,
+        "fn": 179
+      }
+    }
+  }
+}
