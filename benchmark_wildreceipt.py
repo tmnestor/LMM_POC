@@ -769,12 +769,14 @@ def run_benchmark(
                 image_results.append(img_result)
 
                 if responses_file:
+                    gt_entities = _prepare_gt_entities(gt)
                     responses_file.write(
                         json.dumps(
                             {
                                 "file": file_name,
                                 "raw_response": raw_response,
                                 "parsed": predicted,
+                                "ground_truth": gt_entities,
                             },
                             ensure_ascii=False,
                         )
