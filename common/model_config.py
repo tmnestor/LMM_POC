@@ -279,6 +279,13 @@ GEMMA4_GENERATION_CONFIG = {
     "do_sample": False,
 }
 
+# Granite 4.0 3B Vision generation configuration
+GRANITE4_GENERATION_CONFIG = {
+    "max_new_tokens_base": 1024,
+    "max_new_tokens_per_field": 64,
+    "do_sample": False,
+}
+
 # Per-model generation parameters (for YAML overrides)
 GENERATION_CONFIGS = {
     "internvl3": {

@@ -174,6 +174,53 @@ def _run_inference_llama4scout(
     return response.strip()
 
 
+def _run_inference_granite4(
+    model, processor, image: Image.Image, prompt: str, max_tokens: int
+) -> str:
+    """Granite 4.0 3B Vision: AutoProcessor + AutoModelForImageTextToText.
+
+    Uses processor.apply_chat_template for message formatting, then
+    processor() for image tokenization.  LoRA adapters are pre-merged
+    at load time.
+    """
+    import torch
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image"},
+                {"type": "text", "text": prompt},
+            ],
+        },
+    ]
+
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    inputs = processor(text=[text], images=[image], return_tensors="pt").to(
+        model.device
+    )
+
+    output_ids = model.generate(
+        **inputs,
+        max_new_tokens=max_tokens,
+        do_sample=False,
+    )
+
+    # Trim input tokens
+    generated_ids = output_ids[:, inputs.input_ids.shape[1] :]
+    response = processor.batch_decode(
+        generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )[0]
+
+    del inputs, output_ids, generated_ids
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return response.strip()
+
+
 def _run_inference_nemotron(
     model, processor, image: Image.Image, prompt: str, max_tokens: int
 ) -> str:
@@ -339,6 +386,10 @@ def run_inference(
     ):
         return _run_inference_vllm(
             model, tokenizer_or_processor, image, prompt, max_tokens, model_type
+        )
+    if model_type == "granite4":
+        return _run_inference_granite4(
+            model, tokenizer_or_processor, image, prompt, max_tokens
         )
     if model_type == "nemotron":
         return _run_inference_nemotron(

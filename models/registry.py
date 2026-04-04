@@ -1719,3 +1719,105 @@ register_model(
         requires_sharding=True,
     )
 )
+
+
+# ============================================================================
+# Granite 4.0 3B Vision (HuggingFace native)
+# ============================================================================
+
+
+def _granite4_vision_loader(config):
+    """Context manager for loading Granite 4.0 3B Vision.
+
+    SigLIP2 + WindowQFormer + GraniteMoeHybrid LLM with LoRA adapters.
+    ~8 GB BF16, fits single GPU.  Adapters are merged at load time for
+    faster inference.
+    """
+    from contextlib import contextmanager
+
+    import torch
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        model = None
+        processor = None
+
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            console.print(
+                f"\n[bold]Loading Granite 4.0 3B Vision from: {cfg.model_path}[/bold]"
+            )
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Loading processor...", total=None)
+
+                processor = AutoProcessor.from_pretrained(
+                    str(cfg.model_path), trust_remote_code=True
+                )
+
+                progress.update(task, description="Loading model weights...")
+
+                with _quiet_loading():
+                    model = AutoModelForImageTextToText.from_pretrained(
+                        str(cfg.model_path),
+                        trust_remote_code=True,
+                        device_map=cfg.device_map,
+                        torch_dtype=torch.bfloat16,
+                    ).eval()
+
+                # Merge LoRA adapters for faster inference
+                progress.update(task, description="Merging LoRA adapters...")
+                if hasattr(model, "merge_lora_adapters"):
+                    model.merge_lora_adapters()
+
+                progress.update(task, description="Model loaded!")
+
+            _print_gpu_status(console)
+            yield model, processor
+
+        finally:
+            del model
+            del processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return _loader(config)
+
+
+def _granite4_vision_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a placeholder processor for Granite 4.0 3B Vision.
+
+    Benchmark scripts use run_inference() directly, so this is only needed
+    for the cli.py document extraction pipeline (not yet wired up).
+    """
+    return None
+
+
+register_model(
+    ModelRegistration(
+        model_type="granite4",
+        loader=_granite4_vision_loader,
+        processor_creator=_granite4_vision_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="IBM Granite 4.0 3B Vision (~8 GB BF16)",
+        requires_sharding=False,
+    )
+)
