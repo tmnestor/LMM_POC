@@ -20,7 +20,7 @@ InternVL3.5 models (8B, 14B, 38B) across three benchmarks, comparing HuggingFace
 | 14B | 0.7184 | 0.7231 | +0.5% | 3.6 | 9.2 | 2.5x |
 | 38B | 0.7304 | 0.7308 | +0.0% | 1.8 | 4.1 | 2.3x |
 
-### Other models (vLLM only)
+### Other models — WildReceipt (vLLM only)
 
 | Model | vLLM F1 | img/min | Notes |
 |-------|---------|---------|-------|
