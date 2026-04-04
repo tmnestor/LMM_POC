@@ -1769,11 +1769,14 @@ def _granite4_vision_loader(config):
                 progress.update(task, description="Loading model weights...")
 
                 with _quiet_loading():
+                    # Force single GPU — custom code has device mismatch
+                    # bugs when accelerate splits across multiple GPUs.
+                    # Only ~8 GB BF16, fits easily on one device.
                     model = AutoModelForImageTextToText.from_pretrained(
                         str(cfg.model_path),
                         trust_remote_code=True,
-                        device_map=cfg.device_map,
-                        torch_dtype=torch.bfloat16,
+                        device_map="cuda:0",
+                        dtype=torch.bfloat16,
                     ).eval()
 
                 # Merge LoRA adapters for faster inference
