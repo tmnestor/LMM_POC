@@ -95,6 +95,7 @@ run_job LMM_POC_VLLM gemma4 \
 On sandbox (2x L40S):
 ```bash
 conda activate LMM_POC_VLLM
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 VLLM_LOGGING_LEVEL=WARNING PYTHONUNBUFFERED=1 python benchmark_wildreceipt.py \
   --model gemma4 \
   --data-dir ../data/wildreceipt \
