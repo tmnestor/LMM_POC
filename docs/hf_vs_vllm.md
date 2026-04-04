@@ -12,11 +12,19 @@ InternVL3.5 models (8B, 14B, 38B) across three benchmarks, comparing HuggingFace
 
 ## WildReceipt (472 in-the-wild receipts, 12 fields, single-image)
 
+### InternVL3.5
+
 | Model | HF F1 | vLLM F1 | Delta | HF (img/min) | vLLM (img/min) | Speedup |
 |-------|-------|---------|-------|-------------|---------------|---------|
 | 8B  | 0.7227 | 0.7319 | +0.9% | 4.3 | 15.0 | 3.5x |
 | 14B | 0.7184 | 0.7231 | +0.5% | 3.6 | 9.2 | 2.5x |
 | 38B | 0.7304 | 0.7308 | +0.0% | 1.8 | 4.1 | 2.3x |
+
+### Other models (vLLM only)
+
+| Model | vLLM F1 | img/min | Notes |
+|-------|---------|---------|-------|
+| Qwen3.5-27B | 0.7386 | 4.4 | Early-fusion VLM, 2x L40S |
 
 ## Bank Statements (15 synthetic statements, 5 fields, multi-turn)
 
