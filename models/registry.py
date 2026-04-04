@@ -1646,10 +1646,11 @@ def _gemma4_vllm_loader(config):
                 )
             tp_size = max(1, tp_size)
 
-            # ~58 GB BF16 on 2x L40S (88.8 GB) leaves ~31 GB for KV cache.
-            # Gemma 4 vision tokens are configurable — max_soft_tokens=1120
-            # gives maximum detail for dense receipt OCR.
-            max_model_len = 16384
+            # ~58 GB BF16 on 2x L40S (88.8 GB).
+            # gpu_memory_utilization=0.85 leaves headroom for vision encoder
+            # activations (one_hot position embeddings need ~1.5 GB per GPU).
+            # max_soft_tokens=560 = high detail for receipt OCR (1120 OOMs).
+            max_model_len = 8192
 
             console.print(
                 f"\n[bold]Loading Gemma 4 31B-it via vLLM "
@@ -1661,14 +1662,14 @@ def _gemma4_vllm_loader(config):
                 model=str(cfg.model_path),
                 tensor_parallel_size=tp_size,
                 max_model_len=max_model_len,
-                gpu_memory_utilization=0.92,
+                gpu_memory_utilization=0.85,
                 limit_mm_per_prompt={"image": 1},
                 trust_remote_code=True,
                 disable_log_stats=True,
-                mm_processor_kwargs={"max_soft_tokens": 1120},
+                mm_processor_kwargs={"max_soft_tokens": 560},
                 hf_overrides={
-                    "vision_config": {"default_output_length": 1120},
-                    "vision_soft_tokens_per_image": 1120,
+                    "vision_config": {"default_output_length": 560},
+                    "vision_soft_tokens_per_image": 560,
                 },
             )
 
