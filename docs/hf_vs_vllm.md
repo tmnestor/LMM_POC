@@ -24,6 +24,7 @@ InternVL3.5 models (8B, 14B, 38B) across three benchmarks, comparing HuggingFace
 
 | Model | vLLM F1 | img/min | Notes |
 |-------|---------|---------|-------|
+| Gemma 4 31B-it | 0.7556 | 3.8 | 2x L40S, max_soft_tokens=560 |
 | Qwen3.5-27B | 0.7386 | 4.4 | Early-fusion VLM, 2x L40S |
 
 ## Bank Statements (15 synthetic statements, 5 fields, multi-turn)
