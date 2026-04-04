@@ -136,6 +136,10 @@ run_job LMM_POC_VLLM qwen35-vllm \
   "$OUTPUT_BASE/wildreceipt_qwen35_vllm" \
   env VLLM_LOGGING_LEVEL=WARNING
 
+run_job LMM_POC_VLLM gemma4 \
+  "$OUTPUT_BASE/wildreceipt_gemma4" \
+  env VLLM_LOGGING_LEVEL=WARNING
+
 log "================================================================="
 log "All jobs complete."
 log "================================================================="

@@ -272,6 +272,13 @@ QWEN3VL_GENERATION_CONFIG = {
     "use_cache": True,
 }
 
+# Gemma 4 generation configuration
+GEMMA4_GENERATION_CONFIG = {
+    "max_new_tokens_base": 512,
+    "max_new_tokens_per_field": 64,
+    "do_sample": False,
+}
+
 # Per-model generation parameters (for YAML overrides)
 GENERATION_CONFIGS = {
     "internvl3": {

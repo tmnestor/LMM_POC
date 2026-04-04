@@ -299,10 +299,10 @@ def _run_inference_vllm(
 
     sampling = SamplingParams(max_tokens=max_tokens, temperature=0)
 
-    # Qwen3.5 enables thinking mode by default — disable it to avoid
-    # <think>...</think> blocks in extraction output.
+    # Qwen3.5 and Gemma4 enable thinking mode by default — disable it
+    # to avoid <think>...</think> blocks in extraction output.
     chat_kwargs: dict = {}
-    if model_type.startswith("qwen35"):
+    if model_type.startswith(("qwen35", "gemma4")):
         chat_kwargs["chat_template_kwargs"] = {"enable_thinking": False}
 
     outputs = model.chat(
@@ -335,6 +335,7 @@ def run_inference(
         "internvl3-38b-vllm",
         "qwen3vl-vllm",
         "qwen35-vllm",
+        "gemma4",
     ):
         return _run_inference_vllm(
             model, tokenizer_or_processor, image, prompt, max_tokens, model_type

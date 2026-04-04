@@ -83,6 +83,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters from model_config."""
         from common.model_config import (
+            GEMMA4_GENERATION_CONFIG,
             INTERNVL3_GENERATION_CONFIG,
             LLAMA4SCOUT_GENERATION_CONFIG,
             QWEN3VL_GENERATION_CONFIG,
@@ -92,6 +93,8 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             self.gen_config = dict(INTERNVL3_GENERATION_CONFIG)
         elif self._model_type_key.startswith(("qwen3vl", "qwen35")):
             self.gen_config = dict(QWEN3VL_GENERATION_CONFIG)
+        elif self._model_type_key == "gemma4":
+            self.gen_config = dict(GEMMA4_GENERATION_CONFIG)
         else:
             self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
 
@@ -142,10 +145,10 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             temperature=0,
         )
 
-        # Qwen3.5 enables thinking mode by default — disable it to avoid
-        # <think>...</think> blocks in extraction output.
+        # Qwen3.5 and Gemma4 enable thinking mode by default — disable it
+        # to avoid <think>...</think> blocks in extraction output.
         chat_kwargs: dict[str, Any] = {}
-        if self._model_type_key.startswith("qwen35"):
+        if self._model_type_key.startswith(("qwen35", "gemma4")):
             chat_kwargs["chat_template_kwargs"] = {"enable_thinking": False}
 
         outputs = self.llm_engine.chat(

@@ -1597,3 +1597,124 @@ register_model(
         requires_sharding=True,
     )
 )
+
+
+# ============================================================================
+# Gemma 4 31B vLLM Registration
+# ============================================================================
+
+
+def _gemma4_vllm_loader(config):
+    """Context manager for loading Gemma 4 31B-it via vLLM offline engine.
+
+    Uses vLLM's tensor parallelism across all available GPUs.
+    ~58 GB BF16, fits 2x L40S (88.8 GB) with ~31 GB KV headroom.
+    """
+    from contextlib import contextmanager
+
+    from rich.console import Console
+
+    console = Console()
+
+    @contextmanager
+    def _loader(cfg):
+        import os
+
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
+        from vllm import LLM
+
+        llm = None
+
+        try:
+            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            if cuda_visible is not None:
+                tp_size = len(cuda_visible.split(","))
+            else:
+                import subprocess
+
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                tp_size = (
+                    len(result.stdout.strip().splitlines())
+                    if result.returncode == 0
+                    else 1
+                )
+            tp_size = max(1, tp_size)
+
+            # ~58 GB BF16 on 2x L40S (88.8 GB) leaves ~31 GB for KV cache.
+            # Gemma 4 vision tokens are configurable — max_soft_tokens=1120
+            # gives maximum detail for dense receipt OCR.
+            max_model_len = 16384
+
+            console.print(
+                f"\n[bold]Loading Gemma 4 31B-it via vLLM "
+                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
+            )
+            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+
+            llm = LLM(
+                model=str(cfg.model_path),
+                tensor_parallel_size=tp_size,
+                max_model_len=max_model_len,
+                gpu_memory_utilization=0.92,
+                limit_mm_per_prompt={"image": 1},
+                trust_remote_code=True,
+                disable_log_stats=True,
+                mm_processor_kwargs={"max_soft_tokens": 1120},
+                hf_overrides={
+                    "vision_config": {"default_output_length": 1120},
+                    "vision_soft_tokens_per_image": 1120,
+                },
+            )
+
+            console.print("[bold green]vLLM engine ready![/bold green]")
+
+            yield llm, None
+
+        finally:
+            del llm
+
+    return _loader(config)
+
+
+def _gemma4_vllm_processor_creator(
+    model,
+    tokenizer_or_processor,
+    config,
+    prompt_config,
+    universal_fields,
+    field_definitions,
+):
+    """Create a DocumentAwareVllmProcessor for Gemma 4 via vLLM."""
+    from models.document_aware_vllm_processor import (
+        DocumentAwareVllmProcessor,
+    )
+
+    return DocumentAwareVllmProcessor(
+        field_list=universal_fields,
+        model_path=str(config.model_path),
+        debug=config.verbose,
+        batch_size=config.batch_size,
+        pre_loaded_model=model,
+        pre_loaded_processor=tokenizer_or_processor,
+        prompt_config=prompt_config,
+        field_definitions=field_definitions,
+        model_type_key="gemma4",
+    )
+
+
+register_model(
+    ModelRegistration(
+        model_type="gemma4",
+        loader=_gemma4_vllm_loader,
+        processor_creator=_gemma4_vllm_processor_creator,
+        prompt_file="internvl3_prompts.yaml",
+        description="Gemma 4 31B-it via vLLM (~58 GB BF16)",
+        requires_sharding=True,
+    )
+)
