@@ -263,15 +263,22 @@ def parse_wildreceipt_response(raw: str) -> dict:
         text = "\n".join(lines)
 
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+        # Model returned a JSON array — fall through to regex search
     except json.JSONDecodeError:
-        match = _JSON_RE.search(text)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-        return {}
+        pass
+
+    match = _JSON_RE.search(text)
+    if match:
+        try:
+            parsed = json.loads(match.group())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    return {}
 
 
 # ============================================================================
