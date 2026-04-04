@@ -69,13 +69,25 @@ dependencies:
 
 ### 2. Download Model
 
+Download from a machine with internet access. Use `local_dir_use_symlinks=False`
+to get real files (not cache symlinks) — required for copying to air-gapped
+production via NFS.
+
 ```bash
 python -c "
 from huggingface_hub import snapshot_download
 snapshot_download('ibm-granite/granite-4.0-3b-vision',
-                  local_dir='/home/jovyan/nfs_share/models/granite-4.0-3b-vision')
+                  local_dir='/home/jovyan/nfs_share/models/granite-4.0-3b-vision',
+                  local_dir_use_symlinks=False)
 "
 ```
+
+**Important**: `trust_remote_code=True` means transformers will try to fetch
+updated `.py` files from HuggingFace at load time. On air-gapped production,
+this is fine as long as the local snapshot is complete — `from_pretrained()`
+falls back to the local directory. If you see download errors on prod, verify
+all `.py` files (`modeling.py`, `downsampling.py`, `configuration.py`,
+`processing.py`) exist in the model directory.
 
 ### 3. `models/registry.py` — add loader + registration
 
