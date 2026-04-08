@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -184,8 +185,9 @@ def check_glibc(report: Report) -> None:
 
 def check_cpu_memory(report: Report) -> None:
     cores_logical = os.cpu_count()
+    cores_affinity: int | None
     try:
-        cores_affinity = len(os.sched_getaffinity(0))  # Linux
+        cores_affinity = len(os.sched_getaffinity(0))  # type: ignore[attr-defined]
     except AttributeError:
         cores_affinity = cores_logical
     report.system["cpu_cores_logical"] = cores_logical
@@ -194,7 +196,7 @@ def check_cpu_memory(report: Report) -> None:
     mem_gb = None
     try:
         if sys.platform.startswith("linux"):
-            with open("/proc/meminfo") as f:
+            with Path("/proc/meminfo").open() as f:
                 for line in f:
                     if line.startswith("MemTotal:"):
                         mem_gb = int(line.split()[1]) / (1024 * 1024)
@@ -525,7 +527,7 @@ def check_other_packages(report: Report) -> None:
 
 def check_disk_space(report: Report) -> None:
     try:
-        usage = shutil.disk_usage(os.path.expanduser("~"))
+        usage = shutil.disk_usage(Path.home())
         free_gb = usage.free / 1024**3
         report.system["home_free_gb"] = round(free_gb, 1)
         status = "ok" if free_gb >= 50 else "warn"
@@ -598,7 +600,7 @@ def print_human(report: Report) -> int:
     print(f" transformers ≥        {req['transformers_min']}")
     if req.get("hard_deps"):
         print(
-            f" Pinned hard deps:     "
+            " Pinned hard deps:     "
             + ", ".join(f"{k}=={v}" for k, v in req["hard_deps"].items())
         )
     print()

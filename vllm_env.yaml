@@ -8,7 +8,10 @@
 #   torchaudio  2.9.0     /  same CUDA build (cu124) or vLLM will fail to load
 #   xformers    0.0.33.post1   (pinned ==, transitive from vLLM)
 #   flashinfer  0.5.2          (pinned ==, transitive from vLLM)
-#   Python      3.11      (prod runs 3.11.8; vLLM supports 3.10–3.13)
+#   Python      3.12      (hard requirement — prod runs 3.12; vLLM
+#                          supports 3.10–3.13, but the rest of the LMM_POC
+#                          codebase targets 3.12 and uses PEP 695 `type`
+#                          statements that require 3.12+)
 #   CUDA        12.4      (dev machine has 12.4; cu124 wheels also run on
 #                          prod's cu128 driver via CUDA forward compatibility)
 #
@@ -62,7 +65,7 @@ name: vllm-0.11.2
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python=3.12
   - pip>=24.0
  
   - pip:
