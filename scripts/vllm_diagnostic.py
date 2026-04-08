@@ -10,10 +10,15 @@ xFormers / Triton / PyTorch-native attention backends when FA is absent).
 Usage:
     python vllm_diagnostic.py
     python vllm_diagnostic.py --json     # machine-readable output
-    python vllm_diagnostic.py --target 0.8.0   # check against a specific vLLM version
+    python vllm_diagnostic.py --target 0.11.2   # check against a specific vLLM version
+    python vllm_diagnostic.py --expected-gpus 4 # fail if fewer than N GPUs visible
 
 No third-party dependencies required for the basic checks. PyTorch is
 imported only if it is already installed; the script still runs without it.
+
+Compatibility matrix is sourced from the actual PyPI wheel METADATA of each
+vLLM release (run `unzip -p <wheel>.whl '*/METADATA' | grep -i requires-dist`
+to verify). Update VLLM_MATRIX below when bumping vLLM.
 """
 
 from __future__ import annotations
@@ -31,15 +36,44 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Compatibility matrix
 # ---------------------------------------------------------------------------
-# Update this table when you bump vLLM. Source of truth is the
-# requirements/*.txt files in the vLLM repo at the matching git tag.
+# Update this table when you bump vLLM. Source of truth is the actual
+# Requires-Dist lines inside the wheel METADATA on PyPI:
+#   pip download vllm==<ver> --no-deps --platform manylinux_2_28_x86_64 \
+#       --python-version 3.12 --implementation cp --abi cp312 \
+#       --only-binary=:all: -d /tmp/vllm-check
+#   unzip -p /tmp/vllm-check/vllm-*.whl '*/METADATA' \
+#       | grep -i -E '^(requires-dist:|requires-python)'
 VLLM_MATRIX: dict[str, dict[str, Any]] = {
+    "0.11.2": {
+        # Verified from PyPI wheel METADATA:
+        #   Requires-Dist: torch==2.9.0
+        #   Requires-Dist: torchaudio==2.9.0
+        #   Requires-Dist: torchvision==0.24.0
+        #   Requires-Dist: xformers==0.0.33.post1 ; platform_system == "Linux"
+        #                                           and platform_machine == "x86_64"
+        #   Requires-Dist: flashinfer-python==0.5.2
+        #   Requires-Python: <3.14,>=3.10
+        "torch": "2.9.0",
+        "torchvision": "0.24.0",
+        "torchaudio": "2.9.0",
+        "cuda": ["12.8", "12.6", "12.4"],  # torch 2.9.0 ships cu128/cu126/cu124
+        "python": (3, 10, 3, 13),  # min_major, min_minor, max_major, max_minor
+        "transformers_min": "4.46.0",
+        "min_compute_capability": 7.0,
+        "hard_deps": {
+            "xformers": "0.0.33.post1",
+            "flashinfer-python": "0.5.2",
+        },
+        "flash_attn_required": False,  # FA is lazily imported; never required
+    },
     "0.8.0": {
         "torch": "2.6.0",
         "cuda": ["12.4", "12.1"],
-        "python": (3, 9, 3, 12),  # min_major, min_minor, max_major, max_minor
+        "python": (3, 9, 3, 12),
         "transformers_min": "4.48.0",
         "min_compute_capability": 7.0,
+        "hard_deps": {},
+        "flash_attn_required": False,
     },
     "0.7.3": {
         "torch": "2.5.1",
@@ -47,6 +81,8 @@ VLLM_MATRIX: dict[str, dict[str, Any]] = {
         "python": (3, 9, 3, 12),
         "transformers_min": "4.48.0",
         "min_compute_capability": 7.0,
+        "hard_deps": {},
+        "flash_attn_required": False,
     },
     "0.6.6": {
         "torch": "2.5.1",
@@ -54,10 +90,12 @@ VLLM_MATRIX: dict[str, dict[str, Any]] = {
         "python": (3, 9, 3, 12),
         "transformers_min": "4.45.0",
         "min_compute_capability": 7.0,
+        "hard_deps": {},
+        "flash_attn_required": False,
     },
 }
 
-DEFAULT_TARGET = "0.8.0"
+DEFAULT_TARGET = "0.11.2"
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +289,7 @@ def check_cuda_toolkit(report: Report) -> None:
         report.add("cuda_toolkit", "warn", f"could not parse: {out}")
 
 
-def check_torch(report: Report) -> None:
+def check_torch(report: Report, expected_gpus: int | None) -> None:
     try:
         import torch  # type: ignore
     except ImportError:
@@ -268,23 +306,64 @@ def check_torch(report: Report) -> None:
         torch.backends.cudnn.version() if torch.cuda.is_available() else None
     )
 
+    # torch version (exact pin — vLLM uses ==)
     want = report.requirements["torch"]
     have = torch.__version__.split("+")[0]
-    status = "ok" if have == want else "warn"
+    status = "ok" if have == want else "fail"
     report.add(
         "torch_version",
         status,
         f"installed {torch.__version__}; vLLM {report.target_vllm} pins torch=={want}",
     )
 
+    # torchvision / torchaudio (also exact pins for recent vLLM)
+    for pkg_name, req_key in [
+        ("torchvision", "torchvision"),
+        ("torchaudio", "torchaudio"),
+    ]:
+        want_v = report.requirements.get(req_key)
+        if not want_v:
+            continue
+        try:
+            mod = __import__(pkg_name)
+            have_v = mod.__version__.split("+")[0]
+            report.system[pkg_name] = mod.__version__
+            status = "ok" if have_v == want_v else "fail"
+            report.add(
+                f"{pkg_name}_version",
+                status,
+                f"installed {mod.__version__}; vLLM pins {pkg_name}=={want_v}",
+            )
+        except ImportError:
+            report.add(
+                f"{pkg_name}_version",
+                "warn",
+                f"not installed; vLLM pins {pkg_name}=={want_v}",
+            )
+
+    # C++ ABI flag — matters for prebuilt kernel wheels (flash-attn, xformers)
+    try:
+        cxx11 = torch._C._GLIBCXX_USE_CXX11_ABI
+        report.system["torch_cxx11_abi"] = cxx11
+        report.add(
+            "torch_cxx11_abi",
+            "info",
+            f"_GLIBCXX_USE_CXX11_ABI = {cxx11} "
+            f"(must match any out-of-tree CUDA kernel wheel)",
+        )
+    except AttributeError:
+        pass
+
     if torch.cuda.is_available():
+        dev_count = torch.cuda.device_count()
+        report.system["torch_device_count"] = dev_count
         report.add(
             "torch_cuda_available",
             "ok",
             f"torch built with CUDA {torch.version.cuda}, "
-            f"{torch.cuda.device_count()} device(s) visible",
+            f"{dev_count} device(s) visible",
         )
-        for i in range(torch.cuda.device_count()):
+        for i in range(dev_count):
             props = torch.cuda.get_device_properties(i)
             cc = float(f"{props.major}.{props.minor}")
             need = report.requirements["min_compute_capability"]
@@ -294,14 +373,22 @@ def check_torch(report: Report) -> None:
                 status,
                 f"{props.name}, cc={cc}, {round(props.total_memory / 1024**3, 1)} GB",
             )
-        # Check torch CUDA against required
+        # GPU count sanity check
+        if expected_gpus is not None:
+            gpu_status = "ok" if dev_count >= expected_gpus else "fail"
+            report.add(
+                "gpu_count_expected",
+                gpu_status,
+                f"expected ≥{expected_gpus} GPUs, torch sees {dev_count}",
+            )
+        # torch CUDA build vs vLLM's expected builds
         torch_cuda_mm = ".".join((torch.version.cuda or "").split(".")[:2])
         cuda_ok = torch_cuda_mm in report.requirements["cuda"]
         report.add(
             "torch_cuda_match",
             "ok" if cuda_ok else "warn",
             f"torch built for CUDA {torch_cuda_mm}; "
-            f"vLLM expects one of {report.requirements['cuda']}",
+            f"vLLM wheels typically target {report.requirements['cuda']}",
         )
     else:
         report.add(
@@ -309,6 +396,35 @@ def check_torch(report: Report) -> None:
             "fail",
             "torch.cuda.is_available() == False — install a CUDA build of torch",
         )
+
+
+def check_gpu_visibility(report: Report, expected_gpus: int | None) -> None:
+    """Cross-check env vars and nvidia-smi -L with expected GPU count."""
+    cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
+    report.system["CUDA_VISIBLE_DEVICES"] = cvd
+    if cvd is None:
+        report.add(
+            "cuda_visible_devices",
+            "info",
+            "CUDA_VISIBLE_DEVICES not set (all GPUs visible by default)",
+        )
+    else:
+        report.add("cuda_visible_devices", "info", f"CUDA_VISIBLE_DEVICES={cvd!r}")
+
+    # nvidia-smi -L is the ground truth for how many physical GPUs exist
+    if shutil.which("nvidia-smi"):
+        out = _run(["nvidia-smi", "-L"])
+        lines = [ln for ln in out.splitlines() if ln.strip().startswith("GPU ")]
+        report.system["nvidia_smi_gpu_count"] = len(lines)
+        for ln in lines:
+            report.add("nvidia_smi_gpu", "info", ln.strip())
+        if expected_gpus is not None and lines:
+            status = "ok" if len(lines) >= expected_gpus else "fail"
+            report.add(
+                "nvidia_smi_gpu_count",
+                status,
+                f"nvidia-smi -L reports {len(lines)} GPU(s); expected ≥{expected_gpus}",
+            )
 
 
 def check_flash_attention_absent(report: Report) -> None:
@@ -327,10 +443,51 @@ def check_flash_attention_absent(report: Report) -> None:
         report.add(
             "flash_attention",
             "ok",
-            "flash_attn not installed (as required). vLLM will fall back to "
-            "xFormers / Triton / PyTorch SDPA. Set "
+            "flash_attn not installed (as required). vLLM will use "
+            "xformers / flashinfer / Triton / PyTorch SDPA. Set "
             "VLLM_ATTENTION_BACKEND=XFORMERS (or TORCH_SDPA) to be explicit.",
         )
+    # Also check whether the current backend env var is pinned
+    backend = os.environ.get("VLLM_ATTENTION_BACKEND")
+    if backend:
+        status = (
+            "ok"
+            if backend.upper()
+            in {"XFORMERS", "TORCH_SDPA", "FLASHINFER", "TRITON_ATTN_VLLM_V1"}
+            else "warn"
+        )
+        report.add("attention_backend_env", status, f"VLLM_ATTENTION_BACKEND={backend}")
+    else:
+        report.add(
+            "attention_backend_env",
+            "info",
+            "VLLM_ATTENTION_BACKEND unset — recommend XFORMERS on A10G "
+            "when flash-attn is unavailable",
+        )
+
+
+def check_hard_deps(report: Report) -> None:
+    """Verify the exact-pin transitive dependencies vLLM ships with."""
+    hard = report.requirements.get("hard_deps") or {}
+    if not hard:
+        return
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+    except ImportError:  # pragma: no cover
+        return
+    for pkg, want in hard.items():
+        try:
+            have = version(pkg)
+            status = "ok" if have == want else "warn"
+            report.add(
+                f"hard_dep:{pkg}", status, f"installed {have}; vLLM pins {pkg}=={want}"
+            )
+        except PackageNotFoundError:
+            report.add(
+                f"hard_dep:{pkg}",
+                "info",
+                f"not installed; vLLM will pull {pkg}=={want}",
+            )
 
 
 def check_other_packages(report: Report) -> None:
@@ -340,6 +497,7 @@ def check_other_packages(report: Report) -> None:
         "transformers",
         "tokenizers",
         "xformers",
+        "flashinfer-python",
         "triton",
         "ray",
         "fastapi",
@@ -349,6 +507,7 @@ def check_other_packages(report: Report) -> None:
         "sentencepiece",
         "outlines",
         "xgrammar",
+        "flash-attn",
     ]
     try:
         from importlib.metadata import PackageNotFoundError, version
@@ -382,7 +541,7 @@ def check_disk_space(report: Report) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def build_report(target: str) -> Report:
+def build_report(target: str, expected_gpus: int | None = None) -> Report:
     if target not in VLLM_MATRIX:
         raise SystemExit(
             f"Unknown vLLM target {target!r}. Known: {sorted(VLLM_MATRIX)}"
@@ -395,8 +554,10 @@ def build_report(target: str) -> Report:
     check_disk_space(report)
     check_nvidia_smi(report)
     check_cuda_toolkit(report)
-    check_torch(report)
+    check_torch(report, expected_gpus)
+    check_gpu_visibility(report, expected_gpus)
     check_flash_attention_absent(report)
+    check_hard_deps(report)
     check_other_packages(report)
     return report
 
@@ -423,14 +584,23 @@ def print_human(report: Report) -> int:
     print(f" vLLM environment diagnostic — target vLLM {report.target_vllm}")
     print("=" * 72)
     req = report.requirements
-    print(f" Required torch:   {req['torch']}")
-    print(f" Required CUDA:    {' or '.join(req['cuda'])}")
+    print(f" Required torch:       {req['torch']}")
+    if req.get("torchvision"):
+        print(f" Required torchvision: {req['torchvision']}")
+    if req.get("torchaudio"):
+        print(f" Required torchaudio:  {req['torchaudio']}")
+    print(f" Required CUDA:        {' or '.join(req['cuda'])}")
     print(
-        f" Python range:     {req['python'][0]}.{req['python'][1]}"
+        f" Python range:         {req['python'][0]}.{req['python'][1]}"
         f"–{req['python'][2]}.{req['python'][3]}"
     )
-    print(f" Min GPU compute:  {req['min_compute_capability']}")
-    print(f" transformers ≥    {req['transformers_min']}")
+    print(f" Min GPU compute:      {req['min_compute_capability']}")
+    print(f" transformers ≥        {req['transformers_min']}")
+    if req.get("hard_deps"):
+        print(
+            f" Pinned hard deps:     "
+            + ", ".join(f"{k}=={v}" for k, v in req["hard_deps"].items())
+        )
     print()
     print(" --- System ---")
     for k, v in report.system.items():
@@ -472,11 +642,18 @@ def main() -> int:
         f"Known: {sorted(VLLM_MATRIX)}",
     )
     p.add_argument(
+        "--expected-gpus",
+        type=int,
+        default=None,
+        help="fail if fewer than this many GPUs are visible "
+        "(cross-checks torch.cuda.device_count and nvidia-smi -L)",
+    )
+    p.add_argument(
         "--json", action="store_true", help="emit JSON instead of human output"
     )
     args = p.parse_args()
 
-    report = build_report(args.target)
+    report = build_report(args.target, expected_gpus=args.expected_gpus)
 
     if args.json:
         payload = {
