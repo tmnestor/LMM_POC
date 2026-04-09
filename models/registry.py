@@ -205,7 +205,7 @@ def _patch_eager_attention_to_sdpa() -> bool:
             import importlib
 
             mod = importlib.import_module(module_path)
-            mod.eager_attention_forward = _sdpa_attention
+            mod.eager_attention_forward = _sdpa_attention  # type: ignore[attr-defined]
             patched = True
         except (ImportError, AttributeError):
             pass
@@ -499,8 +499,6 @@ def _internvl3_vllm_loader(config):
 
             # 8192 needed for multi-turn bank extraction — 4096 caused
             # context truncation after 2-3 turns, hurting accuracy.
-            # 38B (~77 GB BF16) on 2x L40S (88.8 GB) leaves ~11 GB
-            # for KV cache — tight but sufficient for 8K context.
             max_model_len = 8192
 
             try:
@@ -518,11 +516,17 @@ def _internvl3_vllm_loader(config):
                 f"⚡ Flash Attention 2: {'✅ v' + fa_version if fa_version else '❌ not installed'}"
             )
 
+            # 8B on 2x L4 (22 GiB each): 0.85 util leaves ~3 GiB headroom
+            # per GPU for sampler warmup scratch, which vLLM v1's KV cache
+            # profiler does not account for. max_num_seqs=8 caps the
+            # sampler scratch to ~10 MiB (vs ~300 MiB at the default 256)
+            # since this benchmark processes images sequentially.
             llm = LLM(
                 model=str(cfg.model_path),
                 tensor_parallel_size=tp_size,
                 max_model_len=max_model_len,
-                gpu_memory_utilization=0.92,
+                gpu_memory_utilization=0.85,
+                max_num_seqs=8,
                 limit_mm_per_prompt={"image": 1},
                 trust_remote_code=True,
                 disable_log_stats=True,
