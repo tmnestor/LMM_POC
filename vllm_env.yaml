@@ -88,4 +88,4 @@ dependencies:
 # unset on `conda deactivate`. Pins vLLM's attention backend to xformers
 # so it never tries to import flash-attn (which is unavailable on prod).
 variables:
-  VLLM_ATTENTION_BACKEND: XFORMERS
+  VLLM_ATTENTION_BACKEND: FLASHINFER
