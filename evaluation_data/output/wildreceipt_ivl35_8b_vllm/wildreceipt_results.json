@@ -1,106 +1,106 @@
 {
   "internvl3-vllm": {
-    "overall_f1": 0.7319,
-    "overall_precision": 0.796,
-    "overall_recall": 0.6774,
-    "total_images": 472,
-    "elapsed_seconds": 1876.67,
+    "overall_f1": 0.0,
+    "overall_precision": 0.0,
+    "overall_recall": 0.0,
+    "total_images": 0,
+    "elapsed_seconds": 111.96,
     "per_class": {
       "store_name": {
-        "precision": 0.7987,
-        "recall": 0.7903,
-        "f1": 0.7945,
-        "tp": 373,
-        "fp": 94,
-        "fn": 99
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "store_address": {
-        "precision": 0.8068,
-        "recall": 0.9048,
-        "f1": 0.853,
-        "tp": 380,
-        "fp": 91,
-        "fn": 40
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "telephone": {
-        "precision": 0.8908,
-        "recall": 0.9788,
-        "f1": 0.9327,
-        "tp": 416,
-        "fp": 51,
-        "fn": 9
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "date": {
-        "precision": 0.9149,
-        "recall": 0.9451,
-        "f1": 0.9297,
-        "tp": 430,
-        "fp": 40,
-        "fn": 25
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "time": {
-        "precision": 0.9081,
-        "recall": 0.93,
-        "f1": 0.9189,
-        "tp": 425,
-        "fp": 43,
-        "fn": 32
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "prod_item": {
-        "precision": 0.6602,
-        "recall": 0.1139,
-        "f1": 0.1943,
-        "tp": 272,
-        "fp": 140,
-        "fn": 2116
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "prod_quantity": {
-        "precision": 0.6554,
-        "recall": 0.9051,
-        "f1": 0.7602,
-        "tp": 1392,
-        "fp": 732,
-        "fn": 146
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "prod_price": {
-        "precision": 0.9505,
-        "recall": 0.7825,
-        "f1": 0.8583,
-        "tp": 1784,
-        "fp": 93,
-        "fn": 496
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "subtotal": {
-        "precision": 0.6951,
-        "recall": 0.8359,
-        "f1": 0.759,
-        "tp": 326,
-        "fp": 143,
-        "fn": 64
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "tax": {
-        "precision": 0.7949,
-        "recall": 0.8435,
-        "f1": 0.8185,
-        "tp": 372,
-        "fp": 96,
-        "fn": 69
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "tips": {
-        "precision": 0.8996,
-        "recall": 0.9859,
-        "f1": 0.9408,
-        "tp": 421,
-        "fp": 47,
-        "fn": 6
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       },
       "total": {
-        "precision": 0.5909,
-        "recall": 0.6205,
-        "f1": 0.6053,
-        "tp": 273,
-        "fp": 189,
-        "fn": 167
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
       }
     }
   }
