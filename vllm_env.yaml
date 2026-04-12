@@ -79,7 +79,7 @@ dependencies:
       # vLLM and its two most version-sensitive hard deps. Listed explicitly
       # (even though transitive) so an accidental later `pip install --upgrade`
       # of xformers or flashinfer-python cannot silently break vLLM.
-      - vllm==0.11.2
+      - vllm==0.11.2. 
       - xformers==0.0.33.post1
       - flashinfer-python==0.5.2
  
