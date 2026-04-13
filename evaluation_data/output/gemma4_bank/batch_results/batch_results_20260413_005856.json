@@ -1,0 +1,236 @@
+{
+  "metadata": {
+    "batch_id": "20260413_005856",
+    "timestamp": "2026-04-13T01:18:38.119167",
+    "model": "/home/jovyan/nfs_share/models/Gemma-4-31B-it",
+    "total_images": 15,
+    "successful_extractions": 15,
+    "average_accuracy": 92.68243883596706,
+    "total_processing_time": 967.5247185230255,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "../data/bank",
+    "ground_truth": "../data/bank/ground_truth_bank.csv",
+    "max_images": null,
+    "document_types": null,
+    "batch_size": "auto",
+    "max_tiles": 18,
+    "flash_attn": true,
+    "dtype": "bfloat16",
+    "bank_v2": true,
+    "balance_correction": false
+  },
+  "summary_statistics": {
+    "Total Images": 15.0,
+    "Successful Extractions": 15.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 92.68243883596706,
+    "Median Accuracy (%)": 99.62264150943396,
+    "Min Accuracy (%)": 30.0,
+    "Max Accuracy (%)": 100.0,
+    "Average Processing Time (s)": 64.50164790153504,
+    "Total Processing Time (s)": 967.5247185230255,
+    "Throughput (images/min)": 0.93020879236439
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 15
+  },
+  "results": [
+    {
+      "image_name": "cba_amount_balance.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_amount_description_2turn",
+      "processing_time": 60.389487743377686,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8800000000000001,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_date_grouped.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 48.860924243927,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_date_grouped_cont.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 71.36198806762695,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_debit_credit_description_2turn",
+      "processing_time": 34.369980812072754,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9777777777777779,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 23.81262731552124,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_home_loan.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 27.748921155929565,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9428571428571428,
+        "fields_extracted": 6,
+        "fields_matched": 3,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_003.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 23.15286159515381,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_009.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 53.31021165847778,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "low_contrast.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_debit_credit_description_2turn",
+      "processing_time": 34.581077337265015,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9793103448275862,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "nab_classic_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 190.37010955810547,
+      "evaluation_summary": {
+        "overall_accuracy": 0.3,
+        "fields_extracted": 2,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "synthetic_chrono.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 114.56190371513367,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9962264150943396,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "synthetic_multiline.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 50.24741792678833,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8363636363636363,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "synthetic_reverse_chrono.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 111.2679123878479,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "transaction_summary.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_amount_description_2turn",
+      "processing_time": 36.50295686721802,
+      "evaluation_summary": {
+        "overall_accuracy": 1.0,
+        "fields_extracted": 6,
+        "fields_matched": 5,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "westpac_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_debit_credit_description_2turn",
+      "processing_time": 86.98633813858032,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9898305084745763,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}
