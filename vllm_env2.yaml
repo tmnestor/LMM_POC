@@ -101,8 +101,9 @@ dependencies:
       - pandas
       - seaborn
 
-# Environment variables automatically exported on `conda activate` and
-# unset on `conda deactivate`. FlashInfer is the default attention backend
-# for vLLM 0.19.0 (replaces xformers from 0.11.2).
-variables:
-  VLLM_ATTENTION_BACKEND: FLASHINFER
+# ---------------------------------------------------------------------------
+# Conda commands:
+#   conda env create -f vllm_env2.yaml
+#   conda activate vllm_env2
+#   conda env remove -n vllm_env2
+# ---------------------------------------------------------------------------
