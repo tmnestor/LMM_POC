@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 import torch
 
 from common.extraction_parser import parse_extraction_response
-from common.model_config import get_generation_config
 from models.base_processor import BaseDocumentProcessor
 
 
@@ -125,13 +124,10 @@ class SimpleDocumentProcessor(BaseDocumentProcessor):
     # -- Generation config -------------------------------------------------
 
     def _configure_generation(self) -> None:
-        """Load generation hyper-parameters from model_config registry."""
-        if self.app_config is not None:
-            self.gen_config: dict[str, Any] = self.app_config.get_generation_config(
-                self._effective_model_type_key
-            )
-        else:
-            self.gen_config = get_generation_config(self._effective_model_type_key)
+        """Load generation hyper-parameters from AppConfig registry."""
+        self.gen_config: dict[str, Any] = self.app_config.get_generation_config(
+            self._effective_model_type_key
+        )
 
         self.fallback_max_tokens = max(
             int(self.gen_config.get("max_new_tokens_base", 512)),

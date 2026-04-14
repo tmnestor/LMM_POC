@@ -55,6 +55,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
         pre_loaded_processor=None,
         prompt_config: dict | None = None,
         field_definitions: dict | None = None,
+        app_config=None,
     ):
         """
         Initialize document-aware processor with specific field list.
@@ -94,6 +95,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
             device=device,
             batch_size=batch_size,
             model_type_key="llama",
+            app_config=app_config,
         )
 
         if self.debug:

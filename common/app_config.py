@@ -2,9 +2,6 @@
 
 Single entry point (AppConfig.load) replaces the 7-step config dance
 in cli.py and eliminates mutable module globals.
-
-Phase 1: AppConfig coexists with model_config/field_config globals.
-Phase 2: Globals removed, all consumers use AppConfig.
 """
 
 from __future__ import annotations
@@ -45,19 +42,32 @@ class BatchSettings:
         default_factory=lambda: {"low": 8, "medium": 16, "high": 24, "very_high": 64}
     )
 
+    # Batch size defaults (formerly mutable globals in model_config.py)
+    _DEFAULT_SIZES: dict[str, int] = {
+        "internvl3": 4,
+        "internvl3-2b": 4,
+        "internvl3-8b": 4,
+        "qwen3vl": 4,
+    }
+    _MAX_SIZES: dict[str, int] = {
+        "internvl3": 8,
+        "internvl3-2b": 8,
+        "internvl3-8b": 16,
+        "qwen3vl": 8,
+    }
+    _CONSERVATIVE_SIZES: dict[str, int] = {
+        "internvl3": 1,
+        "internvl3-2b": 2,
+        "internvl3-8b": 1,
+        "qwen3vl": 2,
+    }
+
     @classmethod
     def from_raw(cls, raw_config: dict) -> BatchSettings:
         """Build from raw YAML config (replaces apply_yaml_overrides batch/gpu sections)."""
-        from common.model_config import (
-            CONSERVATIVE_BATCH_SIZES,
-            DEFAULT_BATCH_SIZES,
-            MAX_BATCH_SIZES,
-        )
-
-        # Start with Python-level defaults
-        default_sizes = dict(DEFAULT_BATCH_SIZES)
-        max_sizes = dict(MAX_BATCH_SIZES)
-        conservative_sizes = dict(CONSERVATIVE_BATCH_SIZES)
+        default_sizes = dict(cls._DEFAULT_SIZES)
+        max_sizes = dict(cls._MAX_SIZES)
+        conservative_sizes = dict(cls._CONSERVATIVE_SIZES)
         kwargs: dict[str, Any] = {}
 
         batch = raw_config.get("batch", {})
@@ -187,6 +197,26 @@ class FieldSchema:
         return self.filter_evaluation_fields(field_names)
 
 
+def _load_min_tokens_by_type() -> dict[str, int]:
+    """Load per-document-type min_tokens from field_definitions.yaml.
+
+    Replaces model_config._get_min_tokens_for_type() and its module-level cache.
+    """
+    import yaml
+
+    result: dict[str, int] = {}
+    yaml_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
+    try:
+        with yaml_path.open() as f:
+            data = yaml.safe_load(f)
+        for doc_type, type_config in data.get("document_fields", {}).items():
+            if isinstance(type_config, dict) and "min_tokens" in type_config:
+                result[doc_type] = type_config["min_tokens"]
+    except (OSError, yaml.YAMLError):
+        pass
+    return result
+
+
 def _build_generation_registry(raw_config: dict) -> dict[str, dict]:
     """Build generation config registry with YAML overrides applied.
 
@@ -226,6 +256,7 @@ class AppConfig:
         "fields",
         "_generation_registry",
         "_token_limits",
+        "_min_tokens_by_type",
     )
 
     def __init__(
@@ -235,12 +266,14 @@ class AppConfig:
         fields: FieldSchema,
         generation_registry: dict[str, dict],
         token_limits: dict[str, int | None] | None = None,
+        min_tokens_by_type: dict[str, int] | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.batch = batch
         self.fields = fields
         self._generation_registry = generation_registry
         self._token_limits = token_limits or {}
+        self._min_tokens_by_type = min_tokens_by_type or {}
 
     @classmethod
     def load(
@@ -302,26 +335,21 @@ class AppConfig:
         if val_errors:
             raise ConfigError(val_errors)
 
-        # 7. Phase 1 backward compat: mutate module globals so InternVL3/Llama
-        #    processors that read them directly still get YAML overrides.
-        #    Removed in Phase 2 when all processors use AppConfig.
-        if raw_config:
-            from common.model_config import apply_yaml_overrides
-
-            apply_yaml_overrides(raw_config)
-
-        # 8. Build BatchSettings (immutable copy of batch/gpu config)
+        # 7. Build BatchSettings (immutable copy of batch/gpu config)
         batch = BatchSettings.from_raw(raw_config)
 
-        # 9. Build generation registry (immutable copy with YAML overrides)
+        # 8. Build generation registry (immutable copy with YAML overrides)
         generation_registry = _build_generation_registry(raw_config)
 
-        # 10. Build token limits from YAML overrides
+        # 9. Build token limits from YAML overrides
         token_limits: dict[str, int | None] = {"2b": None, "8b": 800}
         gen = raw_config.get("generation", {})
         yaml_limits = gen.get("token_limits", {})
         for size_key, value in yaml_limits.items():
             token_limits[str(size_key)] = value
+
+        # 10. Build min_tokens_by_type from field_definitions.yaml
+        min_tokens_by_type = _load_min_tokens_by_type()
 
         # 11. Load field schema (single YAML read)
         fields = FieldSchema.from_yaml()
@@ -332,19 +360,28 @@ class AppConfig:
             fields=fields,
             generation_registry=generation_registry,
             token_limits=token_limits,
+            min_tokens_by_type=min_tokens_by_type,
         )
 
     # -- Drop-in replacements for model_config functions -----------------------
+
+    # Fallback generation config for unknown model types
+    _FALLBACK_GENERATION_CONFIG: dict[str, Any] = {
+        "max_new_tokens_base": 512,
+        "max_new_tokens_per_field": 64,
+        "temperature": 0.0,
+        "do_sample": False,
+        "top_p": 0.95,
+        "use_cache": True,
+    }
 
     def get_generation_config(self, model_type: str) -> dict[str, Any]:
         """Same signature as model_config.get_generation_config().
 
         Returns a copy so callers can mutate freely.
         """
-        from common.model_config import QWEN3VL_GENERATION_CONFIG
-
         return dict(
-            self._generation_registry.get(model_type, QWEN3VL_GENERATION_CONFIG)
+            self._generation_registry.get(model_type, self._FALLBACK_GENERATION_CONFIG)
         )
 
     def get_batch_size_for_model(
@@ -394,9 +431,7 @@ class AppConfig:
         base_tokens = max(base, effective_count * per_field)
 
         if document_type:
-            from common.model_config import _get_min_tokens_for_type
-
-            min_tokens = _get_min_tokens_for_type(document_type)
+            min_tokens = self._min_tokens_by_type.get(document_type)
             if min_tokens:
                 return max(base_tokens, min_tokens)
 

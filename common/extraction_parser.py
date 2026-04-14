@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dateutil import parser as date_parser
+from dateutil import parser as date_parser  # type: ignore[import-untyped]
 
 try:
     import orjson
@@ -24,9 +24,15 @@ except ImportError:
 
 import yaml
 
-from .field_config import (
-    EXTRACTION_FIELDS,
-)
+
+def _get_extraction_fields() -> list[str]:
+    """Load universal extraction fields on demand."""
+    from .field_definitions_loader import SimpleFieldLoader
+
+    loader = SimpleFieldLoader()
+    fields = loader.get_document_fields("universal")
+    return [f for f in fields if f != "TRANSACTION_AMOUNTS_RECEIVED"]
+
 
 # Module-level cache for document type alias map
 _DOC_TYPE_ALIAS_MAP: dict[str, str] | None = None
@@ -236,7 +242,7 @@ def _repair_truncated_json(text: str, expected_fields: list[str]) -> str:
 
     # Fix standalone commas and malformed JSON structure
     lines = text.split("\n")
-    fixed_lines = []
+    fixed_lines: list[str] = []
 
     i = 0
     while i < len(lines):
@@ -289,7 +295,7 @@ def _repair_truncated_json(text: str, expected_fields: list[str]) -> str:
 
 
 def hybrid_parse_response(
-    response_text: str, expected_fields: list[str] = None
+    response_text: str, expected_fields: list[str] | None = None
 ) -> dict[str, str]:
     """
     Hybrid parser that handles both JSON and plain text formats automatically.
@@ -307,7 +313,7 @@ def hybrid_parse_response(
     """
     # Use provided fields or get from config
     if expected_fields is None:
-        expected_fields = EXTRACTION_FIELDS
+        expected_fields = _get_extraction_fields()
 
     if not response_text:
         return {field: "NOT_FOUND" for field in expected_fields}
@@ -328,7 +334,7 @@ def hybrid_parse_response(
 def parse_extraction_response(
     response_text: str,
     clean_conversation_artifacts: bool = False,
-    expected_fields: list[str] = None,
+    expected_fields: list[str] | None = None,
 ) -> dict[str, str]:
     """
     Parse structured extraction response into dictionary.
@@ -350,7 +356,7 @@ def parse_extraction_response(
     """
     # Use provided fields or get from config (supports filtered field extraction)
     if expected_fields is None:
-        expected_fields = EXTRACTION_FIELDS
+        expected_fields = _get_extraction_fields()
 
     if not response_text:
         return {field: "NOT_FOUND" for field in expected_fields}
@@ -432,7 +438,7 @@ def parse_extraction_response(
                 )
                 if not value and is_list_field and i + 1 < len(lines):
                     # Collect subsequent bullet point lines or plain text lines
-                    value_lines = []
+                    value_lines: list[str] = []
                     j = i + 1
                     # Skip initial empty lines
                     while j < len(lines) and not lines[j].strip():
@@ -705,7 +711,7 @@ def parse_extraction_response(
 
 
 def validate_and_enhance_extraction(
-    extracted_data: dict[str, str], image_name: str = None
+    extracted_data: dict[str, str], image_name: str | None = None
 ) -> dict[str, Any]:
     """
     Validate extracted data and add validation metadata.
@@ -723,7 +729,7 @@ def validate_and_enhance_extraction(
     validation_result = validate_extracted_fields(extracted_data)
 
     # Create enhanced result
-    enhanced_result = {
+    enhanced_result: dict[str, Any] = {
         "extracted_data": extracted_data,
         "validation": {
             "is_valid": validation_result.is_valid,
@@ -798,7 +804,7 @@ def discover_images(directory_path: str) -> list[str]:
     directory = Path(directory_path)
     image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
 
-    image_files = []
+    image_files: list[Path] = []
     for ext in image_extensions:
         image_files.extend(directory.glob(f"*{ext}"))
         image_files.extend(directory.glob(f"*{ext.upper()}"))

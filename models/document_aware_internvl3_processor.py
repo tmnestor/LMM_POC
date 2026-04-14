@@ -29,9 +29,6 @@ from common.gpu_optimization import (
     emergency_cleanup,
     optimize_model_for_gpu,
 )
-from common.model_config import (
-    get_max_new_tokens,
-)
 from common.pipeline_config import strip_structure_suffixes
 from models.base_processor import BaseDocumentProcessor
 from models.internvl3_image_preprocessor import InternVL3ImagePreprocessor
@@ -53,9 +50,10 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         pre_loaded_model=None,
         pre_loaded_tokenizer=None,
         prompt_config: dict | None = None,
-        max_tiles: int = None,
+        max_tiles: int | None = None,
         min_tiles: int | None = None,
         field_definitions: dict[str, list[str]] | None = None,
+        app_config=None,
     ):
         """
         Initialize hybrid processor with InternVL3 model and Llama processing logic.
@@ -74,17 +72,17 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             field_definitions: Pre-loaded field definitions dict. If None, loads from YAML.
         """
         self.model_path = model_path
-        self.max_tiles = max_tiles
+        self.max_tiles = max_tiles or 12
 
         # Image preprocessing pipeline (extracted for testability and reuse)
         self.image_preprocessor = InternVL3ImagePreprocessor(
-            max_tiles=max_tiles, debug=debug, min_tiles=min_tiles
+            max_tiles=self.max_tiles, debug=debug, min_tiles=min_tiles
         )
 
         # Initialize model components (InternVL3 specific)
         self.model = pre_loaded_model
         self.tokenizer = pre_loaded_tokenizer
-        self.generation_config = None
+        self.generation_config: dict | None = None
 
         # Fix pad_token_id if tokenizer is pre-loaded to suppress warnings
         if self.tokenizer is not None and self.tokenizer.pad_token_id is None:
@@ -111,6 +109,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             device=device,
             batch_size=batch_size,
             model_type_key="internvl3",
+            app_config=app_config,
         )
 
         if self.debug:
@@ -162,14 +161,18 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
     @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate max_new_tokens for generation based on field count."""
-        return get_max_new_tokens(field_count=field_count, document_type=document_type)
+        return self.app_config.get_max_new_tokens(
+            field_count=field_count, document_type=document_type
+        )
 
     def _configure_generation(self):
         """Configure generation parameters for InternVL3."""
         # InternVL3 generation config - chat() method only accepts max_new_tokens and do_sample
         # NOTE: temperature and top_p are NOT valid for InternVL3 chat() and cause warnings
         self.generation_config = {
-            "max_new_tokens": get_max_new_tokens(field_count=self.field_count),
+            "max_new_tokens": self.app_config.get_max_new_tokens(
+                field_count=self.field_count
+            ),
             "do_sample": False,  # Greedy decoding for consistent extraction
             "use_cache": True,
             "pad_token_id": self.tokenizer.eos_token_id if self.tokenizer else None,
@@ -352,7 +355,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         response_lines = response.split("\n")
 
         # Look for lines that are repeated many times
-        line_counts = {}
+        line_counts: dict[str, int] = {}
         for line in response_lines:
             line = line.strip()
             if len(line) > 10:  # Only count substantial lines
@@ -493,6 +496,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
             question = f"<image>\n{prompt}"
 
             # Use custom max_tokens if provided (for YAML prompts)
+            assert self.generation_config is not None  # noqa: S101
             generation_config = self.generation_config.copy()
             if custom_max_tokens:
                 generation_config["max_new_tokens"] = custom_max_tokens
@@ -786,7 +790,6 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
         from pathlib import Path
 
         from common.extraction_parser import hybrid_parse_response
-        from common.model_config import get_max_new_tokens
 
         if not image_paths:
             return []
@@ -838,7 +841,7 @@ class DocumentAwareInternVL3HybridProcessor(BaseDocumentProcessor):
 
             # Track max tokens needed
             base_doc_type = strip_structure_suffixes(document_type)
-            tokens = get_max_new_tokens(
+            tokens = self.app_config.get_max_new_tokens(
                 field_count=len(doc_field_list), document_type=base_doc_type
             )
             max_tokens_needed = max(max_tokens_needed, tokens)

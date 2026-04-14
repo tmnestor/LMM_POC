@@ -411,6 +411,7 @@ def _internvl3_processor_creator(
         max_tiles=config.max_tiles,
         min_tiles=config.min_tiles,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -722,6 +723,7 @@ def _llama_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 

@@ -27,7 +27,6 @@ from PIL import Image
 
 from common.batch_processor import load_document_field_definitions
 from common.extraction_cleaner import ExtractionCleaner
-from common.model_config import get_auto_batch_size
 from common.pipeline_config import strip_structure_suffixes
 from common.simple_prompt_loader import SimplePromptLoader
 
@@ -93,7 +92,12 @@ class BaseDocumentProcessor(abc.ABC):
         Must be called from the subclass ``__init__`` *after* setting
         ``self.model``, ``self.tokenizer``, etc.
         """
-        self.app_config = app_config
+        if app_config is None:
+            raise ValueError(
+                "app_config is required — construct via AppConfig.load() "
+                "and pass through the registry/CLI path"
+            )
+        self.app_config: AppConfig = app_config
         self.field_list = field_list
         self.field_count = len(field_list)
         self.debug = debug
@@ -163,12 +167,9 @@ class BaseDocumentProcessor(abc.ABC):
             from common.gpu_optimization import get_available_gpu_memory
 
             available_memory = get_available_gpu_memory(self.device)
-            if self.app_config is not None:
-                self.batch_size = self.app_config.get_auto_batch_size(
-                    model_type_key, available_memory
-                )
-            else:
-                self.batch_size = get_auto_batch_size(model_type_key, available_memory)
+            self.batch_size = self.app_config.get_auto_batch_size(
+                model_type_key, available_memory
+            )
             if self.debug:
                 print(
                     f"🤖 Auto-detected batch size: {self.batch_size} "
