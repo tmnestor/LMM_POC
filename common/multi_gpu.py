@@ -55,7 +55,7 @@ class MultiGPUOrchestrator:
         Returns merged (batch_results, processing_times, document_types_found, batch_stats).
         """
         from cli import create_processor, load_model
-        from models.registry import _print_gpu_status
+        from models.gpu_utils import print_gpu_status as _print_gpu_status
 
         chunks = self._partition_images(images)
         actual_gpus = len(chunks)

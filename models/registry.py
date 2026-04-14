@@ -5,22 +5,23 @@ All heavy imports (torch, transformers) are deferred to function bodies
 so that importing this module has zero GPU/ML overhead.
 """
 
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Callable
 
-
-@contextmanager
-def _quiet_loading():
-    """Suppress tqdm progress bars during model weight loading."""
-    from transformers.utils import logging as hf_logging
-
-    hf_logging.disable_progress_bar()
-    try:
-        yield
-    finally:
-        hf_logging.enable_progress_bar()
-
+# Re-export extracted infrastructure for backward compatibility
+from models.attention import (
+    is_sdpa_patched as _is_sdpa_patched,
+)
+from models.attention import (
+    mark_sdpa_patched as _mark_sdpa_patched,
+)
+from models.attention import (
+    patch_eager_attention_to_sdpa as _patch_eager_attention_to_sdpa,
+)
+from models.gpu_utils import print_gpu_status as _print_gpu_status
+from models.gpu_utils import quiet_loading as _quiet_loading
+from models.sharding import split_internvl_model as _split_internvl_model
 
 type ModelLoader = Callable[..., AbstractContextManager[tuple[Any, Any]]]
 type ProcessorCreator = Callable[..., Any]
@@ -50,44 +51,6 @@ class ModelRegistration:
 
 
 _REGISTRY: dict[str, ModelRegistration] = {}
-_sdpa_patched: bool = False
-
-
-def _print_gpu_status(console) -> None:
-    """Print GPU memory usage table after model loading."""
-    import torch
-
-    if not torch.cuda.is_available():
-        return
-
-    from rich.table import Table
-
-    gpu_table = Table(
-        title="GPU Status",
-        show_header=True,
-        header_style="bold cyan",
-    )
-    gpu_table.add_column("GPU", style="white")
-    gpu_table.add_column("Total", justify="right", style="dim")
-    gpu_table.add_column("Allocated", justify="right")
-    gpu_table.add_column("Reserved", justify="right")
-    gpu_table.add_column("Utilization", justify="right")
-
-    for gpu_id in range(torch.cuda.device_count()):
-        props = torch.cuda.get_device_properties(gpu_id)
-        vram = props.total_memory / (1024**3)
-        alloc = torch.cuda.memory_allocated(gpu_id) / (1024**3)
-        resv = torch.cuda.memory_reserved(gpu_id) / (1024**3)
-        util = (resv / vram) * 100 if vram > 0 else 0
-        color = "green" if util < 50 else ("yellow" if util < 80 else "red")
-        gpu_table.add_row(
-            f"{gpu_id}: {props.name}",
-            f"{vram:.1f} GB",
-            f"{alloc:.2f} GB",
-            f"{resv:.2f} GB",
-            f"[{color}]{util:.1f}%[/{color}]",
-        )
-    console.print(gpu_table)
 
 
 def register_model(registration: ModelRegistration) -> None:
@@ -118,152 +81,9 @@ def _get_requires_sharding(model_type: str) -> bool:
     return reg.requires_sharding if reg else False
 
 
-def _patch_eager_attention_to_sdpa() -> bool:
-    """Monkey-patch eager attention to use PyTorch SDPA globally.
-
-    Replaces the eager_attention_forward entry in transformers'
-    ALL_ATTENTION_FUNCTIONS registry with F.scaled_dot_product_attention.
-    This avoids materializing the full O(N²) attention matrix, which
-    OOMs on multi-GPU with high tile counts.
-
-    Returns:
-        True if the patch was applied, False otherwise.
-    """
-    import torch.nn.functional as F
-
-    def _sdpa_attention(
-        module,
-        query,
-        key,
-        value,
-        attention_mask=None,
-        scaling=None,
-        dropout=0.0,
-        **kwargs,
-    ):
-        dp = dropout if module.training else 0.0
-
-        # Expand KV heads to match Q heads so all SDPA backends are eligible.
-        # enable_gqa=True dispatches to flash on PyTorch 2.9+ but produces
-        # degraded accuracy and throughput in practice (64.4% vs 67.9%,
-        # 3.48 vs 4.31 img/min) — likely due to attention mask interaction.
-        # Manual expansion is proven reliable. See notebooks/sdpa_gqa_diagnostic.ipynb.
-        num_kv_heads = key.shape[1]
-        num_q_heads = query.shape[1]
-        if num_kv_heads != num_q_heads:
-            repeat_factor = num_q_heads // num_kv_heads
-            key = key.repeat_interleave(repeat_factor, dim=1)
-            value = value.repeat_interleave(repeat_factor, dim=1)
-
-        # Prepare causal mask: truncate to KV length and ensure
-        # head dim is broadcastable.
-        causal_mask = attention_mask
-        if causal_mask is not None:
-            causal_mask = causal_mask[:, :, :, : key.shape[-2]]
-            if causal_mask.shape[1] > 1 and causal_mask.shape[1] != num_q_heads:
-                causal_mask = causal_mask[:, :1, :, :]
-
-        is_causal = causal_mask is None and query.shape[2] > 1
-        if is_causal:
-            causal_mask = None
-
-        attn_output = F.scaled_dot_product_attention(
-            query.contiguous(),
-            key.contiguous(),
-            value.contiguous(),
-            attn_mask=causal_mask,
-            dropout_p=dp,
-            scale=scaling,
-            is_causal=is_causal,
-        )
-        # Transpose to [batch, seq, heads, dim] to match eager_attention_forward's
-        # output layout — the caller does .reshape(*input_shape, -1) which
-        # requires seq before heads.
-        attn_output = attn_output.transpose(1, 2).contiguous()
-        return attn_output, None
-
-    patched = False
-
-    # Patch the global attention function registry (transformers 4.46+)
-    try:
-        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
-
-        ALL_ATTENTION_FUNCTIONS["eager"] = _sdpa_attention
-        patched = True
-    except (ImportError, AttributeError):
-        pass
-
-    # Also patch module-level function references as a fallback.
-    # The global registry patch is primary; these catch models that
-    # reference eager_attention_forward directly in their module.
-    for module_path in (
-        "transformers.models.qwen3.modeling_qwen3",
-        "transformers.models.qwen3_5.modeling_qwen3_5",
-        "transformers.models.qwen3_vl.modeling_qwen3_vl",
-    ):
-        try:
-            import importlib
-
-            mod = importlib.import_module(module_path)
-            mod.eager_attention_forward = _sdpa_attention  # type: ignore[attr-defined]
-            patched = True
-        except (ImportError, AttributeError):
-            pass
-
-    return patched
-
-
 # ============================================================================
 # InternVL3 Registration (lazy imports — no torch/transformers at module level)
 # ============================================================================
-
-
-def _split_internvl_model(model_path: str) -> dict[str, int]:
-    """Build a device_map that shards an InternVL model across all GPUs.
-
-    GPU 0 hosts the vision encoder, MLP projector, embeddings, norm, and
-    output head — so it gets fewer LLM layers.  The remaining layers are
-    distributed evenly across all GPUs.  The final LLM layer is pinned back
-    to GPU 0 to avoid cross-device tensor mismatches during generation.
-
-    Reference: OpenGVLab/InternVL official multi-GPU example.
-    """
-    import math
-
-    import torch
-    from transformers import AutoConfig
-
-    world_size = torch.cuda.device_count()
-    cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
-    num_layers = cfg.llm_config.num_hidden_layers
-
-    # GPU 0 counts as "half" because it also hosts the vision model
-    layers_per_gpu = math.ceil(num_layers / (world_size - 0.5))
-    per_gpu = [layers_per_gpu] * world_size
-    per_gpu[0] = math.ceil(per_gpu[0] * 0.5)
-
-    device_map: dict[str, int] = {}
-    layer_idx = 0
-    for gpu_id, n_layers in enumerate(per_gpu):
-        for _ in range(n_layers):
-            if layer_idx >= num_layers:
-                break
-            device_map[f"language_model.model.layers.{layer_idx}"] = gpu_id
-            layer_idx += 1
-
-    # Fixed components on GPU 0
-    device_map["vision_model"] = 0
-    device_map["mlp1"] = 0
-    device_map["language_model.model.tok_embeddings"] = 0
-    device_map["language_model.model.embed_tokens"] = 0
-    device_map["language_model.output"] = 0
-    device_map["language_model.model.norm"] = 0
-    device_map["language_model.model.rotary_emb"] = 0
-    device_map["language_model.lm_head"] = 0
-    # Pin last layer to GPU 0 to prevent cross-device errors in generation
-    device_map[f"language_model.model.layers.{num_layers - 1}"] = 0
-
-    return device_map
 
 
 def _internvl3_loader(config):
@@ -359,11 +179,10 @@ def _internvl3_loader(config):
             # Only apply SDPA monkey-patch when flash-attn is NOT installed.
             # With native flash-attn, the model uses flash_attention_2 backend
             # directly — the eager->SDPA patch is unnecessary.
-            global _sdpa_patched  # noqa: PLW0603
-            if cfg.flash_attn and not _has_native_flash and not _sdpa_patched:
+            if cfg.flash_attn and not _has_native_flash and not _is_sdpa_patched():
                 if _patch_eager_attention_to_sdpa():
                     console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                    _sdpa_patched = True
+                    _mark_sdpa_patched()
                 else:
                     console.print(
                         "[yellow]Warning: could not patch attention "
@@ -820,11 +639,10 @@ def _qwen3vl_loader(config):
             # Apply SDPA patch when flash-attn is not installed — routes
             # eager attention through F.scaled_dot_product_attention which
             # uses the flash backend on Ampere+ GPUs natively.
-            global _sdpa_patched  # noqa: PLW0603
-            if cfg.flash_attn and not _has_native_flash and not _sdpa_patched:
+            if cfg.flash_attn and not _has_native_flash and not _is_sdpa_patched():
                 if _patch_eager_attention_to_sdpa():
                     console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                    _sdpa_patched = True
+                    _mark_sdpa_patched()
                 else:
                     console.print(
                         "[yellow]Warning: could not patch attention "
@@ -1355,11 +1173,10 @@ def _qwen35_loader(config):
             # Apply SDPA patch when flash-attn is not installed — routes
             # eager attention through F.scaled_dot_product_attention which
             # uses the flash backend on Ampere+ GPUs natively.
-            global _sdpa_patched  # noqa: PLW0603
-            if not _has_native_flash and not _sdpa_patched:
+            if not _has_native_flash and not _is_sdpa_patched():
                 if _patch_eager_attention_to_sdpa():
                     console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                    _sdpa_patched = True
+                    _mark_sdpa_patched()
                 else:
                     console.print(
                         "[yellow]Warning: could not patch attention "
