@@ -20,6 +20,8 @@ from typing import Any
 
 from rich.console import Console
 
+from common.pipeline_ops import create_processor, load_model, run_batch
+
 console = Console()
 
 # Serialize model loading to avoid transformers lazy-import race conditions.
@@ -54,7 +56,6 @@ class MultiGPUOrchestrator:
 
         Returns merged (batch_results, processing_times, document_types_found, batch_stats).
         """
-        from cli import create_processor, load_model
         from models.gpu_utils import print_gpu_status as _print_gpu_status
 
         chunks = self._partition_images(images)
@@ -146,10 +147,8 @@ class MultiGPUOrchestrator:
         field_definitions: dict[str, list[str]],
     ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
         """Process an image chunk using a pre-loaded model/processor stack."""
-        from cli import run_batch_processing
-
         gpu_config, _model_ctx, processor = gpu_stack
-        return run_batch_processing(gpu_config, processor, images, field_definitions)
+        return run_batch(gpu_config, processor, images, field_definitions)
 
     @staticmethod
     def _shuffle_images(images: list[Path]) -> list[Path]:

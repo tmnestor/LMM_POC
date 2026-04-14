@@ -1,51 +1,76 @@
-Here are the deepening opportunities I found, ordered by coupling severity and ROI:                                                                                     
-                                                                                                                                                                        
----                                                                                                                                                                     
-1. Bank Statement Extraction Cluster (3 files co-owning one domain)                                                                                                     
-                                                                                                                                                                        
-- Cluster: unified_bank_extractor.py (1,725 LOC), bank_statement_adapter.py (227 LOC), bank_statement_calculator.py (1,339 LOC)                                         
-- Why they're coupled: All three co-own "bank statement extraction" — adapter routes to extractor, extractor calls calculator for balance verification, and they share  
-types/state (strategy enums, column mappings, extraction results). Understanding any one requires reading all three.
-- Dependency category: Intra-module (same domain split across files)                                                                                                    
-- Test impact: Currently untestable in isolation because multi-turn state, strategy selection, and balance arithmetic are interleaved. A unified BankStatementService   
-with a single extract(image) -> Result boundary would replace integration-style manual testing with proper boundary tests.                                              
-                                                                                                                                                                        
----                                                                                                                                                                     
-2. Configuration Cascade (mutable globals + immutable dataclass, split authority)
+  ---
+  Candidates
 
-- Cluster: pipeline_config.py (411 LOC), common/config.py / model_config.py (358 LOC), cli.py (945 LOC)
-- Why they're coupled: PipelineConfig is an immutable dataclass, but model_config.py has mutable module-level globals (GENERATION_CONFIGS, DEFAULT_BATCH_SIZES) that are
-mutated at startup via apply_yaml_overrides(). Two config objects must stay in sync — one dataclass, one set of globals.
-- Dependency category: Shared mutable state (module globals act as hidden dependency)
-- Test impact: Can't test config merging without importing and mutating module globals. A ConfigurationManager that owns the full cascade (CLI > YAML > ENV > defaults)
-would be testable with pure inputs.
+  1. Extraction Parser + Cleaner — Scattered Field-Type Knowledge
 
----
-3. Batch Processing Orchestration (1,302 LOC god method)
+  Cluster: common/extraction_parser.py (790 LOC), common/extraction_cleaner.py (817 LOC), common/field_schema.py
 
-- Cluster: batch_processor.py — specifically _process_batch_two_phase() (300+ LOC) and _process_batch_sequential() (200+ LOC)
-- Why they're coupled: Detection, extraction, bank-vs-standard partitioning, OOM fallback (recursive batch halving), ground truth override, and evaluation metrics are
-all interleaved in nested loops. Progress bar state management is scattered throughout.
-- Dependency category: Temporal coupling (phases must run in order, but logic is entangled)
-- Test impact: Can't test detection phase without also running extraction. Splitting into DetectionPhase, ExtractionPhase, EvaluationPhase strategies would allow
-testing each in isolation.
+  Why they're coupled: Both modules independently look up field types to decide how to handle values. extraction_cleaner.py hardcodes
+  ~80 field-name substring patterns (e.g., "AMOUNT", "PRICE") to decide cleaning strategy, duplicating what FieldSchema already
+  defines as monetary_fields, date_fields, etc. Callers (orchestrator, bank extractor) must know to call parser then cleaner in order,
+   with no composition.
 
----
-4. GPU Memory Management (fragmented across 4+ files)
+  Dependency category: In-process — pure string→dict transformation, no I/O.
 
-- Cluster: gpu_optimization.py (657 LOC), robust_gpu_memory.py (175 LOC), registry.py (_split_internvl_model()), processor files (cleanup calls)
-- Why they're coupled: OOM recovery requires coordination across all four — catch in processor, cleanup via gpu_optimization, check fragmentation via robust_gpu_memory,
-device map from registry. The critical "never call empty_cache() inside except" pattern is a timing constraint that no interface enforces.
-- Dependency category: Cross-cutting concern (GPU memory is global state affecting all processors)
-- Test impact: Currently impossible to test OOM recovery without a GPU. A GPUMemoryManager class with injectable allocator/monitor would allow mock-based testing of
-recovery logic.
+  Test impact: Currently no tests for either module. A unified boundary test could verify "raw model output → cleaned extraction dict"
+   in one shot.
 
----
-5. Extraction Parsing & Cleaning Pipeline (unclear boundary between two stages)
+  ---
+  2. Multi-GPU Orchestrator — Circular Import with cli.py
 
-- Cluster: extraction_parser.py (807 LOC), extraction_cleaner.py (817 LOC)
-- Why they're coupled: Both load field_definitions.yaml independently, both assume the same output structure, and both use hardcoded magic strings (AMOUNT, PRICE,
-LINE_ITEM) for field-type detection. No explicit contract between them — they're called serially in batch_processor.py without error handling between stages.
-- Dependency category: Sequential pipeline with implicit contract
-- Test impact: Field type detection logic is duplicated. A unified FieldProcessor registry driven by field_definitions.yaml would eliminate the magic strings and make
-each field type independently testable.
+  Cluster: common/multi_gpu.py (219 LOC), cli.py
+
+  Why they're coupled: multi_gpu.py imports create_processor and load_model from cli.py at runtime. cli.py imports
+  MultiGPUOrchestrator from multi_gpu.py. This circular dependency means multi-GPU can't be used from notebooks or other entry points
+  without pulling in the entire CLI.
+
+  Dependency category: In-process — the circular import is a code structure problem, not an I/O boundary.
+
+  Test impact: Currently untestable in isolation — requires mocking cli.py functions. Breaking the cycle would let you test multi-GPU
+  partitioning logic independently.
+
+  ---
+  3. Prompt Loading — 5 Entry Points, No Unified Access
+
+  Cluster: common/simple_prompt_loader.py (169 LOC), common/unified_bank_extractor.py (internal ConfigLoader), models/orchestrator.py
+  (prompt methods), cli.py (load_prompt_config())
+
+  Why they're coupled: Five different code paths load prompts from YAML files in prompts/. SimplePromptLoader, the bank extractor's
+  ConfigLoader, and CLI's load_prompt_config() all independently resolve prompt file paths and parse YAML. Adding a new document type
+  requires touching multiple files to register its prompt routing.
+
+  Dependency category: Local-substitutable — YAML file reads that could be tested with fixture files.
+
+  Test impact: No tests for prompt loading. A single PromptManager boundary test could verify "document type + model → correct prompt
+  text" without reading actual YAML files.
+
+  ---
+  4. Batch Statistics & Reporting — Stats Computed in 4 Places
+
+  Cluster: common/batch_analytics.py (250 LOC), common/batch_reporting.py (328 LOC), common/batch_visualizations.py (335 LOC),
+  common/document_pipeline.py (stats in _run_pipeline)
+
+  Why they're coupled: Statistics are computed in DocumentPipeline, then re-computed in BatchAnalytics, then formatted in
+  BatchReporter, then plotted in BatchVisualizer. Each module assumes specific dict/DataFrame shapes from the others. No unified stats
+   object — BatchStats (typed) coexists with ad-hoc dicts and DataFrames.
+
+  Dependency category: In-process — pure computation over result dicts.
+
+  Test impact: No tests. A single StatsCollector boundary test could verify "list of batch results → complete stats + report
+  artifacts."
+
+  ---
+  5. Evaluation Metrics — Field-Type-Aware Logic Scattered Across Functions
+
+  Cluster: common/evaluation_metrics.py (2172 LOC), common/extraction_evaluator.py (441 LOC)
+
+  Why they're coupled: evaluation_metrics.py has 7+ separate functions that each independently check field types (monetary, date,
+  list, boolean) against FieldSchema. Ground truth loading hardcodes possible column names. extraction_evaluator.py wraps these calls
+  but doesn't own the field-type logic — it just sequences them.
+
+  Dependency category: In-process — pure comparison logic.
+
+  Test impact: Existing tests are minimal. Boundary tests at "ground truth + extraction → per-field F1 scores" would replace needing
+  to test each comparison function individually.
+
+  ---
