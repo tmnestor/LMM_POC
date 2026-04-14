@@ -35,10 +35,13 @@ class MultiGPUOrchestrator:
       2. Process image chunks in parallel (GIL released during CUDA kernels)
     """
 
-    def __init__(self, config, num_gpus: int, *, shuffle: bool = False) -> None:
+    def __init__(
+        self, config, num_gpus: int, *, shuffle: bool = False, app_config=None
+    ) -> None:
         self.config = config
         self.num_gpus = num_gpus
         self.shuffle = shuffle
+        self.app_config = app_config
 
     def run(
         self,
@@ -89,6 +92,7 @@ class MultiGPUOrchestrator:
                 prompt_config,
                 universal_fields,
                 field_definitions,
+                app_config=self.app_config,
             )
             gpu_stacks.append((gpu_config, model_ctx, processor))
 
