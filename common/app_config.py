@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from common.pipeline_config import PipelineConfig
@@ -43,19 +43,19 @@ class BatchSettings:
     )
 
     # Batch size defaults (formerly mutable globals in model_config.py)
-    _DEFAULT_SIZES: dict[str, int] = {
+    _DEFAULT_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 4,
         "internvl3-2b": 4,
         "internvl3-8b": 4,
         "qwen3vl": 4,
     }
-    _MAX_SIZES: dict[str, int] = {
+    _MAX_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 8,
         "internvl3-2b": 8,
         "internvl3-8b": 16,
         "qwen3vl": 8,
     }
-    _CONSERVATIVE_SIZES: dict[str, int] = {
+    _CONSERVATIVE_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 1,
         "internvl3-2b": 2,
         "internvl3-8b": 1,
