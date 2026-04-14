@@ -375,13 +375,35 @@ class AppConfig:
         "use_cache": True,
     }
 
+    @staticmethod
+    def _normalize_model_type(model_type: str) -> str:
+        """Strip deployment suffixes to find base model config.
+
+        ``"internvl3-vllm"`` -> ``"internvl3"``,
+        ``"internvl3-14b-vllm"`` -> ``"internvl3"``.
+        """
+        key = model_type.lower()
+        # Strip -vllm suffix
+        if key.endswith("-vllm"):
+            key = key[: -len("-vllm")]
+        # Strip size suffixes (-8b, -14b, -38b, etc.)
+        parts = key.rsplit("-", 1)
+        if len(parts) == 2 and parts[1].endswith("b") and parts[1][:-1].isdigit():
+            key = parts[0]
+        # Strip -w4a16 quantization suffix
+        if key.endswith("-w4a16"):
+            key = key[: -len("-w4a16")]
+        return key
+
     def get_generation_config(self, model_type: str) -> dict[str, Any]:
         """Same signature as model_config.get_generation_config().
 
         Returns a copy so callers can mutate freely.
+        Strips deployment suffixes (``-vllm``, ``-14b``) for config lookup.
         """
+        key = self._normalize_model_type(model_type)
         return dict(
-            self._generation_registry.get(model_type, self._FALLBACK_GENERATION_CONFIG)
+            self._generation_registry.get(key, self._FALLBACK_GENERATION_CONFIG)
         )
 
     def get_batch_size_for_model(
@@ -389,7 +411,7 @@ class AppConfig:
     ) -> int:
         """Get recommended batch size for a model based on strategy."""
         strategy = strategy or self.batch.strategy
-        model_name = model_name.lower()
+        model_name = self._normalize_model_type(model_name)
 
         if strategy == "conservative":
             return self.batch.conservative_sizes.get(model_name, self.batch.min_size)
