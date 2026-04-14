@@ -134,7 +134,7 @@ class BatchDocumentProcessor:
         Args:
             model: Model handler implementing DocumentProcessor protocol.
             evaluator: Pre-configured evaluator for scoring extractions.
-            bank_adapter: Optional BankStatementAdapter for multi-turn bank extraction.
+            bank_adapter: Optional UnifiedBankExtractor for multi-turn bank extraction.
             batch_size: Images per batch (None = auto-detect, 1 = sequential).
             console: Rich console for output.
         """
@@ -243,8 +243,6 @@ class BatchDocumentProcessor:
                 "image_file": ext.image_name,
                 "processing_time": ext.processing_time,
             }
-            if ext.skip_math_enhancement:
-                extraction_result_dict["skip_math_enhancement"] = True
 
             image_results.append(
                 ImageResult(
@@ -497,9 +495,6 @@ class BatchDocumentProcessor:
                         extracted_data=extraction_result.get("extracted_data", {}),
                         processing_time=img_time,
                         prompt_used=prompt_name,
-                        skip_math_enhancement=extraction_result.get(
-                            "skip_math_enhancement", False
-                        ),
                     )
                 except Exception as e:
                     logger.error("Error processing %s: %s", det.image_name, e)
@@ -546,9 +541,6 @@ class BatchDocumentProcessor:
                     extracted_data=extraction_result.get("extracted_data", {}),
                     processing_time=bank_time,
                     prompt_used=prompt_name,
-                    skip_math_enhancement=extraction_result.get(
-                        "skip_math_enhancement", False
-                    ),
                 )
             except Exception as e:
                 logger.error(
@@ -581,7 +573,7 @@ class BatchDocumentProcessor:
     def _process_image(self, image_path: str, verbose: bool) -> tuple[str, dict, str]:
         """Process single image using model handler.
 
-        Routes bank statements to BankStatementAdapter when available,
+        Routes bank statements to UnifiedBankExtractor when available,
         otherwise uses standard document-aware extraction for all types.
 
         Returns:
@@ -599,7 +591,7 @@ class BatchDocumentProcessor:
 
         # Step 2: Route bank statements to adapter when available
         if document_type.upper() == "BANK_STATEMENT" and self.bank_adapter is not None:
-            logger.debug("BANK STATEMENT: Routing to BankStatementAdapter")
+            logger.debug("BANK STATEMENT: Routing to UnifiedBankExtractor")
 
             try:
                 schema_fields, metadata = self.bank_adapter.extract_bank_statement(
@@ -627,7 +619,7 @@ class BatchDocumentProcessor:
                 return document_type, extraction_result, prompt_name
 
             except Exception as e:
-                logger.warning("BankStatementAdapter failed: %s", e)
+                logger.warning("UnifiedBankExtractor failed: %s", e)
                 logger.warning("Falling back to standard extraction...")
 
         # Step 3: Standard document-aware extraction
@@ -673,7 +665,7 @@ def create_batch_pipeline(
         ground_truth_csv: Path to ground truth CSV file. None = inference-only.
         console: Rich console for output.
         enable_math_enhancement: Whether to apply math enhancement for bank statements.
-        bank_adapter: Optional BankStatementAdapter for multi-turn bank extraction.
+        bank_adapter: Optional UnifiedBankExtractor for multi-turn bank extraction.
         field_definitions: Pre-loaded field definitions. If None, loads from YAML.
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
 

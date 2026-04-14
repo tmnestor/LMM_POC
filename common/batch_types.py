@@ -29,7 +29,6 @@ class ExtractionOutput:
     extracted_data: dict[str, str]
     processing_time: float
     prompt_used: str
-    skip_math_enhancement: bool = False
     error: str | None = None
 
 

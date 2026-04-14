@@ -105,7 +105,6 @@ class ExtractionEvaluator:
             ground_truth=ground_truth,
             document_type=extraction.document_type,
             image_name=extraction.image_name,
-            skip_math_enhancement=extraction.skip_math_enhancement,
         )
 
     def _lookup_ground_truth(self, image_path: str) -> dict:
@@ -134,21 +133,18 @@ class ExtractionEvaluator:
         ground_truth: dict[str, Any],
         document_type: str,
         image_name: str,
-        skip_math_enhancement: bool = False,
     ) -> dict[str, Any]:
         """Evaluate extraction results against ground truth.
 
         Handles mathematical enhancement for bank statements, field filtering,
         F1 scoring (standard or correlation), and metric aggregation.
         """
-        # Apply mathematical enhancement for bank statements
-        # Skip if already handled by UnifiedBankExtractor (V2 sophisticated extraction)
+        # Apply mathematical enhancement for bank statements.
+        # The calculator is idempotent: when BalanceCorrector already corrected
+        # during extraction, amounts and balance deltas already agree so
+        # the calculator makes zero corrections.
         mathematical_analysis = None
-        if (
-            document_type.upper() == "BANK_STATEMENT"
-            and self.enable_math_enhancement
-            and not skip_math_enhancement
-        ):
+        if document_type.upper() == "BANK_STATEMENT" and self.enable_math_enhancement:
             from .bank_statement_calculator import enhance_bank_statement_extraction
 
             logger.debug("Applying mathematical enhancement for bank statement")
@@ -167,8 +163,6 @@ class ExtractionEvaluator:
 
             logger.debug("Filtering to debit-only transactions for evaluation")
             extracted_data = self._filter_debit_transactions(extracted_data)
-        elif skip_math_enhancement:
-            logger.debug("Skipping math enhancement (handled by UnifiedBankExtractor)")
 
         found_fields = [k for k, v in extracted_data.items() if v != "NOT_FOUND"]
         logger.debug("Extracted %d fields from %s", len(found_fields), image_name)

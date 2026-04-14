@@ -23,8 +23,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-# Local imports
-from common.bank_statement_adapter import BankStatementAdapter
 from common.batch_analytics import BatchAnalytics
 from common.batch_processor import (
     create_batch_pipeline,
@@ -42,6 +40,9 @@ from common.pipeline_config import (
     strip_structure_suffixes,
     validate_config,
 )
+
+# Local imports
+from common.unified_bank_extractor import UnifiedBankExtractor
 from models.registry import get_model, list_models
 
 # ============================================================================
@@ -231,7 +232,7 @@ def run_batch_processing(
             "[bold cyan]Setting up sophisticated bank statement extraction...[/bold cyan]"
         )
 
-        bank_adapter = BankStatementAdapter(
+        bank_adapter = UnifiedBankExtractor(
             generate_fn=processor.generate,
             verbose=config.verbose,
             use_balance_correction=config.balance_correction,
