@@ -392,11 +392,10 @@ def _internvl3_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
-    """Create a DocumentAwareInternVL3HybridProcessor from loaded components.
-
-    Create a DocumentAwareInternVL3HybridProcessor from loaded components.
-    """
+    """Create a DocumentAwareInternVL3HybridProcessor from loaded components."""
     from models.document_aware_internvl3_processor import (
         DocumentAwareInternVL3HybridProcessor,
     )
@@ -549,6 +548,8 @@ def _internvl3_vllm_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareVllmProcessor for InternVL3 via vLLM."""
     from models.document_aware_vllm_processor import (
@@ -565,6 +566,7 @@ def _internvl3_vllm_processor_creator(
         prompt_config=prompt_config,
         field_definitions=field_definitions,
         model_type_key="internvl3",
+        app_config=app_config,
     )
 
 
@@ -702,6 +704,8 @@ def _llama_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareLlamaProcessor from loaded components.
 
@@ -846,6 +850,8 @@ def _qwen3vl_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareQwen3VLProcessor from loaded components.
 
@@ -864,6 +870,7 @@ def _qwen3vl_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -981,6 +988,8 @@ def _llama4scout_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareLlama4Processor from loaded components.
 
@@ -999,6 +1008,7 @@ def _llama4scout_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -1111,6 +1121,8 @@ def _llama4scout_w4a16_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareVllmProcessor from a vLLM engine."""
     from models.document_aware_vllm_processor import (
@@ -1126,6 +1138,7 @@ def _llama4scout_w4a16_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,  # None
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -1229,6 +1242,8 @@ def _nemotron_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareNemotronProcessor from loaded components.
 
@@ -1247,6 +1262,7 @@ def _nemotron_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -1369,6 +1385,8 @@ def _qwen35_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareQwen35Processor from loaded components.
 
@@ -1387,6 +1405,7 @@ def _qwen35_processor_creator(
         pre_loaded_processor=tokenizer_or_processor,
         prompt_config=prompt_config,
         field_definitions=field_definitions,
+        app_config=app_config,
     )
 
 
@@ -1561,6 +1580,8 @@ def _qwen_vllm_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareVllmProcessor for Qwen models via vLLM."""
     from models.document_aware_vllm_processor import (
@@ -1577,6 +1598,7 @@ def _qwen_vllm_processor_creator(
         prompt_config=prompt_config,
         field_definitions=field_definitions,
         model_type_key=config.model_type,
+        app_config=app_config,
     )
 
 
@@ -1694,6 +1716,8 @@ def _gemma4_vllm_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a DocumentAwareVllmProcessor for Gemma 4 via vLLM."""
     from models.document_aware_vllm_processor import (
@@ -1710,6 +1734,7 @@ def _gemma4_vllm_processor_creator(
         prompt_config=prompt_config,
         field_definitions=field_definitions,
         model_type_key="gemma4",
+        app_config=app_config,
     )
 
 
@@ -1809,6 +1834,8 @@ def _granite4_vision_processor_creator(
     prompt_config,
     universal_fields,
     field_definitions,
+    *,
+    app_config=None,
 ):
     """Create a placeholder processor for Granite 4.0 3B Vision.
 

@@ -16,15 +16,21 @@ InternVL3 and Llama (3.2) remain direct BaseDocumentProcessor subclasses
 because their inference APIs are fundamentally different.
 """
 
+from __future__ import annotations
+
 import abc
 import gc
 import sys
 import time
 from pathlib import Path
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
+
+if TYPE_CHECKING:
+    from PIL import Image
+
+    from common.app_config import AppConfig
 
 import torch
-from PIL import Image
 
 from common.extraction_parser import parse_extraction_response
 from common.model_config import get_generation_config
@@ -66,6 +72,7 @@ class SimpleDocumentProcessor(BaseDocumentProcessor):
         prompt_config: dict[str, Any] | None = None,
         field_definitions: dict[str, list[str]] | None = None,
         model_type_key: str | None = None,
+        app_config: AppConfig | None = None,
     ):
         self.model_path = model_path
         self.model = pre_loaded_model
@@ -91,6 +98,7 @@ class SimpleDocumentProcessor(BaseDocumentProcessor):
             device=device,
             batch_size=batch_size,
             model_type_key=self._effective_model_type_key,
+            app_config=app_config,
         )
 
         self._configure_generation()
@@ -118,9 +126,12 @@ class SimpleDocumentProcessor(BaseDocumentProcessor):
 
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters from model_config registry."""
-        self.gen_config: dict[str, Any] = get_generation_config(
-            self._effective_model_type_key
-        )
+        if self.app_config is not None:
+            self.gen_config: dict[str, Any] = self.app_config.get_generation_config(
+                self._effective_model_type_key
+            )
+        else:
+            self.gen_config = get_generation_config(self._effective_model_type_key)
 
         self.fallback_max_tokens = max(
             int(self.gen_config.get("max_new_tokens_base", 512)),

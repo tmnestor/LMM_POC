@@ -11,11 +11,16 @@ BaseDocumentProcessor is purely an *implementation detail* shared by
 the InternVL3 and Llama concrete processors.
 """
 
+from __future__ import annotations
+
 import abc
 import sys
 import traceback
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from common.app_config import AppConfig
 
 import yaml
 from PIL import Image
@@ -81,12 +86,14 @@ class BaseDocumentProcessor(abc.ABC):
         device: str = "cuda",
         batch_size: int | None = None,
         model_type_key: str = "internvl3",
+        app_config: AppConfig | None = None,
     ) -> None:
         """Common initialisation used by both processors.
 
         Must be called from the subclass ``__init__`` *after* setting
         ``self.model``, ``self.tokenizer``, etc.
         """
+        self.app_config = app_config
         self.field_list = field_list
         self.field_count = len(field_list)
         self.debug = debug
@@ -156,7 +163,12 @@ class BaseDocumentProcessor(abc.ABC):
             from common.gpu_optimization import get_available_gpu_memory
 
             available_memory = get_available_gpu_memory(self.device)
-            self.batch_size = get_auto_batch_size(model_type_key, available_memory)
+            if self.app_config is not None:
+                self.batch_size = self.app_config.get_auto_batch_size(
+                    model_type_key, available_memory
+                )
+            else:
+                self.batch_size = get_auto_batch_size(model_type_key, available_memory)
             if self.debug:
                 print(
                     f"🤖 Auto-detected batch size: {self.batch_size} "

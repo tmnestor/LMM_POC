@@ -33,6 +33,7 @@ class DocumentAwareVllmProcessor(SimpleDocumentProcessor):
         prompt_config: dict[str, Any] | None = None,
         field_definitions: dict[str, list[str]] | None = None,
         model_type_key: str = "llama4scout",
+        app_config=None,
     ):
         super().__init__(
             field_list=field_list,
@@ -45,6 +46,7 @@ class DocumentAwareVllmProcessor(SimpleDocumentProcessor):
             prompt_config=prompt_config,
             field_definitions=field_definitions,
             model_type_key=model_type_key,
+            app_config=app_config,
         )
         self.llm_engine = self.model
 

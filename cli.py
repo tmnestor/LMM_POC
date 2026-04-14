@@ -23,6 +23,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from common.app_config import AppConfig, ConfigError
 from common.batch_analytics import BatchAnalytics
 from common.batch_processor import (
     create_batch_pipeline,
@@ -33,12 +34,8 @@ from common.batch_visualizations import BatchVisualizer
 from common.pipeline_config import (
     PipelineConfig,
     discover_images,
-    load_env_config,
     load_structure_suffixes,
-    load_yaml_config,
-    merge_configs,
     strip_structure_suffixes,
-    validate_config,
 )
 
 # Local imports
@@ -206,6 +203,8 @@ def create_processor(
     prompt_config: dict[str, Any],
     universal_fields: list[str],
     field_definitions: dict[str, list[str]],
+    *,
+    app_config: AppConfig | None = None,
 ) -> Any:
     """Create document extraction processor from loaded components.
 
@@ -213,7 +212,13 @@ def create_processor(
     """
     registration = get_model(config.model_type)
     return registration.processor_creator(
-        model, tokenizer, config, prompt_config, universal_fields, field_definitions
+        model,
+        tokenizer,
+        config,
+        prompt_config,
+        universal_fields,
+        field_definitions,
+        app_config=app_config,
     )
 
 
@@ -509,7 +514,9 @@ def print_config(config: PipelineConfig) -> None:
 # ============================================================================
 
 
-def run_pipeline(config: PipelineConfig) -> None:
+def run_pipeline(
+    config: PipelineConfig, *, app_config: AppConfig | None = None
+) -> None:
     """Run the full extraction pipeline from a validated config.
 
     This function is independently callable from tests, notebooks, or the CLI.
@@ -621,6 +628,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                     prompt_config,
                     universal_fields,
                     field_definitions,
+                    app_config=app_config,
                 )
 
                 _inference_start = _time.time()
@@ -868,67 +876,36 @@ def main(
     if document_types is not None:
         cli_args["document_types"] = [t.strip() for t in document_types.split(",")]
 
-    # Load configs from different sources
-    # Always load the default run_config.yml; --config overrides the path
+    # Validate model_type early if provided on CLI (fail fast)
+    if model_type is not None:
+        try:
+            get_model(model_type)
+        except ValueError:
+            available = ", ".join(list_models()) or "(none)"
+            console.print(f"[red]FATAL: Unknown model type: '{model_type}'[/red]")
+            console.print(f"[yellow]Available models: {available}[/yellow]")
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Resolve config path
     default_config = Path(__file__).parent / "config" / "run_config.yml"
     resolved_config = config_file or (
         default_config if default_config.exists() else None
     )
 
-    yaml_config: dict[str, Any] = {}
-    raw_config: dict[str, Any] = {}
-    if resolved_config:
-        try:
-            yaml_config, raw_config = load_yaml_config(resolved_config)
-        except FileNotFoundError:
-            # Only fatal when the user explicitly passed --config
-            if config_file:
-                console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
-                console.print("[yellow]Expected: YAML configuration file[/yellow]")
-                raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Apply YAML overrides to module-level constants (batch, generation, gpu)
-    if raw_config:
-        from common.model_config import apply_yaml_overrides
-
-        apply_yaml_overrides(raw_config)
-
-    env_config = load_env_config()
-
-    # Check required fields
-    merged_check = {**env_config, **yaml_config, **cli_args}
-    if not merged_check.get("data_dir"):
-        console.print("[red]FATAL: --data-dir is required[/red]")
-        console.print(
-            "[yellow]Specify via CLI, config file, or IVL_DATA_DIR environment variable[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    if not merged_check.get("output_dir"):
-        console.print("[red]FATAL: --output-dir is required[/red]")
-        console.print(
-            "[yellow]Specify via CLI, config file, or IVL_OUTPUT_DIR environment variable[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Validate model_type early (fail fast with available models)
-    resolved_model_type = merged_check.get("model_type", "internvl3")
+    # Load unified config (replaces 7-step dance: YAML, ENV, merge, validate)
     try:
-        get_model(resolved_model_type)
-    except ValueError:
-        available = ", ".join(list_models()) or "(none)"
-        console.print(f"[red]FATAL: Unknown model type: '{resolved_model_type}'[/red]")
-        console.print(f"[yellow]Available models: {available}[/yellow]")
+        app = AppConfig.load(cli_args, config_path=resolved_config)
+    except FileNotFoundError:
+        if config_file:
+            console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
+            console.print("[yellow]Expected: YAML configuration file[/yellow]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Merge and validate configuration
-    config = merge_configs(cli_args, yaml_config, env_config, raw_config)
-
-    errors = validate_config(config)
-    if errors:
-        for error in errors:
+    except ConfigError as e:
+        for error in e.errors:
             console.print(f"[red]FATAL: {error}[/red]")
         raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    config = app.pipeline
 
     # Configure logging level from --verbose/--quiet flag
     logging.basicConfig(
@@ -938,7 +915,7 @@ def main(
 
     # Display configuration and run pipeline
     print_config(config)
-    run_pipeline(config)
+    run_pipeline(config, app_config=app)
     raise typer.Exit(EXIT_SUCCESS)
 
 
