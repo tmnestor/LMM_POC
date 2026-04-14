@@ -18,11 +18,10 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from PIL import Image
 
-from common.extraction_cleaner import ExtractionCleaner
-from common.extraction_parser import hybrid_parse_response
 from common.field_schema import get_field_schema
 from common.pipeline_config import strip_structure_suffixes
 from common.prompt_catalog import PromptCatalog
+from common.response_handler import create_response_handler
 from models.backend import BatchInference, GenerationParams, ModelBackend
 
 if TYPE_CHECKING:
@@ -108,14 +107,15 @@ class DocumentOrchestrator:
             )
         self._prompt_yaml = Path(next(iter(extraction_files.values()))).name
 
-        # Extraction cleaner for value normalisation
-        self.cleaner = ExtractionCleaner(debug=debug)
+        # Response handler: parse -> clean -> validate pipeline
+        schema = get_field_schema()
+        self._response_handler = create_response_handler(schema=schema, debug=debug)
 
         # Document-specific field lists
         self.document_field_lists: dict[str, list[str]] = (
             field_definitions
             if field_definitions is not None
-            else get_field_schema().get_all_doc_type_fields()
+            else schema.get_all_doc_type_fields()
         )
 
         # Batch processing
@@ -565,14 +565,7 @@ class DocumentOrchestrator:
                 sys.stdout.write("=" * 80 + "\n")
                 sys.stdout.flush()
 
-            extracted_data = hybrid_parse_response(
-                raw_response, expected_fields=active_fields
-            )
-
-            for field_name, value in extracted_data.items():
-                extracted_data[field_name] = self.cleaner.clean_field_value(
-                    field_name, value
-                )
+            extracted_data = self._response_handler.handle(raw_response, active_fields)
 
             found = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
 
@@ -733,18 +726,7 @@ class DocumentOrchestrator:
             doc_field_list = field_lists_per_image[i]
             document_type = classification_infos[i]["document_type"]
 
-            extracted_data = hybrid_parse_response(
-                response, expected_fields=doc_field_list
-            )
-
-            for field_name in doc_field_list:
-                raw_value = extracted_data.get(field_name, "NOT_FOUND")
-                if raw_value != "NOT_FOUND":
-                    extracted_data[field_name] = self.cleaner.clean_field_value(
-                        field_name, raw_value
-                    )
-                else:
-                    extracted_data[field_name] = "NOT_FOUND"
+            extracted_data = self._response_handler.handle(response, doc_field_list)
 
             extracted_fields_count = sum(
                 1 for v in extracted_data.values() if v != "NOT_FOUND"
