@@ -420,28 +420,17 @@ class ExtractionCleaner:
         return cleaned if cleaned else "NOT_FOUND"
 
     def _normalize_document_type(self, value: str) -> str:
-        """
-        Normalize document type values to match ground truth expectations.
+        """Normalize document type values to match ground truth expectations.
 
-        Handles:
-        - STATEMENT → BANK_STATEMENT (common model output vs ground truth mismatch)
-        - BILL → INVOICE (models sometimes classify invoices as bills)
-        - TAX INVOICE → INVOICE (Issue #4: Llama 4 outputs "Tax Invoice")
+        Delegates to FieldSchema.resolve_doc_type() for alias resolution,
+        then uppercases to match the ground truth convention.
         """
         if not value or value == "NOT_FOUND":
             return "NOT_FOUND"
 
-        # Normalize document type to match ground truth format
-        normalized = value.strip().upper()
+        from common.field_schema import get_field_schema
 
-        # Map model outputs to ground truth format
-        document_type_mappings = {
-            "STATEMENT": "BANK_STATEMENT",
-            "BILL": "INVOICE",
-            "TAX INVOICE": "INVOICE",  # Issue #4: Handle "Tax Invoice" variant
-        }
-
-        return document_type_mappings.get(normalized, normalized)
+        return get_field_schema().resolve_doc_type(value).upper()
 
     def _clean_address_field(self, value: str) -> str:
         """
@@ -649,8 +638,10 @@ class ExtractionCleaner:
                     subtotal_val = self._parse_monetary_value(sub)
                     total_val = self._parse_monetary_value(tot)
 
-                    if all(
-                        val is not None for val in [gst_val, subtotal_val, total_val]
+                    if (
+                        gst_val is not None
+                        and subtotal_val is not None
+                        and total_val is not None
                     ):
                         match inc.lower():
                             case "true":
@@ -749,7 +740,7 @@ class ExtractionCleaner:
         Returns:
             dict[str, Any]: Cleaning statistics
         """
-        stats = {
+        stats: dict[str, Any] = {
             "total_fields": len(original_dict),
             "fields_cleaned": 0,
             "fields_unchanged": 0,

@@ -177,46 +177,20 @@ def calculate_field_accuracy(
             print("    ✅ Exact match - score: 1.0")
         return 1.0
 
-    # Special handling for DOCUMENT_TYPE field with canonical type mapping
+    # Special handling for DOCUMENT_TYPE field -- use evaluation equivalence
+    # classes so invoice ≡ receipt for scoring purposes.
     if field_name == "DOCUMENT_TYPE":
-        # Define canonical document type mappings
-        # INVOICE and RECEIPT are treated as equivalent (both are "invoice_receipt")
-        # The key distinction is invoice/receipt vs bank_statement
-        type_mapping = {
-            "invoice": "invoice_receipt",
-            "tax invoice": "invoice_receipt",
-            "estimate": "invoice_receipt",
-            "quote": "invoice_receipt",
-            "quotation": "invoice_receipt",
-            "proforma invoice": "invoice_receipt",
-            "receipt": "invoice_receipt",
-            "purchase receipt": "invoice_receipt",
-            "sales receipt": "invoice_receipt",
-            "bank statement": "bank_statement",
-            "account statement": "bank_statement",
-            "credit card statement": "bank_statement",
-            "statement": "bank_statement",
-        }
-
-        # Map both values to canonical types
-        extracted_canonical = type_mapping.get(extracted_lower, extracted_lower)
-        ground_truth_canonical = type_mapping.get(
-            ground_truth_lower, ground_truth_lower
-        )
-
-        # Compare canonical types
-        if extracted_canonical == ground_truth_canonical:
-            if debug:
-                print(
-                    f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) matches '{ground_truth}' ({ground_truth_canonical}) - score: 1.0"
-                )
-            return 1.0
-        else:
-            if debug:
-                print(
-                    f"    📋 DOCUMENT_TYPE: '{extracted}' ({extracted_canonical}) != '{ground_truth}' ({ground_truth_canonical}) - score: 0.0"
-                )
-            return 0.0
+        extracted_class = fields.eval_doc_type_class(extracted_lower)
+        gt_class = fields.eval_doc_type_class(ground_truth_lower)
+        match = extracted_class == gt_class
+        if debug:
+            symbol = "match" if match else "!="
+            print(
+                f"    DOCUMENT_TYPE: '{extracted}' ({extracted_class}) "
+                f"{symbol} '{ground_truth}' ({gt_class}) - "
+                f"score: {1.0 if match else 0.0}"
+            )
+        return 1.0 if match else 0.0
 
     # Field-specific comparison logic using centralized field type definitions
     field_types = fields.field_types
@@ -595,25 +569,10 @@ def evaluate_extraction_results(
         result_details = {"image_name": image_name, "fields": {}}
         image_accuracies = {}
 
-        # Get document type to determine which fields to evaluate
-        doc_type_raw = extracted_data.get("DOCUMENT_TYPE", "invoice").lower()
-
-        # Map detected type to schema type (robust mapping like document_aware)
-        type_mapping = {
-            "invoice": "invoice",
-            "tax invoice": "invoice",
-            "estimate": "invoice",
-            "quote": "invoice",
-            "quotation": "invoice",
-            "receipt": "receipt",
-            "bank statement": "bank_statement",
-            "statement": "bank_statement",
-            "universal": "universal",
-        }
-        doc_type = type_mapping.get(doc_type_raw, "universal")
-
-        # Get document-specific fields for evaluation
-        fields_to_evaluate = fields.get_document_type_fields(doc_type)
+        # Get document-specific fields for evaluation (alias resolution is
+        # handled inside get_document_type_fields via resolve_doc_type)
+        doc_type_raw = extracted_data.get("DOCUMENT_TYPE", "invoice")
+        fields_to_evaluate = fields.get_document_type_fields(doc_type_raw)
 
         # Compare each field
         perfect_matches = 0

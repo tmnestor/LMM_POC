@@ -362,6 +362,7 @@ document_type_aliases:
     - estimate
     - quote
     - quotation
+    - proforma invoice
 
   receipt:
     - receipt

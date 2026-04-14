@@ -11,13 +11,12 @@ No enterprise complexity - just: extracted_fields vs ground_truth = accuracy%
 from dataclasses import dataclass
 from typing import Any
 
-# Fields extracted but excluded from evaluation metrics.
-_VALIDATION_ONLY_FIELDS = {"TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"}
+from common.field_schema import get_field_schema
 
 
 def is_evaluation_field(field_name: str) -> bool:
     """Check if a field should be included in evaluation metrics."""
-    return field_name not in _VALIDATION_ONLY_FIELDS
+    return get_field_schema().is_evaluation_field(field_name)
 
 
 @dataclass
@@ -135,22 +134,10 @@ class SimpleModelEvaluator:
 
     def _document_type_match(self, extracted: str, ground_truth: str) -> bool:
         """Match document types with common variations (STATEMENT = BANK_STATEMENT, etc.)."""
-        # Normalize to canonical forms
-        doc_type_map = {
-            "statement": "bank_statement",
-            "bank statement": "bank_statement",
-            "bank_statement": "bank_statement",
-            "invoice": "invoice",
-            "bill": "invoice",
-            "receipt": "receipt",
-        }
-
-        extracted_normalized = doc_type_map.get(extracted.strip(), extracted.strip())
-        ground_truth_normalized = doc_type_map.get(
-            ground_truth.strip(), ground_truth.strip()
+        schema = get_field_schema()
+        return schema.resolve_doc_type(extracted) == schema.resolve_doc_type(
+            ground_truth
         )
-
-        return extracted_normalized == ground_truth_normalized
 
     def _is_monetary(self, value: str) -> bool:
         """Check if value appears to be a monetary amount."""

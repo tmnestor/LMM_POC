@@ -34,6 +34,18 @@ _VALIDATION_ONLY: frozenset[str] = frozenset(
     }
 )
 
+# Evaluation equivalence classes: canonical types that should be treated as
+# identical for DOCUMENT_TYPE scoring.  "invoice" and "receipt" share the same
+# extraction fields, so a model predicting one when the ground truth is the
+# other should not be penalized.
+# This is scoring *policy*, not field metadata -- lives in code, not YAML.
+_EVAL_EQUIVALENCE: dict[str, str] = {
+    "invoice": "invoice_receipt",
+    "receipt": "invoice_receipt",
+    "bank_statement": "bank_statement",
+    "travel_expense": "travel_expense",
+}
+
 
 @dataclass(frozen=True)
 class FieldSchema:
@@ -273,6 +285,19 @@ class FieldSchema:
         Returns the input unchanged if no alias matches.
         """
         return self._alias_map.get(raw_type.lower(), raw_type.lower())
+
+    def eval_doc_type_class(self, raw_type: str) -> str:
+        """Return the evaluation equivalence class for a document type.
+
+        Chains: resolve alias -> map to equivalence class.
+        ``"invoice"`` and ``"receipt"`` both return ``"invoice_receipt"``.
+        Types with no explicit equivalence class return their canonical form.
+
+        Use this when comparing predicted vs ground-truth DOCUMENT_TYPE for
+        accuracy scoring.
+        """
+        canonical = self.resolve_doc_type(raw_type)
+        return _EVAL_EQUIVALENCE.get(canonical, canonical)
 
     def get_extraction_fields(self, document_type: str) -> list[str]:
         """Per-doc-type field list with validation-only fields excluded.
