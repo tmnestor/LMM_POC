@@ -31,10 +31,9 @@ from common.field_schema import get_field_schema
 from common.pipeline_config import (
     PipelineConfig,
     discover_images,
-    load_structure_suffixes,
-    strip_structure_suffixes,
 )
 from common.pipeline_ops import create_processor, load_model, run_batch
+from common.prompt_catalog import PromptCatalog
 from models.registry import get_model, list_models
 
 # ============================================================================
@@ -83,74 +82,31 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
 
 
 def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
-    """Build prompt routing config from YAML files (single source of truth).
+    """Build prompt routing config from PromptCatalog (single source of truth).
 
     Derives supported document types from the extraction prompt YAML keys
     rather than maintaining a hardcoded list.
     """
-    import yaml
+    catalog = PromptCatalog()
 
+    try:
+        routing = catalog.build_extraction_routing(model_type)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]FATAL: {e}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Build extraction_files in the legacy shape that orchestrator expects.
+    # All extraction types map to the same YAML file.
     registration = get_model(model_type)
-    base = Path(__file__).parent / "prompts"
-    detection_file = base / "document_type_detection.yaml"
-    extraction_path = base / registration.prompt_file
-
-    if not detection_file.exists():
-        console.print(f"[red]FATAL: Detection prompt not found: {detection_file}[/red]")
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    if not extraction_path.exists():
-        console.print(
-            f"[red]FATAL: Extraction prompts not found: {extraction_path}[/red]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
-
-    # Derive supported document types from extraction YAML prompt keys
-    with extraction_path.open() as f:
-        extraction_yaml = yaml.safe_load(f)
-
-    prompt_keys = set(extraction_yaml.get("prompts", {}).keys())
-
-    # Derive non-doc keys by cross-referencing with field_definitions.yaml
-    # A prompt key is a document type if its suffix-stripped form appears
-    # in supported_document_types; everything else is a non-doc key.
-    field_defs_path = Path(__file__).parent / "config" / "field_definitions.yaml"
-    supported_types: set[str] = set()
-    if field_defs_path.exists():
-        with field_defs_path.open() as f:
-            field_defs = yaml.safe_load(f)
-        supported_types = set(field_defs.get("supported_document_types", []))
-
-    suffixes = load_structure_suffixes(extraction_path)
-    doc_keys: set[str] = set()
-    for key in prompt_keys:
-        base_type = strip_structure_suffixes(key, suffixes)
-        if base_type in supported_types:
-            doc_keys.add(key)
-
-    # Map prompt keys to uppercase canonical types, stripping structure suffixes
-    # e.g. bank_statement_flat → BANK_STATEMENT, invoice → INVOICE
-    extraction_file = str(extraction_path)
-    extraction_files: dict[str, str] = {}
-    for key in doc_keys:
-        canonical = strip_structure_suffixes(key, suffixes).upper()
-        extraction_files[canonical] = extraction_file
-
-    if not extraction_files:
-        console.print(
-            "[red]FATAL: No document type prompts found in "
-            f"{extraction_path.name}[/red]"
-        )
-        console.print(
-            "[yellow]Expected: prompts section with keys like 'invoice', "
-            "'receipt', etc.[/yellow]"
-        )
-        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+    extraction_path = str(Path(__file__).parent / "prompts" / registration.prompt_file)
+    detection_path = str(
+        Path(__file__).parent / "prompts" / "document_type_detection.yaml"
+    )
 
     return {
-        "detection_file": str(detection_file),
+        "detection_file": detection_path,
         "detection_key": "detection",
-        "extraction_files": extraction_files,
+        "extraction_files": {doc_type: extraction_path for doc_type in routing},
     }
 
 

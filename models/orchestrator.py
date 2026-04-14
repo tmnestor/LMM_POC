@@ -22,7 +22,7 @@ from common.extraction_cleaner import ExtractionCleaner
 from common.extraction_parser import hybrid_parse_response
 from common.field_schema import get_field_schema
 from common.pipeline_config import strip_structure_suffixes
-from common.simple_prompt_loader import SimplePromptLoader
+from common.prompt_catalog import PromptCatalog
 from models.backend import BatchInference, GenerationParams, ModelBackend
 
 if TYPE_CHECKING:
@@ -214,26 +214,26 @@ class DocumentOrchestrator:
     # -- Prompt loading --------------------------------------------------------
 
     def get_extraction_prompt(self, document_type: str | None = None) -> str:
-        """Get extraction prompt for *document_type* via SimplePromptLoader."""
+        """Get extraction prompt for *document_type* via PromptCatalog."""
         if document_type is None:
             document_type = "universal"
 
         if self.debug:
             print(f"Loading {document_type} prompt")
 
-        loader = SimplePromptLoader()
+        catalog = PromptCatalog()
         try:
-            return loader.load_prompt(self._prompt_yaml, document_type)
-        except Exception:
+            return catalog.get_prompt(self._model_type_key, document_type)
+        except KeyError:
             if self.debug:
                 print(
                     f"Failed to load {document_type} prompt, falling back to universal"
                 )
-            return loader.load_prompt(self._prompt_yaml, "universal")
+            return catalog.get_prompt(self._model_type_key, "universal")
 
     def get_supported_document_types(self) -> list[str]:
         """Get list of supported document types from prompt YAML."""
-        return SimplePromptLoader.get_available_prompts(self._prompt_yaml)
+        return PromptCatalog().list_keys(self._model_type_key)
 
     # -- Document type parsing -------------------------------------------------
 
@@ -469,10 +469,8 @@ class DocumentOrchestrator:
                     elif "_date_grouped" in document_type:
                         extraction_key = f"{extraction_key}_date_grouped"
 
-            loader = SimplePromptLoader()
-            extraction_prompt = loader.load_prompt(
-                Path(extraction_file).name, extraction_key
-            )
+            catalog = PromptCatalog()
+            extraction_prompt = catalog.get_prompt(self._model_type_key, extraction_key)
 
             if verbose:
                 print(
@@ -799,8 +797,8 @@ class DocumentOrchestrator:
         extraction_keys = self.prompt_config.get("extraction_keys", {})
         extraction_key = extraction_keys.get(doc_type_upper, document_type)
 
-        loader = SimplePromptLoader()
-        return loader.load_prompt(Path(extraction_file).name, extraction_key)
+        catalog = PromptCatalog()
+        return catalog.get_prompt(self._model_type_key, extraction_key)
 
     # -- Model info ------------------------------------------------------------
 

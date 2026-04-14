@@ -18,8 +18,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .bank_corrector import BalanceCorrector, TransactionFilter
 from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
 
@@ -61,34 +59,11 @@ def _bypass_rich_stdout():
             sys.stdout.flush()
 
 
-class ConfigLoader:
-    """Load YAML configuration files from config/ directory."""
+def _default_catalog():
+    """Create a PromptCatalog with lazy import."""
+    from common.prompt_catalog import PromptCatalog
 
-    def __init__(self, config_dir: str | Path | None = None):
-        if config_dir is None:
-            config_dir = Path(__file__).parent.parent / "config"
-        self.config_dir = Path(config_dir)
-
-    def load(self, filename: str) -> dict:
-        """Load a YAML config file."""
-        path = self.config_dir / filename
-        if not path.exists():
-            raise FileNotFoundError(f"Config file not found: {path}")
-        with path.open(encoding="utf-8") as f:
-            return yaml.safe_load(f)
-
-    def get_prompt(self, prompt_key: str) -> str:
-        """Get a prompt template from bank_prompts.yaml."""
-        config = self.load("bank_prompts.yaml")
-        prompts = config.get("prompts", {})
-        if prompt_key not in prompts:
-            raise KeyError(f"Prompt '{prompt_key}' not found")
-        return prompts[prompt_key]["template"]
-
-    def get_column_patterns(self) -> dict:
-        """Get column pattern configuration."""
-        config = self.load("bank_column_patterns.yaml")
-        return config.get("patterns", {})
+    return PromptCatalog()
 
 
 class ColumnMatcher:
@@ -96,8 +71,7 @@ class ColumnMatcher:
 
     def __init__(self, patterns: dict[str, dict] | None = None):
         if patterns is None:
-            loader = ConfigLoader()
-            patterns = loader.get_column_patterns()
+            patterns = _default_catalog().get_column_patterns()
         self.patterns = patterns
 
     def match(self, headers: list[str]) -> ColumnMapping:
@@ -549,7 +523,6 @@ class UnifiedBankExtractor:
     Args:
         generate_fn: Callable(image, prompt, max_tokens) -> str.
             Typically ``processor.generate`` from a DocumentProcessor.
-        config_dir: Path to config directory (optional)
         use_balance_correction: Enable balance-based mathematical correction
         verbose: Enable verbose output
 
@@ -561,7 +534,6 @@ class UnifiedBankExtractor:
     def __init__(
         self,
         generate_fn: Any,
-        config_dir: str | Path | None = None,
         use_balance_correction: bool = False,
         verbose: bool = True,
     ):
@@ -569,22 +541,20 @@ class UnifiedBankExtractor:
         self.use_balance_correction = use_balance_correction
         self.verbose = verbose
 
-        self.config_loader = ConfigLoader(config_dir)
+        catalog = _default_catalog()
         self.column_matcher = ColumnMatcher()
         self.parser = ResponseParser()
         self.filter = TransactionFilter()
 
-        # Load prompts
+        # Load prompts via unified catalog
         self._prompts = {
-            "turn0": self.config_loader.get_prompt("turn0_header_detection"),
-            "turn1_balance": self.config_loader.get_prompt("turn1_balance_extraction"),
-            "turn1_amount": self.config_loader.get_prompt("turn1_amount_extraction"),
-            "turn1_debit_credit": self.config_loader.get_prompt(
-                "turn1_debit_credit_extraction"
+            "turn0": catalog.get_prompt("bank", "turn0_header_detection"),
+            "turn1_balance": catalog.get_prompt("bank", "turn1_balance_extraction"),
+            "turn1_amount": catalog.get_prompt("bank", "turn1_amount_extraction"),
+            "turn1_debit_credit": catalog.get_prompt(
+                "bank", "turn1_debit_credit_extraction"
             ),
-            "schema_fallback": self.config_loader.get_prompt(
-                "schema_fallback_extraction"
-            ),
+            "schema_fallback": catalog.get_prompt("bank", "schema_fallback_extraction"),
         }
 
     def _log(self, msg: str) -> None:
