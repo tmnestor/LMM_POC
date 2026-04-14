@@ -4,8 +4,6 @@ Defines @runtime_checkable Protocols that capture the duck-typed interfaces
 already expected by DocumentPipeline and UnifiedBankExtractor.
 
 DocumentProcessor: Required interface for all model processors.
-BatchCapableProcessor: Deprecated — kept only for BatchDocumentProcessor compat.
-    Will be removed when BatchDocumentProcessor is deleted.
 """
 
 from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
@@ -107,25 +105,3 @@ class DocumentProcessor(Protocol):
             Raw model response string.
         """
         ...
-
-
-@runtime_checkable
-class BatchCapableProcessor(Protocol):
-    """Deprecated: kept for BatchDocumentProcessor backward compat only.
-
-    New code should use DocumentPipeline + orchestrator.supports_batch instead.
-    Will be removed when BatchDocumentProcessor is deleted.
-    """
-
-    def batch_detect_documents(
-        self,
-        image_paths: list[str],
-        verbose: bool = False,
-    ) -> list[ClassificationResult]: ...
-
-    def batch_extract_documents(
-        self,
-        image_paths: list[str],
-        classification_infos: list[dict[str, Any]],
-        verbose: bool = False,
-    ) -> list[ExtractionResult]: ...
