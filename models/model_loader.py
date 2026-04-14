@@ -17,21 +17,31 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from models.backends.hf_chat_template import ChatTemplateConfig, HFChatTemplateBackend
 from models.backends.vllm_backend import VllmBackend
 from models.orchestrator import DocumentOrchestrator
 
+type BackendFactory = Callable[[Any, Any, bool], Any]
+type PostLoadHook = Callable[[Any, Any, Any], None]
+
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """Declarative specification for a standard HuggingFace model.
+    """Declarative specification for any HuggingFace model.
 
     Provides all the information needed to:
     1. Load the model and processor from disk (build_hf_loader)
-    2. Create a backend (HFChatTemplateBackend)
+    2. Create a backend (HFChatTemplateBackend or custom via backend_factory)
     3. Wire into a DocumentOrchestrator
+
+    For standard HF models using apply_chat_template + generate, set
+    message_style and related fields — HFChatTemplateBackend is used.
+
+    For models with non-standard APIs (InternVL3's .chat(), Llama's
+    template handling), provide a backend_factory callable that receives
+    (model, processor, debug) and returns a ModelBackend.
     """
 
     model_type: str
@@ -45,7 +55,11 @@ class ModelSpec:
     load_kwargs: dict[str, Any] = field(default_factory=dict)
     processor_kwargs: dict[str, Any] = field(default_factory=dict)
     suppress_gen_warnings: tuple[str, ...] = ("temperature", "top_p")
-    # Backend config
+    # Backend selection — None => HFChatTemplateBackend (default)
+    backend_factory: BackendFactory | None = None
+    # Post-load hook — called as post_load(model, processor, cfg)
+    post_load: PostLoadHook | None = None
+    # HFChatTemplateBackend config (ignored when backend_factory is set)
     message_style: str = "two_step"
     system_message: str | None = None
     image_content_type: str = "image"
@@ -53,9 +67,11 @@ class ModelSpec:
     chat_template_kwargs: dict[str, Any] = field(default_factory=dict)
     generate_kwargs: dict[str, Any] = field(default_factory=dict)
     tokenizer_attr: str = "tokenizer"
-    # Post-load hooks
+    # Post-load model transforms
     merge_lora: bool = False
     force_single_gpu: bool = False
+    # OOM recovery in orchestrator
+    has_oom_recovery: bool = True
 
 
 def build_hf_loader(spec: ModelSpec):
@@ -109,8 +125,25 @@ def build_hf_loader(spec: ModelSpec):
                     # Import model class dynamically
                     model_cls = getattr(transformers, spec.model_class)
 
+                    # For sharded models on multi-GPU, use InternVL3's
+                    # split_model for better layer placement than auto.
+                    effective_device_map = cfg.device_map
+                    if (
+                        spec.requires_sharding
+                        and cfg.device_map == "auto"
+                        and torch.cuda.device_count() > 1
+                    ):
+                        from models.sharding import split_internvl_model
+
+                        effective_device_map = split_internvl_model(str(cfg.model_path))
+                        console.print(
+                            f"[bold cyan]Sharding across "
+                            f"{torch.cuda.device_count()} GPUs "
+                            f"(split_model)[/bold cyan]"
+                        )
+
                     load_kwargs: dict[str, Any] = {
-                        "device_map": cfg.device_map,
+                        "device_map": effective_device_map,
                     }
 
                     # Use dtype= for newer models, torch_dtype for legacy
@@ -135,6 +168,11 @@ def build_hf_loader(spec: ModelSpec):
                     # Merge any model-specific load kwargs
                     load_kwargs.update(spec.load_kwargs)
 
+                    # Expand callable values (e.g. lazy BitsAndBytesConfig)
+                    for k, v in list(load_kwargs.items()):
+                        if callable(v):
+                            load_kwargs[k] = v(cfg)
+
                     with quiet_loading():
                         model = model_cls.from_pretrained(
                             str(cfg.model_path), **load_kwargs
@@ -153,6 +191,10 @@ def build_hf_loader(spec: ModelSpec):
                         for attr in spec.suppress_gen_warnings:
                             if hasattr(model.generation_config, attr):
                                 setattr(model.generation_config, attr, None)
+
+                    # Call model-specific post-load hook
+                    if spec.post_load is not None:
+                        spec.post_load(model, processor, cfg)
 
                     progress.update(task, description="Model loaded!")
 
@@ -205,7 +247,9 @@ def _apply_sdpa_if_needed(console, cfg) -> None:
 def build_hf_processor_creator(spec: ModelSpec):
     """Build a processor_creator callable from a ModelSpec.
 
-    Returns a callable matching the registry ProcessorCreator signature.
+    When spec.backend_factory is None, builds an HFChatTemplateBackend.
+    When set, calls the factory to build a custom backend.
+    Both are wrapped in a DocumentOrchestrator.
     """
 
     def _creator(
@@ -218,23 +262,28 @@ def build_hf_processor_creator(spec: ModelSpec):
         *,
         app_config=None,
     ):
-        chat_config = ChatTemplateConfig(
-            message_style=spec.message_style,
-            system_message=spec.system_message,
-            image_content_type=spec.image_content_type,
-            image_content_key=spec.image_content_key,
-            chat_template_kwargs=dict(spec.chat_template_kwargs),
-            generate_kwargs=dict(spec.generate_kwargs),
-            suppress_gen_warnings=spec.suppress_gen_warnings,
-            tokenizer_attr=spec.tokenizer_attr,
-        )
+        if spec.backend_factory is not None:
+            backend = spec.backend_factory(
+                model, tokenizer_or_processor, config.verbose
+            )
+        else:
+            chat_config = ChatTemplateConfig(
+                message_style=spec.message_style,
+                system_message=spec.system_message,
+                image_content_type=spec.image_content_type,
+                image_content_key=spec.image_content_key,
+                chat_template_kwargs=dict(spec.chat_template_kwargs),
+                generate_kwargs=dict(spec.generate_kwargs),
+                suppress_gen_warnings=spec.suppress_gen_warnings,
+                tokenizer_attr=spec.tokenizer_attr,
+            )
 
-        backend = HFChatTemplateBackend(
-            model=model,
-            processor=tokenizer_or_processor,
-            config=chat_config,
-            debug=config.verbose,
-        )
+            backend = HFChatTemplateBackend(
+                model=model,
+                processor=tokenizer_or_processor,
+                config=chat_config,
+                debug=config.verbose,
+            )
 
         return DocumentOrchestrator(
             backend=backend,
@@ -245,7 +294,7 @@ def build_hf_processor_creator(spec: ModelSpec):
             batch_size=config.batch_size,
             model_type_key=spec.model_type,
             app_config=app_config,
-            has_oom_recovery=True,
+            has_oom_recovery=spec.has_oom_recovery,
         )
 
     return _creator
