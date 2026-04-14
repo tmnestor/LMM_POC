@@ -1,10 +1,11 @@
 """Formal interface for document extraction processors.
 
 Defines @runtime_checkable Protocols that capture the duck-typed interfaces
-already expected by BatchDocumentProcessor and UnifiedBankExtractor.
+already expected by DocumentPipeline and UnifiedBankExtractor.
 
 DocumentProcessor: Required interface for all model processors.
-BatchCapableProcessor: Optional interface for processors that support batched inference.
+BatchCapableProcessor: Deprecated — kept only for BatchDocumentProcessor compat.
+    Will be removed when BatchDocumentProcessor is deleted.
 """
 
 from typing import Any, NotRequired, Protocol, TypedDict, runtime_checkable
@@ -110,47 +111,21 @@ class DocumentProcessor(Protocol):
 
 @runtime_checkable
 class BatchCapableProcessor(Protocol):
-    """Optional Protocol for processors that support batched inference.
+    """Deprecated: kept for BatchDocumentProcessor backward compat only.
 
-    Models that implement these methods get automatic batch routing
-    in batch_processor.py. Models that don't (e.g. Llama) fall back
-    to sequential processing — no stubs or NotImplementedError needed.
-
-    Use ``isinstance(processor, BatchCapableProcessor)`` instead of
-    ``hasattr(processor, "batch_detect_documents")`` for type-safe
-    capability detection.
+    New code should use DocumentPipeline + orchestrator.supports_batch instead.
+    Will be removed when BatchDocumentProcessor is deleted.
     """
 
     def batch_detect_documents(
         self,
         image_paths: list[str],
         verbose: bool = False,
-    ) -> list[ClassificationResult]:
-        """Classify document types for a batch of images.
-
-        Args:
-            image_paths: List of image file paths to classify.
-            verbose: Enable debug output.
-
-        Returns:
-            List of ClassificationResult dicts, one per image.
-        """
-        ...
+    ) -> list[ClassificationResult]: ...
 
     def batch_extract_documents(
         self,
         image_paths: list[str],
         classification_infos: list[dict[str, Any]],
         verbose: bool = False,
-    ) -> list[ExtractionResult]:
-        """Extract fields from a batch of images.
-
-        Args:
-            image_paths: List of image file paths.
-            classification_infos: List of classification dicts from batch_detect_documents.
-            verbose: Enable debug output.
-
-        Returns:
-            List of ExtractionResult dicts, one per image.
-        """
-        ...
+    ) -> list[ExtractionResult]: ...

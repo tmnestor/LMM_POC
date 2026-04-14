@@ -143,6 +143,11 @@ class DocumentOrchestrator:
         """Tokenizer / processor (for DocumentProcessor protocol)."""
         return self._backend.processor
 
+    @property
+    def supports_batch(self) -> bool:
+        """Whether the backend supports batched inference."""
+        return isinstance(self._backend, BatchInference)
+
     # -- Batch processing config -----------------------------------------------
 
     def _configure_batch_processing(
@@ -610,24 +615,16 @@ class DocumentOrchestrator:
                 "field_count": active_count,
             }
 
-    # -- Batch methods (delegate to BatchInference if available) ---------------
+    # -- Batch methods (used by DocumentPipeline when supports_batch is True) --
 
-    def batch_detect_documents(
-        self, image_paths: list[str], verbose: bool = False
-    ) -> list[dict]:
-        """Batch document detection.
+    def detect_batch(self, image_paths: list[str], verbose: bool = False) -> list[dict]:
+        """Batch document detection via backend.generate_batch().
 
-        If the backend supports BatchInference, delegates to generate_batch().
-        Otherwise falls back to sequential detection.
+        Called by DocumentPipeline only when supports_batch is True.
+        No isinstance check here -- the pipeline handles routing.
         """
         if not image_paths:
             return []
-
-        if not isinstance(self._backend, BatchInference):
-            return [
-                self.detect_and_classify_document(p, verbose=verbose)
-                for p in image_paths
-            ]
 
         # Load detection config
         detection_path = Path(self.prompt_config["detection_file"])
@@ -643,12 +640,14 @@ class DocumentOrchestrator:
             sys.stdout.write(f"Batch detecting {len(image_paths)} images\n")
             sys.stdout.flush()
 
-        # Load images
         images = [self.load_document_image(p) for p in image_paths]
         prompts = [detection_prompt] * len(image_paths)
         params = GenerationParams(max_tokens=max_tokens)
 
-        responses = self._backend.generate_batch(images, prompts, params)
+        # Safe: pipeline only calls this when supports_batch is True
+        backend = self._backend
+        assert isinstance(backend, BatchInference)  # noqa: S101
+        responses = backend.generate_batch(images, prompts, params)
 
         results = []
         for i, response in enumerate(responses):
@@ -673,25 +672,19 @@ class DocumentOrchestrator:
 
         return results
 
-    def batch_extract_documents(
+    def extract_batch(
         self,
         image_paths: list[str],
         classification_infos: list[dict],
         verbose: bool = False,
     ) -> list[dict]:
-        """Batch document extraction.
+        """Batch document extraction via backend.generate_batch().
 
-        If the backend supports BatchInference, delegates to generate_batch().
-        Otherwise falls back to sequential extraction.
+        Called by DocumentPipeline only when supports_batch is True.
+        No isinstance check here -- the pipeline handles routing.
         """
         if not image_paths:
             return []
-
-        if not isinstance(self._backend, BatchInference):
-            return [
-                self.process_document_aware(p, c, verbose=verbose)
-                for p, c in zip(image_paths, classification_infos, strict=False)
-            ]
 
         # Build per-image prompts and field lists
         images = []
@@ -720,8 +713,8 @@ class DocumentOrchestrator:
             )
             field_lists_per_image.append(doc_field_list)
 
-            # Build extraction prompt
-            extraction_prompt = self._get_batch_extraction_prompt(document_type)
+            # Resolve extraction prompt
+            extraction_prompt = self._resolve_extraction_prompt(document_type)
             prompts.append(extraction_prompt)
 
             # Track max tokens needed
@@ -730,7 +723,11 @@ class DocumentOrchestrator:
             max_tokens_needed = max(max_tokens_needed, tokens)
 
         params = GenerationParams(max_tokens=max_tokens_needed)
-        responses = self._backend.generate_batch(images, prompts, params)
+
+        # Safe: pipeline only calls this when supports_batch is True
+        backend = self._backend
+        assert isinstance(backend, BatchInference)  # noqa: S101
+        responses = backend.generate_batch(images, prompts, params)
 
         # Parse responses and clean extracted data
         results = []
@@ -742,7 +739,6 @@ class DocumentOrchestrator:
                 response, expected_fields=doc_field_list
             )
 
-            # Apply ExtractionCleaner
             for field_name in doc_field_list:
                 raw_value = extracted_data.get(field_name, "NOT_FOUND")
                 if raw_value != "NOT_FOUND":
@@ -789,8 +785,8 @@ class DocumentOrchestrator:
 
         return results
 
-    def _get_batch_extraction_prompt(self, document_type: str) -> str:
-        """Get extraction prompt for batch inference."""
+    def _resolve_extraction_prompt(self, document_type: str) -> str:
+        """Resolve extraction prompt for a document type."""
         doc_type_upper = strip_structure_suffixes(document_type).upper()
         extraction_files = self.prompt_config["extraction_files"]
         if doc_type_upper not in extraction_files:

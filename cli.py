@@ -25,12 +25,10 @@ from rich.text import Text
 
 from common.app_config import AppConfig, ConfigError
 from common.batch_analytics import BatchAnalytics
-from common.batch_processor import (
-    create_batch_pipeline,
-    load_document_field_definitions,
-)
+from common.batch_processor import load_document_field_definitions
 from common.batch_reporting import BatchReporter
 from common.batch_visualizations import BatchVisualizer
+from common.document_pipeline import create_document_pipeline
 from common.pipeline_config import (
     PipelineConfig,
     discover_images,
@@ -225,7 +223,6 @@ def create_processor(
 def run_batch_processing(
     config: PipelineConfig,
     processor: Any,
-    prompt_config: dict[str, Any],
     images: list[Path],
     field_definitions: dict[str, list[str]],
 ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
@@ -250,33 +247,30 @@ def run_batch_processing(
             f"[dim]  Balance correction: {'Enabled' if config.balance_correction else 'Disabled'}[/dim]"
         )
 
-    # Create batch processor with bank adapter (routing is handled internally)
-    batch_processor = create_batch_pipeline(
-        model=processor,
-        prompt_config=prompt_config,
+    # Create pipeline with unified routing (replaces BatchDocumentProcessor)
+    pipeline = create_document_pipeline(
+        processor,
         ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
-        console=console,
-        enable_math_enhancement=False,
         bank_adapter=bank_adapter,
         field_definitions=field_definitions,
         batch_size=config.batch_size,
+        enable_math_enhancement=False,
+        console=console,
     )
 
     # Process batch
     console.print(f"\n[bold]Processing {len(images)} images...[/bold]")
 
-    batch_results, processing_times, document_types_found = (
-        batch_processor.process_batch(
-            [str(img) for img in images],
-            verbose=config.verbose,
-        )
+    batch_results, processing_times, document_types_found = pipeline.process_batch(
+        [str(img) for img in images],
+        verbose=config.verbose,
     )
 
     return (
         batch_results,
         processing_times,
         document_types_found,
-        batch_processor.batch_stats,
+        pipeline.batch_stats,
     )
 
 
@@ -638,7 +632,6 @@ def run_pipeline(
                     run_batch_processing(
                         config,
                         processor,
-                        prompt_config,
                         images,
                         field_definitions,
                     )

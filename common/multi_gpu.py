@@ -109,7 +109,6 @@ class MultiGPUOrchestrator:
                     self._process_chunk,
                     gpu_stacks[gpu_id],
                     chunks[gpu_id],
-                    prompt_config,
                     field_definitions,
                 ): gpu_id
                 for gpu_id in range(actual_gpus)
@@ -144,16 +143,13 @@ class MultiGPUOrchestrator:
     def _process_chunk(
         gpu_stack: tuple,
         images: list[Path],
-        prompt_config: dict[str, Any],
         field_definitions: dict[str, list[str]],
     ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
         """Process an image chunk using a pre-loaded model/processor stack."""
         from cli import run_batch_processing
 
         gpu_config, _model_ctx, processor = gpu_stack
-        return run_batch_processing(
-            gpu_config, processor, prompt_config, images, field_definitions
-        )
+        return run_batch_processing(gpu_config, processor, images, field_definitions)
 
     @staticmethod
     def _shuffle_images(images: list[Path]) -> list[Path]:
