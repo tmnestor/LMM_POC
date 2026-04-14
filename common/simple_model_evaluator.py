@@ -11,15 +11,13 @@ No enterprise complexity - just: extracted_fields vs ground_truth = accuracy%
 from dataclasses import dataclass
 from typing import Any
 
-try:
-    from common.field_config import filter_evaluation_fields, is_evaluation_field
-except ImportError:
-    # Fallback if config import fails - include all fields
-    def filter_evaluation_fields(fields: list) -> list:
-        return fields
+# Fields extracted but excluded from evaluation metrics.
+_VALIDATION_ONLY_FIELDS = {"TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"}
 
-    def is_evaluation_field(field_name: str) -> bool:
-        return True
+
+def is_evaluation_field(field_name: str) -> bool:
+    """Check if a field should be included in evaluation metrics."""
+    return field_name not in _VALIDATION_ONLY_FIELDS
 
 
 @dataclass

@@ -20,7 +20,8 @@ from .batch_types import (
     ImageResult,
 )
 from .extraction_evaluator import ExtractionEvaluator
-from .field_config import filter_evaluation_fields
+
+_VALIDATION_ONLY_FIELDS = {"TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"}
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,9 @@ def load_document_field_definitions() -> dict[str, list[str]]:
                 f"File: {field_def_path.absolute()}\n"
                 f"Each document type must have at least one field defined."
             ) from None
-        result[doc_type] = filter_evaluation_fields(type_config["fields"])
+        result[doc_type] = [
+            f for f in type_config["fields"] if f not in _VALIDATION_ONLY_FIELDS
+        ]
 
     if not result:
         raise ValueError(

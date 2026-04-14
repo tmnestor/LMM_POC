@@ -13,20 +13,19 @@ DOCUMENT AWARE REDUCTION COMPATIBILITY:
 """
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from .field_config import (
-    get_all_field_types,
-    get_boolean_fields,
-    get_calculated_fields,
-    get_list_fields,
-    get_monetary_fields,
-    get_phone_fields,
-    get_transaction_list_fields,
-)
+from .app_config import FieldSchema
+
+
+@lru_cache(maxsize=1)
+def _default_fields() -> FieldSchema:
+    """Lazy fallback for callers that don't inject FieldSchema."""
+    return FieldSchema.from_yaml()
 
 
 def load_ground_truth(
@@ -98,7 +97,12 @@ def load_ground_truth(
 
 
 def calculate_field_accuracy(
-    extracted_value: str, ground_truth_value: str, field_name: str, debug=False
+    extracted_value: str,
+    ground_truth_value: str,
+    field_name: str,
+    debug=False,
+    *,
+    fields: FieldSchema | None = None,
 ) -> float:
     """
     Calculate accuracy for a single field comparison with partial credit scoring.
@@ -112,10 +116,14 @@ def calculate_field_accuracy(
         ground_truth_value (str): Expected correct value
         field_name (str): Name of the field being compared
         debug (bool): Whether to print debug information
+        fields: FieldSchema for field-type lookups (lazy-loaded if None).
 
     Returns:
         float: Accuracy score (0.0 to 1.0)
     """
+    if fields is None:
+        fields = _default_fields()
+
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
     ground_truth = (
@@ -149,7 +157,7 @@ def calculate_field_accuracy(
 
     # Normalize pipes to spaces for text fields (handles multi-line addresses/names in ground truth)
     # This allows "123 Main St | Sydney NSW" to match "123 Main St Sydney NSW"
-    field_types = get_all_field_types()
+    field_types = fields.field_types
     if field_types.get(field_name) == "text":
         extracted_lower = extracted_lower.replace("|", " ")
         ground_truth_lower = ground_truth_lower.replace("|", " ")
@@ -218,7 +226,7 @@ def calculate_field_accuracy(
             return 0.0
 
     # Field-specific comparison logic using centralized field type definitions
-    field_types = get_all_field_types()
+    field_types = fields.field_types
     if field_types.get(field_name) == "numeric_id":
         # Numeric identifiers - exact match required
         extracted_digits = re.sub(r"\D", "", extracted)
@@ -230,7 +238,7 @@ def calculate_field_accuracy(
             )
         return score
 
-    elif field_name in get_monetary_fields():
+    elif field_name in fields.monetary_fields:
         # Monetary values - numeric comparison
         try:
             extracted_num = float(re.sub(r"[^\d.-]", "", extracted))
@@ -248,7 +256,7 @@ def calculate_field_accuracy(
                 print("    💰 MONETARY: Parsing failed - score: 0.0")
             return 0.0
 
-    elif field_name in get_phone_fields():
+    elif field_name in fields.phone_fields:
         # Phone number fields - digit-based with partial matching for OCR errors
         extracted_digits = re.sub(r"\D", "", extracted)
         ground_truth_digits = re.sub(r"\D", "", ground_truth)
@@ -279,7 +287,7 @@ def calculate_field_accuracy(
         score = _compare_date_field(extracted, ground_truth, field_name, debug)
         return score
 
-    elif field_name in get_list_fields():
+    elif field_name in fields.list_fields:
         # List fields - type-aware comparison
         # Use pipe "|" as primary delimiter (standard format)
         # Avoid splitting on comma which breaks monetary values like "1,456.80"
@@ -299,7 +307,7 @@ def calculate_field_accuracy(
             return score
 
         # Type-aware matching based on field type
-        if field_name in get_monetary_fields():
+        if field_name in fields.monetary_fields:
             # MONETARY LISTS (LINE_ITEM_PRICES, LINE_ITEM_TOTAL_PRICES)
             # Use float comparison with 1% tolerance
             # NOTE: Strips "-" prefix because ground truth from previous model
@@ -367,7 +375,7 @@ def calculate_field_accuracy(
             )
         return score
 
-    elif field_name in get_boolean_fields():
+    elif field_name in fields.boolean_fields:
         # Boolean fields - exact match for true/false values
         extracted_bool = _parse_boolean_value(extracted)
         ground_truth_bool = _parse_boolean_value(ground_truth)
@@ -381,12 +389,12 @@ def calculate_field_accuracy(
             print(f"    ✅ BOOLEAN: {extracted_bool} vs {ground_truth_bool} = {score}")
         return score
 
-    elif field_name in get_calculated_fields():
+    elif field_name in fields.calculated_fields:
         # Calculated fields - validate calculations or compare values
         score = _evaluate_calculated_field(extracted, ground_truth, field_name, debug)
         return score
 
-    elif field_name in get_transaction_list_fields():
+    elif field_name in fields.transaction_list_fields:
         # Transaction list fields - compare structured transaction data
         score = _evaluate_transaction_list(extracted, ground_truth, field_name, debug)
         return score
@@ -420,8 +428,10 @@ def calculate_field_accuracy(
         return 0.0
 
 
-def _compare_monetary_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
-    """Compare monetary values with normalization."""
+def _compare_monetary_values_pair(
+    extracted: str, ground_truth: str
+) -> tuple[bool, str]:
+    """Compare monetary values with normalization (returns match, reason)."""
 
     def normalize_money(value):
         # Remove currency symbols and spaces, normalize decimal places
@@ -540,7 +550,10 @@ def _compare_text_values(extracted: str, ground_truth: str) -> tuple[bool, str]:
 
 
 def evaluate_extraction_results(
-    extraction_results: list[dict], ground_truth_map: dict
+    extraction_results: list[dict],
+    ground_truth_map: dict,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Evaluate extraction results against ground truth data.
@@ -548,10 +561,14 @@ def evaluate_extraction_results(
     Args:
         extraction_results (list): List of extraction result dictionaries
         ground_truth_map (dict): Ground truth data mapping
+        fields: FieldSchema for field-type lookups (lazy-loaded if None).
 
     Returns:
         dict: Comprehensive evaluation summary with accuracy metrics
     """
+    if fields is None:
+        fields = _default_fields()
+
     if not extraction_results or not ground_truth_map:
         return {"error": "No data to evaluate"}
 
@@ -603,9 +620,7 @@ def evaluate_extraction_results(
         doc_type = type_mapping.get(doc_type_raw, "universal")
 
         # Get document-specific fields for evaluation
-        from common.field_config import get_document_type_fields
-
-        fields_to_evaluate = get_document_type_fields(doc_type)
+        fields_to_evaluate = fields.get_document_type_fields(doc_type)
 
         # Compare each field
         perfect_matches = 0
@@ -618,7 +633,11 @@ def evaluate_extraction_results(
 
             # Get float accuracy score (0.0 to 1.0)
             accuracy_score = calculate_field_accuracy(
-                extracted_value, ground_truth_value, field, debug=False
+                extracted_value,
+                ground_truth_value,
+                field,
+                debug=False,
+                fields=fields,
             )
 
             # Track score breakdown
@@ -636,13 +655,13 @@ def evaluate_extraction_results(
             if field not in field_accuracies:
                 field_accuracies[field] = {"correct": 0, "total": 0, "details": []}
 
-            field_accuracies[field]["total"] += 1
-            field_accuracies[field]["correct"] += (
+            field_accuracies[field]["total"] += 1  # type: ignore[operator]
+            field_accuracies[field]["correct"] += (  # type: ignore[operator]
                 accuracy_score  # Use float score for partial credit
             )
 
             # Store detailed result
-            field_accuracies[field]["details"].append(
+            field_accuracies[field]["details"].append(  # type: ignore[attr-defined]
                 {
                     "image": image_name,
                     "extracted": extracted_value,
@@ -689,7 +708,7 @@ def evaluate_extraction_results(
     field_summary = {}
     for field, data in field_accuracies.items():
         # data["correct"] is now sum of float scores, data["total"] is count of fields
-        accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0
+        accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0  # type: ignore[operator]
         field_summary[field] = {
             "accuracy": accuracy,
             "correct": data["correct"],
@@ -700,8 +719,8 @@ def evaluate_extraction_results(
 
     # Calculate equivalent overall statistics (document-aware)
     # Count actual fields evaluated across all documents
-    total_fields_evaluated = sum(data["total"] for data in field_accuracies.values())
-    total_accuracy_score = sum(data["correct"] for data in field_accuracies.values())
+    total_fields_evaluated = sum(data["total"] for data in field_accuracies.values())  # type: ignore[misc]
+    total_accuracy_score = sum(data["correct"] for data in field_accuracies.values())  # type: ignore[misc]
 
     # Total statistics calculated
 
@@ -740,10 +759,13 @@ def evaluate_extraction_results(
         "perfect_documents": perfect_documents,
         "summary_stats": {
             "best_fields": sorted(
-                field_summary.items(), key=lambda x: x[1]["accuracy"], reverse=True
+                field_summary.items(),
+                key=lambda x: x[1]["accuracy"],  # type: ignore[arg-type,return-value]
+                reverse=True,
             )[:5],
             "worst_fields": sorted(
-                field_summary.items(), key=lambda x: x[1]["accuracy"]
+                field_summary.items(),
+                key=lambda x: x[1]["accuracy"],  # type: ignore[arg-type,return-value]
             )[:5],
             "avg_field_accuracy": np.mean(
                 [data["accuracy"] for data in field_summary.values()]
@@ -888,7 +910,7 @@ def generate_overall_classification_summary(evaluation_summary: dict) -> dict:
 # ============================================================================
 
 
-def _parse_boolean_value(value: str) -> bool:
+def _parse_boolean_value(value: str) -> bool | None:
     """Parse boolean value from text string with strict matching."""
     if not value or value == "NOT_FOUND":
         return None
@@ -1335,6 +1357,8 @@ def calculate_correlation_aware_f1(
     ground_truth_data: dict,
     document_type: str,
     debug: bool = False,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Calculate F1 with cross-list correlation validation.
@@ -1355,6 +1379,7 @@ def calculate_correlation_aware_f1(
     # Define related field groups for each document type
     doc_type_lower = document_type.lower()
 
+    related_groups: list[tuple[str, ...]] = []
     if "bank" in doc_type_lower or "statement" in doc_type_lower:
         related_groups = [
             ("TRANSACTION_DATES", "LINE_ITEM_DESCRIPTIONS", "TRANSACTION_AMOUNTS_PAID")
@@ -1380,6 +1405,7 @@ def calculate_correlation_aware_f1(
                 ground_truth_data.get(field, "NOT_FOUND"),
                 field,
                 debug=False,
+                fields=fields,
             )
             field_f1_scores[field] = f1_metrics["f1_score"]
 
@@ -1481,9 +1507,11 @@ def calculate_field_accuracy_with_method(
     field_name: str,
     method: str = "order_aware_f1",
     debug: bool = False,
-    extracted_data: dict = None,
-    ground_truth_data: dict = None,
-    document_type: str = None,
+    extracted_data: dict | None = None,
+    ground_truth_data: dict | None = None,
+    document_type: str | None = None,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Router function to calculate field accuracy using the specified evaluation method.
@@ -1512,28 +1540,52 @@ def calculate_field_accuracy_with_method(
         if extracted_data is None or ground_truth_data is None or document_type is None:
             # Fallback to order-aware F1 if full data not provided
             return calculate_field_accuracy_f1(
-                extracted_value, ground_truth_value, field_name, debug
+                extracted_value,
+                ground_truth_value,
+                field_name,
+                debug,
+                fields=fields,
             )
         # Return correlation metrics (calculated once for all fields)
         return calculate_correlation_aware_f1(
-            extracted_data, ground_truth_data, document_type, debug
+            extracted_data,
+            ground_truth_data,
+            document_type,
+            debug,
+            fields=fields,
         )
     elif method == "f1" or method == "position_agnostic_f1":
         return calculate_field_accuracy_f1_position_agnostic(
-            extracted_value, ground_truth_value, field_name, debug
+            extracted_value,
+            ground_truth_value,
+            field_name,
+            debug,
+            fields=fields,
         )
     elif method == "kieval":
         return calculate_field_accuracy_kieval(
-            extracted_value, ground_truth_value, field_name, debug
+            extracted_value,
+            ground_truth_value,
+            field_name,
+            debug,
+            fields=fields,
         )
     elif method == "order_aware_f1" or method == "position_aware_f1":
         return calculate_field_accuracy_f1(
-            extracted_value, ground_truth_value, field_name, debug
+            extracted_value,
+            ground_truth_value,
+            field_name,
+            debug,
+            fields=fields,
         )
     else:
         # Default to order-aware F1 (current implementation)
         return calculate_field_accuracy_f1(
-            extracted_value, ground_truth_value, field_name, debug
+            extracted_value,
+            ground_truth_value,
+            field_name,
+            debug,
+            fields=fields,
         )
 
 
@@ -1569,7 +1621,12 @@ def _fuzzy_text_match(text1: str, text2: str, threshold: float = 0.75) -> bool:
 
 
 def calculate_field_accuracy_f1_position_agnostic(
-    extracted_value: str, ground_truth_value: str, field_name: str, debug: bool = False
+    extracted_value: str,
+    ground_truth_value: str,
+    field_name: str,
+    debug: bool = False,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Calculate F1 score using POSITION-AGNOSTIC (set-based) matching.
@@ -1591,6 +1648,9 @@ def calculate_field_accuracy_f1_position_agnostic(
     Returns:
         dict: F1 metrics (f1_score, precision, recall, tp, fp, fn)
     """
+    if fields is None:
+        fields = _default_fields()
+
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
     ground_truth = (
@@ -1622,7 +1682,7 @@ def calculate_field_accuracy_f1_position_agnostic(
 
     # Handle single values (non-list fields) - same as position-aware
     if "|" not in str(extracted) and "|" not in str(ground_truth):
-        if field_name in get_transaction_list_fields():
+        if field_name in fields.transaction_list_fields:
             match = _transaction_item_matches(extracted, ground_truth, field_name)
             return {
                 "f1_score": 1.0 if match else 0.0,
@@ -1655,7 +1715,7 @@ def calculate_field_accuracy_f1_position_agnostic(
     for ext_item in extracted_items:
         for i, gt_item in enumerate(ground_truth_items):
             if i not in matched_gt_indices:
-                if field_name in get_transaction_list_fields():
+                if field_name in fields.transaction_list_fields:
                     match = _transaction_item_matches(ext_item, gt_item, field_name)
                 else:
                     match = _fuzzy_text_match(ext_item, gt_item, threshold=0.75)
@@ -1696,7 +1756,12 @@ def calculate_field_accuracy_f1_position_agnostic(
 
 
 def calculate_field_accuracy_kieval(
-    extracted_value: str, ground_truth_value: str, field_name: str, debug: bool = False
+    extracted_value: str,
+    ground_truth_value: str,
+    field_name: str,
+    debug: bool = False,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Calculate KIEval score based on correction costs.
@@ -1715,7 +1780,11 @@ def calculate_field_accuracy_kieval(
     """
     # First get F1 metrics (position-agnostic) to get TP/FP/FN counts
     f1_metrics = calculate_field_accuracy_f1_position_agnostic(
-        extracted_value, ground_truth_value, field_name, debug=False
+        extracted_value,
+        ground_truth_value,
+        field_name,
+        debug=False,
+        fields=fields,
     )
 
     tp = f1_metrics["tp"]
@@ -1780,7 +1849,12 @@ def calculate_field_accuracy_kieval(
 
 
 def calculate_field_accuracy_f1(
-    extracted_value: str, ground_truth_value: str, field_name: str, debug: bool = False
+    extracted_value: str,
+    ground_truth_value: str,
+    field_name: str,
+    debug: bool = False,
+    *,
+    fields: FieldSchema | None = None,
 ) -> dict:
     """
     Calculate F1-based accuracy for a field with proper false positive handling.
@@ -1813,6 +1887,9 @@ def calculate_field_accuracy_f1(
             - fp (int): False positives count
             - fn (int): False negatives count
     """
+    if fields is None:
+        fields = _default_fields()
+
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
     ground_truth = (
@@ -1846,7 +1923,7 @@ def calculate_field_accuracy_f1(
     # Handle single values (non-list fields)
     if "|" not in str(extracted) and "|" not in str(ground_truth):
         # Use existing comparison logic for single values
-        if field_name in get_transaction_list_fields():
+        if field_name in fields.transaction_list_fields:
             match = _transaction_item_matches(extracted, ground_truth, field_name)
             # For transaction fields, keep binary matching
             return {
@@ -1863,7 +1940,7 @@ def calculate_field_accuracy_f1(
             ground_truth_normalized = " ".join(ground_truth.split())
 
             # For boolean fields (IS_GST_INCLUDED), use case-insensitive boolean comparison
-            if field_name in get_boolean_fields():
+            if field_name in fields.boolean_fields:
                 if debug:
                     print(f"🔵 BOOLEAN FIELD DETECTED: {field_name}")
                     print(f"   Extracted: {extracted_normalized}")
@@ -2051,7 +2128,7 @@ def calculate_field_accuracy_f1(
     for i in range(max_len):
         if i < len(ground_truth_items) and i < len(extracted_items):
             # Both have an item at this position - check if they match
-            if field_name in get_transaction_list_fields():
+            if field_name in fields.transaction_list_fields:
                 match = _transaction_item_matches(
                     extracted_items[i], ground_truth_items[i], field_name
                 )
