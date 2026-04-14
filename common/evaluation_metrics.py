@@ -13,19 +13,12 @@ DOCUMENT AWARE REDUCTION COMPATIBILITY:
 """
 
 import re
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from .app_config import FieldSchema
-
-
-@lru_cache(maxsize=1)
-def _default_fields() -> FieldSchema:
-    """Lazy fallback for callers that don't inject FieldSchema."""
-    return FieldSchema.from_yaml()
+from .field_schema import FieldSchema, get_field_schema
 
 
 def load_ground_truth(
@@ -122,7 +115,7 @@ def calculate_field_accuracy(
         float: Accuracy score (0.0 to 1.0)
     """
     if fields is None:
-        fields = _default_fields()
+        fields = get_field_schema()
 
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
@@ -567,7 +560,7 @@ def evaluate_extraction_results(
         dict: Comprehensive evaluation summary with accuracy metrics
     """
     if fields is None:
-        fields = _default_fields()
+        fields = get_field_schema()
 
     if not extraction_results or not ground_truth_map:
         return {"error": "No data to evaluate"}
@@ -1649,7 +1642,7 @@ def calculate_field_accuracy_f1_position_agnostic(
         dict: F1 metrics (f1_score, precision, recall, tp, fp, fn)
     """
     if fields is None:
-        fields = _default_fields()
+        fields = get_field_schema()
 
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"
@@ -1888,7 +1881,7 @@ def calculate_field_accuracy_f1(
             - fn (int): False negatives count
     """
     if fields is None:
-        fields = _default_fields()
+        fields = get_field_schema()
 
     # Convert to strings and clean
     extracted = str(extracted_value).strip() if extracted_value else "NOT_FOUND"

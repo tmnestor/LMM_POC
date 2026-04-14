@@ -22,52 +22,29 @@ except ImportError:
 
     HAS_ORJSON = False
 
-import yaml
-
 
 def _get_extraction_fields() -> list[str]:
     """Load universal extraction fields on demand."""
-    from .field_definitions_loader import SimpleFieldLoader
+    from .field_schema import get_field_schema
 
-    loader = SimpleFieldLoader()
-    fields = loader.get_document_fields("universal")
-    return [f for f in fields if f != "TRANSACTION_AMOUNTS_RECEIVED"]
-
-
-# Module-level cache for document type alias map
-_DOC_TYPE_ALIAS_MAP: dict[str, str] | None = None
+    return list(get_field_schema().extraction_fields)
 
 
 def _load_doc_type_alias_map() -> dict[str, str]:
-    """Load document_type_aliases from field_definitions.yaml and build reverse lookup.
+    """Load document_type_aliases via FieldSchema and build reverse lookup.
 
-    Returns a dict mapping lowercased alias → UPPER_CANONICAL_TYPE, e.g.:
+    Returns a dict mapping lowercased alias -> UPPER_CANONICAL_TYPE, e.g.:
         {"statement": "BANK_STATEMENT", "bank statement": "BANK_STATEMENT", ...}
 
-    Cached at module level after first call.
+    Cached via get_field_schema()'s lru_cache.
     """
-    global _DOC_TYPE_ALIAS_MAP  # noqa: PLW0603
-    if _DOC_TYPE_ALIAS_MAP is not None:
-        return _DOC_TYPE_ALIAS_MAP
+    from .field_schema import get_field_schema
 
+    schema = get_field_schema()
     alias_map: dict[str, str] = {}
-    yaml_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
-
-    try:
-        with yaml_path.open() as f:
-            data = yaml.safe_load(f)
-        aliases = data.get("document_type_aliases", {})
-        for canonical_type, alias_list in aliases.items():
-            upper_type = canonical_type.upper()
-            # Map the canonical name itself
-            alias_map[canonical_type.lower()] = upper_type
-            for alias in alias_list:
-                alias_map[alias.lower()] = upper_type
-    except Exception:
-        pass
-
-    _DOC_TYPE_ALIAS_MAP = alias_map
-    return _DOC_TYPE_ALIAS_MAP
+    for alias_key, canonical in schema._alias_map.items():
+        alias_map[alias_key] = canonical.upper()
+    return alias_map
 
 
 def _normalize_date(date_str: str) -> str:

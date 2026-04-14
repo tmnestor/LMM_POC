@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from PIL import Image
 
-from common.batch_processor import load_document_field_definitions
 from common.extraction_cleaner import ExtractionCleaner
 from common.extraction_parser import hybrid_parse_response
+from common.field_schema import get_field_schema
 from common.pipeline_config import strip_structure_suffixes
 from common.simple_prompt_loader import SimplePromptLoader
 from models.backend import BatchInference, GenerationParams, ModelBackend
@@ -115,7 +115,7 @@ class DocumentOrchestrator:
         self.document_field_lists: dict[str, list[str]] = (
             field_definitions
             if field_definitions is not None
-            else load_document_field_definitions()
+            else get_field_schema().get_all_doc_type_fields()
         )
 
         # Batch processing

@@ -25,10 +25,10 @@ from rich.text import Text
 
 from common.app_config import AppConfig, ConfigError
 from common.batch_analytics import BatchAnalytics
-from common.batch_processor import load_document_field_definitions
 from common.batch_reporting import BatchReporter
 from common.batch_visualizations import BatchVisualizer
 from common.document_pipeline import create_document_pipeline
+from common.field_schema import get_field_schema
 from common.pipeline_config import (
     PipelineConfig,
     discover_images,
@@ -166,7 +166,7 @@ def load_pipeline_configs(
         Tuple of (prompt_config, sorted universal_fields, field_definitions).
     """
     prompt_config = load_prompt_config(model_type)
-    field_definitions = load_document_field_definitions()
+    field_definitions = get_field_schema().get_all_doc_type_fields()
 
     all_fields: set[str] = set()
     for fields in field_definitions.values():

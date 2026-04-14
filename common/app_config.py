@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from common.field_schema import FieldSchema, get_field_schema
+
 if TYPE_CHECKING:
     from common.pipeline_config import PipelineConfig
 
@@ -107,114 +109,6 @@ class BatchSettings:
             conservative_sizes=conservative_sizes,
             **kwargs,
         )
-
-
-@dataclass(frozen=True)
-class FieldSchema:
-    """Typed replacement for the 13 lazy globals in field_config.py.
-
-    Loaded once from field_definitions.yaml via SimpleFieldLoader.
-    """
-
-    extraction_fields: tuple[str, ...]
-    field_count: int
-    field_types: dict[str, str]
-    monetary_fields: tuple[str, ...]
-    date_fields: tuple[str, ...]
-    list_fields: tuple[str, ...]
-    boolean_fields: tuple[str, ...]
-    calculated_fields: tuple[str, ...]
-    transaction_list_fields: tuple[str, ...]
-    text_fields: tuple[str, ...]
-    phone_fields: tuple[str, ...]
-    numeric_id_fields: tuple[str, ...]
-    validation_only_fields: tuple[str, ...] = (
-        "TRANSACTION_AMOUNTS_RECEIVED",
-        "ACCOUNT_BALANCE",
-    )
-
-    @classmethod
-    def from_yaml(cls) -> FieldSchema:
-        """Load from field_definitions.yaml (single read, single cache)."""
-        from common.field_definitions_loader import SimpleFieldLoader
-
-        loader = SimpleFieldLoader()
-
-        # Get universal extraction fields (same logic as field_config._get_config)
-        extraction_fields = loader.get_document_fields("universal")
-        _exclude = ["TRANSACTION_AMOUNTS_RECEIVED"]
-        extraction_fields = [f for f in extraction_fields if f not in _exclude]
-
-        field_types_from_yaml = loader.get_field_types()
-
-        return cls(
-            extraction_fields=tuple(extraction_fields),
-            field_count=len(extraction_fields),
-            field_types={f: "text" for f in extraction_fields},
-            monetary_fields=tuple(field_types_from_yaml.get("monetary", [])),
-            date_fields=tuple(field_types_from_yaml.get("date", [])),
-            list_fields=tuple(field_types_from_yaml.get("list", [])),
-            boolean_fields=tuple(field_types_from_yaml.get("boolean", [])),
-            calculated_fields=tuple(field_types_from_yaml.get("calculated", [])),
-            transaction_list_fields=tuple(
-                field_types_from_yaml.get("transaction_list", [])
-            ),
-            text_fields=tuple(field_types_from_yaml.get("text", extraction_fields)),
-            phone_fields=(),
-            numeric_id_fields=(),
-        )
-
-    def is_evaluation_field(self, field_name: str) -> bool:
-        """Check if a field should be included in evaluation metrics."""
-        return field_name not in self.validation_only_fields
-
-    def filter_evaluation_fields(self, fields: list[str]) -> list[str]:
-        """Filter a list to exclude validation-only fields."""
-        return [f for f in fields if self.is_evaluation_field(f)]
-
-    def get_document_type_fields(self, document_type: str) -> list[str]:
-        """Get fields specific to a document type, filtered for evaluation."""
-        from common.field_definitions_loader import SimpleFieldLoader
-
-        loader = SimpleFieldLoader()
-        doc_type_mapping = {
-            "invoice": "invoice",
-            "tax_invoice": "invoice",
-            "bill": "invoice",
-            "receipt": "receipt",
-            "purchase_receipt": "receipt",
-            "bank_statement": "bank_statement",
-            "statement": "bank_statement",
-            "transaction_link": "transaction_link",
-        }
-        mapped_type = doc_type_mapping.get(document_type.lower(), document_type.lower())
-
-        try:
-            field_names = loader.get_document_fields(mapped_type)
-        except Exception:
-            return self.filter_evaluation_fields(list(self.extraction_fields))
-
-        return self.filter_evaluation_fields(field_names)
-
-
-def _load_min_tokens_by_type() -> dict[str, int]:
-    """Load per-document-type min_tokens from field_definitions.yaml.
-
-    Replaces model_config._get_min_tokens_for_type() and its module-level cache.
-    """
-    import yaml
-
-    result: dict[str, int] = {}
-    yaml_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
-    try:
-        with yaml_path.open() as f:
-            data = yaml.safe_load(f)
-        for doc_type, type_config in data.get("document_fields", {}).items():
-            if isinstance(type_config, dict) and "min_tokens" in type_config:
-                result[doc_type] = type_config["min_tokens"]
-    except (OSError, yaml.YAMLError):
-        pass
-    return result
 
 
 def _build_generation_registry(raw_config: dict) -> dict[str, dict]:
@@ -348,11 +242,8 @@ class AppConfig:
         for size_key, value in yaml_limits.items():
             token_limits[str(size_key)] = value
 
-        # 10. Build min_tokens_by_type from field_definitions.yaml
-        min_tokens_by_type = _load_min_tokens_by_type()
-
-        # 11. Load field schema (single YAML read)
-        fields = FieldSchema.from_yaml()
+        # 10-11. Load field schema (single YAML read) and extract min_tokens
+        fields = get_field_schema()
 
         return cls(
             pipeline=pipeline,
@@ -360,7 +251,7 @@ class AppConfig:
             fields=fields,
             generation_registry=generation_registry,
             token_limits=token_limits,
-            min_tokens_by_type=min_tokens_by_type,
+            min_tokens_by_type=fields.min_tokens_by_type,
         )
 
     # -- Drop-in replacements for model_config functions -----------------------

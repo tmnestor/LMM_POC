@@ -14,7 +14,6 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
 
-from .batch_processor import load_document_field_definitions
 from .batch_types import (
     BatchResult,
     BatchStats,
@@ -23,6 +22,7 @@ from .batch_types import (
     ImageResult,
 )
 from .extraction_evaluator import ExtractionEvaluator
+from .field_schema import get_field_schema
 
 logger = logging.getLogger(__name__)
 
@@ -556,7 +556,7 @@ def create_document_pipeline(
     Returns:
         Configured DocumentPipeline ready for process_batch() or run().
     """
-    doc_type_fields = field_definitions or load_document_field_definitions()
+    doc_type_fields = field_definitions or get_field_schema().get_all_doc_type_fields()
 
     evaluator = ExtractionEvaluator(
         ground_truth_csv=ground_truth_csv,

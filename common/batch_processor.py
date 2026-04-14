@@ -1,109 +1,16 @@
 """Batch processing utilities.
 
-load_document_field_definitions() — loads field_definitions.yaml
 print_accuracy_by_document_type() — accuracy summary for CLI output
 
 The main pipeline class is now DocumentPipeline in document_pipeline.py.
+Field definitions are now in common/field_schema.py (FieldSchema + get_field_schema).
 """
 
 import logging
-from pathlib import Path
 
 from rich.console import Console
 
-_VALIDATION_ONLY_FIELDS = {"TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"}
-
 logger = logging.getLogger(__name__)
-
-
-def load_document_field_definitions() -> dict[str, list[str]]:
-    """
-    Load document-aware field definitions from field_definitions.yaml.
-
-    CRITICAL: This function will raise an exception if YAML loading fails.
-    NO FALLBACKS - fail fast with clear diagnostics.
-
-    Returns:
-        Dictionary mapping document types (lowercase) to field lists
-
-    Raises:
-        FileNotFoundError: If field_definitions.yaml does not exist
-        ValueError: If YAML structure is invalid or missing required fields
-    """
-    import yaml
-
-    field_def_path = Path(__file__).parent.parent / "config" / "field_definitions.yaml"
-
-    # Check file exists first for clear error message
-    if not field_def_path.exists():
-        raise FileNotFoundError(
-            f"FATAL: Field definitions file not found\n"
-            f"Expected location: {field_def_path.absolute()}\n"
-            f"This file is REQUIRED for document-aware field filtering.\n"
-            f"Ensure config/field_definitions.yaml exists in the project root."
-        ) from None
-
-    try:
-        with field_def_path.open("r") as f:
-            config = yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        raise ValueError(
-            f"FATAL: Invalid YAML syntax in field_definitions.yaml\n"
-            f"File: {field_def_path.absolute()}\n"
-            f"Error: {e}\n"
-            f"Fix the YAML syntax errors before proceeding."
-        ) from e
-    except Exception as e:
-        raise ValueError(
-            f"FATAL: Could not read field_definitions.yaml\n"
-            f"File: {field_def_path.absolute()}\n"
-            f"Error: {e}"
-        ) from e
-
-    # Validate structure
-    if "document_fields" not in config:
-        raise ValueError(
-            f"FATAL: Missing 'document_fields' section in field_definitions.yaml\n"
-            f"File: {field_def_path.absolute()}\n"
-            f"Required structure:\n"
-            f"document_fields:\n"
-            f"  invoice:\n"
-            f"    fields: [list of fields]\n"
-            f"  receipt:\n"
-            f"    fields: [list of fields]\n"
-            f"  bank_statement:\n"
-            f"    fields: [list of fields]"
-        ) from None
-
-    doc_fields = config["document_fields"]
-
-    # Validate all document types defined in YAML (excluding 'universal')
-    result = {}
-    for doc_type, type_config in doc_fields.items():
-        if "fields" not in type_config:
-            raise ValueError(
-                f"FATAL: Missing 'fields' list for '{doc_type}' in field_definitions.yaml\n"
-                f"File: {field_def_path.absolute()}\n"
-                f"Each document type must have a 'fields' list."
-            ) from None
-        if not type_config["fields"]:
-            raise ValueError(
-                f"FATAL: Empty 'fields' list for '{doc_type}' in field_definitions.yaml\n"
-                f"File: {field_def_path.absolute()}\n"
-                f"Each document type must have at least one field defined."
-            ) from None
-        result[doc_type] = [
-            f for f in type_config["fields"] if f not in _VALIDATION_ONLY_FIELDS
-        ]
-
-    if not result:
-        raise ValueError(
-            f"FATAL: No document types defined in field_definitions.yaml\n"
-            f"File: {field_def_path.absolute()}\n"
-            f"Expected: document_fields section with at least one document type."
-        ) from None
-
-    return result
 
 
 def print_accuracy_by_document_type(
