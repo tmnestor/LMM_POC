@@ -82,7 +82,7 @@ def _get_requires_sharding(model_type: str) -> bool:
 
 
 # ============================================================================
-# InternVL3 Registration (lazy imports — no torch/transformers at module level)
+# InternVL3 Registration (custom — model.chat() API + InternVL3 sharding)
 # ============================================================================
 
 
@@ -170,11 +170,11 @@ def _internvl3_loader(config):
                     pass
 
             if _has_native_flash:
-                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
+                console.print("Flash Attention 2: native (flash-attn package)")
             elif cfg.flash_attn:
-                console.print("⚡ Flash Attention 2: ✅ via SDPA patch")
+                console.print("Flash Attention 2: via SDPA patch")
             else:
-                console.print("⚡ Flash Attention 2: ❌ disabled")
+                console.print("Flash Attention 2: disabled")
 
             # Only apply SDPA monkey-patch when flash-attn is NOT installed.
             # With native flash-attn, the model uses flash_attention_2 backend
@@ -268,164 +268,7 @@ register_model(
 
 
 # ============================================================================
-# InternVL3 vLLM Registration (lazy imports — no torch/transformers at module level)
-# ============================================================================
-
-
-def _internvl3_vllm_loader(config):
-    """Context manager for loading InternVL3.5-8B via vLLM offline engine.
-
-    Uses vLLM's Triton attention backend — no flash-attn compilation needed.
-    Tensor parallelism splits layers across GPUs automatically.
-    """
-    from contextlib import contextmanager
-
-    from rich.console import Console
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        import os
-
-        # Must be set BEFORE vLLM import to avoid CUDA fork issues
-        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
-
-        from vllm import LLM
-
-        llm = None
-
-        try:
-            # Detect GPU count without initializing CUDA (would break vLLM fork workers).
-            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-            if cuda_visible is not None:
-                tp_size = len(cuda_visible.split(","))
-            else:
-                import subprocess
-
-                result = subprocess.run(
-                    ["nvidia-smi", "-L"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                tp_size = (
-                    len(result.stdout.strip().splitlines())
-                    if result.returncode == 0
-                    else 1
-                )
-            tp_size = max(1, tp_size)
-
-            # 8192 needed for multi-turn bank extraction — 4096 caused
-            # context truncation after 2-3 turns, hurting accuracy.
-            max_model_len = 8192
-
-            try:
-                import flash_attn
-
-                fa_version = flash_attn.__version__
-            except ImportError:
-                fa_version = None
-            console.print(
-                f"\n[bold]Loading InternVL3.5 via vLLM "
-                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
-            )
-            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-            console.print(
-                f"⚡ Flash Attention 2: {'✅ v' + fa_version if fa_version else '❌ not installed'}"
-            )
-
-            # 8B on 2x L4 (22 GiB each): 0.85 util leaves ~3 GiB headroom
-            # per GPU for sampler warmup scratch, which vLLM v1's KV cache
-            # profiler does not account for. max_num_seqs=8 caps the
-            # sampler scratch to ~10 MiB (vs ~300 MiB at the default 256)
-            # since this benchmark processes images sequentially.
-            llm = LLM(
-                model=str(cfg.model_path),
-                tensor_parallel_size=tp_size,
-                max_model_len=max_model_len,
-                gpu_memory_utilization=0.85,
-                max_num_seqs=8,
-                limit_mm_per_prompt={"image": 1},
-                trust_remote_code=True,
-                disable_log_stats=True,
-            )
-
-            console.print("[bold green]vLLM engine ready![/bold green]")
-
-            yield llm, None  # vLLM engine, no separate processor
-
-        finally:
-            del llm
-
-    return _loader(config)
-
-
-def _internvl3_vllm_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareVllmProcessor for InternVL3 via vLLM."""
-    from models.document_aware_vllm_processor import (
-        DocumentAwareVllmProcessor,
-    )
-
-    return DocumentAwareVllmProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        model_type_key="internvl3",
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="internvl3-vllm",
-        loader=_internvl3_vllm_loader,
-        processor_creator=_internvl3_vllm_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-8B via vLLM (PagedAttention, no flash-attn required)",
-        requires_sharding=True,  # vLLM handles tensor parallelism internally
-    )
-)
-
-register_model(
-    ModelRegistration(
-        model_type="internvl3-14b-vllm",
-        loader=_internvl3_vllm_loader,
-        processor_creator=_internvl3_vllm_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-14B via vLLM (~30 GB BF16)",
-        requires_sharding=True,
-    )
-)
-
-register_model(
-    ModelRegistration(
-        model_type="internvl3-38b-vllm",
-        loader=_internvl3_vllm_loader,
-        processor_creator=_internvl3_vllm_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-38B via vLLM (~77 GB BF16)",
-        requires_sharding=True,
-    )
-)
-
-
-# ============================================================================
-# Llama Registration (lazy imports — no torch/transformers at module level)
+# Llama Registration (custom — MllamaForConditionalGeneration + tie_weights)
 # ============================================================================
 
 
@@ -499,7 +342,7 @@ def _llama_loader(config):
 
             # Llama uses PyTorch SDPA natively; flash_attention_2 attn_implementation
             # is incompatible (MllamaVisionAttention lacks is_causal attribute).
-            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama uses SDPA)")
+            console.print("Flash Attention 2: not applicable (Llama uses SDPA)")
 
             # Skip per-loader GPU status in multi-GPU mode (orchestrator prints once)
             if not getattr(cfg, "_multi_gpu", False):
@@ -558,155 +401,7 @@ register_model(
 
 
 # ============================================================================
-# Qwen3-VL Registration (lazy imports — no torch/transformers at module level)
-# ============================================================================
-
-
-def _qwen3vl_loader(config):
-    """Context manager for loading Qwen3-VL-8B-Instruct model and processor.
-
-    Uses Qwen3VLForConditionalGeneration + AutoProcessor.
-    """
-    from contextlib import contextmanager
-
-    import torch
-    from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        model = None
-        processor = None
-
-        try:
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-            console.print(f"\n[bold]Loading Qwen3-VL from: {cfg.model_path}[/bold]")
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Loading processor...", total=None)
-
-                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
-
-                progress.update(task, description="Loading model weights...")
-
-                load_kwargs = {
-                    "dtype": cfg.torch_dtype,
-                    "device_map": cfg.device_map,
-                }
-                if cfg.flash_attn:
-                    load_kwargs["attn_implementation"] = "flash_attention_2"
-
-                with _quiet_loading():
-                    model = Qwen3VLForConditionalGeneration.from_pretrained(
-                        str(cfg.model_path),
-                        **load_kwargs,
-                    )
-
-                # Suppress spurious generation_config warnings
-                if hasattr(model, "generation_config"):
-                    model.generation_config.temperature = None
-                    model.generation_config.top_p = None
-                    model.generation_config.top_k = None
-
-                progress.update(task, description="Model loaded!")
-
-            # Check for native flash-attn package
-            _has_native_flash = False
-            if cfg.flash_attn:
-                try:
-                    import flash_attn  # noqa: F401
-
-                    _has_native_flash = True
-                except ImportError:
-                    pass
-
-            if _has_native_flash:
-                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
-            elif cfg.flash_attn:
-                console.print("⚡ Flash Attention 2: ✅ via SDPA patch")
-            else:
-                console.print("⚡ Flash Attention 2: ❌ disabled")
-
-            # Apply SDPA patch when flash-attn is not installed — routes
-            # eager attention through F.scaled_dot_product_attention which
-            # uses the flash backend on Ampere+ GPUs natively.
-            if cfg.flash_attn and not _has_native_flash and not _is_sdpa_patched():
-                if _patch_eager_attention_to_sdpa():
-                    console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                    _mark_sdpa_patched()
-                else:
-                    console.print(
-                        "[yellow]Warning: could not patch attention "
-                        "to SDPA -- high tile counts may OOM[/yellow]"
-                    )
-
-            if not getattr(cfg, "_multi_gpu", False):
-                _print_gpu_status(console)
-
-            yield model, processor
-
-        finally:
-            del model
-            del processor
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    return _loader(config)
-
-
-def _qwen3vl_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareQwen3VLProcessor from loaded components.
-
-    Note: tokenizer_or_processor is an AutoProcessor for Qwen3-VL.
-    """
-    from models.document_aware_qwen3vl_processor import (
-        DocumentAwareQwen3VLProcessor,
-    )
-
-    return DocumentAwareQwen3VLProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="qwen3vl",
-        loader=_qwen3vl_loader,
-        processor_creator=_qwen3vl_processor_creator,
-        prompt_file="qwen3vl_prompts.yaml",
-        description="Qwen3-VL-8B-Instruct vision-language model",
-    )
-)
-
-
-# ============================================================================
-# Llama 4 Scout Registration (lazy imports — no torch/transformers at module level)
+# Llama 4 Scout Registration (custom — BitsAndBytesConfig NF4 quantization)
 # ============================================================================
 
 
@@ -785,7 +480,7 @@ def _llama4scout_loader(config):
 
                 progress.update(task, description="Model loaded!")
 
-            console.print("⚡ Flash Attention 2: ❌ not applicable (Llama 4 uses SDPA)")
+            console.print("Flash Attention 2: not applicable (Llama 4 uses SDPA)")
 
             if not getattr(cfg, "_multi_gpu", False):
                 _print_gpu_status(console)
@@ -844,733 +539,7 @@ register_model(
 
 
 # ============================================================================
-# Llama 4 Scout W4A16 Registration (RedHatAI compressed-tensors quantization)
-# ============================================================================
-
-
-def _llama4scout_w4a16_loader(config):
-    """Context manager for loading Llama 4 Scout W4A16 via vLLM.
-
-    Uses vLLM offline engine with tensor parallelism to split each layer
-    across GPUs (not pipeline parallelism).  This distributes both model
-    weights AND activation memory evenly — ~29 GB model + ~15 GB activations
-    per GPU on 2x L40S.
-
-    IMPORTANT: Do NOT call torch.cuda.* before creating the vLLM LLM engine.
-    vLLM forks worker subprocesses, and CUDA cannot be re-initialized in
-    forked processes. We also set VLLM_WORKER_MULTIPROC_METHOD=spawn as
-    a safety net.
-    """
-    from contextlib import contextmanager
-
-    from rich.console import Console
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        import os
-
-        # Must be set BEFORE vLLM import to avoid CUDA fork issues
-        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
-
-        from vllm import LLM
-
-        llm = None
-
-        try:
-            # Detect GPU count without initializing CUDA (would break vLLM fork workers).
-            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-            if cuda_visible is not None:
-                tp_size = len(cuda_visible.split(","))
-            else:
-                import subprocess
-
-                result = subprocess.run(
-                    ["nvidia-smi", "-L"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                tp_size = (
-                    len(result.stdout.strip().splitlines())
-                    if result.returncode == 0
-                    else 1
-                )
-            tp_size = max(1, tp_size)
-
-            try:
-                import flash_attn
-
-                fa_version = flash_attn.__version__
-            except ImportError:
-                fa_version = None
-            console.print(
-                f"\n[bold]Loading Llama 4 Scout W4A16 via vLLM "
-                f"(tensor_parallel_size={tp_size})[/bold]"
-            )
-            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-            console.print(
-                f"⚡ Flash Attention 2: {'✅ v' + fa_version if fa_version else '❌ not installed'}"
-            )
-
-            llm = LLM(
-                model=str(cfg.model_path),
-                tensor_parallel_size=tp_size,
-                max_model_len=8192,
-                gpu_memory_utilization=0.92,
-                limit_mm_per_prompt={"image": 1},
-                trust_remote_code=True,
-                disable_log_stats=True,
-            )
-
-            console.print("[bold green]vLLM engine ready![/bold green]")
-
-            yield llm, None  # vLLM engine, no separate processor
-
-        finally:
-            del llm
-
-    return _loader(config)
-
-
-def _llama4scout_w4a16_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareVllmProcessor from a vLLM engine."""
-    from models.document_aware_vllm_processor import (
-        DocumentAwareVllmProcessor,
-    )
-
-    return DocumentAwareVllmProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,  # vLLM LLM engine
-        pre_loaded_processor=tokenizer_or_processor,  # None
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="llama4scout-w4a16",
-        loader=_llama4scout_w4a16_loader,
-        processor_creator=_llama4scout_w4a16_processor_creator,
-        prompt_file="llama4scout_prompts.yaml",
-        description="Llama 4 Scout W4A16 via vLLM (tensor parallel, ~55 GB)",
-        requires_sharding=True,
-    )
-)
-
-
-# ============================================================================
-# Nemotron Nano 2 VL Registration (lazy imports)
-# ============================================================================
-
-
-def _nemotron_loader(config):
-    """Context manager for loading Nemotron Nano 2 VL model and processor.
-
-    Uses AutoModelForCausalLM + AutoProcessor with trust_remote_code=True.
-    Hybrid Transformer-Mamba architecture (CRadioV2-H vision encoder + Mamba SSM).
-    BF16 (~24 GB) fits single L4; FP8 (~12 GB) leaves more headroom.
-    """
-    from contextlib import contextmanager
-
-    import torch
-    from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    from transformers import AutoModelForCausalLM, AutoProcessor
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        model = None
-        processor = None
-
-        try:
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-            console.print(
-                f"\n[bold]Loading Nemotron Nano 2 VL from: {cfg.model_path}[/bold]"
-            )
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Loading processor...", total=None)
-
-                processor = AutoProcessor.from_pretrained(
-                    str(cfg.model_path), trust_remote_code=True
-                )
-
-                progress.update(task, description="Loading model weights...")
-
-                with _quiet_loading():
-                    model = AutoModelForCausalLM.from_pretrained(
-                        str(cfg.model_path),
-                        trust_remote_code=True,
-                        device_map=cfg.device_map,
-                        torch_dtype=cfg.torch_dtype,
-                    ).eval()
-
-                # Suppress spurious generation_config warnings
-                if hasattr(model, "generation_config"):
-                    model.generation_config.temperature = None
-                    model.generation_config.top_p = None
-
-                progress.update(task, description="Model loaded!")
-
-            console.print(
-                "⚡ Architecture: hybrid Transformer-Mamba "
-                "(flash-attn N/A — Mamba uses linear recurrence)"
-            )
-
-            if not getattr(cfg, "_multi_gpu", False):
-                _print_gpu_status(console)
-
-            yield model, processor
-
-        finally:
-            del model
-            del processor
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    return _loader(config)
-
-
-def _nemotron_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareNemotronProcessor from loaded components.
-
-    Note: tokenizer_or_processor is an AutoProcessor for Nemotron.
-    """
-    from models.document_aware_nemotron_processor import (
-        DocumentAwareNemotronProcessor,
-    )
-
-    return DocumentAwareNemotronProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="nemotron",
-        loader=_nemotron_loader,
-        processor_creator=_nemotron_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
-    )
-)
-
-
-# ============================================================================
-# Qwen3.5-27B Registration (lazy imports — no torch/transformers at module level)
-# ============================================================================
-
-
-def _qwen35_loader(config):
-    """Context manager for loading Qwen3.5-27B model and processor.
-
-    Uses AutoModelForCausalLM + AutoProcessor (early-fusion VLM).
-    ~54 GB BF16, needs cross-GPU sharding on 2x L40S.
-    """
-    from contextlib import contextmanager
-
-    import torch
-    from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        model = None
-        processor = None
-
-        try:
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-            console.print(f"\n[bold]Loading Qwen3.5-27B from: {cfg.model_path}[/bold]")
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Loading processor...", total=None)
-
-                processor = AutoProcessor.from_pretrained(str(cfg.model_path))
-
-                progress.update(task, description="Loading model weights...")
-
-                with _quiet_loading():
-                    model = Qwen3_5ForConditionalGeneration.from_pretrained(
-                        str(cfg.model_path),
-                        dtype=cfg.torch_dtype,
-                        device_map=cfg.device_map,
-                    )
-
-                # Suppress spurious generation_config warnings
-                if hasattr(model, "generation_config"):
-                    model.generation_config.temperature = None
-                    model.generation_config.top_p = None
-                    model.generation_config.top_k = None
-
-                progress.update(task, description="Model loaded!")
-
-            console.print("🧠 Architecture: early-fusion VLM (dense 27B, 262K context)")
-
-            # Check for native flash-attn package
-            _has_native_flash = False
-            try:
-                import flash_attn  # noqa: F401
-
-                _has_native_flash = True
-            except ImportError:
-                pass
-
-            if _has_native_flash:
-                console.print("⚡ Flash Attention 2: ✅ native (flash-attn package)")
-            else:
-                console.print("⚡ Flash Attention 2: ❌ not installed")
-
-            # Apply SDPA patch when flash-attn is not installed — routes
-            # eager attention through F.scaled_dot_product_attention which
-            # uses the flash backend on Ampere+ GPUs natively.
-            if not _has_native_flash and not _is_sdpa_patched():
-                if _patch_eager_attention_to_sdpa():
-                    console.print("[bold]Patched eager attention -> SDPA[/bold]")
-                    _mark_sdpa_patched()
-                else:
-                    console.print(
-                        "[yellow]Warning: could not patch attention "
-                        "to SDPA -- high tile counts may OOM[/yellow]"
-                    )
-
-            if not getattr(cfg, "_multi_gpu", False):
-                _print_gpu_status(console)
-
-            yield model, processor
-
-        finally:
-            del model
-            del processor
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    return _loader(config)
-
-
-def _qwen35_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareQwen35Processor from loaded components.
-
-    Note: tokenizer_or_processor is an AutoProcessor for Qwen3.5.
-    """
-    from models.document_aware_qwen35_processor import (
-        DocumentAwareQwen35Processor,
-    )
-
-    return DocumentAwareQwen35Processor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="qwen35",
-        loader=_qwen35_loader,
-        processor_creator=_qwen35_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="Qwen3.5-27B early-fusion VLM (~54 GB BF16)",
-        requires_sharding=True,  # ~54 GB BF16, must shard across 2x L40S
-    )
-)
-
-
-# ============================================================================
-# Qwen3-VL vLLM Registration
-# ============================================================================
-
-
-def _qwen3vl_vllm_loader(config):
-    """Context manager for loading Qwen3-VL-8B via vLLM offline engine.
-
-    Uses vLLM's tensor parallelism across all available GPUs.
-    """
-    from contextlib import contextmanager
-
-    from rich.console import Console
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        import os
-
-        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
-
-        from vllm import LLM
-
-        llm = None
-
-        try:
-            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-            if cuda_visible is not None:
-                tp_size = len(cuda_visible.split(","))
-            else:
-                import subprocess
-
-                result = subprocess.run(
-                    ["nvidia-smi", "-L"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                tp_size = (
-                    len(result.stdout.strip().splitlines())
-                    if result.returncode == 0
-                    else 1
-                )
-            tp_size = max(1, tp_size)
-
-            max_model_len = 8192  # 8B model — plenty of headroom
-
-            console.print(
-                f"\n[bold]Loading Qwen3-VL-8B via vLLM "
-                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
-            )
-            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-
-            llm = LLM(
-                model=str(cfg.model_path),
-                tensor_parallel_size=tp_size,
-                max_model_len=max_model_len,
-                gpu_memory_utilization=0.92,
-                limit_mm_per_prompt={"image": 1},
-                trust_remote_code=True,
-                disable_log_stats=True,
-            )
-
-            console.print("[bold green]vLLM engine ready![/bold green]")
-
-            yield llm, None
-
-        finally:
-            del llm
-
-    return _loader(config)
-
-
-# ============================================================================
-# Qwen3.5-27B vLLM Registration
-# ============================================================================
-
-
-def _qwen35_vllm_loader(config):
-    """Context manager for loading Qwen3.5-27B via vLLM offline engine.
-
-    Uses vLLM's tensor parallelism across all available GPUs.
-    ~54 GB BF16, requires 2x L40S or equivalent.
-    """
-    from contextlib import contextmanager
-
-    from rich.console import Console
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        import os
-
-        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
-
-        from vllm import LLM
-
-        llm = None
-
-        try:
-            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-            if cuda_visible is not None:
-                tp_size = len(cuda_visible.split(","))
-            else:
-                import subprocess
-
-                result = subprocess.run(
-                    ["nvidia-smi", "-L"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                tp_size = (
-                    len(result.stdout.strip().splitlines())
-                    if result.returncode == 0
-                    else 1
-                )
-            tp_size = max(1, tp_size)
-
-            # 27B model: Qwen3.5 dynamic resolution can produce 12K+ image
-            # tokens for high-res receipts. ~54 GB model on 2x L40S (88.8 GB)
-            # leaves ~28 GB for KV cache — enough for 16K context.
-            max_model_len = 16384
-
-            console.print(
-                f"\n[bold]Loading Qwen3.5-27B via vLLM "
-                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
-            )
-            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-
-            llm = LLM(
-                model=str(cfg.model_path),
-                tensor_parallel_size=tp_size,
-                max_model_len=max_model_len,
-                gpu_memory_utilization=0.92,
-                limit_mm_per_prompt={"image": 1},
-                trust_remote_code=True,
-                disable_log_stats=True,
-            )
-
-            console.print("[bold green]vLLM engine ready![/bold green]")
-
-            yield llm, None
-
-        finally:
-            del llm
-
-    return _loader(config)
-
-
-def _qwen_vllm_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareVllmProcessor for Qwen models via vLLM."""
-    from models.document_aware_vllm_processor import (
-        DocumentAwareVllmProcessor,
-    )
-
-    return DocumentAwareVllmProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        model_type_key=config.model_type,
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="qwen3vl-vllm",
-        loader=_qwen3vl_vllm_loader,
-        processor_creator=_qwen_vllm_processor_creator,
-        prompt_file="qwen3vl_prompts.yaml",
-        description="Qwen3-VL-8B via vLLM (PagedAttention, tensor parallelism)",
-        requires_sharding=True,
-    )
-)
-
-register_model(
-    ModelRegistration(
-        model_type="qwen35-vllm",
-        loader=_qwen35_vllm_loader,
-        processor_creator=_qwen_vllm_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="Qwen3.5-27B via vLLM (~54 GB BF16)",
-        requires_sharding=True,
-    )
-)
-
-
-# ============================================================================
-# Gemma 4 31B vLLM Registration
-# ============================================================================
-
-
-def _gemma4_vllm_loader(config):
-    """Context manager for loading Gemma 4 31B-it via vLLM offline engine.
-
-    Uses vLLM's tensor parallelism across all available GPUs.
-    ~58 GB BF16, fits 2x L40S (88.8 GB) with ~31 GB KV headroom.
-    """
-    from contextlib import contextmanager
-
-    from rich.console import Console
-
-    console = Console()
-
-    @contextmanager
-    def _loader(cfg):
-        import os
-
-        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
-
-        from vllm import LLM
-
-        llm = None
-
-        try:
-            cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-            if cuda_visible is not None:
-                tp_size = len(cuda_visible.split(","))
-            else:
-                import subprocess
-
-                result = subprocess.run(
-                    ["nvidia-smi", "-L"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                tp_size = (
-                    len(result.stdout.strip().splitlines())
-                    if result.returncode == 0
-                    else 1
-                )
-            tp_size = max(1, tp_size)
-
-            # ~58 GB BF16 on 2x L40S (88.8 GB).
-            # gpu_memory_utilization=0.85 leaves headroom for vision encoder
-            # activations (one_hot position embeddings need ~1.5 GB per GPU).
-            # max_soft_tokens=560 = high detail for receipt OCR (1120 OOMs).
-            max_model_len = 8192
-
-            console.print(
-                f"\n[bold]Loading Gemma 4 31B-it via vLLM "
-                f"(tp={tp_size}, max_model_len={max_model_len})[/bold]"
-            )
-            console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
-
-            llm = LLM(
-                model=str(cfg.model_path),
-                tensor_parallel_size=tp_size,
-                max_model_len=max_model_len,
-                gpu_memory_utilization=0.85,
-                limit_mm_per_prompt={"image": 1},
-                trust_remote_code=True,
-                disable_log_stats=True,
-                mm_processor_kwargs={"max_soft_tokens": 560},
-                hf_overrides={
-                    "vision_config": {"default_output_length": 560},
-                    "vision_soft_tokens_per_image": 560,
-                },
-            )
-
-            console.print("[bold green]vLLM engine ready![/bold green]")
-
-            yield llm, None
-
-        finally:
-            del llm
-
-    return _loader(config)
-
-
-def _gemma4_vllm_processor_creator(
-    model,
-    tokenizer_or_processor,
-    config,
-    prompt_config,
-    universal_fields,
-    field_definitions,
-    *,
-    app_config=None,
-):
-    """Create a DocumentAwareVllmProcessor for Gemma 4 via vLLM."""
-    from models.document_aware_vllm_processor import (
-        DocumentAwareVllmProcessor,
-    )
-
-    return DocumentAwareVllmProcessor(
-        field_list=universal_fields,
-        model_path=str(config.model_path),
-        debug=config.verbose,
-        batch_size=config.batch_size,
-        pre_loaded_model=model,
-        pre_loaded_processor=tokenizer_or_processor,
-        prompt_config=prompt_config,
-        field_definitions=field_definitions,
-        model_type_key="gemma4",
-        app_config=app_config,
-    )
-
-
-register_model(
-    ModelRegistration(
-        model_type="gemma4",
-        loader=_gemma4_vllm_loader,
-        processor_creator=_gemma4_vllm_processor_creator,
-        prompt_file="internvl3_prompts.yaml",
-        description="Gemma 4 31B-it via vLLM (~58 GB BF16)",
-        requires_sharding=True,
-    )
-)
-
-
-# ============================================================================
-# Granite 4.0 3B Vision (HuggingFace native)
+# Granite 4.0 3B Vision (custom — force single GPU, LoRA merge)
 # ============================================================================
 
 
@@ -1672,5 +641,128 @@ register_model(
         prompt_file="internvl3_prompts.yaml",
         description="IBM Granite 4.0 3B Vision (~8 GB BF16)",
         requires_sharding=False,
+    )
+)
+
+
+# ============================================================================
+# Declarative registrations via ModelSpec / VllmSpec
+#
+# Each ModelSpec replaces ~200 lines of hand-written loader + processor_creator.
+# Each VllmSpec replaces ~120 lines of hand-written vLLM loader + creator.
+# ============================================================================
+
+from models.model_loader import (  # noqa: E402
+    ModelSpec,
+    VllmSpec,
+    register_hf_model,
+    register_vllm_model,
+)
+
+# -- Standard HuggingFace models ---------------------------------------------
+
+register_hf_model(
+    ModelSpec(
+        model_type="qwen3vl",
+        model_class="Qwen3VLForConditionalGeneration",
+        prompt_file="qwen3vl_prompts.yaml",
+        description="Qwen3-VL-8B-Instruct vision-language model",
+        attn_implementation="flash_attention_2",
+        suppress_gen_warnings=("temperature", "top_p", "top_k"),
+        message_style="two_step",
+    )
+)
+
+register_hf_model(
+    ModelSpec(
+        model_type="nemotron",
+        model_class="AutoModelForCausalLM",
+        prompt_file="internvl3_prompts.yaml",
+        description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
+        trust_remote_code=True,
+        message_style="two_step",
+        system_message="/no_think",
+        tokenizer_attr="tokenizer",
+    )
+)
+
+register_hf_model(
+    ModelSpec(
+        model_type="qwen35",
+        model_class="Qwen3_5ForConditionalGeneration",
+        prompt_file="internvl3_prompts.yaml",
+        description="Qwen3.5-27B early-fusion VLM (~54 GB BF16)",
+        requires_sharding=True,
+        suppress_gen_warnings=("temperature", "top_p", "top_k"),
+        message_style="one_step",
+        image_content_key="image",
+        chat_template_kwargs={"enable_thinking": False},
+    )
+)
+
+# -- vLLM models --------------------------------------------------------------
+
+register_vllm_model(
+    VllmSpec(
+        model_type="internvl3-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-8B via vLLM (PagedAttention, no flash-attn required)",
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="internvl3-14b-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-14B via vLLM (~30 GB BF16)",
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="internvl3-38b-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="InternVL3.5-38B via vLLM (~77 GB BF16)",
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="llama4scout-w4a16",
+        prompt_file="llama4scout_prompts.yaml",
+        description="Llama 4 Scout W4A16 via vLLM (tensor parallel, ~55 GB)",
+        gpu_memory_utilization=0.92,
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="qwen3vl-vllm",
+        prompt_file="qwen3vl_prompts.yaml",
+        description="Qwen3-VL-8B via vLLM (PagedAttention, tensor parallelism)",
+        gpu_memory_utilization=0.92,
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="qwen35-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="Qwen3.5-27B via vLLM (~54 GB BF16)",
+        max_model_len=16384,
+        gpu_memory_utilization=0.92,
+    )
+)
+
+register_vllm_model(
+    VllmSpec(
+        model_type="gemma4",
+        prompt_file="internvl3_prompts.yaml",
+        description="Gemma 4 31B-it via vLLM (~58 GB BF16)",
+        mm_processor_kwargs={"max_soft_tokens": 560},
+        hf_overrides={
+            "vision_config": {"default_output_length": 560},
+            "vision_soft_tokens_per_image": 560,
+        },
     )
 )
