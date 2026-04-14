@@ -110,7 +110,7 @@ from PIL import Image
 
 from common.extraction_cleaner import ExtractionCleaner
 from common.extraction_parser import parse_extraction_response
-from common.gpu_optimization import configure_cuda_memory_allocation
+from common.gpu_memory import get_available_memory  # GPU memory utilities
 from common.model_config import QWEN3VL_GENERATION_CONFIG
 from models.base_processor import BaseDocumentProcessor
 

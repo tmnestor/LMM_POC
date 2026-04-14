@@ -159,9 +159,9 @@ class DocumentOrchestrator:
             if self.debug:
                 print(f"Using manual batch size: {self.batch_size}")
         else:
-            from common.gpu_optimization import get_available_gpu_memory
+            from common.gpu_memory import get_available_memory
 
-            available_memory = get_available_gpu_memory(self.device)
+            available_memory = get_available_memory(self.device)
             self.batch_size = self.app_config.get_auto_batch_size(
                 model_type_key, available_memory
             )
@@ -536,9 +536,9 @@ class DocumentOrchestrator:
 
         try:
             if self._has_oom_recovery:
-                from common.gpu_optimization import handle_memory_fragmentation
+                from common.gpu_memory import release_memory
 
-                handle_memory_fragmentation(threshold_gb=1.0, aggressive=True)
+                release_memory(threshold_gb=1.0)
 
             image = self.load_document_image(image_path)
 

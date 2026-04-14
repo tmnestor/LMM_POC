@@ -556,8 +556,8 @@ The field list stays the same for all variants — only the prompt changes.
 | `common/pipeline_config.py` | PipelineConfig dataclass; loads and merges YAML/ENV/CLI config |
 | `common/config.py` | Module-level constants; `apply_yaml_overrides()` replaces defaults from YAML |
 | `common/batch_processor.py` | Orchestrates detect -> extract -> evaluate pipeline |
-| `common/gpu_optimization.py` | CUDA memory management, OOM recovery, resilient generation |
-| `common/simple_prompt_loader.py` | Loads prompts from YAML by file + key |
+| `common/gpu_memory.py` | GPU memory query and fragmentation cleanup (2 functions) |
+| `common/prompt_catalog.py` | Unified prompt loading from YAML by namespace + key |
 | `common/evaluation_metrics.py` | Field-type-aware accuracy scoring |
 | `models/document_aware_internvl3_processor.py` | InternVL3 detection + extraction + structure classification |
 | `common/bank_statement_adapter.py` | Multi-turn extraction for complex tables |

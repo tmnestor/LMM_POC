@@ -89,8 +89,7 @@ graph TD
 │   ├── multi_gpu.py                       # Multi-GPU parallel processing orchestrator
 │   ├── bank_statement_adapter.py          # Multi-turn bank extraction adapter
 │   ├── unified_bank_extractor.py          # Auto-selects bank extraction strategy
-│   ├── gpu_optimization.py                # CUDA memory management, OOM recovery
-│   ├── robust_gpu_memory.py               # GPU memory detection across hardware
+│   ├── gpu_memory.py                      # GPU memory query and fragmentation cleanup (2 functions)
 │   ├── bank_statement_calculator.py       # Transaction type/amount derivation
 │   ├── batch_analytics.py                 # DataFrames and statistics
 │   ├── batch_reporting.py                 # Executive summaries and reports
