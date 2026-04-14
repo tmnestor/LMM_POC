@@ -27,7 +27,7 @@ from rich.text import Text
 from common.bank_statement_adapter import BankStatementAdapter
 from common.batch_analytics import BatchAnalytics
 from common.batch_processor import (
-    BatchDocumentProcessor,
+    create_batch_pipeline,
     load_document_field_definitions,
 )
 from common.batch_reporting import BatchReporter
@@ -245,7 +245,7 @@ def run_batch_processing(
         )
 
     # Create batch processor with bank adapter (routing is handled internally)
-    batch_processor = BatchDocumentProcessor(
+    batch_processor = create_batch_pipeline(
         model=processor,
         prompt_config=prompt_config,
         ground_truth_csv=str(config.ground_truth) if config.ground_truth else None,
