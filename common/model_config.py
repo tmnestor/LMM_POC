@@ -150,7 +150,9 @@ def apply_yaml_overrides(raw_config: dict) -> None:
 
 
 def get_model_name_with_size(
-    base_model_name: str, model_path: str = None, is_8b_model: bool = None
+    base_model_name: str,
+    model_path: str | None = None,
+    is_8b_model: bool | None = None,
 ) -> str:
     """
     Generate size-aware model name for batch size configuration lookup.
@@ -180,7 +182,7 @@ def get_model_name_with_size(
         return "internvl3-2b"
 
 
-def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
+def get_batch_size_for_model(model_name: str, strategy: str | None = None) -> int:
     """
     Get recommended batch size for a model based on strategy.
 
@@ -202,7 +204,9 @@ def get_batch_size_for_model(model_name: str, strategy: str = None) -> int:
         return DEFAULT_BATCH_SIZES.get(model_name, MIN_BATCH_SIZE)
 
 
-def get_auto_batch_size(model_name: str, available_memory_gb: float = None) -> int:
+def get_auto_batch_size(
+    model_name: str, available_memory_gb: float | None = None
+) -> int:
     """
     Automatically determine batch size based on available GPU memory.
 
@@ -286,6 +290,28 @@ GRANITE4_GENERATION_CONFIG = {
     "do_sample": False,
 }
 
+# -- Generation config registry (used by SimpleDocumentProcessor) ----------
+_GENERATION_CONFIG_REGISTRY: dict[str, dict] = {
+    "internvl3": INTERNVL3_GENERATION_CONFIG,
+    "llama": LLAMA_GENERATION_CONFIG,
+    "llama4scout": LLAMA4SCOUT_GENERATION_CONFIG,
+    "qwen3vl": QWEN3VL_GENERATION_CONFIG,
+    "qwen35": QWEN3VL_GENERATION_CONFIG,
+    "nemotron": QWEN3VL_GENERATION_CONFIG,
+    "gemma4": GEMMA4_GENERATION_CONFIG,
+    "granite4": GRANITE4_GENERATION_CONFIG,
+}
+
+
+def get_generation_config(model_type: str) -> dict:
+    """Look up generation config by model type key.
+
+    Returns a *copy* so callers can mutate without affecting the originals.
+    Falls back to QWEN3VL config for unknown models.
+    """
+    return dict(_GENERATION_CONFIG_REGISTRY.get(model_type, QWEN3VL_GENERATION_CONFIG))
+
+
 # Per-model generation parameters (for YAML overrides)
 GENERATION_CONFIGS = {
     "internvl3": {
@@ -330,24 +356,27 @@ def _get_min_tokens_for_type(document_type: str) -> int | None:
     return _MIN_TOKENS_CACHE.get(document_type)
 
 
-def get_max_new_tokens(field_count: int = None, document_type: str = None) -> int:
+def get_max_new_tokens(
+    field_count: int | None = None, document_type: str | None = None
+) -> int:
     """
     Calculate max_new_tokens based on field count and document complexity.
 
     Args:
-        field_count (int): Number of extraction fields (uses FIELD_COUNT if None)
-        document_type (str): Document type ('bank_statement', 'invoice', 'receipt', etc.)
+        field_count: Number of extraction fields (uses FIELD_COUNT if None)
+        document_type: Document type ('bank_statement', 'invoice', 'receipt', etc.)
 
     Returns:
-        int: Calculated max_new_tokens value
+        Calculated max_new_tokens value
     """
-    field_count = field_count or FIELD_COUNT or 15
+    effective_count: int = field_count or FIELD_COUNT or 15
 
     config = INTERNVL3_GENERATION_CONFIG
 
-    base_tokens = max(
-        config["max_new_tokens_base"], field_count * config["max_new_tokens_per_field"]
-    )
+    base = config["max_new_tokens_base"]
+    per_field = config["max_new_tokens_per_field"]
+    assert isinstance(base, int) and isinstance(per_field, int)  # noqa: S101
+    base_tokens: int = max(base, effective_count * per_field)
 
     # Apply per-type min_tokens from field_definitions.yaml if present
     if document_type:
