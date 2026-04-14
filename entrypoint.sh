@@ -225,15 +225,56 @@ case "${KFP_TASK:-}" in
     python3 ./cli.py "${CLI_ARGS[@]}" || exit $?
     log "Pipeline completed successfully."
     ;;
+
+  # -- Staged pipeline (GPU stages) ------------------------------------------
+  classify)
+    # Stage 1: Document type detection (GPU).
+    # Writes classifications.jsonl — one record per image.
+    log "Stage 1: classify — detecting document types..."
+    python3 -m stages.classify "${CLI_ARGS[@]}" || exit $?
+    log "Classification complete."
+    ;;
+  extract)
+    # Stage 2: Field extraction (GPU).
+    # Reads classifications.jsonl, writes raw_extractions.jsonl.
+    # Supports resumption from partial output after crash.
+    log "Stage 2: extract — extracting fields (raw responses)..."
+    python3 -m stages.extract "${CLI_ARGS[@]}" || exit $?
+    log "Extraction complete."
+    ;;
+
+  # -- Staged pipeline (CPU stages) ------------------------------------------
+  clean)
+    # Stage 3: Parse and clean raw responses (CPU only, no GPU needed).
+    # Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
+    log "Stage 3: clean — parsing and cleaning raw responses..."
+    python3 -m stages.clean "${CLI_ARGS[@]}" || exit $?
+    log "Cleaning complete."
+    ;;
+  evaluate)
+    # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
+    # Reads cleaned_extractions.jsonl + ground truth CSV, writes evaluation_results.jsonl.
+    log "Stage 4: evaluate — scoring against ground truth..."
+    python3 -m stages.evaluate "${CLI_ARGS[@]}" || exit $?
+    log "Evaluation complete."
+    ;;
+
   "")
     log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
     log "  For local dev, set KFP_TASK explicitly:"
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
+    log ""
+    log "  Available tasks:"
+    log "    run_batch_inference  — monolithic pipeline (legacy)"
+    log "    classify             — Stage 1: document type detection (GPU)"
+    log "    extract              — Stage 2: field extraction (GPU)"
+    log "    clean                — Stage 3: parse/clean responses (CPU)"
+    log "    evaluate             — Stage 4: evaluation (CPU)"
     exit 1
     ;;
   *)
     log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
-    log "  Expected one of: run_batch_inference"
+    log "  Expected one of: run_batch_inference, classify, extract, clean, evaluate"
     exit 1
     ;;
 esac

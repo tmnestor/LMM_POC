@@ -362,6 +362,7 @@ class DocumentPipeline:
                         extracted_data=extraction_result.get("extracted_data", {}),
                         processing_time=per_image_time,
                         prompt_used=f"batch_{det.document_type.lower()}",
+                        raw_response=extraction_result.get("raw_response", ""),
                     )
 
                     progress.update(progress_task, advance=1, current=det.image_name)
@@ -391,6 +392,7 @@ class DocumentPipeline:
                         extracted_data=extraction_result.get("extracted_data", {}),
                         processing_time=img_time,
                         prompt_used=det.document_type.lower(),
+                        raw_response=extraction_result.get("raw_response", ""),
                     )
                 except Exception as e:
                     logger.error("Error processing %s: %s", det.image_name, e)
@@ -428,6 +430,7 @@ class DocumentPipeline:
                     extracted_data=ext_output.extracted_data,
                     processing_time=bank_time,
                     prompt_used=ext_output.prompt_used,
+                    raw_response=ext_output.raw_response,
                 )
             except Exception as e:
                 logger.error(
@@ -518,6 +521,7 @@ class DocumentPipeline:
             extracted_data=extraction_result.get("extracted_data", {}),
             processing_time=0,  # caller measures wall time
             prompt_used=detection.document_type.lower(),
+            raw_response=extraction_result.get("raw_response", ""),
         )
 
     # -- Helpers --------------------------------------------------------------

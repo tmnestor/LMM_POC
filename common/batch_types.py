@@ -29,6 +29,7 @@ class ExtractionOutput:
     extracted_data: dict[str, str]
     processing_time: float
     prompt_used: str
+    raw_response: str = ""
     error: str | None = None
 
 
