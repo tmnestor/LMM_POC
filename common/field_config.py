@@ -1,9 +1,14 @@
-"""Field evaluation helpers.
+"""Field evaluation helpers and field-type accessors.
 
-Provides evaluation-field filtering used by evaluation_metrics.py and
-simple_model_evaluator.py.  All schema-loading globals have been absorbed
-into ``common.app_config.FieldSchema``.
+Provides evaluation-field filtering and field-type lookups used by
+evaluation_metrics.py, simple_model_evaluator.py, and batch_processor.py.
+Schema loading is handled by ``SimpleFieldLoader``; mutable globals have
+been eliminated.
 """
+
+from __future__ import annotations
+
+from functools import lru_cache
 
 # Fields EXTRACTED but EXCLUDED from evaluation metrics.
 # These are used for mathematical validation/correction but don't count toward accuracy.
@@ -11,6 +16,66 @@ VALIDATION_ONLY_FIELDS = [
     "TRANSACTION_AMOUNTS_RECEIVED",
     "ACCOUNT_BALANCE",
 ]
+
+
+@lru_cache(maxsize=1)
+def _load_field_types() -> dict[str, list[str]]:
+    """Load field type classifications from field_definitions.yaml (cached)."""
+    from .field_definitions_loader import SimpleFieldLoader
+
+    return SimpleFieldLoader().get_field_types()
+
+
+@lru_cache(maxsize=1)
+def _load_extraction_fields() -> list[str]:
+    """Load universal extraction fields (cached)."""
+    from .field_definitions_loader import SimpleFieldLoader
+
+    fields = SimpleFieldLoader().get_document_fields("universal")
+    return [f for f in fields if f != "TRANSACTION_AMOUNTS_RECEIVED"]
+
+
+# -- Field-type accessors (used by evaluation_metrics.py) ------------------
+
+
+def get_monetary_fields() -> list:
+    """Get monetary fields."""
+    return _load_field_types().get("monetary", [])
+
+
+def get_date_fields() -> list:
+    """Get date fields."""
+    return _load_field_types().get("date", [])
+
+
+def get_list_fields() -> list:
+    """Get list fields."""
+    return _load_field_types().get("list", [])
+
+
+def get_boolean_fields() -> list:
+    """Get boolean fields."""
+    return _load_field_types().get("boolean", [])
+
+
+def get_calculated_fields() -> list:
+    """Get calculated fields."""
+    return _load_field_types().get("calculated", [])
+
+
+def get_transaction_list_fields() -> list:
+    """Get transaction list fields."""
+    return _load_field_types().get("transaction_list", [])
+
+
+def get_phone_fields() -> list:
+    """Get phone fields."""
+    return []
+
+
+def get_all_field_types() -> dict[str, str]:
+    """Get field type mapping (field_name -> 'text')."""
+    return {f: "text" for f in _load_extraction_fields()}
 
 
 def is_evaluation_field(field_name: str) -> bool:
