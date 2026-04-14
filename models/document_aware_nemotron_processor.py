@@ -79,7 +79,7 @@ class DocumentAwareNemotronProcessor(BaseDocumentProcessor):
 
     @property
     def tokenizer(self):
-        """Return tokenizer for Protocol / BankStatementAdapter compatibility."""
+        """Return tokenizer for Protocol / UnifiedBankExtractor compatibility."""
         if self.processor is not None:
             return self.processor.tokenizer
         return None
@@ -115,7 +115,7 @@ class DocumentAwareNemotronProcessor(BaseDocumentProcessor):
 
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters."""
-        self.gen_config = dict(NEMOTRON_GENERATION_CONFIG)
+        self.gen_config: dict[str, Any] = dict(NEMOTRON_GENERATION_CONFIG)
 
         self.fallback_max_tokens = max(
             self.gen_config["max_new_tokens_base"],
@@ -181,8 +181,8 @@ class DocumentAwareNemotronProcessor(BaseDocumentProcessor):
     @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate token budget based on field count and document type."""
-        base = self.gen_config.get("max_new_tokens_base", 512)
-        per_field = self.gen_config.get("max_new_tokens_per_field", 64)
+        base = int(self.gen_config.get("max_new_tokens_base", 512))
+        per_field = int(self.gen_config.get("max_new_tokens_per_field", 64))
         tokens = base + (field_count * per_field)
 
         # Bank statements need more tokens for many transactions
@@ -297,12 +297,12 @@ class DocumentAwareNemotronProcessor(BaseDocumentProcessor):
             oom = True
 
         # Cleanup OUTSIDE except block (see MEMORY.md)
-        if oom:
-            gc.collect()
-            torch.cuda.empty_cache()
-            if self.debug:
-                print(f"OOM at {max_tokens} tokens, retrying at {max_tokens // 2}")
-            return self.generate(image, prompt, max_tokens // 2)
+        assert oom  # noqa: S101 — always True here; satisfies mypy reachability
+        gc.collect()
+        torch.cuda.empty_cache()
+        if self.debug:
+            print(f"OOM at {max_tokens} tokens, retrying at {max_tokens // 2}")
+        return self.generate(image, prompt, max_tokens // 2)
 
     def get_model_info(self) -> dict:
         """Return model metadata for reporting."""

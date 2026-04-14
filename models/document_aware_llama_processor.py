@@ -16,7 +16,7 @@ import gc
 import time
 import warnings
 from pathlib import Path
-from typing import override
+from typing import Any, override
 
 import torch
 from PIL import Image
@@ -76,7 +76,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
         # Initialize components
         self.model = pre_loaded_model
         self.processor = pre_loaded_processor
-        self.generation_config = None
+        self.generation_config: dict[str, Any] = {}
 
         # Configure CUDA memory allocation
         configure_cuda_memory_allocation()
@@ -146,8 +146,8 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
     @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate max_new_tokens for generation based on field count."""
-        base = LLAMA_GENERATION_CONFIG.get("max_new_tokens_base", 512)
-        per_field = LLAMA_GENERATION_CONFIG.get("max_new_tokens_per_field", 64)
+        base = int(LLAMA_GENERATION_CONFIG.get("max_new_tokens_base", 512))
+        per_field = int(LLAMA_GENERATION_CONFIG.get("max_new_tokens_per_field", 64))
         tokens = base + (field_count * per_field)
         # Bank statements need more tokens for many transactions
         if document_type == "bank_statement":
@@ -238,7 +238,7 @@ class DocumentAwareLlamaProcessor(BaseDocumentProcessor):
 
     @property
     def tokenizer(self):
-        """Return the tokenizer for Protocol/BankStatementAdapter compatibility.
+        """Return the tokenizer for Protocol/UnifiedBankExtractor compatibility.
 
         Llama uses AutoProcessor which wraps a tokenizer, unlike InternVL3
         which has a separate AutoTokenizer.

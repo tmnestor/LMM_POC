@@ -79,7 +79,7 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
 
     @property
     def tokenizer(self):
-        """Return tokenizer for Protocol / BankStatementAdapter compatibility."""
+        """Return tokenizer for Protocol / UnifiedBankExtractor compatibility."""
         if self.processor is not None:
             return self.processor.tokenizer
         return None
@@ -88,7 +88,10 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
 
     def _load_model(self) -> None:
         """Load Qwen3.5-27B model and processor from disk."""
-        from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
+        from transformers import (  # type: ignore[attr-defined]
+            AutoProcessor,
+            Qwen3_5ForConditionalGeneration,
+        )
 
         if self.debug:
             print(f"Loading Qwen3.5-27B from {self.model_path}")
@@ -113,7 +116,7 @@ class DocumentAwareQwen35Processor(BaseDocumentProcessor):
 
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters."""
-        self.gen_config = dict(QWEN35_GENERATION_CONFIG)
+        self.gen_config: dict[str, Any] = dict(QWEN35_GENERATION_CONFIG)
 
         self.fallback_max_tokens = max(
             self.gen_config["max_new_tokens_base"],

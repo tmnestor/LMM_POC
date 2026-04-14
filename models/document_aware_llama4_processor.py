@@ -80,7 +80,7 @@ class DocumentAwareLlama4Processor(BaseDocumentProcessor):
 
     @property
     def tokenizer(self):
-        """Return tokenizer for Protocol / BankStatementAdapter compatibility.
+        """Return tokenizer for Protocol / UnifiedBankExtractor compatibility.
 
         Llama 4 Scout uses AutoProcessor which wraps a tokenizer.
         """
@@ -137,7 +137,7 @@ class DocumentAwareLlama4Processor(BaseDocumentProcessor):
 
     def _configure_generation(self) -> None:
         """Load generation hyper-parameters from model_config."""
-        self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
+        self.gen_config: dict[str, Any] = dict(LLAMA4SCOUT_GENERATION_CONFIG)
 
         self.fallback_max_tokens = max(
             self.gen_config["max_new_tokens_base"],
@@ -200,8 +200,8 @@ class DocumentAwareLlama4Processor(BaseDocumentProcessor):
     @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate token budget based on field count and document type."""
-        base = self.gen_config.get("max_new_tokens_base", 512)
-        per_field = self.gen_config.get("max_new_tokens_per_field", 64)
+        base = int(self.gen_config.get("max_new_tokens_base", 512))
+        per_field = int(self.gen_config.get("max_new_tokens_per_field", 64))
         tokens = base + (field_count * per_field)
 
         # Bank statements need more tokens for many transactions

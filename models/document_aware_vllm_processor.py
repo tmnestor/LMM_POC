@@ -75,7 +75,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
 
     @property
     def tokenizer(self):
-        """Return tokenizer for Protocol / BankStatementAdapter compatibility."""
+        """Return tokenizer for Protocol / UnifiedBankExtractor compatibility."""
         return getattr(self.llm_engine, "tokenizer", None)
 
     # -- Generation config -----------------------------------------------------
@@ -89,6 +89,7 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
             QWEN3VL_GENERATION_CONFIG,
         )
 
+        self.gen_config: dict[str, Any]
         if self._model_type_key == "internvl3":
             self.gen_config = dict(INTERNVL3_GENERATION_CONFIG)
         elif self._model_type_key.startswith(("qwen3vl", "qwen35")):
@@ -98,9 +99,9 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
         else:
             self.gen_config = dict(LLAMA4SCOUT_GENERATION_CONFIG)
 
-        self.fallback_max_tokens = max(
-            self.gen_config["max_new_tokens_base"],
-            self.field_count * self.gen_config["max_new_tokens_per_field"],
+        self.fallback_max_tokens: int = max(
+            int(self.gen_config["max_new_tokens_base"]),
+            self.field_count * int(self.gen_config["max_new_tokens_per_field"]),
         )
 
         if self.debug:
@@ -163,8 +164,8 @@ class DocumentAwareVllmProcessor(BaseDocumentProcessor):
     @override
     def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
         """Calculate token budget based on field count and document type."""
-        base = self.gen_config.get("max_new_tokens_base", 512)
-        per_field = self.gen_config.get("max_new_tokens_per_field", 64)
+        base = int(self.gen_config.get("max_new_tokens_base", 512))
+        per_field = int(self.gen_config.get("max_new_tokens_per_field", 64))
         tokens = base + (field_count * per_field)
 
         # Bank statements need more tokens for many transactions

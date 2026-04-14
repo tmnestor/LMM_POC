@@ -1,7 +1,7 @@
 """Formal interface for document extraction processors.
 
 Defines @runtime_checkable Protocols that capture the duck-typed interfaces
-already expected by BatchDocumentProcessor and BankStatementAdapter.
+already expected by BatchDocumentProcessor and UnifiedBankExtractor.
 
 DocumentProcessor: Required interface for all model processors.
 BatchCapableProcessor: Optional interface for processors that support batched inference.

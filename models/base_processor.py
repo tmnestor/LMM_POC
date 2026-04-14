@@ -59,13 +59,23 @@ class BaseDocumentProcessor(abc.ABC):
             Token budget for generation.
         """
 
+    @abc.abstractmethod
+    def process_single_image(
+        self,
+        image_path: str,
+        custom_prompt: str | None = None,
+        custom_max_tokens: int | None = None,
+        field_list: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Process a single image and return extraction results."""
+
     # -- shared initialisation helpers -----------------------------------------
 
     def _init_shared(
         self,
         *,
         field_list: list[str],
-        prompt_config: dict[str, Any],
+        prompt_config: dict[str, Any] | None,
         field_definitions: dict[str, list[str]] | None = None,
         debug: bool = False,
         device: str = "cuda",
@@ -81,14 +91,13 @@ class BaseDocumentProcessor(abc.ABC):
         self.field_count = len(field_list)
         self.debug = debug
         self.device = device
-        self.prompt_config = prompt_config
-
         # Validate prompt_config
-        if not self.prompt_config:
+        if not prompt_config:
             raise ValueError(
                 "prompt_config is required — must contain "
                 "'detection_file', 'detection_key', 'extraction_files'"
             )
+        self.prompt_config: dict[str, Any] = prompt_config
         missing = {"detection_file", "detection_key", "extraction_files"} - set(
             self.prompt_config
         )
