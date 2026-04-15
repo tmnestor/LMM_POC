@@ -1,91 +1,60 @@
 prompts:
   universal:
     name: Universal Single-Pass Extraction (AWS Sonnet 3.5 - JSON)
-    description: Extract all 17 fields in one pass for any document type (invoice/receipt/bank statement). JSON output for AWS Bedrock Claude 3.5 Sonnet.
+    description: >
+      Extract all 17 fields in one pass for any document type
+      (invoice/receipt/bank statement). Optimised for AWS Bedrock
+      Claude 3.5 Sonnet with structured JSON output.
+      Split into system + user prompts for the Bedrock Messages API.
+
+    # Pass as the "system" parameter in the Bedrock Messages API call.
+    system: |
+      You are a document-data extraction engine. You receive a single
+      document image and return a JSON object with exactly 17 keys.
+
+      Rules:
+      - Extract only what is explicitly visible. Never guess or infer.
+      - Preserve the document's original text, formatting, and capitalisation.
+      - Use null for any field that is not visible or does not apply.
+      - Respond with a single raw JSON object. No markdown fences, no commentary.
+
+      Document-type applicability:
+      - Invoice/receipt fields: invoice_date, business_abn, supplier_name,
+        business_address, payer_name, payer_address, line_item_*,
+        gst_amount, is_gst_included, total_amount.
+      - Bank-statement fields: transaction_dates, transaction_amounts_paid,
+        statement_date_range, and line_item_descriptions (used for
+        transaction descriptions).
+      - For bank statements, extract ONLY debit/withdrawal rows (money out).
+        Skip all credits, deposits, and incoming transfers. The arrays for
+        transaction_dates, line_item_descriptions, and
+        transaction_amounts_paid must have the same length and correspond
+        to the same debit rows, in document order.
+
+      Field definitions (all keys are required in the output):
+
+      document_type  — "INVOICE", "RECEIPT", or "STATEMENT". null if unclear.
+      business_abn   — 11-digit Australian Business Number ("XX XXX XXX XXX"). null if absent.
+      supplier_name  — Company/business name from the document header. null if absent.
+      business_address — Full supplier address. null if absent.
+      payer_name     — Customer/payer name (Bill To / Customer section). null if absent.
+      payer_address  — Customer/payer address. null if absent.
+      invoice_date   — Document date in "DD/MM/YYYY" format. null if absent.
+      line_item_descriptions — Array of strings.
+          Invoices/receipts: item or service names from the line-item table.
+          Bank statements: debit transaction descriptions only.
+          null if absent.
+      line_item_quantities — Array of quantity strings, same order as descriptions. null if absent or N/A.
+      line_item_prices — Array of unit-price strings with "$" prefix (e.g. "$12.50"). null if absent or N/A.
+      line_item_total_prices — Array of line-total strings with "$" prefix. null if absent or N/A.
+      gst_amount     — GST/tax amount with "$" prefix (e.g. "$8.62"). null if absent.
+      is_gst_included — true if gst_amount > $0.00, false if $0.00, null if unclear or absent.
+      total_amount   — Final total with "$" prefix (e.g. "$95.50"). null if absent.
+      transaction_dates — Array of debit dates in "DD/MM/YYYY" format (bank statements only). null otherwise.
+      transaction_amounts_paid — Array of debit amounts with "$" prefix (bank statements only). null otherwise.
+      statement_date_range — {"start": "DD/MM/YYYY", "end": "DD/MM/YYYY"} spanning the earliest
+          to latest transaction_dates. null if not a bank statement.
+
+    # Pass as the user message content (alongside the image) in the Bedrock Messages API call.
     prompt: |
-
-      You are an expert document analyzer specializing in business document extraction.
-      Extract structured data from this document image using precise field-by-field analysis.
-
-      CRITICAL EXTRACTION RULES:
-      - If ANY field is not clearly visible in the document, return null for that field
-      - Do NOT guess, estimate, or infer missing information
-      - Only extract what is EXPLICITLY shown in the image
-      - Use exact text from document (preserve original formatting/capitalization)
-      - Be conservative: when in doubt, use null
-
-      CONVERSATION PROTOCOL:
-      - Respond with ONLY a valid JSON object — no markdown fences, no commentary
-      - Do NOT include conversational text like "I'll extract..." or "Based on the document..."
-      - Do NOT repeat the user's request or add explanations
-      - Output ONLY the JSON object below
-      - Do NOT wrap the JSON in ```json``` code fences
-
-      IMPORTANT: Some fields only apply to specific document types:
-      - INVOICE/RECEIPT fields: invoice_date, business_abn, supplier_name, business_address, payer_name, payer_address, line_items, gst_amount, is_gst_included, total_amount
-      - BANK STATEMENT fields (TAXPAYER EXPENSE CLAIMS): transaction_dates, transaction_amounts_paid, statement_date_range, line_item_descriptions (transaction descriptions)
-      - CRITICAL FOR BANK STATEMENTS: Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) for expense tracking. IGNORE deposits and credits (money IN).
-      - If field doesn't apply to document type, return null
-      - BANK STATEMENT DEBIT-ONLY EXTRACTION: For transaction_dates, line_item_descriptions, and transaction_amounts_paid on bank statements — count DEBIT transaction rows only and create arrays with exactly that many elements. SKIP credit/deposit rows.
-
-      FIELD DEFINITIONS:
-
-      document_type: Type of document — one of "INVOICE", "RECEIPT", "STATEMENT", or null if unclear.
-
-      business_abn: 11-digit Australian Business Number (format: "XX XXX XXX XXX") or null.
-
-      supplier_name: Company/business name providing goods/services (from document header) or null.
-
-      business_address: Complete supplier business address (multi-line acceptable) or null.
-
-      payer_name: Customer/payer name (from Bill To/Customer section) or null.
-
-      payer_address: Customer/payer address (from Bill To/Customer section) or null.
-
-      invoice_date: Date of invoice/receipt in "DD/MM/YYYY" format, or null.
-
-      line_item_descriptions:
-        - For INVOICES/RECEIPTS: Array of item/service names from the itemized list.
-        - For BANK STATEMENTS: Array of DEBIT transaction descriptions only.
-        - BANK STATEMENT CRITICAL: STEP 1: Identify DEBIT/WITHDRAWAL rows by checking debit column or keywords like "purchase", "withdrawal", "ATM", "EFTPOS", "fee". STEP 2: Extract descriptions from DEBIT rows only. STEP 3: SKIP deposit descriptions like "salary", "transfer in", "direct credit". Descriptions must match transaction_dates in same order.
-        - null if not visible.
-
-      line_item_quantities: Array of quantities for each item (match description order) or null.
-
-      line_item_prices: Array of unit prices as strings with "$" prefix (e.g. "$12.50") or null.
-
-      line_item_total_prices: Array of total prices per line item as strings with "$" prefix or null.
-
-      gst_amount: GST/tax amount as string with "$" prefix (e.g. "$8.62") or null.
-
-      is_gst_included: true if GST amount is greater than $0.00, false if GST amount is $0.00 or null, or null if unclear.
-
-      total_amount: Final total amount as string with "$" prefix (e.g. "$95.50") or null.
-
-      transaction_dates: Array of DEBIT transaction dates from BANK STATEMENTS ONLY in "DD/MM/YYYY" format, or null if not a bank statement. FOR BANK STATEMENTS: STEP 1: Identify DEBIT/WITHDRAWAL rows only (skip credit/deposit rows). STEP 2: Extract dates from DEBIT rows only. CRITICAL: Extract only debits, skip credits entirely.
-
-      transaction_amounts_paid: Array of DEBIT amounts from BANK STATEMENTS ONLY as strings with "$" prefix, or null if not a bank statement. FOR BANK STATEMENTS: STEP 1: Identify DEBIT/WITHDRAWAL rows (money OUT) by checking debit column, negative amounts, or balance decreases. STEP 2: Extract amounts from DEBIT rows only. STEP 3: SKIP credit/deposit amounts entirely. Must match transaction_dates in same order.
-
-      statement_date_range: Date range for BANK STATEMENTS ONLY — object with "start" and "end" keys in "DD/MM/YYYY" format, derived from earliest and latest transaction_dates. null if not a bank statement.
-
-      Respond with ONLY this JSON structure (replace values with actual extracted data):
-
-      {
-        "document_type": "INVOICE | RECEIPT | STATEMENT | null",
-        "business_abn": "XX XXX XXX XXX | null",
-        "supplier_name": "string | null",
-        "business_address": "string | null",
-        "payer_name": "string | null",
-        "payer_address": "string | null",
-        "invoice_date": "DD/MM/YYYY | null",
-        "line_item_descriptions": ["item1", "item2"] | null,
-        "line_item_quantities": ["1", "2"] | null,
-        "line_item_prices": ["$12.50", "$8.00"] | null,
-        "line_item_total_prices": ["$12.50", "$16.00"] | null,
-        "gst_amount": "$0.00 | null",
-        "is_gst_included": true | false | null,
-        "total_amount": "$0.00 | null",
-        "transaction_dates": ["DD/MM/YYYY", "DD/MM/YYYY"] | null,
-        "transaction_amounts_paid": ["$0.00", "$0.00"] | null,
-        "statement_date_range": {"start": "DD/MM/YYYY", "end": "DD/MM/YYYY"} | null
-      }
+      Extract all fields from this document image. Return only the JSON object.
