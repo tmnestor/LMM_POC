@@ -133,6 +133,14 @@ graph TD
 │   ├── batch_types.py                     # BatchResult, BatchStats, etc.
 │   ├── model_config.py                    # Generation config, batch sizes
 │   └── simple_model_evaluator.py          # Quick model accuracy summary
+├── stages/                                # KFP staged pipeline modules
+│   ├── __init__.py
+│   ├── io.py                              # JSONL I/O helpers (streaming writer, resumption)
+│   ├── classify.py                        # Stage 1: document detection (GPU)
+│   ├── extract.py                         # Stage 2: field extraction (GPU)
+│   ├── clean.py                           # Stage 3: parse/clean responses (CPU)
+│   └── evaluate.py                        # Stage 4: evaluation (CPU)
+├── entrypoint.sh                          # KFP pipeline entrypoint (stage dispatch)
 ├── conda_envs/                            # Conda environment YAML files
 ├── docs/                                  # Documentation and design docs
 ├── notebooks/                             # Jupyter notebooks (experiments, benchmarks)
@@ -161,6 +169,66 @@ python cli.py -d ./images -o ./output --num-gpus 0
 
 # 6. Using config file
 python cli.py --config config/run_config.yml
+```
+
+## KFP Staged Pipeline
+
+For production (KFP) and dev testing, the pipeline decomposes into 4 independent stages
+with JSONL file-based artifact handoff:
+
+```
+classify (GPU) -> classifications.jsonl -> extract (GPU) -> raw_extractions.jsonl
+    -> clean (CPU) -> cleaned_extractions.jsonl -> evaluate (CPU) -> evaluation_results.jsonl
+```
+
+Each artifact is intrinsically valuable and inspectable. CPU stages (clean, evaluate) don't
+need a GPU allocation. The extract stage supports **resumption** -- if it crashes at image
+8,500 of 10,000, it reads the partial output and continues from where it left off.
+
+### Running via entrypoint.sh
+
+The `entrypoint.sh` script dispatches to stages via the `KFP_TASK` environment variable.
+In production, this is set by the KFP pipeline YAML. For dev/testing:
+
+```bash
+# Find your conda env path on the dev machine
+conda info --envs
+
+# Stage 1: Classify document types
+LMM_CONDA_ENV=/path/to/your/env KFP_TASK=classify \
+  bash entrypoint.sh --image-dir /data/images --output /artifacts/classifications.jsonl --model internvl3
+
+# Stage 2: Extract fields (raw model responses)
+LMM_CONDA_ENV=/path/to/your/env KFP_TASK=extract \
+  bash entrypoint.sh --classifications /artifacts/classifications.jsonl \
+    --image-dir /data/images --output /artifacts/raw_extractions.jsonl --model internvl3
+
+# Stage 3: Parse and clean (CPU only, no GPU needed)
+LMM_CONDA_ENV=/path/to/your/env KFP_TASK=clean \
+  bash entrypoint.sh --input /artifacts/raw_extractions.jsonl --output /artifacts/cleaned_extractions.jsonl
+
+# Stage 4: Evaluate against ground truth (CPU only)
+LMM_CONDA_ENV=/path/to/your/env KFP_TASK=evaluate \
+  bash entrypoint.sh --input /artifacts/cleaned_extractions.jsonl \
+    --ground-truth /data/ground_truth.csv --output-dir /artifacts/evaluation
+```
+
+`LMM_CONDA_ENV` defaults to the production path (`/efs/shared/.conda/envs/lmm_poc_env`)
+if not set. The monolithic path (`KFP_TASK=run_batch_inference`) remains available.
+
+### Running stages directly from Python
+
+```python
+from pathlib import Path
+from stages.classify import run as classify
+from stages.extract import run as extract
+from stages.clean import run as clean
+from stages.evaluate import run as evaluate
+
+classify(Path("/data/images"), Path("/artifacts/classifications.jsonl"), model_type="internvl3")
+extract(Path("/artifacts/classifications.jsonl"), Path("/data/images"), Path("/artifacts/raw_extractions.jsonl"))
+clean(Path("/artifacts/raw_extractions.jsonl"), Path("/artifacts/cleaned_extractions.jsonl"))
+evaluate(Path("/artifacts/cleaned_extractions.jsonl"), Path("/data/ground_truth.csv"), Path("/artifacts/evaluation"))
 ```
 
 ## Pipeline Flow

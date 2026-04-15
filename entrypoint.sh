@@ -99,7 +99,9 @@ log ""
 # the Python dependencies (torch, transformers, etc.) pre-installed.
 log "Activating conda environment..."
 eval "$(conda shell.bash hook)"
-conda activate /efs/shared/.conda/envs/lmm_poc_env || { log "FATAL: conda activate failed"; exit 1; }
+CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/lmm_poc_env}"
+log "Conda env: $CONDA_ENV"
+conda activate "$CONDA_ENV" || { log "FATAL: conda activate failed"; exit 1; }
 
 # Log environment details for debugging failed runs —
 # knowing the Python version, conda env, and GPU type is critical
