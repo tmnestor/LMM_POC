@@ -37,7 +37,8 @@ output:
 
 # Logging
 logging:
-  log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+  # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+  log_dir: evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
 # Processing options
 processing:
