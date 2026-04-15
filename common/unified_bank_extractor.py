@@ -12,6 +12,7 @@ Usage:
     schema, metadata = extractor.extract_bank_statement(image_path)
 """
 
+import gc
 import re
 import sys
 from contextlib import contextmanager
@@ -656,6 +657,7 @@ class UnifiedBankExtractor:
             result = self._extract_schema_fallback(image, headers, mapping)
 
         # Free GPU memory
+        gc.collect()
         torch.cuda.empty_cache()
 
         return result
@@ -798,6 +800,7 @@ class UnifiedBankExtractor:
         self._log("[UBE] <<< EXITING _extract_balance_description")
 
         # Free memory
+        gc.collect()
         torch.cuda.empty_cache()
 
         return ExtractionResult(
@@ -912,6 +915,7 @@ class UnifiedBankExtractor:
             f"[UBE]   Array lengths: dates={len(dates)}, desc={len(descriptions)}, amounts={len(amounts)}, balances={len(balances)}"
         )
 
+        gc.collect()
         torch.cuda.empty_cache()
 
         return ExtractionResult(
@@ -1012,6 +1016,7 @@ class UnifiedBankExtractor:
         self._log(f"[UBE]   Date range: {date_range}")
         self._log("[UBE] <<< EXITING _extract_debit_credit_description")
 
+        gc.collect()
         torch.cuda.empty_cache()
 
         return ExtractionResult(
@@ -1100,6 +1105,7 @@ class UnifiedBankExtractor:
             )
             statement_date_range = computed_date_range
 
+        gc.collect()
         torch.cuda.empty_cache()
 
         return ExtractionResult(
