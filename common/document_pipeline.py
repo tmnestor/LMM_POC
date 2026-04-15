@@ -27,6 +27,19 @@ from .field_schema import get_field_schema
 logger = logging.getLogger(__name__)
 
 
+def _release_gpu_memory() -> None:
+    """Release fragmented GPU memory between inference calls.
+
+    Wraps gpu_memory.release_memory with a guard for CPU-only environments.
+    """
+    try:
+        from .gpu_memory import release_memory
+
+        release_memory(threshold_gb=1.0)
+    except ImportError:
+        pass
+
+
 class DocumentPipeline:
     """Single owner of the detect -> extract -> evaluate pipeline.
 
@@ -415,6 +428,10 @@ class DocumentPipeline:
             extraction_batch_sizes.append(1)
             det = detections[orig_idx]
 
+            # GPU cleanup before each bank image (was handled by
+            # process_single_image pre-refactor, now we must do it here)
+            _release_gpu_memory()
+
             logger.info("BANK STATEMENT (sequential): %s", det.image_name)
             self._print_tile_info(det.image_path)
 
@@ -478,6 +495,7 @@ class DocumentPipeline:
         """
         if self._bank_adapter is not None:
             logger.debug("BANK STATEMENT: Routing to UnifiedBankExtractor")
+            bank_failed = False
             try:
                 schema_fields, metadata = self._bank_adapter.extract_bank_statement(
                     detection.image_path
@@ -505,6 +523,13 @@ class DocumentPipeline:
             except Exception as e:
                 logger.warning("UnifiedBankExtractor failed: %s", e)
                 logger.warning("Falling back to standard extraction...")
+                bank_failed = True
+
+            # GPU cleanup OUTSIDE except block -- traceback refs are
+            # released so gc.collect() + empty_cache() can actually
+            # reclaim the tensors from the failed forward pass.
+            if bank_failed:
+                _release_gpu_memory()
 
         # Fallback: standard extraction (orchestrator handles bank structure
         # classification internally in process_document_aware)
