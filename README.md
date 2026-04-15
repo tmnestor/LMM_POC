@@ -196,16 +196,16 @@ conda info --envs
 
 # Stage 1: Classify document types
 LMM_CONDA_ENV=/path/to/your/env KFP_TASK=classify \
-  bash entrypoint.sh --image-dir /data/images --output /artifacts/classifications.jsonl --model internvl3
+  bash entrypoint.sh --data-dir /data/images --output-dir /artifacts/classifications.jsonl --model internvl3
 
 # Stage 2: Extract fields (raw model responses)
 LMM_CONDA_ENV=/path/to/your/env KFP_TASK=extract \
   bash entrypoint.sh --classifications /artifacts/classifications.jsonl \
-    --image-dir /data/images --output /artifacts/raw_extractions.jsonl --model internvl3
+    --data-dir /data/images --output-dir /artifacts/raw_extractions.jsonl --model internvl3
 
 # Stage 3: Parse and clean (CPU only, no GPU needed)
 LMM_CONDA_ENV=/path/to/your/env KFP_TASK=clean \
-  bash entrypoint.sh --input /artifacts/raw_extractions.jsonl --output /artifacts/cleaned_extractions.jsonl
+  bash entrypoint.sh --input /artifacts/raw_extractions.jsonl --output-dir /artifacts/cleaned_extractions.jsonl
 
 # Stage 4: Evaluate against ground truth (CPU only)
 LMM_CONDA_ENV=/path/to/your/env KFP_TASK=evaluate \

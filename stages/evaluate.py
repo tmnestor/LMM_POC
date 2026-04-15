@@ -150,13 +150,13 @@ def run(
 @app.command()
 def main(
     input_path: Path = typer.Option(
-        ..., "--input", help="Path to cleaned_extractions.jsonl from Stage 3"
+        ..., "--input", "-i", help="Path to cleaned_extractions.jsonl from Stage 3"
     ),
     ground_truth: Path = typer.Option(
-        ..., "--ground-truth", help="Path to ground truth CSV"
+        ..., "--ground-truth", "-g", help="Path to ground truth CSV"
     ),
     output_dir: Path = typer.Option(
-        ..., "--output-dir", help="Directory for evaluation output"
+        ..., "--output-dir", "-o", help="Directory for evaluation output"
     ),
     math_enhancement: bool = typer.Option(
         False,

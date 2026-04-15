@@ -160,10 +160,10 @@ def run(
 @app.command()
 def main(
     image_dir: Path = typer.Option(
-        ..., "--image-dir", help="Directory containing images"
+        ..., "--data-dir", "-d", help="Directory containing images"
     ),
     output: Path = typer.Option(
-        ..., "--output", help="Path to write classifications.jsonl"
+        ..., "--output-dir", "-o", help="Path to write classifications.jsonl"
     ),
     model: str = typer.Option("internvl3", "--model", help="Model type"),
     batch_size: int | None = typer.Option(

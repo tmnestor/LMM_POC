@@ -149,10 +149,10 @@ def run(
 @app.command()
 def main(
     input_path: Path = typer.Option(
-        ..., "--input", help="Path to raw_extractions.jsonl from Stage 2"
+        ..., "--input", "-i", help="Path to raw_extractions.jsonl from Stage 2"
     ),
     output: Path = typer.Option(
-        ..., "--output", help="Path to write cleaned_extractions.jsonl"
+        ..., "--output-dir", "-o", help="Path to write cleaned_extractions.jsonl"
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:

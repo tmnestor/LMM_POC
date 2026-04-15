@@ -283,10 +283,10 @@ def main(
         ..., "--classifications", help="Path to classifications.jsonl from Stage 1"
     ),
     image_dir: Path = typer.Option(
-        ..., "--image-dir", help="Directory containing images"
+        ..., "--data-dir", "-d", help="Directory containing images"
     ),
     output: Path = typer.Option(
-        ..., "--output", help="Path to write raw_extractions.jsonl"
+        ..., "--output-dir", "-o", help="Path to write raw_extractions.jsonl"
     ),
     model: str = typer.Option("internvl3", "--model", help="Model type"),
     batch_size: int | None = typer.Option(
