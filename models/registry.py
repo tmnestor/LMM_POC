@@ -142,7 +142,7 @@ register_hf_model(
         trust_remote_code=True,
         attn_implementation="flash_attention_2",
         load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True},
+        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
         backend_factory=_internvl3_backend,
         post_load=_internvl3_post_load,
     )
@@ -158,7 +158,7 @@ register_hf_model(
         trust_remote_code=True,
         attn_implementation="flash_attention_2",
         load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True},
+        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
         backend_factory=_internvl3_backend,
         post_load=_internvl3_post_load,
     )
@@ -175,7 +175,7 @@ register_hf_model(
         trust_remote_code=True,
         attn_implementation="flash_attention_2",
         load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True},
+        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
         backend_factory=_internvl3_backend,
         post_load=_internvl3_post_load,
     )
