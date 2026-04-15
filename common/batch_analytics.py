@@ -4,6 +4,7 @@ Batch Analytics Module for Document Extraction Results
 Creates comprehensive DataFrames and statistics from batch processing results.
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -80,7 +81,7 @@ class BatchAnalytics:
             else False
         )
 
-        summary_stats = {
+        summary_stats: dict[str, int | float] = {
             "Total Images": len(self.batch_results),
             "Successful Extractions": len(self.successful_results),
             "Failed Extractions": len(self.batch_results)
@@ -112,15 +113,15 @@ class BatchAnalytics:
         # Add processing time statistics for both modes
         summary_stats.update(
             {
-                "Average Processing Time (s)": np.mean(self.processing_times)
+                "Average Processing Time (s)": float(np.mean(self.processing_times))
                 if self.processing_times
-                else 0,
-                "Total Processing Time (s)": sum(self.processing_times)
+                else 0.0,
+                "Total Processing Time (s)": float(sum(self.processing_times))
                 if self.processing_times
-                else 0,
-                "Throughput (images/min)": 60 / np.mean(self.processing_times)
+                else 0.0,
+                "Throughput (images/min)": float(60 / np.mean(self.processing_times))
                 if self.processing_times
-                else 0,
+                else 0.0,
             }
         )
 
@@ -199,17 +200,23 @@ class BatchAnalytics:
 
     def save_all_dataframes(
         self, output_dir: Path, timestamp: str, verbose: bool = True
-    ) -> dict[str, Path]:
-        """
-        Save all DataFrames to CSV files.
+    ) -> tuple[
+        dict[str, Path],
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame | None,
+    ]:
+        """Save all DataFrames to CSV files.
 
         Args:
-            output_dir: Directory to save CSV files
-            timestamp: Timestamp for filenames
-            verbose: Whether to print save confirmations
+            output_dir: Directory to save CSV files.
+            timestamp: Timestamp for filenames.
+            verbose: Whether to print save confirmations.
 
         Returns:
-            Dictionary mapping DataFrame names to saved file paths
+            Tuple of (saved_files, df_results, df_summary,
+            df_doctype_stats, df_field_stats).
         """
         saved_files = {}
 
@@ -244,7 +251,32 @@ class BatchAnalytics:
             df_field_stats.to_csv(field_path)
             saved_files["field_stats"] = field_path
 
+        # Save raw extractions as JSONL (matches staged pipeline format)
+        raw_path = output_dir / f"batch_{timestamp}_raw_extractions.jsonl"
+        self._save_raw_extractions(raw_path)
+        saved_files["raw_extractions"] = raw_path
+
         if verbose:
             rprint(f"[green]✅ DataFrames saved to {output_dir}[/green]")
 
         return saved_files, df_results, df_summary, df_doctype_stats, df_field_stats
+
+    def _save_raw_extractions(self, path: Path) -> None:
+        """Save per-image raw responses as JSONL for debugging.
+
+        Format matches the staged pipeline's raw_extractions.jsonl so
+        the same downstream tools work with both monolithic and staged output.
+        """
+        with path.open("w") as f:
+            for result in self.batch_results:
+                record = {
+                    "image_name": result.get("image_name", ""),
+                    "image_path": result.get("image_path", ""),
+                    "document_type": result.get("document_type", ""),
+                    "raw_response": result.get("raw_response", ""),
+                    "processing_time": result.get("processing_time", 0),
+                    "prompt_used": result.get("prompt_used", ""),
+                }
+                if "error" in result:
+                    record["error"] = result["error"]
+                f.write(json.dumps(record) + "\n")

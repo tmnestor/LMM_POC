@@ -179,6 +179,7 @@ class DocumentPipeline:
                     evaluation=evaluation,
                     processing_time=ext.processing_time,
                     prompt_used=ext.prompt_used,
+                    raw_response=ext.raw_response,
                     error=ext.error,
                 )
             )

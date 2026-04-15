@@ -65,6 +65,7 @@ class ImageResult:
     evaluation: dict[str, Any]
     processing_time: float
     prompt_used: str
+    raw_response: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     error: str | None = None
 
@@ -78,6 +79,7 @@ class ImageResult:
             "evaluation": self.evaluation,
             "processing_time": self.processing_time,
             "prompt_used": self.prompt_used,
+            "raw_response": self.raw_response,
             "timestamp": self.timestamp,
         }
         if self.error is not None:
