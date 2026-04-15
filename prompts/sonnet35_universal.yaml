@@ -3,9 +3,20 @@ prompts:
     name: Universal Single-Pass Extraction (AWS Sonnet 3.5 - JSON)
     description: >
       Extract all 17 fields in one pass for any document type
-      (invoice/receipt/bank statement). Optimised for AWS Bedrock
-      Claude 3.5 Sonnet with structured JSON output.
+      (invoice/receipt/bank statement). Optimized for AWS Bedrock
+      Claude 3.5 Sonnet v2 with structured JSON output.
       Split into system + user prompts for the Bedrock Messages API.
+
+    # ── Bedrock API notes ──────────────────────────────────────────
+    # Model ID:  us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    #            (v1 was sunset Dec 2025 — always use v2)
+    # API header: anthropic_version: "bedrock-2023-05-31"
+    #
+    # Recommended: use Bedrock Structured Outputs (response_format
+    # with json_schema below) for guaranteed schema-valid JSON.
+    # If structured outputs are unavailable, the system prompt
+    # instructs the model to return raw JSON as a fallback.
+    # ────────────────────────────────────────────────────────────────
 
     # Pass as the "system" parameter in the Bedrock Messages API call.
     system: |
@@ -14,7 +25,7 @@ prompts:
 
       Rules:
       - Extract only what is explicitly visible. Never guess or infer.
-      - Preserve the document's original text, formatting, and capitalisation.
+      - Preserve the document's original text, formatting, and capitalization.
       - Use null for any field that is not visible or does not apply.
       - Respond with a single raw JSON object. No markdown fences, no commentary.
 
@@ -56,5 +67,139 @@ prompts:
           to latest transaction_dates. null if not a bank statement.
 
     # Pass as the user message content (alongside the image) in the Bedrock Messages API call.
+    # Place the image content block BEFORE this text block for best extraction accuracy.
     prompt: |
       Extract all fields from this document image. Return only the JSON object.
+
+    # ── Bedrock Structured Outputs schema ──────────────────────────
+    # Pass via response_format.json_schema in the InvokeModel request
+    # to guarantee schema-valid JSON without relying on prompt instructions.
+    #
+    # Example InvokeModel request body:
+    #   {
+    #     "anthropic_version": "bedrock-2023-05-31",
+    #     "system": "<system prompt above>",
+    #     "max_tokens": 4096,
+    #     "messages": [{"role": "user", "content": [
+    #       {"type": "image", "source": {"type": "base64", ...}},
+    #       {"type": "text", "text": "<user prompt above>"}
+    #     ]}],
+    #     "response_format": {
+    #       "type": "json_schema",
+    #       "json_schema": <schema below>
+    #     }
+    #   }
+    # ────────────────────────────────────────────────────────────────
+    json_schema:
+      name: document_extraction
+      strict: true
+      schema:
+        type: object
+        required:
+          - document_type
+          - business_abn
+          - supplier_name
+          - business_address
+          - payer_name
+          - payer_address
+          - invoice_date
+          - line_item_descriptions
+          - line_item_quantities
+          - line_item_prices
+          - line_item_total_prices
+          - gst_amount
+          - is_gst_included
+          - total_amount
+          - transaction_dates
+          - transaction_amounts_paid
+          - statement_date_range
+        additionalProperties: false
+        properties:
+          document_type:
+            anyOf:
+              - type: string
+                enum: ["INVOICE", "RECEIPT", "STATEMENT"]
+              - type: "null"
+          business_abn:
+            anyOf:
+              - type: string
+              - type: "null"
+          supplier_name:
+            anyOf:
+              - type: string
+              - type: "null"
+          business_address:
+            anyOf:
+              - type: string
+              - type: "null"
+          payer_name:
+            anyOf:
+              - type: string
+              - type: "null"
+          payer_address:
+            anyOf:
+              - type: string
+              - type: "null"
+          invoice_date:
+            anyOf:
+              - type: string
+              - type: "null"
+          line_item_descriptions:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_quantities:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_prices:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_total_prices:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          gst_amount:
+            anyOf:
+              - type: string
+              - type: "null"
+          is_gst_included:
+            anyOf:
+              - type: boolean
+              - type: "null"
+          total_amount:
+            anyOf:
+              - type: string
+              - type: "null"
+          transaction_dates:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          transaction_amounts_paid:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          statement_date_range:
+            anyOf:
+              - type: object
+                required: ["start", "end"]
+                additionalProperties: false
+                properties:
+                  start:
+                    type: string
+                  end:
+                    type: string
+              - type: "null"
