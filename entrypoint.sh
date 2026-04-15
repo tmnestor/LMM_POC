@@ -101,7 +101,11 @@ log "Activating conda environment..."
 eval "$(conda shell.bash hook)"
 CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/lmm_poc_env}"
 log "Conda env: $CONDA_ENV"
-conda activate "$CONDA_ENV" || { log "FATAL: conda activate failed"; exit 1; }
+# Temporarily allow unbound variables — conda activation scripts (e.g. MKL)
+# reference variables that may not be set yet.
+set +o nounset
+conda activate "$CONDA_ENV" || { set -o nounset; log "FATAL: conda activate failed"; exit 1; }
+set -o nounset
 
 # Log environment details for debugging failed runs —
 # knowing the Python version, conda env, and GPU type is critical
