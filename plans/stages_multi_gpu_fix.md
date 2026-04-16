@@ -368,6 +368,23 @@ python3 cli.py \
 
 ### Prod (4x A10G or 4x L4) -- final acceptance (deferred until user back)
 
+#### Empirical datapoint (2026-04-16, 1x L4 prod, pre-fix)
+
+135 production invoices through `cli.py` on the prod machine running
+pre-fix kfp (commit `9b5307f`) with a single L4 bound: **no
+fragmentation, no OOM, clean completion**.
+
+What this tells us:
+- The single-GPU code path is healthy end-to-end on kfp. The OOM is not
+  a general `release_memory()` correctness bug -- it is strictly a
+  multi-GPU phenomenon.
+- Directionally consistent with the thread-local current-device
+  hypothesis: with only one GPU, `empty_cache()` and `synchronize()`
+  can only ever target that GPU, so the wrong-device failure mode
+  cannot manifest.
+- Does NOT yet isolate device-pinning as the exact mechanism at 4x
+  scale -- that still requires Tests 4-7 on 4xA10G.
+
 #### Test 4: Reproduce the OOM on pre-fix commit
 
 ```bash
@@ -443,8 +460,14 @@ If Option 1 doesn't fix it, the hypothesis is wrong. Next steps:
      Root cause: wrong workload. Bank statements are the OOM trigger.
    - Rerun Test 3a/3b with `../evaluation_data/bank/` (17 bank docs,
      85-170 cleanup events) to expose the asymmetric accumulation.
+   - Second attempt (17 bank docs, pre-fix) -- weak signal: +670 MiB
+     on GPU 1 final vs GPU 0. Directionally consistent but below
+     noise. 2xL4 scale appears insufficient for a definitive repro.
    - Test 3d parity vs feature/multi-gpu on same 17 bank docs.
-3. **Prod 4x (final validation, pending user return)**:
+3. **1xL4 prod (2026-04-16)**: 135 invoices pre-fix -- clean, no OOM,
+   no fragmentation. Confirms single-GPU path is healthy; OOM is
+   multi-GPU-specific.
+4. **Prod 4x (final validation, pending user return)**:
    - Test 4 -- reproduce OOM on pre-fix at 4-GPU scale
    - Test 5 -- validate fix at 4-GPU scale
    - Test 6 -- parity vs feature/multi-gpu at full scale
@@ -452,6 +475,11 @@ If Option 1 doesn't fix it, the hypothesis is wrong. Next steps:
 5. **Commit message** should reference the root cause (worker threads
    inheriting main thread's current device) so future readers understand
    what's subtle here.
+
+   **Fallback if 4x prod still OOMs post-fix**: delete the three
+   `_release_gpu_memory()` calls from `common/document_pipeline.py`
+   (lines 386, 437, 536). `feature/multi-gpu` has no equivalent cleanup
+   and runs cleanly, so matching that behavior is a safe bisect step.
 
 ---
 
