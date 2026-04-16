@@ -40,7 +40,8 @@ def run(
     batch_size: int | None = None,
     bank_v2: bool = True,
     balance_correction: bool = True,
-    verbose: bool = True,
+    verbose: bool | None = None,
+    debug: bool | None = None,
     config_path: Path | None = None,
 ) -> Path:
     """Extract fields from classified images, write raw_extractions.jsonl.
@@ -59,7 +60,8 @@ def run(
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         bank_v2: Use UnifiedBankExtractor for bank statements.
         balance_correction: Enable balance validation in bank extraction.
-        verbose: Enable verbose logging.
+        verbose: Tier B output (init/config details). None = read from YAML.
+        debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
         config_path: Optional path to run_config.yml.
 
     Returns:
@@ -98,20 +100,26 @@ def run(
         logger.info("All images already processed -- nothing to do")
         return output_path
 
-    # Build config through the standard cascade
+    # Build config through the standard cascade. Only inject verbose/debug
+    # when the caller passed an explicit bool — None means "let YAML win".
     cli_args: dict[str, Any] = {
         "data_dir": str(image_dir),
         "output_dir": str(output_path.parent),
         "model_type": model_type,
         "bank_v2": bank_v2,
         "balance_correction": balance_correction,
-        "verbose": verbose,
     }
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
     if batch_size is not None:
         cli_args["batch_size"] = batch_size
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
+    # Tier B gate — resolved from CLI > YAML > defaults.
+    effective_verbose = config.verbose
 
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
@@ -145,7 +153,7 @@ def run(
         ):
             bank_adapter = UnifiedBankExtractor(
                 generate_fn=processor.generate,
-                verbose=config.verbose,
+                verbose=effective_verbose,
                 use_balance_correction=config.balance_correction,
             )
             logger.info("Bank adapter enabled")
@@ -181,7 +189,7 @@ def run(
                             image_name,
                             doc_type,
                             classification,
-                            verbose,
+                            effective_verbose,
                         )
                 except Exception as e:
                     logger.error("Error extracting %s: %s", image_name, e)
@@ -299,11 +307,23 @@ def main(
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
-    verbose: bool = typer.Option(True, "--verbose/--no-verbose"),
+    verbose: bool | None = typer.Option(
+        None,
+        "--verbose/--no-verbose",
+        help="Tier B output (init details). Default: read YAML processing.verbose.",
+    ),
+    debug: bool | None = typer.Option(
+        None,
+        "--debug/--no-debug",
+        help="Tier C output (PARSING DEBUG, prompt dumps). Default: YAML processing.debug.",
+    ),
 ) -> None:
     """Stage 2: Extract fields from classified images (raw responses)."""
+    # Tier A (per-image progress, phase headings) is always at INFO — it's the
+    # only indication the user has that inference is progressing. Verbose/debug
+    # are independent switches for Tiers B/C inside the orchestrator.
     logging.basicConfig(
-        level=logging.INFO if verbose else logging.WARNING,
+        level=logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
     run(
@@ -315,6 +335,7 @@ def main(
         bank_v2=bank_v2,
         balance_correction=balance_correction,
         verbose=verbose,
+        debug=debug,
         config_path=config,
     )
 

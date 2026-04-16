@@ -108,7 +108,13 @@ class PipelineConfig:
     # Output options
     skip_visualizations: bool = False
     skip_reports: bool = False
-    verbose: bool = True
+    # verbose: Tier B output (init details, batch auto-detect, generation config,
+    # per-image field counts). Default False — per-image progress is emitted as
+    # logger.info at the stage level regardless of this flag.
+    verbose: bool = False
+    # debug: Tier C output (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/
+    # response dumps, error tracebacks). Strictly opt-in for developers.
+    debug: bool = False
 
     # Runtime state (set during execution)
     timestamp: str = field(
@@ -192,6 +198,7 @@ def load_yaml_config(
             "balance_correction"
         )
         flat_config["verbose"] = raw_config["processing"].get("verbose")
+        flat_config["debug"] = raw_config["processing"].get("debug")
         flat_config["num_gpus"] = raw_config["processing"].get("num_gpus")
 
     # Flatten model_loading options into PipelineConfig fields
@@ -231,6 +238,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}DTYPE": ("dtype", str),
         f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}VERBOSE": ("verbose", lambda x: x.lower() == "true"),
+        f"{ENV_PREFIX}DEBUG": ("debug", lambda x: x.lower() == "true"),
     }
 
     for env_var, (config_key, converter) in env_mappings.items():
@@ -333,7 +341,7 @@ def discover_images(
     document_types: list[str] | None = None,
 ) -> list[Path]:
     """Discover images in data directory."""
-    images = []
+    images: list[Path] = []
 
     for ext in IMAGE_EXTENSIONS:
         images.extend(data_dir.glob(f"*{ext}"))

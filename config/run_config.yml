@@ -46,7 +46,8 @@ processing:
   num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: false  # Disable balance validation (reduces accuracy)
-  verbose: false             # Verbose output (debug messages)
+  verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
+  debug: false               # Tier C: dev noise (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/response dumps)
 
 # Batch processing tuning
 batch:

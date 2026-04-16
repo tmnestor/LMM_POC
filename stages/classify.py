@@ -27,7 +27,8 @@ def run(
     *,
     model_type: str = "internvl3",
     batch_size: int | None = None,
-    verbose: bool = True,
+    verbose: bool | None = None,
+    debug: bool | None = None,
     config_path: Path | None = None,
 ) -> Path:
     """Detect document types for all images, write classifications.jsonl.
@@ -37,7 +38,8 @@ def run(
         output_path: Path to write classifications.jsonl.
         model_type: Model type (e.g. "internvl3", "llama").
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
-        verbose: Enable verbose logging.
+        verbose: Tier B output (init/config details). None = read from YAML.
+        debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
         config_path: Optional path to run_config.yml.
 
     Returns:
@@ -48,18 +50,24 @@ def run(
     from common.pipeline_config import discover_images
     from common.pipeline_ops import create_processor, load_model
 
-    # Build config through the standard cascade
+    # Build config through the standard cascade. Only inject verbose/debug
+    # when the caller passed an explicit bool — None means "let YAML win".
     cli_args: dict[str, Any] = {
         "data_dir": str(image_dir),
         "output_dir": str(output_path.parent),
         "model_type": model_type,
-        "verbose": verbose,
     }
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
     if batch_size is not None:
         cli_args["batch_size"] = batch_size
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
+    # Tier B gate — resolved from CLI > YAML > defaults.
+    effective_verbose = config.verbose
 
     # Discover images
     images = list(discover_images(config.data_dir))
@@ -110,33 +118,51 @@ def run(
                     len(image_paths),
                 )
 
-                results = processor.detect_batch(batch, verbose=verbose)
+                results = processor.detect_batch(batch, verbose=effective_verbose)
                 for i, result in enumerate(results):
+                    image_name = Path(batch[i]).name
                     records.append(
                         {
                             "image_path": batch[i],
-                            "image_name": Path(batch[i]).name,
+                            "image_name": image_name,
                             "document_type": result["document_type"],
                             "confidence": result.get("confidence", 1.0),
                             "raw_response": result.get("raw_response", ""),
                             "prompt_used": result.get("prompt_used", "detection"),
                         }
                     )
+                    # Tier A: always-on per-image progress.
+                    logger.info(
+                        "[%d/%d] %s -> %s",
+                        batch_start + i + 1,
+                        len(image_paths),
+                        image_name,
+                        result["document_type"],
+                    )
         else:
-            for image_path in image_paths:
+            for idx, image_path in enumerate(image_paths):
                 result = processor.detect_and_classify_document(
                     image_path,
-                    verbose=verbose,
+                    verbose=effective_verbose,
                 )
+                image_name = Path(image_path).name
                 records.append(
                     {
                         "image_path": image_path,
-                        "image_name": Path(image_path).name,
+                        "image_name": image_name,
                         "document_type": result["document_type"],
                         "confidence": result.get("confidence", 1.0),
                         "raw_response": result.get("raw_response", ""),
                         "prompt_used": result.get("prompt_used", "detection"),
                     }
+                )
+                # Tier A: always-on per-image progress.
+                logger.info(
+                    "[%d/%d] %s -> %s",
+                    idx + 1,
+                    len(image_paths),
+                    image_name,
+                    result["document_type"],
                 )
 
         elapsed = time.time() - start
@@ -172,11 +198,23 @@ def main(
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
-    verbose: bool = typer.Option(True, "--verbose/--no-verbose"),
+    verbose: bool | None = typer.Option(
+        None,
+        "--verbose/--no-verbose",
+        help="Tier B output (init details). Default: read YAML processing.verbose.",
+    ),
+    debug: bool | None = typer.Option(
+        None,
+        "--debug/--no-debug",
+        help="Tier C output (PARSING DEBUG, prompt dumps). Default: YAML processing.debug.",
+    ),
 ) -> None:
     """Stage 1: Classify document types for all images."""
+    # Tier A (per-image progress, phase headings) is always at INFO — it's the
+    # only indication the user has that inference is progressing. Verbose/debug
+    # are independent switches for Tiers B/C inside the orchestrator.
     logging.basicConfig(
-        level=logging.INFO if verbose else logging.WARNING,
+        level=logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
     run(
@@ -185,6 +223,7 @@ def main(
         model_type=model,
         batch_size=batch_size,
         verbose=verbose,
+        debug=debug,
         config_path=config,
     )
 

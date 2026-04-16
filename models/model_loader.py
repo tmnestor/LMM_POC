@@ -284,10 +284,10 @@ def build_hf_processor_creator(spec: ModelSpec):
         *,
         app_config=None,
     ):
+        # debug=config.debug → Tier C (PARSING DEBUG, TENSOR_DTYPE, prompt/response dumps).
+        # verbose=config.verbose → Tier B (init details, auto-batch, gen-config).
         if spec.backend_factory is not None:
-            backend = spec.backend_factory(
-                model, tokenizer_or_processor, config.verbose
-            )
+            backend = spec.backend_factory(model, tokenizer_or_processor, config.debug)
         else:
             chat_config = ChatTemplateConfig(
                 message_style=spec.message_style,
@@ -304,7 +304,7 @@ def build_hf_processor_creator(spec: ModelSpec):
                 model=model,
                 processor=tokenizer_or_processor,
                 config=chat_config,
-                debug=config.verbose,
+                debug=config.debug,
             )
 
         return DocumentOrchestrator(
@@ -312,7 +312,8 @@ def build_hf_processor_creator(spec: ModelSpec):
             field_list=universal_fields,
             prompt_config=prompt_config,
             field_definitions=field_definitions,
-            debug=config.verbose,
+            debug=config.debug,
+            verbose=config.verbose,
             device=str(config.device_map),
             batch_size=config.batch_size,
             model_type_key=spec.model_type,
@@ -450,10 +451,12 @@ def build_vllm_processor_creator(spec: VllmSpec):
         *,
         app_config=None,
     ):
+        # debug=config.debug → Tier C; verbose=config.verbose → Tier B. See
+        # `plans/quiet-pipeline-output.md` for the split.
         backend = VllmBackend(
             engine=model,
             model_type_key=spec.model_type,
-            debug=config.verbose,
+            debug=config.debug,
         )
 
         return DocumentOrchestrator(
@@ -461,7 +464,8 @@ def build_vllm_processor_creator(spec: VllmSpec):
             field_list=universal_fields,
             prompt_config=prompt_config,
             field_definitions=field_definitions,
-            debug=config.verbose,
+            debug=config.debug,
+            verbose=config.verbose,
             device=str(config.device_map),
             batch_size=config.batch_size,
             model_type_key=spec.model_type,

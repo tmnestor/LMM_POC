@@ -50,6 +50,7 @@ class DocumentOrchestrator:
         prompt_config: dict[str, Any],
         field_definitions: dict[str, list[str]] | None = None,
         debug: bool = False,
+        verbose: bool = False,
         device: str = "cuda",
         batch_size: int | None = None,
         model_type_key: str = "internvl3",
@@ -57,7 +58,10 @@ class DocumentOrchestrator:
         has_oom_recovery: bool = True,
     ) -> None:
         self._backend = backend
+        # debug → Tier C (dev-noise: PARSING DEBUG, prompt/response dumps, tracebacks).
+        # verbose → Tier B (init/config details: auto-batch, gen-config, processing X).
         self.debug = debug
+        self._verbose = verbose
         self.device = device
         self._model_type_key = model_type_key
         self._has_oom_recovery = has_oom_recovery
@@ -124,7 +128,7 @@ class DocumentOrchestrator:
         # Generation config
         self._configure_generation()
 
-        if self.debug:
+        if self._verbose:
             print(
                 f"DocumentOrchestrator initialized: "
                 f"{self.field_count} fields, batch_size={self.batch_size}, "
@@ -156,7 +160,7 @@ class DocumentOrchestrator:
         """Configure batch processing parameters."""
         if batch_size is not None:
             self.batch_size = max(1, batch_size)
-            if self.debug:
+            if self._verbose:
                 print(f"Using manual batch size: {self.batch_size}")
         else:
             from common.gpu_memory import get_available_memory
@@ -165,7 +169,7 @@ class DocumentOrchestrator:
             self.batch_size = self.app_config.get_auto_batch_size(
                 model_type_key, available_memory
             )
-            if self.debug:
+            if self._verbose:
                 print(
                     f"Auto-detected batch size: {self.batch_size} "
                     f"(GPU Memory: {available_memory:.1f}GB)"
@@ -184,7 +188,7 @@ class DocumentOrchestrator:
             self.field_count * int(self.gen_config.get("max_new_tokens_per_field", 64)),
         )
 
-        if self.debug:
+        if self._verbose:
             print(
                 f"Generation config: max_new_tokens={self.fallback_max_tokens}, "
                 f"do_sample={self.gen_config.get('do_sample', False)}"
