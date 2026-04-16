@@ -221,8 +221,13 @@ signature is distinctive and diagnosable even at 2-GPU scale.
 # On 2xL4 dev machine, on a commit BEFORE the fix
 git checkout 9b5307f
 
+# trace_gpu_memory.sh was added AFTER 9b5307f, so extract it from the
+# branch tip into /tmp without switching trees.
+git show kfp:scripts/trace_gpu_memory.sh > /tmp/trace_gpu_memory.sh
+chmod +x /tmp/trace_gpu_memory.sh
+
 # Terminal A: start memory trace
-./scripts/trace_gpu_memory.sh /tmp/trace_pre.csv 2 &
+/tmp/trace_gpu_memory.sh /tmp/trace_pre.csv 2 &
 TRACE_PID=$!
 
 # Terminal A (continued): run a batch large enough to show fragmentation
@@ -251,9 +256,10 @@ explanation.
 #### Test 3b: Post-fix validation
 
 ```bash
-# Apply the fix (or checkout the fix commit)
-git checkout <fix-commit>
+# Apply the fix (or checkout the fix commit); kfp tip works.
+git checkout kfp   # or: git checkout 3a13651
 
+# From here, scripts/trace_gpu_memory.sh is present in the tree.
 ./scripts/trace_gpu_memory.sh /tmp/trace_post.csv 2 &
 TRACE_PID=$!
 
