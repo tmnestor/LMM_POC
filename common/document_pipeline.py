@@ -40,6 +40,36 @@ def _release_gpu_memory() -> None:
         pass
 
 
+def _log_gpu_memory(phase: str) -> None:
+    """Log per-GPU allocated/reserved memory at a pipeline phase boundary.
+
+    Used to diagnose whether GPU memory grows across phase boundaries
+    (monolithic run_batch_inference with raw_response persistence) vs.
+    stays bounded (streaming / staged pipeline).
+
+    No-op on CPU-only environments.
+    """
+    try:
+        import torch
+    except ImportError:
+        return
+
+    if not torch.cuda.is_available():
+        return
+
+    gib = 1024**3
+    parts: list[str] = []
+    for idx in range(torch.cuda.device_count()):
+        alloc = torch.cuda.memory_allocated(idx) / gib
+        reserved = torch.cuda.memory_reserved(idx) / gib
+        peak = torch.cuda.max_memory_allocated(idx) / gib
+        parts.append(
+            f"cuda:{idx} alloc={alloc:.2f}GiB "
+            f"reserved={reserved:.2f}GiB peak={peak:.2f}GiB"
+        )
+    logger.info("[gpu-mem][%s] %s", phase, " | ".join(parts))
+
+
 class DocumentPipeline:
     """Single owner of the detect -> extract -> evaluate pipeline.
 
@@ -137,8 +167,12 @@ class DocumentPipeline:
         logger.info("Batch size: %d", self._batch_size)
         self._console.rule("[bold green]Batch Extraction[/bold green]")
 
+        _log_gpu_memory("pipeline-start")
+
         # Phase 1: Detection
         detections, detection_batch_sizes = self._detect_all(image_paths, verbose)
+
+        _log_gpu_memory("post-detect")
 
         # Count document types
         document_types_found: dict[str, int] = {}
@@ -153,6 +187,8 @@ class DocumentPipeline:
         extractions, extraction_batch_sizes = self._extract_all(
             image_paths, detections, verbose
         )
+
+        _log_gpu_memory("post-extract")
 
         self._console.rule("[bold green]Batch Processing Complete[/bold green]")
 
@@ -214,6 +250,8 @@ class DocumentPipeline:
             num_detection_calls=len(detection_batch_sizes),
             num_extraction_calls=len(extraction_batch_sizes),
         )
+
+        _log_gpu_memory("pipeline-end")
 
         return BatchResult(
             results=image_results,
