@@ -146,8 +146,31 @@ class MultiGPUOrchestrator:
         images: list[Path],
         field_definitions: dict[str, list[str]],
     ) -> tuple[list[dict], list[float], dict[str, int], dict[str, float]]:
-        """Process an image chunk using a pre-loaded model/processor stack."""
+        """Process an image chunk using a pre-loaded model/processor stack.
+
+        Pins the worker thread's current CUDA device to the GPU this stack
+        was loaded on. Without this pin, thread-local current-device state is
+        inherited from the main thread (last set_device during Phase 1
+        loading), so memory-release APIs like ``torch.cuda.empty_cache()``
+        and ``torch.cuda.synchronize()`` run on the wrong GPU inside worker
+        threads. This causes fragmentation to accumulate unbounded on
+        non-current GPUs, driving OOM after many batches.
+        """
         gpu_config, _model_ctx, processor = gpu_stack
+
+        # Pin this thread to the GPU where its model lives so any
+        # empty_cache / synchronize calls target the correct device.
+        device_map = getattr(gpu_config, "device_map", None)
+        if isinstance(device_map, str) and device_map.startswith("cuda:"):
+            import torch
+
+            try:
+                gpu_id = int(device_map.split(":", 1)[1])
+                torch.cuda.set_device(gpu_id)
+            except (ValueError, RuntimeError):
+                # Malformed device_map or CUDA unavailable -- fall through.
+                pass
+
         return run_batch(gpu_config, processor, images, field_definitions)
 
     @staticmethod
