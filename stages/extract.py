@@ -40,7 +40,7 @@ def run(
     batch_size: int | None = None,
     bank_v2: bool = True,
     balance_correction: bool = True,
-    verbose: bool | None = None,
+    verbose: bool = True,
     config_path: Path | None = None,
 ) -> Path:
     """Extract fields from classified images, write raw_extractions.jsonl.
@@ -98,25 +98,20 @@ def run(
         logger.info("All images already processed -- nothing to do")
         return output_path
 
-    # Build config through the standard cascade.
-    # Only inject verbose when explicitly set so YAML's processing.verbose
-    # can take effect (CLI > YAML precedence in AppConfig.load).
+    # Build config through the standard cascade
     cli_args: dict[str, Any] = {
         "data_dir": str(image_dir),
         "output_dir": str(output_path.parent),
         "model_type": model_type,
         "bank_v2": bank_v2,
         "balance_correction": balance_correction,
+        "verbose": verbose,
     }
-    if verbose is not None:
-        cli_args["verbose"] = verbose
     if batch_size is not None:
         cli_args["batch_size"] = batch_size
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
-    # Resolved verbose after YAML cascade — used for downstream processor calls.
-    verbose = config.verbose
 
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
@@ -304,17 +299,11 @@ def main(
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
-    verbose: bool | None = typer.Option(
-        None,
-        "--verbose/--no-verbose",
-        help="Override YAML processing.verbose (default: use YAML setting)",
-    ),
+    verbose: bool = typer.Option(True, "--verbose/--no-verbose"),
 ) -> None:
     """Stage 2: Extract fields from classified images (raw responses)."""
-    # `None` here means "use YAML"; default logging to INFO since this is a CLI run.
-    # When verbose is explicitly set, honour it for basicConfig level.
     logging.basicConfig(
-        level=logging.INFO if verbose is not False else logging.WARNING,
+        level=logging.INFO if verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
     )
     run(
