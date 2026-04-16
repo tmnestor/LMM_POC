@@ -49,11 +49,18 @@ def _release_gpu_memory(device: str | None = None) -> None:
 
 
 def _log_gpu_memory(phase: str) -> None:
-    """Log per-GPU allocated/reserved memory at a pipeline phase boundary.
+    """Log per-GPU allocated/reserved/peak/fragmentation at a pipeline
+    phase boundary.
 
-    Used to diagnose whether GPU memory grows across phase boundaries
-    (monolithic run_batch_inference with raw_response persistence) vs.
-    stays bounded (streaming / staged pipeline).
+    Emits one log line per GPU with a ``[gpu=N]`` tag so you can filter
+    easily:
+
+        grep -F '[gpu-mem][post-extract][gpu=1]' run.log
+
+    The ``frag`` column is (reserved - allocated) GiB -- the same value
+    that ``release_memory(threshold_gb=1.0)`` keys on. Watching frag
+    climb over consecutive phase markers on a single GPU is the primary
+    fragmentation-leak signal.
 
     No-op on CPU-only environments.
     """
@@ -66,16 +73,21 @@ def _log_gpu_memory(phase: str) -> None:
         return
 
     gib = 1024**3
-    parts: list[str] = []
     for idx in range(torch.cuda.device_count()):
         alloc = torch.cuda.memory_allocated(idx) / gib
         reserved = torch.cuda.memory_reserved(idx) / gib
         peak = torch.cuda.max_memory_allocated(idx) / gib
-        parts.append(
-            f"cuda:{idx} alloc={alloc:.2f}GiB "
-            f"reserved={reserved:.2f}GiB peak={peak:.2f}GiB"
+        frag = reserved - alloc
+        logger.info(
+            "[gpu-mem][%s][gpu=%d] alloc=%.2fGiB reserved=%.2fGiB "
+            "peak=%.2fGiB frag=%.2fGiB",
+            phase,
+            idx,
+            alloc,
+            reserved,
+            peak,
+            frag,
         )
-    logger.info("[gpu-mem][%s] %s", phase, " | ".join(parts))
 
 
 class DocumentPipeline:
