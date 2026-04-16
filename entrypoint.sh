@@ -50,8 +50,17 @@ export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 # No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
 CONFIG_FILE="./config/run_config.yml"
 YAML_LOG_DIR=""
+YAML_DATA_DIR=""
+YAML_GROUND_TRUTH=""
+YAML_OUTPUT_DIR=""
+# Only the log_dir is resolved here (pre-conda) because we need it before
+# conda is on PATH so we can redirect output to the log file. It's a single
+# uncluttered key inside `logging:` with no commented alternatives, so the
+# narrow `-A5` window is safe. The other YAML defaults (data/output) are
+# resolved in Python AFTER conda activation — see the call to
+# scripts/resolve_yaml_defaults.py below — which is immune to comment churn.
 if [[ -f "$CONFIG_FILE" ]]; then
-  YAML_LOG_DIR=$(grep -A1 '^logging:' "$CONFIG_FILE" | grep 'log_dir:' | sed 's/.*log_dir:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d "'" | tr -d '"')
+  YAML_LOG_DIR=$(grep -A5 '^logging:' "$CONFIG_FILE" | grep -E '^[[:space:]]+log_dir:' | head -1 | sed 's/.*log_dir:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d "'" | tr -d '"')
 fi
 LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
 if [[ -z "$LOG_DIR" ]]; then
@@ -120,6 +129,13 @@ log "Log dir: $LOG_DIR (source: ${LMM_LOG_DIR:+env}${LMM_LOG_DIR:-${YAML_LOG_DIR
 log "---------------------------------------"
 log ""
 
+# ---- Resolve YAML defaults (data_dir / ground_truth / output_dir) ---- #
+# Uses yaml.safe_load via a tiny Python helper — immune to comment churn
+# and whitespace changes in run_config.yml. Must run AFTER conda activate
+# so `import yaml` resolves against the project environment. Missing keys
+# yield empty strings (safe under `set -u` with `${var:-}` later on).
+eval "$(python3 scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
+
 # ---- GPU Health Check ---- #
 # Verify GPUs are accessible and healthy before loading ~16GB models onto them.
 # Catches ECC errors, fallen-off-bus GPUs, and driver mismatches early —
@@ -162,6 +178,23 @@ fi
 # IMPORTANT: KFP stringifies Python None as the literal string "None" for
 # unset input_params. We must reject both empty AND "None" values.
 _is_set() { [[ -n "${1:-}" && "${1}" != "None" ]]; }
+
+# ---- YAML fallbacks for missing env vars ---- #
+# cli.py internally cascades env → YAML → defaults via AppConfig.load.
+# But stages/*.py mark their CLI flags as required via typer, so they
+# fail before AppConfig runs. Apply the YAML fallback HERE so the stage
+# commands below receive a concrete --data-dir / --output-dir value.
+# Env var always wins when explicitly set (matches cli.py semantics).
+if ! _is_set "${image_dir:-}"; then
+  image_dir="${YAML_DATA_DIR:-}"
+fi
+if ! _is_set "${ground_truth:-}"; then
+  ground_truth="${YAML_GROUND_TRUTH:-}"
+fi
+if ! _is_set "${output:-}"; then
+  output="${YAML_OUTPUT_DIR:-}"
+fi
+
 CLI_ARGS=()
 
 # model → --model (e.g. "internvl3", "llama")
@@ -201,7 +234,7 @@ CLI_ARGS+=("$@")
 
 # Log what we received from KFP and what we're about to pass to cli.py.
 # <not set> means KFP left the param blank — cli.py will use its defaults.
-log "KFP input_params:"
+log "KFP input_params (env var > YAML > unset):"
 log "  model:          ${model:-<not set>}"
 log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
