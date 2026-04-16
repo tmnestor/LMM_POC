@@ -382,6 +382,9 @@ class DocumentPipeline:
                     progress.update(progress_task, advance=1, current=det.image_name)
                     self._console.print(progress.get_renderable())
 
+                # Free batch activations before next batch or bank phase
+                _release_gpu_memory()
+
         elif standard_indices:
             # Sequential extraction for standard docs
             for orig_idx in standard_indices:
