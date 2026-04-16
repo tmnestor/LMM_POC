@@ -296,6 +296,11 @@ case "${KFP_TASK:-}" in
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
+    # Capture pipeline-wide start timestamp (epoch seconds). Passed to
+    # stages.evaluate so the Execution Summary can report true wall-clock
+    # across all 4 phases rather than just stage-2 inference time.
+    PIPELINE_START=$(date +%s)
+
     log ""
     log "Phase 1/4: classify (fresh process, model reload)..."
     python3 -m stages.classify \
@@ -326,9 +331,10 @@ case "${KFP_TASK:-}" in
       log ""
       log "Phase 4/4: evaluate (CPU, no GPU)..."
       python3 -m stages.evaluate \
-        --input        "$CLEAN_EXTRACTIONS" \
-        --ground-truth "$ground_truth" \
-        --output-dir   "$EVAL_DIR" || exit $?
+        --input             "$CLEAN_EXTRACTIONS" \
+        --ground-truth      "$ground_truth" \
+        --output-dir        "$EVAL_DIR" \
+        --wall-clock-start  "$PIPELINE_START" || exit $?
       log "Phase 4/4: evaluate complete."
     else
       log ""

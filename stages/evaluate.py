@@ -14,6 +14,7 @@ Usage:
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ def run(
     output_dir: Path,
     *,
     enable_math_enhancement: bool = False,
+    wall_clock_start: float | None = None,
 ) -> Path:
     """Evaluate cleaned extractions against ground truth.
 
@@ -50,6 +52,9 @@ def run(
         ground_truth_csv: Path to ground truth CSV.
         output_dir: Directory for evaluation output files.
         enable_math_enhancement: Apply bank statement balance calculations.
+        wall_clock_start: Epoch seconds when the pipeline started. When set,
+            the Execution Summary reports true wall-clock across all phases
+            (time.time() - start) instead of just stage-2 inference time.
 
     Returns:
         Path to the written evaluation_results.jsonl.
@@ -147,7 +152,10 @@ def run(
         logger.warning("No images scored -- check ground truth alignment")
 
     # Rich Execution Summary table (equivalent to pre-staged-pipeline output)
-    _print_summary_table(eval_results, records, output_dir)
+    wall_clock_s = (
+        time.time() - wall_clock_start if wall_clock_start is not None else None
+    )
+    _print_summary_table(eval_results, records, output_dir, wall_clock_s)
 
     return output_path
 
@@ -156,6 +164,7 @@ def _print_summary_table(
     eval_results: list[dict[str, Any]],
     cleaned_records: list[dict[str, Any]],
     output_dir: Path,
+    wall_clock_seconds: float | None = None,
 ) -> None:
     """Render an Execution Summary table and document-type breakdown.
 
@@ -166,7 +175,14 @@ def _print_summary_table(
 
     num = len(eval_results)
     total_inference = sum(r.get("processing_time", 0.0) for r in cleaned_records)
-    throughput = (num / total_inference * 60.0) if total_inference > 0 else 0.0
+    # Throughput is computed against wall-clock when available (true
+    # end-to-end rate), otherwise falls back to stage-2 inference time.
+    throughput_denom = (
+        wall_clock_seconds
+        if wall_clock_seconds is not None and wall_clock_seconds > 0
+        else total_inference
+    )
+    throughput = (num / throughput_denom * 60.0) if throughput_denom > 0 else 0.0
 
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
     avg_acc = (
@@ -187,6 +203,8 @@ def _print_summary_table(
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
     table.add_row("Images Processed", str(num))
+    if wall_clock_seconds is not None:
+        table.add_row("Wall Clock Time", f"{wall_clock_seconds:.1f}s")
     table.add_row("Inference Time", f"{total_inference:.1f}s")
     table.add_row("Throughput", f"{throughput:.2f} images/min")
     if scored:
@@ -219,6 +237,15 @@ def main(
         "--math-enhancement/--no-math-enhancement",
         help="Enable bank balance calculations",
     ),
+    wall_clock_start: float | None = typer.Option(
+        None,
+        "--wall-clock-start",
+        help=(
+            "Epoch seconds when the pipeline started (set by entrypoint.sh "
+            "before Phase 1). Used to report true end-to-end wall-clock in "
+            "the Execution Summary instead of just stage-2 inference time."
+        ),
+    ),
 ) -> None:
     """Stage 4: Evaluate extractions against ground truth (CPU only)."""
     logging.basicConfig(
@@ -230,6 +257,7 @@ def main(
         ground_truth,
         output_dir,
         enable_math_enhancement=math_enhancement,
+        wall_clock_start=wall_clock_start,
     )
 
 
