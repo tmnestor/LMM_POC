@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from common.batch_types import ExtractionOutput
 from common.extraction_evaluator import ExtractionEvaluator
@@ -144,7 +146,61 @@ def run(
     else:
         logger.warning("No images scored -- check ground truth alignment")
 
+    # Rich Execution Summary table (equivalent to pre-staged-pipeline output)
+    _print_summary_table(eval_results, records, output_dir)
+
     return output_path
+
+
+def _print_summary_table(
+    eval_results: list[dict[str, Any]],
+    cleaned_records: list[dict[str, Any]],
+    output_dir: Path,
+) -> None:
+    """Render an Execution Summary table and document-type breakdown.
+
+    Mimics the pre-staged-pipeline `cli.print_summary` output so runs still
+    end with the familiar throughput/accuracy summary.
+    """
+    console = Console()
+
+    num = len(eval_results)
+    total_inference = sum(r.get("processing_time", 0.0) for r in cleaned_records)
+    throughput = (num / total_inference * 60.0) if total_inference > 0 else 0.0
+
+    scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
+    avg_acc = (
+        sum(r.get("overall_accuracy", 0.0) for r in scored) / len(scored)
+        if scored
+        else 0.0
+    )
+    avg_f1 = (
+        sum(r.get("median_f1", 0.0) for r in scored) / len(scored) if scored else 0.0
+    )
+
+    doc_types: dict[str, int] = {}
+    for r in eval_results:
+        dt = r.get("document_type", "UNKNOWN")
+        doc_types[dt] = doc_types.get(dt, 0) + 1
+
+    table = Table(title="Execution Summary", show_header=True, header_style="bold")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Images Processed", str(num))
+    table.add_row("Inference Time", f"{total_inference:.1f}s")
+    table.add_row("Throughput", f"{throughput:.2f} images/min")
+    if scored:
+        table.add_row("Avg Accuracy", f"{avg_acc:.1%}")
+        table.add_row("Avg F1 (median)", f"{avg_f1:.3f}")
+    table.add_row("Output Directory", str(output_dir))
+
+    console.print()
+    console.print(table)
+
+    if doc_types:
+        console.print("\n[bold]Document Types:[/bold]")
+        for doc_type, count in sorted(doc_types.items()):
+            console.print(f"  {doc_type}: {count}")
 
 
 @app.command()

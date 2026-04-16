@@ -84,6 +84,7 @@ def run(
                     "extracted_data": {},
                     "field_count": 0,
                     "extracted_fields_count": 0,
+                    "processing_time": record.get("processing_time", 0.0),
                     "error": error,
                 }
             )
@@ -116,6 +117,7 @@ def run(
                 "extracted_data": extracted_data,
                 "field_count": len(expected_fields),
                 "extracted_fields_count": found_count,
+                "processing_time": record.get("processing_time", 0.0),
             }
         )
 
