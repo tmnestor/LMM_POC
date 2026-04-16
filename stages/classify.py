@@ -27,7 +27,7 @@ def run(
     *,
     model_type: str = "internvl3",
     batch_size: int | None = None,
-    verbose: bool = True,
+    verbose: bool | None = None,
     config_path: Path | None = None,
 ) -> Path:
     """Detect document types for all images, write classifications.jsonl.
@@ -37,7 +37,7 @@ def run(
         output_path: Path to write classifications.jsonl.
         model_type: Model type (e.g. "internvl3", "llama").
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
-        verbose: Enable verbose logging.
+        verbose: Enable verbose logging. None = cascade to YAML/default.
         config_path: Optional path to run_config.yml.
 
     Returns:
@@ -48,18 +48,23 @@ def run(
     from common.pipeline_config import discover_images
     from common.pipeline_ops import create_processor, load_model
 
-    # Build config through the standard cascade
+    # Build config through the standard cascade.
+    # Only inject verbose when explicitly set so YAML's processing.verbose
+    # can take effect (CLI > YAML precedence in AppConfig.load).
     cli_args: dict[str, Any] = {
         "data_dir": str(image_dir),
         "output_dir": str(output_path.parent),
         "model_type": model_type,
-        "verbose": verbose,
     }
+    if verbose is not None:
+        cli_args["verbose"] = verbose
     if batch_size is not None:
         cli_args["batch_size"] = batch_size
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
+    # Resolved verbose after YAML cascade — used for downstream processor calls.
+    verbose = config.verbose
 
     # Discover images
     images = list(discover_images(config.data_dir))
@@ -172,11 +177,17 @@ def main(
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
-    verbose: bool = typer.Option(True, "--verbose/--no-verbose"),
+    verbose: bool | None = typer.Option(
+        None,
+        "--verbose/--no-verbose",
+        help="Override YAML processing.verbose (default: use YAML setting)",
+    ),
 ) -> None:
     """Stage 1: Classify document types for all images."""
+    # `None` here means "use YAML"; default logging to INFO since this is a CLI run.
+    # When verbose is explicitly set, honour it for basicConfig level.
     logging.basicConfig(
-        level=logging.INFO if verbose else logging.WARNING,
+        level=logging.INFO if verbose is not False else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
     )
     run(
