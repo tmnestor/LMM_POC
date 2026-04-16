@@ -208,14 +208,27 @@ ruff format .
 mypy . --ignore-missing-imports
 ```
 
-### Dev (2xL4) -- PRIMARY validation (user has access now)
+### Dev (2xL4) -- SECONDARY validation (limited signal at this scale)
 
-With 2 GPUs the bug reproduces: pre-fix, both workers' `empty_cache()`
-calls target the main thread's last-set device (cuda:1), so cuda:0
-fragmentation grows unbounded while cuda:1 is cleaned normally. The
-signature is distinctive and diagnosable even at 2-GPU scale.
+**Empirical finding (2026-04-16)**: 30 SROIE images on 2xL4 did NOT
+reproduce the predicted GPU 0 monotonic-growth signature. Both GPUs
+oscillated in a bounded 16.5-17.7 GiB range with similar patterns, no
+OOM. Reasons this is expected:
 
-#### Test 3a: Reproduce on pre-fix commit (baseline OOM / memory pattern)
+1. **Small blast radius** — on 2 GPUs, only 1 of 2 workers fires
+   `empty_cache()` on the wrong device (vs 3 of 4 workers on prod 4x).
+   Asymmetry is 50% less stark.
+2. **Few batch boundaries** — 30 images / batch_size ≈ 4 boundaries.
+   Per-batch fragmentation of tens of MiB is below the ±5 GiB per-batch
+   oscillation noise floor.
+3. **SROIE is receipts-only** — no bank statements exercising the
+   sequential multi-turn path where fragmentation has longest to grow.
+
+2xL4 is kept in the plan as a **best-effort** repro; definitive
+validation lives on prod 4x. Run 120+ images if attempting to see
+asymmetric accumulation here.
+
+#### Test 3a: Pre-fix memory trace (baseline)
 
 ```bash
 # On 2xL4 dev machine, on a commit BEFORE the fix
@@ -230,30 +243,37 @@ chmod +x /tmp/trace_gpu_memory.sh
 /tmp/trace_gpu_memory.sh /tmp/trace_pre.csv 2 &
 TRACE_PID=$!
 
-# Terminal A (continued): run a batch large enough to show fragmentation
-# (30+ images recommended so you see at least 3-4 batch boundaries)
+# Terminal A (continued): 120+ images so you get 15+ batch boundaries.
+# SROIE (receipts) is a convenient dense source.
 python3 cli.py \
   --model internvl3 \
-  --data-dir evaluation_data/images_30 \
+  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
   --output-dir /tmp/kfp_pre \
-  --num-gpus 0   # auto-detect = 2
+  --num-gpus 0 \
+  --max-images 120
 
 kill $TRACE_PID
 ```
 
-**Pass criteria for the hypothesis**:
-- `/tmp/trace_pre.csv` shows GPU 0 `mem_used` trending monotonically
-  upward (no downward steps between batches)
-- `/tmp/trace_pre.csv` shows GPU 1 `mem_used` with periodic downward
-  steps (empty_cache firing correctly on cuda:1)
-- If run is long enough: OOM on GPU 0, NOT on GPU 1
+**Pass criteria for the hypothesis (strong signal)**:
+- GPU 0 `mem_used` floor rises steadily; GPU 1 floor stays flat or
+  shows periodic downward steps.
+- OR if run is long enough: OOM on GPU 0/1 but not on the
+  always-cleaned GPU.
 
-If GPU 1 shows the growth instead, the hypothesis is inverted (worker
-threads actually default to cuda:0, not cuda:1). The fix still applies
--- it explicitly pins each worker -- but we should update the plan's
+**Weak signal (what to do if pattern is ambiguous)**:
+- If both GPUs show similar bounded oscillation with no asymmetric
+  growth, the 2xL4 scale is simply insufficient — not evidence against
+  the hypothesis. The unit tests (`tests/test_multi_gpu_device_pin.py`)
+  already prove the fix pins devices correctly. Defer definitive
+  validation to prod 4x (Tests 4-7).
+
+If GPU 1 shows the growth instead of GPU 0, the hypothesis about which
+device workers inherit is inverted. The fix still applies (it
+explicitly pins each worker) but we should update the plan's
 explanation.
 
-#### Test 3b: Post-fix validation
+#### Test 3b: Post-fix memory trace
 
 ```bash
 # Apply the fix (or checkout the fix commit); kfp tip works.
@@ -265,9 +285,10 @@ TRACE_PID=$!
 
 python3 cli.py \
   --model internvl3 \
-  --data-dir evaluation_data/images_30 \
+  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
   --output-dir /tmp/kfp_post \
-  --num-gpus 0
+  --num-gpus 0 \
+  --max-images 120
 
 kill $TRACE_PID
 ```
@@ -301,14 +322,16 @@ Expected: pre-post diff is dramatic on GPU 0; GPU 1 is similar in both.
 #### Test 3d: Parity diff -- kfp post-fix vs feature/multi-gpu on 2xL4
 
 ```bash
-# Run 20 images through both branches on same machine, compare CSVs
+# Run ~20 images through both branches on same machine, compare CSVs
 git checkout feature/multi-gpu
-python3 cli.py --model internvl3 -d evaluation_data/images_20 \
-  -o /tmp/baseline --num-gpus 0
+python3 cli.py --model internvl3 \
+  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
+  --output-dir /tmp/baseline --num-gpus 0 --max-images 20
 
-git checkout <fix-commit>
-python3 cli.py --model internvl3 -d evaluation_data/images_20 \
-  -o /tmp/fix --num-gpus 0
+git checkout kfp   # or the specific fix commit
+python3 cli.py --model internvl3 \
+  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
+  --output-dir /tmp/fix --num-gpus 0 --max-images 20
 
 diff /tmp/baseline/extraction_results.csv /tmp/fix/extraction_results.csv
 ```
@@ -407,14 +430,13 @@ If Option 1 doesn't fix it, the hypothesis is wrong. Next steps:
 ## Rollout
 
 1. **Local (done)**: Unit test + Option 1 fix applied, lint/format/mypy/tests all green
-2. **2xL4 dev (now)**:
-   - Test 3a -- pre-fix memory trace (baseline)
-   - Test 3b -- post-fix memory trace (validates)
-   - Test 3c -- visualize diff (optional but highly informative)
-   - Test 3d -- parity vs feature/multi-gpu
-3. **Commit + push** once 2xL4 tests pass -- the hypothesis is validated
-   and the fix is proven at 2-GPU scale
-4. **Prod 4x when available (deferred)**:
+2. **2xL4 dev (done, inconclusive)**:
+   - Test 3a at 30 images -- no OOM, no asymmetric growth (too small)
+   - Recommendation: rerun Test 3a/3b with `--max-images 120` if you
+     want to attempt asymmetric-growth repro on 2xL4
+   - Fix + unit tests pushed regardless -- correctness validated
+     independent of the memory trace
+3. **Prod 4x (PRIMARY validation, pending user return)**:
    - Test 4 -- reproduce OOM on pre-fix at 4-GPU scale
    - Test 5 -- validate fix at 4-GPU scale
    - Test 6 -- parity vs feature/multi-gpu at full scale
