@@ -13,6 +13,7 @@ Usage:
 """
 
 import logging
+import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -304,6 +305,10 @@ def print_config(config: PipelineConfig) -> None:
     config_table.add_row("Data directory", str(config.data_dir))
     config_table.add_row("Output directory", str(config.output_dir))
     config_table.add_row("Model path", str(config.model_path))
+    # Log file (set by entrypoint.sh via export LMM_LOG_FILE)
+    log_file = os.environ.get("LMM_LOG_FILE")
+    if log_file:
+        config_table.add_row("Log file", log_file)
     config_table.add_row(
         "Ground truth",
         str(config.ground_truth)

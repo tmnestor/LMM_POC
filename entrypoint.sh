@@ -60,6 +60,8 @@ if [[ -z "$LOG_DIR" ]]; then
 fi
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/entrypoint_$(date +'%Y%m%d_%H%M%S').log"
+# Export so Python (cli.py) can display it in the startup Configuration panel.
+export LMM_LOG_FILE="$LOG_FILE"
 
 # `exec` redirects ALL subsequent output through `tee`, which writes to
 # both the console (for KFP) and the log file (for persistent debugging).
@@ -187,6 +189,11 @@ if _is_set "${batch_size:-}"; then
   CLI_ARGS+=(--batch-size "$batch_size")
 fi
 
+# ground_truth → --ground-truth (CSV for evaluation; optional)
+if _is_set "${ground_truth:-}"; then
+  CLI_ARGS+=(--ground-truth "$ground_truth")
+fi
+
 # Append any direct command-line arguments passed to this script.
 # This allows local dev usage: bash entrypoint.sh --model llama --verbose
 # These are added AFTER KFP params, so they take precedence (last wins).
@@ -200,6 +207,7 @@ log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
 log "  num_gpus:       ${num_gpus:-<not set>}"
 log "  batch_size:     ${batch_size:-<not set>}"
+log "  ground_truth:   ${ground_truth:-<not set>}"
 # metadata, system_message, and prompt are KFP input_params reserved for
 # future use. They are logged here for visibility but not yet translated
 # into CLI_ARGS — cli.py does not currently consume them.
@@ -210,6 +218,32 @@ log ""
 log "Resolved CLI args: ${CLI_ARGS[*]:-<none>}"
 log ""
 
+# ---- Per-stage flag builders ---- #
+# Each stages.X CLI expects different flag names than cli.py. Build
+# stage-specific argument arrays from the same env vars so both the
+# orchestrated `run_batch_inference` path and the standalone KFP stage
+# pods produce identical invocations.
+#
+# Optional flags use bash arrays so they expand to nothing when unset
+# (safer than string interpolation under `set -o nounset`).
+OPT_MODEL=()
+if _is_set "${model:-}"; then
+  OPT_MODEL=(--model "$model")
+fi
+OPT_BATCH=()
+if _is_set "${batch_size:-}"; then
+  OPT_BATCH=(--batch-size "$batch_size")
+fi
+
+# Resolve the output root. Every intermediate JSONL lives here so that
+# re-runs of a single stage can read the upstream artefacts written by
+# a previous run (this is also what the KFP pod volume mount sees).
+OUT_ROOT="${output:-./outputs}"
+CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
+RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
+CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
+EVAL_DIR="${OUT_ROOT}/evaluation"
+
 # ---- Task Dispatch ---- #
 # KFP sets $KFP_TASK to the current stage name from workflow_definition.
 # Each case must match a task name defined in the kfp_manifest.
@@ -219,16 +253,56 @@ log ""
 
 case "${KFP_TASK:-}" in
   run_batch_inference)
-    # Hand off to cli.py which handles all the actual work:
-    # model loading, image processing, extraction, evaluation, and reporting.
-    # NOTE: cli.py exit codes — propagated via `|| exit $?` for KFP:
-    #   0 = success
-    #   1 = config error (bad YAML, missing paths, invalid params)
-    #   2 = model loading error (OOM, corrupt weights, missing checkpoint)
-    #   3 = processing error (all images failed, fatal crash)
-    #   4 = partial success (some images succeeded, some failed)
-    log "Starting cli.py..."
-    python3 ./cli.py "${CLI_ARGS[@]}" || exit $?
+    # Local simulation of the 4-pod KFP pipeline.
+    # Each phase is a FRESH python3 process: model loads, runs, exits,
+    # CUDA context is torn down and GPU memory fully released before the
+    # next phase starts. This mirrors pod-per-stage KFP deployment and
+    # isolates GPU state between phases (no fragmentation leak across
+    # detect → extract → clean → evaluate).
+    log "Mode: run_batch_inference — simulating 4-stage KFP pipeline locally."
+    log "Output root: $OUT_ROOT"
+    mkdir -p "$OUT_ROOT"
+
+    log ""
+    log "Phase 1/4: classify (fresh process, model reload)..."
+    python3 -m stages.classify \
+      --data-dir   "${image_dir:?image_dir env var required}" \
+      --output-dir "$CLASSIFICATIONS" \
+      "${OPT_MODEL[@]}" \
+      "${OPT_BATCH[@]}" || exit $?
+    log "Phase 1/4: classify complete."
+
+    log ""
+    log "Phase 2/4: extract (fresh process, model reload)..."
+    python3 -m stages.extract \
+      --classifications "$CLASSIFICATIONS" \
+      --data-dir        "$image_dir" \
+      --output-dir      "$RAW_EXTRACTIONS" \
+      "${OPT_MODEL[@]}" \
+      "${OPT_BATCH[@]}" || exit $?
+    log "Phase 2/4: extract complete."
+
+    log ""
+    log "Phase 3/4: clean (CPU, no GPU)..."
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "Phase 3/4: clean complete."
+
+    if _is_set "${ground_truth:-}"; then
+      log ""
+      log "Phase 4/4: evaluate (CPU, no GPU)..."
+      python3 -m stages.evaluate \
+        --input        "$CLEAN_EXTRACTIONS" \
+        --ground-truth "$ground_truth" \
+        --output-dir   "$EVAL_DIR" || exit $?
+      log "Phase 4/4: evaluate complete."
+    else
+      log ""
+      log "Phase 4/4: evaluate skipped — ground_truth not provided."
+    fi
+
+    log ""
     log "Pipeline completed successfully."
     ;;
 
@@ -237,7 +311,12 @@ case "${KFP_TASK:-}" in
     # Stage 1: Document type detection (GPU).
     # Writes classifications.jsonl — one record per image.
     log "Stage 1: classify — detecting document types..."
-    python3 -m stages.classify "${CLI_ARGS[@]}" || exit $?
+    mkdir -p "$OUT_ROOT"
+    python3 -m stages.classify \
+      --data-dir   "${image_dir:?image_dir env var required}" \
+      --output-dir "$CLASSIFICATIONS" \
+      "${OPT_MODEL[@]}" \
+      "${OPT_BATCH[@]}" || exit $?
     log "Classification complete."
     ;;
   extract)
@@ -245,7 +324,13 @@ case "${KFP_TASK:-}" in
     # Reads classifications.jsonl, writes raw_extractions.jsonl.
     # Supports resumption from partial output after crash.
     log "Stage 2: extract — extracting fields (raw responses)..."
-    python3 -m stages.extract "${CLI_ARGS[@]}" || exit $?
+    mkdir -p "$OUT_ROOT"
+    python3 -m stages.extract \
+      --classifications "$CLASSIFICATIONS" \
+      --data-dir        "${image_dir:?image_dir env var required}" \
+      --output-dir      "$RAW_EXTRACTIONS" \
+      "${OPT_MODEL[@]}" \
+      "${OPT_BATCH[@]}" || exit $?
     log "Extraction complete."
     ;;
 
@@ -254,14 +339,21 @@ case "${KFP_TASK:-}" in
     # Stage 3: Parse and clean raw responses (CPU only, no GPU needed).
     # Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
     log "Stage 3: clean — parsing and cleaning raw responses..."
-    python3 -m stages.clean "${CLI_ARGS[@]}" || exit $?
+    mkdir -p "$OUT_ROOT"
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
     log "Cleaning complete."
     ;;
   evaluate)
     # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
     # Reads cleaned_extractions.jsonl + ground truth CSV, writes evaluation_results.jsonl.
     log "Stage 4: evaluate — scoring against ground truth..."
-    python3 -m stages.evaluate "${CLI_ARGS[@]}" || exit $?
+    mkdir -p "$EVAL_DIR"
+    python3 -m stages.evaluate \
+      --input        "$CLEAN_EXTRACTIONS" \
+      --ground-truth "${ground_truth:?ground_truth env var required}" \
+      --output-dir   "$EVAL_DIR" || exit $?
     log "Evaluation complete."
     ;;
 
@@ -271,7 +363,7 @@ case "${KFP_TASK:-}" in
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
     log ""
     log "  Available tasks:"
-    log "    run_batch_inference  — monolithic pipeline (legacy)"
+    log "    run_batch_inference  — 4-stage simulation (fresh process per phase)"
     log "    classify             — Stage 1: document type detection (GPU)"
     log "    extract              — Stage 2: field extraction (GPU)"
     log "    clean                — Stage 3: parse/clean responses (CPU)"
