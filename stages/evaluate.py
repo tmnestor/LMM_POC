@@ -140,13 +140,13 @@ def run(
     # Summary statistics
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
     if scored:
-        avg_f1 = sum(r["median_f1"] for r in scored) / len(scored)
-        avg_acc = sum(r.get("overall_accuracy", 0) for r in scored) / len(scored)
+        avg_f1_median = sum(r["median_f1"] for r in scored) / len(scored)
+        avg_f1_mean = sum(r.get("overall_accuracy", 0) for r in scored) / len(scored)
         logger.info(
-            "Summary: %d images scored, avg median_f1=%.3f, avg accuracy=%.3f",
+            "Summary: %d images scored, avg F1 (median)=%.3f, avg F1 (mean)=%.3f",
             len(scored),
-            avg_f1,
-            avg_acc,
+            avg_f1_median,
+            avg_f1_mean,
         )
     else:
         logger.warning("No images scored -- check ground truth alignment")
@@ -185,12 +185,12 @@ def _print_summary_table(
     throughput = (num / throughput_denom * 60.0) if throughput_denom > 0 else 0.0
 
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
-    avg_acc = (
+    avg_f1_mean = (
         sum(r.get("overall_accuracy", 0.0) for r in scored) / len(scored)
         if scored
         else 0.0
     )
-    avg_f1 = (
+    avg_f1_median = (
         sum(r.get("median_f1", 0.0) for r in scored) / len(scored) if scored else 0.0
     )
 
@@ -208,8 +208,8 @@ def _print_summary_table(
     table.add_row("Inference Time", f"{total_inference:.1f}s")
     table.add_row("Throughput", f"{throughput:.2f} images/min")
     if scored:
-        table.add_row("Avg Accuracy", f"{avg_acc:.1%}")
-        table.add_row("Avg F1 (median)", f"{avg_f1:.3f}")
+        table.add_row("Avg F1 (mean)", f"{avg_f1_mean:.3f}")
+        table.add_row("Avg F1 (median)", f"{avg_f1_median:.3f}")
     table.add_row("Output Directory", str(output_dir))
 
     console.print()
