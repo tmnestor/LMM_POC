@@ -158,7 +158,29 @@ def build_hf_loader(spec: ModelSpec):
                     if spec.trust_remote_code:
                         load_kwargs["trust_remote_code"] = True
                     if spec.attn_implementation and cfg.flash_attn:
-                        load_kwargs["attn_implementation"] = spec.attn_implementation
+                        # Only pass attn_implementation=flash_attention_2 to
+                        # from_pretrained when the flash_attn package is
+                        # importable. HF validates FA2 strictly and raises
+                        # ImportError before the SDPA patch below can run.
+                        # When flash_attn is absent (e.g. prod), let HF use
+                        # its default (eager) -- the SDPA monkey-patch at
+                        # line ~202 redirects eager through
+                        # F.scaled_dot_product_attention globally. This
+                        # matches feature/multi-gpu behavior on prod where
+                        # flash_attn has never been installed.
+                        if spec.attn_implementation == "flash_attention_2":
+                            try:
+                                import flash_attn  # noqa: F401
+
+                                load_kwargs["attn_implementation"] = (
+                                    spec.attn_implementation
+                                )
+                            except ImportError:
+                                pass
+                        else:
+                            load_kwargs["attn_implementation"] = (
+                                spec.attn_implementation
+                            )
 
                     # Override device_map for single-GPU models
                     if spec.force_single_gpu:

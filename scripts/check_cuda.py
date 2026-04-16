@@ -98,6 +98,77 @@ def main() -> None:
     except ImportError:
         print(f"{'accelerate':.<30s} NOT INSTALLED")
 
+    # Attention backend diagnostic
+    print(f"\n{'=' * 60}")
+    print("Attention Backend")
+    print("=" * 60)
+    _check_attention_backend()
+
+
+def _check_attention_backend() -> None:
+    """Inspect what 'eager' attention resolves to in the HF registry.
+
+    After models.attention.patch_eager_attention_to_sdpa() runs, the
+    'eager' entry in transformers.modeling_utils.ALL_ATTENTION_FUNCTIONS
+    should point to our _sdpa_attention wrapper (which calls
+    F.scaled_dot_product_attention). If it still points to transformers'
+    eager_attention_forward, the SDPA patch did NOT fire and the model
+    will materialize the full O(N^2) attention matrix -> OOM risk.
+
+    This runs the patch (idempotent, safe outside a model load), then
+    prints the resolved function for each attention key. Useful on prod
+    to confirm SDPA is active before a full eval.
+    """
+    try:
+        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+    except ImportError as exc:
+        print(f"ALL_ATTENTION_FUNCTIONS: unavailable ({exc})")
+        return
+
+    # Pre-patch state
+    pre = ALL_ATTENTION_FUNCTIONS.get("eager")
+    pre_repr = f"{pre.__module__}.{pre.__name__}" if pre is not None else "None"
+    print(f"{'eager (pre-patch)':.<30s} {pre_repr}")
+
+    # Apply the patch (idempotent) and show post-patch state
+    try:
+        from models.attention import (
+            is_sdpa_patched,
+            mark_sdpa_patched,
+            patch_eager_attention_to_sdpa,
+        )
+    except ImportError as exc:
+        print(f"models.attention: unavailable ({exc})")
+        return
+
+    if not is_sdpa_patched():
+        if patch_eager_attention_to_sdpa():
+            mark_sdpa_patched()
+
+    post = ALL_ATTENTION_FUNCTIONS.get("eager")
+    post_repr = f"{post.__module__}.{post.__name__}" if post is not None else "None"
+    print(f"{'eager (post-patch)':.<30s} {post_repr}")
+    print(f"{'is_sdpa_patched()':.<30s} {is_sdpa_patched()}")
+
+    # Native flash availability
+    try:
+        import flash_attn  # noqa: F401
+
+        print(f"{'native flash-attn':.<30s} available (preferred)")
+    except ImportError:
+        print(f"{'native flash-attn':.<30s} NOT installed (SDPA patch required)")
+
+    # Expected post-patch: models.attention._sdpa_attention
+    # If you see transformers.*.eager_attention_forward, the patch did
+    # NOT apply and attention will materialize the full NxN matrix.
+    expected = "models.attention._sdpa_attention"
+    if post_repr == expected:
+        print(f"\n[OK] eager is patched to SDPA ({expected})")
+    else:
+        print("\n[WARN] eager is NOT patched to SDPA")
+        print(f"       expected: {expected}")
+        print(f"       actual:   {post_repr}")
+
 
 if __name__ == "__main__":
     main()
