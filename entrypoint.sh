@@ -285,6 +285,15 @@ log "KFP_TASK: ${KFP_TASK:-<not set>}"
 log ""
 
 case "${KFP_TASK:-}" in
+  # ========================================================================
+  # LOCAL DEV ONLY — NOT used by the KFP pipeline.
+  # ========================================================================
+  # In production, KFP runs each stage in its own pod by setting
+  # KFP_TASK=classify / extract / clean / evaluate (see branches below).
+  # The `run_batch_inference` branch chains all 4 stages in a single shell
+  # for sandbox/laptop iteration — it does NOT appear in the KFP DAG and
+  # should never be set by the KFP manifest. Keep it for local smoke tests.
+  # ========================================================================
   run_batch_inference)
     # Local simulation of the 4-pod KFP pipeline.
     # Each phase is a FRESH python3 process: model loads, runs, exits,
@@ -345,6 +354,12 @@ case "${KFP_TASK:-}" in
     log "Pipeline completed successfully."
     ;;
 
+  # ========================================================================
+  # KFP PRODUCTION BRANCHES — one per pod in the 4-stage DAG.
+  # ========================================================================
+  # These are the branches the KFP manifest dispatches to. Each pod sets
+  # KFP_TASK=<stage> via its container env and entrypoint.sh routes here.
+  # ========================================================================
   # -- Staged pipeline (GPU stages) ------------------------------------------
   classify)
     # Stage 1: Document type detection (GPU).
