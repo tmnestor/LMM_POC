@@ -41,12 +41,6 @@ set -o pipefail
 # log messages ("GPU 0 failed") match nvidia-smi output.
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
-# Expandable segments: reduces CUDA memory fragmentation by allowing the
-# allocator to grow segments instead of reserving large fixed blocks.
-# Prevents OOM when reserved-but-unallocated memory is high (common with
-# multi-GPU model copies on tight-headroom GPUs like 4x L4 22GB).
-export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-
 # ---- Log Configuration ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
 # while still being printed to the console (so KFP UI shows it too).
