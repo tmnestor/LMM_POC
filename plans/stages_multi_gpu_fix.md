@@ -90,15 +90,26 @@ serializing the parallel work.
 On `feature/multi-gpu` none of this fires because `_release_gpu_memory()`
 simply doesn't exist there.
 
-### Why only now
+### Why bank statements are the dominant trigger
 
-Commit `94537f1 "fix: add GPU cleanup after standard batches"` added the
-`_release_gpu_memory()` call after the standard-extraction batch loop
-(`document_pipeline.py:386`). Before that commit, cleanup only happened
-between bank statements (sequential, single-threaded after the batch phase
-ends) where current-device-is-wrong is less catastrophic. Once it started
-firing inside the parallel batch loop, every batch calls `empty_cache()`
-on the wrong GPU in three of four worker threads.
+Both standard and bank extraction run **inside** the worker thread — the
+worker processes its whole chunk, mixed doc types included. The critical
+difference is cleanup frequency:
+
+- **Standard docs**: `_release_gpu_memory()` fires once per batch
+  boundary (every ~8 images).
+- **Bank statements**: `_release_gpu_memory()` fires once per
+  multi-turn round (~5-10 rounds per doc).
+
+So a bank-statement-heavy workload produces roughly 40-80x more
+wrong-GPU `empty_cache()` calls per image than a receipts-only
+workload. That's the accumulation pressure that drives prod OOM.
+
+Commit `94537f1 "fix: add GPU cleanup after standard batches"` added
+the standard-batch cleanup site (`document_pipeline.py:386`). Bank
+statement cleanup sites (lines 437, 536) predate it and were already
+firing inside worker threads; they just weren't recognised as
+multi-GPU-unsafe.
 
 ---
 
@@ -115,8 +126,10 @@ on the wrong GPU in three of four worker threads.
 - No changes to `MultiGPUOrchestrator`'s public API.
 - No changes to the stages (they're unrelated to this OOM).
 - No changes to `common/gpu_memory.py`'s public interface.
-- No change to bank statement cleanup semantics (it runs after the batch
-  phase in the main thread, so it's already correct).
+- No change to bank statement cleanup semantics. Note: bank cleanup
+  runs *inside* worker threads (one per multi-turn round), not after
+  the batch phase — this is exactly why it's the dominant OOM trigger
+  and why the worker-thread device pin is the right fix.
 
 ---
 
@@ -208,25 +221,21 @@ ruff format .
 mypy . --ignore-missing-imports
 ```
 
-### Dev (2xL4) -- SECONDARY validation (limited signal at this scale)
+### Dev (2xL4) -- PRIMARY validation via bank statements
 
-**Empirical finding (2026-04-16)**: 30 SROIE images on 2xL4 did NOT
-reproduce the predicted GPU 0 monotonic-growth signature. Both GPUs
-oscillated in a bounded 16.5-17.7 GiB range with similar patterns, no
-OOM. Reasons this is expected:
+**Empirical finding (2026-04-16, first attempt)**: 30 SROIE receipts on
+2xL4 did NOT reproduce the signature — both GPUs oscillated in a bounded
+16.5-17.7 GiB range with no asymmetric growth. The root reason was the
+wrong workload, not insufficient scale:
 
-1. **Small blast radius** — on 2 GPUs, only 1 of 2 workers fires
-   `empty_cache()` on the wrong device (vs 3 of 4 workers on prod 4x).
-   Asymmetry is 50% less stark.
-2. **Few batch boundaries** — 30 images / batch_size ≈ 4 boundaries.
-   Per-batch fragmentation of tens of MiB is below the ±5 GiB per-batch
-   oscillation noise floor.
-3. **SROIE is receipts-only** — no bank statements exercising the
-   sequential multi-turn path where fragmentation has longest to grow.
+- **Standard docs**: 1 cleanup event per batch boundary (~every 8 imgs)
+- **Bank statements**: ~5-10 cleanup events per doc (one per multi-turn
+  round). Roughly **40-80x more wrong-GPU `empty_cache()` calls per image**.
 
-2xL4 is kept in the plan as a **best-effort** repro; definitive
-validation lives on prod 4x. Run 120+ images if attempting to see
-asymmetric accumulation here.
+Bank statements are the real OOM trigger on prod. Use them for the
+2xL4 repro too. We have 17 bank images in `../evaluation_data/bank/`
+which produces ~85-170 cleanup events — more than enough to separate
+the cleaned GPU from the starved one.
 
 #### Test 3a: Pre-fix memory trace (baseline)
 
@@ -243,14 +252,14 @@ chmod +x /tmp/trace_gpu_memory.sh
 /tmp/trace_gpu_memory.sh /tmp/trace_pre.csv 2 &
 TRACE_PID=$!
 
-# Terminal A (continued): 120+ images so you get 15+ batch boundaries.
-# SROIE (receipts) is a convenient dense source.
+# Terminal A (continued): bank statements — many multi-turn rounds
+# per doc = many cleanup events = clear asymmetric accumulation.
+# 17 bank images × ~5-10 rounds = 85-170 wrong-GPU empty_cache calls.
 python3 cli.py \
   --model internvl3 \
-  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
+  --data-dir ~/nfs_share/tod_2026/evaluation_data/bank \
   --output-dir /tmp/kfp_pre \
-  --num-gpus 0 \
-  --max-images 120
+  --num-gpus 0
 
 kill $TRACE_PID
 ```
@@ -285,10 +294,9 @@ TRACE_PID=$!
 
 python3 cli.py \
   --model internvl3 \
-  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
+  --data-dir ~/nfs_share/tod_2026/evaluation_data/bank \
   --output-dir /tmp/kfp_post \
-  --num-gpus 0 \
-  --max-images 120
+  --num-gpus 0
 
 kill $TRACE_PID
 ```
@@ -322,16 +330,16 @@ Expected: pre-post diff is dramatic on GPU 0; GPU 1 is similar in both.
 #### Test 3d: Parity diff -- kfp post-fix vs feature/multi-gpu on 2xL4
 
 ```bash
-# Run ~20 images through both branches on same machine, compare CSVs
+# Run the 17 bank images through both branches on same machine, compare CSVs
 git checkout feature/multi-gpu
 python3 cli.py --model internvl3 \
-  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
-  --output-dir /tmp/baseline --num-gpus 0 --max-images 20
+  --data-dir ~/nfs_share/tod_2026/evaluation_data/bank \
+  --output-dir /tmp/baseline --num-gpus 0
 
 git checkout kfp   # or the specific fix commit
 python3 cli.py --model internvl3 \
-  --data-dir ~/nfs_share/tod_2026/data/sroie/img \
-  --output-dir /tmp/fix --num-gpus 0 --max-images 20
+  --data-dir ~/nfs_share/tod_2026/evaluation_data/bank \
+  --output-dir /tmp/fix --num-gpus 0
 
 diff /tmp/baseline/extraction_results.csv /tmp/fix/extraction_results.csv
 ```
@@ -430,13 +438,13 @@ If Option 1 doesn't fix it, the hypothesis is wrong. Next steps:
 ## Rollout
 
 1. **Local (done)**: Unit test + Option 1 fix applied, lint/format/mypy/tests all green
-2. **2xL4 dev (done, inconclusive)**:
-   - Test 3a at 30 images -- no OOM, no asymmetric growth (too small)
-   - Recommendation: rerun Test 3a/3b with `--max-images 120` if you
-     want to attempt asymmetric-growth repro on 2xL4
-   - Fix + unit tests pushed regardless -- correctness validated
-     independent of the memory trace
-3. **Prod 4x (PRIMARY validation, pending user return)**:
+2. **2xL4 dev (in progress)**:
+   - First attempt (30 SROIE receipts) -- no asymmetric growth.
+     Root cause: wrong workload. Bank statements are the OOM trigger.
+   - Rerun Test 3a/3b with `../evaluation_data/bank/` (17 bank docs,
+     85-170 cleanup events) to expose the asymmetric accumulation.
+   - Test 3d parity vs feature/multi-gpu on same 17 bank docs.
+3. **Prod 4x (final validation, pending user return)**:
    - Test 4 -- reproduce OOM on pre-fix at 4-GPU scale
    - Test 5 -- validate fix at 4-GPU scale
    - Test 6 -- parity vs feature/multi-gpu at full scale
