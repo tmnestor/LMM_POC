@@ -97,9 +97,10 @@ CLAUDE.md
 *claude*
 *CLAUDE*
 debug_llama_prompt.py
-test_*.py
-check_*.py
-build_*.py
+# Root-level scratch scripts (but allow files in tests/ and scripts/ subdirs)
+/test_*.py
+/check_*.py
+/build_*.py
 LLAMA_REPETITION_CUDA_BUG_ANALYSIS.md
 # Backup directory
 backup/
@@ -167,8 +168,11 @@ IVL3_8B_NOTEBOOK_DTYPES.md
 output/current_model_accuracy.csv
 output/competing_model_accuracy.csv
 
-# Local utility scripts (not tracked)
-scripts/
+# Local utility scripts — directory IS tracked now; only exclude explicitly
+# local/experimental scripts on a case-by-case basis below.
+# (Previously this was a blanket `scripts/` ignore which silently dropped
+# intentionally-tracked files like scripts/trace_gpu_memory.sh and
+# scripts/vllm_diagnostic.py — forcing `git add -f` every time.)
 
 # SROIE benchmark data (downloaded on remote)
 data/sroie/
