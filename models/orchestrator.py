@@ -538,7 +538,7 @@ class DocumentOrchestrator:
             if self._has_oom_recovery:
                 from common.gpu_memory import release_memory
 
-                release_memory(threshold_gb=1.0)
+                release_memory(threshold_gb=1.0, device=self.device)
 
             image = self.load_document_image(image_path)
 

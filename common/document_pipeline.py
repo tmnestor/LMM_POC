@@ -27,15 +27,23 @@ from .field_schema import get_field_schema
 logger = logging.getLogger(__name__)
 
 
-def _release_gpu_memory() -> None:
+def _release_gpu_memory(device: str | None = None) -> None:
     """Release fragmented GPU memory between inference calls.
 
     Wraps gpu_memory.release_memory with a guard for CPU-only environments.
+
+    Args:
+        device:
+            Optional ``"cuda:N"`` target. When set, release runs only on that
+            GPU -- critical for multi-GPU worker threads where
+            ``empty_cache()`` would otherwise hit cuda:0 regardless of which
+            GPU the thread is pinned to. ``None`` keeps the aggregate
+            (all-GPU) path for single-process loads.
     """
     try:
         from .gpu_memory import release_memory
 
-        release_memory(threshold_gb=1.0)
+        release_memory(threshold_gb=1.0, device=device)
     except ImportError:
         pass
 
@@ -421,7 +429,7 @@ class DocumentPipeline:
                     self._console.print(progress.get_renderable())
 
                 # Free batch activations before next batch or bank phase
-                _release_gpu_memory()
+                _release_gpu_memory(getattr(self._orchestrator, "device", None))
 
         elif standard_indices:
             # Sequential extraction for standard docs
@@ -472,7 +480,7 @@ class DocumentPipeline:
 
             # GPU cleanup before each bank image (was handled by
             # process_single_image pre-refactor, now we must do it here)
-            _release_gpu_memory()
+            _release_gpu_memory(getattr(self._orchestrator, "device", None))
 
             logger.info("BANK STATEMENT (sequential): %s", det.image_name)
             self._print_tile_info(det.image_path)
@@ -571,7 +579,7 @@ class DocumentPipeline:
             # released so gc.collect() + empty_cache() can actually
             # reclaim the tensors from the failed forward pass.
             if bank_failed:
-                _release_gpu_memory()
+                _release_gpu_memory(getattr(self._orchestrator, "device", None))
 
         # Fallback: standard extraction (orchestrator handles bank structure
         # classification internally in process_document_aware)
