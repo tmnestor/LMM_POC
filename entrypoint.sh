@@ -276,6 +276,11 @@ CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
 RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
 CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
+# End-to-end wall-clock accountability across the 4 KFP pods.
+# The classify pod writes `date +%s` here at start; the evaluate pod reads
+# it so the Execution Summary can report true DAG-wide wall-clock rather
+# than stage-4-local timing. Lives on EFS so both pods share it.
+PIPELINE_START_FILE="${OUT_ROOT}/.pipeline_start"
 
 # ---- Task Dispatch ---- #
 # KFP sets $KFP_TASK to the current stage name from workflow_definition.
@@ -305,10 +310,12 @@ case "${KFP_TASK:-}" in
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
-    # Capture pipeline-wide start timestamp (epoch seconds). Passed to
-    # stages.evaluate so the Execution Summary can report true wall-clock
-    # across all 4 phases rather than just stage-2 inference time.
-    PIPELINE_START=$(date +%s)
+    # Pipeline-wide start timestamp (epoch seconds). Written to EFS via
+    # PIPELINE_START_FILE so the exact same read-by-evaluate mechanism
+    # works in local dev AND in KFP (classify pod writes, evaluate reads).
+    # One pattern, one code path.
+    date +%s > "$PIPELINE_START_FILE"
+    PIPELINE_START=$(cat "$PIPELINE_START_FILE")
 
     log ""
     log "Phase 1/4: classify (fresh process, model reload)..."
@@ -366,6 +373,11 @@ case "${KFP_TASK:-}" in
     # Writes classifications.jsonl — one record per image.
     log "Stage 1: classify — detecting document types..."
     mkdir -p "$OUT_ROOT"
+    # Record DAG-wide start epoch on EFS for the evaluate pod to read.
+    # Overwrites on every classify invocation so re-runs always use a
+    # fresh start time. See PIPELINE_START_FILE definition above.
+    date +%s > "$PIPELINE_START_FILE"
+    log "Pipeline start epoch written: $(cat "$PIPELINE_START_FILE") -> $PIPELINE_START_FILE"
     python3 -m stages.classify \
       --data-dir   "${image_dir:?image_dir env var required}" \
       --output-dir "$CLASSIFICATIONS" \
@@ -404,10 +416,25 @@ case "${KFP_TASK:-}" in
     # Reads cleaned_extractions.jsonl + ground truth CSV, writes evaluation_results.jsonl.
     log "Stage 4: evaluate — scoring against ground truth..."
     mkdir -p "$EVAL_DIR"
+    # End-to-end wall-clock: read the pipeline start epoch written by the
+    # classify pod (if present) so the Execution Summary reports true
+    # DAG-wide wall-clock. Missing file degrades gracefully — the table
+    # simply omits the Wall Clock row.
+    WALL_CLOCK_ARGS=()
+    if [[ -f "$PIPELINE_START_FILE" ]]; then
+      PIPELINE_START=$(cat "$PIPELINE_START_FILE")
+      WALL_CLOCK_ARGS=(--wall-clock-start "$PIPELINE_START")
+      NOW=$(date +%s)
+      log "Pipeline start epoch: $PIPELINE_START (DAG wall-clock so far: $((NOW - PIPELINE_START))s)"
+    else
+      log "WARNING: $PIPELINE_START_FILE not found — Wall Clock row will be omitted."
+      log "         (This is expected when evaluate runs without a prior classify.)"
+    fi
     python3 -m stages.evaluate \
       --input        "$CLEAN_EXTRACTIONS" \
       --ground-truth "${ground_truth:?ground_truth env var required}" \
-      --output-dir   "$EVAL_DIR" || exit $?
+      --output-dir   "$EVAL_DIR" \
+      "${WALL_CLOCK_ARGS[@]}" || exit $?
     log "Evaluation complete."
     ;;
 
