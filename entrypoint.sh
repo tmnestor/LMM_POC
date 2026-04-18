@@ -23,7 +23,7 @@
 #   2. Via KFP UI (ad-hoc):     input_params set in UI → injected as env vars
 #   3. Locally (dev/debug):     KFP_TASK=run_batch_inference bash entrypoint.sh --model llama
 # Local example:
-#   KFP_TASK=run_batch_inference num_gpus=4 batch_size=4 model=internvl3 bash entrypoint.sh
+#   KFP_TASK=run_batch_inference num_gpus=4 model=internvl3-vllm bash entrypoint.sh
 #
 # =============================================================================
 
@@ -123,6 +123,11 @@ log "Conda env: $CONDA_ENV"
 set +o nounset
 conda activate "$CONDA_ENV" || { set -o nounset; log "FATAL: conda activate failed"; exit 1; }
 set -o nounset
+# Ensure conda's libstdc++ is found before the (older) system copy.
+# The vllm_env ships libstdcxx-ng>=12 which provides GLIBCXX_3.4.30
+# needed by libzmq; without this, the linker finds /usr/lib64/libstdc++
+# first and fails with "version GLIBCXX_3.4.30 not found".
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 # Log environment details for debugging failed runs —
 # knowing the Python version, conda env, and GPU type is critical
@@ -226,11 +231,6 @@ if _is_set "${num_gpus:-}"; then
   CLI_ARGS+=(--num-gpus "$num_gpus")
 fi
 
-# batch_size → --batch-size (images per batch per GPU; omit for auto-detect)
-if _is_set "${batch_size:-}"; then
-  CLI_ARGS+=(--batch-size "$batch_size")
-fi
-
 # ground_truth → --ground-truth (CSV for evaluation; optional)
 if _is_set "${ground_truth:-}"; then
   CLI_ARGS+=(--ground-truth "$ground_truth")
@@ -248,7 +248,6 @@ log "  model:          ${model:-<not set>}"
 log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
 log "  num_gpus:       ${num_gpus:-<not set>}"
-log "  batch_size:     ${batch_size:-<not set>}"
 log "  ground_truth:   ${ground_truth:-<not set>}"
 # metadata, system_message, and prompt are KFP input_params reserved for
 # future use. They are logged here for visibility but not yet translated
@@ -272,11 +271,6 @@ OPT_MODEL=()
 if _is_set "${model:-}"; then
   OPT_MODEL=(--model "$model")
 fi
-OPT_BATCH=()
-if _is_set "${batch_size:-}"; then
-  OPT_BATCH=(--batch-size "$batch_size")
-fi
-
 # Resolve the output root. Every intermediate JSONL lives here so that
 # re-runs of a single stage can read the upstream artefacts written by
 # a previous run (this is also what the KFP pod volume mount sees).
@@ -332,8 +326,7 @@ case "${KFP_TASK:-}" in
     python3 -m stages.classify \
       --data-dir   "${image_dir:?image_dir env var required}" \
       --output-dir "$CLASSIFICATIONS" \
-      "${OPT_MODEL[@]}" \
-      "${OPT_BATCH[@]}" || exit $?
+      "${OPT_MODEL[@]}" || exit $?
     log "Phase 1/4: classify complete."
 
     log ""
@@ -351,8 +344,7 @@ case "${KFP_TASK:-}" in
       --classifications "$FILTERED_CLASSIFICATIONS" \
       --data-dir        "$image_dir" \
       --output-dir      "$RAW_EXTRACTIONS" \
-      "${OPT_MODEL[@]}" \
-      "${OPT_BATCH[@]}" || exit $?
+      "${OPT_MODEL[@]}" || exit $?
     log "Phase 2/4: extract complete."
 
     log ""
@@ -400,8 +392,7 @@ case "${KFP_TASK:-}" in
     python3 -m stages.classify \
       --data-dir   "${image_dir:?image_dir env var required}" \
       --output-dir "$CLASSIFICATIONS" \
-      "${OPT_MODEL[@]}" \
-      "${OPT_BATCH[@]}" || exit $?
+      "${OPT_MODEL[@]}" || exit $?
     log "Classification complete."
     ;;
   filter)
@@ -426,8 +417,7 @@ case "${KFP_TASK:-}" in
       --classifications "$FILTERED_CLASSIFICATIONS" \
       --data-dir        "${image_dir:?image_dir env var required}" \
       --output-dir      "$RAW_EXTRACTIONS" \
-      "${OPT_MODEL[@]}" \
-      "${OPT_BATCH[@]}" || exit $?
+      "${OPT_MODEL[@]}" || exit $?
     log "Extraction complete."
     ;;
 
