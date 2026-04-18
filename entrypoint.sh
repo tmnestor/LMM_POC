@@ -54,6 +54,7 @@ export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASHINFER}"
 # No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
 CONFIG_FILE="./config/run_config.yml"
 YAML_LOG_DIR=""
+YAML_MODEL_TYPE=""
 YAML_DATA_DIR=""
 YAML_GROUND_TRUTH=""
 YAML_OUTPUT_DIR=""
@@ -190,6 +191,9 @@ _is_set() { [[ -n "${1:-}" && "${1}" != "None" ]]; }
 # fail before AppConfig runs. Apply the YAML fallback HERE so the stage
 # commands below receive a concrete --data-dir / --output-dir value.
 # Env var always wins when explicitly set (matches cli.py semantics).
+if ! _is_set "${model:-}"; then
+  model="${YAML_MODEL_TYPE:-}"
+fi
 if ! _is_set "${image_dir:-}"; then
   image_dir="${YAML_DATA_DIR:-}"
 fi
