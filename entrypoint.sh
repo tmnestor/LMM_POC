@@ -7,7 +7,7 @@
 # Its job is simple: set up the environment, then hand off to run_batch_inference KFP Task which calls cli.py to do the actual work.
 #
 # Flow:
-#   KFP Pipeline → Container starts → entrypoint.sh → run_batch_inference KFP Task → cli.py
+#   KFP Pipeline → Container starts → entrypoint.sh → KFP Task (classify/filter/extract/clean/evaluate) → cli.py
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
@@ -278,6 +278,7 @@ fi
 # a previous run (this is also what the KFP pod volume mount sees).
 OUT_ROOT="${output:-./outputs}"
 CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
+FILTERED_CLASSIFICATIONS="${OUT_ROOT}/classifications_filtered.jsonl"
 RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
 CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
@@ -332,9 +333,26 @@ case "${KFP_TASK:-}" in
     log "Phase 1/4: classify complete."
 
     log ""
+    log "Phase 1.5/4: filter — removing bank statements..."
+    python3 -c "
+import json, sys
+kept = dropped = 0
+with open(sys.argv[1]) as fin, open(sys.argv[2], 'w') as fout:
+    for line in fin:
+        rec = json.loads(line)
+        if rec.get('document_type', '').upper() == 'BANK_STATEMENT':
+            dropped += 1
+        else:
+            fout.write(line)
+            kept += 1
+print(f'Filter: kept {kept}, dropped {dropped} bank statement(s)')
+" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS" || exit $?
+    log "Phase 1.5/4: filter complete."
+
+    log ""
     log "Phase 2/4: extract (fresh process, model reload)..."
     python3 -m stages.extract \
-      --classifications "$CLASSIFICATIONS" \
+      --classifications "$FILTERED_CLASSIFICATIONS" \
       --data-dir        "$image_dir" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" \
@@ -390,14 +408,34 @@ case "${KFP_TASK:-}" in
       "${OPT_BATCH[@]}" || exit $?
     log "Classification complete."
     ;;
+  filter)
+    # Stage 1.5: Remove bank statements from classifications (CPU, no GPU).
+    # Reads classifications.jsonl, writes classifications_filtered.jsonl.
+    log "Stage 1.5: filter — removing bank statements..."
+    mkdir -p "$OUT_ROOT"
+    python3 -c "
+import json, sys
+kept = dropped = 0
+with open(sys.argv[1]) as fin, open(sys.argv[2], 'w') as fout:
+    for line in fin:
+        rec = json.loads(line)
+        if rec.get('document_type', '').upper() == 'BANK_STATEMENT':
+            dropped += 1
+        else:
+            fout.write(line)
+            kept += 1
+print(f'Filter: kept {kept}, dropped {dropped} bank statement(s)')
+" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS" || exit $?
+    log "Filter complete."
+    ;;
   extract)
     # Stage 2: Field extraction (GPU).
-    # Reads classifications.jsonl, writes raw_extractions.jsonl.
+    # Reads classifications_filtered.jsonl, writes raw_extractions.jsonl.
     # Supports resumption from partial output after crash.
     log "Stage 2: extract — extracting fields (raw responses)..."
     mkdir -p "$OUT_ROOT"
     python3 -m stages.extract \
-      --classifications "$CLASSIFICATIONS" \
+      --classifications "$FILTERED_CLASSIFICATIONS" \
       --data-dir        "${image_dir:?image_dir env var required}" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" \
@@ -449,8 +487,9 @@ case "${KFP_TASK:-}" in
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
     log ""
     log "  Available tasks:"
-    log "    run_batch_inference  — 4-stage simulation (fresh process per phase)"
+    log "    run_batch_inference  — 5-stage simulation (fresh process per phase)"
     log "    classify             — Stage 1: document type detection (GPU)"
+    log "    filter               — Stage 1.5: remove bank statements (CPU)"
     log "    extract              — Stage 2: field extraction (GPU)"
     log "    clean                — Stage 3: parse/clean responses (CPU)"
     log "    evaluate             — Stage 4: evaluation (CPU)"
@@ -458,7 +497,7 @@ case "${KFP_TASK:-}" in
     ;;
   *)
     log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
-    log "  Expected one of: run_batch_inference, classify, extract, clean, evaluate"
+    log "  Expected one of: run_batch_inference, classify, filter, extract, clean, evaluate"
     exit 1
     ;;
 esac
