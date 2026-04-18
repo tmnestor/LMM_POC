@@ -129,6 +129,12 @@ set -o nounset
 # first and fails with "version GLIBCXX_3.4.30 not found".
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
+# Suppress verbose INFO logging from vLLM engine, transformers, and tokenizers.
+# Override by setting these env vars before running entrypoint.sh.
+export VLLM_LOGGING_LEVEL="${VLLM_LOGGING_LEVEL:-WARNING}"
+export TRANSFORMERS_VERBOSITY="${TRANSFORMERS_VERBOSITY:-warning}"
+export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
+
 # Log environment details for debugging failed runs —
 # knowing the Python version, conda env, and GPU type is critical
 # when something works locally but fails in the pipeline.
