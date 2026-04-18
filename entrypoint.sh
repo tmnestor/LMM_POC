@@ -334,19 +334,11 @@ case "${KFP_TASK:-}" in
 
     log ""
     log "Phase 1.5/4: filter — removing bank statements..."
-    python3 -c "
-import json, sys
-kept = dropped = 0
-with open(sys.argv[1]) as fin, open(sys.argv[2], 'w') as fout:
-    for line in fin:
-        rec = json.loads(line)
-        if rec.get('document_type', '').upper() == 'BANK_STATEMENT':
-            dropped += 1
-        else:
-            fout.write(line)
-            kept += 1
-print(f'Filter: kept {kept}, dropped {dropped} bank statement(s)')
-" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS" || exit $?
+    TOTAL=$(wc -l < "$CLASSIFICATIONS")
+    jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+      "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
+    log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
     log "Phase 1.5/4: filter complete."
 
     log ""
@@ -413,19 +405,11 @@ print(f'Filter: kept {kept}, dropped {dropped} bank statement(s)')
     # Reads classifications.jsonl, writes classifications_filtered.jsonl.
     log "Stage 1.5: filter — removing bank statements..."
     mkdir -p "$OUT_ROOT"
-    python3 -c "
-import json, sys
-kept = dropped = 0
-with open(sys.argv[1]) as fin, open(sys.argv[2], 'w') as fout:
-    for line in fin:
-        rec = json.loads(line)
-        if rec.get('document_type', '').upper() == 'BANK_STATEMENT':
-            dropped += 1
-        else:
-            fout.write(line)
-            kept += 1
-print(f'Filter: kept {kept}, dropped {dropped} bank statement(s)')
-" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS" || exit $?
+    TOTAL=$(wc -l < "$CLASSIFICATIONS")
+    jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+      "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
+    log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
     log "Filter complete."
     ;;
   extract)
