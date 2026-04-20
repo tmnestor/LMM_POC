@@ -417,6 +417,7 @@ def build_vllm_loader(spec: VllmSpec):
                     "limit_mm_per_prompt": {"image": 1},
                     "trust_remote_code": True,
                     "disable_log_stats": True,
+                    "enforce_eager": True,
                 }
 
                 if spec.mm_processor_kwargs:
