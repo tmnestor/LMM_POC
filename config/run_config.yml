@@ -6,7 +6,7 @@
 model:
   # type: internvl3
   type: internvl3-vllm
-  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  path: /efs/shared/PTM/InternVL3_5-8B
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
@@ -35,8 +35,8 @@ output:
 
 # Logging
 logging:
-  # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
-  log_dir: evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+  log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+  # log_dir: evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
 # Processing options
 processing:
@@ -93,18 +93,18 @@ model_loading:
   low_cpu_mem_usage: true
   device_map: auto
   default_paths:
-    internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    internvl3-14b-vllm: /home/jovyan/nfs_share/models/InternVL3_5-14B
-    internvl3-38b-vllm: /home/jovyan/nfs_share/models/InternVL3_5-38B
-    internvl3-14b: /home/jovyan/nfs_share/models/InternVL3_5-14B
-    internvl3-38b: /home/jovyan/nfs_share/models/InternVL3_5-38B
-    llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
-    qwen3vl: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
-    nemotron: /home/jovyan/nfs_share/models/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16
-    qwen35: /home/jovyan/nfs_share/models/Qwen3.5-27B
-    qwen3vl-vllm: /home/jovyan/nfs_share/models/Qwen3-VL-8B-Instruct
-    qwen35-vllm: /home/jovyan/nfs_share/models/Qwen3.5-27B
-    llama4scout-w4a16: /home/jovyan/nfs_share/models/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16
-    gemma4: /home/jovyan/nfs_share/models/Gemma-4-31B-it
-    granite4: /home/jovyan/nfs_share/models/granite-4.0-3b-vision
+    internvl3: /efs/shared/PTM/InternVL3_5-8B
+    internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
+    internvl3-14b-vllm: /efs/shared/PTM/InternVL3_5-14B
+    internvl3-38b-vllm: /efs/shared/PTM/InternVL3_5-38B
+    internvl3-14b: /efs/shared/PTM/InternVL3_5-14B
+    internvl3-38b: /efs/shared/PTM/InternVL3_5-38B
+    llama: /efs/shared/PTM/Llama-3.2-11B-Vision-Instruct
+    qwen3vl: /efs/shared/PTM/Qwen3-VL-8B-Instruct
+    nemotron: /efs/shared/PTM/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16
+    qwen35: /efs/shared/PTM/Qwen3.5-27B
+    qwen3vl-vllm: /efs/shared/PTM/Qwen3-VL-8B-Instruct
+    qwen35-vllm: /efs/shared/PTM/Qwen3.5-27B
+    llama4scout-w4a16: /efs/shared/PTM/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16
+    gemma4: /efs/shared/PTM/Gemma-4-31B-it
+    granite4: /efs/shared/PTM/granite-4.0-3b-vision
