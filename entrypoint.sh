@@ -339,26 +339,27 @@ case "${KFP_TASK:-}" in
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 1/4: classify complete."
 
-    log ""
-    log "Phase 1.5/4: filter — removing bank statements..."
-    TOTAL=$(wc -l < "$CLASSIFICATIONS")
-    # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-    #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
-    python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
-with open(sys.argv[2], 'w') as f:
-    f.writelines(lines)
-" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
-    KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
-    log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
-    log "Phase 1.5/4: filter complete."
+    # -- Filter disabled for dev testing (all images are bank statements) --
+    # log ""
+    # log "Phase 1.5/4: filter — removing bank statements..."
+    # TOTAL=$(wc -l < "$CLASSIFICATIONS")
+    # # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+    # #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    # python3 -c "
+# import json, sys
+# with open(sys.argv[1]) as f:
+#     lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
+# with open(sys.argv[2], 'w') as f:
+#     f.writelines(lines)
+# " "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
+    # KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
+    # log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
+    # log "Phase 1.5/4: filter complete."
 
     log ""
     log "Phase 2/4: extract (fresh process, model reload)..."
     python3 -m stages.extract \
-      --classifications "$FILTERED_CLASSIFICATIONS" \
+      --classifications "$CLASSIFICATIONS" \
       --data-dir        "$image_dir" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" || exit $?
