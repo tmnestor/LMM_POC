@@ -355,7 +355,7 @@ class VllmSpec:
     model_type: str
     prompt_file: str = "internvl3_prompts.yaml"
     description: str = ""
-    gpu_memory_utilization: float = 0.70
+    gpu_memory_utilization: float = 0.90
     max_model_len: int = 8192
     max_num_seqs: int = 1
     mm_processor_kwargs: dict[str, Any] = field(default_factory=dict)
