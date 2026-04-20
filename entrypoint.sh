@@ -342,8 +342,15 @@ case "${KFP_TASK:-}" in
     log ""
     log "Phase 1.5/4: filter — removing bank statements..."
     TOTAL=$(wc -l < "$CLASSIFICATIONS")
-    jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-      "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+    #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
+with open(sys.argv[2], 'w') as f:
+    f.writelines(lines)
+" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
     KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
     log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
     log "Phase 1.5/4: filter complete."
@@ -411,8 +418,15 @@ case "${KFP_TASK:-}" in
     log "Stage 1.5: filter — removing bank statements..."
     mkdir -p "$OUT_ROOT"
     TOTAL=$(wc -l < "$CLASSIFICATIONS")
-    jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-      "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+    #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+    python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
+with open(sys.argv[2], 'w') as f:
+    f.writelines(lines)
+" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
     KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
     log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
     log "Filter complete."
