@@ -39,7 +39,7 @@ logging:
 # Processing options
 processing:
   batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
-  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
+  num_gpus: 1                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: false  # Disable balance validation (reduces accuracy)
   verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)

@@ -382,24 +382,27 @@ def build_vllm_loader(spec: VllmSpec):
             llm = None
 
             try:
-                # Detect GPU count without initializing CUDA
-                cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-                if cuda_visible is not None:
-                    tp_size = len(cuda_visible.split(","))
+                # Detect GPU count: config.num_gpus > CUDA_VISIBLE_DEVICES > nvidia-smi
+                if cfg.num_gpus and cfg.num_gpus > 0:
+                    tp_size = cfg.num_gpus
                 else:
-                    import subprocess
+                    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+                    if cuda_visible is not None:
+                        tp_size = len(cuda_visible.split(","))
+                    else:
+                        import subprocess
 
-                    result = subprocess.run(
-                        ["nvidia-smi", "-L"],
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    tp_size = (
-                        len(result.stdout.strip().splitlines())
-                        if result.returncode == 0
-                        else 1
-                    )
+                        result = subprocess.run(
+                            ["nvidia-smi", "-L"],
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                        )
+                        tp_size = (
+                            len(result.stdout.strip().splitlines())
+                            if result.returncode == 0
+                            else 1
+                        )
                 tp_size = max(1, tp_size)
 
                 console.print(
