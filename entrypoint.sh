@@ -45,6 +45,12 @@ export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 # Bypasses the legacy SDPA patch in registry.py used by the HF code path.
 export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASHINFER}"
 
+# vLLM V1 engine has known hangs with multimodal (image) requests in tensor-
+# parallel setups — the EngineCore stops receiving requests after ~11 images.
+# Fall back to the stable V0 engine until the V1 multimodal IPC issues are
+# resolved upstream. See: https://github.com/vllm-project/vllm/issues/27249
+export VLLM_USE_V1="${VLLM_USE_V1:-0}"
+
 # ---- Log Configuration ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
 # while still being printed to the console (so KFP UI shows it too).
