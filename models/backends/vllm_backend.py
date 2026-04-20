@@ -44,6 +44,7 @@ class VllmBackend:
         buf = io.BytesIO()
         image.save(buf, format="PNG")
         data_uri = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
+        buf.close()
 
         messages = [
             {
@@ -71,7 +72,10 @@ class VllmBackend:
             **chat_kwargs,
         )
 
-        return outputs[0].outputs[0].text.strip()
+        text = outputs[0].outputs[0].text.strip()
+        # Free vLLM output objects to release shared memory buffer slots.
+        del outputs, messages, data_uri
+        return text
 
 
 # Verify protocol compliance at import time
