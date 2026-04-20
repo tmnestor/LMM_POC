@@ -141,6 +141,12 @@ def run(
                     )
         else:
             for idx, image_path in enumerate(image_paths):
+                logger.info(
+                    "Sending image %d/%d to engine: %s",
+                    idx + 1,
+                    len(image_paths),
+                    Path(image_path).name,
+                )
                 result = processor.detect_and_classify_document(
                     image_path,
                     verbose=effective_verbose,
