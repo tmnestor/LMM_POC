@@ -87,13 +87,27 @@ The vLLM engine consistently dies after processing exactly 11 images during the 
 9. Each image is base64-encoded into a data URI (~1-5 MB per image) and passed via OpenAI-compatible chat messages
 10. The HF code path (non-vLLM) processes all 195 images successfully (Run 51, 1:31:11)
 
+## What We Now Know (2026-04-22 Update)
+
+11. **`tp=1` works** -- single-GPU inference processes all images without stalling. The hang is exclusively a tensor-parallelism issue.
+12. **Bare-metal prod has 179 GB `/dev/shm`** -- and does NOT stall. The stall only occurs inside KFP pods, where `/dev/shm` defaults to 64 MB.
+13. **Root cause hypothesis: NCCL shared-memory exhaustion** -- vLLM with `tp>1` uses NCCL for inter-GPU AllReduce. NCCL's default transport uses `/dev/shm` for inter-process communication. In KFP pods with 64 MB `/dev/shm`, the SHM region fills after ~11 images of multimodal inference traffic, causing NCCL to silently deadlock. This explains every observed symptom:
+    - Exactly 11 images (cumulative SHM usage, not image-specific)
+    - Client sends but engine never receives (NCCL deadlock in the EngineCore worker processes)
+    - Both V0/V1 affected (NCCL transport is engine-version-independent)
+    - `tp=1` works (no NCCL traffic)
+    - Bare-metal works (179 GB `/dev/shm`)
+14. **`NCCL_SHM_DISABLE=1` does NOT work** -- tested 2026-04-22, NCCL fails immediately with "unhandled system error". On G5 instances (PCIe-only, no NVLink), disabling SHM leaves NCCL with no viable intra-node transport. Socket fallback requires network interfaces that aren't available for intra-pod GPU communication.
+15. **Fix required: increase `/dev/shm` in KFP pod spec** -- requested from DE (2026-04-22). Need `emptyDir` with `medium: Memory` and `sizeLimit: 8Gi` (or larger) mounted at `/dev/shm`.
+
 ## What We Don't Know
 
 1. **What the client is doing** during the hang -- no traceback, no error, just silence
 2. **GPU memory state** at the time of hang -- no `nvidia-smi` output captured (runs inside KFP pod, no `dmesg` access)
 3. **Whether it's a vLLM 0.19 regression** -- we haven't tested older vLLM versions
-4. **Whether tensor parallelism is the trigger** -- haven't tested with `tp=1` (single GPU)
+4. ~~**Whether tensor parallelism is the trigger**~~ -- **CONFIRMED**: `tp=1` works, `tp>1` stalls in KFP pods
 5. **Whether the base64 data URI approach is the bottleneck** -- haven't tried passing images via file path
+6. **Whether `NCCL_SHM_DISABLE=1` fully resolves the hang** -- awaiting KFP pipeline run
 
 ---
 
@@ -109,39 +123,39 @@ The vLLM engine consistently dies after processing exactly 11 images during the 
 
 ---
 
-## Next Steps to Try
+## Next Steps
 
-### High Priority
+### Immediate -- Blocked on DE
 
-1. **Single GPU (`tp=1`)**: Test whether tensor parallelism is the trigger. InternVL3.5-8B (~16 GB BF16) fits on one A10G (24 GB). Set `num_gpus: 1` in `run_config.yml` or `CUDA_VISIBLE_DEVICES=0`.
+1. ~~**Single GPU (`tp=1`)**~~ -- **DONE**: works, confirming TP-only issue.
 
-2. **Add `nvidia-smi` monitoring**: Run `nvidia-smi` in a background loop during inference to capture GPU memory at the moment of hang:
-   ```bash
-   while true; do nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv >> /tmp/gpu_monitor.csv; sleep 2; done &
+2. ~~**`NCCL_SHM_DISABLE=1`**~~ -- **FAILED**: NCCL has no fallback transport on G5 (PCIe-only, no NVLink). Crashes immediately with "unhandled system error".
+
+3. **Increase `/dev/shm` in KFP pod spec** -- **requested from DE (2026-04-22)**. This is now the primary fix:
+   ```yaml
+   volumes:
+     - name: dshm
+       emptyDir:
+         medium: Memory
+         sizeLimit: 8Gi
+   volumeMounts:
+     - name: dshm
+       mountPath: /dev/shm
    ```
 
-3. **Capture Python-level traceback**: Add a `signal` handler or `faulthandler` to dump the Python stack when the process gets stuck:
-   ```python
-   import faulthandler
-   faulthandler.enable()
-   faulthandler.dump_traceback_later(300, repeat=True)  # dump every 5 min
-   ```
+### If `/dev/shm` Increase Does NOT Fix It
 
-4. **Try file-path image input** instead of base64 data URIs -- the repeated base64 encoding of large images may be exhausting client-side memory or IPC buffers.
+4. **Add `nvidia-smi` monitoring** inside the KFP pod to capture GPU memory at the moment of hang.
 
-### Medium Priority
+5. **Capture Python-level traceback** with `faulthandler.dump_traceback_later()`.
 
-5. **Downgrade vLLM** to 0.17 or 0.18 and retest -- isolate whether this is a 0.19 regression.
+### Lower Priority (only if above fails)
 
-6. **Reduce `max_tiles`** from 18 to 6 -- fewer vision tiles = smaller intermediate activations per image.
+6. **Downgrade vLLM** to 0.17 or 0.18 -- isolate whether this is a 0.19 regression.
 
-7. **Test with `max_model_len: 4096`** (halved) -- reduces KV cache pre-allocation, leaving more VRAM for multimodal processing.
+7. **File a vLLM GitHub issue** with full reproduction details.
 
-### Lower Priority
-
-8. **File a vLLM GitHub issue** with the full reproduction details -- the consistent 11-image wall is a clean, reproducible bug report.
-
-9. **Consider alternative backends**: The HF code path works reliably. vLLM's throughput advantage may not justify the reliability cost for 195 images.
+8. **Consider alternative backends**: The HF code path works reliably (Run 51, 1:31:11).
 
 ---
 
@@ -157,6 +171,7 @@ enforce_eager: true
 # entrypoint.sh env vars
 VLLM_ATTENTION_BACKEND: FLASHINFER
 VLLM_NO_USAGE_STATS: 1
+# NCCL_SHM_DISABLE: 1  -- REVERTED, crashes on G5 (no fallback transport)
 VLLM_LOGGING_LEVEL: DEBUG  (temporarily)
 
 # run_config.yml
@@ -174,3 +189,4 @@ processing.num_gpus: 0  (auto-detect = 4)
 | `d5f1cc8` | Explicit cleanup of vLLM outputs and BytesIO buffers |
 | `7b2fc84` | V0 engine fallback (reverted) |
 | `6c3a64d` | Lower `gpu_memory_utilization` to 0.70, `max_num_seqs` to 1 |
+| (reverted) | `NCCL_SHM_DISABLE=1` in `entrypoint.sh` -- FAILED, no fallback transport on G5 |

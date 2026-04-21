@@ -48,11 +48,13 @@ export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASHINFER}"
 # Suppress vLLM usage telemetry (avoids TLS cert errors in air-gapped envs).
 export VLLM_NO_USAGE_STATS="${VLLM_NO_USAGE_STATS:-1}"
 
-# Force NCCL to use network sockets instead of /dev/shm for inter-GPU
-# communication. KFP pods default /dev/shm to 64 MB, which is too small
-# for NCCL's shared-memory transport under tensor parallelism — after
-# ~11 images the SHM region fills and NCCL silently deadlocks.
-export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-1}"
+# NCCL shared memory: KFP pods may default /dev/shm to 64 MB, which is
+# too small for NCCL's SHM transport under tensor parallelism — after ~11
+# images the SHM region fills and NCCL silently deadlocks. The fix is to
+# increase /dev/shm in the KFP pod spec (emptyDir medium=Memory, 8Gi+).
+# Setting NCCL_SHM_DISABLE=1 does NOT work — on G5 instances without
+# NVLink, disabling SHM leaves NCCL with no viable intra-node transport
+# and it fails immediately with "unhandled system error".
 
 # ---- Log Configuration ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
