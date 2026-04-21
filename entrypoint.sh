@@ -48,6 +48,12 @@ export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASHINFER}"
 # Suppress vLLM usage telemetry (avoids TLS cert errors in air-gapped envs).
 export VLLM_NO_USAGE_STATS="${VLLM_NO_USAGE_STATS:-1}"
 
+# Force NCCL to use network sockets instead of /dev/shm for inter-GPU
+# communication. KFP pods default /dev/shm to 64 MB, which is too small
+# for NCCL's shared-memory transport under tensor parallelism — after
+# ~11 images the SHM region fills and NCCL silently deadlocks.
+export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-1}"
+
 # ---- Log Configuration ---- #
 # All output (stdout + stderr) is captured to a timestamped log file on EFS,
 # while still being printed to the console (so KFP UI shows it too).
