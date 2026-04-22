@@ -347,27 +347,27 @@ case "${KFP_TASK:-}" in
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 1/4: classify complete."
 
-    # -- Filter disabled for dev testing (all images are bank statements) --
-    # log ""
-    # log "Phase 1.5/4: filter — removing bank statements..."
-    # TOTAL=$(wc -l < "$CLASSIFICATIONS")
-    # # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-    # #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
-    # python3 -c "
-# import json, sys
-# with open(sys.argv[1]) as f:
-#     lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
-# with open(sys.argv[2], 'w') as f:
-#     f.writelines(lines)
-# " "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
-    # KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
-    # log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
-    # log "Phase 1.5/4: filter complete."
+    # Phase 1.5: Filter bank statements (skip with LMM_SKIP_FILTER=1)
+    if [[ "${LMM_SKIP_FILTER:-0}" == "1" ]]; then
+      log ""
+      log "Phase 1.5/4: filter SKIPPED (LMM_SKIP_FILTER=1)"
+      EXTRACT_INPUT="$CLASSIFICATIONS"
+    else
+      log ""
+      log "Phase 1.5/4: filter — removing bank statements..."
+      TOTAL=$(wc -l < "$CLASSIFICATIONS")
+      jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+        "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+      KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
+      log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
+      log "Phase 1.5/4: filter complete."
+      EXTRACT_INPUT="$FILTERED_CLASSIFICATIONS"
+    fi
 
     log ""
     log "Phase 2/4: extract (fresh process, model reload)..."
     python3 -m stages.extract \
-      --classifications "$CLASSIFICATIONS" \
+      --classifications "$EXTRACT_INPUT" \
       --data-dir        "$image_dir" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" || exit $?
@@ -424,20 +424,20 @@ case "${KFP_TASK:-}" in
   filter)
     # Stage 1.5: Remove bank statements from classifications (CPU, no GPU).
     # Reads classifications.jsonl, writes classifications_filtered.jsonl.
-    log "Stage 1.5: filter — removing bank statements..."
+    # Skip with LMM_SKIP_FILTER=1 (e.g. when dataset is all bank statements).
     mkdir -p "$OUT_ROOT"
-    TOTAL=$(wc -l < "$CLASSIFICATIONS")
-    # jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-    #   "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
-    python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    lines = [l for l in f if json.loads(l).get('document_type','').upper() != 'BANK_STATEMENT']
-with open(sys.argv[2], 'w') as f:
-    f.writelines(lines)
-" "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
-    KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
-    log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
+    if [[ "${LMM_SKIP_FILTER:-0}" == "1" ]]; then
+      log "Stage 1.5: filter SKIPPED (LMM_SKIP_FILTER=1)"
+      log "Copying classifications.jsonl as-is to classifications_filtered.jsonl"
+      cp "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
+    else
+      log "Stage 1.5: filter — removing bank statements..."
+      TOTAL=$(wc -l < "$CLASSIFICATIONS")
+      jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
+        "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
+      KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
+      log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
+    fi
     log "Filter complete."
     ;;
   extract)
