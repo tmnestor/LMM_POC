@@ -104,8 +104,21 @@ def run(
                 "No field definitions for doc_type '%s' -- using empty list", doc_type
             )
 
-        # Parse + clean + validate
-        extracted_data = handler.handle(raw_response, expected_fields)
+        # Bank adapter pre-parses multi-turn responses into extracted_data.
+        # Use that directly (just clean + validate) instead of re-parsing
+        # the raw multi-turn JSON which the standard parser can't handle.
+        pre_parsed = record.get("extracted_data")
+        if pre_parsed and any(v != "NOT_FOUND" for v in pre_parsed.values()):
+            extracted_data = {
+                field_name: handler._cleaner.clean(
+                    field_name, pre_parsed.get(field_name, "NOT_FOUND")
+                )
+                for field_name in expected_fields
+            }
+            extracted_data = handler._validator.validate(extracted_data)
+        else:
+            # Parse + clean + validate
+            extracted_data = handler.handle(raw_response, expected_fields)
 
         found_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
 

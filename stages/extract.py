@@ -249,6 +249,7 @@ def _extract_bank_with_adapter(
             "image_path": image_path,
             "document_type": doc_type,
             "raw_response": raw_response_str,
+            "extracted_data": schema_fields,
             "processing_time": img_time,
             "prompt_used": f"unified_bank_{strategy}",
             "error": None,
