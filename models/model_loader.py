@@ -405,17 +405,28 @@ def build_vllm_loader(spec: VllmSpec):
                         )
                 tp_size = max(1, tp_size)
 
+                gpu_mem_util = float(
+                    os.environ.get(
+                        "LMM_GPU_MEMORY_UTILIZATION", spec.gpu_memory_utilization
+                    )
+                )
+
                 console.print(
                     f"\n[bold]Loading {spec.model_type} via vLLM "
                     f"(tp={tp_size}, max_model_len={spec.max_model_len})[/bold]"
                 )
                 console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+                if os.environ.get("LMM_GPU_MEMORY_UTILIZATION"):
+                    console.print(
+                        f"[dim]gpu_memory_utilization: {gpu_mem_util} "
+                        f"(from LMM_GPU_MEMORY_UTILIZATION env var)[/dim]"
+                    )
 
                 llm_kwargs: dict[str, Any] = {
                     "model": str(cfg.model_path),
                     "tensor_parallel_size": tp_size,
                     "max_model_len": spec.max_model_len,
-                    "gpu_memory_utilization": spec.gpu_memory_utilization,
+                    "gpu_memory_utilization": gpu_mem_util,
                     "max_num_seqs": spec.max_num_seqs,
                     "limit_mm_per_prompt": {"image": 1},
                     "trust_remote_code": True,
