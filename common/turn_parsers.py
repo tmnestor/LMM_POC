@@ -25,7 +25,7 @@ class ParseError(Exception):
 # Helpers
 # ---------------------------------------------------------------------------
 
-RECEIPT_HEADER_RE = re.compile(r"---\s*RECEIPT\s+(\d+)\s*---", re.IGNORECASE)
+RECEIPT_HEADER_RE = re.compile(r"(?:---\s*)?RECEIPT\s+(\d+)(?:\s*---)?", re.IGNORECASE)
 
 
 def _strip_bullet(line: str) -> str:
