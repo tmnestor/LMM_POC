@@ -1,0 +1,167 @@
+# Transaction Linking Workflow
+#
+# Cross-image workflow: receipt image + bank statement image.
+# Stage 1:  Extract receipt details (store, date, total) per receipt.
+# Stage 2a: Detect column headers from bank statement.
+# Stage 2b: Match each receipt to a bank statement debit transaction.
+#
+# Prompts duplicated from prompts/staged_transaction_linking.yaml --
+# the original file is not modified.
+
+name: transaction_link
+description: >
+  Match receipts to bank statement debit transactions.
+  Stage 1: extract receipt details from receipt image.
+  Stage 2a: detect column headers from bank statement image.
+  Stage 2b: match receipts to bank transactions.
+
+inputs:
+  - name: receipt
+    type: image
+  - name: bank_statement
+    type: image
+
+nodes:
+  extract_receipts:
+    image: receipt
+    template: |
+      You are given a single image of a scanned page that may contain
+      MULTIPLE receipts (e.g. several receipts stapled or placed together
+      on one page).
+
+      Your task: carefully examine the image and enumerate every distinct
+      receipt visible on the page, reading left-to-right. Each receipt is
+      a SEPARATE purchase with its own total.
+
+      How to identify individual receipts:
+      - Look for separate store/merchant names
+      - Look for separate dates
+      - Look for separate totals -- the definitive total is the
+        "Total (incl. GST)" line on each receipt
+      - Look for separate payment methods (e.g. Mastercard vs Visa)
+
+      For each receipt found, respond in the following format:
+
+      --- RECEIPT 1 ---
+      STORE: the store or merchant name
+      DATE: the purchase date (DD/MM/YYYY)
+      TOTAL: the total amount including currency symbol (e.g. $83.48)
+
+      --- RECEIPT 2 ---
+      (same fields)
+
+      Continue for all receipts found on the page.
+    max_tokens: 500
+    parser: receipt_list
+    max_retries: 1
+    reflection: |
+      Could not parse receipt blocks from your response:
+      {error}
+      Use exactly the --- RECEIPT N --- format with STORE, DATE, TOTAL fields.
+    edges:
+      ok: detect_headers
+      parse_failed: extract_receipts
+
+  detect_headers:
+    image: bank_statement
+    template: |
+      You are given one image: a bank statement.
+
+      Find the transaction table and list its column headers exactly as they
+      appear, in order from left to right.
+
+      Respond as a numbered list, one header per line:
+      1. First Column Name
+      2. Second Column Name
+      3. ...
+
+      Only list column headers -- do not include any transaction data.
+    max_tokens: 200
+    parser: header_list
+    stop: ["\n\n\n"]
+    max_retries: 1
+    reflection: |
+      Could not parse column headers from your response:
+      {error}
+      List headers as a numbered list, one per line.
+    edges:
+      ok: match_to_statement
+      parse_failed: detect_headers
+
+  match_to_statement:
+    image: bank_statement
+    template: |
+      You are given one image: a bank statement with a transaction table.
+
+      The following purchases were extracted from receipts in a prior step:
+
+      {purchases_text}
+
+      Your task: for EACH purchase listed above, identify the specific debit
+      transaction in the bank statement that corresponds to that purchase.
+
+      Matching strategy (in priority order):
+      1. AMOUNT is the strongest signal: find rows where the "{debit_column}"
+         column matches the purchase total. Receipts show amounts with a
+         currency symbol (e.g. "$83.48") while the "{debit_column}" column
+         may show bare numbers only -- compare numeric values, ignoring
+         currency symbols.
+      2. Then check the "{description_column}" column of those rows -- the
+         store/merchant name should appear there (possibly truncated or
+         abbreviated).
+      3. Then confirm the "{date_column}" column is the same as the purchase
+         date, or up to 3 days later (bank processing delay). Ignore rows
+         dated before the purchase date. Note: the bank statement may use a
+         different date format than the purchases -- convert to the same
+         format before comparing.
+
+      Row integrity: all extracted fields must come from the SAME row in the
+      transaction table. Do not mix values from different rows.
+
+      Fuzzy matching hints:
+      - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
+        becomes "OFFICE SUPPLIES PLU")
+      - The "&" symbol may appear as "AND" on the bank statement
+      - Names may be upper-cased and shortened to ~18-20 characters
+
+      For each purchase, respond in the following format:
+
+      --- RECEIPT 1 ---
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      RECEIPT_STORE: the store/merchant name from the purchase
+      RECEIPT_TOTAL: the total amount from the purchase
+      CONFIDENCE: HIGH, MEDIUM, or LOW
+      REASONING: brief explanation of why this transaction matches
+
+      --- RECEIPT 2 ---
+      (same fields)
+
+      Continue for all purchases listed above.
+      If no matching transaction is found for a purchase, set
+      MATCHED_TRANSACTION to NOT_FOUND, set TRANSACTION_DATE,
+      TRANSACTION_AMOUNT, and TRANSACTION_DESCRIPTION to NOT_FOUND,
+      and explain why in REASONING.
+    inject:
+      purchases_text: "extract_receipts.formatted_text"
+      date_column: "detect_headers.column_mapping.date"
+      description_column: "detect_headers.column_mapping.description"
+      debit_column: "detect_headers.column_mapping.debit"
+    max_tokens: 2000
+    parser: transaction_match
+    logprobs: 5
+    edges:
+      ok: validate_amounts
+
+  validate_amounts:
+    type: validator
+    check: amount_gate
+    edges:
+      ok: done
+      failed: done  # override match status, don't re-extract
+
+post_processing:
+  - type: dedup
+    field: RECEIPT_STORE

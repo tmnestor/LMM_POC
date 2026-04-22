@@ -21,8 +21,8 @@ try:
 
     PANDAS_AVAILABLE = True
 except ImportError:
-    pd = None
-    np = None
+    pd = None  # type: ignore[assignment]
+    np = None  # type: ignore[assignment]
     PANDAS_AVAILABLE = False
 
 
@@ -291,7 +291,7 @@ class BankStatementCalculator:
 
             # Pad shorter lists
             while len(dates_list) < max_length:
-                dates_list.append((None, "Unknown", len(dates_list)))
+                dates_list.append((None, "Unknown", len(dates_list)))  # type: ignore[arg-type]
             while len(balances_list) < max_length:
                 balances_list.append(0.0)
             while len(descriptions_list) < max_length:
@@ -823,7 +823,7 @@ class BankStatementCalculator:
 
     def _parse_extracted_amounts(self, amounts_str: str) -> list[float]:
         """Parse extracted transaction amounts from PAID/RECEIVED fields."""
-        amounts = []
+        amounts: list[float] = []
         if not amounts_str or amounts_str == "NOT_FOUND":
             return amounts
 
@@ -897,8 +897,8 @@ class BankStatementCalculator:
     def _calculate_transaction_types(
         self,
         transactions: list[Transaction],
-        extracted_paid: list[float] = None,
-        extracted_received: list[float] = None,
+        extracted_paid: list[float] | None = None,
+        extracted_received: list[float] | None = None,
         dates_str: str = "",
         descriptions_str: str = "",
     ) -> list[Transaction]:
@@ -947,8 +947,8 @@ class BankStatementCalculator:
                     )
                     self._display_earliest_transaction_details(
                         transaction,
-                        extracted_paid,
-                        extracted_received,
+                        extracted_paid or [],
+                        extracted_received or [],
                         used_extracted_data,
                         earliest_array_index,
                     )
