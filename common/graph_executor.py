@@ -329,10 +329,25 @@ class GraphExecutor:
         injections: dict[str, str],
         state: WorkflowState,
     ) -> str:
-        """Replace ``{placeholder}`` references with values from state."""
+        """Replace ``{placeholder}`` references with values from state.
+
+        Raises RuntimeError with diagnostics when an upstream node's
+        parse failed and the required key is missing.
+        """
         prompt = template
         for placeholder, dot_path in injections.items():
-            value = state.get(dot_path)
+            try:
+                value = state.get(dot_path)
+            except KeyError as exc:
+                node_key = dot_path.split(".")[0]
+                raw = ""
+                if state.has(node_key):
+                    raw = state.node_results[node_key].raw_response[:500]
+                msg = (
+                    f"Inject failed for '{placeholder}' <- '{dot_path}': {exc}. "
+                    f"Upstream raw_response: {raw!r}"
+                )
+                raise RuntimeError(msg) from None
             prompt = prompt.replace(
                 f"{{{placeholder}}}",
                 str(value) if value is not None else placeholder,

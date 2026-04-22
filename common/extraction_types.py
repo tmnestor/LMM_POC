@@ -11,6 +11,8 @@ used by the orchestrator pipeline.
 from dataclasses import dataclass, field
 from typing import Any
 
+_MISSING = object()  # sentinel for WorkflowState.get() default
+
 
 @dataclass
 class NodeGenParams:
@@ -60,19 +62,36 @@ class WorkflowState:
 
     node_results: dict[str, NodeResult] = field(default_factory=dict)
 
-    def get(self, dot_path: str) -> Any:
+    def get(self, dot_path: str, default: Any = _MISSING) -> Any:
         """Resolve a dot-path reference.
 
         Example: ``'detect_headers.column_mapping.balance'``
+
+        If *default* is provided, return it when the path cannot be
+        resolved (missing node or missing key).  Without a default,
+        raise ``KeyError`` with a diagnostic message.
         """
         parts = dot_path.split(".")
         node_key = parts[0]
-        result = self.node_results[node_key].parsed
+        if node_key not in self.node_results:
+            if default is not _MISSING:
+                return default
+            msg = f"Node '{node_key}' not found in state (have: {list(self.node_results)})"
+            raise KeyError(msg)
+        result: Any = self.node_results[node_key].parsed
         for part in parts[1:]:
-            if isinstance(result, dict):
-                result = result[part]
-            else:
-                result = getattr(result, part)
+            try:
+                if isinstance(result, dict):
+                    result = result[part]
+                else:
+                    result = getattr(result, part)
+            except (KeyError, AttributeError):
+                if default is not _MISSING:
+                    return default
+                error_ctx = self.node_results[node_key].parsed.get("error", "")
+                hint = f" (node parse failed: {error_ctx})" if error_ctx else ""
+                msg = f"Cannot resolve '{dot_path}': key '{part}' missing{hint}"
+                raise KeyError(msg) from None
         return result
 
     def has(self, node_key: str) -> bool:
