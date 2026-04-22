@@ -17,7 +17,6 @@ Usage:
         --output /artifacts/raw_extractions.jsonl
 """
 
-import json
 import logging
 import time
 from pathlib import Path
@@ -237,9 +236,12 @@ def _extract_bank_with_adapter(
     schema_fields, metadata = bank_adapter.extract_bank_statement(image_path)
     img_time = time.time() - start
 
-    # Capture multi-turn raw responses as JSON string
-    raw_responses = metadata.get("raw_responses", {})
-    raw_response_str = json.dumps(raw_responses) if raw_responses else ""
+    # Serialize structured fields into flat FIELD: value text that the
+    # standard hybrid parser already handles.  This keeps the stage contract
+    # clean: extract produces a parseable raw_response, clean parses it.
+    raw_response_str = "\n".join(
+        f"{field}: {value}" for field, value in schema_fields.items()
+    )
 
     strategy = metadata.get("strategy_used", "unknown")
 
@@ -249,7 +251,6 @@ def _extract_bank_with_adapter(
             "image_path": image_path,
             "document_type": doc_type,
             "raw_response": raw_response_str,
-            "extracted_data": schema_fields,
             "processing_time": img_time,
             "prompt_used": f"unified_bank_{strategy}",
             "error": None,
