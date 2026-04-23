@@ -13,7 +13,9 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 DATA_DIR="../evaluation_data/synthetic"
 ARTIFACTS="../evaluation_data/artifacts/graph_robust"
-GROUND_TRUTH="../evaluation_data/synthetic/ground_truth.jsonl"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+GROUND_TRUTH="${REPO_ROOT}/ground_truth.jsonl"
 
 # ---------------------------------------------------------------------------
 # Clean previous outputs
