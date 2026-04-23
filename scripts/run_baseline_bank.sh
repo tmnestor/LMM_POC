@@ -12,33 +12,31 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 DATA_DIR="../evaluation_data/bank"
 ARTIFACTS="../evaluation_data/artifacts/baseline_bank"
-CLASSIFICATIONS="../evaluation_data/artifacts/classifications_bank.jsonl"
+CLASSIFICATIONS="${ARTIFACTS}/classifications.jsonl"
 GROUND_TRUTH="../evaluation_data/bank/ground_truth_bank.csv"
 
 # ---------------------------------------------------------------------------
 # Clean previous outputs
 # ---------------------------------------------------------------------------
 echo "=== Cleaning previous baseline_bank outputs ==="
+rm -f "${CLASSIFICATIONS}"
 rm -f "${ARTIFACTS}/raw_extractions.jsonl"
 rm -f "${ARTIFACTS}/cleaned_extractions.jsonl"
 rm -f "${ARTIFACTS}/evaluation_results.jsonl"
 mkdir -p "${ARTIFACTS}"
 
 # ---------------------------------------------------------------------------
-# Stage 0: Generate classifications (all bank statements -- always regenerate)
+# Stage 1: Classify (GPU)
 # ---------------------------------------------------------------------------
-echo "=== Stage 0: Generating classifications ==="
-mkdir -p "$(dirname "${CLASSIFICATIONS}")"
-for img in ${DATA_DIR}/*.png; do
-    name=$(basename "$img")
-    echo "{\"image_path\": \"$(realpath "$img")\", \"image_name\": \"$name\", \"document_type\": \"BANK_STATEMENT\"}"
-done > "${CLASSIFICATIONS}"
-echo "Wrote $(wc -l < "${CLASSIFICATIONS}") classifications"
+echo "=== Stage 1: Classify ==="
+python -m stages.classify \
+    --data-dir "${DATA_DIR}" \
+    --output-dir "${CLASSIFICATIONS}"
 
 # ---------------------------------------------------------------------------
-# Stage 1: Extract (GPU) -- baseline path
+# Stage 2: Extract (GPU) -- baseline path
 # ---------------------------------------------------------------------------
-echo "=== Stage 1: Extract (baseline) ==="
+echo "=== Stage 2: Extract (baseline) ==="
 python -m stages.extract \
     --classifications "${CLASSIFICATIONS}" \
     --data-dir "${DATA_DIR}" \
@@ -46,17 +44,17 @@ python -m stages.extract \
     --no-graph-bank
 
 # ---------------------------------------------------------------------------
-# Stage 2: Clean (CPU)
+# Stage 3: Clean (CPU)
 # ---------------------------------------------------------------------------
-echo "=== Stage 2: Clean ==="
+echo "=== Stage 3: Clean ==="
 python -m stages.clean \
     --input "${ARTIFACTS}/raw_extractions.jsonl" \
     --output-dir "${ARTIFACTS}/cleaned_extractions.jsonl"
 
 # ---------------------------------------------------------------------------
-# Stage 3: Evaluate (CPU)
+# Stage 4: Evaluate (CPU)
 # ---------------------------------------------------------------------------
-echo "=== Stage 3: Evaluate ==="
+echo "=== Stage 4: Evaluate ==="
 python -m stages.evaluate \
     --input "${ARTIFACTS}/cleaned_extractions.jsonl" \
     --ground-truth "${GROUND_TRUTH}" \
