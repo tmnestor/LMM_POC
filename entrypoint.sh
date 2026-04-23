@@ -4,26 +4,32 @@
 # =============================================================================
 #
 # This is the first script that runs when a KFP pipeline job starts.
-# Its job is simple: set up the environment, then hand off to run_batch_inference KFP Task which calls cli.py to do the actual work.
+# Sets up environment (conda, CUDA, logging), then dispatches to the
+# requested KFP_TASK which calls stages/*.py modules directly.
 #
 # Flow:
-#   KFP Pipeline → Container starts → entrypoint.sh → KFP Task (classify/filter/extract/clean/evaluate) → cli.py
+#   KFP Pipeline → Container starts → entrypoint.sh → stages.{classify,extract,clean,evaluate}
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
 #   which users can fill in via the KFP UI. KFP injects these as environment
 #   variables into the container. This script reads those env vars and
-#   translates them into cli.py command-line flags.
+#   translates them into stages.* command-line flags.
 #
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
-#     python3 ./cli.py --model llama --num-gpus 4
+#     python3 -m stages.extract --model llama --num-gpus 4 ...
 #
-# Three ways to run:
-#   1. GitLab CI/CD (standard): git tag triggers pipeline → builds container → deploys to KFP
-#   2. Via KFP UI (ad-hoc):     input_params set in UI → injected as env vars
-#   3. Locally (dev/debug):     KFP_TASK=run_batch_inference bash entrypoint.sh --model llama
-# Local example:
-#   KFP_TASK=run_batch_inference num_gpus=4 model=internvl3-vllm bash entrypoint.sh
+# Available KFP_TASK values:
+#   run_batch_inference  — 4-stage classic pipeline (classify/extract/clean/evaluate)
+#   run_graph_robust     — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)
+#   classify             — Stage 1 only (GPU)
+#   extract              — Stage 2 only (GPU)
+#   clean                — Stage 3 only (CPU)
+#   evaluate             — Stage 4 only (CPU)
+#
+# Local examples:
+#   KFP_TASK=run_batch_inference image_dir=../evaluation_data/synthetic bash entrypoint.sh
+#   KFP_TASK=run_graph_robust image_dir=../evaluation_data/synthetic ground_truth=../evaluation_data/synthetic/ground_truth.jsonl bash entrypoint.sh
 #
 # =============================================================================
 
@@ -294,7 +300,6 @@ fi
 # a previous run (this is also what the KFP pod volume mount sees).
 OUT_ROOT="${output:-./outputs}"
 CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
-FILTERED_CLASSIFICATIONS="${OUT_ROOT}/classifications_filtered.jsonl"
 RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
 CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
@@ -317,25 +322,21 @@ case "${KFP_TASK:-}" in
   # ========================================================================
   # In production, KFP runs each stage in its own pod by setting
   # KFP_TASK=classify / extract / clean / evaluate (see branches below).
-  # The `run_batch_inference` branch chains all 4 stages in a single shell
+  # The `run_batch_inference` branch chains all stages in a single shell
   # for sandbox/laptop iteration — it does NOT appear in the KFP DAG and
   # should never be set by the KFP manifest. Keep it for local smoke tests.
   # ========================================================================
   run_batch_inference)
-    # Local simulation of the 4-pod KFP pipeline.
+    # Local simulation of the KFP pipeline.
     # Each phase is a FRESH python3 process: model loads, runs, exits,
     # CUDA context is torn down and GPU memory fully released before the
     # next phase starts. This mirrors pod-per-stage KFP deployment and
     # isolates GPU state between phases (no fragmentation leak across
-    # detect → extract → clean → evaluate).
+    # classify → extract → clean → evaluate).
     log "Mode: run_batch_inference — simulating 4-stage KFP pipeline locally."
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
-    # Pipeline-wide start timestamp (epoch seconds). Written to EFS via
-    # PIPELINE_START_FILE so the exact same read-by-evaluate mechanism
-    # works in local dev AND in KFP (classify pod writes, evaluate reads).
-    # One pattern, one code path.
     date +%s > "$PIPELINE_START_FILE"
     PIPELINE_START=$(cat "$PIPELINE_START_FILE")
 
@@ -347,27 +348,10 @@ case "${KFP_TASK:-}" in
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 1/4: classify complete."
 
-    # Phase 1.5: Filter bank statements (skip with LMM_SKIP_FILTER=1)
-    if [[ "${LMM_SKIP_FILTER:-0}" == "1" ]]; then
-      log ""
-      log "Phase 1.5/4: filter SKIPPED (LMM_SKIP_FILTER=1)"
-      EXTRACT_INPUT="$CLASSIFICATIONS"
-    else
-      log ""
-      log "Phase 1.5/4: filter — removing bank statements..."
-      TOTAL=$(wc -l < "$CLASSIFICATIONS")
-      jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-        "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
-      KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
-      log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
-      log "Phase 1.5/4: filter complete."
-      EXTRACT_INPUT="$FILTERED_CLASSIFICATIONS"
-    fi
-
     log ""
     log "Phase 2/4: extract (fresh process, model reload)..."
     python3 -m stages.extract \
-      --classifications "$EXTRACT_INPUT" \
+      --classifications "$CLASSIFICATIONS" \
       --data-dir        "$image_dir" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" || exit $?
@@ -399,6 +383,58 @@ case "${KFP_TASK:-}" in
     ;;
 
   # ========================================================================
+  # LOCAL DEV — Robust probe-based pipeline (3 stages, 1 GPU process).
+  # ========================================================================
+  # Skips the separate classify stage entirely. The extract stage
+  # with --graph-robust runs two probes per image (document + bank headers)
+  # and picks the best type by field count. One GPU process, no wasted
+  # classification call.
+  #
+  # Model calls per type: receipt/invoice=2, travel/logbook=3, bank=4.
+  # ========================================================================
+  run_graph_robust)
+    log "Mode: graph_robust — probe-based classification (3-stage pipeline)."
+    log "Output root: $OUT_ROOT"
+    mkdir -p "$OUT_ROOT"
+
+    date +%s > "$PIPELINE_START_FILE"
+    PIPELINE_START=$(cat "$PIPELINE_START_FILE")
+
+    log ""
+    log "Phase 1/3: extract --graph-robust (probe + extract, single GPU process)..."
+    python3 -m stages.extract \
+      --data-dir   "${image_dir:?image_dir env var required}" \
+      --output-dir "$RAW_EXTRACTIONS" \
+      --graph-robust \
+      "${OPT_MODEL[@]}" || exit $?
+    log "Phase 1/3: extract complete."
+
+    log ""
+    log "Phase 2/3: clean (CPU, no GPU)..."
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "Phase 2/3: clean complete."
+
+    if _is_set "${ground_truth:-}"; then
+      log ""
+      log "Phase 3/3: evaluate (CPU, no GPU)..."
+      python3 -m stages.evaluate \
+        --input             "$CLEAN_EXTRACTIONS" \
+        --ground-truth      "$ground_truth" \
+        --output-dir        "$EVAL_DIR" \
+        --wall-clock-start  "$PIPELINE_START" || exit $?
+      log "Phase 3/3: evaluate complete."
+    else
+      log ""
+      log "Phase 3/3: evaluate skipped — ground_truth not provided."
+    fi
+
+    log ""
+    log "Pipeline completed successfully."
+    ;;
+
+  # ========================================================================
   # KFP PRODUCTION BRANCHES — one per pod in the 4-stage DAG.
   # ========================================================================
   # These are the branches the KFP manifest dispatches to. Each pod sets
@@ -421,33 +457,14 @@ case "${KFP_TASK:-}" in
       "${OPT_MODEL[@]}" || exit $?
     log "Classification complete."
     ;;
-  filter)
-    # Stage 1.5: Remove bank statements from classifications (CPU, no GPU).
-    # Reads classifications.jsonl, writes classifications_filtered.jsonl.
-    # Skip with LMM_SKIP_FILTER=1 (e.g. when dataset is all bank statements).
-    mkdir -p "$OUT_ROOT"
-    if [[ "${LMM_SKIP_FILTER:-0}" == "1" ]]; then
-      log "Stage 1.5: filter SKIPPED (LMM_SKIP_FILTER=1)"
-      log "Copying classifications.jsonl as-is to classifications_filtered.jsonl"
-      cp "$CLASSIFICATIONS" "$FILTERED_CLASSIFICATIONS"
-    else
-      log "Stage 1.5: filter — removing bank statements..."
-      TOTAL=$(wc -l < "$CLASSIFICATIONS")
-      jq -c 'select(.document_type | ascii_upcase != "BANK_STATEMENT")' \
-        "$CLASSIFICATIONS" > "$FILTERED_CLASSIFICATIONS"
-      KEPT=$(wc -l < "$FILTERED_CLASSIFICATIONS")
-      log "Filter: kept $KEPT, dropped $((TOTAL - KEPT)) bank statement(s)"
-    fi
-    log "Filter complete."
-    ;;
   extract)
     # Stage 2: Field extraction (GPU).
-    # Reads classifications_filtered.jsonl, writes raw_extractions.jsonl.
+    # Reads classifications.jsonl, writes raw_extractions.jsonl.
     # Supports resumption from partial output after crash.
     log "Stage 2: extract — extracting fields (raw responses)..."
     mkdir -p "$OUT_ROOT"
     python3 -m stages.extract \
-      --classifications "$FILTERED_CLASSIFICATIONS" \
+      --classifications "$CLASSIFICATIONS" \
       --data-dir        "${image_dir:?image_dir env var required}" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" || exit $?
@@ -467,7 +484,7 @@ case "${KFP_TASK:-}" in
     ;;
   evaluate)
     # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
-    # Reads cleaned_extractions.jsonl + ground truth CSV, writes evaluation_results.jsonl.
+    # Reads cleaned_extractions.jsonl + ground truth CSV/JSONL, writes evaluation_results.jsonl.
     log "Stage 4: evaluate — scoring against ground truth..."
     mkdir -p "$EVAL_DIR"
     # End-to-end wall-clock: read the pipeline start epoch written by the
@@ -498,9 +515,9 @@ case "${KFP_TASK:-}" in
     log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
     log ""
     log "  Available tasks:"
-    log "    run_batch_inference  — 5-stage simulation (fresh process per phase)"
+    log "    run_batch_inference  — 4-stage classic pipeline (classify/extract/clean/evaluate)"
+    log "    run_graph_robust     — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)"
     log "    classify             — Stage 1: document type detection (GPU)"
-    log "    filter               — Stage 1.5: remove bank statements (CPU)"
     log "    extract              — Stage 2: field extraction (GPU)"
     log "    clean                — Stage 3: parse/clean responses (CPU)"
     log "    evaluate             — Stage 4: evaluation (CPU)"
@@ -508,7 +525,7 @@ case "${KFP_TASK:-}" in
     ;;
   *)
     log "FATAL: Unknown KFP_TASK '${KFP_TASK}'"
-    log "  Expected one of: run_batch_inference, classify, filter, extract, clean, evaluate"
+    log "  Expected one of: run_batch_inference, run_graph_robust, classify, extract, clean, evaluate"
     exit 1
     ;;
 esac
