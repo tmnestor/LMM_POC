@@ -25,17 +25,15 @@ rm -f "${ARTIFACTS}/evaluation_results.jsonl"
 mkdir -p "${ARTIFACTS}"
 
 # ---------------------------------------------------------------------------
-# Stage 0: Generate classifications (all bank statements)
+# Stage 0: Generate classifications (all bank statements -- always regenerate)
 # ---------------------------------------------------------------------------
-if [ ! -f "${CLASSIFICATIONS}" ]; then
-    echo "=== Stage 0: Generating classifications ==="
-    mkdir -p "$(dirname "${CLASSIFICATIONS}")"
-    for img in ${DATA_DIR}/*.png; do
-        name=$(basename "$img")
-        echo "{\"image_path\": \"$(realpath "$img")\", \"image_name\": \"$name\", \"document_type\": \"BANK_STATEMENT\"}"
-    done > "${CLASSIFICATIONS}"
-    echo "Wrote $(wc -l < "${CLASSIFICATIONS}") classifications"
-fi
+echo "=== Stage 0: Generating classifications ==="
+mkdir -p "$(dirname "${CLASSIFICATIONS}")"
+for img in ${DATA_DIR}/*.png; do
+    name=$(basename "$img")
+    echo "{\"image_path\": \"$(realpath "$img")\", \"image_name\": \"$name\", \"document_type\": \"BANK_STATEMENT\"}"
+done > "${CLASSIFICATIONS}"
+echo "Wrote $(wc -l < "${CLASSIFICATIONS}") classifications"
 
 # ---------------------------------------------------------------------------
 # Stage 1: Extract (GPU) -- baseline path
