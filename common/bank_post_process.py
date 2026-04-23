@@ -277,6 +277,38 @@ def run_bank_post_process(
 
 
 # ------------------------------------------------------------------
+# Document type normalisation
+# ------------------------------------------------------------------
+
+# Maps model variants -> canonical type.  Checked case-insensitively.
+_DOC_TYPE_ALIASES: dict[str, str] = {
+    "tax invoice": "INVOICE",
+    "tax_invoice": "INVOICE",
+    "credit note": "INVOICE",
+    "purchase order": "INVOICE",
+    "quote": "INVOICE",
+    "estimate": "INVOICE",
+    "bank statement": "BANK_STATEMENT",
+    "credit card statement": "BANK_STATEMENT",
+}
+
+
+def _normalize_doc_type(raw: str) -> str:
+    """Normalise a model-returned DOCUMENT_TYPE to a canonical value."""
+    if not isinstance(raw, str) or raw == "NOT_FOUND":
+        return "RECEIPT"
+    cleaned = raw.strip().upper()
+    if cleaned in ("RECEIPT", "INVOICE", "BANK_STATEMENT"):
+        return cleaned
+    # Check aliases (case-insensitive)
+    lower = raw.strip().lower()
+    for alias, canonical in _DOC_TYPE_ALIASES.items():
+        if alias in lower:
+            return canonical
+    return "RECEIPT"
+
+
+# ------------------------------------------------------------------
 # Best-type selector (called by GraphExecutor._run_validator)
 # ------------------------------------------------------------------
 
@@ -332,9 +364,7 @@ def run_select_best_type(
                 "probe_bank_headers"
             )
     else:
-        best_type = doc_fields.get("DOCUMENT_TYPE", "RECEIPT")
-        if best_type == "NOT_FOUND":
-            best_type = "RECEIPT"
+        best_type = _normalize_doc_type(doc_fields.get("DOCUMENT_TYPE", "RECEIPT"))
         # PAYMENT_DATE present -> strong receipt signal (overrides model guess)
         payment_date = doc_fields.get("PAYMENT_DATE", "NOT_FOUND")
         if isinstance(payment_date, str) and payment_date != "NOT_FOUND":

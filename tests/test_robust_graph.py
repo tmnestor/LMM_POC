@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import yaml
 from PIL import Image
 
-from common.bank_post_process import run_select_best_type
+from common.bank_post_process import _normalize_doc_type, run_select_best_type
 from common.extraction_types import GenerateResult, NodeResult, WorkflowState
 from common.graph_executor import GraphExecutor
 from common.turn_parsers import build_parser_registry
@@ -147,6 +147,30 @@ BALANCE_RESPONSE = """\
 # ---------------------------------------------------------------------------
 # select_best_type validator unit tests
 # ---------------------------------------------------------------------------
+
+
+class TestNormalizeDocType:
+    """Test _normalize_doc_type() covers model output variants."""
+
+    def test_canonical_passthrough(self) -> None:
+        assert _normalize_doc_type("RECEIPT") == "RECEIPT"
+        assert _normalize_doc_type("INVOICE") == "INVOICE"
+        assert _normalize_doc_type("BANK_STATEMENT") == "BANK_STATEMENT"
+
+    def test_tax_invoice_variants(self) -> None:
+        assert _normalize_doc_type("TAX INVOICE") == "INVOICE"
+        assert _normalize_doc_type("Tax Invoice") == "INVOICE"
+        assert _normalize_doc_type("tax invoice") == "INVOICE"
+
+    def test_not_found_defaults_to_receipt(self) -> None:
+        assert _normalize_doc_type("NOT_FOUND") == "RECEIPT"
+
+    def test_unknown_defaults_to_receipt(self) -> None:
+        assert _normalize_doc_type("TRAVEL_EXPENSE") == "RECEIPT"
+
+    def test_bank_statement_aliases(self) -> None:
+        assert _normalize_doc_type("credit card statement") == "BANK_STATEMENT"
+        assert _normalize_doc_type("Bank Statement") == "BANK_STATEMENT"
 
 
 class TestSelectBestType:
