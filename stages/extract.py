@@ -41,6 +41,7 @@ def run(
     balance_correction: bool = True,
     graph_bank: bool = False,
     graph_unified: bool = False,
+    graph_robust: bool = False,
     verbose: bool | None = None,
     debug: bool | None = None,
     config_path: Path | None = None,
@@ -65,6 +66,9 @@ def run(
         graph_unified: Use unified graph workflow (classify + extract in one
             graph walk). Skips Stage 1 -- discovers images directly from
             image_dir.
+        graph_robust: Use robust probe-based classification (extraction probes
+            determine doc type). Skips Stage 1 -- discovers images directly
+            from image_dir.
         verbose: Tier B output (init/config details). None = read from YAML.
         debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
         config_path: Optional path to run_config.yml.
@@ -72,6 +76,17 @@ def run(
     Returns:
         Path to the written raw_extractions.jsonl.
     """
+    if graph_robust:
+        return _run_unified(
+            image_dir=image_dir,
+            output_path=output_path,
+            model_type=model_type,
+            verbose=verbose,
+            debug=debug,
+            config_path=config_path,
+            workflow_name="robust_extract.yaml",
+            label="robust",
+        )
     if graph_unified:
         return _run_unified(
             image_dir=image_dir,
@@ -377,10 +392,16 @@ def _run_unified(
     verbose: bool | None = None,
     debug: bool | None = None,
     config_path: Path | None = None,
+    workflow_name: str = "unified_extract.yaml",
+    label: str = "unified",
 ) -> Path:
-    """Unified graph path: classify + extract in one graph walk per image.
+    """Graph-based extraction: classify + extract in one graph walk per image.
 
     Discovers images directly from image_dir (no classifications.jsonl needed).
+
+    Args:
+        workflow_name: YAML file under prompts/workflows/ to load.
+        label: Label for log messages and prompt_used prefix.
     """
     from cli import load_pipeline_configs
     from common.app_config import AppConfig
@@ -444,7 +465,7 @@ def _run_unified(
             app_config=app_cfg,
         )
 
-        executor, definition = _build_unified_executor(processor)
+        executor, definition = _build_unified_executor(processor, workflow_name)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.time()
@@ -465,7 +486,7 @@ def _run_unified(
                     )
 
                     record = session.to_record()
-                    record["prompt_used"] = f"graph_unified_{session.strategy}"
+                    record["prompt_used"] = f"graph_{label}_{session.strategy}"
                     writer.write(record)
 
                 except Exception as e:
@@ -500,15 +521,23 @@ def _run_unified(
                 )
 
         elapsed = time.time() - start
-        logger.info("Unified extraction complete: %d images in %.1fs", count, elapsed)
+        logger.info(
+            "%s extraction complete: %d images in %.1fs",
+            label.capitalize(),
+            count,
+            elapsed,
+        )
     finally:
         model_cm.__exit__(None, None, None)
 
     return output_path
 
 
-def _build_unified_executor(processor: Any) -> tuple[Any, dict[str, Any]]:
-    """Build a GraphExecutor + workflow definition for unified classify+extract."""
+def _build_unified_executor(
+    processor: Any,
+    workflow_name: str = "unified_extract.yaml",
+) -> tuple[Any, dict[str, Any]]:
+    """Build a GraphExecutor + workflow definition for a graph workflow."""
     import yaml
 
     from common.extraction_types import GenerateResult, NodeGenParams
@@ -516,10 +545,7 @@ def _build_unified_executor(processor: Any) -> tuple[Any, dict[str, Any]]:
     from common.turn_parsers import build_parser_registry
 
     workflow_path = (
-        Path(__file__).resolve().parent.parent
-        / "prompts"
-        / "workflows"
-        / "unified_extract.yaml"
+        Path(__file__).resolve().parent.parent / "prompts" / "workflows" / workflow_name
     )
     with workflow_path.open() as f:
         definition = yaml.safe_load(f)
@@ -561,6 +587,11 @@ def main(
         "--graph-unified/--no-graph-unified",
         help="Unified graph workflow: classify + extract in one pass (skips Stage 1).",
     ),
+    graph_robust: bool = typer.Option(
+        False,
+        "--graph-robust/--no-graph-robust",
+        help="Robust probe-based classification: extraction probes determine doc type (skips Stage 1).",
+    ),
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
@@ -593,6 +624,7 @@ def main(
         balance_correction=balance_correction,
         graph_bank=graph_bank,
         graph_unified=graph_unified,
+        graph_robust=graph_robust,
         verbose=verbose,
         debug=debug,
         config_path=config,

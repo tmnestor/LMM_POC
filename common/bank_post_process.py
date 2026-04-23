@@ -274,3 +274,74 @@ def run_bank_post_process(
     )
 
     return True, fields
+
+
+# ------------------------------------------------------------------
+# Best-type selector (called by GraphExecutor._run_validator)
+# ------------------------------------------------------------------
+
+
+def run_select_best_type(
+    state: WorkflowState,
+) -> tuple[bool, dict[str, Any]]:
+    """Pick best document type by comparing probe results.
+
+    Scoring:
+    - Document probe: count non-NOT_FOUND uppercase fields (max ~15)
+    - Bank probe: count non-None column mappings (max ~6)
+    - Bank wins if >=3 real columns AND document probe score < 6
+    - Otherwise document probe wins, DOCUMENT_TYPE from its output
+    - PAYMENT_DATE present -> override to RECEIPT (evidence of completed payment)
+
+    When bank wins, ``probe_bank_headers`` is renamed to ``detect_headers``
+    in state so the downstream bank subgraph's inject references work.
+    """
+    # Score document probe
+    doc_fields = state.node_results["probe_document"].parsed
+    doc_score = sum(
+        1
+        for k, v in doc_fields.items()
+        if isinstance(v, str)
+        and v != "NOT_FOUND"
+        and not k.startswith("_")
+        and k.isupper()
+    )
+
+    # Score bank probe (may have parse error -> no column_mapping)
+    bank_score = 0
+    if state.has("probe_bank_headers"):
+        mapping = state.get("probe_bank_headers.column_mapping", None)
+        if isinstance(mapping, dict):
+            bank_score = sum(1 for v in mapping.values() if v is not None)
+
+    logger.debug(
+        "select_best_type: doc_score=%d, bank_score=%d",
+        doc_score,
+        bank_score,
+    )
+
+    # Decision
+    if bank_score >= 3 and doc_score < 6:
+        best_type = "BANK_STATEMENT"
+        # Remove document probe -- bank subgraph will produce fields
+        del state.node_results["probe_document"]
+        # Rename probe_bank_headers -> detect_headers so bank subgraph
+        # inject references (detect_headers.column_mapping.*) resolve
+        if "probe_bank_headers" in state.node_results:
+            state.node_results["detect_headers"] = state.node_results.pop(
+                "probe_bank_headers"
+            )
+    else:
+        best_type = doc_fields.get("DOCUMENT_TYPE", "RECEIPT")
+        if best_type == "NOT_FOUND":
+            best_type = "RECEIPT"
+        # PAYMENT_DATE present -> strong receipt signal (overrides model guess)
+        payment_date = doc_fields.get("PAYMENT_DATE", "NOT_FOUND")
+        if isinstance(payment_date, str) and payment_date != "NOT_FOUND":
+            best_type = "RECEIPT"
+        # Clean up bank probe from state
+        if "probe_bank_headers" in state.node_results:
+            del state.node_results["probe_bank_headers"]
+
+    logger.debug("select_best_type: winner=%s", best_type)
+    return True, {"DOCUMENT_TYPE": best_type}
