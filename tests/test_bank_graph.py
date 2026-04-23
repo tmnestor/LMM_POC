@@ -62,6 +62,11 @@ HEADERS_AMOUNT = """\
 3. Amount
 4. Balance"""
 
+HEADERS_AMOUNT_NO_BALANCE = """\
+1. Date
+2. Description
+3. Amount"""
+
 HEADERS_DEBIT_CREDIT = """\
 1. Date
 2. Transaction Details
@@ -159,6 +164,22 @@ class TestRouterSelection:
 
     def test_routes_to_amount_when_amount_and_balance(self, tmp_path: Path) -> None:
         gen_fn = _mock_generate_fn([HEADERS_AMOUNT, AMOUNT_RESPONSE])
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="BANK_STATEMENT",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        edges = session.trace.edges_taken
+        router_edge = [e for e in edges if e[0] == "select_strategy"]
+        assert router_edge[0][1] == "has_amount"
+
+    def test_routes_to_amount_when_no_balance(self, tmp_path: Path) -> None:
+        """Amount column without Balance should still route to has_amount."""
+        gen_fn = _mock_generate_fn([HEADERS_AMOUNT_NO_BALANCE, AMOUNT_RESPONSE])
         definition = _load_workflow()
         executor = GraphExecutor(gen_fn, build_parser_registry())
 

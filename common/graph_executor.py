@@ -383,7 +383,7 @@ class GraphExecutor:
 
                 if has_balance and has_debit and "has_balance_debit" in edges:
                     return "has_balance_debit"
-                if has_balance and has_amount and "has_amount" in edges:
+                if has_amount and "has_amount" in edges:
                     return "has_amount"
                 if (
                     has_debit or mapping.get("credit")
