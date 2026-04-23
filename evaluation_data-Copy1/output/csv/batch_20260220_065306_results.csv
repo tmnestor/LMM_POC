@@ -1,0 +1,13 @@
+image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
+cba_amount_balance.png,BANK_STATEMENT,98.18181818181819,6,4,5,62.61393427848816,unified_bank_amount_description_2turn,False
+cba_date_grouped.png,BANK_STATEMENT,20.0,1,1,5,5.47645378112793,unified_bank_balance_description_2turn,False
+cba_date_grouped_cont.png,BANK_STATEMENT,20.0,1,1,5,5.544447660446167,unified_bank_balance_description_2turn,False
+cba_debit_credit.png,BANK_STATEMENT,97.77777777777779,6,4,5,48.58709001541138,unified_bank_debit_credit_description_2turn,False
+cba_highligted.png,BANK_STATEMENT,100.0,6,5,5,31.736833095550537,unified_bank_balance_description_2turn,False
+image_003.png,BANK_STATEMENT,20.0,1,1,5,5.359856605529785,unified_bank_balance_description_2turn,False
+image_009.png,BANK_STATEMENT,20.0,1,1,5,7.116129636764526,unified_bank_balance_description_2turn,False
+low_contrast.png,INVOICE,85.71428571428571,2,12,14,38.43757963180542,invoice,False
+synthetic_chrono.png,BANK_STATEMENT,89.62264150943395,6,3,5,137.16028475761414,unified_bank_balance_description_2turn,False
+synthetic_multiline.png,BANK_STATEMENT,52.867132867132874,6,2,5,53.27134323120117,unified_bank_balance_description_2turn,False
+synthetic_reverse_chrono.png,BANK_STATEMENT,45.615763546798036,6,2,5,131.3610486984253,unified_bank_balance_description_2turn,False
+transaction_summary.png,BANK_STATEMENT,93.33333333333333,6,4,5,50.09287476539612,unified_bank_amount_description_2turn,False

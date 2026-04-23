@@ -1,0 +1,11 @@
+filename,PASSENGER_NAME,TRAVEL_MODE,TRAVEL_ROUTE,TRAVEL_DATES,INVOICE_DATE,GST_AMOUNT,TOTAL_AMOUNT,SUPPLIER_NAME
+ticket_001_SX_SYD_HBA.png,Martin/Olivia,plane,Sydney | Hobart,16 Feb 2026,07 Feb 2026,$25.89,$284.76,Southern Cross Airways
+ticket_002_AS_DRW_PER.png,Harris/Olivia,plane,Darwin | Perth,01 May 2026,09 Apr 2026,$35.49,$390.42,Aussie Sky Airlines
+ticket_003_PW_BNE_PER.png,Jones/William,plane,Brisbane | Perth,19 Apr 2026,10 Apr 2026,$34.95,$384.46,Pacific Wanderer
+itinerary_001_AS_CBR_CBR_3leg.png,Wilson/Mia,plane,Canberra | Brisbane | Sydney | Canberra,11 Feb 2026 | 12 Feb 2026 | 13 Feb 2026,19 Jan 2026,$34.95,$384.50,Aussie Sky Airlines
+itinerary_002_SX_MEL_MEL_4leg.png,King/Lucas,plane,Melbourne | Canberra | Brisbane | Sydney | Melbourne,22 Feb 2026 | 24 Feb 2026 | 24 Feb 2026 | 25 Feb 2026,03 Feb 2026,$68.01,$748.11,Southern Cross Airways
+itinerary_003_SX_BNE_BNE_2leg.png,King/Henry,plane,Brisbane | Darwin | Brisbane,13 Apr 2026 | 14 Apr 2026,09 Apr 2026,$73.87,$812.55,Southern Cross Airways
+itinerary_004_PW_DRW_SYD_4leg.png,Wright/Olivia,plane,Darwin | Perth | Melbourne | Hobart | Sydney,25 Apr 2026 | 25 Apr 2026 | 27 Apr 2026 | 28 Apr 2026,01 Apr 2026,$45.85,$504.37,Pacific Wanderer
+itinerary_005_PW_SYD_SYD_2leg.png,Robinson/Thomas,plane,Sydney | Canberra | Sydney,15 Apr 2026 | 16 Apr 2026,14 Apr 2026,$398.37,$4382.02,Pacific Wanderer
+itinerary_006_AS_HBA_MEL_2leg.png,Thompson/Leo,plane,Hobart | Adelaide | Melbourne,21 Apr 2026 | 22 Apr 2026,30 Mar 2026,$46.07,$506.80,Aussie Sky Airlines
+itinerary_007_PW_DRW_BNE_4leg.png,Harris/Chloe,plane,Darwin | Perth | Melbourne | Darwin | Brisbane,06 Mar 2026 | 06 Mar 2026 | 08 Mar 2026 | 08 Mar 2026,19 Feb 2026,$106.14,$1167.50,Pacific Wanderer

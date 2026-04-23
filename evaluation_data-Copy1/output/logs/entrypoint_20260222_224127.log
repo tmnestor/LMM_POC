@@ -1,0 +1,47 @@
+[2026-02-22 22:41:27] =================================================================
+[2026-02-22 22:41:27]     Running LMM for Information Extraction
+[2026-02-22 22:41:27] =================================================================
+[2026-02-22 22:41:27] 
+[2026-02-22 22:41:27] ---------------------------------------
+[2026-02-22 22:41:27] Python:  /home/jovyan/.conda/envs/LMM_POC_IVL3.5/bin/python3
+[2026-02-22 22:41:27] Version: Python 3.12.12
+[2026-02-22 22:41:28] Conda:   LMM_POC_IVL3.5        *  /home/jovyan/.conda/envs/LMM_POC_IVL3.5
+[2026-02-22 22:41:28] Log dir: ../evaluation_data/output/logs
+[2026-02-22 22:41:28] ---------------------------------------
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] GPU environment:
+[2026-02-22 22:41:28]   CUDA_VISIBLE_DEVICES:  <not set — all GPUs visible>
+[2026-02-22 22:41:28]   CUDA_DEVICE_ORDER:     PCI_BUS_ID
+[2026-02-22 22:41:28]   NVIDIA_VISIBLE_DEVICES: void
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] Detected 2 GPU(s):
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28]   GPU 0:  NVIDIA L4 |23034 MiB total |22564 MiB free |  45C | ECC errors: 0
+[2026-02-22 22:41:28]   GPU 1:  NVIDIA L4 |23034 MiB total |22564 MiB free |  41C | ECC errors: 0
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] Run ID: 20260222_224127
+[2026-02-22 22:41:28] Resolved paths:
+[2026-02-22 22:41:28]   DATA_DIR:      ../evaluation_data/bank
+[2026-02-22 22:41:28]   OUTPUT_DIR:    ../evaluation_data/output
+[2026-02-22 22:41:28]   GROUND_TRUTH:  ../evaluation_data/bank/ground_truth_bank.csv
+[2026-02-22 22:41:28]   LOG_DIR:       ../evaluation_data/output/logs
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] KFP_TASK: evaluate_documents
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] Using latest extractions_json: ../evaluation_data/output/batch_results/batch_20260222_221813_extractions.json
+[2026-02-22 22:41:28] Resolved CLI args: evaluate --run-id 20260222_224127 --output-dir ../evaluation_data/output --extractions ../evaluation_data/output/batch_results/batch_20260222_221813_extractions.json --ground-truth ../evaluation_data/bank/ground_truth_bank.csv
+[2026-02-22 22:41:28] 
+[2026-02-22 22:41:28] Starting cli.py evaluate...
+
+Evaluating 12 extractions...
+
+Evaluation summary: ../evaluation_data/output/csv/batch_20260222_224127_eval_summary.csv
+Evaluation detail:  ../evaluation_data/output/batch_results/batch_20260222_224127_eval_detail.json
+
+Results:
+  Documents evaluated: 12
+  Average median F1:   84.5%
+[2026-02-22 22:41:30] Evaluation completed successfully.
+
+[2026-02-22 22:41:30] Exited with code 0 after 3s
+[2026-02-22 22:41:30] Log file: ../evaluation_data/output/logs/entrypoint_20260222_224127.log

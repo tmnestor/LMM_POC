@@ -1,0 +1,13 @@
+image_path,document_type,confidence,raw_response,prompt_used,error,timestamp
+../evaluation_data/bank/cba_amount_balance.png,BANK_STATEMENT,1.0,"This is a BANK_STATEMENT. The document lists various transactions, including dates, transaction details, amounts, and balances, which are typical features of a bank statement.",detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/cba_date_grouped.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/cba_date_grouped_cont.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/cba_debit_credit.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/cba_highligted.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/image_003.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:50.993834
+../evaluation_data/bank/image_009.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:48.394526
+../evaluation_data/bank/low_contrast.png,BANK_STATEMENT,1.0,This is a BANK_STATEMENT (includes credit card statements).,detection,,2026-02-22T22:06:48.394526
+../evaluation_data/bank/synthetic_chrono.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:48.394526
+../evaluation_data/bank/synthetic_multiline.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:48.394526
+../evaluation_data/bank/synthetic_reverse_chrono.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:48.394526
+../evaluation_data/bank/transaction_summary.png,BANK_STATEMENT,1.0,BANK_STATEMENT,detection,,2026-02-22T22:06:48.394526

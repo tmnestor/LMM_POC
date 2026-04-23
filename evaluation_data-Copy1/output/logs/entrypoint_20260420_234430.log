@@ -1,0 +1,209 @@
+[2026-04-20 23:44:30] =================================================================
+[2026-04-20 23:44:30]     Running LMM for Information Extraction
+[2026-04-20 23:44:30] =================================================================
+[2026-04-20 23:44:30] 
+[2026-04-20 23:44:30] Activating conda environment...
+[2026-04-20 23:44:30] Conda env: /home/jovyan/.conda/envs/vllm_env2
+[2026-04-20 23:44:30] ---------------------------------------
+[2026-04-20 23:44:30] Python:  /home/jovyan/.conda/envs/vllm_env2/bin/python3
+[2026-04-20 23:44:30] Version: Python 3.12.13
+[2026-04-20 23:44:31] Conda:   vllm_env2             *  /home/jovyan/.conda/envs/vllm_env2
+[2026-04-20 23:44:31] Log dir: ../evaluation_data/output/logs (source: yaml)
+[2026-04-20 23:44:31] ---------------------------------------
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] GPU environment:
+[2026-04-20 23:44:31]   CUDA_VISIBLE_DEVICES:  <not set — all GPUs visible>
+[2026-04-20 23:44:31]   CUDA_DEVICE_ORDER:     PCI_BUS_ID
+[2026-04-20 23:44:31]   NVIDIA_VISIBLE_DEVICES: void
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] Detected 2 GPU(s):
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31]   GPU 0:  NVIDIA L4 |23034 MiB total |22564 MiB free |  43C | ECC errors: 0
+[2026-04-20 23:44:31]   GPU 1:  NVIDIA L4 |23034 MiB total |22564 MiB free |  41C | ECC errors: 0
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] KFP input_params (env var > YAML > unset):
+[2026-04-20 23:44:31]   model:          internvl3-vllm
+[2026-04-20 23:44:31]   image_dir:      ../evaluation_data/bank
+[2026-04-20 23:44:31]   output:         ../evaluation_data/output
+[2026-04-20 23:44:31]   num_gpus:       2
+[2026-04-20 23:44:31]   ground_truth:   ../evaluation_data/bank/ground_truth_bank.csv
+[2026-04-20 23:44:31]   metadata:       <not set>
+[2026-04-20 23:44:31]   system_message: <not set>
+[2026-04-20 23:44:31]   prompt:         <not set>
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] Resolved CLI args: --model internvl3-vllm --data-dir ../evaluation_data/bank --output-dir ../evaluation_data/output --num-gpus 2 --ground-truth ../evaluation_data/bank/ground_truth_bank.csv --model internvl3-vllm
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] KFP_TASK: run_batch_inference
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] Mode: run_batch_inference — simulating 4-stage KFP pipeline locally.
+[2026-04-20 23:44:31] Output root: ../evaluation_data/output
+[2026-04-20 23:44:31] 
+[2026-04-20 23:44:31] Phase 1/4: classify (fresh process, model reload)...
+INFO __main__: Found 15 images in ../evaluation_data/bank
+INFO __main__: Loading model: internvl3-vllm
+
+Loading internvl3-vllm via vLLM (tp=2, max_model_len=8192)
+Model path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+WARNING 04-20 23:44:36 [envs.py:1744] Unknown vLLM environment variable detected: VLLM_ATTENTION_BACKEND
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: vision_select_layer: -1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: ps_version: v2
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: min_dynamic_patch: 1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: max_dynamic_patch: 12
+WARNING 04-20 23:44:37 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+WARNING 04-20 23:44:37 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=3021) WARNING 04-20 23:44:43 [multiproc_executor.py:1014] Reducing Torch parallelism from 16 threads to 1 to avoid unnecessary CPU contention. Set OMP_NUM_THREADS in the external environment to tune this value as needed.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(Worker pid=3093) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=3093) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=3092) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=3092) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=3092) WARNING 04-20 23:44:50 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=3093) WARNING 04-20 23:44:50 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=3093) WARNING 04-20 23:44:50 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker pid=3092) WARNING 04-20 23:44:50 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker_TP0 pid=3092) WARNING 04-20 23:44:51 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP0 pid=3092) WARNING 04-20 23:44:51 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP1 pid=3093) WARNING 04-20 23:44:51 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP1 pid=3093) WARNING 04-20 23:44:51 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards:   0% Completed | 0/4 [00:00<?, ?it/s]
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards:  25% Completed | 1/4 [00:00<00:01,  1.68it/s]
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards:  50% Completed | 2/4 [00:01<00:01,  1.93it/s]
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards:  75% Completed | 3/4 [00:01<00:00,  2.03it/s]
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.19it/s]
+(Worker_TP0 pid=3092) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.08it/s]
+(Worker_TP0 pid=3092) 
+(EngineCore pid=3021) The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=3021) WARNING 04-20 23:44:58 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(EngineCore pid=3021) WARNING 04-20 23:44:58 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+vLLM engine ready!
+INFO __main__: Sending image 1/15 to engine: cba_amount_balance.png
+INFO __main__: [1/15] cba_amount_balance.png -> BANK_STATEMENT
+INFO __main__: Sending image 2/15 to engine: cba_date_grouped.png
+INFO __main__: [2/15] cba_date_grouped.png -> BANK_STATEMENT
+INFO __main__: Sending image 3/15 to engine: cba_date_grouped_cont.png
+INFO __main__: [3/15] cba_date_grouped_cont.png -> BANK_STATEMENT
+INFO __main__: Sending image 4/15 to engine: cba_debit_credit.png
+INFO __main__: [4/15] cba_debit_credit.png -> BANK_STATEMENT
+INFO __main__: Sending image 5/15 to engine: cba_highligted.png
+INFO __main__: [5/15] cba_highligted.png -> BANK_STATEMENT
+INFO __main__: Sending image 6/15 to engine: cba_home_loan.png
+INFO __main__: [6/15] cba_home_loan.png -> BANK_STATEMENT
+INFO __main__: Sending image 7/15 to engine: image_003.png
+INFO __main__: [7/15] image_003.png -> BANK_STATEMENT
+INFO __main__: Sending image 8/15 to engine: image_009.png
+INFO __main__: [8/15] image_009.png -> BANK_STATEMENT
+INFO __main__: Sending image 9/15 to engine: low_contrast.png
+INFO __main__: [9/15] low_contrast.png -> BANK_STATEMENT
+INFO __main__: Sending image 10/15 to engine: nab_classic_highligted.png
+INFO __main__: [10/15] nab_classic_highligted.png -> BANK_STATEMENT
+INFO __main__: Sending image 11/15 to engine: synthetic_chrono.png
+INFO __main__: [11/15] synthetic_chrono.png -> BANK_STATEMENT
+INFO __main__: Sending image 12/15 to engine: synthetic_multiline.png
+INFO __main__: [12/15] synthetic_multiline.png -> BANK_STATEMENT
+INFO __main__: Sending image 13/15 to engine: synthetic_reverse_chrono.png
+INFO __main__: [13/15] synthetic_reverse_chrono.png -> BANK_STATEMENT
+INFO __main__: Sending image 14/15 to engine: transaction_summary.png
+INFO __main__: [14/15] transaction_summary.png -> BANK_STATEMENT
+INFO __main__: Sending image 15/15 to engine: westpac_debit_credit.png
+INFO __main__: [15/15] westpac_debit_credit.png -> BANK_STATEMENT
+INFO __main__: Classification complete: 15 images in 20.4s (1.36s/image)
+INFO __main__: Wrote 15 classifications to ../evaluation_data/output/classifications.jsonl
+[2026-04-20 23:45:22] Phase 1/4: classify complete.
+[2026-04-20 23:45:22] 
+[2026-04-20 23:45:22] Phase 2/4: extract (fresh process, model reload)...
+INFO __main__: Read 15 classifications from ../evaluation_data/output/classifications.jsonl
+INFO __main__: Resuming: 6 already done, 15 remaining (of 15 total)
+INFO __main__: Loading model: internvl3-vllm
+
+Loading internvl3-vllm via vLLM (tp=2, max_model_len=8192)
+Model path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+WARNING 04-20 23:45:27 [envs.py:1744] Unknown vLLM environment variable detected: VLLM_ATTENTION_BACKEND
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: vision_select_layer: -1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: ps_version: v2
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: min_dynamic_patch: 1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: max_dynamic_patch: 12
+WARNING 04-20 23:45:27 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+WARNING 04-20 23:45:27 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=3327) WARNING 04-20 23:45:33 [multiproc_executor.py:1014] Reducing Torch parallelism from 16 threads to 1 to avoid unnecessary CPU contention. Set OMP_NUM_THREADS in the external environment to tune this value as needed.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(Worker pid=3399) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=3398) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=3399) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=3398) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=3399) WARNING 04-20 23:45:40 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=3398) WARNING 04-20 23:45:40 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=3399) WARNING 04-20 23:45:40 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker pid=3398) WARNING 04-20 23:45:40 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker_TP1 pid=3399) WARNING 04-20 23:45:41 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP1 pid=3399) WARNING 04-20 23:45:41 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP0 pid=3398) WARNING 04-20 23:45:41 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP0 pid=3398) WARNING 04-20 23:45:41 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards:   0% Completed | 0/4 [00:00<?, ?it/s]
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards:  25% Completed | 1/4 [00:00<00:01,  1.67it/s]
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards:  50% Completed | 2/4 [00:01<00:01,  1.93it/s]
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards:  75% Completed | 3/4 [00:01<00:00,  2.01it/s]
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.16it/s]
+(Worker_TP0 pid=3398) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.06it/s]
+(Worker_TP0 pid=3398) 
+(EngineCore pid=3327) The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=3327) WARNING 04-20 23:45:48 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(EngineCore pid=3327) WARNING 04-20 23:45:48 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+vLLM engine ready!
+INFO __main__: Bank adapter enabled
+INFO __main__: [1/15] cba_amount_balance.png: BANK_STATEMENT (33.9s)
+INFO __main__: [2/15] cba_date_grouped.png: BANK_STATEMENT (29.8s)
+INFO __main__: [3/15] cba_date_grouped_cont.png: BANK_STATEMENT (44.5s)
+INFO __main__: [4/15] cba_debit_credit.png: BANK_STATEMENT (24.4s)
+INFO __main__: [5/15] cba_highligted.png: BANK_STATEMENT (17.6s)
+INFO __main__: [6/15] cba_home_loan.png: BANK_STATEMENT (29.0s)
+INFO __main__: [7/15] image_003.png: BANK_STATEMENT (17.7s)
+INFO __main__: [8/15] image_009.png: BANK_STATEMENT (38.8s)
+INFO __main__: [9/15] low_contrast.png: BANK_STATEMENT (24.9s)
+INFO __main__: [10/15] nab_classic_highligted.png: BANK_STATEMENT (64.7s)
+INFO __main__: [11/15] synthetic_chrono.png: BANK_STATEMENT (84.6s)
+INFO __main__: [12/15] synthetic_multiline.png: BANK_STATEMENT (36.8s)
+INFO __main__: [13/15] synthetic_reverse_chrono.png: BANK_STATEMENT (81.5s)
+INFO __main__: [14/15] transaction_summary.png: BANK_STATEMENT (26.3s)
+INFO __main__: [15/15] westpac_debit_credit.png: BANK_STATEMENT (37.5s)
+INFO __main__: Extraction complete: 15 images in 592.1s
+[2026-04-20 23:55:44] Phase 2/4: extract complete.
+[2026-04-20 23:55:44] 
+[2026-04-20 23:55:44] Phase 3/4: clean (CPU, no GPU)...
+INFO __main__: Read 21 raw extractions from ../evaluation_data/output/raw_extractions.jsonl
+INFO __main__: Wrote 21 cleaned extractions to ../evaluation_data/output/cleaned_extractions.jsonl
+INFO __main__: Summary: 21 records, 81/159 fields found, 0 errors
+[2026-04-20 23:55:44] Phase 3/4: clean complete.
+[2026-04-20 23:55:44] 
+[2026-04-20 23:55:44] Phase 4/4: evaluate (CPU, no GPU)...
+INFO __main__: Read 21 cleaned extractions from ../evaluation_data/output/cleaned_extractions.jsonl
+INFO common.extraction_evaluator: Loaded ground truth for 15 images
+INFO __main__: Wrote 21 evaluation results to ../evaluation_data/output/evaluation/evaluation_results.jsonl
+INFO __main__: Summary: 15 images scored, avg F1 (median)=0.000, avg F1 (mean)=0.000
+
+                     Execution Summary                     
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric           ┃ Value                                ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Images Processed │ 21                                   │
+│ Wall Clock Time  │ 674.1s                               │
+│ Inference Time   │ 647.8s                               │
+│ Throughput       │ 1.87 images/min                      │
+│ Avg F1 (mean)    │ 0.000                                │
+│ Avg F1 (median)  │ 0.000                                │
+│ Output Directory │ ../evaluation_data/output/evaluation │
+└──────────────────┴──────────────────────────────────────┘
+
+Document Types:
+  BANK_STATEMENT: 15
+  INVOICE: 3
+  RECEIPT: 3
+[2026-04-20 23:55:45] Phase 4/4: evaluate complete.
+[2026-04-20 23:55:45] 
+[2026-04-20 23:55:45] Pipeline completed successfully.
+
+[2026-04-20 23:55:45] Exited with code 0 after 675s
+[2026-04-20 23:55:45] Log file: ../evaluation_data/output/logs/entrypoint_20260420_234430.log

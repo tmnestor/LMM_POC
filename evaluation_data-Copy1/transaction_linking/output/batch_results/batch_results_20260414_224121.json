@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "batch_id": "20260414_224121",
+    "timestamp": "2026-04-14T22:45:01.844971",
+    "model": "/home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct",
+    "total_images": 5,
+    "successful_extractions": 5,
+    "average_accuracy": 81.66060606060607,
+    "total_processing_time": 188.047837972641,
+    "deployment_status": "Pilot Ready"
+  },
+  "configuration": {
+    "data_directory": "../evaluation_data/synthetic",
+    "ground_truth": "../evaluation_data/synthetic/ground_truth_synthetic.csv",
+    "max_images": 5,
+    "document_types": null,
+    "batch_size": "auto",
+    "max_tiles": 18,
+    "flash_attn": true,
+    "dtype": "bfloat16",
+    "bank_v2": true,
+    "balance_correction": false
+  },
+  "summary_statistics": {
+    "Total Images": 5.0,
+    "Successful Extractions": 5.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 81.66060606060607,
+    "Median Accuracy (%)": 88.00000000000001,
+    "Min Accuracy (%)": 57.14285714285714,
+    "Max Accuracy (%)": 98.57142857142858,
+    "Average Processing Time (s)": 37.6095675945282,
+    "Total Processing Time (s)": 188.047837972641,
+    "Throughput (images/min)": 1.5953387352618587
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 3,
+    "RECEIPT": 2
+  },
+  "results": [
+    {
+      "image_name": "cba_amount_balance.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_amount_description_2turn",
+      "processing_time": 51.374852895736694,
+      "evaluation_summary": {
+        "overall_accuracy": 0.8800000000000001,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_debit_credit.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_debit_credit_description_2turn",
+      "processing_time": 59.32115292549133,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9857142857142858,
+        "fields_extracted": 6,
+        "fields_matched": 4,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_highligted.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_balance_description_2turn",
+      "processing_time": 39.857229471206665,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5714285714285714,
+        "fields_extracted": 6,
+        "fields_matched": 2,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_001.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "receipt",
+      "processing_time": 18.782935857772827,
+      "evaluation_summary": {
+        "overall_accuracy": 0.9285714285714286,
+        "fields_extracted": 14,
+        "fields_matched": 13,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "image_002.png",
+      "document_type": "RECEIPT",
+      "prompt_used": "receipt",
+      "processing_time": 18.71166682243347,
+      "evaluation_summary": {
+        "overall_accuracy": 0.7173160173160174,
+        "fields_extracted": 12,
+        "fields_matched": 7,
+        "total_fields": 14,
+        "inference_only": false
+      }
+    }
+  ]
+}

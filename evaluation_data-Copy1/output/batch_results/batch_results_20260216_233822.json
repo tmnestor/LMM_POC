@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "batch_id": "20260216_233822",
+    "timestamp": "2026-02-16T23:39:36.084081",
+    "model": "/home/jovyan/nfs_share/models/GLM-OCR",
+    "total_images": 2,
+    "successful_extractions": 2,
+    "average_accuracy": 39.117647058823536,
+    "total_processing_time": 68.27570962905884,
+    "deployment_status": "Needs Improvement"
+  },
+  "configuration": {
+    "data_directory": "../evaluation_data/bank",
+    "ground_truth": "../evaluation_data/bank/ground_truth_bank.csv",
+    "max_images": 2,
+    "document_types": null,
+    "batch_size": "auto",
+    "max_tiles": 6,
+    "flash_attn": true,
+    "dtype": "bfloat16",
+    "bank_v2": true,
+    "balance_correction": true
+  },
+  "summary_statistics": {
+    "Total Images": 2.0,
+    "Successful Extractions": 2.0,
+    "Failed Extractions": 0.0,
+    "Average Accuracy (%)": 39.117647058823536,
+    "Median Accuracy (%)": 39.117647058823536,
+    "Min Accuracy (%)": 20.0,
+    "Max Accuracy (%)": 58.235294117647065,
+    "Average Processing Time (s)": 34.13785481452942,
+    "Total Processing Time (s)": 68.27570962905884,
+    "Throughput (images/min)": 1.757579681733938
+  },
+  "document_type_distribution": {
+    "BANK_STATEMENT": 2
+  },
+  "results": [
+    {
+      "image_name": "cba_amount_balance.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_schema_fallback",
+      "processing_time": 41.27643895149231,
+      "evaluation_summary": {
+        "overall_accuracy": 0.2,
+        "fields_extracted": 1,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    },
+    {
+      "image_name": "cba_date_grouped.png",
+      "document_type": "BANK_STATEMENT",
+      "prompt_used": "unified_bank_schema_fallback",
+      "processing_time": 26.99927067756653,
+      "evaluation_summary": {
+        "overall_accuracy": 0.5823529411764706,
+        "fields_extracted": 6,
+        "fields_matched": 1,
+        "total_fields": 5,
+        "inference_only": false
+      }
+    }
+  ]
+}

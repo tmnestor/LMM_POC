@@ -1,0 +1,144 @@
+[2026-04-20 23:38:16] =================================================================
+[2026-04-20 23:38:16]     Running LMM for Information Extraction
+[2026-04-20 23:38:16] =================================================================
+[2026-04-20 23:38:16] 
+[2026-04-20 23:38:16] Activating conda environment...
+[2026-04-20 23:38:16] Conda env: /home/jovyan/.conda/envs/vllm_env2
+[2026-04-20 23:38:16] ---------------------------------------
+[2026-04-20 23:38:16] Python:  /home/jovyan/.conda/envs/vllm_env2/bin/python3
+[2026-04-20 23:38:16] Version: Python 3.12.13
+[2026-04-20 23:38:17] Conda:   vllm_env2             *  /home/jovyan/.conda/envs/vllm_env2
+[2026-04-20 23:38:17] Log dir: ../evaluation_data/output/logs (source: yaml)
+[2026-04-20 23:38:17] ---------------------------------------
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] GPU environment:
+[2026-04-20 23:38:17]   CUDA_VISIBLE_DEVICES:  <not set — all GPUs visible>
+[2026-04-20 23:38:17]   CUDA_DEVICE_ORDER:     PCI_BUS_ID
+[2026-04-20 23:38:17]   NVIDIA_VISIBLE_DEVICES: void
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] Detected 2 GPU(s):
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17]   GPU 0:  NVIDIA L4 |23034 MiB total |22564 MiB free |  43C | ECC errors: 0
+[2026-04-20 23:38:17]   GPU 1:  NVIDIA L4 |23034 MiB total |22564 MiB free |  40C | ECC errors: 0
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] KFP input_params (env var > YAML > unset):
+[2026-04-20 23:38:17]   model:          internvl3-vllm
+[2026-04-20 23:38:17]   image_dir:      ../evaluation_data/bank
+[2026-04-20 23:38:17]   output:         ../evaluation_data/output
+[2026-04-20 23:38:17]   num_gpus:       2
+[2026-04-20 23:38:17]   ground_truth:   ../evaluation_data/bank/ground_truth_bank.csv
+[2026-04-20 23:38:17]   metadata:       <not set>
+[2026-04-20 23:38:17]   system_message: <not set>
+[2026-04-20 23:38:17]   prompt:         <not set>
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] Resolved CLI args: --model internvl3-vllm --data-dir ../evaluation_data/bank --output-dir ../evaluation_data/output --num-gpus 2 --ground-truth ../evaluation_data/bank/ground_truth_bank.csv --model internvl3-vllm
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] KFP_TASK: run_batch_inference
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] Mode: run_batch_inference — simulating 4-stage KFP pipeline locally.
+[2026-04-20 23:38:17] Output root: ../evaluation_data/output
+[2026-04-20 23:38:17] 
+[2026-04-20 23:38:17] Phase 1/4: classify (fresh process, model reload)...
+INFO __main__: Found 15 images in ../evaluation_data/bank
+INFO __main__: Loading model: internvl3-vllm
+
+Loading internvl3-vllm via vLLM (tp=2, max_model_len=8192)
+Model path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+WARNING 04-20 23:38:23 [envs.py:1744] Unknown vLLM environment variable detected: VLLM_ATTENTION_BACKEND
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: vision_select_layer: -1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: ps_version: v2
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: min_dynamic_patch: 1
+INFO transformers_modules.InternVL3_5_hyphen_8B.configuration_internvl_chat: max_dynamic_patch: 12
+WARNING 04-20 23:38:23 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+WARNING 04-20 23:38:23 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=2496) WARNING 04-20 23:38:29 [multiproc_executor.py:1014] Reducing Torch parallelism from 16 threads to 1 to avoid unnecessary CPU contention. Set OMP_NUM_THREADS in the external environment to tune this value as needed.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(Worker pid=2569) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=2569) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=2568) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=2568) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=2568) WARNING 04-20 23:38:36 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=2569) WARNING 04-20 23:38:36 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.9 not supported, communicator is not available.
+(Worker pid=2568) WARNING 04-20 23:38:36 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker pid=2569) WARNING 04-20 23:38:36 [custom_all_reduce.py:165] Custom allreduce is disabled because your platform lacks GPU P2P capability or P2P test failed. To silence this warning, specify disable_custom_all_reduce=True explicitly.
+(Worker_TP0 pid=2568) WARNING 04-20 23:38:37 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP0 pid=2568) WARNING 04-20 23:38:37 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP1 pid=2569) WARNING 04-20 23:38:37 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(Worker_TP1 pid=2569) WARNING 04-20 23:38:37 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards:   0% Completed | 0/4 [00:00<?, ?it/s]
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards:  25% Completed | 1/4 [00:00<00:01,  1.64it/s]
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards:  50% Completed | 2/4 [00:01<00:01,  1.92it/s]
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards:  75% Completed | 3/4 [00:01<00:00,  2.02it/s]
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.16it/s]
+(Worker_TP0 pid=2568) Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.06it/s]
+(Worker_TP0 pid=2568) 
+(EngineCore pid=2496) The tokenizer you are loading from '/home/jovyan/nfs_share/models/InternVL3_5-8B' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+(EngineCore pid=2496) WARNING 04-20 23:38:44 [vllm.py:848] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none
+(EngineCore pid=2496) WARNING 04-20 23:38:44 [vllm.py:859] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+vLLM engine ready!
+INFO __main__: Sending image 1/15 to engine: cba_amount_balance.png
+INFO __main__: [1/15] cba_amount_balance.png -> BANK_STATEMENT
+INFO __main__: Sending image 2/15 to engine: cba_date_grouped.png
+INFO __main__: [2/15] cba_date_grouped.png -> BANK_STATEMENT
+INFO __main__: Sending image 3/15 to engine: cba_date_grouped_cont.png
+INFO __main__: [3/15] cba_date_grouped_cont.png -> BANK_STATEMENT
+INFO __main__: Sending image 4/15 to engine: cba_debit_credit.png
+INFO __main__: [4/15] cba_debit_credit.png -> BANK_STATEMENT
+INFO __main__: Sending image 5/15 to engine: cba_highligted.png
+INFO __main__: [5/15] cba_highligted.png -> BANK_STATEMENT
+INFO __main__: Sending image 6/15 to engine: cba_home_loan.png
+INFO __main__: [6/15] cba_home_loan.png -> BANK_STATEMENT
+INFO __main__: Sending image 7/15 to engine: image_003.png
+INFO __main__: [7/15] image_003.png -> BANK_STATEMENT
+INFO __main__: Sending image 8/15 to engine: image_009.png
+INFO __main__: [8/15] image_009.png -> BANK_STATEMENT
+INFO __main__: Sending image 9/15 to engine: low_contrast.png
+INFO __main__: [9/15] low_contrast.png -> BANK_STATEMENT
+INFO __main__: Sending image 10/15 to engine: nab_classic_highligted.png
+INFO __main__: [10/15] nab_classic_highligted.png -> BANK_STATEMENT
+INFO __main__: Sending image 11/15 to engine: synthetic_chrono.png
+INFO __main__: [11/15] synthetic_chrono.png -> BANK_STATEMENT
+INFO __main__: Sending image 12/15 to engine: synthetic_multiline.png
+INFO __main__: [12/15] synthetic_multiline.png -> BANK_STATEMENT
+INFO __main__: Sending image 13/15 to engine: synthetic_reverse_chrono.png
+INFO __main__: [13/15] synthetic_reverse_chrono.png -> BANK_STATEMENT
+INFO __main__: Sending image 14/15 to engine: transaction_summary.png
+INFO __main__: [14/15] transaction_summary.png -> BANK_STATEMENT
+INFO __main__: Sending image 15/15 to engine: westpac_debit_credit.png
+INFO __main__: [15/15] westpac_debit_credit.png -> BANK_STATEMENT
+INFO __main__: Classification complete: 15 images in 20.5s (1.37s/image)
+INFO __main__: Wrote 15 classifications to ../evaluation_data/output/classifications.jsonl
+[2026-04-20 23:39:08] Phase 1/4: classify complete.
+[2026-04-20 23:39:08] 
+[2026-04-20 23:39:08] Phase 1.5/4: filter — removing bank statements...
+[2026-04-20 23:39:08] Filter: kept 0, dropped 15 bank statement(s)
+[2026-04-20 23:39:08] Phase 1.5/4: filter complete.
+[2026-04-20 23:39:08] 
+[2026-04-20 23:39:08] Phase 2/4: extract (fresh process, model reload)...
+╭──────────────────────────────────────────────────────────────── Traceback (most recent call last) ────────────────────────────────────────────────────────────────╮
+│ /home/jovyan/nfs_share/tod_2026/LMM_POC/stages/extract.py:329 in main                                                                                             │
+│                                                                                                                                                                   │
+│   326 │   │   level=logging.INFO,                                                                                                                                 │
+│   327 │   │   format="%(levelname)s %(name)s: %(message)s",                                                                                                       │
+│   328 │   )                                                                                                                                                       │
+│ ❱ 329 │   run(                                                                                                                                                    │
+│   330 │   │   classifications,                                                                                                                                    │
+│   331 │   │   image_dir,                                                                                                                                          │
+│   332 │   │   output,                                                                                                                                             │
+│                                                                                                                                                                   │
+│ /home/jovyan/nfs_share/tod_2026/LMM_POC/stages/extract.py:79 in run                                                                                               │
+│                                                                                                                                                                   │
+│    76 │   classifications = read_jsonl(classifications_path)                                                                                                      │
+│    77 │   if not classifications:                                                                                                                                 │
+│    78 │   │   msg = f"No classifications found in {classifications_path}"                                                                                         │
+│ ❱  79 │   │   raise FileNotFoundError(msg)                                                                                                                        │
+│    80 │                                                                                                                                                           │
+│    81 │   logger.info(                                                                                                                                            │
+│    82 │   │   "Read %d classifications from %s", len(classifications), classifications_path                                                                       │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+FileNotFoundError: No classifications found in ../evaluation_data/output/classifications_filtered.jsonl
+
+[2026-04-20 23:39:10] Exited with code 1 after 54s
+[2026-04-20 23:39:10] Log file: ../evaluation_data/output/logs/entrypoint_20260420_233816.log
