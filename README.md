@@ -502,6 +502,8 @@ python -m scripts.csv_to_jsonl \
 
 ## Graph-Based Extraction Engine
 
+> **Deep-dive**: See [`docs/graph_extraction_engine.md`](docs/graph_extraction_engine.md) for full architectural documentation including the GraphExecutor walk loop, node types, YAML authoring guide, parser reference, probe-based classification details, bank subgraph internals, and a step-by-step guide for authoring new workflows.
+
 The `GraphExecutor` (`common/graph_executor.py`) is a YAML-driven node graph walker that enables multi-turn, multi-probe extraction workflows. It is ~200 lines with no framework dependencies.
 
 ### Core Concepts
