@@ -1,6 +1,18 @@
 # Document Extraction Pipeline
 
-A production-ready CLI for extracting structured fields from business document images using vision-language models. Supports 12+ models via a declarative ModelSpec registry, composition-based orchestration, batched inference, multi-GPU parallel processing, automatic GPU memory management, multi-turn bank statement extraction, and evaluation against ground truth.
+A production-ready pipeline for extracting structured fields from business document images using vision-language models. Supports 12+ models via a declarative ModelSpec registry, 7 document types (invoices, receipts, bank statements, travel expenses, vehicle logbooks, transaction links, and universal), graph-based agentic extraction workflows, composition-based orchestration, multi-GPU parallel processing, and evaluation against ground truth (CSV or JSONL).
+
+**Supported document types:**
+
+| Type | Key | Fields | Extraction Method |
+|------|-----|--------|-------------------|
+| Invoice | `INVOICE` | 14 | Single-pass (batched or sequential) |
+| Receipt | `RECEIPT` | 14 | Single-pass (batched or sequential) |
+| Bank Statement | `BANK_STATEMENT` | 5 | Multi-turn graph workflow (header detection + adaptive extraction) |
+| Travel Expense | `TRAVEL` | 9 | Single-pass with dedicated probe |
+| Vehicle Logbook | `LOGBOOK` | 16 | Single-pass with dedicated probe |
+| Transaction Link | `TRANSACTION_LINK` | 8 | Cross-image (receipt + bank statement matching) |
+| Universal | `UNIVERSAL` | 35 | Superset fallback |
 
 **Registered models:**
 
@@ -22,45 +34,42 @@ A production-ready CLI for extracting structured fields from business document i
 
 ## Architecture Overview
 
-The pipeline uses a **composition-based** architecture where `DocumentOrchestrator` owns all shared logic (detection, prompt loading, parsing, cleaning, OOM recovery) and delegates raw inference to thin `ModelBackend` implementations. Adding a new model is a ~10-line declarative `ModelSpec` registration -- no new Python files needed for standard HuggingFace models.
+The pipeline has two execution modes: a **staged pipeline** (`entrypoint.sh`) for production KFP deployment and dev testing, and a **monolithic CLI** (`cli.py`) for ad-hoc experimentation. Both share the same underlying model backends, orchestrator, and evaluation code.
 
 ```mermaid
 graph TD
-    CLI["cli.py<br/>--model flag selects model"]
-    REG["models/registry.py<br/>ModelSpec / VllmSpec declarations"]
+    subgraph Entrypoints
+        EP["entrypoint.sh<br/>KFP_TASK dispatch"]
+        CLI["cli.py<br/>monolithic CLI"]
+    end
 
-    CLI -->|"--model internvl3 | llama | qwen3vl | ..."| REG
+    subgraph Stages["Staged Pipeline (JSONL artifacts)"]
+        S1["stages.classify<br/>Document type detection"]
+        S2["stages.extract<br/>Field extraction"]
+        S3["stages.clean<br/>Parse + clean responses"]
+        S4["stages.evaluate<br/>F1 scoring"]
+    end
+
+    EP --> S1 & S2 & S3 & S4
+
+    subgraph Graph["Graph Workflows (opt-in)"]
+        GR["--graph-robust<br/>Probe-based classification"]
+        GU["--graph-unified<br/>Classify + extract in one pass"]
+        GB["--graph-bank<br/>Graph-based bank extraction"]
+    end
+
+    S2 --> GR & GU & GB
 
     subgraph Backends["Model Backends"]
-        IVL["InternVL3Backend<br/>.chat() / .batch_chat()"]
-        LLAMA["LlamaBackend<br/>.apply_chat_template()"]
-        HF["HFChatTemplateBackend<br/>parametric (Qwen, Nemotron, ...)"]
-        VLLM["VllmBackend<br/>PagedAttention"]
+        IVL["InternVL3Backend"]
+        LLAMA["LlamaBackend"]
+        HF["HFChatTemplateBackend"]
+        VLLM["VllmBackend"]
     end
 
-    REG --> IVL
-    REG --> LLAMA
-    REG --> HF
-    REG --> VLLM
-
-    ORCH["DocumentOrchestrator<br/>detect, classify, extract, parse, clean"]
-
-    IVL --> ORCH
-    LLAMA --> ORCH
-    HF --> ORCH
-    VLLM --> ORCH
-
-    subgraph GPU["GPU Routing"]
-        SINGLE["Single GPU<br/>Direct processing"]
-        MULTI["MultiGPUOrchestrator<br/>ThreadPoolExecutor"]
-    end
-
-    ORCH --> GPU
-
-    PIPELINE["DocumentPipeline<br/>detect -> extract -> evaluate"]
-
-    SINGLE --> PIPELINE
-    MULTI -->|"One model per GPU<br/>parallel image chunks"| PIPELINE
+    CLI --> Backends
+    GR & GU & GB --> GE["GraphExecutor<br/>YAML-driven node graph"]
+    GE --> Backends
 ```
 
 ### Key Design Principles
@@ -75,11 +84,14 @@ graph TD
 
 5. **Config cascade**: CLI flags > YAML (`run_config.yml`) > ENV vars (`IVL_*`) > dataclass defaults. `AppConfig.load()` replaces the former 7-step config dance and 13 mutable globals.
 
+6. **Graph-based agentic workflows**: `GraphExecutor` walks YAML-defined node graphs with typed state, self-refine retry on parse failure, and full observability traces. Enables probe-based classification where "the extraction IS the classification".
+
 ## Project Structure
 
 ```
 .
-├── cli.py                                 # CLI entry point (--model flag)
+├── cli.py                                 # Monolithic CLI entry point (--model flag)
+├── entrypoint.sh                          # KFP pipeline entrypoint (stage dispatch)
 ├── config/
 │   ├── run_config.yml                     # Single source of truth for all config
 │   ├── field_definitions.yaml             # Document types, fields, evaluation settings
@@ -92,7 +104,11 @@ graph TD
 │   ├── qwen3vl_prompts.yaml              # Qwen3-VL extraction prompts
 │   ├── bank_prompts.yaml                  # Bank statement multi-turn prompts
 │   ├── bank_column_patterns.yaml          # Column header patterns for bank extraction
-│   └── ...                                # Additional model/task prompt files
+│   └── workflows/                         # Graph-based extraction workflows
+│       ├── robust_extract.yaml            # Probe-based classification + extraction
+│       ├── unified_extract.yaml           # Classify + extract in one graph pass
+│       ├── bank_extract.yaml              # Graph-based bank statement extraction
+│       └── transaction_link.yaml          # Cross-image receipt-to-bank matching
 ├── models/
 │   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
 │   ├── backend.py                         # ModelBackend + BatchInference Protocols
@@ -109,16 +125,18 @@ graph TD
 │       ├── hf_chat_template.py            # Parametric backend (Qwen, Nemotron, etc.)
 │       └── vllm_backend.py               # vLLM offline engine backend
 ├── common/
-│   ├── app_config.py                      # AppConfig.load() — unified config
+│   ├── app_config.py                      # AppConfig.load() -- unified config
 │   ├── pipeline_config.py                 # PipelineConfig dataclass, config merging
 │   ├── pipeline_ops.py                    # load_model, create_processor, run_batch
 │   ├── document_pipeline.py               # DocumentPipeline (detect -> extract -> evaluate)
+│   ├── graph_executor.py                  # GraphExecutor -- YAML-driven node graph walker
+│   ├── bank_post_process.py               # Bank post-processing + select_best_type validator
 │   ├── field_schema.py                    # FieldSchema (frozen, cached singleton)
-│   ├── prompt_catalog.py                  # PromptCatalog — unified YAML prompt loading
+│   ├── prompt_catalog.py                  # PromptCatalog -- unified YAML prompt loading
 │   ├── response_handler.py                # ResponseHandler (ports & adapters)
 │   ├── extraction_parser.py               # Raw model output -> structured dicts
 │   ├── extraction_cleaner.py              # Value normalisation and cleaning
-│   ├── extraction_evaluator.py            # Per-image evaluation logic
+│   ├── extraction_evaluator.py            # Per-image evaluation logic (fail-fast)
 │   ├── evaluation_metrics.py              # Ground truth comparison, F1 scores
 │   ├── unified_bank_extractor.py          # Multi-turn bank extraction (2-turn adaptive)
 │   ├── bank_corrector.py                  # Balance correction and transaction filtering
@@ -140,96 +158,398 @@ graph TD
 │   ├── extract.py                         # Stage 2: field extraction (GPU)
 │   ├── clean.py                           # Stage 3: parse/clean responses (CPU)
 │   └── evaluate.py                        # Stage 4: evaluation (CPU)
-├── entrypoint.sh                          # KFP pipeline entrypoint (stage dispatch)
+├── scripts/
+│   ├── run_graph_robust.sh                # 3-stage probe-based pipeline
+│   ├── run_graph_unified.sh               # 3-stage unified classify+extract pipeline
+│   ├── run_graph_bank.sh                  # 4-stage graph-based bank extraction
+│   ├── run_baseline_bank.sh               # 4-stage legacy bank extraction (baseline)
+│   ├── csv_to_jsonl.py                    # Convert ground truth CSV to JSONL
+│   └── resolve_yaml_defaults.py           # Extract YAML defaults for entrypoint.sh
+├── tests/                                 # pytest test suite
 ├── conda_envs/                            # Conda environment YAML files
 ├── docs/                                  # Documentation and design docs
 ├── notebooks/                             # Jupyter notebooks (experiments, benchmarks)
-├── CoP_Presentation/                      # Community of Practice presentation materials
-└── evaluation_data/                       # Ground truth CSVs and test images
+└── evaluation_data/                       # Ground truth CSVs/JSONL and test images
 ```
 
 ## Quick Start
 
+### Using entrypoint.sh (recommended for dev/production)
+
+`entrypoint.sh` handles conda activation, GPU health checks, logging, and wall-clock timing automatically. Configuration comes from environment variables and `config/run_config.yml`.
+
 ```bash
-# 1. Create environment
+# Run the full 4-stage classic pipeline (classify -> extract -> clean -> evaluate)
+KFP_TASK=run_batch_inference \
+  image_dir=../evaluation_data/synthetic \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
+
+# Run the 3-stage probe-based pipeline (no separate classification stage)
+KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
+
+# Inference only (no evaluation)
+KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  bash entrypoint.sh
+```
+
+### Using cli.py (ad-hoc experimentation)
+
+```bash
+# Create environment
 conda env create -f conda_envs/IVL3.5_env.yml
 conda activate vision_notebooks
 
-# 2. Run with InternVL3 (default)
+# Run with InternVL3 (default)
 python cli.py -d ./images -o ./output
 
-# 3. Run with Llama
+# Run with Llama
 python cli.py --model llama -d ./images -o ./output
 
-# 4. Evaluation mode (with ground truth)
+# Evaluation mode (with ground truth)
 python cli.py --model llama -d ./images -o ./output -g ./ground_truth.csv
 
-# 5. Multi-GPU parallel processing (auto-detects available GPUs)
+# Multi-GPU parallel processing (auto-detects available GPUs)
 python cli.py -d ./images -o ./output --num-gpus 0
-
-# 6. Using config file
-python cli.py --config config/run_config.yml
 ```
 
-## KFP Staged Pipeline
+### Using run scripts (lightweight, no entrypoint overhead)
 
-For production (KFP) and dev testing, the pipeline decomposes into 4 independent stages
-with JSONL file-based artifact handoff:
-
-```
-classify (GPU) -> classifications.jsonl -> extract (GPU) -> raw_extractions.jsonl
-    -> clean (CPU) -> cleaned_extractions.jsonl -> evaluate (CPU) -> evaluation_results.jsonl
-```
-
-Each artifact is intrinsically valuable and inspectable. CPU stages (clean, evaluate) don't
-need a GPU allocation. The extract stage supports **resumption** -- if it crashes at image
-8,500 of 10,000, it reads the partial output and continues from where it left off.
-
-### Running via entrypoint.sh
-
-The `entrypoint.sh` script dispatches to stages via the `KFP_TASK` environment variable.
-In production, this is set by the KFP pipeline YAML. For dev/testing:
+The `scripts/run_*.sh` scripts call `stages.*` modules directly without conda activation or GPU health checks. Useful when your environment is already set up.
 
 ```bash
-# Find your conda env path on the dev machine
-conda info --envs
+# Probe-based pipeline (all document types)
+bash scripts/run_graph_robust.sh
 
-# Stage 1: Classify document types
-LMM_CONDA_ENV=/path/to/your/env KFP_TASK=classify \
-  bash entrypoint.sh --data-dir /data/images --output-dir /artifacts/classifications.jsonl --model internvl3
+# Unified classify+extract pipeline (bank statements)
+bash scripts/run_graph_unified.sh
 
-# Stage 2: Extract fields (raw model responses)
-LMM_CONDA_ENV=/path/to/your/env KFP_TASK=extract \
-  bash entrypoint.sh --classifications /artifacts/classifications.jsonl \
-    --data-dir /data/images --output-dir /artifacts/raw_extractions.jsonl --model internvl3
+# Graph-based bank extraction with separate classify step
+bash scripts/run_graph_bank.sh
 
-# Stage 3: Parse and clean (CPU only, no GPU needed)
-LMM_CONDA_ENV=/path/to/your/env KFP_TASK=clean \
-  bash entrypoint.sh --input /artifacts/raw_extractions.jsonl --output-dir /artifacts/cleaned_extractions.jsonl
-
-# Stage 4: Evaluate against ground truth (CPU only)
-LMM_CONDA_ENV=/path/to/your/env KFP_TASK=evaluate \
-  bash entrypoint.sh --input /artifacts/cleaned_extractions.jsonl \
-    --ground-truth /data/ground_truth.csv --output-dir /artifacts/evaluation
+# Legacy baseline bank extraction
+bash scripts/run_baseline_bank.sh
 ```
 
-`LMM_CONDA_ENV` defaults to the production path (`/efs/shared/.conda/envs/lmm_poc_env`)
-if not set. The monolithic path (`KFP_TASK=run_batch_inference`) remains available.
+## Usage
 
-### Running stages directly from Python
+### Pipeline Modes
 
-```python
-from pathlib import Path
-from stages.classify import run as classify
-from stages.extract import run as extract
-from stages.clean import run as clean
-from stages.evaluate import run as evaluate
+The pipeline supports two orchestration modes, each available via `entrypoint.sh`:
 
-classify(Path("/data/images"), Path("/artifacts/classifications.jsonl"), model_type="internvl3")
-extract(Path("/artifacts/classifications.jsonl"), Path("/data/images"), Path("/artifacts/raw_extractions.jsonl"))
-clean(Path("/artifacts/raw_extractions.jsonl"), Path("/artifacts/cleaned_extractions.jsonl"))
-evaluate(Path("/artifacts/cleaned_extractions.jsonl"), Path("/data/ground_truth.csv"), Path("/artifacts/evaluation"))
+| Mode | `KFP_TASK` | Stages | Best For |
+|------|------------|--------|----------|
+| Classic | `run_batch_inference` | classify -> extract -> clean -> evaluate | Production KFP, separate GPU pods |
+| Robust | `run_graph_robust` | extract (--graph-robust) -> clean -> evaluate | Dev iteration, mixed doc types |
+
+**Classic mode** runs classification as a separate GPU process, then feeds `classifications.jsonl` to the extract stage. This mirrors the KFP pod-per-stage deployment where each stage runs in its own container.
+
+**Robust mode** skips classification entirely. The extract stage runs two probes per image (a document field extraction probe and a bank header detection probe), then picks the winner by counting extracted fields vs NOT_FOUND. "The extraction IS the classification." This eliminates misclassification-induced extraction errors.
+
+### entrypoint.sh Reference
+
+`entrypoint.sh` dispatches work via the `KFP_TASK` environment variable. It handles:
+- Conda activation (configurable via `LMM_CONDA_ENV`)
+- CUDA environment setup (`CUDA_DEVICE_ORDER`, `VLLM_ATTENTION_BACKEND`)
+- GPU health check (VRAM, temperature, ECC errors)
+- Timestamped logging to EFS (configurable via `LMM_LOG_DIR` or `run_config.yml`)
+- Wall-clock timing across stages
+- YAML defaults from `config/run_config.yml`
+
+#### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `KFP_TASK` | Yes | Pipeline mode or stage name (see below) |
+| `image_dir` | Yes | Path to directory of document images |
+| `ground_truth` | No | Path to ground truth CSV or JSONL (omit for inference-only) |
+| `output` | No | Output directory (default: `./outputs`) |
+| `model` | No | Model type (default: from `run_config.yml`, fallback: `internvl3`) |
+| `num_gpus` | No | GPU count (0=auto, 1=single, N=use N) |
+| `LMM_CONDA_ENV` | No | Conda environment path (default: production path) |
+| `LMM_LOG_DIR` | No | Log directory (default: from `run_config.yml`) |
+
+#### Available KFP_TASK Values
+
+**Orchestrated pipelines** (local dev -- chain all stages in one shell):
+
+```bash
+# 4-stage classic pipeline: classify -> extract -> clean -> evaluate
+KFP_TASK=run_batch_inference \
+  image_dir=../evaluation_data/synthetic \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
+
+# 3-stage probe-based pipeline: extract --graph-robust -> clean -> evaluate
+KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
 ```
+
+**Individual stages** (KFP production -- one pod per stage):
+
+```bash
+# Stage 1: Classify document types (GPU)
+# Writes classifications.jsonl -- one record per image with document_type and confidence.
+KFP_TASK=classify \
+  image_dir=../evaluation_data/synthetic \
+  output=./outputs \
+  model=internvl3 \
+  bash entrypoint.sh
+
+# Stage 2: Extract fields (GPU)
+# Reads classifications.jsonl, writes raw_extractions.jsonl.
+# Supports resumption -- if it crashes at image 8,500 of 10,000,
+# it reads the partial output and continues from where it left off.
+KFP_TASK=extract \
+  image_dir=../evaluation_data/synthetic \
+  output=./outputs \
+  model=internvl3 \
+  bash entrypoint.sh
+
+# Stage 3: Parse and clean raw responses (CPU, no GPU needed)
+# Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
+KFP_TASK=clean \
+  output=./outputs \
+  bash entrypoint.sh
+
+# Stage 4: Evaluate against ground truth (CPU, no GPU needed)
+# Reads cleaned_extractions.jsonl + ground truth, writes evaluation_results.jsonl.
+KFP_TASK=evaluate \
+  output=./outputs \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
+```
+
+#### Artifact Flow
+
+Each stage reads and writes JSONL files. CPU stages (clean, evaluate) don't need a GPU allocation.
+
+```
+classify (GPU) -> classifications.jsonl
+    -> extract (GPU) -> raw_extractions.jsonl
+        -> clean (CPU) -> cleaned_extractions.jsonl
+            -> evaluate (CPU) -> evaluation_results.jsonl
+```
+
+With `--graph-robust`, the classify stage is skipped:
+
+```
+extract --graph-robust (GPU) -> raw_extractions.jsonl
+    -> clean (CPU) -> cleaned_extractions.jsonl
+        -> evaluate (CPU) -> evaluation_results.jsonl
+```
+
+#### Examples
+
+```bash
+# Dev machine with custom conda env
+LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env2 \
+  KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
+  bash entrypoint.sh
+
+# Override model type
+KFP_TASK=run_batch_inference \
+  image_dir=../evaluation_data/synthetic \
+  model=llama \
+  bash entrypoint.sh
+
+# Custom output directory
+KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  output=../evaluation_data/artifacts/experiment_01 \
+  bash entrypoint.sh
+
+# Inference only (no ground truth, no evaluation)
+KFP_TASK=run_graph_robust \
+  image_dir=../evaluation_data/synthetic \
+  bash entrypoint.sh
+```
+
+### stages.* CLI Reference
+
+Each stage module can also be called directly via `python -m stages.<name>`:
+
+#### stages.classify
+
+```bash
+python -m stages.classify \
+  --data-dir ../evaluation_data/synthetic \
+  --output-dir ./outputs/classifications.jsonl \
+  --model internvl3
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--data-dir, -d` | *required* | Directory of document images |
+| `--output-dir, -o` | *required* | Output JSONL path |
+| `--model` | `internvl3` | Model type |
+| `--batch-size` | `None` (auto) | Images per batch |
+| `--config` | `None` | YAML config path |
+| `--verbose/--no-verbose` | `None` | Debug logging |
+| `--debug/--no-debug` | `None` | Extra debug output |
+
+#### stages.extract
+
+```bash
+# Classic mode (with classifications from Stage 1)
+python -m stages.extract \
+  --classifications ./outputs/classifications.jsonl \
+  --data-dir ../evaluation_data/synthetic \
+  --output-dir ./outputs/raw_extractions.jsonl \
+  --model internvl3
+
+# Robust mode (probe-based, no classifications needed)
+python -m stages.extract \
+  --data-dir ../evaluation_data/synthetic \
+  --output-dir ./outputs/raw_extractions.jsonl \
+  --graph-robust
+
+# Unified mode (classify + extract in one graph pass)
+python -m stages.extract \
+  --data-dir ../evaluation_data/synthetic \
+  --output-dir ./outputs/raw_extractions.jsonl \
+  --graph-unified
+
+# Graph-based bank extraction (with classifications)
+python -m stages.extract \
+  --classifications ./outputs/classifications.jsonl \
+  --data-dir ../evaluation_data/bank \
+  --output-dir ./outputs/raw_extractions.jsonl \
+  --graph-bank
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--classifications` | `None` | Input classifications JSONL (required for classic mode) |
+| `--data-dir, -d` | *required* | Directory of document images |
+| `--output-dir, -o` | *required* | Output JSONL path |
+| `--model` | `internvl3` | Model type |
+| `--batch-size` | `None` (auto) | Images per batch |
+| `--bank-v2/--no-bank-v2` | `true` | Multi-turn bank extraction |
+| `--balance-correction/--no-balance-correction` | `true` | Balance validation for bank statements |
+| `--graph-bank/--no-graph-bank` | `false` | Use graph-based bank extraction workflow |
+| `--graph-unified/--no-graph-unified` | `false` | Unified classify+extract graph workflow |
+| `--graph-robust/--no-graph-robust` | `false` | Probe-based classification workflow |
+| `--config` | `None` | YAML config path |
+| `--verbose/--no-verbose` | `None` | Debug logging |
+| `--debug/--no-debug` | `None` | Extra debug output |
+
+#### stages.clean
+
+```bash
+python -m stages.clean \
+  --input ./outputs/raw_extractions.jsonl \
+  --output-dir ./outputs/cleaned_extractions.jsonl
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | *required* | Input raw extractions JSONL |
+| `--output-dir, -o` | *required* | Output cleaned extractions JSONL path |
+| `--debug` | `false` | Debug output |
+
+#### stages.evaluate
+
+```bash
+python -m stages.evaluate \
+  --input ./outputs/cleaned_extractions.jsonl \
+  --ground-truth ../evaluation_data/synthetic/ground_truth.jsonl \
+  --output-dir ./outputs/evaluation
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | *required* | Input cleaned extractions JSONL |
+| `--ground-truth, -g` | *required* | Ground truth CSV or JSONL |
+| `--output-dir, -o` | *required* | Output directory for evaluation results |
+| `--math-enhancement/--no-math-enhancement` | `false` | Bank statement balance calculations |
+| `--wall-clock-start` | `None` | Pipeline start epoch (for wall-clock timing) |
+
+### Ground Truth Formats
+
+The pipeline supports two ground truth formats:
+
+**CSV**: All columns present for all rows; fields not applicable to a document type are filled with `NOT_FOUND`. The evaluator uses `field_definitions.yaml` to determine which fields to score for each type.
+
+```csv
+filename,DOCUMENT_TYPE,SUPPLIER_NAME,TOTAL_AMOUNT,...
+receipt_001.png,RECEIPT,Coffee Shop,$4.50,...
+```
+
+**JSONL** (recommended): Each record carries only its document type's fields. The evaluator scores exactly the fields present in each record, no `field_definitions.yaml` lookup needed.
+
+```json
+{"filename": "receipt_001.png", "DOCUMENT_TYPE": "RECEIPT", "SUPPLIER_NAME": "Coffee Shop", "TOTAL_AMOUNT": "$4.50", ...}
+{"filename": "bank_001.png", "DOCUMENT_TYPE": "BANK_STATEMENT", "STATEMENT_DATE_RANGE": "01/01/2026 - 31/01/2026", ...}
+{"filename": "travel_001.png", "DOCUMENT_TYPE": "TRAVEL", "PASSENGER_NAME": "Jane Doe", "TRAVEL_MODE": "Flight", ...}
+```
+
+Convert CSV to JSONL:
+
+```bash
+python -m scripts.csv_to_jsonl \
+  --csv ../evaluation_data/synthetic/ground_truth_synthetic.csv \
+  --output ../evaluation_data/synthetic/ground_truth.jsonl
+```
+
+## Graph-Based Extraction Engine
+
+The `GraphExecutor` (`common/graph_executor.py`) is a YAML-driven node graph walker that enables multi-turn, multi-probe extraction workflows. It is ~200 lines with no framework dependencies.
+
+### Core Concepts
+
+- **Nodes**: Each node is a prompt template with a parser and edges to the next node
+- **State**: `WorkflowState` carries typed results between nodes (MetaGPT pattern)
+- **Self-refine**: On parse failure, the graph retries with reflection (the error message is included in the retry prompt)
+- **Observability**: Full `WorkflowTrace` records every node execution, token counts, and timing
+
+### Available Workflows
+
+| Workflow | YAML | Flag | Description |
+|----------|------|------|-------------|
+| Robust Extract | `robust_extract.yaml` | `--graph-robust` | Probe-based classification + extraction |
+| Unified Extract | `unified_extract.yaml` | `--graph-unified` | Single-graph classify + extract |
+| Bank Extract | `bank_extract.yaml` | `--graph-bank` | Graph-based bank statement extraction |
+| Transaction Link | `transaction_link.yaml` | *(programmatic)* | Cross-image receipt-to-bank matching |
+
+### Robust Probe-Based Classification
+
+The `--graph-robust` workflow eliminates misclassification by using extraction probes instead of a separate classification call:
+
+```mermaid
+graph TD
+    PD["probe_document<br/>14-field extraction attempt"]
+    PB["probe_bank_headers<br/>Bank column detection"]
+    SBT["select_best_type<br/>Validator: compare field counts"]
+    RBT["route_best_type<br/>Router: dispatch by doc type"]
+
+    PD --> PB --> SBT --> RBT
+
+    RBT -->|"is_receipt"| DONE1["done<br/>Probe fields already extracted"]
+    RBT -->|"is_invoice"| DONE2["done<br/>Probe fields already extracted"]
+    RBT -->|"is_travel"| PT["probe_travel<br/>9-field travel extraction"]
+    RBT -->|"is_logbook"| PL["probe_logbook<br/>16-field logbook extraction"]
+    RBT -->|"is_bank_statement"| BANK["Bank subgraph<br/>Header detect + adaptive extract"]
+
+    PT --> DONE3["done"]
+    PL --> DONE4["done"]
+    BANK --> DONE5["done"]
+```
+
+**Model calls per document type:**
+- Receipt/Invoice: 2 (document probe + bank header probe -- fields already extracted)
+- Travel/Logbook: 3 (probes + type-specific extraction)
+- Bank Statement: 4 (probes + bank header detect + adaptive extraction)
+
+The `select_best_type` validator scores both probes: the document probe by counting non-NOT_FOUND fields, and the bank probe by counting detected column mappings. Bank wins when it has 3+ real columns AND the document probe scored below 6 fields.
 
 ## Pipeline Flow
 
@@ -238,17 +558,17 @@ graph TD
     IMG["Document Images"] --> DET
 
     DET["Detection<br/>Classify document type"]
-    DET -->|"INVOICE, RECEIPT,<br/>BANK_STATEMENT, ..."| EXT
+    DET -->|"INVOICE, RECEIPT,<br/>BANK_STATEMENT,<br/>TRAVEL, LOGBOOK"| EXT
 
     EXT["Extraction<br/>Type-specific prompt via PromptCatalog"]
     EXT -->|"Standard docs"| STD["Single-pass or batched extraction"]
-    EXT -->|"Bank statements"| BANK["Multi-turn via UnifiedBankExtractor"]
+    EXT -->|"Bank statements"| BANK["Multi-turn via UnifiedBankExtractor<br/>or graph workflow"]
 
     STD --> RESP["ResponseHandler<br/>parse -> clean -> validate"]
     BANK --> RESP
 
-    RESP --> EVAL["Evaluation<br/>Compare against ground truth CSV -> F1 scores"]
-    EVAL --> RPT["Reporting<br/>CSV analytics, visualizations, markdown reports"]
+    RESP --> EVAL["Evaluation<br/>Compare against ground truth<br/>CSV or JSONL -> F1 scores"]
+    EVAL --> RPT["Reporting<br/>JSONL results, execution summary"]
 ```
 
 **Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches (InternVL3 via `BatchInference`) or sequentially. Bank statements always use sequential multi-turn extraction via `UnifiedBankExtractor`, which accepts the backend's `generate()` as a callable.
@@ -487,7 +807,7 @@ register_vllm_model(
 
 No changes needed to: `cli.py`, `orchestrator.py`, `document_pipeline.py`, `unified_bank_extractor.py`, `pipeline_config.py`, or any evaluation/reporting code.
 
-## CLI Reference
+## cli.py Reference
 
 ```
 python cli.py [OPTIONS]
@@ -499,7 +819,7 @@ python cli.py [OPTIONS]
 |------|---------|-------------|
 | `-d, --data-dir` | *from YAML* | Directory containing document images |
 | `-o, --output-dir` | *from YAML* | Output directory for results |
-| `-g, --ground-truth` | `None` | Ground truth CSV (omit for inference-only) |
+| `-g, --ground-truth` | `None` | Ground truth CSV or JSONL (omit for inference-only) |
 | `--max-images` | `None` (all) | Limit number of images to process |
 | `--document-types` | `None` (all) | Filter by type, comma-separated: `INVOICE,RECEIPT` |
 
@@ -585,7 +905,7 @@ model:
 ```yaml
 data:
   dir: ../evaluation_data/synthetic
-  ground_truth: ../evaluation_data/synthetic/ground_truth_synthetic.csv
+  ground_truth: ../evaluation_data/synthetic/ground_truth.jsonl
   max_images: null             # null = all
   document_types: null         # null = all, or: INVOICE,RECEIPT,BANK_STATEMENT
 ```
@@ -781,25 +1101,6 @@ FATAL: Requested 4 GPUs but only 2 available
 
 Multi-GPU works with any registered model. Each GPU gets its own complete backend + orchestrator + pipeline stack via the same `load_model()` / `create_processor()` path used for single-GPU.
 
-## Ground Truth Document Type Override (Temporary)
-
-When running in evaluation mode (`-g` flag), the pipeline automatically overrides the model's predicted document type with the ground truth document type from the CSV. This isolates the impact of misclassification on extraction accuracy -- the detection prompt still runs, but its result is replaced before routing.
-
-**Why this matters**: Receipt/invoice confusion is cosmetic (same extraction pipeline), but misclassification as `BANK_STATEMENT` routes through a completely different multi-turn extraction pipeline, producing garbage results. This override lets you measure that impact.
-
-### How it works
-
-- Fires between Phase 1 (detection) and Phase 2 (extraction routing) in `DocumentPipeline`
-- Only activates when `ground_truth_data` is populated (i.e., `-g` flag was passed)
-- Logs every override: `GT override: image.jpg INVOICE -> RECEIPT`
-- When no ground truth is provided, the code path is skipped entirely -- zero impact on inference-only runs
-
-## GPU Load Balancing Shuffle
-
-When using multi-GPU processing, images are normally partitioned into contiguous chunks by filename. Because bank statement filenames tend to cluster together, one GPU can end up with most of the slow multi-turn extractions while the others finish early.
-
-`MultiGPUOrchestrator` accepts a `shuffle` flag (default `False`) that randomizes image order before partitioning, distributing document types evenly across GPUs. It uses a fixed seed (`42`) for deterministic reproducibility, and runs before the inference timer starts so it does not affect throughput calculations.
-
 ## Configuring a New Document Type
 
 Adding a new document type requires changes to **3 YAML files** -- no Python code changes needed. Here's a worked example adding a **purchase order** document type.
@@ -841,8 +1142,8 @@ supported_document_types:
   - invoice
   - receipt
   - bank_statement
-  - travel_expense
-  - vehicle_logbook
+  - travel
+  - logbook
   - purchase_order              # <-- add
 ```
 
@@ -890,17 +1191,21 @@ prompts:
 
 ### Step 4: Prepare evaluation data (optional)
 
-To evaluate extraction accuracy, create a ground truth CSV with columns matching your field names:
+To evaluate extraction accuracy, create a ground truth JSONL with only the fields for your type:
 
+```json
+{"filename": "po_001.png", "DOCUMENT_TYPE": "PURCHASE_ORDER", "BUSINESS_ABN": "12 345 678 901", "SUPPLIER_NAME": "Acme Corp", "TOTAL_AMOUNT": "$5000.00"}
 ```
-filename,DOCUMENT_TYPE,BUSINESS_ABN,SUPPLIER_NAME,...,TOTAL_AMOUNT
-po_001.png,PURCHASE_ORDER,12 345 678 901,Acme Corp,...,$5000.00
-```
+
+Or a CSV with all columns (use NOT_FOUND for fields not applicable to your type).
 
 Then run:
 
 ```bash
-python cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
+KFP_TASK=run_graph_robust \
+  image_dir=./purchase_orders \
+  ground_truth=./ground_truth_po.jsonl \
+  bash entrypoint.sh
 ```
 
 ### Checklist
@@ -910,7 +1215,7 @@ python cli.py -d ./purchase_orders -o ./output -g ./ground_truth_po.csv
 | `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases`, field descriptions/categories |
 | `prompts/document_type_detection.yaml` | Detection prompt options, `type_mappings`, `fallback_keywords` |
 | `prompts/<model>_prompts.yaml` | Extraction prompt with field template (one per model) |
-| Ground truth CSV *(optional)* | One row per image with expected field values |
+| Ground truth JSONL/CSV *(optional)* | One record per image with expected field values |
 
 The pipeline automatically discovers new document types from these YAML files -- the prompt key in the prompts YAML is matched against `supported_document_types` in `field_definitions.yaml` to build the extraction routing table. No Python code changes required.
 
