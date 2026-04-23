@@ -281,6 +281,86 @@ class TransactionMatchParser:
         return blocks
 
 
+class BalanceDescriptionParser:
+    """Parse balance-description Turn 1 via ``ResponseParser.parse_balance_description()``.
+
+    Reads column names from ``detect_headers.column_mapping`` in the
+    accumulated workflow state.  Returns ``rows``, ``row_count``, and
+    per-column name metadata for downstream post-processing.
+    """
+
+    def parse(self, raw_response: str, context: WorkflowState) -> dict[str, Any]:
+        from common.unified_bank_extractor import ResponseParser
+
+        mapping = context.get("detect_headers.column_mapping")
+        date_col = mapping.get("date") or "Date"
+        desc_col = mapping.get("description") or "Description"
+        debit_col = mapping.get("debit") or "Debit"
+        credit_col = mapping.get("credit") or "Credit"
+        balance_col = mapping.get("balance") or "Balance"
+
+        rows = ResponseParser.parse_balance_description(
+            raw_response,
+            date_col=date_col,
+            desc_col=desc_col,
+            debit_col=debit_col,
+            credit_col=credit_col,
+            balance_col=balance_col,
+        )
+
+        if not rows:
+            msg = f"No transaction rows parsed from response: {raw_response[:200]}"
+            raise ParseError(msg)
+
+        return {
+            "rows": rows,
+            "row_count": len(rows),
+            "date_col": date_col,
+            "desc_col": desc_col,
+            "debit_col": debit_col,
+            "credit_col": credit_col,
+            "balance_col": balance_col,
+        }
+
+
+class AmountDescriptionParser:
+    """Parse amount-description Turn 1 via ``ResponseParser.parse_amount_description()``.
+
+    For statements with a signed Amount column (negative = withdrawal).
+    Reads column names from ``detect_headers.column_mapping``.
+    """
+
+    def parse(self, raw_response: str, context: WorkflowState) -> dict[str, Any]:
+        from common.unified_bank_extractor import ResponseParser
+
+        mapping = context.get("detect_headers.column_mapping")
+        date_col = mapping.get("date") or "Date"
+        desc_col = mapping.get("description") or "Description"
+        amount_col = mapping.get("amount") or "Amount"
+        balance_col = mapping.get("balance")  # May be None
+
+        rows = ResponseParser.parse_amount_description(
+            raw_response,
+            date_col=date_col,
+            desc_col=desc_col,
+            amount_col=amount_col,
+            balance_col=balance_col,
+        )
+
+        if not rows:
+            msg = f"No transaction rows parsed from response: {raw_response[:200]}"
+            raise ParseError(msg)
+
+        return {
+            "rows": rows,
+            "row_count": len(rows),
+            "date_col": date_col,
+            "desc_col": desc_col,
+            "amount_col": amount_col,
+            "balance_col": balance_col,
+        }
+
+
 class FieldValueParser:
     """Parse ``FIELD: value`` lines (standard document extraction)."""
 
@@ -368,4 +448,6 @@ def build_parser_registry() -> dict[str, TurnParser]:
         "receipt_list": ReceiptListParser(),
         "transaction_match": TransactionMatchParser(),
         "field_value": FieldValueParser(),
+        "balance_description": BalanceDescriptionParser(),
+        "amount_description": AmountDescriptionParser(),
     }

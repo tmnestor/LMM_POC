@@ -1,0 +1,194 @@
+# Bank Statement Extraction Workflow
+#
+# Single-image workflow: extract debit transactions from a bank statement.
+# Turn 0: detect column headers -> router selects strategy.
+# Turn 1: strategy-specific extraction -> post-process -> done.
+#
+# Prompt templates aligned with prompts/bank_prompts.yaml.
+
+name: bank_extract
+description: >
+  Extract debit transactions from a bank statement image.
+  Detects column headers, selects the optimal extraction strategy
+  (balance, amount, debit/credit, or schema fallback), then
+  post-processes into pipe-delimited schema fields.
+
+nodes:
+  detect_headers:
+    template: |
+      Look at the transaction table in this bank statement image.
+
+      What are the exact column header names used in the transaction table?
+
+      List each column header on its own line, in order from left to right.
+      Do not interpret or rename them - use the EXACT text from the image.
+
+      Example output format:
+      Date
+      Description
+      Debit
+      Credit
+      Balance
+    max_tokens: 500
+    parser: header_list
+    stop: ["\n\n\n"]
+    max_retries: 1
+    reflection: |
+      Could not parse column headers from your response:
+      {error}
+      List headers one per line, in order from left to right.
+    edges:
+      ok: select_strategy
+      parse_failed: detect_headers
+
+  select_strategy:
+    type: router
+    edges:
+      has_balance_debit: extract_balance
+      has_amount: extract_amount
+      has_debit_or_credit: extract_debit_credit
+      default: extract_schema_fallback
+
+  extract_balance:
+    template: |
+      List all the balances in the {balance_col} column, including:
+      - Date from the Date Header of the balance
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each balance entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY balance entry in order from top to bottom
+      2. EVERY balance entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any transactions
+      7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+      8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
+         - {balance_col} example: $223.38 CR
+         - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
+    inject:
+      balance_col: "detect_headers.column_mapping.balance|Balance"
+      desc_col: "detect_headers.column_mapping.description|Description"
+      debit_col: "detect_headers.column_mapping.debit|Debit"
+      credit_col: "detect_headers.column_mapping.credit|Credit"
+    max_tokens: 4096
+    parser: balance_description
+    edges:
+      ok: bank_post_process
+
+  extract_amount:
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {amount_col} (preserve the sign: negative = withdrawal, positive = deposit)
+      - {balance_col}
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {amount_col}: [amount with sign preserved]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows, not abbreviated
+      4. PRESERVE the sign of amounts (negative = withdrawal, positive = deposit)
+      5. Do NOT skip any transactions
+    inject:
+      amount_col: "detect_headers.column_mapping.amount|Amount"
+      desc_col: "detect_headers.column_mapping.description|Description"
+      balance_col: "detect_headers.column_mapping.balance|Balance"
+    max_tokens: 4096
+    parser: amount_description
+    edges:
+      ok: bank_post_process
+
+  extract_debit_credit:
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [description text]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL description text, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any actual transactions - extract them ALL
+      7. SKIP "Opening balance" and "Closing balance" rows - these are NOT transactions
+      8. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+    inject:
+      debit_col: "detect_headers.column_mapping.debit|Debit"
+      credit_col: "detect_headers.column_mapping.credit|Credit"
+      desc_col: "detect_headers.column_mapping.description|Description"
+    max_tokens: 4096
+    parser: balance_description
+    edges:
+      ok: bank_post_process
+
+  extract_schema_fallback:
+    template: |
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement for expense tracking.
+      SKIP all deposits, credits, salary payments, and money IN transactions entirely.
+
+      Respond in this exact format with actual values or NOT_FOUND:
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations or additional text.
+
+      Instructions:
+      - STATEMENT_DATE_RANGE: Find the statement period (e.g., "01/01/2024 - 31/01/2024")
+      - TRANSACTION_DATES: Dates of DEBIT transactions only, separated by " | "
+      - LINE_ITEM_DESCRIPTIONS: Descriptions of DEBIT transactions only, separated by " | "
+      - TRANSACTION_AMOUNTS_PAID: DEBIT/withdrawal amounts with $ separated by " | "
+
+      HOW TO IDENTIFY DEBITS (money OUT):
+      - Amounts with negative sign (-$50.00) or in a Debit column
+      - Keywords: withdrawal, payment, purchase, fee, charge, ATM, EFTPOS, direct debit
+      DO NOT INCLUDE (money IN):
+      - Keywords: deposit, credit, salary, wages, transfer in, interest received, "Direct Credit"
+
+      CRITICAL RULES:
+      1. Extract ONLY debit/withdrawal transactions - completely SKIP credits and deposits
+      2. Keep items in the same order across all fields (date 1 matches description 1 matches amount 1)
+      3. Use " | " as separator between items
+      4. Include $ symbol for amounts
+      5. Replace NOT_FOUND with actual values
+    max_tokens: 4096
+    parser: field_value
+    edges:
+      ok: done
+
+  bank_post_process:
+    type: validator
+    check: bank_post_process
+    edges:
+      ok: done
+      failed: done

@@ -39,6 +39,7 @@ def run(
     batch_size: int | None = None,
     bank_v2: bool = True,
     balance_correction: bool = True,
+    graph_bank: bool = False,
     verbose: bool | None = None,
     debug: bool | None = None,
     config_path: Path | None = None,
@@ -59,6 +60,7 @@ def run(
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         bank_v2: Use UnifiedBankExtractor for bank statements.
         balance_correction: Enable balance validation in bank extraction.
+        graph_bank: Use graph-based bank extraction (opt-in, overrides bank_v2).
         verbose: Tier B output (init/config details). None = read from YAML.
         debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
         config_path: Optional path to run_config.yml.
@@ -140,12 +142,17 @@ def run(
             app_config=app_cfg,
         )
 
-        # Set up bank adapter if needed
+        # Set up bank processing: graph executor (opt-in) or legacy adapter
         bank_adapter = None
+        graph_bank_executor = None
         has_bank = any(
             c["document_type"].upper() == "BANK_STATEMENT" for c in classifications
         )
-        if (
+
+        if has_bank and graph_bank:
+            graph_bank_executor = _build_graph_bank_executor(processor)
+            logger.info("Bank graph executor enabled")
+        elif (
             has_bank
             and config.bank_v2
             and getattr(processor, "supports_multi_turn", True)
@@ -174,6 +181,17 @@ def run(
 
                 try:
                     if (
+                        doc_type.upper() == "BANK_STATEMENT"
+                        and graph_bank_executor is not None
+                    ):
+                        _extract_bank_with_graph(
+                            writer,
+                            graph_bank_executor,
+                            image_path,
+                            image_name,
+                            doc_type,
+                        )
+                    elif (
                         doc_type.upper() == "BANK_STATEMENT"
                         and bank_adapter is not None
                     ):
@@ -222,6 +240,53 @@ def run(
         model_cm.__exit__(None, None, None)
 
     return output_path
+
+
+def _build_graph_bank_executor(processor: Any) -> tuple[Any, dict[str, Any]]:
+    """Build a GraphExecutor + workflow definition for bank extraction."""
+    import yaml
+
+    from common.extraction_types import GenerateResult, NodeGenParams
+    from common.graph_executor import GraphExecutor
+    from common.turn_parsers import build_parser_registry
+
+    workflow_path = (
+        Path(__file__).resolve().parent.parent
+        / "prompts"
+        / "workflows"
+        / "bank_extract.yaml"
+    )
+    with workflow_path.open() as f:
+        definition = yaml.safe_load(f)
+
+    def generate_fn(image: Any, prompt: str, params: NodeGenParams) -> GenerateResult:
+        text = processor.generate(image, prompt, max_tokens=params.max_tokens)
+        return GenerateResult(text=text)
+
+    executor = GraphExecutor(generate_fn, build_parser_registry())
+    return executor, definition
+
+
+def _extract_bank_with_graph(
+    writer: "StreamingJsonlWriter",
+    executor_and_def: tuple[Any, dict[str, Any]],
+    image_path: str,
+    image_name: str,
+    doc_type: str,
+) -> None:
+    """Extract bank statement via GraphExecutor, write raw responses."""
+    executor, definition = executor_and_def
+
+    session = executor.run(
+        document_type=doc_type,
+        definition=definition,
+        image_path=image_path,
+        image_name=image_name,
+    )
+
+    record = session.to_record()
+    record["prompt_used"] = f"graph_bank_{session.strategy}"
+    writer.write(record)
 
 
 def _extract_bank_with_adapter(
@@ -306,6 +371,11 @@ def main(
     balance_correction: bool = typer.Option(
         True, "--balance-correction/--no-balance-correction"
     ),
+    graph_bank: bool = typer.Option(
+        False,
+        "--graph-bank/--no-graph-bank",
+        help="Use graph-based bank extraction (opt-in, overrides bank-v2).",
+    ),
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
     ),
@@ -336,6 +406,7 @@ def main(
         batch_size=batch_size,
         bank_v2=bank_v2,
         balance_correction=balance_correction,
+        graph_bank=graph_bank,
         verbose=verbose,
         debug=debug,
         config_path=config,

@@ -331,11 +331,21 @@ class GraphExecutor:
     ) -> str:
         """Replace ``{placeholder}`` references with values from state.
 
+        Supports ``"dot.path|default"`` syntax: if the resolved value
+        is ``None``, the default after the pipe is used instead.
+
         Raises RuntimeError with diagnostics when an upstream node's
         parse failed and the required key is missing.
         """
         prompt = template
-        for placeholder, dot_path in injections.items():
+        for placeholder, spec in injections.items():
+            # Support "dot.path|default_value" syntax
+            if "|" in spec:
+                dot_path, default_val = spec.split("|", 1)
+            else:
+                dot_path = spec
+                default_val = None
+
             try:
                 value = state.get(dot_path)
             except KeyError as exc:
@@ -348,6 +358,10 @@ class GraphExecutor:
                     f"Upstream raw_response: {raw!r}"
                 )
                 raise RuntimeError(msg) from None
+
+            if value is None and default_val is not None:
+                value = default_val
+
             prompt = prompt.replace(
                 f"{{{placeholder}}}",
                 str(value) if value is not None else placeholder,
@@ -406,6 +420,10 @@ class GraphExecutor:
                     "validated_matches": validated,
                     "overridden_count": overridden,
                 }
+            case "bank_post_process":
+                from common.bank_post_process import run_bank_post_process
+
+                return run_bank_post_process(state)
             case _:
                 return True, {}
 
