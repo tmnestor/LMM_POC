@@ -66,21 +66,23 @@ class ExtractionEvaluator:
             ground_truth_csv is not None and Path(ground_truth_csv).suffix == ".jsonl"
         )
 
-        # Load ground truth once
+        # Load ground truth once — fail fast if path given but missing
         self._ground_truth_data: dict[str, dict] = {}
         if ground_truth_csv:
-            try:
-                self._ground_truth_data = load_ground_truth(
-                    ground_truth_csv, verbose=verbose
+            self._ground_truth_data = load_ground_truth(
+                ground_truth_csv, verbose=verbose
+            )
+            if not self._ground_truth_data:
+                msg = (
+                    f"Ground truth loaded from {ground_truth_csv} but contains "
+                    f"0 records. Check file format and contents."
                 )
-                logger.info(
-                    "Loaded ground truth for %d images%s",
-                    len(self._ground_truth_data),
-                    " (JSONL mode)" if self._jsonl_mode else "",
-                )
-            except Exception as e:
-                logger.error("Error loading ground truth: %s", e)
-                self._ground_truth_data = {}
+                raise ValueError(msg)
+            logger.info(
+                "Loaded ground truth for %d images%s",
+                len(self._ground_truth_data),
+                " (JSONL mode)" if self._jsonl_mode else "",
+            )
         else:
             logger.info("No ground truth configured -- inference-only mode")
 
