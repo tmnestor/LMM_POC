@@ -361,6 +361,57 @@ class AmountDescriptionParser:
         }
 
 
+class ClassificationParser:
+    """Parse document classification response using detection YAML config.
+
+    Reuses the ``type_mappings`` and ``fallback_keywords`` from
+    ``document_type_detection.yaml`` via ``PromptCatalog``.
+    """
+
+    def parse(self, raw_response: str, context: WorkflowState) -> dict[str, Any]:
+        from common.prompt_catalog import PromptCatalog
+
+        catalog = PromptCatalog()
+        detection_config = catalog.get_detection_config()
+
+        doc_type = _match_document_type(
+            raw_response,
+            detection_config.get("type_mappings", {}),
+            detection_config.get("fallback_keywords", {}),
+            detection_config.get("settings", {}).get("fallback_type", "RECEIPT"),
+        )
+
+        return {"DOCUMENT_TYPE": doc_type, "_raw_classification": raw_response}
+
+
+def _match_document_type(
+    response: str,
+    type_mappings: dict[str, str],
+    fallback_keywords: dict[str, list[str]],
+    fallback_type: str,
+) -> str:
+    """Match a model response to a canonical document type.
+
+    Standalone copy of the matching logic from
+    ``DocumentOrchestrator._parse_document_type_response()``.
+    """
+    cleaned = response.strip().lower()
+
+    # 1. Direct mapping (case-insensitive substring)
+    for variant, canonical in type_mappings.items():
+        if variant.lower() in cleaned:
+            return canonical
+
+    # 2. Fallback keyword matching (first match wins)
+    for doc_type, keywords in fallback_keywords.items():
+        for keyword in keywords:
+            if keyword.lower() in cleaned:
+                return doc_type
+
+    # 3. Ultimate fallback
+    return fallback_type
+
+
 class FieldValueParser:
     """Parse ``FIELD: value`` lines (standard document extraction)."""
 
@@ -448,6 +499,7 @@ def build_parser_registry() -> dict[str, TurnParser]:
         "receipt_list": ReceiptListParser(),
         "transaction_match": TransactionMatchParser(),
         "field_value": FieldValueParser(),
+        "classification": ClassificationParser(),
         "balance_description": BalanceDescriptionParser(),
         "amount_description": AmountDescriptionParser(),
     }

@@ -31,7 +31,7 @@ app = typer.Typer()
 
 
 def run(
-    classifications_path: Path,
+    classifications_path: Path | None,
     image_dir: Path,
     output_path: Path,
     *,
@@ -40,6 +40,7 @@ def run(
     bank_v2: bool = True,
     balance_correction: bool = True,
     graph_bank: bool = False,
+    graph_unified: bool = False,
     verbose: bool | None = None,
     debug: bool | None = None,
     config_path: Path | None = None,
@@ -61,6 +62,9 @@ def run(
         bank_v2: Use UnifiedBankExtractor for bank statements.
         balance_correction: Enable balance validation in bank extraction.
         graph_bank: Use graph-based bank extraction (opt-in, overrides bank_v2).
+        graph_unified: Use unified graph workflow (classify + extract in one
+            graph walk). Skips Stage 1 -- discovers images directly from
+            image_dir.
         verbose: Tier B output (init/config details). None = read from YAML.
         debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
         config_path: Optional path to run_config.yml.
@@ -68,6 +72,19 @@ def run(
     Returns:
         Path to the written raw_extractions.jsonl.
     """
+    if graph_unified:
+        return _run_unified(
+            image_dir=image_dir,
+            output_path=output_path,
+            model_type=model_type,
+            verbose=verbose,
+            debug=debug,
+            config_path=config_path,
+        )
+    if classifications_path is None:
+        msg = "--classifications is required when --graph-unified is not set"
+        raise typer.BadParameter(msg)
+
     from cli import load_pipeline_configs
     from common.app_config import AppConfig
     from common.pipeline_ops import create_processor, load_model
@@ -352,10 +369,173 @@ def _extract_standard(
     )
 
 
+def _run_unified(
+    image_dir: Path,
+    output_path: Path,
+    *,
+    model_type: str = "internvl3",
+    verbose: bool | None = None,
+    debug: bool | None = None,
+    config_path: Path | None = None,
+) -> Path:
+    """Unified graph path: classify + extract in one graph walk per image.
+
+    Discovers images directly from image_dir (no classifications.jsonl needed).
+    """
+    from cli import load_pipeline_configs
+    from common.app_config import AppConfig
+    from common.pipeline_config import discover_images
+    from common.pipeline_ops import create_processor, load_model
+
+    # Discover images
+    images = list(discover_images(image_dir))
+    if not images:
+        msg = f"No images found in {image_dir}"
+        raise FileNotFoundError(msg)
+    logger.info("Found %d images in %s", len(images), image_dir)
+
+    # Check for resumption
+    completed = read_completed_images(output_path)
+    if completed:
+        original_count = len(images)
+        images = [img for img in images if img.name not in completed]
+        logger.info(
+            "Resuming: %d already done, %d remaining (of %d total)",
+            len(completed),
+            len(images),
+            original_count,
+        )
+
+    if not images:
+        logger.info("All images already processed -- nothing to do")
+        return output_path
+
+    # Build config
+    cli_args: dict[str, Any] = {
+        "data_dir": str(image_dir),
+        "output_dir": str(output_path.parent),
+        "model_type": model_type,
+    }
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
+
+    app_cfg = AppConfig.load(cli_args, config_path=config_path)
+    config = app_cfg.pipeline
+
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(
+        config.model_type
+    )
+
+    # Load model
+    logger.info("Loading model: %s", config.model_type)
+    model_cm = load_model(config)
+    model, tokenizer = model_cm.__enter__()
+
+    try:
+        processor = create_processor(
+            model,
+            tokenizer,
+            config,
+            prompt_config,
+            universal_fields,
+            field_definitions,
+            app_config=app_cfg,
+        )
+
+        executor, definition = _build_unified_executor(processor)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        start = time.time()
+        count = 0
+        total = len(images)
+
+        with StreamingJsonlWriter(output_path) as writer:
+            for img_path in images:
+                image_name = img_path.name
+                img_start = time.time()
+
+                try:
+                    session = executor.run(
+                        document_type="UNKNOWN",
+                        definition=definition,
+                        image_path=str(img_path),
+                        image_name=image_name,
+                    )
+
+                    record = session.to_record()
+                    record["prompt_used"] = f"graph_unified_{session.strategy}"
+                    writer.write(record)
+
+                except Exception as e:
+                    logger.error("Error processing %s: %s", image_name, e)
+                    img_time = time.time() - img_start
+                    writer.write(
+                        {
+                            "image_name": image_name,
+                            "image_path": str(img_path),
+                            "document_type": "UNKNOWN",
+                            "raw_response": "",
+                            "processing_time": img_time,
+                            "prompt_used": "error",
+                            "error": str(e),
+                        }
+                    )
+
+                count += 1
+                img_time = time.time() - img_start
+                doc_type = "UNKNOWN"
+                try:
+                    doc_type = session.document_type
+                except UnboundLocalError:
+                    pass
+                logger.info(
+                    "[%d/%d] %s: %s (%.1fs)",
+                    count,
+                    total,
+                    image_name,
+                    doc_type,
+                    img_time,
+                )
+
+        elapsed = time.time() - start
+        logger.info("Unified extraction complete: %d images in %.1fs", count, elapsed)
+    finally:
+        model_cm.__exit__(None, None, None)
+
+    return output_path
+
+
+def _build_unified_executor(processor: Any) -> tuple[Any, dict[str, Any]]:
+    """Build a GraphExecutor + workflow definition for unified classify+extract."""
+    import yaml
+
+    from common.extraction_types import GenerateResult, NodeGenParams
+    from common.graph_executor import GraphExecutor
+    from common.turn_parsers import build_parser_registry
+
+    workflow_path = (
+        Path(__file__).resolve().parent.parent
+        / "prompts"
+        / "workflows"
+        / "unified_extract.yaml"
+    )
+    with workflow_path.open() as f:
+        definition = yaml.safe_load(f)
+
+    def generate_fn(image: Any, prompt: str, params: NodeGenParams) -> GenerateResult:
+        text = processor.generate(image, prompt, max_tokens=params.max_tokens)
+        return GenerateResult(text=text)
+
+    executor = GraphExecutor(generate_fn, build_parser_registry())
+    return executor, definition
+
+
 @app.command()
 def main(
-    classifications: Path = typer.Option(
-        ..., "--classifications", help="Path to classifications.jsonl from Stage 1"
+    classifications: Path | None = typer.Option(
+        None, "--classifications", help="Path to classifications.jsonl from Stage 1"
     ),
     image_dir: Path = typer.Option(
         ..., "--data-dir", "-d", help="Directory containing images"
@@ -375,6 +555,11 @@ def main(
         False,
         "--graph-bank/--no-graph-bank",
         help="Use graph-based bank extraction (opt-in, overrides bank-v2).",
+    ),
+    graph_unified: bool = typer.Option(
+        False,
+        "--graph-unified/--no-graph-unified",
+        help="Unified graph workflow: classify + extract in one pass (skips Stage 1).",
     ),
     config: Path | None = typer.Option(
         None, "--config", help="YAML configuration file"
@@ -407,6 +592,7 @@ def main(
         bank_v2=bank_v2,
         balance_correction=balance_correction,
         graph_bank=graph_bank,
+        graph_unified=graph_unified,
         verbose=verbose,
         debug=debug,
         config_path=config,

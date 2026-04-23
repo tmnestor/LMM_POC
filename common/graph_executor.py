@@ -165,6 +165,12 @@ class GraphExecutor:
         post_processing = workflow_meta.get("post_processing", [])
         self._run_post_processing(post_processing, state)
 
+        # If the graph classified the document, use that type
+        if state.has("classify_document"):
+            detected = state.get("classify_document.DOCUMENT_TYPE")
+            if isinstance(detected, str) and detected:
+                document_type = detected
+
         # Build final output
         trace.total_model_calls = model_calls
         trace.total_elapsed = sum(r.elapsed for r in all_results)
@@ -374,6 +380,15 @@ class GraphExecutor:
         state: WorkflowState,
     ) -> str:
         """Select edge based on accumulated state."""
+        # Document-type routing (from classify_document node)
+        if state.has("classify_document"):
+            doc_type = state.get("classify_document.DOCUMENT_TYPE")
+            if isinstance(doc_type, str):
+                edge_name = f"is_{doc_type.lower()}"
+                if edge_name in edges:
+                    return edge_name
+
+        # Column-based routing (from detect_headers node)
         if state.has("detect_headers"):
             mapping = state.get("detect_headers.column_mapping")
             if isinstance(mapping, dict):
