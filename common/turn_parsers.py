@@ -234,7 +234,10 @@ class TransactionMatchParser:
             "TRANSACTION_DESCRIPTION",
             "RECEIPT_STORE",
             "RECEIPT_TOTAL",
+            "AMOUNT_CHECK",
+            "NAME_CHECK",
             "CONFIDENCE",
+            "MISMATCH_TYPE",
             "REASONING",
         }
     )

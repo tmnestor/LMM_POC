@@ -5,8 +5,8 @@
 # Stage 2a: Detect column headers from bank statement.
 # Stage 2b: Match each receipt to a bank statement debit transaction.
 #
-# Prompts duplicated from prompts/staged_transaction_linking.yaml --
-# the original file is not modified.
+# Prompts aligned with prompts/staged_transaction_linking.yaml from the
+# transaction-linking branch.
 
 name: transaction_link
 description: >
@@ -26,31 +26,44 @@ nodes:
     image: receipt
     template: |
       You are given a single image of a scanned page that may contain
-      MULTIPLE receipts (e.g. several receipts stapled or placed together
-      on one page).
+      one or more receipts, invoices, or bills (possibly stapled or
+      placed together on one page).
 
-      Your task: carefully examine the image and enumerate every distinct
-      receipt visible on the page, reading left-to-right. Each receipt is
-      a SEPARATE purchase with its own total.
+      Your task: enumerate every DISTINCT purchase or charge on the page.
+      Each must have a different vendor, date, or total to count as
+      separate. Do NOT list the same purchase twice -- a single document
+      with subtotals, tax lines, and a grand total is ONE entry, not
+      multiple.
 
-      How to identify individual receipts:
-      - Look for separate store/merchant names
-      - Look for separate dates
-      - Look for separate totals -- the definitive total is the
-        "Total (incl. GST)" line on each receipt
-      - Look for separate payment methods (e.g. Mastercard vs Visa)
+      How to identify separate purchases:
+      - Different vendor/merchant/company names
+      - Different dates
+      - Different final totals
+      A single document that shows both a subtotal and a total is still
+      ONE purchase -- use the final total only.
 
-      For each receipt found, respond in the following format:
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
+      For each distinct purchase found, respond in the following format:
 
       --- RECEIPT 1 ---
-      STORE: the store or merchant name
-      DATE: the purchase date (DD/MM/YYYY)
-      TOTAL: the total amount including currency symbol (e.g. $83.48)
+      STORE: the vendor, merchant, or company name
+      DATE: the date (DD/MM/YYYY) -- use purchase date, invoice date,
+            or due date (whichever is most prominent)
+      TOTAL: the final total as a decimal number with exactly 2 decimal
+            places and no currency symbols (e.g. 124.50 not $124.50).
+            ALWAYS include the decimal point and cents -- write 124.50
+            not 12450.
+            If the total is partially obscured or cut off at a page edge,
+            cross-reference other lines on the same receipt (e.g. PURCHASE,
+            Eft, or payment confirmation lines) to recover the full amount.
 
       --- RECEIPT 2 ---
       (same fields)
 
-      Continue for all receipts found on the page.
+      Only use RECEIPT 2, 3, etc. if there are genuinely different
+      purchases on the page.
     max_tokens: 500
     parser: receipt_list
     max_retries: 1
@@ -58,6 +71,7 @@ nodes:
       Could not parse receipt blocks from your response:
       {error}
       Use exactly the --- RECEIPT N --- format with STORE, DATE, TOTAL fields.
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings (#).
     edges:
       ok: detect_headers
       parse_failed: extract_receipts
@@ -69,6 +83,9 @@ nodes:
 
       Find the transaction table and list its column headers exactly as they
       appear, in order from left to right.
+
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points.
 
       Respond as a numbered list, one header per line:
       1. First Column Name
@@ -97,53 +114,73 @@ nodes:
 
       {purchases_text}
 
-      Your task: for EACH purchase listed above, identify the specific debit
-      transaction in the bank statement that corresponds to that purchase.
+      Your task: for EACH purchase listed above, determine whether a
+      matching debit transaction exists on this bank statement. Some
+      purchases may NOT appear on this statement.
 
-      Matching strategy (in priority order):
-      1. AMOUNT is the strongest signal: find rows where the "{debit_column}"
-         column matches the purchase total. Receipts show amounts with a
-         currency symbol (e.g. "$83.48") while the "{debit_column}" column
-         may show bare numbers only -- compare numeric values, ignoring
-         currency symbols.
-      2. Then check the "{description_column}" column of those rows -- the
-         store/merchant name should appear there (possibly truncated or
-         abbreviated).
-      3. Then confirm the "{date_column}" column is the same as the purchase
-         date, or up to 3 days later (bank processing delay). Ignore rows
-         dated before the purchase date. Note: the bank statement may use a
-         different date format than the purchases -- convert to the same
-         format before comparing.
+      STRICT AMOUNT MATCHING (apply first, before any other checks):
+        Compare the receipt total (ignoring currency symbols and currency
+        suffixes such as AUD) to each candidate row's "{debit_column}" value.
+        Australian bank statements show debit amounts as plain numbers
+        without a currency symbol.
+        The amounts MUST be numerically equal. If no row has an exact
+        amount match, the result is NOT_FOUND -- do not proceed further.
+
+        You MUST record this comparison in the AMOUNT_CHECK field BEFORE
+        setting MATCHED_TRANSACTION. Write both numbers and the verdict:
+          AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
+        If AMOUNT_CHECK is NO_MATCH, MATCHED_TRANSACTION must be NOT_FOUND.
+
+      Only AFTER a candidate row passes the amount check, verify:
+      1. DESCRIPTION -- containment check, NOT exact match:
+         The receipt store's core business name should be recognisable
+         WITHIN the bank's "{description_column}" value. Bank descriptions
+         often include payment prefixes, location suffixes, and acquirer
+         codes around the merchant name.
+         Examples of valid matches:
+           "Thai Palace"       -> "SQ *THAI PALACE SYDNEY"   (acquirer prefix + location)
+           "Dan Murphy's"      -> "Contactless Payment DAN MURPHYS" (payment prefix)
+           "Harvey Norman"     -> "HARVEY NORMAN AU AUS"     (location suffix)
+           "Fish & Chips Co"   -> "FISH AND CHIPS CO"        (& -> AND)
+         Record this check in the NAME_CHECK field.
+      2. DATE: the "{date_column}" column vs the purchase date. The bank
+         date should be the same day or up to 5 business days later (bank
+         processing delay). The bank statement may use a different date
+         format -- convert before comparing.
+
+      Use these match outcomes:
+      - FOUND: amounts are exactly equal AND description and date match.
+      - NOT_FOUND: no candidate row has an exactly equal debit amount, OR
+        the amounts match but description and date do not support a match.
+        Do not guess or force a match -- NOT_FOUND is a valid and expected
+        result. A description match alone is NEVER sufficient.
 
       Row integrity: all extracted fields must come from the SAME row in the
       transaction table. Do not mix values from different rows.
 
-      Fuzzy matching hints:
-      - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
-        becomes "OFFICE SUPPLIES PLU")
-      - The "&" symbol may appear as "AND" on the bank statement
-      - Names may be upper-cased and shortened to ~18-20 characters
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+      All dates must be DD/MM/YYYY with a 4-digit year.
 
       For each purchase, respond in the following format:
 
       --- RECEIPT 1 ---
-      MATCHED_TRANSACTION: FOUND or NOT_FOUND
-      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
-      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
-      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
       RECEIPT_STORE: the store/merchant name from the purchase
-      RECEIPT_TOTAL: the total amount from the purchase
+      RECEIPT_TOTAL: the total amount from the purchase (decimal with 2 decimal places, no currency symbol, e.g. 124.50)
+      AMOUNT_CHECK: <receipt total> vs <bank debit> → MATCH or NO_MATCH
+      NAME_CHECK: "<core name>" found in "<transaction description>" → MATCH or NO_MATCH
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND (must be NOT_FOUND when AMOUNT_CHECK is NO_MATCH)
+      TRANSACTION_DATE: the date from the matched row (DD/MM/YYYY), or NOT_FOUND
+      TRANSACTION_AMOUNT: the debit amount from the matched row (decimal with 2 decimal places, no currency symbol, e.g. 124.50), or NOT_FOUND
+      TRANSACTION_DESCRIPTION: the description from the matched row, or NOT_FOUND
       CONFIDENCE: HIGH, MEDIUM, or LOW
-      REASONING: brief explanation of why this transaction matches
+      MISMATCH_TYPE: NONE or NAME_MISMATCH or DATE_DELAY
+      REASONING: brief explanation of match or why no match was found
 
       --- RECEIPT 2 ---
       (same fields)
 
       Continue for all purchases listed above.
-      If no matching transaction is found for a purchase, set
-      MATCHED_TRANSACTION to NOT_FOUND, set TRANSACTION_DATE,
-      TRANSACTION_AMOUNT, and TRANSACTION_DESCRIPTION to NOT_FOUND,
-      and explain why in REASONING.
     inject:
       purchases_text: "extract_receipts.formatted_text"
       date_column: "detect_headers.column_mapping.date"
