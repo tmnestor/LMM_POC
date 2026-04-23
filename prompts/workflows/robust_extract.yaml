@@ -8,9 +8,11 @@
 #     -> is_receipt        -> done  (probe fields already in state)
 #     -> is_invoice        -> done  (probe fields already in state)
 #     -> is_bank_statement -> select_bank_strategy -> extract_* -> bank_post_process -> done
+#     -> is_travel         -> extract_travel -> done  (3 calls)
+#     -> is_logbook        -> extract_logbook -> done  (3 calls)
 #     -> default           -> done  (fallback: use probe fields)
 #
-# Model calls: 2 for receipt/invoice, 4 for bank statement.
+# Model calls: 2 for receipt/invoice, 3 for travel/logbook, 4 for bank statement.
 
 name: robust_extract
 description: >
@@ -51,6 +53,9 @@ nodes:
         * INVOICE if this is a BILL requesting future payment (due date,
           payment terms, amount owing, "please pay by", "remit to")
         * BANK_STATEMENT if this shows account transactions over a period
+        * TRAVEL if this is a flight ticket, itinerary, boarding pass, or
+          travel booking confirmation
+        * LOGBOOK if this is a vehicle/mileage logbook recording trips
       - INVOICE_DATE: The date printed on the document (issue date). DD/MM/YYYY
       - PAYMENT_DATE: The date payment was actually made (transaction date,
         "date paid", timestamp on receipt). DD/MM/YYYY. Only present on
@@ -106,7 +111,88 @@ nodes:
       is_receipt: done
       is_invoice: done
       is_bank_statement: select_bank_strategy
+      is_travel: extract_travel
+      is_logbook: extract_logbook
       default: done
+
+  # ===================================================================
+  # Travel extraction (flight tickets, itineraries, boarding passes)
+  # ===================================================================
+  extract_travel:
+    template: |
+      Extract ALL data from this travel document. Respond in exact format below
+      with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: TRAVEL
+      PASSENGER_NAME: NOT_FOUND
+      TRAVEL_MODE: NOT_FOUND
+      TRAVEL_ROUTE: NOT_FOUND
+      TRAVEL_DATES: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+
+      Instructions:
+      - PASSENGER_NAME: Full passenger name in LASTNAME/FIRSTNAME format
+      - TRAVEL_MODE: Mode of travel (plane, train, bus, taxi, ferry)
+      - TRAVEL_ROUTE: All cities in order with " | " separator
+        (e.g., "Sydney | Melbourne | Sydney" for a return trip)
+      - TRAVEL_DATES: All travel/departure dates with " | " separator
+        in DD Mon YYYY format (e.g., "16 Feb 2026 | 18 Feb 2026")
+      - INVOICE_DATE: Booking/issue date in DD Mon YYYY format
+      - GST_AMOUNT: GST amount with $ symbol
+      - TOTAL_AMOUNT: Total fare amount with $ symbol
+      - SUPPLIER_NAME: Airline or transport company name
+      - Replace NOT_FOUND with actual values
+    max_tokens: 1024
+    parser: field_value
+    edges:
+      ok: done
+
+  # ===================================================================
+  # Logbook extraction (vehicle/mileage logbooks)
+  # ===================================================================
+  extract_logbook:
+    template: |
+      Extract ALL data from this vehicle logbook. Respond in exact format below
+      with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: LOGBOOK
+      VEHICLE_MAKE: NOT_FOUND
+      VEHICLE_MODEL: NOT_FOUND
+      VEHICLE_REGISTRATION: NOT_FOUND
+      ENGINE_CAPACITY: NOT_FOUND
+      LOGBOOK_PERIOD_START: NOT_FOUND
+      LOGBOOK_PERIOD_END: NOT_FOUND
+      ODOMETER_START: NOT_FOUND
+      ODOMETER_END: NOT_FOUND
+      TOTAL_KILOMETERS: NOT_FOUND
+      BUSINESS_KILOMETERS: NOT_FOUND
+      BUSINESS_USE_PERCENTAGE: NOT_FOUND
+      JOURNEY_DATES: NOT_FOUND
+      JOURNEY_DISTANCES: NOT_FOUND
+      JOURNEY_PURPOSES: NOT_FOUND
+
+      Instructions:
+      - VEHICLE_MAKE: Manufacturer (e.g., Toyota, Mazda, Ford)
+      - VEHICLE_MODEL: Model name (e.g., Camry, CX-5, Ranger)
+      - VEHICLE_REGISTRATION: Registration plate number
+      - ENGINE_CAPACITY: Engine size with L suffix (e.g., 2.5L)
+      - LOGBOOK_PERIOD_START / LOGBOOK_PERIOD_END: DD Mon YYYY format
+      - ODOMETER_START / ODOMETER_END: Numeric odometer readings
+      - TOTAL_KILOMETERS: Total km for the period (numeric)
+      - BUSINESS_KILOMETERS: Business-only km (numeric)
+      - BUSINESS_USE_PERCENTAGE: Percentage with % symbol (e.g., 78%)
+      - JOURNEY_DATES: All journey dates with " | " separator (DD Mon YYYY)
+      - JOURNEY_DISTANCES: All distances in km with " | " separator (numeric)
+      - JOURNEY_PURPOSES: All purposes with " | " separator
+      - Extract the first 10 journeys only (evaluation uses first 10)
+      - Replace NOT_FOUND with actual values
+    max_tokens: 2048
+    parser: field_value
+    edges:
+      ok: done
 
   # ===================================================================
   # Bank subgraph (from bank_extract.yaml / unified_extract.yaml)

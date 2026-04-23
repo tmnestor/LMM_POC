@@ -52,7 +52,7 @@ document_fields:
       - TRANSACTION_DATES
       - TRANSACTION_AMOUNTS_PAID
 
-  travel_expense:
+  travel:
     count: 9
     fields:
       - DOCUMENT_TYPE
@@ -77,7 +77,7 @@ document_fields:
       - BANK_TRANSACTION_DESCRIPTION
       - BANK_TRANSACTION_DEBIT
 
-  vehicle_logbook:
+  logbook:
     count: 16
     fields:
       - DOCUMENT_TYPE
@@ -376,7 +376,8 @@ document_type_aliases:
     - account statement
     - credit card statement
 
-  travel_expense:
+  travel:
+    - travel
     - travel expense
     - boarding pass
     - airline ticket
@@ -385,10 +386,13 @@ document_type_aliases:
     - bus ticket
     - taxi receipt
     - rideshare receipt
+    - itinerary
+    - flight ticket
 
-  vehicle_logbook:
-    - vehicle logbook
+  logbook:
     - logbook
+    - vehicle logbook
+    - vehicle_logbook
     - motor vehicle logbook
     - car logbook
     - mileage log
@@ -408,7 +412,7 @@ supported_document_types:
   - invoice
   - receipt
   - bank_statement
-  - travel_expense
-  - vehicle_logbook
+  - travel
+  - logbook
   - transaction_link
   - universal

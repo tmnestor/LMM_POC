@@ -12,6 +12,7 @@ DOCUMENT AWARE REDUCTION COMPATIBILITY:
 - No hardcoded field assumptions - fully flexible
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -22,27 +23,82 @@ from .field_schema import FieldSchema, get_field_schema
 
 
 def load_ground_truth(
-    csv_path: str, show_sample: bool = False, verbose: bool = True
+    gt_path: str, show_sample: bool = False, verbose: bool = True
 ) -> dict[str, dict]:
-    """
-    Load ground truth data from CSV file.
+    """Load ground truth data from CSV or JSONL file.
+
+    Detects file format by extension:
+    - ``.jsonl``: One JSON object per line, each record carries only its
+      type's fields (no cross-schema NOT_FOUNDs).
+    - ``.csv``: Legacy pandas-based loader (all columns for all rows).
 
     Args:
-        csv_path (str): Path to the ground truth CSV file
-        show_sample (bool): Whether to display a sample of the data
-        verbose (bool): Whether to print loading messages
+        gt_path: Path to the ground truth file (.csv or .jsonl).
+        show_sample: Whether to display a sample of the data.
+        verbose: Whether to print loading messages.
 
     Returns:
-        dict: Dictionary mapping image filenames to ground truth data
+        Dictionary mapping image filenames to ground truth data.
 
     Raises:
-        FileNotFoundError: If CSV file doesn't exist
-        ValueError: If CSV has invalid structure
+        FileNotFoundError: If ground truth file doesn't exist.
+        ValueError: If file has invalid structure.
     """
-    csv_file = Path(csv_path)
-    if not csv_file.exists():
-        raise FileNotFoundError(f"Ground truth file not found: {csv_path}")
+    path = Path(gt_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Ground truth file not found: {gt_path}")
 
+    if path.suffix == ".jsonl":
+        return _load_ground_truth_jsonl(path, show_sample=show_sample, verbose=verbose)
+    return _load_ground_truth_csv(str(path), show_sample=show_sample, verbose=verbose)
+
+
+def _load_ground_truth_jsonl(
+    path: Path, *, show_sample: bool = False, verbose: bool = True
+) -> dict[str, dict]:
+    """Load ground truth from JSONL (one JSON object per line).
+
+    Each record must have a ``filename`` (or ``image_name``) key plus
+    per-type schema fields.  Cross-schema NOT_FOUNDs should already be
+    stripped during JSONL generation.
+    """
+    ground_truth_map: dict[str, dict] = {}
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            filename = record.get("filename") or record.get("image_name")
+            if filename:
+                ground_truth_map[str(filename)] = record
+
+    if verbose:
+        from collections import Counter
+
+        types = Counter(
+            r.get("DOCUMENT_TYPE", "UNKNOWN") for r in ground_truth_map.values()
+        )
+        print(f"📊 Ground truth JSONL loaded: {len(ground_truth_map)} records")
+        for doc_type, count in sorted(types.items()):
+            sample = next(
+                r
+                for r in ground_truth_map.values()
+                if r.get("DOCUMENT_TYPE") == doc_type
+            )
+            n_fields = len([k for k in sample if k not in ("filename", "image_name")])
+            print(f"   {doc_type}: {count} records, {n_fields} fields")
+
+    if show_sample and ground_truth_map and verbose:
+        first = next(iter(ground_truth_map.values()))
+        print(f"📄 Sample: {json.dumps(first, ensure_ascii=False)[:300]}...")
+
+    return ground_truth_map
+
+
+def _load_ground_truth_csv(
+    csv_path: str, *, show_sample: bool = False, verbose: bool = True
+) -> dict[str, dict]:
+    """Load ground truth from CSV (legacy pandas-based loader)."""
     try:
         # CRITICAL: Use dtype=str to prevent pandas from converting "False" strings to bool False
         # This was causing type mismatch: extracted='False' (str) vs ground_truth=False (bool)

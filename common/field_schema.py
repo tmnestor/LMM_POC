@@ -43,7 +43,8 @@ _EVAL_EQUIVALENCE: dict[str, str] = {
     "invoice": "invoice_receipt",
     "receipt": "invoice_receipt",
     "bank_statement": "bank_statement",
-    "travel_expense": "travel_expense",
+    "travel": "travel",
+    "logbook": "logbook",
 }
 
 

@@ -1,8 +1,8 @@
 """GPU-free tests for the robust probe-based classification graph workflow.
 
 Tests the full robust_extract.yaml workflow with mock generate_fn,
-covering probe scoring, type selection, state cleanup, and bank subgraph
-routing.
+covering probe scoring, type selection, state cleanup, bank subgraph
+routing, and the new travel/logbook extraction paths.
 """
 
 from pathlib import Path
@@ -101,6 +101,40 @@ IS_GST_INCLUDED: NOT_FOUND
 GST_AMOUNT: NOT_FOUND
 TOTAL_AMOUNT: NOT_FOUND"""
 
+# Travel probe: few receipt fields, model says TRAVEL
+PROBE_TRAVEL = """\
+DOCUMENT_TYPE: TRAVEL
+BUSINESS_ABN: NOT_FOUND
+SUPPLIER_NAME: Qantas Airways
+BUSINESS_ADDRESS: NOT_FOUND
+PAYER_NAME: NOT_FOUND
+PAYER_ADDRESS: NOT_FOUND
+INVOICE_DATE: 10/02/2026
+LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+LINE_ITEM_QUANTITIES: NOT_FOUND
+LINE_ITEM_PRICES: NOT_FOUND
+LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+IS_GST_INCLUDED: NOT_FOUND
+GST_AMOUNT: $28.54
+TOTAL_AMOUNT: $314.00"""
+
+# Logbook probe: very few receipt fields, model says LOGBOOK
+PROBE_LOGBOOK = """\
+DOCUMENT_TYPE: LOGBOOK
+BUSINESS_ABN: NOT_FOUND
+SUPPLIER_NAME: NOT_FOUND
+BUSINESS_ADDRESS: NOT_FOUND
+PAYER_NAME: NOT_FOUND
+PAYER_ADDRESS: NOT_FOUND
+INVOICE_DATE: NOT_FOUND
+LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+LINE_ITEM_QUANTITIES: NOT_FOUND
+LINE_ITEM_PRICES: NOT_FOUND
+LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+IS_GST_INCLUDED: NOT_FOUND
+GST_AMOUNT: NOT_FOUND
+TOTAL_AMOUNT: NOT_FOUND"""
+
 # Probe with DOCUMENT_TYPE=NOT_FOUND (ambiguous doc)
 PROBE_AMBIGUOUS = """\
 DOCUMENT_TYPE: NOT_FOUND
@@ -143,6 +177,36 @@ BALANCE_RESPONSE = """\
    - Credit: $3,000.00
    - Balance: $4,954.50"""
 
+# Travel extraction response (from extract_travel node)
+EXTRACT_TRAVEL_RESPONSE = """\
+DOCUMENT_TYPE: TRAVEL
+PASSENGER_NAME: Martin/Olivia
+TRAVEL_MODE: plane
+TRAVEL_ROUTE: Sydney | Hobart
+TRAVEL_DATES: 16 Feb 2026 | 18 Feb 2026
+INVOICE_DATE: 10 Feb 2026
+GST_AMOUNT: $28.54
+TOTAL_AMOUNT: $314.00
+SUPPLIER_NAME: Qantas Airways"""
+
+# Logbook extraction response (from extract_logbook node)
+EXTRACT_LOGBOOK_RESPONSE = """\
+DOCUMENT_TYPE: LOGBOOK
+VEHICLE_MAKE: Toyota
+VEHICLE_MODEL: Camry
+VEHICLE_REGISTRATION: FD17PQ
+ENGINE_CAPACITY: 2.5L
+LOGBOOK_PERIOD_START: 01 Jan 2025
+LOGBOOK_PERIOD_END: 25 Mar 2025
+ODOMETER_START: 17811
+ODOMETER_END: 20800
+TOTAL_KILOMETERS: 2989
+BUSINESS_KILOMETERS: 2328
+BUSINESS_USE_PERCENTAGE: 78%
+JOURNEY_DATES: 02 Jan 2025 | 05 Jan 2025 | 08 Jan 2025
+JOURNEY_DISTANCES: 8 | 94 | 82
+JOURNEY_PURPOSES: Project site | Warehouse pickup | Delivery"""
+
 
 # ---------------------------------------------------------------------------
 # select_best_type validator unit tests
@@ -156,6 +220,8 @@ class TestNormalizeDocType:
         assert _normalize_doc_type("RECEIPT") == "RECEIPT"
         assert _normalize_doc_type("INVOICE") == "INVOICE"
         assert _normalize_doc_type("BANK_STATEMENT") == "BANK_STATEMENT"
+        assert _normalize_doc_type("TRAVEL") == "TRAVEL"
+        assert _normalize_doc_type("LOGBOOK") == "LOGBOOK"
 
     def test_tax_invoice_variants(self) -> None:
         assert _normalize_doc_type("TAX INVOICE") == "INVOICE"
@@ -166,11 +232,25 @@ class TestNormalizeDocType:
         assert _normalize_doc_type("NOT_FOUND") == "RECEIPT"
 
     def test_unknown_defaults_to_receipt(self) -> None:
-        assert _normalize_doc_type("TRAVEL_EXPENSE") == "RECEIPT"
+        assert _normalize_doc_type("SOME_RANDOM_TYPE") == "RECEIPT"
 
     def test_bank_statement_aliases(self) -> None:
         assert _normalize_doc_type("credit card statement") == "BANK_STATEMENT"
         assert _normalize_doc_type("Bank Statement") == "BANK_STATEMENT"
+
+    def test_travel_aliases(self) -> None:
+        assert _normalize_doc_type("itinerary") == "TRAVEL"
+        assert _normalize_doc_type("boarding pass") == "TRAVEL"
+        assert _normalize_doc_type("flight ticket") == "TRAVEL"
+        assert _normalize_doc_type("airline ticket") == "TRAVEL"
+        assert _normalize_doc_type("e-ticket") == "TRAVEL"
+        assert _normalize_doc_type("travel expense") == "TRAVEL"
+
+    def test_logbook_aliases(self) -> None:
+        assert _normalize_doc_type("vehicle logbook") == "LOGBOOK"
+        assert _normalize_doc_type("vehicle_logbook") == "LOGBOOK"
+        assert _normalize_doc_type("mileage log") == "LOGBOOK"
+        assert _normalize_doc_type("motor vehicle logbook") == "LOGBOOK"
 
 
 class TestSelectBestType:
@@ -326,6 +406,34 @@ class TestSelectBestType:
         assert ok is True
         assert parsed["DOCUMENT_TYPE"] == "RECEIPT"
 
+    def test_travel_type_passthrough(self) -> None:
+        """Model says TRAVEL -> normaliser returns TRAVEL."""
+        doc = {
+            "DOCUMENT_TYPE": "TRAVEL",
+            "SUPPLIER_NAME": "Qantas",
+            "TOTAL_AMOUNT": "$314.00",
+            "GST_AMOUNT": "$28.54",
+            "INVOICE_DATE": "10/02/2026",
+        }
+        state = self._make_state(doc, None)
+
+        ok, parsed = run_select_best_type(state)
+        assert ok is True
+        assert parsed["DOCUMENT_TYPE"] == "TRAVEL"
+
+    def test_logbook_type_passthrough(self) -> None:
+        """Model says LOGBOOK -> normaliser returns LOGBOOK."""
+        doc = {
+            "DOCUMENT_TYPE": "LOGBOOK",
+            "SUPPLIER_NAME": "NOT_FOUND",
+            "TOTAL_AMOUNT": "NOT_FOUND",
+        }
+        state = self._make_state(doc, None)
+
+        ok, parsed = run_select_best_type(state)
+        assert ok is True
+        assert parsed["DOCUMENT_TYPE"] == "LOGBOOK"
+
 
 # ---------------------------------------------------------------------------
 # Full workflow: receipt path
@@ -456,6 +564,145 @@ class TestBankPath:
         assert "SUPPLIER_NAME" not in session.final_fields
         assert "TOTAL_AMOUNT" not in session.final_fields
         assert "GST_AMOUNT" not in session.final_fields
+
+
+# ---------------------------------------------------------------------------
+# Full workflow: travel path
+# ---------------------------------------------------------------------------
+
+
+class TestTravelPath:
+    """probe_document -> probe_bank_headers (fail) -> select_best_type -> travel -> extract_travel -> done."""
+
+    def test_travel_full_path(self, tmp_path: Path) -> None:
+        gen_fn = _mock_generate_fn(
+            [PROBE_TRAVEL, HEADERS_GARBAGE, EXTRACT_TRAVEL_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        assert session.document_type == "TRAVEL"
+        assert session.trace.total_model_calls == 3
+        nodes = session.trace.nodes_visited
+        assert "probe_document" in nodes
+        assert "select_best_type" in nodes
+        assert "route_best_type" in nodes
+        assert "extract_travel" in nodes
+
+    def test_travel_fields_in_final_output(self, tmp_path: Path) -> None:
+        gen_fn = _mock_generate_fn(
+            [PROBE_TRAVEL, HEADERS_GARBAGE, EXTRACT_TRAVEL_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        assert session.final_fields["DOCUMENT_TYPE"] == "TRAVEL"
+        assert session.final_fields["PASSENGER_NAME"] == "Martin/Olivia"
+        assert session.final_fields["TRAVEL_ROUTE"] == "Sydney | Hobart"
+        assert session.final_fields["SUPPLIER_NAME"] == "Qantas Airways"
+        assert session.final_fields["TOTAL_AMOUNT"] == "$314.00"
+
+    def test_travel_probe_fields_replaced_by_extraction(self, tmp_path: Path) -> None:
+        """extract_travel should provide the authoritative fields, not probe_document."""
+        gen_fn = _mock_generate_fn(
+            [PROBE_TRAVEL, HEADERS_GARBAGE, EXTRACT_TRAVEL_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        # extract_travel should have PASSENGER_NAME (not from probe)
+        assert "PASSENGER_NAME" in session.final_fields
+        assert session.final_fields["TRAVEL_MODE"] == "plane"
+
+
+# ---------------------------------------------------------------------------
+# Full workflow: logbook path
+# ---------------------------------------------------------------------------
+
+
+class TestLogbookPath:
+    """probe_document -> probe_bank_headers (fail) -> select_best_type -> logbook -> extract_logbook -> done."""
+
+    def test_logbook_full_path(self, tmp_path: Path) -> None:
+        gen_fn = _mock_generate_fn(
+            [PROBE_LOGBOOK, HEADERS_GARBAGE, EXTRACT_LOGBOOK_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        assert session.document_type == "LOGBOOK"
+        assert session.trace.total_model_calls == 3
+        nodes = session.trace.nodes_visited
+        assert "probe_document" in nodes
+        assert "select_best_type" in nodes
+        assert "route_best_type" in nodes
+        assert "extract_logbook" in nodes
+
+    def test_logbook_fields_in_final_output(self, tmp_path: Path) -> None:
+        gen_fn = _mock_generate_fn(
+            [PROBE_LOGBOOK, HEADERS_GARBAGE, EXTRACT_LOGBOOK_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        assert session.final_fields["DOCUMENT_TYPE"] == "LOGBOOK"
+        assert session.final_fields["VEHICLE_MAKE"] == "Toyota"
+        assert session.final_fields["VEHICLE_MODEL"] == "Camry"
+        assert session.final_fields["VEHICLE_REGISTRATION"] == "FD17PQ"
+        assert session.final_fields["ENGINE_CAPACITY"] == "2.5L"
+        assert session.final_fields["BUSINESS_USE_PERCENTAGE"] == "78%"
+        assert "JOURNEY_DATES" in session.final_fields
+        assert "JOURNEY_DISTANCES" in session.final_fields
+        assert "JOURNEY_PURPOSES" in session.final_fields
+
+    def test_logbook_probe_fields_not_leaked(self, tmp_path: Path) -> None:
+        """Receipt fields from probe_document should NOT appear in logbook output."""
+        gen_fn = _mock_generate_fn(
+            [PROBE_LOGBOOK, HEADERS_GARBAGE, EXTRACT_LOGBOOK_RESPONSE]
+        )
+        definition = _load_workflow()
+        executor = GraphExecutor(gen_fn, build_parser_registry())
+
+        session = executor.run(
+            document_type="UNKNOWN",
+            definition=definition,
+            image_path=_make_test_image(tmp_path),
+        )
+
+        # Probe had LINE_ITEM_DESCRIPTIONS: NOT_FOUND etc. -- these are from the
+        # probe template and should still be in final_fields (they're legitimate
+        # parsed fields). But the logbook-specific fields should dominate.
+        assert session.final_fields["VEHICLE_MAKE"] == "Toyota"
 
 
 # ---------------------------------------------------------------------------

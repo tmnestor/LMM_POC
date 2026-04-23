@@ -43,8 +43,11 @@ class ExtractionEvaluator:
         """Load ground truth once; configure evaluation strategy.
 
         Args:
-            ground_truth_csv: Path to CSV. None = inference-only (evaluate returns empty dict).
-            field_definitions: Map of doc_type (lowercase) -> field names for evaluation filtering.
+            ground_truth_csv: Path to CSV or JSONL. None = inference-only
+                (evaluate returns empty dict).
+            field_definitions: Map of doc_type (lowercase) -> field names
+                for evaluation filtering. Ignored in JSONL mode (GT record
+                keys are used instead).
             enable_math_enhancement: Apply bank statement balance calculations.
             evaluation_method: "order_aware_f1" or "correlation" / "correlation_aware_f1".
                 None = read from EVALUATION_METHOD env var, default "order_aware_f1".
@@ -58,6 +61,11 @@ class ExtractionEvaluator:
         self._verbose = verbose
         self._model_evaluator = SimpleModelEvaluator()
 
+        # JSONL mode: evaluate exactly the fields in each GT record
+        self._jsonl_mode = (
+            ground_truth_csv is not None and Path(ground_truth_csv).suffix == ".jsonl"
+        )
+
         # Load ground truth once
         self._ground_truth_data: dict[str, dict] = {}
         if ground_truth_csv:
@@ -66,8 +74,9 @@ class ExtractionEvaluator:
                     ground_truth_csv, verbose=verbose
                 )
                 logger.info(
-                    "Loaded ground truth for %d images",
+                    "Loaded ground truth for %d images%s",
                     len(self._ground_truth_data),
+                    " (JSONL mode)" if self._jsonl_mode else "",
                 )
             except Exception as e:
                 logger.error("Error loading ground truth: %s", e)
@@ -179,11 +188,18 @@ class ExtractionEvaluator:
             else:
                 logger.debug("Mathematical analysis failed")
 
-        # Filter ground truth to document-specific fields for accurate evaluation
-        document_type_lower_eval = document_type.lower()
-        evaluation_fields = self.field_definitions.get(
-            document_type_lower_eval, self.field_definitions.get("invoice", [])
-        )
+        # Filter ground truth to document-specific fields for accurate evaluation.
+        # JSONL mode: each GT record carries only its type's fields -- use them
+        # directly instead of looking up field_definitions (handles new types
+        # like TRAVEL/LOGBOOK without config changes).
+        if self._jsonl_mode:
+            _skip = {"filename", "image_name", "image_file", "file"}
+            evaluation_fields = [k for k in ground_truth if k not in _skip]
+        else:
+            document_type_lower_eval = document_type.lower()
+            evaluation_fields = self.field_definitions.get(
+                document_type_lower_eval, self.field_definitions.get("invoice", [])
+            )
 
         filtered_ground_truth = {
             field: ground_truth[field]

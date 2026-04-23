@@ -13,7 +13,7 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 DATA_DIR="../evaluation_data/synthetic"
 ARTIFACTS="../evaluation_data/artifacts/graph_robust"
-GROUND_TRUTH="../evaluation_data/synthetic/ground_truth_synthetic.csv"
+GROUND_TRUTH="../evaluation_data/synthetic/ground_truth.jsonl"
 
 # ---------------------------------------------------------------------------
 # Clean previous outputs

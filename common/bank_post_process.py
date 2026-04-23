@@ -282,15 +282,36 @@ def run_bank_post_process(
 
 # Maps model variants -> canonical type.  Checked case-insensitively.
 _DOC_TYPE_ALIASES: dict[str, str] = {
+    # Invoice variants
     "tax invoice": "INVOICE",
     "tax_invoice": "INVOICE",
     "credit note": "INVOICE",
     "purchase order": "INVOICE",
     "quote": "INVOICE",
     "estimate": "INVOICE",
+    # Bank statement variants
     "bank statement": "BANK_STATEMENT",
     "credit card statement": "BANK_STATEMENT",
+    # Travel variants
+    "travel": "TRAVEL",
+    "travel expense": "TRAVEL",
+    "itinerary": "TRAVEL",
+    "boarding pass": "TRAVEL",
+    "flight ticket": "TRAVEL",
+    "airline ticket": "TRAVEL",
+    "e-ticket": "TRAVEL",
+    # Logbook variants
+    "logbook": "LOGBOOK",
+    "vehicle logbook": "LOGBOOK",
+    "vehicle_logbook": "LOGBOOK",
+    "mileage log": "LOGBOOK",
+    "motor vehicle logbook": "LOGBOOK",
 }
+
+# Canonical types that pass through without alias lookup
+_CANONICAL_TYPES = frozenset(
+    {"RECEIPT", "INVOICE", "BANK_STATEMENT", "TRAVEL", "LOGBOOK"}
+)
 
 
 def _normalize_doc_type(raw: str) -> str:
@@ -298,7 +319,7 @@ def _normalize_doc_type(raw: str) -> str:
     if not isinstance(raw, str) or raw == "NOT_FOUND":
         return "RECEIPT"
     cleaned = raw.strip().upper()
-    if cleaned in ("RECEIPT", "INVOICE", "BANK_STATEMENT"):
+    if cleaned in _CANONICAL_TYPES:
         return cleaned
     # Check aliases (case-insensitive)
     lower = raw.strip().lower()

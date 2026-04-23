@@ -227,7 +227,7 @@ def main(
         ..., "--input", "-i", help="Path to cleaned_extractions.jsonl from Stage 3"
     ),
     ground_truth: Path = typer.Option(
-        ..., "--ground-truth", "-g", help="Path to ground truth CSV"
+        ..., "--ground-truth", "-g", help="Path to ground truth CSV or JSONL"
     ),
     output_dir: Path = typer.Option(
         ..., "--output-dir", "-o", help="Directory for evaluation output"
