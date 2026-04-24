@@ -432,6 +432,7 @@ def build_vllm_loader(spec: VllmSpec):
                     "trust_remote_code": True,
                     "disable_log_stats": True,
                     "enforce_eager": True,
+                    "enable_prefix_caching": True,
                 }
 
                 if spec.mm_processor_kwargs:
