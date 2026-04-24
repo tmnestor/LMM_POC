@@ -25,7 +25,7 @@ def run(
     image_dir: Path,
     output_path: Path,
     *,
-    model_type: str = "internvl3",
+    model_type: str | None = None,
     batch_size: int | None = None,
     verbose: bool | None = None,
     debug: bool | None = None,
@@ -55,8 +55,9 @@ def run(
     cli_args: dict[str, Any] = {
         "data_dir": str(image_dir),
         "output_dir": str(output_path.parent),
-        "model_type": model_type,
     }
+    if model_type is not None:
+        cli_args["model_type"] = model_type
     if verbose is not None:
         cli_args["verbose"] = verbose
     if debug is not None:
@@ -197,7 +198,7 @@ def main(
     output: Path = typer.Option(
         ..., "--output-dir", "-o", help="Path to write classifications.jsonl"
     ),
-    model: str = typer.Option("internvl3", "--model", help="Model type"),
+    model: str | None = typer.Option(None, "--model", help="Model type"),
     batch_size: int | None = typer.Option(
         None, "--batch-size", help="Images per detection batch"
     ),
