@@ -1,20 +1,66 @@
-# Document Extraction Pipeline
+# Agentic Document Extraction Engine
 
-A production-ready pipeline for extracting structured fields from business document images using vision-language models. Supports 12+ models via a declarative ModelSpec registry, 7 document types (invoices, receipts, bank statements, travel expenses, vehicle logbooks, transaction links, and universal), graph-based agentic extraction workflows, composition-based orchestration, multi-GPU parallel processing, and evaluation against ground truth (CSV or JSONL).
+A vision-language extraction system for business documents. Two execution shapes share the same JSONL artifact contract:
 
-**Supported document types:**
+- **Classic pipeline** — chain-shaped: `classify → extract (single-pass) → clean → evaluate`. Right for invoices, receipts, travel expenses, and vehicle logbooks where one image maps to one prompt.
+- **Agentic graph engine** — cycle-capable: YAML-defined node graphs with typed shared state (`WorkflowState`), conditional routing, validators, and Self-Refine retry on parse failure. Right for multi-turn workloads (bank statements, receipt-to-bank transaction linking) and probe-based classification (`the extraction IS the classification`).
+
+Both modes emit the same `raw_extractions.jsonl`, so the downstream `clean` and `evaluate` stages are unchanged. The graph engine is implemented in ~200 lines of framework-free Python (`common/graph_executor.py`) with no LangChain / LangGraph dependency.
+
+> **Engine deep-dive**: see [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md) for the GraphExecutor walk loop, node types, parser registry, post-processing helpers, and a step-by-step guide to authoring new workflows. See [`docs/graph_extraction_engine.md`](docs/graph_extraction_engine.md) for the probe-based classification design and bank subgraph internals.
+
+---
+
+## Two Execution Shapes
+
+```mermaid
+graph TB
+    subgraph Classic["Classic Pipeline (chain)"]
+        C1["classify"] --> C2["extract<br/>(single-pass)"] --> C3["clean"] --> C4["evaluate"]
+    end
+
+    subgraph Graph["Agentic Graph Engine (cycle-capable)"]
+        G1["GraphExecutor<br/>YAML-driven node walk"]
+        G2["WorkflowState<br/>typed shared state"]
+        G3["Validators / Routers<br/>conditional edges"]
+        G4["Self-Refine retry<br/>parse_failed self-edge"]
+        G1 --> G2
+        G1 --> G3
+        G1 --> G4
+    end
+
+    Classic -->|same JSONL| Out["raw_extractions.jsonl"]
+    Graph -->|same JSONL| Out
+    Out --> CL["clean → evaluate (shared)"]
+
+    style Classic fill:#264653,color:#fff
+    style Graph fill:#2d6a4f,color:#fff
+```
+
+### When each shape is used
+
+| Workload | Shape | Why |
+|---|---|---|
+| Invoice / receipt / travel / logbook extraction | Single-pass | One image → one prompt → field set. No state to carry between turns. |
+| Bank statement extraction | Multi-turn | Turn 0 detects column headers; Turn 1 adapts the extraction prompt to that layout. Two implementations: `UnifiedBankExtractor` (default) and the graph engine via `--graph-bank` (opt-in). |
+| Receipt-to-bank transaction linking | Cross-image graph | Receipt fields are injected into the bank-statement matching prompt. Validator gates the match by amount tolerance. |
+| Mixed-type batches | Probe-based graph (`--graph-robust`) | One extraction probe + one bank-header probe; the engine picks the winner by counting recovered fields. Eliminates misclassification-induced extraction errors. |
+
+---
+
+## Supported Document Types
 
 | Type | Key | Fields | Extraction Method |
 |------|-----|--------|-------------------|
 | Invoice | `INVOICE` | 14 | Single-pass (batched or sequential) |
 | Receipt | `RECEIPT` | 14 | Single-pass (batched or sequential) |
-| Bank Statement | `BANK_STATEMENT` | 5 | Multi-turn graph workflow (header detection + adaptive extraction) |
+| Bank Statement | `BANK_STATEMENT` | 5 | Multi-turn (UnifiedBankExtractor or graph) |
 | Travel Expense | `TRAVEL` | 9 | Single-pass with dedicated probe |
 | Vehicle Logbook | `LOGBOOK` | 16 | Single-pass with dedicated probe |
-| Transaction Link | `TRANSACTION_LINK` | 8 | Cross-image (receipt + bank statement matching) |
+| Transaction Link | `TRANSACTION_LINK` | 8 | Cross-image graph (receipt + bank statement) |
 | Universal | `UNIVERSAL` | 35 | Superset fallback |
 
-**Registered models:**
+## Registered Models
 
 | Model | Type | Backend | Bank Extraction | Batch Inference |
 |-------|------|---------|-----------------|-----------------|
@@ -32,9 +78,11 @@ A production-ready pipeline for extracting structured fields from business docum
 | Qwen3-VL-8B (vLLM) | `qwen3vl-vllm` | vLLM | Multi-turn | PagedAttention |
 | Gemma 4 31B-it | `gemma4` | vLLM | Multi-turn | PagedAttention |
 
+---
+
 ## Architecture Overview
 
-The pipeline has two execution modes: a **staged pipeline** (`entrypoint.sh`) for production KFP deployment and dev testing, and a **monolithic CLI** (`cli.py`) for ad-hoc experimentation. Both share the same underlying model backends, orchestrator, and evaluation code.
+The system has two entrypoints (`entrypoint.sh` for KFP/dev, `cli.py` for ad-hoc), four shared stages, the graph engine for multi-turn workloads, and a Protocol-based backend layer:
 
 ```mermaid
 graph TD
@@ -43,161 +91,165 @@ graph TD
         CLI["cli.py<br/>monolithic CLI"]
     end
 
-    subgraph Stages["Staged Pipeline (JSONL artifacts)"]
-        S1["stages.classify<br/>Document type detection"]
-        S2["stages.extract<br/>Field extraction"]
-        S3["stages.clean<br/>Parse + clean responses"]
-        S4["stages.evaluate<br/>F1 scoring"]
+    subgraph Stages["Stages (JSONL artifacts)"]
+        S1["stages.classify"]
+        S2["stages.extract"]
+        S3["stages.clean"]
+        S4["stages.evaluate"]
+        S5["stages.link<br/>(transaction linking)"]
     end
 
-    EP --> S1 & S2 & S3 & S4
-
-    subgraph Graph["Graph Workflows (opt-in)"]
-        GR["--graph-robust<br/>Probe-based classification"]
-        GU["--graph-unified<br/>Classify + extract in one pass"]
-        GB["--graph-bank<br/>Graph-based bank extraction"]
+    subgraph GraphEngine["Agentic Graph Engine"]
+        GE["GraphExecutor<br/>~200 LoC, framework-free"]
+        WF["prompts/workflows/*.yaml"]
+        WF --> GE
     end
 
-    S2 --> GR & GU & GB
-
-    subgraph Backends["Model Backends"]
+    subgraph Backends["Model Backends (Protocol)"]
         IVL["InternVL3Backend"]
         LLAMA["LlamaBackend"]
         HF["HFChatTemplateBackend"]
         VLLM["VllmBackend"]
     end
 
+    EP --> S1 & S2 & S3 & S4 & S5
     CLI --> Backends
-    GR & GU & GB --> GE["GraphExecutor<br/>YAML-driven node graph"]
+
+    S2 -->|--graph-robust / --graph-unified / --graph-bank| GE
+    S5 --> GE
     GE --> Backends
 ```
 
 ### Key Design Principles
 
-1. **Composition over inheritance**: `DocumentOrchestrator` has-a `ModelBackend` instead of inheriting from a base class. Backends implement a 3-method Protocol (`model`, `processor`, `generate()`). All shared logic lives in the orchestrator.
+1. **Composition over inheritance.** `DocumentOrchestrator` *has-a* `ModelBackend` rather than inheriting from a base class. Backends implement a 3-method Protocol (`model`, `processor`, `generate()`); all shared logic lives in the orchestrator.
 
-2. **Declarative model registration** (`models/model_loader.py`): `ModelSpec` and `VllmSpec` dataclasses replace ~600 lines of hand-written loader functions. Each registration is ~8 lines of configuration.
+2. **Declarative model registration** (`models/registry.py`). `ModelSpec` and `VllmSpec` dataclasses replace ~600 lines of hand-written loaders. Each registration is ~8 lines.
 
-3. **Ports & Adapters for response handling** (`common/response_handler.py`): Four narrow Protocol ports (`ResponseParser`, `FieldCleaner`, `BusinessValidator`, `FieldSchemaPort`) compose into a `ResponseHandler` that runs parse -> clean -> validate. GPU-free testable.
+3. **Ports & Adapters response handling** (`common/response_handler.py`). Four narrow Protocol ports — `ResponseParser`, `FieldCleaner`, `BusinessValidator`, `FieldSchemaPort` — compose into a `ResponseHandler` that runs parse → clean → validate. GPU-free testable.
 
-4. **Callable-based bank extraction**: `UnifiedBankExtractor` accepts a `generate_fn` callable, eliminating model-type branching. Both HF and vLLM models get the full multi-turn bank extraction pipeline.
+4. **Callable-based bank extraction.** `UnifiedBankExtractor` accepts a `generate_fn` callable, so HF and vLLM backends share the same multi-turn pipeline with no model-type branching.
 
-5. **Config cascade**: CLI flags > YAML (`run_config.yml`) > ENV vars (`IVL_*`) > dataclass defaults. `AppConfig.load()` replaces the former 7-step config dance and 13 mutable globals.
+5. **Config cascade.** CLI flags > YAML (`run_config.yml`) > env vars (`IVL_*`) > dataclass defaults. `AppConfig.load()` collapses what was a 7-step config dance plus 13 mutable globals.
 
-6. **Graph-based agentic workflows**: `GraphExecutor` walks YAML-defined node graphs with typed state, self-refine retry on parse failure, and full observability traces. Enables probe-based classification where "the extraction IS the classification".
+6. **Graph engine as additive layer.** `GraphExecutor` walks YAML-defined node graphs with typed `WorkflowState`, Self-Refine retry on parse failure, and a `WorkflowTrace` for observability. It produces the same JSONL artifact format as the single-pass path, so `clean.py` and `evaluate.py` are unchanged.
 
-## Project Structure
+---
+
+## The Agentic Graph Engine
+
+The `GraphExecutor` is a YAML-driven node graph walker for multi-turn, multi-probe extraction. ~200 lines of framework-free Python with `match/case` dispatch (PEP 634).
+
+### Core Concepts
+
+- **Nodes** — each node is a prompt template with a parser and named edges to the next node.
+- **Typed state** — `WorkflowState` carries parser outputs between nodes, accessed via dot-paths (`detect_headers.column_mapping.debit`). Implements the MetaGPT structured-output pattern: downstream nodes consume typed dicts, not raw strings.
+- **Validators and routers** — `type: validator` nodes run named checks (e.g. `amount_gate`) and emit `ok` / `failed`. `type: router` nodes branch on state conditions. Neither makes a model call.
+- **Self-Refine retry** — on `ParseError`, the executor follows the `parse_failed` self-edge, appending a `reflection` template (with `{error}` substituted) to the original prompt. After exhausting `max_retries`, it proceeds via `ok` with the error payload — never silently drops data.
+- **Circuit breaker** — `max_graph_steps=20` (configurable) caps total node executions, preventing infinite loops from misconfigured edges.
+- **Observability** — `WorkflowTrace` records every node visited, every edge taken, retry counts, total model calls, and elapsed time. Serialized into `raw_extractions.jsonl`.
+
+### Available Workflows
+
+| Workflow | YAML | Flag / Stage | Description |
+|----------|------|--------------|-------------|
+| Robust Extract | `robust_extract.yaml` | `--graph-robust` | Probe-based classification + extraction |
+| Unified Extract | `unified_extract.yaml` | `--graph-unified` | Classify + extract in a single graph pass |
+| Bank Extract | `bank_extract.yaml` | `--graph-bank` | Graph-based bank statement extraction |
+| Transaction Link | `transaction_link.yaml` | `python -m stages.link` | Cross-image receipt-to-bank matching |
+
+### Probe-Based Classification (`--graph-robust`)
+
+Eliminates misclassification by replacing the separate classification call with two extraction probes. The validator picks the winner; the extracted fields from the winning probe are reused, so receipts and invoices need no second pass.
+
+```mermaid
+graph TD
+    PD["probe_document<br/>14-field extraction attempt"]
+    PB["probe_bank_headers<br/>Bank column detection"]
+    SBT["select_best_type<br/>Validator: compare field counts"]
+    RBT["route_best_type<br/>Router: dispatch by doc type"]
+
+    PD --> PB --> SBT --> RBT
+
+    RBT -->|"is_receipt"| DONE1["done (probe fields reused)"]
+    RBT -->|"is_invoice"| DONE2["done (probe fields reused)"]
+    RBT -->|"is_travel"| PT["probe_travel<br/>9-field travel extraction"]
+    RBT -->|"is_logbook"| PL["probe_logbook<br/>16-field logbook extraction"]
+    RBT -->|"is_bank_statement"| BANK["Bank subgraph<br/>Header detect + adaptive extract"]
+
+    PT --> DONE3["done"]
+    PL --> DONE4["done"]
+    BANK --> DONE5["done"]
+```
+
+**Model calls per document type**:
+- Receipt / Invoice — 2 (document probe + bank-header probe; fields already extracted)
+- Travel / Logbook — 3 (probes + type-specific extraction)
+- Bank Statement — 4 (probes + header detect + adaptive extraction)
+
+The `select_best_type` validator scores both probes: the document probe by counting non-`NOT_FOUND` fields, the bank probe by counting detected column mappings. Bank wins when it has 3+ real columns AND the document probe scored below 6 fields.
+
+### Transaction Linking (`stages.link`)
+
+Pairs a receipt image with a bank statement image and produces a single `raw_extractions.jsonl` record:
+
+```bash
+python -m stages.link \
+  --pairs pairs.csv \
+  --data-dir /data/images \
+  --output /artifacts/raw_extractions.jsonl \
+  --model internvl3-vllm
+```
+
+The four-node graph (`extract_receipts → detect_headers → match_to_statement → validate_amounts`) flows receipt fields and bank header columns into the matching prompt; an amount-tolerance validator overrides matches that disagree by >1%.
+
+---
+
+## The Classic Pipeline
+
+For document types where one prompt extracts everything (invoices, receipts, travel, logbooks), the classic four-stage chain is the simpler path:
 
 ```
-.
-├── cli.py                                 # Monolithic CLI entry point (--model flag)
-├── entrypoint.sh                          # KFP pipeline entrypoint (stage dispatch)
-├── config/
-│   ├── run_config.yml                     # Single source of truth for all config
-│   ├── field_definitions.yaml             # Document types, fields, evaluation settings
-│   └── model_config.yaml                  # Model configs for unified bank extraction
-├── prompts/
-│   ├── document_type_detection.yaml       # Detection prompts + type mappings
-│   ├── internvl3_prompts.yaml             # InternVL3 extraction prompts
-│   ├── llama_prompts.yaml                 # Llama extraction prompts
-│   ├── llama4scout_prompts.yaml           # Llama 4 Scout extraction prompts
-│   ├── qwen3vl_prompts.yaml              # Qwen3-VL extraction prompts
-│   ├── bank_prompts.yaml                  # Bank statement multi-turn prompts
-│   ├── bank_column_patterns.yaml          # Column header patterns for bank extraction
-│   └── workflows/                         # Graph-based extraction workflows
-│       ├── robust_extract.yaml            # Probe-based classification + extraction
-│       ├── unified_extract.yaml           # Classify + extract in one graph pass
-│       ├── bank_extract.yaml              # Graph-based bank statement extraction
-│       └── transaction_link.yaml          # Cross-image receipt-to-bank matching
-├── models/
-│   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
-│   ├── backend.py                         # ModelBackend + BatchInference Protocols
-│   ├── registry.py                        # Declarative ModelSpec/VllmSpec registrations
-│   ├── model_loader.py                    # Generic loader factories (ModelSpec, VllmSpec)
-│   ├── orchestrator.py                    # DocumentOrchestrator (composition-based)
-│   ├── internvl3_image_preprocessor.py    # Image tiling and tensor preparation
-│   ├── attention.py                       # SDPA attention routing
-│   ├── gpu_utils.py                       # GPU device queries
-│   ├── sharding.py                        # Multi-GPU model sharding
-│   └── backends/
-│       ├── internvl3.py                   # InternVL3 .chat() / .batch_chat()
-│       ├── llama.py                       # Llama 3.2 .apply_chat_template()
-│       ├── hf_chat_template.py            # Parametric backend (Qwen, Nemotron, etc.)
-│       └── vllm_backend.py               # vLLM offline engine backend
-├── common/
-│   ├── app_config.py                      # AppConfig.load() -- unified config
-│   ├── pipeline_config.py                 # PipelineConfig dataclass, config merging
-│   ├── pipeline_ops.py                    # load_model, create_processor, run_batch
-│   ├── document_pipeline.py               # DocumentPipeline (detect -> extract -> evaluate)
-│   ├── graph_executor.py                  # GraphExecutor -- YAML-driven node graph walker
-│   ├── bank_post_process.py               # Bank post-processing + select_best_type validator
-│   ├── field_schema.py                    # FieldSchema (frozen, cached singleton)
-│   ├── prompt_catalog.py                  # PromptCatalog -- unified YAML prompt loading
-│   ├── response_handler.py                # ResponseHandler (ports & adapters)
-│   ├── extraction_parser.py               # Raw model output -> structured dicts
-│   ├── extraction_cleaner.py              # Value normalisation and cleaning
-│   ├── extraction_evaluator.py            # Per-image evaluation logic (fail-fast)
-│   ├── evaluation_metrics.py              # Ground truth comparison, F1 scores
-│   ├── unified_bank_extractor.py          # Multi-turn bank extraction (2-turn adaptive)
-│   ├── bank_corrector.py                  # Balance correction and transaction filtering
-│   ├── bank_types.py                      # Bank extraction dataclasses and enums
-│   ├── bank_statement_calculator.py       # Transaction type/amount derivation
-│   ├── multi_gpu.py                       # MultiGPUOrchestrator (ThreadPoolExecutor)
-│   ├── gpu_memory.py                      # get_available_memory, release_memory
-│   ├── batch_processor.py                 # print_accuracy_by_document_type()
-│   ├── batch_analytics.py                 # DataFrames and statistics
-│   ├── batch_reporting.py                 # Executive summaries and reports
-│   ├── batch_visualizations.py            # Dashboards, heatmaps, charts
-│   ├── batch_types.py                     # BatchResult, BatchStats, etc.
-│   ├── model_config.py                    # Generation config, batch sizes
-│   └── simple_model_evaluator.py          # Quick model accuracy summary
-├── stages/                                # KFP staged pipeline modules
-│   ├── __init__.py
-│   ├── io.py                              # JSONL I/O helpers (streaming writer, resumption)
-│   ├── classify.py                        # Stage 1: document detection (GPU)
-│   ├── extract.py                         # Stage 2: field extraction (GPU)
-│   ├── clean.py                           # Stage 3: parse/clean responses (CPU)
-│   └── evaluate.py                        # Stage 4: evaluation (CPU)
-├── scripts/
-│   ├── run_graph_robust.sh                # 3-stage probe-based pipeline
-│   ├── run_graph_unified.sh               # 3-stage unified classify+extract pipeline
-│   ├── run_graph_bank.sh                  # 4-stage graph-based bank extraction
-│   ├── run_baseline_bank.sh               # 4-stage legacy bank extraction (baseline)
-│   ├── csv_to_jsonl.py                    # Convert ground truth CSV to JSONL
-│   └── resolve_yaml_defaults.py           # Extract YAML defaults for entrypoint.sh
-├── tests/                                 # pytest test suite
-├── conda_envs/                            # Conda environment YAML files
-├── docs/                                  # Documentation and design docs
-├── notebooks/                             # Jupyter notebooks (experiments, benchmarks)
-└── evaluation_data/                       # Ground truth CSVs/JSONL and test images
+classify (GPU) → classifications.jsonl
+    → extract (GPU) → raw_extractions.jsonl
+        → clean (CPU) → cleaned_extractions.jsonl
+            → evaluate (CPU) → evaluation_results.jsonl
 ```
+
+CPU stages don't need a GPU allocation, which matters for KFP pod scheduling.
+
+The `extract` stage routes by document type:
+- Invoice / receipt / travel / logbook → single-pass via `DocumentOrchestrator.process()`
+- Bank statement → multi-turn via `UnifiedBankExtractor` (or graph if `--graph-bank` is set)
+
+---
 
 ## Quick Start
 
-### Using entrypoint.sh (recommended for dev/production)
+### Using `entrypoint.sh` (recommended for dev/production)
 
 `entrypoint.sh` handles conda activation, GPU health checks, logging, and wall-clock timing automatically. Configuration comes from environment variables and `config/run_config.yml`.
 
 ```bash
-# Run the full 4-stage classic pipeline (classify -> extract -> clean -> evaluate)
+# Classic 4-stage pipeline (classify → extract → clean → evaluate)
 KFP_TASK=run_batch_inference \
   image_dir=../evaluation_data/synthetic \
   ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
 
-# Run the 3-stage probe-based pipeline (no separate classification stage)
+# Graph 3-stage probe-based pipeline (extract --graph-robust → clean → evaluate)
 KFP_TASK=run_graph_robust \
   image_dir=../evaluation_data/synthetic \
   ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
 
-# Inference only (no evaluation)
+# Inference only (no ground truth, skip evaluation)
 KFP_TASK=run_graph_robust \
   image_dir=../evaluation_data/synthetic \
   bash entrypoint.sh
 ```
 
-### Using cli.py (ad-hoc experimentation)
+### Using `cli.py` (ad-hoc experimentation)
 
 ```bash
 # Create environment
@@ -217,40 +269,115 @@ python cli.py --model llama -d ./images -o ./output -g ./ground_truth.csv
 python cli.py -d ./images -o ./output --num-gpus 0
 ```
 
-### Using run scripts (lightweight, no entrypoint overhead)
+### Using run scripts (no entrypoint overhead)
 
-The `scripts/run_*.sh` scripts call `stages.*` modules directly without conda activation or GPU health checks. Useful when your environment is already set up.
+`scripts/run_*.sh` call `stages.*` directly without conda activation or GPU health checks. Useful when your environment is already set up.
 
 ```bash
-# Probe-based pipeline (all document types)
-bash scripts/run_graph_robust.sh
-
-# Unified classify+extract pipeline (bank statements)
-bash scripts/run_graph_unified.sh
-
-# Graph-based bank extraction with separate classify step
-bash scripts/run_graph_bank.sh
-
-# Legacy baseline bank extraction
-bash scripts/run_baseline_bank.sh
+bash scripts/run_graph_robust.sh    # Probe-based graph pipeline
+bash scripts/run_graph_unified.sh   # Unified classify+extract graph
+bash scripts/run_graph_bank.sh      # Graph-based bank extraction
+bash scripts/run_baseline_bank.sh   # Legacy single-prompt bank extraction
 ```
 
-## Usage
+---
 
-### Pipeline Modes
+## Project Structure
 
-The pipeline supports two orchestration modes, each available via `entrypoint.sh`:
+```
+.
+├── cli.py                                 # Monolithic CLI (--model flag)
+├── entrypoint.sh                          # KFP_TASK dispatch
+├── config/
+│   ├── run_config.yml                     # Single source of truth for tunables
+│   ├── field_definitions.yaml             # Document types, fields, evaluation settings
+│   └── model_config.yaml                  # Model configs for unified bank extraction
+├── prompts/
+│   ├── document_type_detection.yaml       # Detection prompts + type mappings
+│   ├── internvl3_prompts.yaml             # Per-model extraction prompts
+│   ├── llama_prompts.yaml                 #   …
+│   ├── llama4scout_prompts.yaml
+│   ├── qwen3vl_prompts.yaml
+│   ├── bank_prompts.yaml                  # Bank statement multi-turn prompts
+│   ├── bank_column_patterns.yaml          # Column header patterns
+│   └── workflows/                         # Graph-engine workflow YAMLs
+│       ├── robust_extract.yaml            #   probe-based classification + extraction
+│       ├── unified_extract.yaml           #   classify + extract in one graph
+│       ├── bank_extract.yaml              #   graph-based bank statement extraction
+│       └── transaction_link.yaml          #   cross-image receipt → bank matching
+├── models/
+│   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
+│   ├── backend.py                         # ModelBackend + BatchInference Protocols
+│   ├── registry.py                        # Declarative ModelSpec/VllmSpec registrations
+│   ├── model_loader.py                    # Generic loader factories
+│   ├── orchestrator.py                    # DocumentOrchestrator (composition-based)
+│   ├── attention.py                       # SDPA attention routing
+│   ├── sharding.py                        # Multi-GPU model sharding
+│   └── backends/
+│       ├── internvl3.py                   # .chat() / .batch_chat()
+│       ├── llama.py                       # .apply_chat_template() + .generate()
+│       ├── hf_chat_template.py            # Parametric backend (Qwen, Nemotron, Granite, …)
+│       └── vllm_backend.py                # vLLM offline engine
+├── common/
+│   ├── app_config.py                      # AppConfig.load() — unified config cascade
+│   ├── pipeline_config.py                 # PipelineConfig dataclass
+│   ├── pipeline_ops.py                    # load_model, create_processor, run_batch
+│   ├── document_pipeline.py               # DocumentPipeline (detect → extract → evaluate)
+│   ├── graph_executor.py                  # GraphExecutor — YAML graph walker
+│   ├── graph_generate.py                  # generate_fn factories (vLLM, simple)
+│   ├── extraction_types.py                # NodeGenParams, WorkflowState, ExtractionSession, …
+│   ├── turn_parsers.py                    # 4 parsers + post-processing helpers + registry
+│   ├── unified_bank_extractor.py          # 2-turn adaptive bank extraction
+│   ├── bank_post_process.py               # select_best_type validator, balance correction
+│   ├── response_handler.py                # ResponseHandler (ports & adapters)
+│   ├── extraction_parser.py               # Raw model output → structured dicts
+│   ├── extraction_cleaner.py              # Value normalisation
+│   ├── extraction_evaluator.py            # Per-image evaluation (fail-fast)
+│   ├── evaluation_metrics.py              # Ground truth comparison, F1
+│   ├── multi_gpu.py                       # MultiGPUOrchestrator (ThreadPoolExecutor)
+│   ├── gpu_memory.py                      # VRAM queries, fragmentation handling
+│   ├── batch_*.py                         # Analytics, reporting, visualizations
+│   ├── prompt_catalog.py                  # Unified YAML prompt loading
+│   ├── field_schema.py                    # FieldSchema (frozen, cached singleton)
+│   └── AGENTIC_ENGINE_README.md           # Engine deep-dive (read this for graph internals)
+├── stages/
+│   ├── classify.py                        # Stage 1: document detection (GPU)
+│   ├── extract.py                         # Stage 2: field extraction (GPU)
+│   ├── clean.py                           # Stage 3: parse + clean (CPU)
+│   ├── evaluate.py                        # Stage 4: evaluation (CPU)
+│   ├── link.py                            # Cross-image transaction linking (GPU, graph)
+│   └── io.py                              # JSONL streaming writer + resumption
+├── scripts/
+│   ├── run_graph_robust.sh                # 3-stage probe-based pipeline
+│   ├── run_graph_unified.sh               # 3-stage unified classify+extract
+│   ├── run_graph_bank.sh                  # 4-stage graph-based bank extraction
+│   ├── run_baseline_bank.sh               # 4-stage legacy bank extraction
+│   ├── csv_to_jsonl.py                    # Convert ground truth CSV → JSONL
+│   └── resolve_yaml_defaults.py           # Extract YAML defaults for entrypoint.sh
+├── tests/                                 # pytest suite (graph executor, parsers, … all GPU-free)
+├── conda_envs/                            # Conda environment YAMLs
+├── docs/                                  # Design docs and analysis
+└── notebooks/                             # Experiments and benchmarks
+```
+
+---
+
+## Pipeline Modes
 
 | Mode | `KFP_TASK` | Stages | Best For |
 |------|------------|--------|----------|
-| Classic | `run_batch_inference` | classify -> extract -> clean -> evaluate | Production KFP, separate GPU pods |
-| Robust | `run_graph_robust` | extract (--graph-robust) -> clean -> evaluate | Dev iteration, mixed doc types |
+| Classic | `run_batch_inference` | classify → extract → clean → evaluate | Production KFP, separate GPU pods, one-prompt-per-type docs |
+| Robust (graph) | `run_graph_robust` | extract `--graph-robust` → clean → evaluate | Mixed-type batches, eliminating misclassification errors |
+| Unified (graph) | `run_graph_unified` | extract `--graph-unified` → clean → evaluate | Single graph pass for classify + extract |
+| Bank graph | `run_graph_bank` | classify → extract `--graph-bank` → clean → evaluate | Graph-based bank extraction with explicit classify step |
 
-**Classic mode** runs classification as a separate GPU process, then feeds `classifications.jsonl` to the extract stage. This mirrors the KFP pod-per-stage deployment where each stage runs in its own container.
+**Classic mode** runs classification as a separate GPU process, then feeds `classifications.jsonl` into the extract stage. Mirrors the KFP pod-per-stage deployment.
 
-**Robust mode** skips classification entirely. The extract stage runs two probes per image (a document field extraction probe and a bank header detection probe), then picks the winner by counting extracted fields vs NOT_FOUND. "The extraction IS the classification." This eliminates misclassification-induced extraction errors.
+**Robust mode** skips classification. The extract stage runs two probes per image (document field probe + bank header probe), then a validator picks the winner by counting recovered fields. *The extraction is the classification.*
 
-### entrypoint.sh Reference
+---
+
+## entrypoint.sh Reference
 
 `entrypoint.sh` dispatches work via the `KFP_TASK` environment variable. It handles:
 - Conda activation (configurable via `LMM_CONDA_ENV`)
@@ -260,124 +387,89 @@ The pipeline supports two orchestration modes, each available via `entrypoint.sh
 - Wall-clock timing across stages
 - YAML defaults from `config/run_config.yml`
 
-#### Environment Variables
+### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `KFP_TASK` | Yes | Pipeline mode or stage name (see below) |
-| `image_dir` | Yes | Path to directory of document images |
-| `ground_truth` | No | Path to ground truth CSV or JSONL (omit for inference-only) |
+| `KFP_TASK` | Yes | Pipeline mode or stage name |
+| `image_dir` | Yes | Directory of document images |
+| `ground_truth` | No | Ground truth CSV or JSONL (omit for inference-only) |
 | `output` | No | Output directory (default: `./outputs`) |
-| `model` | No | Model type (default: from `run_config.yml`, fallback: `internvl3`) |
-| `num_gpus` | No | GPU count (0=auto, 1=single, N=use N) |
+| `model` | No | Model type (default: from `run_config.yml`, fallback `internvl3`) |
+| `num_gpus` | No | GPU count (`0`=auto, `1`=single, `N`=use N) |
 | `LMM_CONDA_ENV` | No | Conda environment path (default: production path) |
 | `LMM_LOG_DIR` | No | Log directory (default: from `run_config.yml`) |
 
-#### Available KFP_TASK Values
-
-**Orchestrated pipelines** (local dev -- chain all stages in one shell):
+### Orchestrated Pipelines (local dev — chain all stages in one shell)
 
 ```bash
-# 4-stage classic pipeline: classify -> extract -> clean -> evaluate
+# Classic 4-stage pipeline
 KFP_TASK=run_batch_inference \
   image_dir=../evaluation_data/synthetic \
   ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
 
-# 3-stage probe-based pipeline: extract --graph-robust -> clean -> evaluate
+# Graph 3-stage probe-based pipeline
 KFP_TASK=run_graph_robust \
   image_dir=../evaluation_data/synthetic \
   ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
 ```
 
-**Individual stages** (KFP production -- one pod per stage):
+### Individual Stages (KFP production — one pod per stage)
 
 ```bash
-# Stage 1: Classify document types (GPU)
-# Writes classifications.jsonl -- one record per image with document_type and confidence.
+# Stage 1: Classify (GPU) — writes classifications.jsonl
 KFP_TASK=classify \
   image_dir=../evaluation_data/synthetic \
   output=./outputs \
   model=internvl3 \
   bash entrypoint.sh
 
-# Stage 2: Extract fields (GPU)
-# Reads classifications.jsonl, writes raw_extractions.jsonl.
-# Supports resumption -- if it crashes at image 8,500 of 10,000,
-# it reads the partial output and continues from where it left off.
+# Stage 2: Extract (GPU) — reads classifications.jsonl, writes raw_extractions.jsonl
+# Crash-resumable: re-reads partial output and resumes.
 KFP_TASK=extract \
   image_dir=../evaluation_data/synthetic \
   output=./outputs \
   model=internvl3 \
   bash entrypoint.sh
 
-# Stage 3: Parse and clean raw responses (CPU, no GPU needed)
-# Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
+# Stage 3: Clean (CPU) — reads raw_extractions.jsonl, writes cleaned_extractions.jsonl
 KFP_TASK=clean \
   output=./outputs \
   bash entrypoint.sh
 
-# Stage 4: Evaluate against ground truth (CPU, no GPU needed)
-# Reads cleaned_extractions.jsonl + ground truth, writes evaluation_results.jsonl.
+# Stage 4: Evaluate (CPU) — writes evaluation_results.jsonl
 KFP_TASK=evaluate \
   output=./outputs \
   ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
 ```
 
-#### Artifact Flow
-
-Each stage reads and writes JSONL files. CPU stages (clean, evaluate) don't need a GPU allocation.
+### Artifact Flow
 
 ```
-classify (GPU) -> classifications.jsonl
-    -> extract (GPU) -> raw_extractions.jsonl
-        -> clean (CPU) -> cleaned_extractions.jsonl
-            -> evaluate (CPU) -> evaluation_results.jsonl
+classify (GPU) → classifications.jsonl
+    → extract (GPU) → raw_extractions.jsonl
+        → clean (CPU) → cleaned_extractions.jsonl
+            → evaluate (CPU) → evaluation_results.jsonl
 ```
 
-With `--graph-robust`, the classify stage is skipped:
+With `--graph-robust`, classification is folded into the extract stage:
 
 ```
-extract --graph-robust (GPU) -> raw_extractions.jsonl
-    -> clean (CPU) -> cleaned_extractions.jsonl
-        -> evaluate (CPU) -> evaluation_results.jsonl
+extract --graph-robust (GPU) → raw_extractions.jsonl
+    → clean (CPU) → cleaned_extractions.jsonl
+        → evaluate (CPU) → evaluation_results.jsonl
 ```
 
-#### Examples
+---
 
-```bash
-# Dev machine with custom conda env
-LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env2 \
-  KFP_TASK=run_graph_robust \
-  image_dir=../evaluation_data/synthetic \
-  ground_truth=../evaluation_data/synthetic/ground_truth.jsonl \
-  bash entrypoint.sh
+## stages.* CLI Reference
 
-# Override model type
-KFP_TASK=run_batch_inference \
-  image_dir=../evaluation_data/synthetic \
-  model=llama \
-  bash entrypoint.sh
+Each stage module is also callable directly via `python -m stages.<name>`.
 
-# Custom output directory
-KFP_TASK=run_graph_robust \
-  image_dir=../evaluation_data/synthetic \
-  output=../evaluation_data/artifacts/experiment_01 \
-  bash entrypoint.sh
-
-# Inference only (no ground truth, no evaluation)
-KFP_TASK=run_graph_robust \
-  image_dir=../evaluation_data/synthetic \
-  bash entrypoint.sh
-```
-
-### stages.* CLI Reference
-
-Each stage module can also be called directly via `python -m stages.<name>`:
-
-#### stages.classify
+### `stages.classify`
 
 ```bash
 python -m stages.classify \
@@ -396,10 +488,10 @@ python -m stages.classify \
 | `--verbose/--no-verbose` | `None` | Debug logging |
 | `--debug/--no-debug` | `None` | Extra debug output |
 
-#### stages.extract
+### `stages.extract`
 
 ```bash
-# Classic mode (with classifications from Stage 1)
+# Classic mode (uses classifications from Stage 1)
 python -m stages.extract \
   --classifications ./outputs/classifications.jsonl \
   --data-dir ../evaluation_data/synthetic \
@@ -412,7 +504,7 @@ python -m stages.extract \
   --output-dir ./outputs/raw_extractions.jsonl \
   --graph-robust
 
-# Unified mode (classify + extract in one graph pass)
+# Unified mode (classify + extract in one graph)
 python -m stages.extract \
   --data-dir ../evaluation_data/synthetic \
   --output-dir ./outputs/raw_extractions.jsonl \
@@ -433,16 +525,16 @@ python -m stages.extract \
 | `--output-dir, -o` | *required* | Output JSONL path |
 | `--model` | `internvl3` | Model type |
 | `--batch-size` | `None` (auto) | Images per batch |
-| `--bank-v2/--no-bank-v2` | `true` | Multi-turn bank extraction |
+| `--bank-v2/--no-bank-v2` | `true` | Multi-turn bank extraction (UnifiedBankExtractor) |
 | `--balance-correction/--no-balance-correction` | `true` | Balance validation for bank statements |
-| `--graph-bank/--no-graph-bank` | `false` | Use graph-based bank extraction workflow |
-| `--graph-unified/--no-graph-unified` | `false` | Unified classify+extract graph workflow |
-| `--graph-robust/--no-graph-robust` | `false` | Probe-based classification workflow |
+| `--graph-bank/--no-graph-bank` | `false` | Use graph-engine bank extraction |
+| `--graph-unified/--no-graph-unified` | `false` | Unified classify+extract graph |
+| `--graph-robust/--no-graph-robust` | `false` | Probe-based classification graph |
 | `--config` | `None` | YAML config path |
 | `--verbose/--no-verbose` | `None` | Debug logging |
 | `--debug/--no-debug` | `None` | Extra debug output |
 
-#### stages.clean
+### `stages.clean`
 
 ```bash
 python -m stages.clean \
@@ -456,7 +548,7 @@ python -m stages.clean \
 | `--output-dir, -o` | *required* | Output cleaned extractions JSONL path |
 | `--debug` | `false` | Debug output |
 
-#### stages.evaluate
+### `stages.evaluate`
 
 ```bash
 python -m stages.evaluate \
@@ -470,29 +562,54 @@ python -m stages.evaluate \
 | `--input, -i` | *required* | Input cleaned extractions JSONL |
 | `--ground-truth, -g` | *required* | Ground truth CSV or JSONL |
 | `--output-dir, -o` | *required* | Output directory for evaluation results |
-| `--math-enhancement/--no-math-enhancement` | `false` | Bank statement balance calculations |
+| `--math-enhancement/--no-math-enhancement` | `false` | Bank balance calculations |
 | `--wall-clock-start` | `None` | Pipeline start epoch (for wall-clock timing) |
 
-### Ground Truth Formats
+### `stages.link`
 
-The pipeline supports two ground truth formats:
+Cross-image transaction linking — pairs receipts with bank statements via the four-node graph (`extract_receipts → detect_headers → match_to_statement → validate_amounts`).
 
-**CSV**: All columns present for all rows; fields not applicable to a document type are filled with `NOT_FOUND`. The evaluator uses `field_definitions.yaml` to determine which fields to score for each type.
+```bash
+python -m stages.link \
+  --pairs pairs.csv \
+  --data-dir /data/images \
+  --output /artifacts/raw_extractions.jsonl \
+  --model internvl3-vllm
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--pairs` | *required* | CSV with `receipt_file`, `bank_statement_file` columns |
+| `--data-dir, -d` | *required* | Directory containing the images |
+| `--output, -o` | *required* | Path to write `raw_extractions.jsonl` |
+| `--model` | `internvl3-vllm` | Model type for loading |
+| `--workflow` | built-in | Path to custom workflow YAML |
+| `--config` | `None` | Path to `run_config.yml` |
+
+Output is compatible with `stages.clean` and `stages.evaluate` — `transaction_link` is registered in `field_definitions.yaml` with 8 fields.
+
+---
+
+## Ground Truth Formats
+
+Two formats are supported:
+
+**CSV** — all columns present for all rows; fields not applicable to a document type are filled with `NOT_FOUND`. The evaluator uses `field_definitions.yaml` to determine which fields to score per type.
 
 ```csv
 filename,DOCUMENT_TYPE,SUPPLIER_NAME,TOTAL_AMOUNT,...
 receipt_001.png,RECEIPT,Coffee Shop,$4.50,...
 ```
 
-**JSONL** (recommended): Each record carries only its document type's fields. The evaluator scores exactly the fields present in each record, no `field_definitions.yaml` lookup needed.
+**JSONL (recommended)** — each record carries only its document type's fields. The evaluator scores exactly the fields present in each record; no `field_definitions.yaml` lookup needed.
 
 ```json
-{"filename": "receipt_001.png", "DOCUMENT_TYPE": "RECEIPT", "SUPPLIER_NAME": "Coffee Shop", "TOTAL_AMOUNT": "$4.50", ...}
-{"filename": "bank_001.png", "DOCUMENT_TYPE": "BANK_STATEMENT", "STATEMENT_DATE_RANGE": "01/01/2026 - 31/01/2026", ...}
-{"filename": "travel_001.png", "DOCUMENT_TYPE": "TRAVEL", "PASSENGER_NAME": "Jane Doe", "TRAVEL_MODE": "Flight", ...}
+{"filename": "receipt_001.png", "DOCUMENT_TYPE": "RECEIPT", "SUPPLIER_NAME": "Coffee Shop", "TOTAL_AMOUNT": "$4.50"}
+{"filename": "bank_001.png", "DOCUMENT_TYPE": "BANK_STATEMENT", "STATEMENT_DATE_RANGE": "01/01/2026 - 31/01/2026"}
+{"filename": "travel_001.png", "DOCUMENT_TYPE": "TRAVEL", "PASSENGER_NAME": "Jane Doe", "TRAVEL_MODE": "Flight"}
 ```
 
-Convert CSV to JSONL:
+Convert CSV → JSONL:
 
 ```bash
 python -m scripts.csv_to_jsonl \
@@ -500,88 +617,13 @@ python -m scripts.csv_to_jsonl \
   --output ../evaluation_data/synthetic/ground_truth.jsonl
 ```
 
-## Graph-Based Extraction Engine
-
-> **Deep-dive**: See [`docs/graph_extraction_engine.md`](docs/graph_extraction_engine.md) for full architectural documentation including the GraphExecutor walk loop, node types, YAML authoring guide, parser reference, probe-based classification details, bank subgraph internals, and a step-by-step guide for authoring new workflows.
-
-The `GraphExecutor` (`common/graph_executor.py`) is a YAML-driven node graph walker that enables multi-turn, multi-probe extraction workflows. It is ~200 lines with no framework dependencies.
-
-### Core Concepts
-
-- **Nodes**: Each node is a prompt template with a parser and edges to the next node
-- **State**: `WorkflowState` carries typed results between nodes (MetaGPT pattern)
-- **Self-refine**: On parse failure, the graph retries with reflection (the error message is included in the retry prompt)
-- **Observability**: Full `WorkflowTrace` records every node execution, token counts, and timing
-
-### Available Workflows
-
-| Workflow | YAML | Flag | Description |
-|----------|------|------|-------------|
-| Robust Extract | `robust_extract.yaml` | `--graph-robust` | Probe-based classification + extraction |
-| Unified Extract | `unified_extract.yaml` | `--graph-unified` | Single-graph classify + extract |
-| Bank Extract | `bank_extract.yaml` | `--graph-bank` | Graph-based bank statement extraction |
-| Transaction Link | `transaction_link.yaml` | *(programmatic)* | Cross-image receipt-to-bank matching |
-
-### Robust Probe-Based Classification
-
-The `--graph-robust` workflow eliminates misclassification by using extraction probes instead of a separate classification call:
-
-```mermaid
-graph TD
-    PD["probe_document<br/>14-field extraction attempt"]
-    PB["probe_bank_headers<br/>Bank column detection"]
-    SBT["select_best_type<br/>Validator: compare field counts"]
-    RBT["route_best_type<br/>Router: dispatch by doc type"]
-
-    PD --> PB --> SBT --> RBT
-
-    RBT -->|"is_receipt"| DONE1["done<br/>Probe fields already extracted"]
-    RBT -->|"is_invoice"| DONE2["done<br/>Probe fields already extracted"]
-    RBT -->|"is_travel"| PT["probe_travel<br/>9-field travel extraction"]
-    RBT -->|"is_logbook"| PL["probe_logbook<br/>16-field logbook extraction"]
-    RBT -->|"is_bank_statement"| BANK["Bank subgraph<br/>Header detect + adaptive extract"]
-
-    PT --> DONE3["done"]
-    PL --> DONE4["done"]
-    BANK --> DONE5["done"]
-```
-
-**Model calls per document type:**
-- Receipt/Invoice: 2 (document probe + bank header probe -- fields already extracted)
-- Travel/Logbook: 3 (probes + type-specific extraction)
-- Bank Statement: 4 (probes + bank header detect + adaptive extraction)
-
-The `select_best_type` validator scores both probes: the document probe by counting non-NOT_FOUND fields, and the bank probe by counting detected column mappings. Bank wins when it has 3+ real columns AND the document probe scored below 6 fields.
-
-## Pipeline Flow
-
-```mermaid
-graph TD
-    IMG["Document Images"] --> DET
-
-    DET["Detection<br/>Classify document type"]
-    DET -->|"INVOICE, RECEIPT,<br/>BANK_STATEMENT,<br/>TRAVEL, LOGBOOK"| EXT
-
-    EXT["Extraction<br/>Type-specific prompt via PromptCatalog"]
-    EXT -->|"Standard docs"| STD["Single-pass or batched extraction"]
-    EXT -->|"Bank statements"| BANK["Multi-turn via UnifiedBankExtractor<br/>or graph workflow"]
-
-    STD --> RESP["ResponseHandler<br/>parse -> clean -> validate"]
-    BANK --> RESP
-
-    RESP --> EVAL["Evaluation<br/>Compare against ground truth<br/>CSV or JSONL -> F1 scores"]
-    EVAL --> RPT["Reporting<br/>JSONL results, execution summary"]
-```
-
-**Batch processing**: Detection runs in batches (configurable). Standard documents extract in batches (InternVL3 via `BatchInference`) or sequentially. Bank statements always use sequential multi-turn extraction via `UnifiedBankExtractor`, which accepts the backend's `generate()` as a callable.
-
-**Multi-GPU**: When multiple GPUs are available, `MultiGPUOrchestrator` partitions images into contiguous chunks and processes them in parallel -- one independent model per GPU. This is true data parallelism via `ThreadPoolExecutor` (PyTorch releases the GIL during CUDA kernels). Results are merged in original image order. See [Multi-GPU Parallel Processing](#multi-gpu-parallel-processing).
+---
 
 ## The Composition Architecture
 
-### ModelBackend Protocol
+### `ModelBackend` Protocol
 
-Every model backend must satisfy the `ModelBackend` Protocol defined in `models/backend.py`:
+Every backend satisfies the Protocol in `models/backend.py`:
 
 ```python
 @runtime_checkable
@@ -604,27 +646,27 @@ class BatchInference(Protocol):
     ) -> list[str]: ...
 ```
 
-The `DocumentOrchestrator` checks for `BatchInference` support at construction and routes accordingly. No stubs or `NotImplementedError` needed.
+`DocumentOrchestrator` checks for `BatchInference` at construction and routes accordingly. No stubs or `NotImplementedError` paths.
 
-### DocumentOrchestrator
+### `DocumentOrchestrator`
 
-`models/orchestrator.py` is the single class that owns all shared extraction logic:
+`models/orchestrator.py` owns all shared extraction logic:
 
 - Detection and classification (YAML-driven prompts via `PromptCatalog`)
-- Prompt resolution (document type -> extraction prompt)
+- Prompt resolution (document type → extraction prompt)
 - Field list management (via `FieldSchema`)
-- Response handling (via `ResponseHandler`: parse -> clean -> validate)
+- Response handling (`ResponseHandler`: parse → clean → validate)
 - OOM recovery with progressive batch halving
 - Batch routing (single vs batched based on `BatchInference` support)
 
-The orchestrator delegates **only** raw `generate()` / `generate_batch()` to the backend.
+The orchestrator delegates *only* raw `generate()` / `generate_batch()` to the backend.
 
 ### Declarative Model Registration
 
-`models/registry.py` uses `ModelSpec` and `VllmSpec` dataclasses for declarative registration. Each replaces ~200 lines of hand-written loader code:
+`models/registry.py` uses `ModelSpec` and `VllmSpec` dataclasses. Each replaces ~200 lines of hand-written loader code:
 
 ```python
-# Standard HF model -- ~8 lines
+# Standard HF model — ~8 lines
 register_hf_model(
     ModelSpec(
         model_type="qwen3vl",
@@ -636,7 +678,7 @@ register_hf_model(
     )
 )
 
-# vLLM model -- ~5 lines
+# vLLM model — ~5 lines
 register_vllm_model(
     VllmSpec(
         model_type="qwen3vl-vllm",
@@ -665,19 +707,19 @@ graph TD
     B["get_model('llama')"]
     C["ModelSpec.loader(config)"]
     D["backend_factory(model, processor, debug)"]
-    E["DocumentOrchestrator(backend=...)"]
-    F["DocumentPipeline(orchestrator=...)"]
+    E["DocumentOrchestrator(backend=…)"]
+    F["DocumentPipeline(orchestrator=…)"]
 
-    A -->|"Registry lookup"| B
-    B -->|"Load weights"| C
-    C -->|"Create backend"| D
-    D -->|"Wire orchestrator"| E
-    E -->|"Pipeline routing"| F
+    A -->|registry lookup| B
+    B -->|load weights| C
+    C -->|create backend| D
+    D -->|wire orchestrator| E
+    E -->|pipeline routing| F
 ```
 
 ### Bank Statement Multi-Turn Extraction
 
-Both HF and vLLM models get the sophisticated multi-turn bank extraction pipeline:
+Both HF and vLLM backends share the multi-turn pipeline via `UnifiedBankExtractor`:
 
 ```mermaid
 graph TD
@@ -692,7 +734,11 @@ graph TD
     STRAT --> T1 --> GEN
 ```
 
-The `generate_fn` callable is the orchestrator's `generate()` method, which delegates to the backend. The bank extraction pipeline is completely model-agnostic.
+The `generate_fn` callable is `DocumentOrchestrator.generate()`, which delegates to the backend. The bank extraction pipeline is completely model-agnostic.
+
+The graph-engine alternative (`--graph-bank`) implements the same two-turn shape inside a `bank_extract.yaml` workflow, with the additional benefits of typed state, Self-Refine retry, and observability traces.
+
+---
 
 ## Adding a New Model
 
@@ -700,9 +746,9 @@ The `generate_fn` callable is the orchestrator's `generate()` method, which dele
 
 For models that use `processor.apply_chat_template()` + `model.generate()`, add a single `ModelSpec` to `models/registry.py` and a prompt YAML file. **No new Python files needed.**
 
-#### Step 1: Create extraction prompts
+#### Step 1 — Create extraction prompts
 
-Create `prompts/<name>_prompts.yaml` with per-document-type extraction prompts:
+Create `prompts/<name>_prompts.yaml`:
 
 ```yaml
 prompts:
@@ -733,9 +779,7 @@ settings:
   temperature: 0.0
 ```
 
-#### Step 2: Register in the registry
-
-Add to `models/registry.py`:
+#### Step 2 — Register in the registry
 
 ```python
 register_hf_model(
@@ -749,7 +793,7 @@ register_hf_model(
 )
 ```
 
-#### Step 3: Run it
+#### Step 3 — Run it
 
 ```bash
 python cli.py --model mymodel -d ./images -o ./output
@@ -757,7 +801,7 @@ python cli.py --model mymodel -d ./images -o ./output
 
 ### Models with Non-Standard APIs
 
-For models that don't use the standard HF chat template API (e.g., InternVL3's `.chat()`), provide a custom `backend_factory`:
+For models that don't use the standard HF chat template API (e.g. InternVL3's `.chat()`), provide a custom `backend_factory`:
 
 ```python
 def _mymodel_backend(model, processor, debug):
@@ -783,7 +827,6 @@ class MyModelBackend:
         self.processor = processor
 
     def generate(self, image: Image.Image, prompt: str, params: GenerationParams) -> str:
-        # Model-specific inference
         ...
 ```
 
@@ -801,13 +844,15 @@ register_vllm_model(
 
 ### Checklist
 
-| Scenario | Files to Create/Modify |
-|----------|----------------------|
+| Scenario | Files to Create / Modify |
+|----------|--------------------------|
 | Standard HF model | `prompts/<name>_prompts.yaml` + 1 `ModelSpec` in `registry.py` |
-| Custom-API HF model | Above + `models/backends/<name>.py` + `backend_factory` function |
+| Custom-API HF model | Above + `models/backends/<name>.py` + `backend_factory` |
 | vLLM model | `prompts/<name>_prompts.yaml` (if new) + 1 `VllmSpec` in `registry.py` |
 
 No changes needed to: `cli.py`, `orchestrator.py`, `document_pipeline.py`, `unified_bank_extractor.py`, `pipeline_config.py`, or any evaluation/reporting code.
+
+---
 
 ## cli.py Reference
 
@@ -840,7 +885,7 @@ python cli.py [OPTIONS]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-b, --batch-size` | `None` (auto) | Images per batch (`null` = auto-detect from VRAM) |
-| `--num-gpus` | `0` (auto) | GPUs for parallel processing (`0` = auto-detect, `1` = single, `N` = use N) |
+| `--num-gpus` | `0` (auto) | GPUs for parallel processing (`0` = auto, `1` = single, `N` = use N) |
 | `--bank-v2 / --no-bank-v2` | `true` | Multi-turn bank statement extraction |
 | `--balance-correction / --no-balance-correction` | `true` | Balance validation for bank statements |
 
@@ -876,43 +921,45 @@ All prefixed with `IVL_`:
 ```bash
 IVL_DATA_DIR=/path/to/images
 IVL_OUTPUT_DIR=/path/to/output
-IVL_MODEL_TYPE=llama           # Model type selection
+IVL_MODEL_TYPE=llama
 IVL_MODEL_PATH=/models/Llama-3.2-11B-Vision-Instruct
 IVL_BATCH_SIZE=4
-IVL_NUM_GPUS=0                 # 0 = auto-detect, 1 = single, N = use N GPUs
+IVL_NUM_GPUS=0
 IVL_MAX_TILES=14
 IVL_FLASH_ATTN=false
 IVL_DTYPE=float32
 IVL_VERBOSE=true
 ```
 
+---
+
 ## YAML Configuration
 
-`config/run_config.yml` is the single source of truth for all tunable parameters. Every section is optional -- missing keys fall back to Python defaults.
+`config/run_config.yml` is the single source of truth for tunables. Every section is optional — missing keys fall back to Python defaults.
 
-### `model` -- Model identity and selection
+### `model` — identity and selection
 
 ```yaml
 model:
-  type: internvl3              # Model type: internvl3 | llama | qwen3vl | ...
+  type: internvl3              # internvl3 | llama | qwen3vl | …
   path: /path/to/model/weights
-  max_tiles: 18                # Image tiles (H200: 18-36, V100: 14, L4: 18)
-  flash_attn: true             # Flash Attention 2 (disable for V100)
+  max_tiles: 18                # H200: 18-36, V100: 14, L4: 18
+  flash_attn: true             # disable for V100
   dtype: bfloat16              # bfloat16 | float16 | float32
-  max_new_tokens: 2000         # Max generation tokens
+  max_new_tokens: 2000
 ```
 
-### `data` -- Input paths
+### `data` — input paths
 
 ```yaml
 data:
   dir: ../evaluation_data/synthetic
   ground_truth: ../evaluation_data/synthetic/ground_truth.jsonl
-  max_images: null             # null = all
+  max_images: null
   document_types: null         # null = all, or: INVOICE,RECEIPT,BANK_STATEMENT
 ```
 
-### `output` -- Output paths and toggles
+### `output` — output paths and toggles
 
 ```yaml
 output:
@@ -921,78 +968,76 @@ output:
   skip_reports: false
 ```
 
-### `processing` -- Runtime behaviour
+### `processing` — runtime behaviour
 
 ```yaml
 processing:
   batch_size: null             # null = auto-detect from VRAM, 1 = sequential
-  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single, N = use N GPUs
-  bank_v2: true                # Multi-turn bank statement extraction
-  balance_correction: true     # Balance validation
+  num_gpus: 0                  # 0 = auto, 1 = single, N = use N
+  bank_v2: true                # multi-turn bank extraction
+  balance_correction: true
   verbose: false
 ```
 
-### `batch` -- Batch processing tuning
-
-Controls how images are grouped into batches for inference.
+### `batch` — batch processing tuning
 
 ```yaml
 batch:
-  default_sizes: {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4}
-  max_sizes: {internvl3: 8, internvl3-2b: 8, internvl3-8b: 16}
+  default_sizes:      {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4}
+  max_sizes:          {internvl3: 8, internvl3-2b: 8, internvl3-8b: 16}
   conservative_sizes: {internvl3: 1, internvl3-2b: 2, internvl3-8b: 1}
   min_size: 1
   strategy: balanced            # conservative | balanced | aggressive
-  auto_detect: true             # Auto-select batch size from VRAM
-  memory_safety_margin: 0.8     # Fraction of VRAM to use
+  auto_detect: true
+  memory_safety_margin: 0.8
   clear_cache_after_batch: true
   timeout_seconds: 300
   fallback_enabled: true
-  fallback_steps: [8, 4, 2, 1] # OOM fallback: halve until success
+  fallback_steps: [8, 4, 2, 1]  # OOM fallback: halve until success
 ```
 
-**Strategies**: `conservative` uses minimum safe sizes, `balanced` uses defaults, `aggressive` uses maximum sizes. When `auto_detect` is enabled, VRAM is measured and the strategy is selected automatically based on `gpu.memory_thresholds`.
+`conservative` uses minimum safe sizes, `balanced` uses defaults, `aggressive` uses maximum sizes. With `auto_detect`, VRAM is measured and the strategy is selected automatically based on `gpu.memory_thresholds`.
 
-### `generation` -- Token generation parameters
+### `generation` — token generation parameters
 
 ```yaml
 generation:
-  max_new_tokens_base: 2000     # Base token budget
-  max_new_tokens_per_field: 50  # Extra tokens per extraction field
-  do_sample: false              # Greedy decoding (deterministic)
-  use_cache: true               # KV cache (required for quality)
-  num_beams: 1                  # No beam search
+  max_new_tokens_base: 2000
+  max_new_tokens_per_field: 50
+  do_sample: false              # greedy decoding (deterministic)
+  use_cache: true
+  num_beams: 1
   repetition_penalty: 1.0
   token_limits:
-    2b: null                    # Use field-count calculation
-    8b: 800                     # Hard cap for 8B model
+    2b: null                    # use field-count calculation
+    8b: 800                     # hard cap for 8B model
 ```
 
-### `gpu` -- GPU memory management
+### `gpu` — memory management
 
 ```yaml
 gpu:
   memory_thresholds:
-    low: 8                      # GB -- triggers conservative batching
-    medium: 16                  # GB -- triggers balanced batching
-    high: 24                    # GB -- triggers aggressive batching
-    very_high: 64               # GB -- triggers maximum batching
-  cuda_max_split_size_mb: 128   # CUDA allocator block size
+    low:       8                # GB → conservative batching
+    medium:    16               # GB → balanced batching
+    high:      24               # GB → aggressive batching
+    very_high: 64               # GB → maximum batching
+  cuda_max_split_size_mb: 128
   fragmentation_threshold_gb: 0.5
   critical_fragmentation_threshold_gb: 1.0
   max_oom_retries: 3
   cudnn_benchmark: true
 ```
 
-### `model_loading` -- Model loading options
+### `model_loading` — model loading options
 
 ```yaml
 model_loading:
-  trust_remote_code: true       # Required for InternVL3 custom code
-  use_fast_tokenizer: false     # Slow tokenizer for compatibility
-  low_cpu_mem_usage: true       # Reduce CPU RAM during loading
-  device_map: auto              # Automatic multi-GPU distribution
-  default_paths:                # Auto-detection search order
+  trust_remote_code: true       # required for InternVL3 custom code
+  use_fast_tokenizer: false
+  low_cpu_mem_usage: true
+  device_map: auto
+  default_paths:
     - /home/jovyan/nfs_share/models/InternVL3_5-8B
     - /models/InternVL3_5-8B
     - ./models/InternVL3_5-8B
@@ -1000,7 +1045,8 @@ model_loading:
 
 ### Hardware Presets
 
-**L4 / A10G (24 GB VRAM)**:
+**L4 / A10G (24 GB VRAM)**
+
 ```yaml
 model:
   max_tiles: 18
@@ -1010,7 +1056,8 @@ batch:
   strategy: balanced
 ```
 
-**L40S (48 GB VRAM)**:
+**L40S (48 GB VRAM)**
+
 ```yaml
 model:
   max_tiles: 24
@@ -1020,24 +1067,26 @@ batch:
   strategy: aggressive
 ```
 
+---
+
 ## Multi-GPU Parallel Processing
 
-When multiple GPUs are available, the pipeline distributes images across GPUs for near-linear speedup. Each GPU loads an independent copy of the model and processes a contiguous subset of images in parallel.
+When multiple GPUs are available, the system distributes images across GPUs for near-linear speedup. Each GPU loads an independent copy of the model and processes a contiguous subset of images in parallel.
 
 ### Architecture
 
 ```mermaid
 graph TD
     CLI["cli.py --num-gpus 0 (auto-detect)"]
-    CLI -->|"1 GPU"| SINGLE["Single-GPU path<br/>(unchanged)"]
-    CLI -->|"N GPUs"| ORCH["MultiGPUOrchestrator"]
+    CLI -->|1 GPU| SINGLE["Single-GPU path<br/>(unchanged)"]
+    CLI -->|N GPUs| ORCH["MultiGPUOrchestrator"]
 
-    ORCH --> PHASE1["Phase 1: Sequential Model Loading<br/>Load model on each GPU one at a time<br/>(avoids transformers import race)"]
-    PHASE1 --> PHASE2["Phase 2: Parallel Processing<br/>ThreadPoolExecutor(max_workers=N)"]
+    ORCH --> PHASE1["Phase 1: Sequential model loading<br/>load on each GPU one at a time<br/>(avoids transformers import race)"]
+    PHASE1 --> PHASE2["Phase 2: Parallel processing<br/>ThreadPoolExecutor(max_workers=N)"]
 
     PHASE2 --> GPU0["GPU 0: chunk[0]<br/>backend + orchestrator + pipeline"]
-    PHASE2 --> GPU1["GPU 1: chunk[1]<br/>backend + orchestrator + pipeline"]
-    PHASE2 --> GPUN["GPU N: chunk[N]<br/>backend + orchestrator + pipeline"]
+    PHASE2 --> GPU1["GPU 1: chunk[1]"]
+    PHASE2 --> GPUN["GPU N: chunk[N]"]
 
     GPU0 --> MERGE["Merge results in original image order"]
     GPU1 --> MERGE
@@ -1046,9 +1095,9 @@ graph TD
 
 ### Why ThreadPoolExecutor (not multiprocessing)
 
-- PyTorch releases the GIL during CUDA kernel execution -- threads get true GPU parallelism
-- Shared memory space simplifies result collection (no serialization overhead)
-- Each thread targets a different GPU via `device_map="cuda:N"`
+- PyTorch releases the GIL during CUDA kernel execution → threads get true GPU parallelism.
+- Shared memory space simplifies result collection (no serialization overhead).
+- Each thread targets a different GPU via `device_map="cuda:N"`.
 
 ### Usage
 
@@ -1070,52 +1119,47 @@ processing:
   num_gpus: 0    # 0 = auto-detect all GPUs
 ```
 
-### Key design decisions
+### Key Design Decisions
 
-1. **Independent model per GPU**: No model sharding. Each GPU loads a complete copy of the model (~16-18GB for 8B models). This simplifies the architecture and avoids cross-GPU communication.
+1. **Independent model per GPU.** No model sharding. Each GPU loads a complete copy (~16-18 GB for 8B models). Simplifies the architecture and avoids cross-GPU communication.
+2. **Contiguous image partitioning.** Images split into N roughly equal chunks (not round-robin), preserving file ordering and keeping memory access patterns clean.
+3. **Sequential loading, parallel processing.** Models loaded one at a time (Phase 1) to avoid `transformers` lazy-import race conditions, then all GPUs process in parallel (Phase 2).
+4. **Post-processing on CPU.** Analytics, visualizations, and reports run once on merged results after all GPUs finish.
 
-2. **Contiguous image partitioning**: Images are split into N roughly equal chunks (not round-robin), preserving file ordering and keeping memory access patterns clean.
-
-3. **Sequential loading, parallel processing**: Models are loaded one at a time (Phase 1) to avoid `transformers` lazy-import race conditions, then all GPUs process in parallel (Phase 2).
-
-4. **Post-processing on CPU**: Analytics, visualizations, and reports run once on merged results after all GPUs finish.
-
-### Hardware examples
+### Hardware Examples
 
 | Setup | Images | Wall Clock | Throughput | Notes |
 |-------|--------|------------|------------|-------|
-| 1x L4 (24GB) | 12 bank | ~18 min | 0.67 img/min | Sequential baseline |
-| 2x L4 (24GB) | 12 bank | ~12 min | 1.0 img/min | ~1.5x speedup |
-| 4x L4 (24GB) | 12 bank | ~6 min | 2.0 img/min | ~3x speedup |
-| 4x A10G (24GB) | 12 bank | ~5 min | 2.4 img/min | Similar to L4 |
+| 1× L4 (24 GB) | 12 bank | ~18 min | 0.67 img/min | Sequential baseline |
+| 2× L4 (24 GB) | 12 bank | ~12 min | 1.0 img/min | ~1.5× speedup |
+| 4× L4 (24 GB) | 12 bank | ~6 min | 2.0 img/min | ~3× speedup |
+| 4× A10G (24 GB) | 12 bank | ~5 min | 2.4 img/min | Similar to L4 |
 
-Bank statements are the slowest document type (~90s/image, multi-turn extraction). Standard documents (invoices, receipts) are much faster and benefit proportionally more from parallelism.
+Bank statements are the slowest document type (~90 s/image, multi-turn). Standard documents (invoices, receipts) are much faster and benefit proportionally more from parallelism.
 
-### Fail-fast validation
-
-If you request more GPUs than are available, the pipeline fails immediately:
+### Fail-Fast Validation
 
 ```
 FATAL: Requested 4 GPUs but only 2 available
 ```
 
-### Model compatibility
+### Model Compatibility
 
 Multi-GPU works with any registered model. Each GPU gets its own complete backend + orchestrator + pipeline stack via the same `load_model()` / `create_processor()` path used for single-GPU.
 
+---
+
 ## Configuring a New Document Type
 
-Adding a new document type requires changes to **3 YAML files** -- no Python code changes needed. Here's a worked example adding a **purchase order** document type.
+Adding a new document type requires changes to **3 YAML files** — no Python code. Worked example: a **purchase order** document type.
 
-### Step 1: Register the document type and its fields
+### Step 1 — Register the document type and its fields
 
 **File**: `config/field_definitions.yaml`
 
-Add the new type under `document_fields`, list it in `supported_document_types`, and add aliases:
-
 ```yaml
 document_fields:
-  # ... existing types ...
+  # … existing types …
 
   purchase_order:
     count: 10
@@ -1132,29 +1176,20 @@ document_fields:
       - TOTAL_AMOUNT
 
   universal:
-    count: 35                  # Update count to include any new fields
+    count: 35                  # update count to include any new fields
     fields:
-      # ... add any NEW fields here (existing ones are already listed) ...
-```
+      # … add any NEW fields here (existing ones already listed) …
 
-Add to the supported types list:
-
-```yaml
 supported_document_types:
   - invoice
   - receipt
   - bank_statement
   - travel
   - logbook
-  - purchase_order              # <-- add
-```
+  - purchase_order              # ← add
 
-Add aliases so detection can map variations to the canonical name:
-
-```yaml
 document_type_aliases:
-  # ... existing aliases ...
-
+  # … existing aliases …
   purchase_order:
     - purchase order
     - po
@@ -1162,21 +1197,19 @@ document_type_aliases:
     - procurement order
 ```
 
-### Step 2: Add detection support
+### Step 2 — Add detection support
 
 **File**: `prompts/document_type_detection.yaml`
 
 Add the new type to the detection prompt options, `type_mappings`, and `fallback_keywords`.
 
-### Step 3: Write the extraction prompt
+### Step 3 — Write the extraction prompt
 
 **File**: `prompts/internvl3_prompts.yaml` **and** `prompts/llama_prompts.yaml` (and any other model prompt files)
 
-Add an extraction prompt keyed to the document type name:
-
 ```yaml
 prompts:
-  # ... existing prompts ...
+  # … existing prompts …
 
   purchase_order:
     name: "Purchase Order Extraction"
@@ -1191,15 +1224,11 @@ prompts:
       ...
 ```
 
-### Step 4: Prepare evaluation data (optional)
-
-To evaluate extraction accuracy, create a ground truth JSONL with only the fields for your type:
+### Step 4 — Prepare evaluation data (optional)
 
 ```json
 {"filename": "po_001.png", "DOCUMENT_TYPE": "PURCHASE_ORDER", "BUSINESS_ABN": "12 345 678 901", "SUPPLIER_NAME": "Acme Corp", "TOTAL_AMOUNT": "$5000.00"}
 ```
-
-Or a CSV with all columns (use NOT_FOUND for fields not applicable to your type).
 
 Then run:
 
@@ -1219,22 +1248,22 @@ KFP_TASK=run_graph_robust \
 | `prompts/<model>_prompts.yaml` | Extraction prompt with field template (one per model) |
 | Ground truth JSONL/CSV *(optional)* | One record per image with expected field values |
 
-The pipeline automatically discovers new document types from these YAML files -- the prompt key in the prompts YAML is matched against `supported_document_types` in `field_definitions.yaml` to build the extraction routing table. No Python code changes required.
+The system automatically discovers new document types from these YAML files — the prompt key in the prompts YAML is matched against `supported_document_types` in `field_definitions.yaml` to build the extraction routing table. No Python changes required.
 
 ### Layout Variants
 
-If your document type has distinct visual layouts (like bank statements with flat vs. date-grouped formats), you can create layout-specific prompts by adding a suffix:
+If your document type has distinct visual layouts (like bank statements with flat vs. date-grouped formats), create layout-specific prompts by adding a suffix:
 
 ```yaml
 # prompts/internvl3_prompts.yaml
 prompts:
   purchase_order_domestic:
     prompt: |
-      # Prompt optimised for domestic POs ...
+      # optimised for domestic POs …
 
   purchase_order_international:
     prompt: |
-      # Prompt optimised for international POs with customs fields ...
+      # optimised for international POs with customs fields …
 ```
 
 Register the suffixes in the settings section:
@@ -1244,4 +1273,14 @@ settings:
   structure_suffixes: ["_flat", "_date_grouped", "_domestic", "_international"]
 ```
 
-The pipeline strips these suffixes to map back to the base `PURCHASE_ORDER` type for field validation and evaluation.
+The system strips these suffixes to map back to the base `PURCHASE_ORDER` type for field validation and evaluation.
+
+---
+
+## Further Reading
+
+- [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md) — graph engine deep-dive: GraphExecutor walk loop, node types, parser registry, post-processing helpers, vLLM feature integration, references to Self-Refine and MetaGPT.
+- [`docs/graph_extraction_engine.md`](docs/graph_extraction_engine.md) — probe-based classification design, bank subgraph internals, workflow authoring guide.
+- [`docs/MULTI_GPU_STRATEGY.md`](docs/MULTI_GPU_STRATEGY.md) — multi-GPU design rationale.
+- [`docs/CONFIG_DRIVEN_DISPATCH.md`](docs/CONFIG_DRIVEN_DISPATCH.md) — declarative model registration design.
+- [`docs/agentic_patterns.md`](docs/agentic_patterns.md) — agentic workflow patterns reference.
