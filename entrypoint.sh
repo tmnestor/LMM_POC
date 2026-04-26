@@ -47,9 +47,10 @@ set -o pipefail
 # log messages ("GPU 0 failed") match nvidia-smi output.
 export CUDA_DEVICE_ORDER="${CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
 
-# vLLM attention backend: configured via VllmSpec.attention_backend in
-# model_loader.py (passed to LLM() constructor). The VLLM_ATTENTION_BACKEND
-# env var was deprecated in vLLM 0.13.0.
+# vLLM attention backend: prefer VllmSpec.attention_backend in model_loader.py
+# (passed to LLM() constructor). Env var is a fallback for envs with
+# pre-compiled FlashInfer kernels. Omitted by default so vLLM auto-selects.
+# export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASHINFER}"
 
 # Suppress vLLM usage telemetry (avoids TLS cert errors in air-gapped envs).
 export VLLM_NO_USAGE_STATS="${VLLM_NO_USAGE_STATS:-1}"
