@@ -104,6 +104,9 @@ class PipelineConfig:
 
     # Multi-GPU options
     num_gpus: int = 0  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
+    data_parallel_size: int | None = (
+        None  # None = auto (num_gpus for vLLM, ignored for HF)
+    )
 
     # Output options
     skip_visualizations: bool = False
@@ -200,6 +203,9 @@ def load_yaml_config(
         flat_config["verbose"] = raw_config["processing"].get("verbose")
         flat_config["debug"] = raw_config["processing"].get("debug")
         flat_config["num_gpus"] = raw_config["processing"].get("num_gpus")
+        flat_config["data_parallel_size"] = raw_config["processing"].get(
+            "data_parallel_size"
+        )
 
     # Flatten model_loading options into PipelineConfig fields
     if "model_loading" in raw_config:
@@ -239,6 +245,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}VERBOSE": ("verbose", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}DEBUG": ("debug", lambda x: x.lower() == "true"),
+        f"{ENV_PREFIX}DATA_PARALLEL_SIZE": ("data_parallel_size", int),
     }
 
     for env_var, (config_key, converter) in env_mappings.items():

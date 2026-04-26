@@ -34,6 +34,7 @@ class ModelRegistration:
     requires_sharding: bool = (
         False  # True = model must shard across GPUs (keep device_map="auto")
     )
+    is_vllm: bool = False  # True = vLLM backend (eligible for data-parallel)
 
 
 _REGISTRY: dict[str, ModelRegistration] = {}
@@ -59,6 +60,12 @@ def get_model(model_type: str) -> ModelRegistration:
 def list_models() -> list[str]:
     """Return sorted list of registered model type strings."""
     return sorted(_REGISTRY)
+
+
+def is_vllm_model(model_type: str) -> bool:
+    """Check if a registered model uses the vLLM backend."""
+    reg = _REGISTRY.get(model_type)
+    return reg is not None and reg.is_vllm
 
 
 def _get_requires_sharding(model_type: str) -> bool:

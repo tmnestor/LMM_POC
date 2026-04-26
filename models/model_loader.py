@@ -358,6 +358,7 @@ class VllmSpec:
     gpu_memory_utilization: float = 0.90
     max_model_len: int = 8192
     max_num_seqs: int = 1
+    attention_backend: str = "FLASHINFER"
     mm_processor_kwargs: dict[str, Any] = field(default_factory=dict)
     hf_overrides: dict[str, Any] = field(default_factory=dict)
     chat_template_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -428,6 +429,7 @@ def build_vllm_loader(spec: VllmSpec):
                     "max_model_len": spec.max_model_len,
                     "gpu_memory_utilization": gpu_mem_util,
                     "max_num_seqs": spec.max_num_seqs,
+                    "attention_backend": spec.attention_backend,
                     "limit_mm_per_prompt": {"image": 1},
                     "trust_remote_code": True,
                     "disable_log_stats": True,
@@ -504,5 +506,6 @@ def register_vllm_model(spec: VllmSpec) -> None:
             prompt_file=spec.prompt_file,
             description=spec.description,
             requires_sharding=True,
+            is_vllm=True,
         )
     )
