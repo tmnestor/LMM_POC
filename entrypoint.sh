@@ -338,6 +338,13 @@ case "${KFP_TASK:-}" in
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
+    # Clean previous outputs so the extract stage's resumption logic
+    # doesn't skip already-processed images from a prior run.
+    log "Cleaning previous outputs..."
+    rm -f "$CLASSIFICATIONS" "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS"
+    rm -f "${EVAL_DIR}/evaluation_results.jsonl"
+    rm -f "$INFERENCE_ELAPSED_FILE"
+
     # Track GPU inference wall-clock (classify + extract only, not clean/evaluate).
     INFERENCE_START=$(date +%s)
 
@@ -400,6 +407,13 @@ case "${KFP_TASK:-}" in
     log "Mode: graph_robust — probe-based classification (3-stage pipeline)."
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
+
+    # Clean previous outputs so the extract stage's resumption logic
+    # doesn't skip already-processed images from a prior run.
+    log "Cleaning previous outputs..."
+    rm -f "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS"
+    rm -f "${EVAL_DIR}/evaluation_results.jsonl"
+    rm -f "$INFERENCE_ELAPSED_FILE"
 
     # Track GPU inference wall-clock (extract only, not clean/evaluate).
     INFERENCE_START=$(date +%s)
