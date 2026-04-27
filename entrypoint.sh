@@ -495,6 +495,14 @@ case "${KFP_TASK:-}" in
     log "Extraction complete."
     ;;
 
+  # -- Deprecated stages (kept as no-ops for KFP manifest compatibility) ------
+  filter)
+    # The filter stage was removed — cleaning now handles everything.
+    # Keep as a no-op so existing KFP DAGs that include a filter pod
+    # don't fail. Remove this case once the KFP manifest is updated.
+    log "Stage filter: skipped (deprecated — no longer needed)."
+    ;;
+
   # -- Staged pipeline (CPU stages) ------------------------------------------
   clean)
     # Stage 3: Parse and clean raw responses (CPU only, no GPU needed).
