@@ -304,11 +304,11 @@ CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
 RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
 CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
-# End-to-end wall-clock accountability across the 4 KFP pods.
-# The classify pod writes `date +%s` here at start; the evaluate pod reads
-# it so the Execution Summary can report true DAG-wide wall-clock rather
-# than stage-4-local timing. Lives on EFS so both pods share it.
-PIPELINE_START_FILE="${OUT_ROOT}/.pipeline_start"
+# GPU inference elapsed time (seconds) — written by GPU stages, read by
+# evaluate. Each GPU stage appends its elapsed seconds to this file (one
+# line per stage). The evaluate pod sums the values to compute true GPU
+# throughput without including CPU phases (clean, evaluate).
+INFERENCE_ELAPSED_FILE="${OUT_ROOT}/.inference_elapsed"
 
 # ---- Task Dispatch ---- #
 # KFP sets $KFP_TASK to the current stage name from workflow_definition.
@@ -338,8 +338,8 @@ case "${KFP_TASK:-}" in
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
-    date +%s > "$PIPELINE_START_FILE"
-    PIPELINE_START=$(cat "$PIPELINE_START_FILE")
+    # Track GPU inference wall-clock (classify + extract only, not clean/evaluate).
+    INFERENCE_START=$(date +%s)
 
     log ""
     log "Phase 1/4: classify (fresh process, model reload)..."
@@ -358,6 +358,9 @@ case "${KFP_TASK:-}" in
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 2/4: extract complete."
 
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
     log ""
     log "Phase 3/4: clean (CPU, no GPU)..."
     python3 -m stages.clean \
@@ -369,10 +372,10 @@ case "${KFP_TASK:-}" in
       log ""
       log "Phase 4/4: evaluate (CPU, no GPU)..."
       python3 -m stages.evaluate \
-        --input             "$CLEAN_EXTRACTIONS" \
-        --ground-truth      "$ground_truth" \
-        --output-dir        "$EVAL_DIR" \
-        --wall-clock-start  "$PIPELINE_START" || exit $?
+        --input              "$CLEAN_EXTRACTIONS" \
+        --ground-truth       "$ground_truth" \
+        --output-dir         "$EVAL_DIR" \
+        --inference-seconds  "$INFERENCE_ELAPSED" || exit $?
       log "Phase 4/4: evaluate complete."
     else
       log ""
@@ -398,8 +401,8 @@ case "${KFP_TASK:-}" in
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
-    date +%s > "$PIPELINE_START_FILE"
-    PIPELINE_START=$(cat "$PIPELINE_START_FILE")
+    # Track GPU inference wall-clock (extract only, not clean/evaluate).
+    INFERENCE_START=$(date +%s)
 
     log ""
     log "Phase 1/3: extract --graph-robust (probe + extract, single GPU process)..."
@@ -409,6 +412,9 @@ case "${KFP_TASK:-}" in
       --graph-robust \
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 1/3: extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
 
     log ""
     log "Phase 2/3: clean (CPU, no GPU)..."
@@ -421,10 +427,10 @@ case "${KFP_TASK:-}" in
       log ""
       log "Phase 3/3: evaluate (CPU, no GPU)..."
       python3 -m stages.evaluate \
-        --input             "$CLEAN_EXTRACTIONS" \
-        --ground-truth      "$ground_truth" \
-        --output-dir        "$EVAL_DIR" \
-        --wall-clock-start  "$PIPELINE_START" || exit $?
+        --input              "$CLEAN_EXTRACTIONS" \
+        --ground-truth       "$ground_truth" \
+        --output-dir         "$EVAL_DIR" \
+        --inference-seconds  "$INFERENCE_ELAPSED" || exit $?
       log "Phase 3/3: evaluate complete."
     else
       log ""
@@ -447,16 +453,15 @@ case "${KFP_TASK:-}" in
     # Writes classifications.jsonl — one record per image.
     log "Stage 1: classify — detecting document types..."
     mkdir -p "$OUT_ROOT"
-    # Record DAG-wide start epoch on EFS for the evaluate pod to read.
-    # Overwrites on every classify invocation so re-runs always use a
-    # fresh start time. See PIPELINE_START_FILE definition above.
-    date +%s > "$PIPELINE_START_FILE"
-    log "Pipeline start epoch written: $(cat "$PIPELINE_START_FILE") -> $PIPELINE_START_FILE"
+    CLASSIFY_START=$(date +%s)
     python3 -m stages.classify \
       --data-dir   "${image_dir:?image_dir env var required}" \
       --output-dir "$CLASSIFICATIONS" \
       "${OPT_MODEL[@]}" || exit $?
-    log "Classification complete."
+    # Write classify elapsed to the shared file. The extract pod will
+    # append its own elapsed time; evaluate sums all lines.
+    echo $(($(date +%s) - CLASSIFY_START)) > "$INFERENCE_ELAPSED_FILE"
+    log "Classification complete ($(cat "$INFERENCE_ELAPSED_FILE")s)."
     ;;
   extract)
     # Stage 2: Field extraction (GPU).
@@ -464,11 +469,15 @@ case "${KFP_TASK:-}" in
     # Supports resumption from partial output after crash.
     log "Stage 2: extract — extracting fields (raw responses)..."
     mkdir -p "$OUT_ROOT"
+    EXTRACT_START=$(date +%s)
     python3 -m stages.extract \
       --classifications "$CLASSIFICATIONS" \
       --data-dir        "${image_dir:?image_dir env var required}" \
       --output-dir      "$RAW_EXTRACTIONS" \
       "${OPT_MODEL[@]}" || exit $?
+    # Append extract elapsed to the shared file (classify may have written
+    # the first line). The evaluate pod sums all lines.
+    echo $(($(date +%s) - EXTRACT_START)) >> "$INFERENCE_ELAPSED_FILE"
     log "Extraction complete."
     ;;
 
@@ -488,25 +497,27 @@ case "${KFP_TASK:-}" in
     # Reads cleaned_extractions.jsonl + ground truth CSV/JSONL, writes evaluation_results.jsonl.
     log "Stage 4: evaluate — scoring against ground truth..."
     mkdir -p "$EVAL_DIR"
-    # End-to-end wall-clock: read the pipeline start epoch written by the
-    # classify pod (if present) so the Execution Summary reports true
-    # DAG-wide wall-clock. Missing file degrades gracefully — the table
-    # simply omits the Wall Clock row.
-    WALL_CLOCK_ARGS=()
-    if [[ -f "$PIPELINE_START_FILE" ]]; then
-      PIPELINE_START=$(cat "$PIPELINE_START_FILE")
-      WALL_CLOCK_ARGS=(--wall-clock-start "$PIPELINE_START")
-      NOW=$(date +%s)
-      log "Pipeline start epoch: $PIPELINE_START (DAG wall-clock so far: $((NOW - PIPELINE_START))s)"
+    # Read GPU inference elapsed time written by classify/extract pods.
+    # The file contains one line per GPU stage; sum them for total inference.
+    # Missing file degrades gracefully — evaluate falls back to sum of
+    # per-image processing_time.
+    INFERENCE_ARGS=()
+    if [[ -f "$INFERENCE_ELAPSED_FILE" ]]; then
+      TOTAL_INFERENCE=0
+      while IFS= read -r line; do
+        TOTAL_INFERENCE=$((TOTAL_INFERENCE + line))
+      done < "$INFERENCE_ELAPSED_FILE"
+      INFERENCE_ARGS=(--inference-seconds "$TOTAL_INFERENCE")
+      log "GPU inference elapsed: ${TOTAL_INFERENCE}s (from $INFERENCE_ELAPSED_FILE)"
     else
-      log "WARNING: $PIPELINE_START_FILE not found — Wall Clock row will be omitted."
-      log "         (This is expected when evaluate runs without a prior classify.)"
+      log "WARNING: $INFERENCE_ELAPSED_FILE not found — throughput will use sum of processing_time."
+      log "         (This is expected when evaluate runs standalone.)"
     fi
     python3 -m stages.evaluate \
       --input        "$CLEAN_EXTRACTIONS" \
       --ground-truth "${ground_truth:?ground_truth env var required}" \
       --output-dir   "$EVAL_DIR" \
-      "${WALL_CLOCK_ARGS[@]}" || exit $?
+      "${INFERENCE_ARGS[@]}" || exit $?
     log "Evaluation complete."
     ;;
 

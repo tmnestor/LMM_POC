@@ -14,7 +14,6 @@ Usage:
 """
 
 import logging
-import time
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +37,7 @@ def run(
     output_dir: Path,
     *,
     enable_math_enhancement: bool = False,
-    wall_clock_start: float | None = None,
+    inference_seconds: float | None = None,
 ) -> Path:
     """Evaluate cleaned extractions against ground truth.
 
@@ -52,9 +51,10 @@ def run(
         ground_truth_csv: Path to ground truth CSV.
         output_dir: Directory for evaluation output files.
         enable_math_enhancement: Apply bank statement balance calculations.
-        wall_clock_start: Epoch seconds when the pipeline started. When set,
-            the Execution Summary reports true wall-clock across all phases
-            (time.time() - start) instead of just stage-2 inference time.
+        inference_seconds: GPU inference wall-clock seconds (extract phase
+            elapsed time, set by entrypoint.sh). Used for throughput in the
+            Execution Summary. Falls back to sum of per-image processing_time
+            when not provided.
 
     Returns:
         Path to the written evaluation_results.jsonl.
@@ -152,10 +152,7 @@ def run(
         logger.warning("No images scored -- check ground truth alignment")
 
     # Rich Execution Summary table (equivalent to pre-staged-pipeline output)
-    wall_clock_s = (
-        time.time() - wall_clock_start if wall_clock_start is not None else None
-    )
-    _print_summary_table(eval_results, records, output_dir, wall_clock_s)
+    _print_summary_table(eval_results, records, output_dir, inference_seconds)
 
     return output_path
 
@@ -164,25 +161,34 @@ def _print_summary_table(
     eval_results: list[dict[str, Any]],
     cleaned_records: list[dict[str, Any]],
     output_dir: Path,
-    wall_clock_seconds: float | None = None,
+    inference_seconds: float | None = None,
 ) -> None:
     """Render an Execution Summary table and document-type breakdown.
 
     Mimics the pre-staged-pipeline `cli.print_summary` output so runs still
     end with the familiar throughput/accuracy summary.
+
+    Args:
+        inference_seconds: GPU inference wall-clock (extract phase elapsed).
+            When provided, used for both "Inference Time" and throughput.
+            Falls back to sum of per-image processing_time (correct for
+            single-GPU sequential, but inflated for multi-GPU DP).
     """
     console = Console()
 
     num = len(eval_results)
-    total_inference = sum(r.get("processing_time", 0.0) for r in cleaned_records)
-    # Throughput is computed against wall-clock when available (true
-    # end-to-end rate), otherwise falls back to stage-2 inference time.
-    throughput_denom = (
-        wall_clock_seconds
-        if wall_clock_seconds is not None and wall_clock_seconds > 0
-        else total_inference
+    total_processing = sum(r.get("processing_time", 0.0) for r in cleaned_records)
+
+    # Prefer GPU wall-clock (extract-phase elapsed) for throughput.
+    # Fall back to sum of per-image processing_time — correct for
+    # single-GPU sequential, but always equals total compute regardless
+    # of parallelism (misleading for multi-GPU DP).
+    inference_time = (
+        inference_seconds
+        if inference_seconds is not None and inference_seconds > 0
+        else total_processing
     )
-    throughput = (num / throughput_denom * 60.0) if throughput_denom > 0 else 0.0
+    throughput = (num / inference_time * 60.0) if inference_time > 0 else 0.0
 
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
     avg_f1_mean = (
@@ -203,9 +209,7 @@ def _print_summary_table(
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
     table.add_row("Images Processed", str(num))
-    if wall_clock_seconds is not None:
-        table.add_row("Wall Clock Time", f"{wall_clock_seconds:.1f}s")
-    table.add_row("Inference Time", f"{total_inference:.1f}s")
+    table.add_row("Inference Time", f"{inference_time:.1f}s")
     table.add_row("Throughput", f"{throughput:.2f} images/min")
     if scored:
         table.add_row("Avg F1 (mean)", f"{avg_f1_mean:.3f}")
@@ -237,13 +241,13 @@ def main(
         "--math-enhancement/--no-math-enhancement",
         help="Enable bank balance calculations",
     ),
-    wall_clock_start: float | None = typer.Option(
+    inference_seconds: float | None = typer.Option(
         None,
-        "--wall-clock-start",
+        "--inference-seconds",
         help=(
-            "Epoch seconds when the pipeline started (set by entrypoint.sh "
-            "before Phase 1). Used to report true end-to-end wall-clock in "
-            "the Execution Summary instead of just stage-2 inference time."
+            "GPU inference wall-clock seconds (extract phase elapsed time, "
+            "computed by entrypoint.sh). Used for throughput in the Execution "
+            "Summary. Falls back to sum of per-image processing_time."
         ),
     ),
 ) -> None:
@@ -257,7 +261,7 @@ def main(
         ground_truth,
         output_dir,
         enable_math_enhancement=math_enhancement,
-        wall_clock_start=wall_clock_start,
+        inference_seconds=inference_seconds,
     )
 
 
