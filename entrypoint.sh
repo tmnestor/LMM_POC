@@ -479,16 +479,32 @@ case "${KFP_TASK:-}" in
     ;;
   extract)
     # Stage 2: Field extraction (GPU).
-    # Reads classifications.jsonl, writes raw_extractions.jsonl.
-    # Supports resumption from partial output after crash.
+    # Writes raw_extractions.jsonl.
+    #
+    # Two modes, auto-detected:
+    #   - Classified: if classifications.jsonl exists (from a prior classify
+    #     pod), reads it and runs type-specific extraction per image.
+    #   - Graph-robust: if no classifications.jsonl, runs probe-based
+    #     classification + extraction in one pass (--graph-robust).
+    #     This is the default for the 3-stage KFP DAG (extract/clean/evaluate).
     log "Stage 2: extract — extracting fields (raw responses)..."
     mkdir -p "$OUT_ROOT"
     EXTRACT_START=$(date +%s)
-    python3 -m stages.extract \
-      --classifications "$CLASSIFICATIONS" \
-      --data-dir        "${image_dir:?image_dir env var required}" \
-      --output-dir      "$RAW_EXTRACTIONS" \
-      "${OPT_MODEL[@]}" || exit $?
+    if [[ -f "$CLASSIFICATIONS" ]]; then
+      log "Found $CLASSIFICATIONS — using classified extraction."
+      python3 -m stages.extract \
+        --classifications "$CLASSIFICATIONS" \
+        --data-dir        "${image_dir:?image_dir env var required}" \
+        --output-dir      "$RAW_EXTRACTIONS" \
+        "${OPT_MODEL[@]}" || exit $?
+    else
+      log "No classifications found — using graph-robust probes."
+      python3 -m stages.extract \
+        --data-dir   "${image_dir:?image_dir env var required}" \
+        --output-dir "$RAW_EXTRACTIONS" \
+        --graph-robust \
+        "${OPT_MODEL[@]}" || exit $?
+    fi
     # Append extract elapsed to the shared file (classify may have written
     # the first line). The evaluate pod sums all lines.
     echo $(($(date +%s) - EXTRACT_START)) >> "$INFERENCE_ELAPSED_FILE"
