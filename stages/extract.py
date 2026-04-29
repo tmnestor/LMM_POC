@@ -170,7 +170,7 @@ def run(
         dp_records = run_dp(
             num_gpus=resolved_gpus,
             images=[Path(c["image_path"]) for c in classifications],
-            worker_fn="common.hf_dp_workers.extract_worker",
+            worker_fn="common.dp_workers.hf_extract_worker",
             worker_kwargs={
                 "config_path": str(config_path) if config_path else None,
                 "cli_overrides": cli_args,
@@ -485,7 +485,7 @@ def _run_unified(
             records = run_dp(
                 num_gpus=resolved_gpus,
                 images=images,
-                worker_fn="common.vllm_dp_workers.extract_worker",
+                worker_fn="common.dp_workers.vllm_extract_worker",
                 worker_kwargs={
                     "config_path": str(config_path) if config_path else None,
                     "cli_overrides": cli_args,

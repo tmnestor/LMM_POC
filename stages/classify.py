@@ -89,7 +89,7 @@ def run(
         dp_records = run_dp(
             num_gpus=resolved_gpus,
             images=images,
-            worker_fn="common.vllm_dp_workers.classify_worker",
+            worker_fn="common.dp_workers.classify_worker",
             worker_kwargs={
                 "config_path": str(config_path) if config_path else None,
                 "cli_overrides": cli_args,
