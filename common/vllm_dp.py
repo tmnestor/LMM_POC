@@ -1,6 +1,6 @@
-"""vLLM data-parallel orchestrator.
+"""Data-parallel orchestrator.
 
-Spawns N independent vLLM engine processes, each pinned to one GPU
+Spawns N independent model processes, each pinned to one GPU
 via CUDA_VISIBLE_DEVICES. No NCCL, no /dev/shm, no inter-process
 communication during inference.
 """
@@ -68,7 +68,7 @@ def run_dp(
     actual_gpus = len(chunks)
 
     logger.info(
-        "vLLM DP: distributing %d images across %d GPUs (TP=1 per GPU)",
+        "DP: distributing %d images across %d GPUs",
         len(images),
         actual_gpus,
     )

@@ -4,8 +4,8 @@
 
 # Model configuration — switch type + path together
 model:
-  # type: internvl3
-  type: internvl3-vllm
+  type: internvl3
+  # type: internvl3-vllm
   path: /home/jovyan/nfs_share/models/InternVL3_5-8B
   # path: /efs/shared/PTM/InternVL3_5-8B
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
@@ -41,7 +41,7 @@ logging:
 processing:
   batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
   num_gpus: 2                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
-  data_parallel_size: null     # null = auto (num_gpus for vLLM, ignored for HF)
+  data_parallel_size: null     # null = auto for both vLLM and HF data-parallel
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: false  # Disable balance validation (reduces accuracy)
   verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)

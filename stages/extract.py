@@ -155,6 +155,33 @@ def run(
     # Tier B gate — resolved from CLI > YAML > defaults.
     effective_verbose = config.verbose
 
+    # -- HF data-parallel fast path --------------------------------------------
+    from common.vllm_dp import resolve_gpu_count, run_dp
+    from models.registry import get_model, is_vllm_model
+
+    resolved_gpus = resolve_gpu_count(config)
+    reg = get_model(config.model_type)
+
+    if (
+        resolved_gpus > 1
+        and not reg.requires_sharding
+        and not is_vllm_model(config.model_type)
+    ):
+        dp_records = run_dp(
+            num_gpus=resolved_gpus,
+            images=[Path(c["image_path"]) for c in classifications],
+            worker_fn="common.hf_dp_workers.extract_worker",
+            worker_kwargs={
+                "config_path": str(config_path) if config_path else None,
+                "cli_overrides": cli_args,
+                "classifications": classifications,
+            },
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        count = write_jsonl(output_path, dp_records)
+        logger.info("Wrote %d extractions to %s", count, output_path)
+        return output_path
+
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
     )

@@ -105,7 +105,7 @@ class PipelineConfig:
     # Multi-GPU options
     num_gpus: int = 0  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
     data_parallel_size: int | None = (
-        None  # None = auto (num_gpus for vLLM, ignored for HF)
+        None  # None = auto for both vLLM and HF data-parallel
     )
 
     # Output options

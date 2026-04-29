@@ -78,27 +78,27 @@ def run(
 
     logger.info("Found %d images in %s", len(images), config.data_dir)
 
-    # -- vLLM data-parallel fast path ------------------------------------------
-    from models.registry import is_vllm_model
+    # -- Data-parallel fast path (vLLM and HF) ---------------------------------
+    from common.vllm_dp import resolve_gpu_count, run_dp
+    from models.registry import get_model
 
-    if is_vllm_model(config.model_type):
-        from common.vllm_dp import resolve_gpu_count, run_dp
+    resolved_gpus = resolve_gpu_count(config)
+    reg = get_model(config.model_type)
 
-        resolved_gpus = resolve_gpu_count(config)
-        if resolved_gpus > 1:
-            dp_records = run_dp(
-                num_gpus=resolved_gpus,
-                images=images,
-                worker_fn="common.vllm_dp_workers.classify_worker",
-                worker_kwargs={
-                    "config_path": str(config_path) if config_path else None,
-                    "cli_overrides": cli_args,
-                },
-            )
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            count = write_jsonl(output_path, dp_records)
-            logger.info("Wrote %d classifications to %s", count, output_path)
-            return output_path
+    if resolved_gpus > 1 and not reg.requires_sharding:
+        dp_records = run_dp(
+            num_gpus=resolved_gpus,
+            images=images,
+            worker_fn="common.vllm_dp_workers.classify_worker",
+            worker_kwargs={
+                "config_path": str(config_path) if config_path else None,
+                "cli_overrides": cli_args,
+            },
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        count = write_jsonl(output_path, dp_records)
+        logger.info("Wrote %d classifications to %s", count, output_path)
+        return output_path
 
     # -- Single-GPU / HF path -------------------------------------------------
 
