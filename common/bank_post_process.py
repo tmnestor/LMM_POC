@@ -185,6 +185,15 @@ def run_bank_post_process(
         logger.warning("bank_post_process: no extraction node found in state")
         return True, {"DOCUMENT_TYPE": "BANK_STATEMENT"}
 
+    if "rows" not in parsed:
+        parse_error = parsed.get("error", "unknown parse error")
+        logger.warning(
+            "bank_post_process: extraction node %s has no rows (parse failed: %s)",
+            strategy,
+            parse_error,
+        )
+        return True, {"DOCUMENT_TYPE": "BANK_STATEMENT"}
+
     rows: list[dict[str, str]] = parsed["rows"]
     date_col: str = parsed["date_col"]
     desc_col: str = parsed["desc_col"]
