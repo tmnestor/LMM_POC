@@ -416,6 +416,10 @@ def build_vllm_loader(spec: VllmSpec):
                     f"(tp={tp_size}, max_model_len={spec.max_model_len})[/bold]"
                 )
                 console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
+                console.print(
+                    f"[dim]enforce_eager: {cfg.enforce_eager} "
+                    f"({'skip CUDA graphs' if cfg.enforce_eager else 'CUDA graphs enabled'})[/dim]"
+                )
                 if os.environ.get("LMM_GPU_MEMORY_UTILIZATION"):
                     console.print(
                         f"[dim]gpu_memory_utilization: {gpu_mem_util} "
@@ -431,7 +435,7 @@ def build_vllm_loader(spec: VllmSpec):
                     "limit_mm_per_prompt": {"image": 1},
                     "trust_remote_code": True,
                     "disable_log_stats": True,
-                    "enforce_eager": True,
+                    "enforce_eager": cfg.enforce_eager,
                     "enable_prefix_caching": True,
                 }
 
