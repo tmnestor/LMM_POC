@@ -93,6 +93,7 @@ class PipelineConfig:
     max_tiles: int = 11
     min_tiles: int | None = None  # Set to enable adaptive quality-based tiling
     flash_attn: bool = True
+    enforce_eager: bool = True  # vLLM only: True = skip CUDA graph compilation
     dtype: str = "bfloat16"
     max_new_tokens: int = 2000
 
@@ -178,6 +179,7 @@ def load_yaml_config(
         flat_config["max_tiles"] = raw_config["model"].get("max_tiles")
         flat_config["min_tiles"] = raw_config["model"].get("min_tiles")
         flat_config["flash_attn"] = raw_config["model"].get("flash_attn")
+        flat_config["enforce_eager"] = raw_config["model"].get("enforce_eager")
         flat_config["dtype"] = raw_config["model"].get("dtype")
         flat_config["max_new_tokens"] = raw_config["model"].get("max_new_tokens")
 
@@ -241,6 +243,7 @@ def load_env_config() -> dict[str, Any]:
         f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
         f"{ENV_PREFIX}MIN_TILES": ("min_tiles", int),
         f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
+        f"{ENV_PREFIX}ENFORCE_EAGER": ("enforce_eager", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}DTYPE": ("dtype", str),
         f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),
         f"{ENV_PREFIX}VERBOSE": ("verbose", lambda x: x.lower() == "true"),
