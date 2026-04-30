@@ -325,6 +325,7 @@ def print_config(config: PipelineConfig) -> None:
     else:
         config_table.add_row("Tiles", f"{config.max_tiles} (fixed)")
     config_table.add_row("Flash attention", str(config.flash_attn))
+    config_table.add_row("Enforce eager", str(config.enforce_eager))
     config_table.add_row("Dtype", config.dtype)
     config_table.add_row("Max new tokens", str(config.max_new_tokens))
 
@@ -656,6 +657,11 @@ def main(
         "--flash-attn/--no-flash-attn",
         help="Use Flash Attention 2. Default from config or True.",
     ),
+    enforce_eager: bool | None = typer.Option(
+        None,
+        "--enforce-eager/--no-enforce-eager",
+        help="vLLM: skip CUDA graph compilation. Default from config or True.",
+    ),
     dtype: str | None = typer.Option(
         None,
         "--dtype",
@@ -726,6 +732,7 @@ def main(
         "max_tiles": max_tiles,
         "min_tiles": min_tiles,
         "flash_attn": flash_attn,
+        "enforce_eager": enforce_eager,
         "dtype": dtype,
         "bank_v2": bank_v2,
         "balance_correction": balance_correction,
