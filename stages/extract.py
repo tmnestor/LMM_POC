@@ -474,31 +474,36 @@ def _run_unified(
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
 
-    # -- vLLM data-parallel fast path ------------------------------------------
-    from models.registry import is_vllm_model
+    # -- Data-parallel fast path -----------------------------------------------
+    from common.vllm_dp import resolve_gpu_count, run_dp
+    from models.registry import get_model, is_vllm_model
 
-    if is_vllm_model(config.model_type):
-        from common.vllm_dp import resolve_gpu_count, run_dp
+    resolved_gpus = resolve_gpu_count(config)
+    reg = get_model(config.model_type)
 
-        resolved_gpus = resolve_gpu_count(config)
-        if resolved_gpus > 1:
-            records = run_dp(
-                num_gpus=resolved_gpus,
-                images=images,
-                worker_fn="common.dp_workers.vllm_extract_worker",
-                worker_kwargs={
-                    "config_path": str(config_path) if config_path else None,
-                    "cli_overrides": cli_args,
-                    "workflow_name": workflow_name,
-                    "label": label,
-                },
-            )
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            count = write_jsonl(output_path, records)
-            logger.info("Wrote %d extractions to %s", count, output_path)
-            return output_path
+    if resolved_gpus > 1 and not reg.requires_sharding:
+        worker_fn = (
+            "common.dp_workers.vllm_extract_worker"
+            if is_vllm_model(config.model_type)
+            else "common.dp_workers.hf_unified_worker"
+        )
+        records = run_dp(
+            num_gpus=resolved_gpus,
+            images=images,
+            worker_fn=worker_fn,
+            worker_kwargs={
+                "config_path": str(config_path) if config_path else None,
+                "cli_overrides": cli_args,
+                "workflow_name": workflow_name,
+                "label": label,
+            },
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        count = write_jsonl(output_path, records)
+        logger.info("Wrote %d extractions to %s", count, output_path)
+        return output_path
 
-    # -- Single-GPU / HF path -------------------------------------------------
+    # -- Single-GPU path -------------------------------------------------------
 
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(
         config.model_type
