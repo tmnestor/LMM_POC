@@ -182,13 +182,17 @@ def run_bank_post_process(
             break
 
     if strategy is None or parsed is None:
-        logger.warning("bank_post_process: no extraction node found in state")
+        logger.warning(
+            "bank_post_process: %s: no extraction node found in state",
+            state.image_name or "<unknown>",
+        )
         return True, {"DOCUMENT_TYPE": "BANK_STATEMENT"}
 
     if "rows" not in parsed:
         parse_error = parsed.get("error", "unknown parse error")
         logger.warning(
-            "bank_post_process: extraction node %s has no rows (parse failed: %s)",
+            "bank_post_process: %s: extraction node %s has no rows (parse failed: %s)",
+            state.image_name or "<unknown>",
             strategy,
             parse_error,
         )

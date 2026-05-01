@@ -124,6 +124,7 @@ class GraphExecutor:
         extra_fields: dict[str, str],
     ) -> ExtractionSession:
         state = WorkflowState()
+        state.image_name = image_name
         trace = WorkflowTrace()
         all_results: list[NodeResult] = []
         retries: dict[str, int] = {}
