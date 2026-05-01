@@ -11,9 +11,6 @@ model:
   max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
   # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
   flash_attn: true       # Use Flash Attention 2 (disable for V100)
-  enforce_eager: true    # vLLM: true = skip CUDA graph compilation (faster startup,
-                         #        lower throughput); false = compile graphs (slower
-                         #        startup, higher throughput for long runs)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
   max_new_tokens: 2000   # Max tokens for generation
 
