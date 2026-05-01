@@ -61,6 +61,7 @@ class WorkflowState:
     """
 
     node_results: dict[str, NodeResult] = field(default_factory=dict)
+    image_name: str = ""  # set by GraphExecutor._walk for diagnostic logging
 
     def get(self, dot_path: str, default: Any = _MISSING) -> Any:
         """Resolve a dot-path reference.
