@@ -275,6 +275,57 @@ register_hf_model(
     )
 )
 
+# -- Gemma 4 (Mac MPS, HFChatTemplateBackend two_step) ---------------------------
+
+
+def _gemma4_post_load(model: Any, processor: Any, cfg: Any) -> None:
+    """Suppress generation_config warnings for Gemma4."""
+    if hasattr(model, "generation_config"):
+        model.generation_config.temperature = None
+        model.generation_config.top_p = None
+        pad_id = getattr(processor, "eos_token_id", None)
+        if pad_id is not None:
+            model.generation_config.pad_token_id = pad_id
+
+
+register_hf_model(
+    ModelSpec(
+        model_type="gemma4-e4b-mps",
+        model_class="AutoModelForImageTextToText",
+        processor_class="AutoProcessor",
+        prompt_file="gemma4_prompts.yaml",
+        description="Gemma 4 E4B (4.5B eff) — Mac MPS, float16, ~11 GB",
+        message_style="two_step",
+        chat_template_kwargs={"enable_thinking": False},
+        suppress_gen_warnings=("temperature", "top_p"),
+        post_load=_gemma4_post_load,
+    )
+)
+
+
+def _gemma4_27b_quantization(cfg: Any) -> Any:
+    """Build INT4 QuantoConfig for Gemma4 27B on MPS (bitsandbytes unsupported)."""
+    from transformers import QuantoConfig
+
+    return QuantoConfig(weights="int4")
+
+
+register_hf_model(
+    ModelSpec(
+        model_type="gemma4-27b-mps",
+        model_class="AutoModelForImageTextToText",
+        processor_class="AutoProcessor",
+        prompt_file="gemma4_prompts.yaml",
+        description="Gemma 4 27B MoE — Mac MPS, INT4 (~14 GB, needs 16 GB+ RAM)",
+        message_style="two_step",
+        chat_template_kwargs={"enable_thinking": False},
+        load_kwargs={"quantization_config": _gemma4_27b_quantization},
+        suppress_gen_warnings=("temperature", "top_p"),
+        post_load=_gemma4_post_load,
+    )
+)
+
+
 # -- vLLM models -----------------------------------------------------------------
 
 register_vllm_model(

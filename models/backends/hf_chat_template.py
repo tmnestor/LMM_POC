@@ -141,6 +141,8 @@ class HFChatTemplateBackend:
         del inputs, output_ids, generated_ids
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
         return response.strip()
 
@@ -175,6 +177,8 @@ class HFChatTemplateBackend:
         del inputs, output_ids, generated_ids
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
         return response.strip()
 

@@ -97,6 +97,10 @@ def build_hf_loader(spec: ModelSpec):
             try:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                elif (
+                    hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+                ):
+                    torch.mps.empty_cache()
 
                 console.print(
                     f"\n[bold]Loading {spec.model_type} from: {cfg.model_path}[/bold]"
@@ -184,7 +188,13 @@ def build_hf_loader(spec: ModelSpec):
 
                     # Override device_map for single-GPU models
                     if spec.force_single_gpu:
-                        load_kwargs["device_map"] = "cuda:0"
+                        if torch.cuda.is_available():
+                            load_kwargs["device_map"] = "cuda:0"
+                        elif (
+                            hasattr(torch.backends, "mps")
+                            and torch.backends.mps.is_available()
+                        ):
+                            load_kwargs["device_map"] = "mps:0"
                         load_kwargs["dtype"] = torch.bfloat16
 
                     # Merge any model-specific load kwargs
@@ -234,6 +244,10 @@ def build_hf_loader(spec: ModelSpec):
                 del processor
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                elif (
+                    hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+                ):
+                    torch.mps.empty_cache()
 
         return _loader(config)
 

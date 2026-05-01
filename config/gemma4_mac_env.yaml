@@ -1,0 +1,21 @@
+name: gemma4_mac
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - torch>=2.3           # includes MPS backend for Apple Silicon
+    - torchvision
+    - transformers>=4.51   # Gemma4 support (Gemma4ForConditionalGeneration)
+    - accelerate           # device_map="auto" MPS dispatch
+    - optimum[quanto]      # MPS-compatible INT4/INT8 quantization
+    - Pillow
+    - PyYAML
+    - rich
+    - typer
+    - pandas
+    - scikit-learn
+    - huggingface_hub
+    # NOT included: flash-attn (CUDA only), vllm (CUDA only), bitsandbytes (CUDA only)
