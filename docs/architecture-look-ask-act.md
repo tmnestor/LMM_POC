@@ -273,12 +273,12 @@ general-purpose framework.
 ## The One-Sentence Synthesis
 
 > *"We implemented a hardware-constrained variant of Look-Ask-Act: replacing
-> the open agentic loop with a YAML-defined DAG that preserves the
+> the open agentic loop with a YAML-defined directed graph that preserves the
 > perceive-reason-act structure but bounds memory usage, constrains KV cache
 > growth, and enables data-parallel throughput at scale — while retaining
 > genuine agentic behaviour where it adds value: bounded Self-Refine retries
-> on parse failure, and sequential multi-turn state injection for multi-page
-> documents."*
+> on parse failure (controlled cycles), and sequential multi-turn state
+> injection for multi-page documents."*
 
 ---
 
