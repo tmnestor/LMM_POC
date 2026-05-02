@@ -127,22 +127,8 @@ describe what the system does, not just how it was built. Onboarding a new
 engineer, debugging an extraction failure, or extending the system to a
 new context all start from the same readable, structured source of truth.
 
----
-
-## Design Philosophy
-
-> *"Minimise coupling between concerns. Maximise cohesion within them."*
-
-Every architectural decision in this pipeline traces back to this principle.
-Model identity, hardware configuration, workflow topology, and extraction
-logic are each declared independently — changes in one do not ripple into
-the others. Within each concern, every model-specific, hardware-specific, or
-document-type-specific decision has exactly one place it belongs.
-
-This is what allows the pipeline to support over ten model variants, four
-hardware targets, and multiple document types — with additions that require
-no modification to the execution layer, and changes whose scope is
-predictably narrow.
+These outcomes were not accidental. They followed from a single design
+principle applied consistently across every architectural decision:
 
 ---
 
