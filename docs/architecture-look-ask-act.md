@@ -83,6 +83,99 @@ dynamically deciding what to look at next. Production hardware prevented this.
 
 ---
 
+## How the Architecture Was Made More Modular
+
+### The Problem: Tight Coupling in the Original Two-Model Design
+
+The pipeline launched with InternVL3 and Llama 3.2 as the only supported
+backends. Each required:
+
+- A hand-written loader function (~200 lines) managing `from_pretrained`,
+  dtype selection, device placement, and generation config fixups
+- A hand-written `processor_creator` function constructing the document
+  processor from model + tokenizer
+- Model-specific `if model_type == "internvl3"` branches scattered across
+  `cli.py`, `batch_processor.py`, and the bank statement adapter
+
+Adding a third model meant touching five or more files, with high risk of
+regressions in the existing two paths.
+
+### The Solution: Declarative Model Registry
+
+Modularity was introduced in three layers:
+
+**1. Central registry (`models/registry.py`)**
+
+A `ModelRegistration` dataclass and a `_REGISTRY` dict decouple model
+identity from pipeline logic. The pipeline calls `get_model(model_type)` —
+it never imports model-specific modules directly. All heavy imports
+(`torch`, `transformers`) are deferred to function bodies, so importing the
+registry has zero GPU/ML overhead.
+
+**2. Declarative specs (`ModelSpec` / `VllmSpec` in `models/model_loader.py`)**
+
+Each new model is declared as a ~20-line dataclass instance rather than
+~200 lines of imperative loader code. Common concerns — dtype selection,
+device placement, flash-attention gating, quantization config, generation
+warning suppression — are handled once in the loader and driven by spec
+fields:
+
+```python
+register_hf_model(ModelSpec(
+    model_type="qwen3vl",
+    model_class="Qwen3VLForConditionalGeneration",
+    prompt_file="qwen3vl_prompts.yaml",
+    attn_implementation="flash_attention_2",
+    suppress_gen_warnings=("temperature", "top_p", "top_k"),
+    message_style="two_step",
+))
+```
+
+**3. Backend abstraction (`models/backends/`)**
+
+Model-specific generation APIs are encapsulated behind a uniform interface:
+
+| Backend | Models | API |
+|---|---|---|
+| `InternVL3Backend` | InternVL3 family | `.chat()` / `.batch_chat()` |
+| `LlamaBackend` | Llama 3.2 | `processor.apply_chat_template()` + `.generate()` |
+| `HFChatTemplateBackend` | Llama 4, Qwen3-VL, Qwen3.5, Nemotron, Granite 4, Gemma 4 | `processor.apply_chat_template()` + `.generate()` (two-step or one-step) |
+| `VllmBackend` | All vLLM variants | `llm.generate()` via OpenAI-compatible messages |
+
+The document processor (`DocumentAwareProcessor`) calls
+`backend.chat(image, prompt)` — it never branches on model type.
+
+### Why Modularity Was Necessary
+
+The pipeline grew from 2 models to 10+ models across four hardware targets
+(V100, A10G/L40, M1 MPS) over twelve months. Each new model differed in:
+
+- Loading API (`AutoModel` vs `AutoModelForCausalLM` vs `AutoModelForImageTextToText`)
+- Generation API (`.chat()`, `.generate()`, vLLM)
+- Chat template format (InternVL system tags, Llama `<|image|>` tokens, Jinja2 templates)
+- Quantization requirements (BitsAndBytes NF4, optimum-quanto INT8/INT4)
+- Hardware constraints (CUDA-only libraries, MPS buffer limits, KV cache sizing)
+
+Without the registry and backend abstraction, each addition would have
+required modifying `cli.py`, `batch_processor.py`, the bank statement
+adapter, and the evaluation harness — four files per model, with compounding
+regression risk across existing paths.
+
+### The Result
+
+| Action | Code required |
+|---|---|
+| Add a new HF model | ~20-line `ModelSpec` in `registry.py` — zero pipeline changes |
+| Add a new vLLM model | ~10-line `VllmSpec` in `registry.py` — zero pipeline changes |
+| Add a new hardware target | New `post_load` hook + spec fields — no model logic changes |
+| Swap models at runtime | `--model <type>` CLI flag — no code changes |
+
+Ten models (InternVL3-8B/14B/38B, Llama 3.2, Llama 4 Scout, Qwen3-VL,
+Qwen3.5, NVIDIA Nemotron, IBM Granite 4, Gemma 4) were added with zero
+modifications to the pipeline execution layer between additions.
+
+---
+
 ## Why Not a Standard Agent Framework?
 
 Off-the-shelf frameworks (LangChain, LangGraph) assume a single-GPU
