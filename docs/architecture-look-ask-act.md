@@ -134,7 +134,63 @@ than retrofitting it later.
 
 ---
 
-## Why a Custom Graph Implementation?
+## Maintainability and Extensibility in Practice
+
+The architectural choices described above have a direct and measurable
+impact on how the codebase behaves as requirements change. Two scenarios
+illustrate this concretely.
+
+### Adding a new document type
+
+Supporting a new document type — a travel expense claim, a purchase order,
+a remittance advice — requires:
+
+1. A field definition entry declaring what to extract and how to evaluate it
+2. An extraction prompt in the relevant prompt file
+3. A document type alias entry if the model uses variant names
+
+That is the complete change. The detection step, the routing logic, the
+extraction engine, the evaluation harness, and the output layer all pick
+up the new type automatically. No existing code paths are touched, and
+therefore no existing document types are at risk of regression.
+
+This is possible because the pipeline does not contain a list of supported
+document types. It reads that list from configuration at startup. The
+execution engine is generic over document types; the types themselves are
+data.
+
+### Adding a new vision-language model
+
+Supporting a new VLM requires a single declarative registration: the model
+class, its prompt file, hardware requirements, and any generation parameter
+adjustments. If the model uses a generation API already covered by an
+existing backend, no new code is required at all. If it uses a genuinely
+new API, a backend can be written in isolation — a self-contained unit with
+a single responsibility — without touching the pipeline.
+
+In either case, every existing model continues to work unchanged. The
+registry lookup is the only point of contact between the pipeline and the
+model; nothing else in the execution layer is aware that a new model was
+added.
+
+### Why this matters beyond the initial build
+
+Structured extraction systems are not built once and left. Prompts are
+tuned continuously as edge cases surface. Document types are added as scope
+expands. Models are replaced as better ones become available. Hardware
+environments change.
+
+An architecture that requires code changes for each of these events
+accumulates fragility over time: each change is a potential regression,
+each regression requires a test cycle, and the test cycle slows the
+iteration that drives accuracy improvement.
+
+The design choices here — YAML-declared configuration, uniform interfaces,
+declarative registrations — were made specifically to keep the cost of
+change low and the scope of each change narrow. The goal was a system
+where the most frequent operations (prompt tuning, model swapping, document
+type extension) carry the lowest possible risk and require the least
+possible engineering involvement.
 
 The pipeline includes its own graph execution engine: a directed acyclic
 graph of nodes and edges, with typed state, conditional routing, and
