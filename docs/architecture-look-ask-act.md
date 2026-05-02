@@ -134,21 +134,47 @@ than retrofitting it later.
 
 ---
 
-## Why Not a Standard Agent Framework?
+## Why a Custom Graph Implementation?
 
-Off-the-shelf agent frameworks abstract away model loading and execution,
-making them unsuitable where fine-grained control over hardware placement,
-memory management, and inference throughput is required. This pipeline needed:
+The pipeline includes its own graph execution engine: a directed acyclic
+graph of nodes and edges, with typed state, conditional routing, and
+declarative YAML definitions. This is the same conceptual territory as
+frameworks such as LangGraph. The decision to build a custom implementation
+rather than adopt one was deliberate.
 
-- **Hardware-aware model loading** across multiple GPU generations and Apple Silicon MPS
-- **Automatic OOM recovery** with recursive batch halving
-- **Configurable CUDA graph compilation** to meet pipeline step deadlines
-- **Dtype and attention backend selection** per hardware generation
-- **Data-parallel dispatch** for large production jobs without framework overhead
+### What frameworks do not provide
 
-The custom graph executor provides the Look-Ask-Act structure with full
-control over the execution environment — retaining the agentic pattern
-while owning every layer beneath it.
+Agent graph frameworks handle workflow orchestration. They do not handle
+model loading, hardware placement, memory management, or inference
+throughput. Those concerns are assumed to sit behind an API. For this
+pipeline, they were not — the pipeline owns the model, the device, the
+memory budget, and the execution path end to end. A framework would have
+orchestrated the graph while leaving the harder problems unaddressed.
+
+### Why YAML-declarative graph definition
+
+Defining the workflow graph in YAML — nodes, edges, routing conditions,
+retry bounds — separates pipeline behaviour from pipeline code. Analysts
+can modify extraction workflows, add document types, or adjust retry
+policies without touching Python. A Python-native graph definition (as
+frameworks typically provide) would have coupled workflow changes to code
+changes, requiring engineering involvement for configuration-level decisions.
+
+### Why typed, domain-specific state
+
+The state object carried through the graph is typed to the extraction
+domain: it holds structured fields for each document type, parse results,
+confidence scores, and retry counters. This is richer than a generic
+key-value state store. The typing enables static analysis, catches
+integration errors at development time, and makes the state contract
+explicit across every node in the graph.
+
+### The result
+
+A graph execution engine that is purpose-built for the problem: declarative
+workflow definition, domain-typed state, hardware-aware execution, and full
+ownership of the inference layer — without the abstraction overhead of a
+general-purpose framework.
 
 ---
 
