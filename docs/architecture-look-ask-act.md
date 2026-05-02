@@ -4,17 +4,24 @@
 
 ### Situation
 
-A complex structured information extraction task running entirely
-self-hosted on an underpowered GPU cluster — no frontier model APIs, no
-managed inference services. The pipeline processed heterogeneous financial
-documents across a growing set of document classes (receipts, invoices,
-bank statements, and more to come), each with different layouts, field
-schemas, and extraction complexity. It operated in a rapidly evolving model
-landscape where open-weight VLMs were improving quickly, but each model
-required different loading, quantization, and generation handling. As scope
-expanded on both dimensions — more document classes and more models — the
-cost of each change escalated, with modifications required across multiple
-layers of the codebase and compounding regression risk across existing paths.
+The requirement was to build a structured information extraction pipeline
+for heterogeneous financial documents — receipts, invoices, bank statements,
+and an expanding set of document classes — running entirely self-hosted on
+an underpowered GPU cluster with no access to frontier model APIs or managed
+inference services. Sensitive financial data could not leave the organisation.
+
+Two dimensions of the requirement made this architecturally challenging.
+First, document classes were known to grow: each class has different layouts,
+field schemas, and extraction complexity, and the system had to accommodate
+new classes without structural rework. Second, the open-weight VLM landscape
+was evolving rapidly: better models were appearing frequently, each with
+different loading, quantization, and generation requirements. The system had
+to be able to adopt new models without re-engineering the pipeline around them.
+
+The core architectural challenge was therefore not just building the pipeline,
+but building it so that growth on both dimensions — more document classes and
+better models — would be absorbed as configuration changes rather than
+engineering projects.
 
 ### Task
 
