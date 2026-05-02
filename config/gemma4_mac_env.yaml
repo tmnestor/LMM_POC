@@ -16,6 +16,15 @@ dependencies:
     - rich
     - typer
     - pandas
+    - numpy
     - scikit-learn
     - huggingface_hub
+    - matplotlib
+    - seaborn
+    - python-dateutil
+    - PyYAML
+    - Pillow
+    # flash-attn: CUDA only — not installed
+    # vllm: CUDA only — not installed
+    # orjson: optional, omitted
     # NOT included: flash-attn (CUDA only), vllm (CUDA only), bitsandbytes (CUDA only)

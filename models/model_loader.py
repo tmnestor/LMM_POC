@@ -150,11 +150,8 @@ def build_hf_loader(spec: ModelSpec):
                         "device_map": effective_device_map,
                     }
 
-                    # Use dtype= for newer models, torch_dtype for legacy
-                    if spec.model_class in (
-                        "AutoModelForCausalLM",
-                        "AutoModelForImageTextToText",
-                    ):
+                    # Use dtype= for newer models, torch_dtype for legacy AutoModelForCausalLM
+                    if spec.model_class == "AutoModelForCausalLM":
                         load_kwargs["torch_dtype"] = cfg.torch_dtype
                     else:
                         load_kwargs["dtype"] = cfg.torch_dtype

@@ -279,7 +279,18 @@ register_hf_model(
 
 
 def _gemma4_post_load(model: Any, processor: Any, cfg: Any) -> None:
-    """Suppress generation_config warnings for Gemma4."""
+    """Move model to MPS and suppress generation_config warnings for Gemma4.
+
+    We load with device_map=None (CPU) to avoid caching_allocator_warmup,
+    which tries to allocate a single 10+ GiB Metal buffer that exceeds MPS
+    per-buffer limits. Moving to MPS after quantization is safe and cheap
+    on Apple Silicon (unified memory -- no physical copy).
+    """
+    import torch
+
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        model.to("mps")
+
     if hasattr(model, "generation_config"):
         model.generation_config.temperature = None
         model.generation_config.top_p = None
@@ -288,15 +299,26 @@ def _gemma4_post_load(model: Any, processor: Any, cfg: Any) -> None:
             model.generation_config.pad_token_id = pad_id
 
 
+def _gemma4_quantization_int8(cfg: Any) -> Any:
+    """INT8 QuantoConfig — E4B on 16 GB M1 (8B stored weights -> ~8 GB, fits with headroom)."""
+    from transformers import QuantoConfig
+
+    return QuantoConfig(weights="int8")
+
+
 register_hf_model(
     ModelSpec(
         model_type="gemma4-e4b-mps",
         model_class="AutoModelForImageTextToText",
         processor_class="AutoProcessor",
         prompt_file="gemma4_prompts.yaml",
-        description="Gemma 4 E4B (4.5B eff) — Mac MPS, float16, ~11 GB",
+        description="Gemma 4 E4B (8B stored, 4.5B eff) — Mac MPS, INT8 (~8 GB)",
         message_style="two_step",
         chat_template_kwargs={"enable_thinking": False},
+        load_kwargs={
+            "quantization_config": _gemma4_quantization_int8,
+            "device_map": None,  # load to CPU; post_load moves to MPS (avoids warmup OOM)
+        },
         suppress_gen_warnings=("temperature", "top_p"),
         post_load=_gemma4_post_load,
     )
