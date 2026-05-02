@@ -103,13 +103,29 @@ care which one is in use.
 
 A self-hosted pipeline supporting over ten open-weight model variants across
 four hardware targets and multiple document classes, with no external API
-dependencies. Adding a new model requires a single declarative registration.
-Adding a new document class requires a field definition and a prompt. As
-the open-weight model landscape improves, extraction quality improves by
-swapping in a better model — a configuration change, not an engineering
-project. The architecture is designed to ensure that progress in the VLM field,
-growth in document class coverage, and increases in throughput requirements
-all translate directly into pipeline capability without structural rework.
+dependencies.
+
+**Agility.** Adding a new model requires a single declarative registration.
+Adding a new document class requires a field definition and a prompt.
+Switching to a higher-throughput inference backend required no pipeline
+changes. Each of these operations is bounded, predictable, and safe —
+the scope of change is narrow by design, so the team can respond quickly
+to new requirements without the risk of disturbing working functionality.
+
+**Reduced cognitive complexity.** Because each concern — model behaviour,
+document structure, hardware configuration, workflow topology — has exactly
+one place it lives, engineers do not need to hold the whole system in mind
+to make a change. A prompt engineer works in prompt files. A model
+integration touches only the registry. A hardware configuration is a
+YAML edit. The system is navigable because its boundaries are clear.
+
+**Easier maintenance.** Low coupling means that failures are localised and
+their causes are findable. High cohesion means that a change in one area
+does not produce unexpected effects in another. The declarative
+specifications serve as living documentation — the configuration files
+describe what the system does, not just how it was built. Onboarding a new
+engineer, debugging an extraction failure, or extending the system to a
+new context all start from the same readable, structured source of truth.
 
 ---
 
