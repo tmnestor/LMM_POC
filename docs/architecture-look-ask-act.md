@@ -4,21 +4,26 @@
 
 ### Situation
 
-A production vision-language model pipeline for structured information
-extraction from heterogeneous financial documents. The pipeline handled
-multiple document types with different layouts and field schemas, ran across
-diverse hardware targets, and operated in a rapidly evolving model landscape
-where new VLMs were appearing frequently. As scope expanded, the cost of
+A complex structured information extraction task running entirely
+self-hosted on an underpowered GPU cluster — no frontier model APIs, no
+managed inference services. The pipeline processed heterogeneous financial
+documents across multiple document types with different layouts and field
+schemas. It operated in a rapidly evolving model landscape where open-weight
+VLMs were improving quickly, but each model required different loading,
+quantization, and generation handling. As scope expanded, the cost of
 change escalated: each new model or document type required modifications
 across multiple layers of the codebase, with compounding regression risk
 across existing paths.
 
 ### Task
 
-Redesign the architecture so that the most frequent operations — adding a
-new model, supporting a new document type, tuning extraction prompts,
-adapting to a new hardware target — require minimal change, carry predictable
-and narrow scope, and do not put existing functionality at risk.
+Design an architecture for a self-hosted VLM extraction pipeline that could
+absorb this complexity — supporting new models as they become available,
+extending to new document types, adapting to hardware constraints — without
+requiring changes to the execution layer and without accumulating fragility
+over time. The key constraint: extraction quality is ultimately bounded by
+model capability, so the architecture had to make model substitution as
+frictionless as possible.
 
 ### Action
 
@@ -31,13 +36,14 @@ justification.
 
 ### Result
 
-A pipeline that supports over ten model variants across four hardware
-targets, with multiple document types. Adding a new model requires a single
-declarative registration — no changes to the execution layer. Adding a new
-document type requires a prompt and a field definition — no Python changes.
-Prompt tuning, the most frequent accuracy improvement activity, is a YAML
-edit with no deployment risk. The system achieved approximately 95% F1
-accuracy on structured extraction tasks.
+A self-hosted pipeline that supports over ten open-weight model variants
+across four hardware targets, with multiple document types — all running
+without external API dependencies. Adding a new model requires a single
+declarative registration with no changes to the execution layer. As the
+open-weight model landscape continues to improve, extraction quality
+improves by swapping in a better model — a configuration change, not an
+engineering project. The architecture ensures that progress in the VLM
+field translates directly into pipeline capability without rework.
 
 ---
 
