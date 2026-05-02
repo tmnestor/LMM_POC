@@ -153,12 +153,48 @@ orchestrated the graph while leaving the harder problems unaddressed.
 
 ### Why YAML-declarative graph definition
 
-Defining the workflow graph in YAML — nodes, edges, routing conditions,
-retry bounds — separates pipeline behaviour from pipeline code. Analysts
-can modify extraction workflows, add document types, or adjust retry
-policies without touching Python. A Python-native graph definition (as
-frameworks typically provide) would have coupled workflow changes to code
-changes, requiring engineering involvement for configuration-level decisions.
+Defining pipeline behaviour in YAML separates concerns that change at
+different rates and for different reasons. The extraction logic — what
+fields to extract, what prompts to use, how to classify document structure,
+how to evaluate output quality — changes frequently as the system is tuned
+and extended. The execution engine — how to run a node, recover from
+failure, route between states — changes rarely. Mixing these in code couples
+fast-moving configuration to slow-moving infrastructure, making every
+tuning iteration a code change with its associated review and deployment
+cost.
+
+In practice, the following are declared entirely in YAML and require no
+Python changes to modify:
+
+**Extraction prompts per document type.** Each document type has its own
+prompt, independently versioned. Tuning a prompt for better invoice
+extraction has no risk of affecting receipt or bank statement extraction.
+Prompt iteration — which accounts for the majority of accuracy improvement
+work — is a YAML edit, not a code change.
+
+**Field definitions and document taxonomy.** The fields to extract for each
+document type, their data types, validation rules, and evaluation weights
+are declared as configuration. Adding a new document type means adding a
+field definition entry and a prompt — the extraction engine requires no
+modification. The document type taxonomy, including aliases and
+normalisation rules, is similarly declared rather than hardcoded.
+
+**Document structure detection rules.** For complex document types such as
+bank statements, the rules for detecting structural features — which column
+headers indicate which semantic roles, which detected patterns trigger which
+extraction strategy — are declared as configuration. Domain knowledge about
+document structure is expressed where it belongs: as inspectable,
+modifiable configuration rather than embedded logic.
+
+**Model and hardware configuration.** Generation parameters, hardware
+placement, quantization settings, and attention backend selection are
+declared per deployment target. Moving between hardware environments is a
+configuration change, not a code change.
+
+This separation is what allows the pipeline to support multiple document
+types, multiple models, and multiple hardware targets without the execution
+layer accumulating branches for each combination. The execution engine
+reads its instructions from configuration; it does not contain them.
 
 ### Why typed, domain-specific state
 
