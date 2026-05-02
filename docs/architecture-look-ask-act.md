@@ -252,6 +252,18 @@ placement, memory limits — are expressed as configuration, not conditional
 logic. Adding support for a new hardware target means supplying new
 configuration values, not modifying execution paths.
 
+**Hooks for model-specific behaviour.**
+Where a model requires behaviour that cannot be expressed as a configuration
+value — fixing generation config after loading, tying weights, constructing
+a model-specific generation backend — the spec declares a callable hook.
+The loader runs the hook if one is present; it does not know what the hook
+does. This extends the declarative pattern from static configuration to
+behaviour: model-specific setup lives in the model's declaration, not in
+branching logic inside the loader. The same principle applies to backend
+construction — each model family declares a factory hook that builds its
+own generation backend, keeping backend-specific knowledge fully
+encapsulated.
+
 ### The Result
 
 The pipeline now supports over ten model variants across four hardware
