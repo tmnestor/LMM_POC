@@ -9,17 +9,17 @@ model:
   max_new_tokens: 1000       # Keep short to limit KV cache pressure on 16 GB
 
 data:
-  dir: ../evaluation_data/bank
-  ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
-  max_images: 5              # Start small — increase once confirmed working
+  dir: /Users/tod/Desktop/evaluation_data/inv_rec
+  ground_truth: /Users/tod/Desktop/evaluation_data/inv_rec/ground_truth_inv_rec.csv
+  max_images: 7
 
 output:
-  dir: ../evaluation_data/output_mac
+  dir: /Users/tod/Desktop/evaluation_data/output_mac_inv_rec
   skip_visualizations: false
   skip_reports: false
 
 logging:
-  log_dir: ../evaluation_data/output_mac/logs
+  log_dir: /Users/tod/Desktop/evaluation_data/output_mac_inv_rec/logs
 
 processing:
   batch_size: 1              # MPS: sequential only (no batch_chat API)
