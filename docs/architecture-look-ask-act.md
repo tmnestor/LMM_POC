@@ -59,7 +59,7 @@ graph and bounded by configuration, preventing runaway loops under
 production load.
 
 **How maintainability was improved through declarative specifications.**
-The design philosophy was to minimise coupling between layers and maximise
+The design philosophy was to minimise coupling between concerns and maximise
 cohesion within them. In practice, this meant expressing every concern that
 changes frequently as a declarative specification rather than as code:
 
@@ -131,13 +131,13 @@ new context all start from the same readable, structured source of truth.
 
 ## Design Philosophy
 
-> *"Minimise coupling between layers. Maximise cohesion within them."*
+> *"Minimise coupling between concerns. Maximise cohesion within them."*
 
 Every architectural decision in this pipeline traces back to this principle.
 Model identity, hardware configuration, workflow topology, and extraction
 logic are each declared independently — changes in one do not ripple into
-the others. Within each layer, every model-specific, hardware-specific, or
-document-type-specific concern has exactly one place it belongs.
+the others. Within each concern, every model-specific, hardware-specific, or
+document-type-specific decision has exactly one place it belongs.
 
 This is what allows the pipeline to support over ten model variants, four
 hardware targets, and multiple document types — with additions that require
@@ -254,7 +254,7 @@ quantization needs, and generation parameters — in a single registration
 entry. The pipeline reads this declaration at startup; it never branches on
 model identity at runtime.
 
-**Uniform interfaces between layers.**
+**Uniform interfaces between components.**
 Every model backend exposes the same interface to the pipeline: given an
 image and a prompt, return a text response. The differences in how models
 load, quantize, and generate are fully encapsulated behind this boundary.
@@ -418,10 +418,10 @@ general-purpose framework.
 
 ## The One-Sentence Synthesis
 
-> *"The design philosophy was to minimise coupling between layers — model
+> *"The design philosophy was to minimise coupling between concerns — model
 > identity, hardware configuration, workflow topology, and extraction logic
-> are each declared independently — while maximising cohesion within layers,
-> so that every model-specific, hardware-specific, or document-type-specific
+> are each declared independently — while maximising cohesion within each
+> concern, so that every model-specific, hardware-specific, or document-type-specific
 > concern has exactly one place it belongs. Applied to the Look-Ask-Act
 > pattern, this produced a hardware-constrained directed graph that preserves
 > the perceive-reason-act structure, bounds memory usage and KV cache growth,
