@@ -7,43 +7,80 @@
 A complex structured information extraction task running entirely
 self-hosted on an underpowered GPU cluster — no frontier model APIs, no
 managed inference services. The pipeline processed heterogeneous financial
-documents across multiple document types with different layouts and field
-schemas. It operated in a rapidly evolving model landscape where open-weight
-VLMs were improving quickly, but each model required different loading,
-quantization, and generation handling. As scope expanded, the cost of
-change escalated: each new model or document type required modifications
-across multiple layers of the codebase, with compounding regression risk
-across existing paths.
+documents across a growing set of document classes (receipts, invoices,
+bank statements, and more to come), each with different layouts, field
+schemas, and extraction complexity. It operated in a rapidly evolving model
+landscape where open-weight VLMs were improving quickly, but each model
+required different loading, quantization, and generation handling. As scope
+expanded on both dimensions — more document classes and more models — the
+cost of each change escalated, with modifications required across multiple
+layers of the codebase and compounding regression risk across existing paths.
 
 ### Task
 
-Design an architecture for a self-hosted VLM extraction pipeline that could
-absorb this complexity — supporting new models as they become available,
-extending to new document types, adapting to hardware constraints — without
-requiring changes to the execution layer and without accumulating fragility
-over time. The key constraint: extraction quality is ultimately bounded by
-model capability, so the architecture had to make model substitution as
-frictionless as possible.
+Design an architecture that could grow in both dimensions — new document
+classes and new models — without requiring changes to the execution layer.
+The pipeline also had to handle the inherent uncertainty of document
+processing: document type is not known in advance, extraction can fail to
+parse, and some document types require multi-turn reasoning across variable
+structure. The architecture had to accommodate adaptive behaviour while
+remaining maintainable and predictable at scale.
 
 ### Action
 
-Apply a consistent design philosophy across every layer of the pipeline:
-minimise coupling between layers, maximise cohesion within them. The
-specific decisions — declarative model registry, YAML-defined workflow
-graph, uniform backend interfaces, domain-typed state — all follow from
-this principle. The rest of this document explains each decision and its
-justification.
+**Why an agentic pattern was needed.**
+A static pipeline with fixed steps cannot handle document processing: you
+do not know the document type until you have looked at it, and the
+extraction strategy depends on what you find. The task is inherently
+perceive-then-decide — the natural structure of Look-Ask-Act. The pipeline
+first perceives the document (classify), then reasons about what it observed
+(select extraction strategy), then acts (extract structured fields). When
+extraction fails to parse, it reflects on the error and retries — a bounded
+self-correction cycle. For multi-page documents, it maintains running state
+across turns, injecting prior results into each subsequent prompt.
+
+**How the agentic pattern was implemented.**
+The workflow is defined as a directed graph in YAML — nodes are VLM
+inference calls, edges are routing conditions based on detection output or
+parse results. Each node is a complete perceive-reason-act micro-cycle; the
+graph as a whole is the macro pipeline. Retry cycles are explicit in the
+graph and bounded by configuration, preventing runaway loops under
+production load.
+
+**How maintainability was improved through declarative specifications.**
+The design philosophy was to minimise coupling between layers and maximise
+cohesion within them. In practice, this meant expressing every concern that
+changes frequently as a declarative specification rather than as code:
+
+- *Model specifications* — each model's loading requirements, hardware
+  constraints, quantization, and generation parameters are declared once.
+  The execution layer never branches on model identity; it reads the
+  specification and applies it.
+- *Document type definitions* — the fields to extract, their types,
+  validation rules, and evaluation weights are declared as configuration.
+  Adding a new document class means adding a specification entry and a
+  prompt — no Python changes, no risk to existing classes.
+- *Extraction prompts* — each document class has its own prompt, versioned
+  independently. Prompt tuning, which drives the majority of accuracy
+  improvement, is a YAML edit isolated to one document class.
+- *Workflow graph* — routing logic, retry bounds, and extraction strategies
+  are declared in YAML. Changing pipeline behaviour is a configuration
+  change, not a code change.
+
+The result is that the execution engine is stable and generic — it runs
+the graph, it does not contain the graph.
 
 ### Result
 
-A self-hosted pipeline that supports over ten open-weight model variants
-across four hardware targets, with multiple document types — all running
-without external API dependencies. Adding a new model requires a single
-declarative registration with no changes to the execution layer. As the
-open-weight model landscape continues to improve, extraction quality
-improves by swapping in a better model — a configuration change, not an
-engineering project. The architecture ensures that progress in the VLM
-field translates directly into pipeline capability without rework.
+A self-hosted pipeline supporting over ten open-weight model variants across
+four hardware targets and multiple document classes, with no external API
+dependencies. Adding a new model requires a single declarative registration.
+Adding a new document class requires a field definition and a prompt. As
+the open-weight model landscape improves, extraction quality improves by
+swapping in a better model — a configuration change, not an engineering
+project. The architecture is designed to ensure that progress in the VLM
+field, and growth in document class coverage, translate directly into
+pipeline capability without structural rework.
 
 ---
 
