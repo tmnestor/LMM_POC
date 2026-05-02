@@ -1,5 +1,46 @@
 # Production Architecture: Vision-Language Structured Extraction and the Look-Ask-Act Pattern
 
+## STAR Summary
+
+### Situation
+
+A production vision-language model pipeline for structured information
+extraction from heterogeneous financial documents. The pipeline handled
+multiple document types with different layouts and field schemas, ran across
+diverse hardware targets, and operated in a rapidly evolving model landscape
+where new VLMs were appearing frequently. As scope expanded, the cost of
+change escalated: each new model or document type required modifications
+across multiple layers of the codebase, with compounding regression risk
+across existing paths.
+
+### Task
+
+Redesign the architecture so that the most frequent operations — adding a
+new model, supporting a new document type, tuning extraction prompts,
+adapting to a new hardware target — require minimal change, carry predictable
+and narrow scope, and do not put existing functionality at risk.
+
+### Action
+
+Apply a consistent design philosophy across every layer of the pipeline:
+minimise coupling between layers, maximise cohesion within them. The
+specific decisions — declarative model registry, YAML-defined workflow
+graph, uniform backend interfaces, domain-typed state — all follow from
+this principle. The rest of this document explains each decision and its
+justification.
+
+### Result
+
+A pipeline that supports over ten model variants across four hardware
+targets, with multiple document types. Adding a new model requires a single
+declarative registration — no changes to the execution layer. Adding a new
+document type requires a prompt and a field definition — no Python changes.
+Prompt tuning, the most frequent accuracy improvement activity, is a YAML
+edit with no deployment risk. The system achieved approximately 95% F1
+accuracy on structured extraction tasks.
+
+---
+
 ## Design Philosophy
 
 > *"Minimise coupling between layers. Maximise cohesion within them."*
