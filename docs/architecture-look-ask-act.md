@@ -10,23 +10,27 @@ and an expanding set of document classes — running entirely self-hosted on
 an underpowered GPU cluster with no access to frontier model APIs or managed
 inference services. Sensitive financial data could not leave the organisation.
 
-Two dimensions of the requirement made this architecturally challenging.
+Three dimensions of the requirement made this architecturally challenging.
 First, document classes were known to grow: each class has different layouts,
 field schemas, and extraction complexity, and the system had to accommodate
 new classes without structural rework. Second, the open-weight VLM landscape
 was evolving rapidly: better models were appearing frequently, each with
 different loading, quantization, and generation requirements. The system had
 to be able to adopt new models without re-engineering the pipeline around them.
+Third, production volume demanded throughput: sequential inference using the
+standard HuggingFace framework was too slow to process large document jobs
+within the operational time constraints of the GPU cluster.
 
 The core architectural challenge was therefore not just building the pipeline,
-but building it so that growth on both dimensions — more document classes and
-better models — would be absorbed as configuration changes rather than
-engineering projects.
+but building it so that growth across all three dimensions — more document
+classes, better models, and higher throughput — would be absorbed without
+structural rework.
 
 ### Task
 
-Design an architecture that could grow in both dimensions — new document
-classes and new models — without requiring changes to the execution layer.
+Design an architecture that could grow across all three dimensions — new
+document classes, new models, and higher throughput — without requiring
+changes to the execution layer.
 The pipeline also had to handle the inherent uncertainty of document
 processing: document type is not known in advance, extraction can fail to
 parse, and some document types require multi-turn reasoning across variable
@@ -77,6 +81,24 @@ changes frequently as a declarative specification rather than as code:
 The result is that the execution engine is stable and generic — it runs
 the graph, it does not contain the graph.
 
+**How the throughput challenge was solved.**
+Standard HuggingFace inference loads one model instance per GPU and
+processes documents sequentially. At production volume — hundreds to
+thousands of documents per job — this was too slow. The solution was to
+introduce a second inference backend: vLLM, a high-throughput inference
+engine that uses PagedAttention to manage GPU memory more efficiently, and
+that supports running multiple model instances in a data-parallel
+configuration across available GPUs. Each worker processes an independent
+partition of the document batch, and results are reassembled after all
+workers complete.
+
+The modular backend design meant that adding vLLM as an inference backend
+required no changes to the pipeline execution layer or the YAML workflow
+graph. The same document type definitions, prompts, and routing logic work
+identically regardless of whether the model is served via HuggingFace or
+vLLM. The backend is a swappable component; the pipeline does not know or
+care which one is in use.
+
 ### Result
 
 A self-hosted pipeline supporting over ten open-weight model variants across
@@ -85,9 +107,9 @@ dependencies. Adding a new model requires a single declarative registration.
 Adding a new document class requires a field definition and a prompt. As
 the open-weight model landscape improves, extraction quality improves by
 swapping in a better model — a configuration change, not an engineering
-project. The architecture is designed to ensure that progress in the VLM
-field, and growth in document class coverage, translate directly into
-pipeline capability without structural rework.
+project. The architecture is designed to ensure that progress in the VLM field,
+growth in document class coverage, and increases in throughput requirements
+all translate directly into pipeline capability without structural rework.
 
 ---
 
