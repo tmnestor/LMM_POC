@@ -136,18 +136,19 @@ than retrofitting it later.
 
 ## Why Not a Standard Agent Framework?
 
-Off-the-shelf frameworks (LangChain, LangGraph) assume a single-GPU
-development environment. This pipeline required:
+Off-the-shelf agent frameworks abstract away model loading and execution,
+making them unsuitable where fine-grained control over hardware placement,
+memory management, and inference throughput is required. This pipeline needed:
 
-- **Hardware-aware model loading** across V100, A10G, L40, and M1 MPS
+- **Hardware-aware model loading** across multiple GPU generations and Apple Silicon MPS
 - **Automatic OOM recovery** with recursive batch halving
-- **Configurable CUDA graph compilation** (`enforce_eager`)
-- **Dtype and attention backend gating** per hardware generation
-- **Data-parallel dispatch** for 1,000+ image jobs without framework overhead
+- **Configurable CUDA graph compilation** to meet pipeline step deadlines
+- **Dtype and attention backend selection** per hardware generation
+- **Data-parallel dispatch** for large production jobs without framework overhead
 
-The `GraphExecutor` provides the Look-Ask-Act structure with full control over
-the execution environment — something no off-the-shelf agent framework
-offered at the required level of hardware specificity.
+The custom graph executor provides the Look-Ask-Act structure with full
+control over the execution environment — retaining the agentic pattern
+while owning every layer beneath it.
 
 ---
 
