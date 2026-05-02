@@ -1,5 +1,22 @@
 # Production Architecture: Vision-Language Structured Extraction and the Look-Ask-Act Pattern
 
+## Design Philosophy
+
+> *"Minimise coupling between layers. Maximise cohesion within them."*
+
+Every architectural decision in this pipeline traces back to this principle.
+Model identity, hardware configuration, workflow topology, and extraction
+logic are each declared independently — changes in one do not ripple into
+the others. Within each layer, every model-specific, hardware-specific, or
+document-type-specific concern has exactly one place it belongs.
+
+This is what allows the pipeline to support over ten model variants, four
+hardware targets, and multiple document types — with additions that require
+no modification to the execution layer, and changes whose scope is
+predictably narrow.
+
+---
+
 ## Background
 
 This document describes the agentic architecture of the LMM_POC Vision-Language
@@ -272,13 +289,16 @@ general-purpose framework.
 
 ## The One-Sentence Synthesis
 
-> *"We implemented a hardware-constrained variant of Look-Ask-Act: replacing
-> the open agentic loop with a YAML-defined directed graph that preserves the
-> perceive-reason-act structure but bounds memory usage, constrains KV cache
-> growth, and enables data-parallel throughput at scale — while retaining
-> genuine agentic behaviour where it adds value: bounded Self-Refine retries
-> on parse failure (controlled cycles), and sequential multi-turn state
-> injection for multi-page documents."*
+> *"The design philosophy was to minimise coupling between layers — model
+> identity, hardware configuration, workflow topology, and extraction logic
+> are each declared independently — while maximising cohesion within layers,
+> so that every model-specific, hardware-specific, or document-type-specific
+> concern has exactly one place it belongs. Applied to the Look-Ask-Act
+> pattern, this produced a hardware-constrained directed graph that preserves
+> the perceive-reason-act structure, bounds memory usage and KV cache growth,
+> and enables data-parallel throughput at scale — while retaining genuine
+> agentic behaviour where it adds value: bounded Self-Refine retries on parse
+> failure, and sequential multi-turn state injection for multi-page documents."*
 
 ---
 
