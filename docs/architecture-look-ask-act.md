@@ -85,94 +85,52 @@ dynamically deciding what to look at next. Production hardware prevented this.
 
 ## How the Architecture Was Made More Modular
 
-### The Problem: Tight Coupling in the Original Two-Model Design
-
-The pipeline launched with InternVL3 and Llama 3.2 as the only supported
-backends. Each required:
-
-- A hand-written loader function (~200 lines) managing `from_pretrained`,
-  dtype selection, device placement, and generation config fixups
-- A hand-written `processor_creator` function constructing the document
-  processor from model + tokenizer
-- Model-specific `if model_type == "internvl3"` branches scattered across
-  `cli.py`, `batch_processor.py`, and the bank statement adapter
-
-Adding a third model meant touching five or more files, with high risk of
-regressions in the existing two paths.
-
-### The Solution: Declarative Model Registry
-
-Modularity was introduced in three layers:
-
-**1. Central registry (`models/registry.py`)**
-
-A `ModelRegistration` dataclass and a `_REGISTRY` dict decouple model
-identity from pipeline logic. The pipeline calls `get_model(model_type)` —
-it never imports model-specific modules directly. All heavy imports
-(`torch`, `transformers`) are deferred to function bodies, so importing the
-registry has zero GPU/ML overhead.
-
-**2. Declarative specs (`ModelSpec` / `VllmSpec` in `models/model_loader.py`)**
-
-Each new model is declared as a ~20-line dataclass instance rather than
-~200 lines of imperative loader code. Common concerns — dtype selection,
-device placement, flash-attention gating, quantization config, generation
-warning suppression — are handled once in the loader and driven by spec
-fields:
-
-```python
-register_hf_model(ModelSpec(
-    model_type="qwen3vl",
-    model_class="Qwen3VLForConditionalGeneration",
-    prompt_file="qwen3vl_prompts.yaml",
-    attn_implementation="flash_attention_2",
-    suppress_gen_warnings=("temperature", "top_p", "top_k"),
-    message_style="two_step",
-))
-```
-
-**3. Backend abstraction (`models/backends/`)**
-
-Model-specific generation APIs are encapsulated behind a uniform interface:
-
-| Backend | Models | API |
-|---|---|---|
-| `InternVL3Backend` | InternVL3 family | `.chat()` / `.batch_chat()` |
-| `LlamaBackend` | Llama 3.2 | `processor.apply_chat_template()` + `.generate()` |
-| `HFChatTemplateBackend` | Llama 4, Qwen3-VL, Qwen3.5, Nemotron, Granite 4, Gemma 4 | `processor.apply_chat_template()` + `.generate()` (two-step or one-step) |
-| `VllmBackend` | All vLLM variants | `llm.generate()` via OpenAI-compatible messages |
-
-The document processor (`DocumentAwareProcessor`) calls
-`backend.chat(image, prompt)` — it never branches on model type.
-
 ### Why Modularity Was Necessary
 
-The pipeline grew from 2 models to 10+ models across four hardware targets
-(V100, A10G/L40, M1 MPS) over twelve months. Each new model differed in:
+The pipeline launched with two tightly coupled model backends. Each new model
+required changes in multiple places — loading logic, generation logic, and
+pipeline orchestration — with growing risk of regressions across existing
+paths. As the scope expanded to cover more models and more hardware targets,
+it became clear that adding capability through direct modification was
+unsustainable.
 
-- Loading API (`AutoModel` vs `AutoModelForCausalLM` vs `AutoModelForImageTextToText`)
-- Generation API (`.chat()`, `.generate()`, vLLM)
-- Chat template format (InternVL system tags, Llama `<|image|>` tokens, Jinja2 templates)
-- Quantization requirements (BitsAndBytes NF4, optimum-quanto INT8/INT4)
-- Hardware constraints (CUDA-only libraries, MPS buffer limits, KV cache sizing)
+The core problem was **coupling between model identity and pipeline logic**.
+The execution layer should not need to know which model is loaded — it
+should only know how to run a Look-Ask-Act cycle.
 
-Without the registry and backend abstraction, each addition would have
-required modifying `cli.py`, `batch_processor.py`, the bank statement
-adapter, and the evaluation harness — four files per model, with compounding
-regression risk across existing paths.
+### How It Was Solved
+
+Modularity was achieved through three principles applied consistently:
+
+**Separation of declaration from execution.**
+Each model is declared once — its loading requirements, hardware constraints,
+quantization needs, and generation parameters — in a single registration
+entry. The pipeline reads this declaration at startup; it never branches on
+model identity at runtime.
+
+**Uniform interfaces between layers.**
+Every model backend exposes the same interface to the pipeline: given an
+image and a prompt, return a text response. The differences in how models
+load, quantize, and generate are fully encapsulated behind this boundary.
+The orchestration layer calls one method regardless of what is behind it.
+
+**Configuration over code for variation.**
+Hardware-specific concerns — dtype selection, attention backend, device
+placement, memory limits — are expressed as configuration, not conditional
+logic. Adding support for a new hardware target means supplying new
+configuration values, not modifying execution paths.
 
 ### The Result
 
-| Action | Code required |
-|---|---|
-| Add a new HF model | ~20-line `ModelSpec` in `registry.py` — zero pipeline changes |
-| Add a new vLLM model | ~10-line `VllmSpec` in `registry.py` — zero pipeline changes |
-| Add a new hardware target | New `post_load` hook + spec fields — no model logic changes |
-| Swap models at runtime | `--model <type>` CLI flag — no code changes |
+The pipeline now supports over ten model variants across four hardware
+targets. Adding a new model requires a single declarative registration —
+no changes to the pipeline execution layer, no risk to existing paths.
+Swapping models at runtime is a one-flag CLI change. Hardware targets can
+be added or extended without touching model logic.
 
-Ten models (InternVL3-8B/14B/38B, Llama 3.2, Llama 4 Scout, Qwen3-VL,
-Qwen3.5, NVIDIA Nemotron, IBM Granite 4, Gemma 4) were added with zero
-modifications to the pipeline execution layer between additions.
+This extensibility was a direct consequence of designing for separation
+of concerns from the point the architecture became multi-model, rather
+than retrofitting it later.
 
 ---
 
