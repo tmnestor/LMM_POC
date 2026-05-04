@@ -1,6 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
-cba_amount_balance.png,BANK_STATEMENT,88.00000000000001,6,4,5,83.94274187088013,unified_bank_amount_description_2turn,False
-cba_debit_credit.png,BANK_STATEMENT,97.77777777777779,6,4,5,58.06686854362488,unified_bank_debit_credit_description_2turn,False
-cba_highligted.png,BANK_STATEMENT,70.0,6,2,5,42.89488983154297,unified_bank_balance_description_2turn,False
-image_001.png,RECEIPT,100.0,14,14,14,21.866148233413696,receipt,False
-image_002.png,RECEIPT,100.0,14,14,14,24.589142084121704,receipt,False

@@ -1,88 +1,0 @@
-[2026-02-22 22:18:13] =================================================================
-[2026-02-22 22:18:13]     Running LMM for Information Extraction
-[2026-02-22 22:18:13] =================================================================
-[2026-02-22 22:18:13] 
-[2026-02-22 22:18:13] ---------------------------------------
-[2026-02-22 22:18:13] Python:  /home/jovyan/.conda/envs/LMM_POC_IVL3.5/bin/python3
-[2026-02-22 22:18:13] Version: Python 3.12.12
-[2026-02-22 22:18:14] Conda:   LMM_POC_IVL3.5        *  /home/jovyan/.conda/envs/LMM_POC_IVL3.5
-[2026-02-22 22:18:14] Log dir: ../evaluation_data/output/logs
-[2026-02-22 22:18:14] ---------------------------------------
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] GPU environment:
-[2026-02-22 22:18:14]   CUDA_VISIBLE_DEVICES:  <not set — all GPUs visible>
-[2026-02-22 22:18:14]   CUDA_DEVICE_ORDER:     PCI_BUS_ID
-[2026-02-22 22:18:14]   NVIDIA_VISIBLE_DEVICES: void
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] Detected 2 GPU(s):
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14]   GPU 0:  NVIDIA L4 |23034 MiB total |22564 MiB free |  63C | ECC errors: 0
-[2026-02-22 22:18:14]   GPU 1:  NVIDIA L4 |23034 MiB total |22564 MiB free |  58C | ECC errors: 0
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] Run ID: 20260222_221813
-[2026-02-22 22:18:14] Resolved paths:
-[2026-02-22 22:18:14]   DATA_DIR:      ../evaluation_data/bank
-[2026-02-22 22:18:14]   OUTPUT_DIR:    ../evaluation_data/output
-[2026-02-22 22:18:14]   GROUND_TRUTH:  ../evaluation_data/bank/ground_truth_bank.csv
-[2026-02-22 22:18:14]   LOG_DIR:       ../evaluation_data/output/logs
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] KFP_TASK: extract_documents
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] Using latest classifications_csv: ../evaluation_data/output/csv/batch_20260222_220528_classifications.csv
-[2026-02-22 22:18:14] Resolved CLI args: extract --run-id 20260222_221813 --output-dir ../evaluation_data/output --num-gpus 0 --classifications ../evaluation_data/output/csv/batch_20260222_220528_classifications.csv
-[2026-02-22 22:18:14] 
-[2026-02-22 22:18:14] Starting cli.py extract...
-
-Extracting 12 documents...
-
-Auto-detected 2 GPUs — enabling parallel processing
-
-Multi-GPU extract: distributing 12 documents across 2 GPUs
-  GPU 0: 6 documents
-  GPU 1: 6 documents
-
-Loading models on all GPUs...
-
-Loading model from: /home/jovyan/nfs_share/models/InternVL3_5-8B
-Loading checkpoint shards:   0%|                                                                                                                                  | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██████████████████████████████▌                                                                                           | 1/4 [00:00<00:02,  1.30it/s]Loading checkpoint shards:  50%|█████████████████████████████████████████████████████████████                                                             | 2/4 [00:01<00:01,  1.52it/s]Loading checkpoint shards:  75%|███████████████████████████████████████████████████████████████████████████████████████████▌                              | 3/4 [00:02<00:00,  1.45it/s]Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.63it/s]Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.55it/s]
-⠹ Model loaded!
-⚡ Flash Attention 2: ✅ enabled
-
-Loading model from: /home/jovyan/nfs_share/models/InternVL3_5-8B
-Loading checkpoint shards:   0%|                                                                                                                                  | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██████████████████████████████▌                                                                                           | 1/4 [00:00<00:02,  1.30it/s]Loading checkpoint shards:  50%|█████████████████████████████████████████████████████████████                                                             | 2/4 [00:01<00:01,  1.52it/s]Loading checkpoint shards:  75%|███████████████████████████████████████████████████████████████████████████████████████████▌                              | 3/4 [00:02<00:00,  1.45it/s]Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.63it/s]Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.55it/s]
-⠧ Model loaded!
-⚡ Flash Attention 2: ✅ enabled
-                          GPU Status                           
-┏━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━┓
-┃ GPU          ┃   Total ┃ Allocated ┃ Reserved ┃ Utilization ┃
-┡━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│ 0: NVIDIA L4 │ 22.0 GB │  15.89 GB │ 15.92 GB │       72.3% │
-│ 1: NVIDIA L4 │ 22.0 GB │  15.89 GB │ 15.92 GB │       72.3% │
-└──────────────┴─────────┴───────────┴──────────┴─────────────┘
-
-Extracting documents in parallel...
-Extracting                                          0/6 cba_amount_balance.png
-Extracting                                          0/6 image_009.png
-Extracting ━━━━━━╸                                  1/6 cba_date_grouped.png
-Extracting ━━━━━━╸                                  1/6 low_contrast.png
-Extracting ━━━━━━━━━━━━━                            2/6 cba_date_grouped_cont.png
-Extracting ━━━━━━━━━━━━━                            2/6 synthetic_chrono.png
-Extracting ━━━━━━━━━━━━━━━━━━━━                     3/6 cba_debit_credit.png
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━╸              4/6 cba_highligted.png
-Extracting ━━━━━━━━━━━━━━━━━━━━                     3/6 synthetic_multiline.png
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━        5/6 image_003.png
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6/6 done
-  GPU 0 finished
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━╸              4/6 synthetic_reverse_chrono.png
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━        5/6 transaction_summary.png
-Extracting ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6/6 done
-  GPU 1 finished
-
-Multi-GPU extract complete: 707.6s total
-
-Extractions written to: ../evaluation_data/output/batch_results/batch_20260222_221813_extractions.json
-  12 documents extracted
-[2026-02-22 22:30:13] Extraction completed successfully.
-
-[2026-02-22 22:30:13] Exited with code 0 after 720s
-[2026-02-22 22:30:13] Log file: ../evaluation_data/output/logs/entrypoint_20260222_221813.log

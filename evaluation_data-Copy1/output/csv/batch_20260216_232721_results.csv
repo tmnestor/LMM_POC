@@ -1,3 +1,0 @@
-image_name,document_type,overall_accuracy,fields_extracted,fields_matched,total_fields,processing_time,prompt_used,inference_only
-cba_amount_balance.png,RECEIPT,85.71428571428571,0,12,14,17.392105102539062,receipt,False
-cba_date_grouped.png,BANK_STATEMENT,58.235294117647065,6,1,5,26.779661178588867,unified_bank_schema_fallback,False
