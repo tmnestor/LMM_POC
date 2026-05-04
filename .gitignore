@@ -67,6 +67,7 @@ datasets_cache/
 # OS
 .DS_Store
 Thumbs.db
+~$*.docx
 
 # Testing
 .coverage
