@@ -15,7 +15,7 @@ model:
                          #        lower throughput); false = compile graphs (slower
                          #        startup, higher throughput for long runs)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
-  max_new_tokens: 2000   # Max tokens for generation
+  max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
 
 
 
