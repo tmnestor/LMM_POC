@@ -12,6 +12,7 @@ from typing import Any
 
 from .batch_types import ExtractionOutput
 from .evaluation_metrics import (
+    _parse_single_date,
     calculate_correlation_aware_f1,
     calculate_field_accuracy_with_method,
     load_ground_truth,
@@ -19,6 +20,92 @@ from .evaluation_metrics import (
 from .simple_model_evaluator import SimpleModelEvaluator
 
 logger = logging.getLogger(__name__)
+
+# Fields that form parallel transaction arrays, keyed by sort field.
+# Used by _normalize_transaction_order to sort both sides chronologically
+# before comparison so that document-order vs chronological-order
+# differences do not penalise F1 scores.
+_TRANSACTION_SORT_GROUPS: dict[str, dict[str, Any]] = {
+    "bank_statement": {
+        "sort_key": "TRANSACTION_DATES",
+        "fields": [
+            "TRANSACTION_DATES",
+            "TRANSACTION_AMOUNTS_PAID",
+            "TRANSACTION_AMOUNTS_RECEIVED",
+            "LINE_ITEM_DESCRIPTIONS",
+            "ACCOUNT_BALANCE",
+        ],
+    },
+}
+
+
+def _normalize_transaction_order(
+    data: dict[str, str],
+    doc_type: str,
+) -> dict[str, str]:
+    """Sort parallel transaction-list fields into chronological order.
+
+    Both the extracted data and the ground truth may present transactions
+    in different orders (e.g. document order vs chronological after
+    BalanceCorrector sorting). Normalising both sides to chronological
+    order before F1 scoring removes ordering artefacts.
+
+    Returns a shallow copy with the affected fields re-ordered, or the
+    original dict unchanged when normalisation is not applicable.
+    """
+    group = _TRANSACTION_SORT_GROUPS.get(doc_type.lower())
+    if not group:
+        return data
+
+    sort_key_field = str(group["sort_key"])
+    sort_fields: list[str] = list(group["fields"])
+
+    sort_val = str(data.get(sort_key_field, "NOT_FOUND")).strip()
+    if sort_val.upper() == "NOT_FOUND" or "|" not in sort_val:
+        return data
+
+    sort_items = [i.strip() for i in sort_val.split("|") if i.strip()]
+
+    # Parse each date into (day, month, year); unparseable → sort last
+    parsed_dates: list[tuple[int, int, int]] = []
+    for d in sort_items:
+        parsed = _parse_single_date(d)
+        parsed_dates.append(parsed if parsed else (9999, 99, 99))
+
+    # Chronological sort key: (year, month, day)
+    sort_order = sorted(
+        range(len(parsed_dates)),
+        key=lambda i: (parsed_dates[i][2], parsed_dates[i][1], parsed_dates[i][0]),
+    )
+
+    # Already chronological — nothing to do
+    if sort_order == list(range(len(sort_order))):
+        return data
+
+    result = dict(data)
+    reordered = 0
+    for field in sort_fields:
+        val = str(data.get(field, "NOT_FOUND")).strip()
+        if val.upper() == "NOT_FOUND" or "|" not in val:
+            continue
+        items = [i.strip() for i in val.split("|") if i.strip()]
+        if len(items) != len(sort_order):
+            logger.debug(
+                "Skipping field %s: length %d != sort key length %d",
+                field,
+                len(items),
+                len(sort_order),
+            )
+            continue
+        result[field] = " | ".join(items[i] for i in sort_order)
+        reordered += 1
+
+    logger.debug(
+        "Normalised %d transaction fields to chronological order for %s",
+        reordered,
+        doc_type,
+    )
+    return result
 
 
 class ExtractionEvaluator:
@@ -208,6 +295,15 @@ class ExtractionEvaluator:
             for field in evaluation_fields
             if field in ground_truth
         }
+
+        # Normalise transaction order before scoring.
+        # Post-processing may sort extractions to chronological order
+        # while ground truth preserves document order (or vice versa).
+        # Sorting both sides chronologically removes ordering artefacts.
+        extracted_data = _normalize_transaction_order(extracted_data, document_type)
+        filtered_ground_truth = _normalize_transaction_order(
+            filtered_ground_truth, document_type
+        )
 
         if document_type.upper() == "BANK_STATEMENT":
             logger.debug(

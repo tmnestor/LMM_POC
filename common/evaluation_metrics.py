@@ -21,6 +21,99 @@ import pandas as pd
 
 from .field_schema import FieldSchema, get_field_schema
 
+# Month name → number mapping used by _parse_single_date.
+_MONTHS: dict[str, int] = {
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
+}
+
+
+def _parse_single_date(date_str: str) -> tuple[int, int, int] | None:
+    """Parse a single date string to a ``(day, month, year)`` tuple.
+
+    Handles day-name prefixes (``"Thu 04 Sep 2025"``), month names,
+    numeric separators (``/``, ``-``), and 2-digit year normalization.
+
+    Returns ``None`` when the string cannot be parsed.
+    """
+    date_str = date_str.strip().lower()
+
+    # Strip day name prefix (Mon, Tue, etc.)
+    _day_names = [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+    for day_name in _day_names:
+        if date_str.startswith(day_name):
+            date_str = date_str[len(day_name) :].strip()
+            break
+
+    # Extract all numbers
+    nums = re.findall(r"\d+", date_str)
+
+    # Check for month names
+    month_num = None
+    for month_name, month_val in _MONTHS.items():
+        if month_name in date_str:
+            month_num = month_val
+            break
+
+    if not nums:
+        return None
+
+    # Parse based on available information
+    if len(nums) >= 3:
+        # Full numeric date: DD/MM/YYYY or similar
+        day, month, year = int(nums[0]), int(nums[1]), int(nums[2])
+    elif len(nums) == 2 and month_num:
+        # Date with month name: "28 June 2024"
+        day, month, year = int(nums[0]), month_num, int(nums[1])
+    elif len(nums) == 2:
+        # Ambiguous - assume DD/MM or MM/YY
+        day, month, year = int(nums[0]), int(nums[1]), 0
+    else:
+        return None
+
+    # Normalize 2-digit years
+    if year < 100:
+        year = 2000 + year if year <= 50 else 1900 + year
+
+    return (day, month, year)
+
 
 def load_ground_truth(
     gt_path: str, show_sample: bool = False, verbose: bool = True
@@ -1099,121 +1192,33 @@ def _compare_date_field(
     - Month names vs numbers: "February" = "02"
     - Day name prefixes: "Tue 2 Apr 2024" = "02/04/2024"
     """
-    # Month name to number mapping
-    months = {
-        "jan": 1,
-        "january": 1,
-        "feb": 2,
-        "february": 2,
-        "mar": 3,
-        "march": 3,
-        "apr": 4,
-        "april": 4,
-        "may": 5,
-        "jun": 6,
-        "june": 6,
-        "jul": 7,
-        "july": 7,
-        "aug": 8,
-        "august": 8,
-        "sep": 9,
-        "sept": 9,
-        "september": 9,
-        "oct": 10,
-        "october": 10,
-        "nov": 11,
-        "november": 11,
-        "dec": 12,
-        "december": 12,
-    }
 
-    def parse_single_date(date_str: str) -> tuple[int, int, int] | None:
-        """Parse a single date string to (day, month, year) tuple."""
-        date_str = date_str.strip().lower()
-
-        # Strip day name prefix (Mon, Tue, etc.)
-        day_names = [
-            "mon",
-            "tue",
-            "wed",
-            "thu",
-            "fri",
-            "sat",
-            "sun",
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-        ]
-        for day_name in day_names:
-            if date_str.startswith(day_name):
-                date_str = date_str[len(day_name) :].strip()
-                break
-
-        # Extract all numbers
-        nums = re.findall(r"\d+", date_str)
-
-        # Check for month names
-        month_num = None
-        for month_name, month_val in months.items():
-            if month_name in date_str:
-                month_num = month_val
-                break
-
-        if not nums:
-            return None
-
-        # Parse based on available information
-        if len(nums) >= 3:
-            # Full numeric date: DD/MM/YYYY or similar
-            day, month, year = int(nums[0]), int(nums[1]), int(nums[2])
-        elif len(nums) == 2 and month_num:
-            # Date with month name: "28 June 2024"
-            day, month, year = int(nums[0]), month_num, int(nums[1])
-        elif len(nums) == 2:
-            # Ambiguous - assume DD/MM or MM/YY
-            day, month, year = int(nums[0]), int(nums[1]), 0
-        else:
-            return None
-
-        # Normalize 2-digit years
-        if year < 100:
-            year = 2000 + year if year <= 50 else 1900 + year
-
-        return (day, month, year)
-
-    def parse_date_range(text: str) -> list[tuple[int, int, int]]:
+    def _parse_date_range(text: str) -> list[tuple[int, int, int]]:
         """Parse a date range string into list of (day, month, year) tuples."""
-        # Split on common range separators
         separators = [" - ", " to ", " – ", " — ", "-"]
-        dates = []
+        dates: list[tuple[int, int, int]] = []
 
         for sep in separators:
             if sep in text.lower():
                 parts = text.split(sep) if sep != "-" else re.split(r"\s*-\s*", text)
-                # Filter out empty parts and parts that are just numbers (like in "16-Jul-25")
                 parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 4]
                 if len(parts) >= 2:
-                    for part in parts[:2]:  # Take first two date parts
-                        parsed = parse_single_date(part)
+                    for part in parts[:2]:
+                        parsed = _parse_single_date(part)
                         if parsed:
                             dates.append(parsed)
                     break
 
-        # If no range found, try parsing as single date
         if not dates:
-            parsed = parse_single_date(text)
+            parsed = _parse_single_date(text)
             if parsed:
                 dates.append(parsed)
 
         return dates
 
     # Parse both values
-    extracted_dates = parse_date_range(extracted)
-    ground_truth_dates = parse_date_range(ground_truth)
+    extracted_dates = _parse_date_range(extracted)
+    ground_truth_dates = _parse_date_range(ground_truth)
 
     if debug:
         print(f"    📅 DATE FIELD: {field_name}")
