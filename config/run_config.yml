@@ -129,11 +129,11 @@ linking:
   hybrid_date_window_days: 5               # business-day window for date scoring
   hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
   hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
-  data_dir: ../evaluation_data/linking
-  output: ../evaluation_data/linking/output/transaction_links.jsonl
-  ground_truth: ../evaluation_data/linking/ground_truth/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
-  evaluation_dir: ../evaluation_data/linking/output/transaction_evaluation
-  log_dir: ../evaluation_data/linking/output/logs
+  data_dir: ../evaluation_data/synthetic_transaction_linking
+  output: ../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl
+  ground_truth: ../evaluation_data/synthetic_transaction_linking/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
+  evaluation_dir: ../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation
+  log_dir: ../evaluation_data/synthetic_transaction_linking/output/logs
 
 # Batch processing tuning
 batch:
