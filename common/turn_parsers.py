@@ -394,12 +394,21 @@ class ClassificationParser:
     ``fallback_type`` is read from ``run_config.yml`` classification section.
     """
 
-    # Regexes for structured field extraction
-    # Allow optional numbering/bullet prefix (e.g. "1. COLUMNS:", "- COLUMNS:")
-    _PREFIX = r"(?:\d+[\.\)]\s*|[-*]\s*)?"
-    _COLUMNS_RE = re.compile(rf"^{_PREFIX}COLUMNS:\s*(.+)$", re.MULTILINE | re.IGNORECASE)
-    _PAID_RE = re.compile(rf"^{_PREFIX}PAID:\s*(YES|NO)\b", re.MULTILINE | re.IGNORECASE)
-    _ROWS_RE = re.compile(rf"^{_PREFIX}ROWS:\s*(\d+)", re.MULTILINE | re.IGNORECASE)
+    # Regexes for structured field extraction.
+    # A response may arrive terse ("1. COLUMNS: a | b | c") or — when the model
+    # ignores the format and emits chain-of-thought / markdown — with the label
+    # as a heading ("### 1. COLUMNS") and the value on a LATER line inside a code
+    # fence. The prefix therefore tolerates leading markdown / number / bullet
+    # noise (#, >, -, *, digits), and _parse_enriched recovers the value from the
+    # whole response when it is not present inline.
+    # See prompts/document_type_detection.yaml for the format the prompt requests.
+    _LABEL_PREFIX = r"^[#>\-*\d.\)\s]*"
+    _COLUMNS_RE = re.compile(rf"{_LABEL_PREFIX}COLUMNS\**\s*:\s*(.+)$", re.MULTILINE | re.IGNORECASE)
+    _PAID_RE = re.compile(rf"{_LABEL_PREFIX}PAID\**\s*:\s*(YES|NO)\b", re.MULTILINE | re.IGNORECASE)
+    _ROWS_RE = re.compile(rf"{_LABEL_PREFIX}ROWS\**\s*:\s*(\d+)", re.MULTILINE | re.IGNORECASE)
+    # Bare COLUMNS label, even with no inline value (e.g. a "### 1. COLUMNS"
+    # heading). Presence of the label marks the response as an enriched answer.
+    _COLUMNS_LABEL_RE = re.compile(r"\bCOLUMNS\b", re.IGNORECASE)
 
     def __init__(self, fallback_type: str = "UNIVERSAL") -> None:
         self._fallback_type = fallback_type
@@ -414,31 +423,50 @@ class ClassificationParser:
         # Fallback: structured parsing failed, use legacy matching
         return self._parse_legacy(raw_response)
 
+    @staticmethod
+    def _clean_value(value: str) -> str:
+        """Strip surrounding markdown emphasis / code-fence noise from a value."""
+        return value.strip().strip("*`").strip()
+
     def _parse_enriched(self, raw_response: str) -> dict[str, Any] | None:
-        """Parse COLUMNS / PAID / ROWS fields and derive document type."""
+        """Parse COLUMNS / PAID / ROWS fields and derive document type.
+
+        Resilient to chain-of-thought / markdown drift: if the COLUMNS label is
+        present but its value is not inline (the model put it on a later line or
+        inside a code fence), the headers are recovered by scanning the whole
+        response. The debit/credit/balance guard below means stray non-bank
+        headers can never promote a document to BANK_STATEMENT.
+        """
+        # An enriched response must at least mention the COLUMNS label; without
+        # it, defer to legacy keyword matching.
+        if self._COLUMNS_LABEL_RE.search(raw_response) is None:
+            return None
+
         columns_match = self._COLUMNS_RE.search(raw_response)
+        columns_inline = self._clean_value(columns_match.group(1)) if columns_match else ""
         paid_match = self._PAID_RE.search(raw_response)
         rows_match = self._ROWS_RE.search(raw_response)
 
-        # Need at least COLUMNS to proceed with enriched parsing
-        if columns_match is None:
-            return None
+        if columns_inline.upper() == "NONE":
+            headers: list[str] = []
+        elif columns_inline:
+            headers = self._header_parser._parse_headers(columns_inline)
+        else:
+            # Label present but value not inline (CoT / markdown drift) — recover
+            # the column headers from the full response.
+            headers = self._header_parser._parse_headers(raw_response)
 
-        columns_raw = columns_match.group(1).strip()
-        has_columns = columns_raw.upper() != "NONE"
         paid = paid_match.group(1).upper() == "YES" if paid_match else False
         row_count = int(rows_match.group(1)) if rows_match else 0
 
         # Derive document type from evidence
         column_mapping: dict[str, str | None] | None = None
         has_bank_columns = False
-        if has_columns:
-            headers = self._header_parser._parse_headers(columns_raw)
-            if headers:
-                column_mapping = self._header_parser._match_columns(headers)
-                # Bank statements have financial columns (debit/credit/balance);
-                # invoices/receipts also have tables (Qty/Price/Total) but lack these.
-                has_bank_columns = any(column_mapping.get(k) for k in ("debit", "credit", "balance"))
+        if headers:
+            column_mapping = self._header_parser._match_columns(headers)
+            # Bank statements have financial columns (debit/credit/balance);
+            # invoices/receipts also have tables (Qty/Price/Total) but lack these.
+            has_bank_columns = any(column_mapping.get(k) for k in ("debit", "credit", "balance"))
 
         if has_bank_columns:
             doc_type = "BANK_STATEMENT"
