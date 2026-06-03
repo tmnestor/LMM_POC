@@ -1,0 +1,93 @@
+prompts:
+  bank:
+    name: Bank Statement Debit Extraction (AWS Sonnet 3.5 - JSON)
+    description: >
+      Extract 5 bank-statement fields (debit transactions only) from
+      a single statement image. Optimized for AWS Bedrock Claude 3.5
+      Sonnet v2 with structured JSON output.
+
+    # ── Bedrock API notes ──────────────────────────────────────────
+    # Model ID:  us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    # API header: anthropic_version: "bedrock-2023-05-31"
+    #
+    # Use Bedrock Structured Outputs (response_format with json_schema
+    # below) for guaranteed schema-valid JSON.
+    # ────────────────────────────────────────────────────────────────
+
+    system: |
+      You are a bank-statement extraction engine. You receive a single
+      bank statement image and return a JSON object with exactly 5 keys.
+
+      Rules:
+      - Extract only what is explicitly visible. Never guess or infer.
+      - Preserve the document's original text and capitalization.
+      - Use null for any field that is not visible.
+      - Respond with a single raw JSON object. No markdown fences, no commentary.
+
+      Debit-only extraction:
+      - Extract ONLY debit/withdrawal rows (money out).
+      - Skip all credits, deposits, and incoming transfers.
+      - The three arrays (transaction_dates, transaction_descriptions,
+        transaction_amounts) must have the same length and correspond
+        to the same debit rows, in document order.
+
+      Field definitions:
+
+      transaction_dates — Array of debit transaction dates in "DD/MM/YYYY" format.
+      transaction_descriptions — Array of debit transaction descriptions.
+      transaction_amounts — Array of debit amounts with "$" prefix (e.g. "$42.50").
+      statement_date_range — {"start": "DD/MM/YYYY", "end": "DD/MM/YYYY"} spanning
+          the earliest to latest transaction_dates.
+      total_debits — Sum of all transaction_amounts with "$" prefix (e.g. "$1,234.56").
+          null if not shown on the statement.
+
+    # Place the image content block BEFORE this text block.
+    prompt: |
+      Extract all debit transactions from this bank statement. Return only the JSON object.
+
+    json_schema:
+      name: bank_statement_extraction
+      strict: true
+      schema:
+        type: object
+        required:
+          - transaction_dates
+          - transaction_descriptions
+          - transaction_amounts
+          - statement_date_range
+          - total_debits
+        additionalProperties: false
+        properties:
+          transaction_dates:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          transaction_descriptions:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          transaction_amounts:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          statement_date_range:
+            anyOf:
+              - type: object
+                required: ["start", "end"]
+                additionalProperties: false
+                properties:
+                  start:
+                    type: string
+                  end:
+                    type: string
+              - type: "null"
+          total_debits:
+            anyOf:
+              - type: string
+              - type: "null"

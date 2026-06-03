@@ -1,0 +1,110 @@
+prompts:
+  link_receipt_to_statement:
+    name: "Receipt-to-Statement Linking"
+    description: >
+      Given a receipt/invoice image and a bank statement image,
+      identify which debit transaction in the bank statement
+      corresponds to the purchase shown on the receipt.
+    prompt: |
+      You are given two images:
+      - Image 1 is a receipt or invoice from a purchase.
+      - Image 2 is a bank statement showing multiple transactions.
+
+      Your task: identify the specific debit transaction in the bank statement
+      that corresponds to the purchase on the receipt.
+
+      Match on amount, date, and merchant name (which may be truncated or
+      abbreviated on the bank statement).
+
+      Respond ONLY in the following key-value format, one field per line:
+
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      RECEIPT_STORE: the store/merchant name from the receipt
+      RECEIPT_TOTAL: the total amount from the receipt
+      CONFIDENCE: HIGH, MEDIUM, or LOW
+      REASONING: brief explanation of why this transaction matches
+
+      If no matching transaction is found, set MATCHED_TRANSACTION to NOT_FOUND
+      and explain why in REASONING.
+
+  link_multiple_receipts:
+    name: "Multiple Receipts to Statement Linking"
+    description: >
+      Given multiple receipt/invoice images and a bank statement image,
+      identify which debit transaction corresponds to each receipt.
+    prompt: |
+      You are given multiple images. The LAST image is a bank statement
+      showing multiple transactions. All preceding images are receipts
+      or invoices from separate purchases.
+
+      Your task: for EACH receipt, identify the specific debit transaction
+      in the bank statement that corresponds to that purchase.
+
+      Match on amount, date, and merchant name (which may be truncated or
+      abbreviated on the bank statement).
+
+      For each receipt, respond in the following format:
+
+      --- RECEIPT N ---
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      RECEIPT_STORE: the store/merchant name from the receipt
+      RECEIPT_TOTAL: the total amount from the receipt
+      CONFIDENCE: HIGH, MEDIUM, or LOW
+      REASONING: brief explanation of why this transaction matches
+
+  link_receipt_page_to_statement:
+    name: "Receipt Page to Statement Linking"
+    description: >
+      Given a single scanned page containing multiple receipts and a bank
+      statement image, enumerate each receipt on the page and match each
+      to the corresponding debit transaction.
+    prompt: |
+      You are given two images:
+      - Image 1 is a scanned page that may contain MULTIPLE receipts
+        (e.g. several receipts stapled or placed together on one page).
+      - Image 2 is a bank statement showing multiple transactions.
+
+      Your task has two steps:
+
+      STEP 1: Carefully examine Image 1 and enumerate every distinct receipt
+      visible on the page. Look for separate store names, dates, and totals
+      to distinguish individual receipts.
+
+      STEP 2: For EACH receipt found, identify the specific debit transaction
+      in the bank statement that corresponds to that purchase. Match on amount,
+      date, and merchant name.
+
+      Fuzzy matching hints:
+      - Bank statements often truncate merchant names (e.g. "Office Supplies Plus"
+        becomes "OFFICE SUPPLIES PLU")
+      - The "&" symbol may appear as "AND" on the bank statement
+      - Names may be upper-cased and shortened to ~18-20 characters
+
+      For each receipt, respond in the following format:
+
+      --- RECEIPT 1 ---
+      MATCHED_TRANSACTION: FOUND or NOT_FOUND
+      TRANSACTION_DATE: the date of the matched transaction (DD/MM/YYYY)
+      TRANSACTION_AMOUNT: the dollar amount of the matched transaction
+      TRANSACTION_DESCRIPTION: the transaction description from the bank statement
+      RECEIPT_STORE: the store/merchant name from the receipt
+      RECEIPT_TOTAL: the total amount from the receipt
+      CONFIDENCE: HIGH, MEDIUM, or LOW
+      REASONING: brief explanation of why this transaction matches
+
+      --- RECEIPT 2 ---
+      (same fields)
+
+      Continue for all receipts found on the page.
+      If no matching transaction is found for a receipt, set MATCHED_TRANSACTION
+      to NOT_FOUND and explain why in REASONING.
+
+settings:
+  max_new_tokens: 1500
+  temperature: 0.0

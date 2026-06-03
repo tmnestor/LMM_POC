@@ -1,0 +1,28 @@
+prompts:
+  trust_detection:
+    name: "Trust Document Type Detection"
+    prompt: |
+      Look at this document image and answer each question.
+      Reply with ONLY the field label and your answer — do NOT repeat the question.
+
+      1. HEADER: Write the exact main title or heading of this document.
+      2. HAS_ABN: Does it show an Australian Business Number (ABN)? YES or NO.
+      3. HAS_TFN: Does it show a Tax File Number (TFN)? YES or NO.
+      4. HAS_DISTRIBUTION_TABLE: Is there a table of income distributed to beneficiaries? YES or NO.
+      5. HAS_ITEM_13: Does it contain "Item 13" or a "Partnerships and trusts" section? YES or NO.
+      6. ADDRESSED_TO: Is it addressed to a specific beneficiary? YES or NO.
+
+type_mappings:
+  "trust return": "TRUST_RETURN"
+  "trust income tax return": "TRUST_RETURN"
+  "distribution statement": "DISTRIBUTION_STMT"
+  "income schedule": "INCOME_SCHEDULE"
+  "schedule of trust income": "INCOME_SCHEDULE"
+  "individual tax return": "BENEFICIARY_ITR"
+  "item 13": "BENEFICIARY_ITR"
+
+fallback_keywords:
+  TRUST_RETURN: [trust return, trust tax return, trustee details]
+  DISTRIBUTION_STMT: [distribution statement, beneficiary distribution]
+  INCOME_SCHEDULE: [schedule, trust income, tax offsets]
+  BENEFICIARY_ITR: [item 13, partnerships and trusts, individual tax return]

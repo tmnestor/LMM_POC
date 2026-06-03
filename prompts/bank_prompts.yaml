@@ -1,0 +1,206 @@
+# Prompt templates for unified bank statement extraction
+# Uses structure-dynamic approach: column names are injected at runtime
+
+version: "1.0"
+description: "Bank statement extraction prompts for 2-turn balance-description strategy"
+
+prompts:
+  # Turn 0: Header detection (shared across all strategies)
+  turn0_header_detection:
+    name: "Header Detection"
+    description: "Identify exact column headers from bank statement image"
+    template: |
+      Look at the transaction table in this bank statement image.
+
+      What are the exact column header names used in the transaction table?
+
+      List each column header on its own line, in order from left to right.
+      Do not interpret or rename them - use the EXACT text from the image.
+
+      Example output format:
+      Date
+      Description
+      Debit
+      Credit
+      Balance
+
+  # Turn 1: Balance-description extraction (2-turn strategy)
+  turn1_balance_extraction:
+    name: "Balance-Description Extraction"
+    description: "Extract transactions anchored to balance column"
+    # Placeholders: {balance_col}, {desc_col}, {debit_col}, {credit_col}
+    template: |
+      List all the balances in the {balance_col} column, including:
+      - Date from the Date Header of the balance
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each balance entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY balance entry in order from top to bottom
+      2. EVERY balance entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any transactions
+      7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+      8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
+         - {balance_col} example: $223.38 CR
+         - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
+
+  # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
+  # Used when statement has Amount column (signed values) instead of separate Debit/Credit
+  turn1_amount_extraction:
+    name: "Amount-Description Extraction"
+    description: "Extract transactions anchored to amount column (negative = withdrawal)"
+    # Placeholders: {amount_col}, {desc_col}, {balance_col} (balance_col may be empty)
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {amount_col} (preserve the sign: negative = withdrawal, positive = deposit)
+      {balance_line}
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {amount_col}: [amount with sign preserved]
+         {balance_format}
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows, not abbreviated
+      4. PRESERVE the sign of amounts (negative = withdrawal, positive = deposit)
+      5. Do NOT skip any transactions
+
+  # Turn 1: Debit-Credit extraction (2-turn strategy for separate Debit/Credit columns)
+  turn1_debit_credit_extraction:
+    name: "Debit-Credit Extraction"
+    description: "Extract transactions with separate debit and credit columns (no balance)"
+    # Placeholders: {debit_col}, {credit_col}, {desc_col}
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [description text]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL description text, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any actual transactions - extract them ALL
+      7. SKIP "Opening balance" and "Closing balance" rows - these are NOT transactions
+      8. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+
+  # Turn 0.5: Format classification (3-turn strategy)
+  turn0_5_format_classification:
+    name: "Date Format Classification"
+    description: "Classify whether dates are per-row or grouped"
+    # Placeholder: {header_string}
+    template: |
+      Look at this bank statement transaction table with columns: {header_string}
+
+      Classify the DATE FORMAT used in this table:
+
+      **Option A: Date-per-row**
+      - Each transaction row has its own date in the first column
+      - Example: Every row shows "15 Jan", "16 Jan", etc.
+
+      **Option B: Date-grouped**
+      - Dates appear as section headers above groups of transactions
+      - Transaction rows may have empty or blank date cells
+      - Multiple transactions share the same date header
+
+      Respond with ONLY: "Date-per-row" or "Date-grouped"
+
+  # Turn 1: Table extraction (3-turn strategy, date-per-row variant)
+  turn1_table_date_per_row:
+    name: "Table Extraction (Date-per-row)"
+    description: "Extract markdown table for date-per-row format"
+    template: |
+      Extract the transaction table as markdown.
+
+      Example format:
+      {example_table}
+
+      Rules:
+      - Include ALL transactions
+      - Use exact column headers from the image
+      - Empty cells should be blank (not "N/A")
+
+  # Turn 1: Table extraction (3-turn strategy, date-grouped variant)
+  turn1_table_date_grouped:
+    name: "Table Extraction (Date-grouped)"
+    description: "Extract markdown table for date-grouped format with date distribution"
+    template: |
+      Extract the transaction table as markdown.
+
+      If you see this structure (dates as section headers with empty cells):
+      {source_table}
+
+      Transform to this format (date on every row):
+      {target_table}
+
+      Rules:
+      - DISTRIBUTE date headers to all transactions under them
+      - Each transaction row MUST have a date
+      - Include ALL transactions
+      - Empty amount cells should be blank
+
+  # Schema-based fallback extraction (when column detection fails)
+  # Used when header detection returns garbage (days of week, ATM locations, etc.)
+  schema_fallback_extraction:
+    name: "Schema-Based Bank Statement Extraction"
+    description: "Direct extraction using schema fields when column detection fails"
+    template: |
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement for expense tracking.
+      SKIP all deposits, credits, salary payments, and money IN transactions entirely.
+
+      Respond in this exact format with actual values or NOT_FOUND:
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations or additional text.
+
+      Instructions:
+      - STATEMENT_DATE_RANGE: Find the statement period (e.g., "01/01/2024 - 31/01/2024")
+      - TRANSACTION_DATES: Dates of DEBIT transactions only, separated by " | "
+      - LINE_ITEM_DESCRIPTIONS: Descriptions of DEBIT transactions only, separated by " | "
+      - TRANSACTION_AMOUNTS_PAID: DEBIT/withdrawal amounts with $ separated by " | "
+
+      HOW TO IDENTIFY DEBITS (money OUT):
+      - Amounts with negative sign (-$50.00) or in a Debit column
+      - Keywords: withdrawal, payment, purchase, fee, charge, ATM, EFTPOS, direct debit
+      DO NOT INCLUDE (money IN):
+      - Keywords: deposit, credit, salary, wages, transfer in, interest received, "Direct Credit"
+
+      CRITICAL RULES:
+      1. Extract ONLY debit/withdrawal transactions - completely SKIP credits and deposits
+      2. Keep items in the same order across all fields (date 1 matches description 1 matches amount 1)
+      3. Use " | " as separator between items
+      4. Include $ symbol for amounts
+      5. Replace NOT_FOUND with actual values
+

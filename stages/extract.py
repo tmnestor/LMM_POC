@@ -1,0 +1,740 @@
+# ruff: noqa: B008 - typer.Option in defaults is the standard Typer pattern
+"""Stage 2: Field extraction (GPU).
+
+Reads classifications.jsonl, runs type-specific extraction on each image,
+and writes RAW model responses to raw_extractions.jsonl.
+
+The raw response is the most valuable debugging artifact -- you can re-parse,
+re-clean, and re-evaluate without touching the GPU.
+
+Supports resumption: if the output file already has partial results from a
+crashed run, skips already-processed images and appends.
+
+Usage:
+    python -m stages.extract \
+        --classifications /artifacts/classifications.jsonl \
+        --image-dir /data \
+        --output /artifacts/raw_extractions.jsonl
+"""
+
+import logging
+import time
+from pathlib import Path
+from typing import Any
+
+import typer
+
+from .io import StreamingJsonlWriter, read_completed_images, read_jsonl, write_jsonl
+
+logger = logging.getLogger(__name__)
+app = typer.Typer()
+
+
+def run(
+    classifications_path: Path | None,
+    image_dir: Path,
+    output_path: Path,
+    *,
+    model_type: str | None = None,
+    batch_size: int | None = None,
+    bank_v2: bool = True,
+    balance_correction: bool = True,
+    graph_bank: bool = False,
+    graph_unified: bool = False,
+    graph_robust: bool = False,
+    max_num_seqs: int | None = None,
+    verbose: bool | None = None,
+    debug: bool | None = None,
+    config_path: Path | None = None,
+) -> Path:
+    """Extract fields from classified images, write raw_extractions.jsonl.
+
+    Writes the **raw model response string** per image, not parsed/cleaned
+    data.  The clean stage handles parsing.
+
+    Supports resumption: if output_path exists with partial results, skips
+    already-processed images and appends new results.
+
+    Args:
+        classifications_path: Path to classifications.jsonl from Stage 1.
+        image_dir: Directory containing the original images.
+        output_path: Path to write raw_extractions.jsonl.
+        model_type: Model type (e.g. "internvl3", "llama").
+        batch_size: Images per batch (None = auto-detect, 1 = sequential).
+        bank_v2: Use UnifiedBankExtractor for bank statements.
+        balance_correction: Enable balance validation in bank extraction.
+        graph_bank: Use graph-based bank extraction (opt-in, overrides bank_v2).
+        graph_unified: Use unified graph workflow (classify + extract in one
+            graph walk). Skips Stage 1 -- discovers images directly from
+            image_dir.
+        graph_robust: Use robust probe-based classification (extraction probes
+            determine doc type). Skips Stage 1 -- discovers images directly
+            from image_dir.
+        verbose: Tier B output (init/config details). None = read from YAML.
+        debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.
+        config_path: Optional path to run_config.yml.
+
+    Returns:
+        Path to the written raw_extractions.jsonl.
+    """
+    if graph_robust:
+        return _run_unified(
+            image_dir=image_dir,
+            output_path=output_path,
+            model_type=model_type,
+            verbose=verbose,
+            debug=debug,
+            config_path=config_path,
+            workflow_name="robust_extract.yaml",
+            label="robust",
+        )
+    if graph_unified:
+        return _run_unified(
+            image_dir=image_dir,
+            output_path=output_path,
+            model_type=model_type,
+            verbose=verbose,
+            debug=debug,
+            config_path=config_path,
+        )
+    if classifications_path is None:
+        msg = "--classifications is required when --graph-unified is not set"
+        raise typer.BadParameter(msg)
+
+    from cli import load_pipeline_configs
+    from common.app_config import AppConfig
+    from common.extraction_sort import filter_skip_labels, sort_for_extraction
+    from common.pipeline_ops import create_processor, load_model
+    from common.unified_bank_extractor import UnifiedBankExtractor
+
+    # Read classifications
+    classifications = read_jsonl(classifications_path)
+    if not classifications:
+        msg = f"No classifications found in {classifications_path}"
+        raise FileNotFoundError(msg)
+
+    logger.info("Read %d classifications from %s", len(classifications), classifications_path)
+
+    # Check for resumption
+    completed = read_completed_images(output_path)
+    if completed:
+        original_count = len(classifications)
+        classifications = [c for c in classifications if c["image_name"] not in completed]
+        logger.info(
+            "Resuming: %d already done, %d remaining (of %d total)",
+            len(completed),
+            len(classifications),
+            original_count,
+        )
+
+    if not classifications:
+        logger.info("All images already processed -- nothing to do")
+        return output_path
+
+    # Build config through the standard cascade. Only inject verbose/debug
+    # when the caller passed an explicit bool — None means "let YAML win".
+    cli_args: dict[str, Any] = {
+        "data_dir": str(image_dir),
+        "output_dir": str(output_path.parent),
+        "bank_v2": bank_v2,
+        "balance_correction": balance_correction,
+    }
+    if model_type is not None:
+        cli_args["model_type"] = model_type
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
+    if batch_size is not None:
+        cli_args["batch_size"] = batch_size
+    if max_num_seqs is not None:
+        cli_args["max_num_seqs"] = max_num_seqs
+
+    app_cfg = AppConfig.load(cli_args, config_path=config_path)
+    config = app_cfg.pipeline
+    # Tier B gate — resolved from CLI > YAML > defaults.
+    effective_verbose = config.verbose
+
+    # -- Phase 4: filter out skip-labels before extraction -----------------------
+    classifications, skipped = filter_skip_labels(classifications, app_cfg.extraction_skip_labels)
+    if skipped:
+        logger.info("Skipping %d records with skip labels", len(skipped))
+        # Write skipped records to output so downstream sees one record per input
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with StreamingJsonlWriter(output_path) as writer:
+            for rec in skipped:
+                writer.write(
+                    {
+                        "image_name": rec.get("image_name", ""),
+                        "image_path": rec.get("image_path", ""),
+                        "document_type": rec.get("document_type", ""),
+                        "raw_response": "",
+                        "processing_time": 0.0,
+                        "prompt_used": "skipped",
+                        "error": None,
+                        "skipped": True,
+                        "skip_reason": rec.get("document_type", ""),
+                        "fields": {},
+                    }
+                )
+
+    if not classifications:
+        logger.info("All remaining images skipped -- nothing to extract")
+        return output_path
+
+    # -- Phase 2: sort by doc_type for prefix-cache reuse ------------------------
+    classifications = sort_for_extraction(
+        classifications,
+        app_cfg.extraction_order,
+        secondary_sort=app_cfg.secondary_sort,
+    )
+    logger.info(
+        "Sorted %d records by extraction_order (secondary=%s)",
+        len(classifications),
+        app_cfg.secondary_sort,
+    )
+
+    # -- Phase 3: inject per-type tile budgets into classification records --------
+    for c in classifications:
+        budget = app_cfg.get_image_budget(c["document_type"])
+        c["_max_tiles"] = budget["max_tiles"]
+
+    # -- vLLM data-parallel fast path (classified) --------------------------------
+    from models.registry import is_vllm_model
+
+    if is_vllm_model(config.model_type):
+        from common.vllm_dp import resolve_gpu_count, run_dp
+
+        resolved_gpus = resolve_gpu_count(config)
+        if resolved_gpus > 1:
+            records = run_dp(
+                num_gpus=resolved_gpus,
+                images=[Path(c["image_path"]) for c in classifications],
+                worker_fn="common.vllm_dp_workers.classified_extract_worker",
+                worker_kwargs={
+                    "config_path": str(config_path) if config_path else None,
+                    "cli_overrides": cli_args,
+                    "classifications": classifications,
+                },
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            count = write_jsonl(output_path, records)
+            logger.info("Wrote %d extractions to %s", count, output_path)
+            return output_path
+
+    # -- Single-GPU / HF path ----------------------------------------------------
+
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
+
+    # Load model
+    logger.info("Loading model: %s", config.model_type)
+    model_cm = load_model(config, app_config=app_cfg)
+    model, tokenizer = model_cm.__enter__()
+
+    try:
+        processor = create_processor(
+            model,
+            tokenizer,
+            config,
+            prompt_config,
+            universal_fields,
+            field_definitions,
+            app_config=app_cfg,
+        )
+
+        # Set up bank processing: graph executor (opt-in) or legacy adapter
+        bank_adapter = None
+        graph_bank_executor = None
+        bank_cache = None
+        has_bank = any(c["document_type"].upper() == "BANK_STATEMENT" for c in classifications)
+
+        if has_bank and graph_bank:
+            graph_bank_executor = _build_graph_bank_executor(processor, app_cfg)
+            logger.info("Bank graph executor enabled")
+        elif has_bank and config.bank_v2 and getattr(processor, "supports_multi_turn", True):
+            bank_adapter = UnifiedBankExtractor(
+                generate_fn=processor.generate,
+                verbose=effective_verbose,
+                use_balance_correction=config.balance_correction,
+            )
+            logger.info("Bank adapter enabled")
+
+            # Phase 7: per-bank column-mapping cache
+            from common.bank_header_cache import BankHeaderCache
+
+            bank_cache = BankHeaderCache.from_config(app_cfg.bank_header_cache_config)
+            if bank_cache.enabled:
+                logger.info("Bank header cache enabled")
+
+        # Process images with streaming writer (flush per record for crash recovery)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        start = time.time()
+        count = 0
+        total = len(classifications)
+
+        with StreamingJsonlWriter(output_path) as writer:
+            for classification in classifications:
+                image_path = classification["image_path"]
+                image_name = classification["image_name"]
+                doc_type = classification["document_type"]
+
+                img_start = time.time()
+
+                try:
+                    if doc_type.upper() == "BANK_STATEMENT" and graph_bank_executor is not None:
+                        _extract_bank_with_graph(
+                            writer,
+                            graph_bank_executor,
+                            image_path,
+                            image_name,
+                            doc_type,
+                        )
+                    elif doc_type.upper() == "BANK_STATEMENT" and bank_adapter is not None:
+                        _extract_bank_with_adapter(
+                            writer,
+                            bank_adapter,
+                            image_path,
+                            image_name,
+                            doc_type,
+                            bank_cache=bank_cache,
+                        )
+                    else:
+                        _extract_standard(
+                            writer,
+                            processor,
+                            image_path,
+                            image_name,
+                            doc_type,
+                            classification,
+                            effective_verbose,
+                        )
+                except Exception as e:
+                    logger.error("Error extracting %s: %s", image_name, e)
+                    img_time = time.time() - img_start
+                    writer.write(
+                        {
+                            "image_name": image_name,
+                            "image_path": image_path,
+                            "document_type": doc_type,
+                            "raw_response": "",
+                            "processing_time": img_time,
+                            "prompt_used": "error",
+                            "error": str(e),
+                        }
+                    )
+
+                count += 1
+                img_time = time.time() - img_start
+                logger.info(
+                    "[%d/%d] %s: %s (%.1fs)",
+                    count,
+                    total,
+                    image_name,
+                    doc_type,
+                    img_time,
+                )
+
+        elapsed = time.time() - start
+        logger.info("Extraction complete: %d images in %.1fs", count, elapsed)
+    finally:
+        model_cm.__exit__(None, None, None)
+
+    return output_path
+
+
+def _build_graph_bank_executor(processor: Any, app_cfg: Any) -> tuple[Any, dict[str, Any]]:
+    """Build a GraphExecutor + workflow definition for bank extraction."""
+    import yaml
+
+    from common.extraction_types import GenerateResult, NodeGenParams
+    from common.graph_executor import GraphExecutor
+    from common.turn_parsers import build_parser_registry
+
+    workflow_path = Path(__file__).resolve().parent.parent / "prompts" / "workflows" / "bank_extract.yaml"
+    with workflow_path.open() as f:
+        definition = yaml.safe_load(f)
+
+    def generate_fn(image: Any, prompt: str, params: NodeGenParams) -> GenerateResult:
+        text = processor.generate(image, prompt, max_tokens=params.max_tokens)
+        return GenerateResult(text=text)
+
+    parsers = build_parser_registry(fallback_type=app_cfg.classification_fallback_type)
+    executor = GraphExecutor(generate_fn, parsers, budget_resolver=app_cfg.get_token_budget)
+    return executor, definition
+
+
+def _extract_bank_with_graph(
+    writer: "StreamingJsonlWriter",
+    executor_and_def: tuple[Any, dict[str, Any]],
+    image_path: str,
+    image_name: str,
+    doc_type: str,
+) -> None:
+    """Extract bank statement via GraphExecutor, write raw responses."""
+    executor, definition = executor_and_def
+
+    session = executor.run(
+        document_type=doc_type,
+        definition=definition,
+        image_path=image_path,
+        image_name=image_name,
+    )
+
+    record = session.to_record()
+    record["prompt_used"] = f"graph_bank_{session.strategy}"
+    writer.write(record)
+
+
+def _extract_bank_with_adapter(
+    writer: StreamingJsonlWriter,
+    bank_adapter,
+    image_path: str,
+    image_name: str,
+    doc_type: str,
+    bank_cache=None,
+) -> None:
+    """Extract bank statement via UnifiedBankExtractor, write raw responses."""
+    start = time.time()
+
+    # Phase 7: check bank header cache before extraction
+    cached_mapping = None
+    if bank_cache is not None:
+        cached_mapping_raw = bank_cache.lookup(image_path)
+        if cached_mapping_raw is not None:
+            from common.bank_types import ColumnMapping
+
+            cached_mapping = ColumnMapping(**cached_mapping_raw)
+            logger.info("Bank cache hit for %s", image_name)
+
+    schema_fields, metadata = bank_adapter.extract_bank_statement(
+        image_path, cached_column_mapping=cached_mapping
+    )
+
+    # Phase 7: store result in cache on miss
+    if bank_cache is not None and cached_mapping is None:
+        result_mapping = metadata.get("column_mapping")
+        if result_mapping:
+            bank_cache.store(image_path, result_mapping)
+
+    img_time = time.time() - start
+
+    # Serialize structured fields into flat FIELD: value text that the
+    # standard hybrid parser already handles.  This keeps the stage contract
+    # clean: extract produces a parseable raw_response, clean parses it.
+    raw_response_str = "\n".join(f"{field}: {value}" for field, value in schema_fields.items())
+
+    strategy = metadata.get("strategy_used", "unknown")
+
+    writer.write(
+        {
+            "image_name": image_name,
+            "image_path": image_path,
+            "document_type": doc_type,
+            "raw_response": raw_response_str,
+            "processing_time": img_time,
+            "prompt_used": f"unified_bank_{strategy}",
+            "error": None,
+        }
+    )
+
+
+def _extract_standard(
+    writer: StreamingJsonlWriter,
+    processor,
+    image_path: str,
+    image_name: str,
+    doc_type: str,
+    classification: dict[str, Any],
+    verbose: bool,
+) -> None:
+    """Extract standard document, write raw response."""
+    start = time.time()
+    result = processor.process_document_aware(image_path, classification, verbose=verbose)
+    img_time = time.time() - start
+
+    writer.write(
+        {
+            "image_name": image_name,
+            "image_path": image_path,
+            "document_type": doc_type,
+            "raw_response": result.get("raw_response", ""),
+            "processing_time": img_time,
+            "prompt_used": doc_type.lower(),
+            "error": None,
+        }
+    )
+
+
+def _run_unified(
+    image_dir: Path,
+    output_path: Path,
+    *,
+    model_type: str | None = None,
+    verbose: bool | None = None,
+    debug: bool | None = None,
+    config_path: Path | None = None,
+    workflow_name: str = "unified_extract.yaml",
+    label: str = "unified",
+) -> Path:
+    """Graph-based extraction: classify + extract in one graph walk per image.
+
+    Discovers images directly from image_dir (no classifications.jsonl needed).
+
+    Args:
+        workflow_name: YAML file under prompts/workflows/ to load.
+        label: Label for log messages and prompt_used prefix.
+    """
+    from cli import load_pipeline_configs
+    from common.app_config import AppConfig
+    from common.pipeline_config import discover_images
+    from common.pipeline_ops import create_processor, load_model
+
+    # Discover images
+    images = list(discover_images(image_dir))
+    if not images:
+        msg = f"No images found in {image_dir}"
+        raise FileNotFoundError(msg)
+    logger.info("Found %d images in %s", len(images), image_dir)
+
+    # Check for resumption
+    completed = read_completed_images(output_path)
+    if completed:
+        original_count = len(images)
+        images = [img for img in images if img.name not in completed]
+        logger.info(
+            "Resuming: %d already done, %d remaining (of %d total)",
+            len(completed),
+            len(images),
+            original_count,
+        )
+
+    if not images:
+        logger.info("All images already processed -- nothing to do")
+        return output_path
+
+    # Build config
+    cli_args: dict[str, Any] = {
+        "data_dir": str(image_dir),
+        "output_dir": str(output_path.parent),
+    }
+    if model_type is not None:
+        cli_args["model_type"] = model_type
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
+
+    app_cfg = AppConfig.load(cli_args, config_path=config_path)
+    config = app_cfg.pipeline
+
+    # -- vLLM data-parallel fast path ------------------------------------------
+    from models.registry import is_vllm_model
+
+    if is_vllm_model(config.model_type):
+        from common.vllm_dp import resolve_gpu_count, run_dp
+
+        resolved_gpus = resolve_gpu_count(config)
+        if resolved_gpus > 1:
+            records = run_dp(
+                num_gpus=resolved_gpus,
+                images=images,
+                worker_fn="common.vllm_dp_workers.extract_worker",
+                worker_kwargs={
+                    "config_path": str(config_path) if config_path else None,
+                    "cli_overrides": cli_args,
+                    "workflow_name": workflow_name,
+                    "label": label,
+                },
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            count = write_jsonl(output_path, records)
+            logger.info("Wrote %d extractions to %s", count, output_path)
+            return output_path
+
+    # -- Single-GPU / HF path -------------------------------------------------
+
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
+
+    # Load model
+    logger.info("Loading model: %s", config.model_type)
+    model_cm = load_model(config, app_config=app_cfg)
+    model, tokenizer = model_cm.__enter__()
+
+    try:
+        processor = create_processor(
+            model,
+            tokenizer,
+            config,
+            prompt_config,
+            universal_fields,
+            field_definitions,
+            app_config=app_cfg,
+        )
+
+        executor, definition = _build_unified_executor(processor, workflow_name, app_cfg)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        start = time.time()
+        count = 0
+        total = len(images)
+
+        with StreamingJsonlWriter(output_path) as writer:
+            for img_path in images:
+                image_name = img_path.name
+                img_start = time.time()
+
+                try:
+                    session = executor.run(
+                        document_type="UNKNOWN",
+                        definition=definition,
+                        image_path=str(img_path),
+                        image_name=image_name,
+                    )
+
+                    record = session.to_record()
+                    record["prompt_used"] = f"graph_{label}_{session.strategy}"
+                    writer.write(record)
+
+                except Exception as e:
+                    logger.error("Error processing %s: %s", image_name, e)
+                    img_time = time.time() - img_start
+                    writer.write(
+                        {
+                            "image_name": image_name,
+                            "image_path": str(img_path),
+                            "document_type": "UNKNOWN",
+                            "raw_response": "",
+                            "processing_time": img_time,
+                            "prompt_used": "error",
+                            "error": str(e),
+                        }
+                    )
+
+                count += 1
+                img_time = time.time() - img_start
+                doc_type = "UNKNOWN"
+                try:
+                    doc_type = session.document_type
+                except UnboundLocalError:
+                    pass
+                logger.info(
+                    "[%d/%d] %s: %s (%.1fs)",
+                    count,
+                    total,
+                    image_name,
+                    doc_type,
+                    img_time,
+                )
+
+        elapsed = time.time() - start
+        logger.info(
+            "%s extraction complete: %d images in %.1fs",
+            label.capitalize(),
+            count,
+            elapsed,
+        )
+    finally:
+        model_cm.__exit__(None, None, None)
+
+    return output_path
+
+
+def _build_unified_executor(
+    processor: Any,
+    workflow_name: str = "unified_extract.yaml",
+    app_cfg: Any = None,
+) -> tuple[Any, dict[str, Any]]:
+    """Build a GraphExecutor + workflow definition for a graph workflow."""
+    import yaml
+
+    from common.extraction_types import GenerateResult, NodeGenParams
+    from common.graph_executor import GraphExecutor
+    from common.turn_parsers import build_parser_registry
+
+    workflow_path = Path(__file__).resolve().parent.parent / "prompts" / "workflows" / workflow_name
+    with workflow_path.open() as f:
+        definition = yaml.safe_load(f)
+
+    def generate_fn(image: Any, prompt: str, params: NodeGenParams) -> GenerateResult:
+        text = processor.generate(image, prompt, max_tokens=params.max_tokens)
+        return GenerateResult(text=text)
+
+    budget_resolver = app_cfg.get_token_budget if app_cfg is not None else None
+    fallback = app_cfg.classification_fallback_type if app_cfg is not None else "UNIVERSAL"
+    parsers = build_parser_registry(fallback_type=fallback)
+    executor = GraphExecutor(generate_fn, parsers, budget_resolver=budget_resolver)
+    return executor, definition
+
+
+@app.command()
+def main(
+    classifications: Path | None = typer.Option(
+        None, "--classifications", help="Path to classifications.jsonl from Stage 1"
+    ),
+    image_dir: Path = typer.Option(..., "--data-dir", "-d", help="Directory containing images"),
+    output: Path = typer.Option(..., "--output-dir", "-o", help="Path to write raw_extractions.jsonl"),
+    model: str | None = typer.Option(None, "--model", help="Model type"),
+    batch_size: int | None = typer.Option(None, "--batch-size", help="Images per extraction batch"),
+    bank_v2: bool = typer.Option(True, "--bank-v2/--no-bank-v2"),
+    balance_correction: bool = typer.Option(True, "--balance-correction/--no-balance-correction"),
+    graph_bank: bool = typer.Option(
+        False,
+        "--graph-bank/--no-graph-bank",
+        help="Use graph-based bank extraction (opt-in, overrides bank-v2).",
+    ),
+    graph_unified: bool = typer.Option(
+        False,
+        "--graph-unified/--no-graph-unified",
+        help="Unified graph workflow: classify + extract in one pass (skips Stage 1).",
+    ),
+    graph_robust: bool = typer.Option(
+        False,
+        "--graph-robust/--no-graph-robust",
+        help="Robust probe-based classification: extraction probes determine doc type (skips Stage 1).",
+    ),
+    max_num_seqs: int | None = typer.Option(
+        None,
+        "--max-num-seqs",
+        help="Override vLLM max_num_seqs (continuous batching). Sweep: 4 → 8 → 16.",
+    ),
+    config: Path | None = typer.Option(None, "--config", help="YAML configuration file"),
+    verbose: bool | None = typer.Option(
+        None,
+        "--verbose/--no-verbose",
+        help="Tier B output (init details). Default: read YAML processing.verbose.",
+    ),
+    debug: bool | None = typer.Option(
+        None,
+        "--debug/--no-debug",
+        help="Tier C output (PARSING DEBUG, prompt dumps). Default: YAML processing.debug.",
+    ),
+) -> None:
+    """Stage 2: Extract fields from classified images (raw responses)."""
+    # Tier A (per-image progress, phase headings) is always at INFO — it's the
+    # only indication the user has that inference is progressing. Verbose/debug
+    # are independent switches for Tiers B/C inside the orchestrator.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+    run(
+        classifications,
+        image_dir,
+        output,
+        model_type=model,
+        batch_size=batch_size,
+        bank_v2=bank_v2,
+        balance_correction=balance_correction,
+        graph_bank=graph_bank,
+        graph_unified=graph_unified,
+        graph_robust=graph_robust,
+        max_num_seqs=max_num_seqs,
+        verbose=verbose,
+        debug=debug,
+        config_path=config,
+    )
+
+
+if __name__ == "__main__":
+    app()

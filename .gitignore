@@ -1,0 +1,116 @@
+# Python
+__pycache__/
+**/*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.cpython-*.pyc
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Model files (large)
+*.bin
+*.safetensors
+*.pth
+*.pt
+
+# Output directories
+# output/
+results/
+/logs/
+!output/logs/
+# remote_results/
+
+# Log files
+# *.log
+
+# Timestamped output files
+output_????????_??????.txt
+
+# Dataset cache
+.cache/
+datasets_cache/
+
+# Jupyter
+**/.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+~$*.docx
+
+# Local-only directories
+docs/
+tests/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Ruff
+.ruff_cache/
+
+# Documentation
+docs/
+
+# Datasets and images
+datasets/
+
+
+# Archive for legacy code and directories
+archive/*
+# Claude Code related files
+CLAUDE.md
+*claude*
+*CLAUDE*
+# Root-level scratch scripts (but allow files in tests/ and scripts/ subdirs)
+/test_*.py
+/check_*.py
+/build_*.py
+backup/
+.claude/
+
+simple_invoice_generator.py
+synthetic_invoice_generator.py
+synthetic_invoice.json
+.env
+standard_labels.txt
+
+tests/
+plans/
+PrivateWealth/
+data/
+evaluation_data/
+.gitignore
+
+TODO.md

@@ -1,0 +1,156 @@
+# Trust Distribution Extraction Workflow (GPU-only)
+#
+# Cross-image workflow: 4 documents per case (trust return, distribution
+# statement, income schedule, beneficiary ITR).
+#
+# Stages 1-4: Extract linking fields from each document (1 VLM call each).
+# Compliance validation is deferred to the CPU-only trust_clean stage.
+#
+# NRO Private Wealth 2025-26 focus: trust distribution compliance.
+
+name: trust_distribution_extract
+description: >
+  Extract linking fields from 4 trust distribution documents.
+  Stage 1-4: extract scalar fields (trust ABN, beneficiary TFN, share of
+  net income, franking credit, capital gain component) from each document
+  via single-image VLM calls.  Compliance validation is handled by the
+  downstream trust_clean stage (CPU-only).
+
+inputs:
+  - name: trust_return
+    type: image
+  - name: distribution_stmt
+    type: image
+  - name: income_schedule
+    type: image
+  - name: beneficiary_itr
+    type: image
+
+nodes:
+  extract_trust_return:
+    image: trust_return
+    template: |
+      You are given one image: an Australian trust tax return.
+
+      Extract the following fields exactly as they appear on the document.
+      For monetary amounts: write as a decimal with exactly 2 decimal places,
+      no currency symbol, no commas (e.g. 88412.31 not $88,412.31).
+      For ABN/TFN: write with spaces exactly as shown on the document
+      (e.g. 51 196 744 081).
+
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
+      TRUST_ABN: the trust's Australian Business Number (11 digits with spaces)
+      BENEFICIARY_TFN: the beneficiary's Tax File Number (9 digits with spaces)
+      SHARE_OF_NET_INCOME: the beneficiary's share of trust net income (decimal, 2dp)
+      FRANKING_CREDIT: the franking credit amount for this beneficiary (decimal, 2dp)
+      CAPITAL_GAIN_COMPONENT: the capital gain component for this beneficiary (decimal, 2dp)
+    token_budget: trust_field_extract
+    parser: field_value
+    max_retries: 1
+    reflection: |
+      Could not parse KEY: value pairs from your response:
+      {error}
+      Use exactly the format FIELD_NAME: value, one per line.
+      Amounts must be decimal with 2dp, no $ or commas.
+    edges:
+      ok: extract_distribution_stmt
+      parse_failed: extract_trust_return
+
+  extract_distribution_stmt:
+    image: distribution_stmt
+    template: |
+      You are given one image: a trust distribution statement issued to
+      a beneficiary by a trustee.
+
+      Extract the following fields exactly as they appear on the document.
+      For monetary amounts: write as a decimal with exactly 2 decimal places,
+      no currency symbol, no commas (e.g. 88412.31 not $88,412.31).
+      For ABN/TFN: write with spaces exactly as shown on the document.
+
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
+      TRUST_ABN: the trust's Australian Business Number (11 digits with spaces)
+      BENEFICIARY_TFN: the beneficiary's Tax File Number (9 digits with spaces)
+      SHARE_OF_NET_INCOME: the beneficiary's share of trust net income (decimal, 2dp)
+      FRANKING_CREDIT: the franking credit amount (decimal, 2dp)
+      CAPITAL_GAIN_COMPONENT: the capital gain component (decimal, 2dp)
+    token_budget: trust_field_extract
+    parser: field_value
+    max_retries: 1
+    reflection: |
+      Could not parse KEY: value pairs from your response:
+      {error}
+      Use exactly the format FIELD_NAME: value, one per line.
+      Amounts must be decimal with 2dp, no $ or commas.
+    edges:
+      ok: extract_income_schedule
+      parse_failed: extract_distribution_stmt
+
+  extract_income_schedule:
+    image: income_schedule
+    template: |
+      You are given one image: a trust income schedule (Schedule of
+      Trust Income and Tax Offsets).
+
+      Extract the following fields exactly as they appear on the document.
+      For monetary amounts: write as a decimal with exactly 2 decimal places,
+      no currency symbol, no commas (e.g. 88412.31 not $88,412.31).
+      For ABN/TFN: write with spaces exactly as shown on the document.
+
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
+      TRUST_ABN: the trust's Australian Business Number (11 digits with spaces)
+      BENEFICIARY_TFN: the beneficiary's Tax File Number (9 digits with spaces)
+      SHARE_OF_NET_INCOME: the beneficiary's share of trust net income (decimal, 2dp)
+      FRANKING_CREDIT: the franking credit amount (decimal, 2dp)
+      CAPITAL_GAIN_COMPONENT: the capital gain component (decimal, 2dp)
+    token_budget: trust_field_extract
+    parser: field_value
+    max_retries: 1
+    reflection: |
+      Could not parse KEY: value pairs from your response:
+      {error}
+      Use exactly the format FIELD_NAME: value, one per line.
+      Amounts must be decimal with 2dp, no $ or commas.
+    edges:
+      ok: extract_beneficiary_itr
+      parse_failed: extract_income_schedule
+
+  extract_beneficiary_itr:
+    image: beneficiary_itr
+    template: |
+      You are given one image: a beneficiary's individual tax return (ITR),
+      specifically the Item 13 (Partnerships and Trusts) section.
+
+      Extract the following fields exactly as they appear on the document.
+      For monetary amounts: write as a decimal with exactly 2 decimal places,
+      no currency symbol, no commas (e.g. 88412.31 not $88,412.31).
+      For TFN: write with spaces exactly as shown on the document.
+
+      IMPORTANT: The ITR uses different labels than other trust documents.
+      Map the following:
+      - "Total trust income" or "Share of trust income" -> TOTAL_TRUST_INCOME
+      - "Franking credit" or "Trust franking credit" -> TRUST_FRANKING_CREDIT
+      - The individual's TFN (9 digits) -> BENEFICIARY_TFN
+
+      OUTPUT FORMAT: plain text only -- no markdown bold (**), no headings
+      (#), no bullet points. Use exactly the KEY: value format below.
+
+      BENEFICIARY_TFN: the individual's Tax File Number (9 digits with spaces)
+      TOTAL_TRUST_INCOME: the total trust income reported on this ITR (decimal, 2dp)
+      TRUST_FRANKING_CREDIT: the franking credit from trusts on this ITR (decimal, 2dp)
+    token_budget: trust_field_extract
+    parser: field_value
+    max_retries: 1
+    reflection: |
+      Could not parse KEY: value pairs from your response:
+      {error}
+      Use exactly the format FIELD_NAME: value, one per line.
+      Amounts must be decimal with 2dp, no $ or commas.
+    edges:
+      ok: done
+      parse_failed: extract_beneficiary_itr

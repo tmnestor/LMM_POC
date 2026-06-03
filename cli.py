@@ -1,0 +1,758 @@
+#!/usr/bin/env python3
+# ruff: noqa: B008 - typer.Option in defaults is the standard Typer pattern
+"""
+Document Extraction CLI
+
+A production-ready CLI for document field extraction using vision-language models.
+Supports evaluation mode (with ground truth) and inference-only mode.
+
+Usage:
+    python cli.py --data-dir ./images --output-dir ./output
+    python cli.py --config run_config.yaml
+    python cli.py --help
+"""
+
+import logging
+import os
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+import typer
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from common.app_config import AppConfig, ConfigError
+from common.batch_analytics import BatchAnalytics
+from common.batch_reporting import BatchReporter
+from common.batch_visualizations import BatchVisualizer
+from common.field_schema import get_field_schema
+from common.pipeline_config import (
+    PipelineConfig,
+    discover_images,
+)
+from common.pipeline_ops import create_processor, load_model, run_batch
+from common.prompt_catalog import PromptCatalog
+from models.registry import get_model, list_models
+
+# ============================================================================
+# Constants
+# ============================================================================
+
+APP_NAME = "doc-extract"
+VERSION = "2.0.0"
+
+# Exit codes
+EXIT_SUCCESS = 0
+EXIT_CONFIG_ERROR = 1
+EXIT_MODEL_LOAD_ERROR = 2
+EXIT_PROCESSING_ERROR = 3
+EXIT_PARTIAL_SUCCESS = 4
+
+console = Console()
+app = typer.Typer(
+    name=APP_NAME,
+    help="Document Extraction CLI",
+    add_completion=False,
+)
+
+
+# ============================================================================
+# Pipeline Components
+# ============================================================================
+
+
+def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
+    """Create output directory structure."""
+    output_dirs = {
+        "base": config.output_dir,
+        "batch": config.output_dir / "batch_results",
+        "csv": config.output_dir / "csv",
+        "visualizations": config.output_dir / "visualizations",
+        "reports": config.output_dir / "reports",
+    }
+
+    for _name, path in output_dirs.items():
+        path.mkdir(parents=True, exist_ok=True)
+        if config.verbose:
+            console.print(f"  [dim]Created: {path}[/dim]")
+
+    return output_dirs
+
+
+def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
+    """Build prompt routing config from PromptCatalog (single source of truth).
+
+    Derives supported document types from the extraction prompt YAML keys
+    rather than maintaining a hardcoded list.
+    """
+    catalog = PromptCatalog()
+
+    try:
+        routing = catalog.build_extraction_routing(model_type)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]FATAL: {e}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Build extraction_files in the legacy shape that orchestrator expects.
+    # All extraction types map to the same YAML file.
+    registration = get_model(model_type)
+    extraction_path = str(Path(__file__).parent / "prompts" / registration.prompt_file)
+    detection_path = str(Path(__file__).parent / "prompts" / "document_type_detection.yaml")
+
+    return {
+        "detection_file": detection_path,
+        "detection_key": "detection",
+        "extraction_files": {doc_type: extraction_path for doc_type in routing},
+    }
+
+
+def load_pipeline_configs(
+    model_type: str = "internvl3",
+) -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
+    """Load prompt configuration and build universal field list.
+
+    Returns:
+        Tuple of (prompt_config, sorted universal_fields, field_definitions).
+    """
+    prompt_config = load_prompt_config(model_type)
+    field_definitions = get_field_schema().get_all_doc_type_fields()
+
+    all_fields: set[str] = set()
+    for fields in field_definitions.values():
+        all_fields.update(fields)
+    universal_fields = sorted(all_fields)
+
+    if not universal_fields:
+        console.print("[red]FATAL: No field definitions found in config/field_definitions.yaml[/red]")
+        console.print("[yellow]Expected: document_fields section with field lists[/yellow]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    return prompt_config, universal_fields, field_definitions
+
+
+def generate_analytics(
+    config: PipelineConfig,
+    output_dirs: dict[str, Path],
+    batch_results: list[dict],
+    processing_times: list[float],
+) -> tuple[Any, ...]:
+    """Generate analytics and save CSV files."""
+    console.print("\n[bold]Generating analytics...[/bold]")
+
+    analytics = BatchAnalytics(batch_results, processing_times)
+
+    saved_files, df_results, df_summary, df_doctype_stats, df_field_stats = analytics.save_all_dataframes(
+        output_dirs["csv"],
+        config.timestamp,
+    )
+
+    for f in saved_files:
+        console.print(f"  [green]Saved: {f}[/green]")
+
+    return analytics, df_results, df_summary, df_doctype_stats, df_field_stats
+
+
+def generate_visualizations(
+    config: PipelineConfig,
+    output_dirs: dict[str, Path],
+    df_results,
+    df_doctype_stats,
+) -> dict[str, Path]:
+    """Generate visualization files."""
+    if config.skip_visualizations:
+        console.print("[dim]Skipping visualizations (--no-viz)[/dim]")
+        return {}
+
+    console.print("\n[bold]Generating visualizations...[/bold]")
+
+    visualizer = BatchVisualizer()
+    viz_files = visualizer.create_all_visualizations(
+        df_results,
+        df_doctype_stats,
+        output_dirs["visualizations"],
+        config.timestamp,
+        show=False,
+    )
+
+    for f in viz_files:
+        console.print(f"  [green]Saved: {f}[/green]")
+
+    return viz_files
+
+
+def generate_reports(
+    config: PipelineConfig,
+    output_dirs: dict[str, Path],
+    batch_results: list[dict],
+    processing_times: list[float],
+    document_types_found: dict[str, int],
+    df_results,
+    df_summary,
+    df_doctype_stats,
+) -> dict[str, Path]:
+    """Generate report files."""
+    if config.skip_reports:
+        console.print("[dim]Skipping reports (--no-reports)[/dim]")
+        return {}
+
+    console.print("\n[bold]Generating reports...[/bold]")
+
+    reporter = BatchReporter(
+        batch_results,
+        processing_times,
+        document_types_found,
+        config.timestamp,
+    )
+
+    report_files = reporter.save_all_reports(
+        output_dirs,
+        df_results,
+        df_summary,
+        df_doctype_stats,
+        config,
+    )
+
+    for f in report_files:
+        console.print(f"  [green]Saved: {f}[/green]")
+
+    return report_files
+
+
+def print_summary(
+    config: PipelineConfig,
+    batch_results: list[dict],
+    processing_times: list[float],
+    document_types_found: dict[str, int],
+    batch_stats: dict[str, float] | None = None,
+    wall_clock_time: float | None = None,
+    inference_time: float | None = None,
+) -> None:
+    """Print execution summary."""
+    # Wall clock is the true elapsed time; fall back to sum for backwards compat
+    total_time = wall_clock_time if wall_clock_time is not None else sum(processing_times)
+    num_images = len(batch_results)
+    throughput = (num_images / total_time * 60) if total_time > 0 else 0
+    # Inference rate excludes model loading overhead
+    inference_rate = (num_images / inference_time * 60) if inference_time and inference_time > 0 else None
+
+    # Extract accuracy from evaluation dict (uses overall_accuracy = mean F1)
+    accuracies = []
+    for r in batch_results:
+        eval_data = r.get("evaluation", {})
+        if eval_data:
+            # Use overall_accuracy (mean F1), not median_f1
+            acc = eval_data.get("overall_accuracy", 0)
+            accuracies.append(acc)
+    avg_accuracy = sum(accuracies) / len(accuracies) if accuracies else 0
+
+    # Create summary table
+    table = Table(title="Execution Summary", show_header=True, header_style="bold")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Images Processed", str(num_images))
+    table.add_row("Wall Clock Time", f"{total_time:.1f}s")
+    table.add_row("Throughput", f"{throughput:.2f} images/min")
+    if inference_rate is not None:
+        table.add_row("Inference Rate", f"{inference_rate:.2f} images/min")
+
+    # Batch stats
+    if batch_stats:
+        configured = batch_stats.get("configured_batch_size", 1)
+        avg_extract = batch_stats.get("avg_extraction_batch", 1.0)
+        table.add_row("Batch Size (configured)", str(configured))
+        table.add_row("Avg Batch Size (actual)", f"{avg_extract:.1f}")
+
+    if config.ground_truth:
+        table.add_row("Avg Accuracy", f"{avg_accuracy:.1%}")
+
+    table.add_row("Output Directory", str(config.output_dir))
+
+    console.print()
+    console.print(table)
+
+    # Document type breakdown
+    if document_types_found:
+        console.print("\n[bold]Document Types:[/bold]")
+        for doc_type, count in sorted(document_types_found.items()):
+            console.print(f"  {doc_type}: {count}")
+
+
+def print_config(config: PipelineConfig) -> None:
+    """Print configuration panel with all settings."""
+    config_table = Table(show_header=False, box=None, padding=(0, 1))
+    config_table.add_column("Option", style="cyan")
+    config_table.add_column("Value", style="white")
+
+    # Data paths
+    config_table.add_row("Data directory", str(config.data_dir))
+    config_table.add_row("Output directory", str(config.output_dir))
+    config_table.add_row("Model path", str(config.model_path))
+    # Log file (set by entrypoint.sh via export LMM_LOG_FILE)
+    log_file = os.environ.get("LMM_LOG_FILE")
+    if log_file:
+        config_table.add_row("Log file", log_file)
+    config_table.add_row(
+        "Ground truth",
+        str(config.ground_truth) if config.ground_truth else "[dim]None (inference-only)[/dim]",
+    )
+
+    # Model settings
+    config_table.add_row("Model type", config.model_type)
+    if config.min_tiles is not None and config.min_tiles < config.max_tiles:
+        config_table.add_row("Tiles", f"{config.min_tiles}..{config.max_tiles} (adaptive)")
+    else:
+        config_table.add_row("Tiles", f"{config.max_tiles} (fixed)")
+    config_table.add_row("Flash attention", str(config.flash_attn))
+    config_table.add_row("Enforce eager", str(config.enforce_eager))
+    config_table.add_row("Dtype", config.dtype)
+    config_table.add_row("Max new tokens", str(config.max_new_tokens))
+
+    # Processing options
+    config_table.add_row(
+        "Batch size",
+        str(config.batch_size) if config.batch_size else "[dim]auto[/dim]",
+    )
+    config_table.add_row("Bank V2", str(config.bank_v2))
+    config_table.add_row("Balance correction", str(config.balance_correction))
+    config_table.add_row(
+        "GPUs",
+        "auto-detect"
+        if config.num_gpus == 0
+        else f"{config.num_gpus} (parallel)"
+        if config.num_gpus > 1
+        else "1 (single)",
+    )
+    config_table.add_row("Verbose", str(config.verbose))
+
+    # Output options
+    config_table.add_row("Skip visualizations", str(config.skip_visualizations))
+    config_table.add_row("Skip reports", str(config.skip_reports))
+
+    # Optional filters
+    if config.max_images:
+        config_table.add_row("Max images", str(config.max_images))
+    if config.document_types:
+        config_table.add_row("Document types", ", ".join(config.document_types))
+
+    header_content = Group(
+        Text.from_markup(f"[bold blue]{APP_NAME}[/bold blue] v{VERSION}"),
+        Text.from_markup(f"[dim]{config.model_type} Document Extraction[/dim]"),
+        Text(""),
+        config_table,
+    )
+
+    console.print(
+        Panel(
+            header_content,
+            border_style="blue",
+            title="Configuration",
+            title_align="left",
+        )
+    )
+
+
+# ============================================================================
+# Pipeline Orchestration
+# ============================================================================
+
+
+def run_pipeline(config: PipelineConfig, *, app_config: AppConfig | None = None) -> None:
+    """Run the full extraction pipeline from a validated config.
+
+    This function is independently callable from tests, notebooks, or the CLI.
+    It handles: output setup, image discovery, model loading, batch processing,
+    analytics, visualizations, reports, and summary.
+    """
+    # Setup output directories
+    console.print("\n[bold]Setting up output directories...[/bold]")
+    output_dirs = setup_output_directories(config)
+
+    # Discover images
+    images = list(discover_images(config.data_dir, config.document_types))
+    if config.max_images:
+        images = images[: config.max_images]
+
+    if not images:
+        from common.pipeline_config import IMAGE_EXTENSIONS
+
+        exts = ", ".join(IMAGE_EXTENSIONS)
+        console.print(f"[red]FATAL: No images found in: {config.data_dir}. Supported formats: {exts}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    console.print(f"\n[bold]Found {len(images)} images to process[/bold]")
+
+    # Load configs (no GPU needed)
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
+
+    # Resolve num_gpus: 0 = auto-detect, N = explicit
+    try:
+        import torch
+
+        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    except ImportError:
+        available_gpus = 0
+
+    if config.num_gpus == 0:
+        # Auto-detect: use all available GPUs
+        resolved_gpus = max(available_gpus, 1)
+        if resolved_gpus > 1:
+            console.print(
+                f"\n[bold cyan]Auto-detected {resolved_gpus} GPUs — "
+                f"enabling parallel processing[/bold cyan]"
+            )
+    else:
+        resolved_gpus = config.num_gpus
+        if resolved_gpus > available_gpus > 0:
+            console.print(
+                f"[red]FATAL: Requested {resolved_gpus} GPUs but only {available_gpus} available[/red]"
+            )
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Large models (requires_sharding=True) need the full device_map="auto"
+    # to shard across all GPUs via split_model.  Force single-model path
+    # (no orchestrator) — the loader handles multi-GPU sharding internally.
+    model_reg = get_model(config.model_type)
+    if model_reg.requires_sharding and available_gpus > 1:
+        console.print(
+            f"\n[bold cyan]Model '{config.model_type}' requires cross-GPU "
+            f"sharding — using split_model across {available_gpus} GPUs[/bold cyan]"
+        )
+        resolved_gpus = 1  # bypass orchestrator, loader shards internally
+
+    # Pin model to GPU 0 when running single-GPU on a multi-GPU machine.
+    # device_map="auto" would spread layers across all GPUs, wasting memory.
+    # Skip pinning for sharded models — they need device_map="auto".
+    if resolved_gpus == 1 and available_gpus > 1 and config.device_map == "auto":
+        if not model_reg.requires_sharding:
+            config = replace(config, device_map="cuda:0")
+
+    import time as _time
+
+    _wall_start = _time.time()
+
+    try:
+        if resolved_gpus > 1:
+            # Multi-GPU parallel processing (model loading happens per-worker)
+            from common.multi_gpu import MultiGPUOrchestrator
+
+            orchestrator = MultiGPUOrchestrator(config, resolved_gpus, app_config=app_config)
+            batch_results, processing_times, document_types_found, batch_stats = orchestrator.run(
+                images, prompt_config, universal_fields, field_definitions
+            )
+            inference_time = orchestrator.inference_elapsed
+        else:
+            # Single-GPU path (default)
+            try:
+                model_cm = load_model(config, app_config=app_config)
+                model, tokenizer = model_cm.__enter__()
+            except typer.Exit:
+                raise
+            except Exception as e:
+                console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
+                if config.verbose:
+                    console.print_exception()
+                raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
+
+            try:
+                processor = create_processor(
+                    model,
+                    tokenizer,
+                    config,
+                    prompt_config,
+                    universal_fields,
+                    field_definitions,
+                    app_config=app_config,
+                )
+
+                _inference_start = _time.time()
+                batch_results, processing_times, document_types_found, batch_stats = run_batch(
+                    config,
+                    processor,
+                    images,
+                    field_definitions,
+                )
+                inference_time = _time.time() - _inference_start
+            finally:
+                model_cm.__exit__(None, None, None)
+            # Model freed here — post-processing is CPU-only
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Processing interrupted by user[/yellow]")
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"\n[red]FATAL: Processing error: {e}[/red]")
+        if config.verbose:
+            console.print_exception()
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+
+    wall_clock_time = _time.time() - _wall_start
+
+    # Check for partial success: some images succeeded, some failed
+    failed_count = sum(1 for r in batch_results if "error" in r)
+    total_count = len(batch_results)
+
+    # Generate analytics, visualizations, and reports regardless of partial failures
+    _analytics, df_results, df_summary, df_doctype_stats, _df_field_stats = generate_analytics(
+        config,
+        output_dirs,
+        batch_results,
+        processing_times,
+    )
+
+    generate_visualizations(config, output_dirs, df_results, df_doctype_stats)
+
+    generate_reports(
+        config,
+        output_dirs,
+        batch_results,
+        processing_times,
+        document_types_found,
+        df_results,
+        df_summary,
+        df_doctype_stats,
+    )
+
+    print_summary(
+        config,
+        batch_results,
+        processing_times,
+        document_types_found,
+        batch_stats,
+        wall_clock_time,
+        inference_time,
+    )
+
+    if failed_count == total_count:
+        console.print("\n[red]All images failed processing[/red]")
+        raise typer.Exit(EXIT_PROCESSING_ERROR) from None
+    if failed_count > 0:
+        console.print(
+            f"\n[yellow]Pipeline completed with errors: {failed_count}/{total_count} images failed[/yellow]"
+        )
+        raise typer.Exit(EXIT_PARTIAL_SUCCESS) from None
+
+    console.print("\n[bold green]Pipeline completed successfully![/bold green]")
+
+
+# ============================================================================
+# Main CLI Command
+# ============================================================================
+
+
+@app.command()
+def main(
+    data_dir: Path = typer.Option(
+        None,
+        "--data-dir",
+        "-d",
+        help="Directory containing images to process",
+    ),
+    output_dir: Path = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="Output directory for results",
+    ),
+    config_file: Path = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="YAML configuration file",
+    ),
+    model_type: str | None = typer.Option(
+        None,
+        "--model",
+        help=f"Model type ({', '.join(list_models())}). Default from config or internvl3.",
+    ),
+    model_path: Path = typer.Option(
+        None,
+        "--model-path",
+        "-m",
+        help="Path to model weights directory",
+    ),
+    ground_truth: Path = typer.Option(
+        None,
+        "--ground-truth",
+        "-g",
+        help="Ground truth CSV file (omit for inference-only)",
+    ),
+    max_images: int = typer.Option(
+        None,
+        "--max-images",
+        help="Maximum number of images to process",
+    ),
+    document_types: str = typer.Option(
+        None,
+        "--document-types",
+        help="Filter by document types (comma-separated)",
+    ),
+    batch_size: int | None = typer.Option(
+        None,
+        "--batch-size",
+        "-b",
+        help="Images per batch (auto-detect from VRAM if omitted)",
+    ),
+    bank_v2: bool | None = typer.Option(
+        None,
+        "--bank-v2/--no-bank-v2",
+        help="Use V2 bank statement extraction. Default from config or True.",
+    ),
+    balance_correction: bool | None = typer.Option(
+        None,
+        "--balance-correction/--no-balance-correction",
+        help="Enable balance validation. Default from config or True.",
+    ),
+    max_tiles: int | None = typer.Option(
+        None,
+        "--max-tiles",
+        help="Max image tiles (H200: 11, V100: 14). Default from config or 11.",
+    ),
+    min_tiles: int | None = typer.Option(
+        None,
+        "--min-tiles",
+        help="Min tiles for adaptive quality-based tiling. Enables adaptive mode.",
+    ),
+    flash_attn: bool | None = typer.Option(
+        None,
+        "--flash-attn/--no-flash-attn",
+        help="Use Flash Attention 2. Default from config or True.",
+    ),
+    enforce_eager: bool | None = typer.Option(
+        None,
+        "--enforce-eager/--no-enforce-eager",
+        help="vLLM: skip CUDA graph compilation. Default from config or True.",
+    ),
+    dtype: str | None = typer.Option(
+        None,
+        "--dtype",
+        help="Torch dtype (bfloat16, float16, float32). Default from config or bfloat16.",
+    ),
+    num_gpus: int | None = typer.Option(
+        None,
+        "--num-gpus",
+        help="Number of GPUs (0 = auto-detect all, 1 = single GPU, N = use N GPUs)",
+    ),
+    no_viz: bool | None = typer.Option(
+        None,
+        "--no-viz/--viz",
+        help="Skip visualization generation. Default from config or False.",
+    ),
+    no_reports: bool | None = typer.Option(
+        None,
+        "--no-reports/--reports",
+        help="Skip report generation. Default from config or False.",
+    ),
+    verbose: bool | None = typer.Option(
+        None,
+        "--verbose/--quiet",
+        "-v/-q",
+        help="Verbose output. Default from config or True.",
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show version and exit",
+    ),
+) -> None:
+    """
+    Document Extraction CLI
+
+    Process document images and extract structured fields using vision-language models.
+    Supports evaluation mode (with ground truth) and inference-only mode.
+
+    Examples:
+
+        # Evaluation mode with ground truth
+        python cli.py -d ./data -o ./output -g ./ground_truth.csv
+
+        # Inference-only mode
+        python cli.py -d ./images -o ./results
+
+        # Using config file
+        python cli.py --config run_config.yaml
+
+        # Specify model type
+        python cli.py --model internvl3 -d ./data -o ./output
+    """
+    # Handle version flag
+    if version:
+        console.print(f"{APP_NAME} v{VERSION}")
+        raise typer.Exit(EXIT_SUCCESS)
+
+    # Build CLI args dict (only non-None values)
+    arg_mapping: dict[str, Any] = {
+        "data_dir": data_dir,
+        "output_dir": output_dir,
+        "model_type": model_type,
+        "model_path": model_path,
+        "ground_truth": ground_truth,
+        "max_images": max_images,
+        "batch_size": batch_size,
+        "max_tiles": max_tiles,
+        "min_tiles": min_tiles,
+        "flash_attn": flash_attn,
+        "enforce_eager": enforce_eager,
+        "dtype": dtype,
+        "bank_v2": bank_v2,
+        "balance_correction": balance_correction,
+        "num_gpus": num_gpus,
+        "verbose": verbose,
+        "skip_visualizations": no_viz,
+        "skip_reports": no_reports,
+    }
+    cli_args = {k: v for k, v in arg_mapping.items() if v is not None}
+
+    # Special handling: comma-split
+    if document_types is not None:
+        cli_args["document_types"] = [t.strip() for t in document_types.split(",")]
+
+    # Validate model_type early if provided on CLI (fail fast)
+    if model_type is not None:
+        try:
+            get_model(model_type)
+        except ValueError:
+            available = ", ".join(list_models()) or "(none)"
+            console.print(f"[red]FATAL: Unknown model type: '{model_type}'[/red]")
+            console.print(f"[yellow]Available models: {available}[/yellow]")
+            raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    # Resolve config path
+    default_config = Path(__file__).parent / "config" / "run_config.yml"
+    resolved_config = config_file or (default_config if default_config.exists() else None)
+
+    # Load unified config (replaces 7-step dance: YAML, ENV, merge, validate)
+    try:
+        app = AppConfig.load(cli_args, config_path=resolved_config)
+    except FileNotFoundError:
+        if config_file:
+            console.print(f"[red]FATAL: Config file not found: {config_file}[/red]")
+            console.print("[yellow]Expected: YAML configuration file[/yellow]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+    except ConfigError as e:
+        for error in e.errors:
+            console.print(f"[red]FATAL: {error}[/red]")
+        raise typer.Exit(EXIT_CONFIG_ERROR) from None
+
+    config = app.pipeline
+
+    # Configure logging level from --verbose/--quiet flag
+    logging.basicConfig(
+        level=logging.DEBUG if config.verbose else logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+
+    # Display configuration and run pipeline
+    print_config(config)
+    run_pipeline(config, app_config=app)
+    raise typer.Exit(EXIT_SUCCESS)
+
+
+if __name__ == "__main__":
+    app()

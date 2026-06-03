@@ -1,0 +1,280 @@
+# Unified Classify + Extract Workflow
+#
+# Single-image workflow: classify document type with enriched evidence-based
+# detection, then route to type-specific extraction. Classification also
+# detects transaction table column headers, eliminating a separate header
+# detection call for bank statements.
+#
+# Flow:
+#   classify_document -> route_by_type
+#     -> is_bank_statement -> select_bank_strategy -> ...
+#     -> is_receipt        -> extract_receipt -> done
+#     -> is_invoice        -> extract_invoice -> done
+#     -> default           -> extract_receipt -> done  (safety fallback)
+#
+# Prompt templates from: internvl3_prompts.yaml + bank_extract.yaml
+
+name: unified_extract
+description: >
+  Classify document type and extract fields in a single graph walk.
+  Enriched classification detects column headers during classification,
+  eliminating a separate header detection call for bank statements.
+  Routes bank statements directly to strategy selection; receipts and
+  invoices through single-turn field extraction.
+
+nodes:
+  # ===================================================================
+  # Classification (Turn 0) — enriched with header detection
+  # ===================================================================
+  classify_document:
+    template: |
+      Look at this document image and answer each question:
+
+      1. COLUMNS: If there is a transaction table with rows of dates,
+         descriptions, and amounts, list the exact column headers
+         separated by " | ".
+         If there is no transaction table, write NONE.
+
+      2. PAID: Is there evidence that payment was completed?
+         Look for: payment method, "PAID" stamp, amount tendered,
+         change given, receipt number, EFTPOS/card details.
+         Answer YES or NO.
+
+      3. ROWS: How many line items or transaction rows are visible?
+         Answer with a number.
+    token_budget: classify
+    parser: classification
+    edges:
+      ok: route_by_type
+
+  route_by_type:
+    type: router
+    edges:
+      is_bank_statement: select_bank_strategy
+      is_receipt: extract_receipt
+      is_invoice: extract_invoice
+      default: extract_receipt
+
+  # ===================================================================
+  # Receipt extraction (single turn)
+  # ===================================================================
+  extract_receipt:
+    template: |
+      Extract ALL data from this receipt image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: RECEIPT
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find store: Business name at top
+      - Find transaction date: Use DD/MM/YYYY format
+      - Find purchased items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+    token_budget: extract_standard
+    parser: field_value
+    edges:
+      ok: done
+
+  # ===================================================================
+  # Invoice extraction (single turn)
+  # ===================================================================
+  extract_invoice:
+    template: |
+      Extract ALL data from this invoice image. Respond in exact format below with actual values or NOT_FOUND.
+
+      DOCUMENT_TYPE: INVOICE
+      BUSINESS_ABN: NOT_FOUND
+      SUPPLIER_NAME: NOT_FOUND
+      BUSINESS_ADDRESS: NOT_FOUND
+      PAYER_NAME: NOT_FOUND
+      PAYER_ADDRESS: NOT_FOUND
+      INVOICE_DATE: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      LINE_ITEM_QUANTITIES: NOT_FOUND
+      LINE_ITEM_PRICES: NOT_FOUND
+      LINE_ITEM_TOTAL_PRICES: NOT_FOUND
+      IS_GST_INCLUDED: NOT_FOUND
+      GST_AMOUNT: NOT_FOUND
+      TOTAL_AMOUNT: NOT_FOUND
+
+      Instructions:
+      - Find ABN: 11 digits like "12 345 678 901"
+      - Find supplier: Business name at top
+      - Find customer: "Bill To" section
+      - Find date: Use DD/MM/YYYY format
+      - Find line items: List with " | " separator
+      - Find amounts: Include $ symbol
+      - Replace NOT_FOUND with actual values
+    token_budget: extract_standard
+    parser: field_value
+    edges:
+      ok: done
+
+  # ===================================================================
+  # Bank statement subgraph — column headers come from classify_document
+  # ===================================================================
+  select_bank_strategy:
+    type: router
+    edges:
+      has_balance_debit: extract_balance
+      has_amount: extract_amount
+      has_debit_or_credit: extract_debit_credit
+      default: extract_schema_fallback
+
+  extract_balance:
+    template: |
+      List all the balances in the {balance_col} column, including:
+      - Date from the Date Header of the balance
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each balance entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY balance entry in order from top to bottom
+      2. EVERY balance entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any transactions
+      7. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+      8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
+         - {balance_col} example: $223.38 CR
+         - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
+    inject:
+      balance_col: "classify_document.column_mapping.balance|Balance"
+      desc_col: "classify_document.column_mapping.description|Description"
+      debit_col: "classify_document.column_mapping.debit|Debit"
+      credit_col: "classify_document.column_mapping.credit|Credit"
+    token_budget: extract_bank
+    parser: balance_description
+    edges:
+      ok: bank_post_process
+
+  extract_amount:
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {amount_col} (preserve the sign: negative = withdrawal, positive = deposit)
+      - {balance_col}
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [ALL rows of text for this transaction]
+         - {amount_col}: [amount with sign preserved]
+         - {balance_col}: [balance amount]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL {desc_col} text - capture ALL rows, not abbreviated
+      4. PRESERVE the sign of amounts (negative = withdrawal, positive = deposit)
+      5. Do NOT skip any transactions
+    inject:
+      amount_col: "classify_document.column_mapping.amount|Amount"
+      desc_col: "classify_document.column_mapping.description|Description"
+      balance_col: "classify_document.column_mapping.balance|Balance"
+    token_budget: extract_bank
+    parser: amount_description
+    edges:
+      ok: bank_post_process
+
+  extract_debit_credit:
+    template: |
+      List all transactions from this bank statement, including:
+      - Date
+      - {desc_col}
+      - {debit_col} Amount or "NOT_FOUND"
+      - {credit_col} Amount or "NOT_FOUND"
+
+      Format each entry like this:
+      1. **[Date]**
+         - {desc_col}: [description text]
+         - {debit_col}: [amount or NOT_FOUND]
+         - {credit_col}: [amount or NOT_FOUND]
+
+      CRITICAL RULES:
+      1. List EVERY transaction in order from top to bottom
+      2. EVERY entry has a date, either on the same row, or above
+      3. Include the FULL description text, not abbreviated
+      4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
+      5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
+      6. Do NOT skip any actual transactions - extract them ALL
+      7. SKIP "Opening balance" and "Closing balance" rows - these are NOT transactions
+      8. Use the DATE from the Date column ONLY - do NOT use "Value Date:" as the transaction date
+         (Value Date may appear in the description but is NOT the transaction date)
+    inject:
+      debit_col: "classify_document.column_mapping.debit|Debit"
+      credit_col: "classify_document.column_mapping.credit|Credit"
+      desc_col: "classify_document.column_mapping.description|Description"
+    token_budget: extract_bank
+    parser: balance_description
+    edges:
+      ok: bank_post_process
+
+  extract_schema_fallback:
+    template: |
+      Extract ONLY DEBIT/WITHDRAWAL transactions (money OUT) from this bank statement for expense tracking.
+      SKIP all deposits, credits, salary payments, and money IN transactions entirely.
+
+      Respond in this exact format with actual values or NOT_FOUND:
+
+      DOCUMENT_TYPE: BANK_STATEMENT
+      STATEMENT_DATE_RANGE: NOT_FOUND
+      TRANSACTION_DATES: NOT_FOUND
+      LINE_ITEM_DESCRIPTIONS: NOT_FOUND
+      TRANSACTION_AMOUNTS_PAID: NOT_FOUND
+
+      STOP after TRANSACTION_AMOUNTS_PAID. No explanations or additional text.
+
+      Instructions:
+      - STATEMENT_DATE_RANGE: Find the statement period (e.g., "01/01/2024 - 31/01/2024")
+      - TRANSACTION_DATES: Dates of DEBIT transactions only, separated by " | "
+      - LINE_ITEM_DESCRIPTIONS: Descriptions of DEBIT transactions only, separated by " | "
+      - TRANSACTION_AMOUNTS_PAID: DEBIT/withdrawal amounts with $ separated by " | "
+
+      HOW TO IDENTIFY DEBITS (money OUT):
+      - Amounts with negative sign (-$50.00) or in a Debit column
+      - Keywords: withdrawal, payment, purchase, fee, charge, ATM, EFTPOS, direct debit
+      DO NOT INCLUDE (money IN):
+      - Keywords: deposit, credit, salary, wages, transfer in, interest received, "Direct Credit"
+
+      CRITICAL RULES:
+      1. Extract ONLY debit/withdrawal transactions - completely SKIP credits and deposits
+      2. Keep items in the same order across all fields (date 1 matches description 1 matches amount 1)
+      3. Use " | " as separator between items
+      4. Include $ symbol for amounts
+      5. Replace NOT_FOUND with actual values
+    token_budget: extract_bank
+    parser: field_value
+    edges:
+      ok: done
+
+  bank_post_process:
+    type: validator
+    check: bank_post_process
+    edges:
+      ok: done
+      failed: done

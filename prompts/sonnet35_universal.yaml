@@ -1,0 +1,205 @@
+prompts:
+  universal:
+    name: Universal Single-Pass Extraction (AWS Sonnet 3.5 - JSON)
+    description: >
+      Extract all 17 fields in one pass for any document type
+      (invoice/receipt/bank statement). Optimized for AWS Bedrock
+      Claude 3.5 Sonnet v2 with structured JSON output.
+      Split into system + user prompts for the Bedrock Messages API.
+
+    # ── Bedrock API notes ──────────────────────────────────────────
+    # Model ID:  us.anthropic.claude-3-5-sonnet-20241022-v2:0
+    #            (v1 was sunset Dec 2025 — always use v2)
+    # API header: anthropic_version: "bedrock-2023-05-31"
+    #
+    # Recommended: use Bedrock Structured Outputs (response_format
+    # with json_schema below) for guaranteed schema-valid JSON.
+    # If structured outputs are unavailable, the system prompt
+    # instructs the model to return raw JSON as a fallback.
+    # ────────────────────────────────────────────────────────────────
+
+    # Pass as the "system" parameter in the Bedrock Messages API call.
+    system: |
+      You are a document-data extraction engine. You receive a single
+      document image and return a JSON object with exactly 17 keys.
+
+      Rules:
+      - Extract only what is explicitly visible. Never guess or infer.
+      - Preserve the document's original text, formatting, and capitalization.
+      - Use null for any field that is not visible or does not apply.
+      - Respond with a single raw JSON object. No markdown fences, no commentary.
+
+      Document-type applicability:
+      - Invoice/receipt fields: invoice_date, business_abn, supplier_name,
+        business_address, payer_name, payer_address, line_item_*,
+        gst_amount, is_gst_included, total_amount.
+      - Bank-statement fields: transaction_dates, transaction_amounts_paid,
+        statement_date_range, and line_item_descriptions (used for
+        transaction descriptions).
+      - For bank statements, extract ONLY debit/withdrawal rows (money out).
+        Skip all credits, deposits, and incoming transfers. The arrays for
+        transaction_dates, line_item_descriptions, and
+        transaction_amounts_paid must have the same length and correspond
+        to the same debit rows, in document order.
+
+      Field definitions (all keys are required in the output):
+
+      document_type  — "INVOICE", "RECEIPT", or "STATEMENT". null if unclear.
+      business_abn   — 11-digit Australian Business Number ("XX XXX XXX XXX"). null if absent.
+      supplier_name  — Company/business name from the document header. null if absent.
+      business_address — Full supplier address. null if absent.
+      payer_name     — Customer/payer name (Bill To / Customer section). null if absent.
+      payer_address  — Customer/payer address. null if absent.
+      invoice_date   — Document date in "DD/MM/YYYY" format. null if absent.
+      line_item_descriptions — Array of strings.
+          Invoices/receipts: item or service names from the line-item table.
+          Bank statements: debit transaction descriptions only.
+          null if absent.
+      line_item_quantities — Array of quantity strings, same order as descriptions. null if absent or N/A.
+      line_item_prices — Array of unit-price strings with "$" prefix (e.g. "$12.50"). null if absent or N/A.
+      line_item_total_prices — Array of line-total strings with "$" prefix. null if absent or N/A.
+      gst_amount     — GST/tax amount with "$" prefix (e.g. "$8.62"). null if absent.
+      is_gst_included — true if gst_amount > $0.00, false if $0.00, null if unclear or absent.
+      total_amount   — Final total with "$" prefix (e.g. "$95.50"). null if absent.
+      transaction_dates — Array of debit dates in "DD/MM/YYYY" format (bank statements only). null otherwise.
+      transaction_amounts_paid — Array of debit amounts with "$" prefix (bank statements only). null otherwise.
+      statement_date_range — {"start": "DD/MM/YYYY", "end": "DD/MM/YYYY"} spanning the earliest
+          to latest transaction_dates. null if not a bank statement.
+
+    # Pass as the user message content (alongside the image) in the Bedrock Messages API call.
+    # Place the image content block BEFORE this text block for best extraction accuracy.
+    prompt: |
+      Extract all fields from this document image. Return only the JSON object.
+
+    # ── Bedrock Structured Outputs schema ──────────────────────────
+    # Pass via response_format.json_schema in the InvokeModel request
+    # to guarantee schema-valid JSON without relying on prompt instructions.
+    #
+    # Example InvokeModel request body:
+    #   {
+    #     "anthropic_version": "bedrock-2023-05-31",
+    #     "system": "<system prompt above>",
+    #     "max_tokens": 4096,
+    #     "messages": [{"role": "user", "content": [
+    #       {"type": "image", "source": {"type": "base64", ...}},
+    #       {"type": "text", "text": "<user prompt above>"}
+    #     ]}],
+    #     "response_format": {
+    #       "type": "json_schema",
+    #       "json_schema": <schema below>
+    #     }
+    #   }
+    # ────────────────────────────────────────────────────────────────
+    json_schema:
+      name: document_extraction
+      strict: true
+      schema:
+        type: object
+        required:
+          - document_type
+          - business_abn
+          - supplier_name
+          - business_address
+          - payer_name
+          - payer_address
+          - invoice_date
+          - line_item_descriptions
+          - line_item_quantities
+          - line_item_prices
+          - line_item_total_prices
+          - gst_amount
+          - is_gst_included
+          - total_amount
+          - transaction_dates
+          - transaction_amounts_paid
+          - statement_date_range
+        additionalProperties: false
+        properties:
+          document_type:
+            anyOf:
+              - type: string
+                enum: ["INVOICE", "RECEIPT", "STATEMENT"]
+              - type: "null"
+          business_abn:
+            anyOf:
+              - type: string
+              - type: "null"
+          supplier_name:
+            anyOf:
+              - type: string
+              - type: "null"
+          business_address:
+            anyOf:
+              - type: string
+              - type: "null"
+          payer_name:
+            anyOf:
+              - type: string
+              - type: "null"
+          payer_address:
+            anyOf:
+              - type: string
+              - type: "null"
+          invoice_date:
+            anyOf:
+              - type: string
+              - type: "null"
+          line_item_descriptions:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_quantities:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_prices:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          line_item_total_prices:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          gst_amount:
+            anyOf:
+              - type: string
+              - type: "null"
+          is_gst_included:
+            anyOf:
+              - type: boolean
+              - type: "null"
+          total_amount:
+            anyOf:
+              - type: string
+              - type: "null"
+          transaction_dates:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          transaction_amounts_paid:
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          statement_date_range:
+            anyOf:
+              - type: object
+                required: ["start", "end"]
+                additionalProperties: false
+                properties:
+                  start:
+                    type: string
+                  end:
+                    type: string
+              - type: "null"

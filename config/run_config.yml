@@ -1,0 +1,221 @@
+# Document Extraction Configuration
+# All options explicitly stated - YAML takes priority over defaults
+# CLI flags override YAML when explicitly provided
+
+# Model configuration — switch type + path together
+model:
+  # type: internvl3
+  type: internvl3-vllm
+  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  # path: /efs/shared/PTM/InternVL3_5-8B
+  max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
+  # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
+  flash_attn: true       # Use Flash Attention 2 (disable for V100)
+  enforce_eager: true    # vLLM: true = skip CUDA graph compilation (faster startup,
+                         #        lower throughput); false = compile graphs (slower
+                         #        startup, higher throughput for long runs)
+  dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
+  max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
+
+# Data paths
+data:
+  # dir: /efs/shared/annotations/annotation_images
+  # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
+  # dir: ../evaluation_data/bank
+  # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
+  dir: ../evaluation_data/synthetic_original
+  ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
+  max_images: null       # null = process all images
+  document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
+
+# Output settings
+output:
+  dir: ../evaluation_data/output
+  skip_visualizations: false  # Skip visualization generation
+  skip_reports: false         # Skip report generation
+
+# Logging
+logging:
+  # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+  log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+
+# Classification settings
+classification:
+  fallback_type: UNIVERSAL     # Default type when model response can't be parsed
+  complexity_thresholds:
+    low: 5                     # 1-5 rows/items = LOW
+    high: 20                   # 21+ rows/items = HIGH; 6-20 = MEDIUM
+
+# Processing options
+processing:
+  batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
+  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
+  data_parallel_size: null     # null = auto (num_gpus for vLLM, ignored for HF)
+  bank_v2: true              # Use V2 bank statement extraction
+  balance_correction: false  # Disable balance validation (reduces accuracy)
+  verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
+  debug: false               # Tier C: dev noise (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/response dumps)
+
+# Named token budgets — single source of truth for all max_tokens values.
+# Workflow YAML nodes reference these by name via `token_budget: <name>`.
+token_budgets:
+  classify: 150
+  detection: 200
+  detect_headers: 500
+  detect_headers_short: 200
+  extract_standard: 2048
+  extract_travel: 1024
+  extract_bank: 4096
+  bank_header_detection: 500
+  transaction_match: 2000
+  receipt_extract: 500
+  orchestrator_generate: 1024
+  bank_statement_floor: 1500
+  prompt_internvl3: 600
+  prompt_llama: 800
+  prompt_llama4scout: 600
+  prompt_qwen3vl: 600
+  prompt_sroie: 256
+  prompt_wildreceipt: 1024
+  fallback_base: 512
+  fallback_per_field: 64
+  trust_classify: 300
+  trust_field_extract: 500
+
+# Trust distribution linking — NRO Private Wealth compliance checking
+trust_distribution:
+  data_dir: ../private_wealth_docs
+  quads: ../private_wealth_docs/output/trust_quads.csv
+  quads_incomplete: ../private_wealth_docs/output/trust_quads_incomplete.csv
+  ground_truth: ../private_wealth_docs/ground_truth/trust_distribution_links.yml
+  classification_ground_truth: ../private_wealth_docs/ground_truth/trust_classification_gt.yml
+  classifications: ../private_wealth_docs/output/trust_classifications.jsonl
+  raw_extractions: ../private_wealth_docs/output/raw_extractions.jsonl
+  compliance_results: ../private_wealth_docs/output/trust_compliance_results.jsonl
+  output_dir: ../private_wealth_docs/output
+  evaluation_dir: ../private_wealth_docs/output/trust_evaluation
+  log_dir: ../private_wealth_docs/output/logs
+  subdirectories:
+    # Production (flat directory, trust_classify generates quads):
+    trust_return: .
+    distribution_stmt: .
+    income_schedule: .
+    beneficiary_itr: .
+    # Development (pre-sorted subdirectories):
+    #   trust_return: trust_returns
+    #   distribution_stmt: distribution_statements
+    #   income_schedule: trust_income_schedules
+    #   beneficiary_itr: beneficiary_itrs
+  amount_tolerance: 0.01
+  linking_fields:
+    - trust_abn
+    - beneficiary_tfn
+    - share_of_net_income
+    - franking_credit
+    - capital_gain_component
+
+# Batch processing tuning
+batch:
+  default_sizes: {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4, qwen3vl: 4}
+  max_sizes: {internvl3: 8, internvl3-2b: 8, internvl3-8b: 16, qwen3vl: 8}
+  conservative_sizes: {internvl3: 1, internvl3-2b: 2, internvl3-8b: 1, qwen3vl: 2}
+  min_size: 1
+  strategy: balanced            # conservative | balanced | aggressive
+  auto_detect: true
+
+# Generation parameters
+generation:
+  defaults:
+    max_new_tokens_base: 512
+    max_new_tokens_per_field: 64
+    temperature: 0.0
+    do_sample: false
+    top_p: 0.95
+    use_cache: true
+  models:
+    internvl3:
+      max_new_tokens_base: 2000
+      max_new_tokens_per_field: 50
+    llama:
+      max_new_tokens_base: 400
+    llama4scout:
+      max_new_tokens_base: 512
+    qwen3vl:
+      max_new_tokens_base: 512
+    gemma4:
+      max_new_tokens_base: 512
+    granite4:
+      max_new_tokens_base: 1024
+  token_limits:
+    2b: null                    # use calculation
+    8b: 800
+
+# vLLM engine parameters — per-model overrides for VllmSpec defaults
+vllm:
+  defaults:
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    max_num_seqs: 1
+    limit_mm_per_prompt: 1
+    enable_prefix_caching: true
+  models:
+    qwen35-vllm:
+      max_model_len: 16384
+      gpu_memory_utilization: 0.92
+    qwen3vl-vllm:
+      gpu_memory_utilization: 0.92        # was VllmSpec default
+    llama4scout-w4a16:
+      gpu_memory_utilization: 0.92        # was VllmSpec default
+
+
+# Extraction ordering — controls batch submission order for prefix-cache reuse
+extraction_order:
+  - bank_statement
+  - invoice
+  - receipt
+secondary_sort: none              # none | image_area_asc | image_area_desc
+
+# Labels that skip extraction entirely (written as skipped records)
+extraction_skip_labels: []
+
+# Per-doc-type image tile budgets for InternVL3 dynamic tiling
+image_budgets:
+  default:
+    max_tiles: 18
+  bank_statement:
+    max_tiles: 18
+  invoice:
+    max_tiles: 12
+  receipt:
+    max_tiles: 6
+
+# Per-bank column-mapping cache (standalone bank workflow only)
+bank_header_cache:
+  enabled: false
+  key_pattern: "^(?P<institution>[A-Za-z]+)_"
+
+# Infrastructure settings — timeouts, memory thresholds
+infrastructure:
+  dp_timeout: 3600              # seconds, data-parallel worker timeout
+  dp_join_timeout: 60           # seconds, process join timeout
+  gpu_memory_threshold_gb: 1.0
+  gpu_memory_fallback_gb: 24.0
+
+# GPU memory management
+gpu:
+  memory_thresholds:
+    low: 8                      # GB — conservative batching
+    medium: 16                  # GB — balanced batching
+    high: 24                    # GB — aggressive batching
+    very_high: 64               # GB — maximum batching
+
+# Model loading options
+model_loading:
+  device_map: auto
+  default_paths:
+    internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
+    internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
+    llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
+    # internvl3: /efs/shared/PTM/InternVL3_5-8B
+    # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
+    # llama: /efs/shared/PTM/Llama-3.2-11B-Vision-Instruct

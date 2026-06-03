@@ -1,0 +1,180 @@
+prompts:
+  detection:
+    name: "Enriched Document Type Detection"
+    description: "Classify document type with evidence-based disambiguation and header detection"
+    prompt: |
+      Look at this document image and answer each question:
+
+      1. COLUMNS: If there is a transaction table with rows of dates,
+         descriptions, and amounts, list the exact column headers
+         separated by " | ".
+         If there is no transaction table, write NONE.
+
+      2. PAID: Is there evidence that payment was completed?
+         Look for: payment method, "PAID" stamp, amount tendered,
+         change given, receipt number, EFTPOS/card details.
+         Answer YES or NO.
+
+      3. ROWS: How many line items or transaction rows are visible?
+         Answer with a number.
+
+  detection_complex:
+    name: "Enhanced Document Type Detection"
+    description: "Identify business document type using visual layout cues and content indicators"
+    prompt: |
+      Analyze this business document image and identify its type using visual and content cues.
+
+      VISUAL LAYOUT ANALYSIS:
+
+      INVOICE/ESTIMATE/QUOTE INDICATORS:
+      - Header: "INVOICE", "TAX INVOICE", "ESTIMATE", "QUOTE", "QUOTATION", "PROFORMA"
+      - Layout: Business header → Customer "Bill To" section → Itemized table → Total section
+      - Key fields: Invoice/Quote number, Due date, Line items with quantities/prices
+      - Table structure: Description | Qty | Unit Price | Total columns
+      - Bottom section: Subtotal, GST, TOTAL amounts
+      - Visual: Professional business letterhead, structured pricing table
+
+      RECEIPT INDICATORS:
+      - Header: "RECEIPT", "PURCHASE RECEIPT", "SALES RECEIPT", "TAX INVOICE"
+      - Layout: Store/merchant header → Transaction details → Payment confirmation
+      - Key fields: Receipt number, Transaction date/time, Payment method
+      - Content: Completed purchase, "Amount tendered", "Change given"
+      - Visual: Store branding, compact format, payment confirmation details
+      - Transaction-focused rather than billing-focused
+
+      BANK STATEMENT INDICATORS:
+      - Header: "BANK STATEMENT", "ACCOUNT STATEMENT", "CREDIT CARD STATEMENT"
+      - Layout: Bank header → Account details → Transaction table → Summary
+      - Key fields: Account number, Statement period, Opening/Closing balance
+      - Table structure: Date | Description | Debit | Credit | Balance (or similar)
+      - Visual: Bank logo/branding, tabular transaction list, running balance
+      - Multiple transactions over time period, not single purchase
+
+      DECISION CRITERIA:
+
+      PRIMARY INDICATORS:
+      1. Document title/header text (strongest indicator)
+      2. Table structure and column headers
+      3. Presence of account numbers vs invoice numbers
+      4. Single transaction vs multiple transactions over time
+      5. Future-oriented (estimates/quotes) vs past transactions
+
+      DISTINGUISHING FEATURES:
+      - INVOICE/ESTIMATE: Future billing, "Amount Due", line item pricing structure
+      - RECEIPT: Completed transaction, "Amount Paid", payment method details
+      - BANK STATEMENT: Multiple transactions, running balance, bank account details
+
+      AMBIGUOUS CASES:
+      - If document has both invoice-like and receipt-like features, prioritize header text
+      - Tax invoices that also serve as receipts: Look for payment confirmation details
+      - Estimates vs Invoices: Check for "ESTIMATE", "QUOTE" in header or "Amount Due" vs "Estimated Total"
+
+      Respond with ONLY the document type:
+      - INVOICE (for invoices, bills, estimates, quotes, proforma invoices)
+      - RECEIPT (for receipts, payment confirmations, completed transactions)
+      - BANK_STATEMENT (for bank statements, account statements, credit card statements)
+
+      If unclear after visual analysis, default to: RECEIPT
+
+  detection_simple:
+    name: "Simple Document Type Detection"
+    description: "Minimal prompt for document type detection"
+    prompt: |
+      What type of business document is this image? Respond with only the document type: INVOICE or RECEIPT or BANK_STATEMENT
+
+# Type mappings for response normalization
+type_mappings:
+  # Bank statement variations (checked first — bank statements contain
+  # receipt/payment words like "EFTPOS", "Card xx", "payment" that would
+  # false-match RECEIPT if checked later)
+  "bank statement": "BANK_STATEMENT"
+  "bank_statement": "BANK_STATEMENT"
+  "bankstatement": "BANK_STATEMENT"
+  "account statement": "BANK_STATEMENT"
+  "credit card statement": "BANK_STATEMENT"
+  "creditcard statement": "BANK_STATEMENT"
+  "statement": "BANK_STATEMENT"
+  "monthly statement": "BANK_STATEMENT"
+
+  # Invoice variations
+  "invoice": "INVOICE"
+  "tax invoice": "INVOICE"
+  "commercial invoice": "INVOICE"
+  "proforma invoice": "INVOICE"
+  "bill": "INVOICE"
+  "estimate": "INVOICE"
+  "quote": "INVOICE"
+  "quotation": "INVOICE"
+
+  # Receipt variations
+  "receipt": "RECEIPT"
+  "purchase receipt": "RECEIPT"
+  "payment receipt": "RECEIPT"
+  "sales receipt": "RECEIPT"
+  "transaction receipt": "RECEIPT"
+  "store receipt": "RECEIPT"
+
+  # Travel expense variations
+  "travel expense": "TRAVEL_EXPENSE"
+  "travel_expense": "TRAVEL_EXPENSE"
+  "travelexpense": "TRAVEL_EXPENSE"
+  "boarding pass": "TRAVEL_EXPENSE"
+  "boardingpass": "TRAVEL_EXPENSE"
+  "boarding_pass": "TRAVEL_EXPENSE"
+  "airline ticket": "TRAVEL_EXPENSE"
+  "e-ticket": "TRAVEL_EXPENSE"
+  "eticket": "TRAVEL_EXPENSE"
+  "itinerary": "TRAVEL_EXPENSE"
+  "flight itinerary": "TRAVEL_EXPENSE"
+  "train ticket": "TRAVEL_EXPENSE"
+  "bus ticket": "TRAVEL_EXPENSE"
+  "taxi receipt": "TRAVEL_EXPENSE"
+  "rideshare receipt": "TRAVEL_EXPENSE"
+  "uber receipt": "TRAVEL_EXPENSE"
+  "plane ticket": "TRAVEL_EXPENSE"
+
+  # Vehicle logbook variations
+  "vehicle logbook": "VEHICLE_LOGBOOK"
+  "vehicle_logbook": "VEHICLE_LOGBOOK"
+  "vehiclelogbook": "VEHICLE_LOGBOOK"
+  "logbook": "VEHICLE_LOGBOOK"
+  "motor vehicle logbook": "VEHICLE_LOGBOOK"
+  "car logbook": "VEHICLE_LOGBOOK"
+  "mileage log": "VEHICLE_LOGBOOK"
+  "trip log": "VEHICLE_LOGBOOK"
+  "ato logbook": "VEHICLE_LOGBOOK"
+  "travel log": "VEHICLE_LOGBOOK"
+
+# Fallback keyword matching (used when type_mappings don't match)
+# Maps canonical document types to keywords that indicate that type.
+# Checked in order — first match wins. Put more specific types before general ones.
+fallback_keywords:
+  BANK_STATEMENT:
+    - bank
+    - statement
+    - account
+  RECEIPT:
+    - receipt
+    - purchase
+    - payment
+  TRAVEL_EXPENSE:
+    - travel
+    - ticket
+    - boarding
+    - airline
+    - flight
+    - itinerary
+    - passenger
+  VEHICLE_LOGBOOK:
+    - logbook
+    - vehicle logbook
+    - motor vehicle
+    - mileage
+    - odometer
+    - business use
+    - trip log
+  INVOICE:
+    - invoice
+    - bill
+    - tax
+
