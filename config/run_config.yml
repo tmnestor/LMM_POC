@@ -26,10 +26,10 @@ data:
   # dir: ../evaluation_data/synthetic_original
   # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
   dir: ../evaluation_data/synthetic_transaction_linking
-  ground_truth: null     # no extraction CSV for this set (standard evaluate skipped). The
-                         # transaction-linking task uses linking.ground_truth, not this. An
-                         # extraction CSV could be generated from the per-type YAMLs in
-                         # Synthetic_Doc_Generation/ground_truth (bank_statements/invoices/receipts).
+  # Extraction GT generated from the per-type YAMLs in
+  # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
+  # (Separate from linking.ground_truth, which the transaction-linking task uses.)
+  ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
   max_images: null       # null = process all images
   document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
