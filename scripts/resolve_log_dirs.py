@@ -7,6 +7,7 @@ Only uses Python stdlib -- no third-party imports.
 Outputs bash-eval-able assignments:
     YAML_LOG_DIR='...'
     YAML_TRUST_LOG_DIR_EARLY='...'
+    YAML_LINKING_LOG_DIR_EARLY='...'
 
 Usage:
     eval "$(python3 scripts/resolve_log_dirs.py config/run_config.yml)"
@@ -58,15 +59,18 @@ def main() -> int:
         # No config file -> all values empty (safe under set -u with ${var:-}).
         print(f"YAML_LOG_DIR={shlex.quote('')}")
         print(f"YAML_TRUST_LOG_DIR_EARLY={shlex.quote('')}")
+        print(f"YAML_LINKING_LOG_DIR_EARLY={shlex.quote('')}")
         return 0
 
     text = path.read_text()
 
     log_dir = _extract_nested_value(text, "logging", "log_dir")
     trust_log_dir = _extract_nested_value(text, "trust_distribution", "log_dir")
+    linking_log_dir = _extract_nested_value(text, "linking", "log_dir")
 
     print(f"YAML_LOG_DIR={shlex.quote(log_dir)}")
     print(f"YAML_TRUST_LOG_DIR_EARLY={shlex.quote(trust_log_dir)}")
+    print(f"YAML_LINKING_LOG_DIR_EARLY={shlex.quote(linking_log_dir)}")
     return 0
 
 

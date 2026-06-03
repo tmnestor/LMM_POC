@@ -114,6 +114,27 @@ trust_distribution:
     - franking_credit
     - capital_gain_component
 
+# Transaction linking — receipt/invoice -> bank-statement debit matching.
+# Standalone task (KFP_TASK=run_transaction_link); does NOT touch the trust
+# pipeline. Matcher-first: the algorithmic matcher links against the rows the
+# extract stage already pulled; receipts it can't confidently match fall
+# through to a targeted single-image VLM lookup. Every key is required —
+# stages/transaction_link.py fails fast on a missing one.
+linking:
+  case_key_pattern: "^(?P<case>[^_]+)_"   # group files by case (split on first "_")
+  vlm_prompt: single_receipt_link          # prompt file in prompts/ (without .yaml)
+  vlm_max_tokens: 4096                      # token budget for the fallback VLM lookup
+  vlm_temperature: 0.0                      # MUST be 0.0 — the shared generate seam is deterministic
+  hybrid_amount_tolerance: 0.01            # $ gate for an algorithmic amount match
+  hybrid_date_window_days: 5               # business-day window for date scoring
+  hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
+  hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
+  data_dir: ../evaluation_data/linking
+  output: ../evaluation_data/linking/output/transaction_links.jsonl
+  ground_truth: ../evaluation_data/linking/ground_truth/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
+  evaluation_dir: ../evaluation_data/linking/output/transaction_evaluation
+  log_dir: ../evaluation_data/linking/output/logs
+
 # Batch processing tuning
 batch:
   default_sizes: {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4, qwen3vl: 4}

@@ -25,6 +25,7 @@
 #     run_batch_inference  — 4-stage classic pipeline (classify/extract/clean/evaluate)
 #     run_graph_robust     — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)
 #     run_trust_pipeline   — 4-stage trust distribution compliance pipeline
+#     run_transaction_link — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)
 #   Standard per-stage (KFP production — one pod per stage):
 #     classify             — Stage 1 (GPU)
 #     extract              — Stage 2 (GPU)
@@ -42,6 +43,8 @@
 #   KFP_TASK=run_batch_inference image_dir=../evaluation_data/synthetic bash entrypoint.sh
 #   KFP_TASK=run_graph_robust image_dir=../evaluation_data/synthetic ground_truth=../evaluation_data/synthetic/ground_truth.jsonl bash entrypoint.sh
 #   KFP_TASK=run_trust_pipeline trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
+#   KFP_TASK=run_transaction_link bash entrypoint.sh                                  # paths from run_config.yml linking:
+#   KFP_TASK=run_transaction_link linking_data_dir=../evaluation_data/linking bash entrypoint.sh
 #
 # =============================================================================
 
@@ -104,6 +107,12 @@ YAML_TRUST_OUTPUT_DIR=""
 YAML_TRUST_EVALUATION_DIR=""
 YAML_TRUST_LOG_DIR=""
 YAML_TRUST_LOG_DIR_EARLY=""
+YAML_LINKING_DATA_DIR=""
+YAML_LINKING_OUTPUT=""
+YAML_LINKING_GROUND_TRUTH=""
+YAML_LINKING_EVALUATION_DIR=""
+YAML_LINKING_LOG_DIR=""
+YAML_LINKING_LOG_DIR_EARLY=""
 # Log directories must be resolved BEFORE conda activation because the
 # `exec`/`tee` redirect below needs the path immediately.  All other YAML defaults
 # are resolved post-conda via resolve_yaml_defaults.py (which uses PyYAML).
@@ -115,6 +124,9 @@ eval "$(python3 scripts/resolve_log_dirs.py "$CONFIG_FILE")"
 case "${KFP_TASK:-}" in
   trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_pipeline)
     LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR_EARLY:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
+    ;;
+  run_transaction_link)
+    LOG_DIR="${LMM_LINKING_LOG_DIR:-${YAML_LINKING_LOG_DIR_EARLY:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
   *)
     LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
@@ -260,6 +272,7 @@ _print_task_help() {
   log "    run_batch_inference   — 4-stage classic pipeline (classify/extract/clean/evaluate)  [local dev]"
   log "    run_graph_robust      — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)  [local dev]"
   log "    run_trust_pipeline    — 4-stage trust distribution compliance pipeline  [local dev]"
+  log "    run_transaction_link  — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)  [local dev]"
   log "    classify              — Stage 1: document type detection (GPU)"
   log "    extract               — Stage 2: field extraction (GPU)"
   log "    clean                 — Stage 3: parse/clean responses (CPU)"
@@ -298,6 +311,22 @@ _resolve_trust_vars() {
   TRUST_OUT="${trust_output:-${output:-./outputs}}"
   TRUST_LOG_DIR="${trust_log_dir:-${TRUST_OUT}/logs}"
   mkdir -p "$TRUST_OUT" "$TRUST_LOG_DIR"
+}
+
+_resolve_linking_vars() {
+  # Resolve the transaction-linking paths from env vars / YAML fallbacks, then
+  # point the SHARED classify/extract/clean path globals at the linking output
+  # root so the existing _run_classify/_run_extract runners write there.
+  # linking_output is a FILE (transaction_links.jsonl); its parent dir is the
+  # output root for the intermediate JSONL artefacts.
+  LINK_OUT="$(dirname "${linking_output:-./outputs/transaction_links.jsonl}")"
+  LINK_LOG_DIR="${linking_log_dir:-${LINK_OUT}/logs}"
+  mkdir -p "$LINK_OUT" "$LINK_LOG_DIR"
+  # Drive the GPU stages off the linking dataset + output root.
+  image_dir="${linking_data_dir:-${image_dir:-}}"
+  CLASSIFICATIONS="${LINK_OUT}/classifications.jsonl"
+  RAW_EXTRACTIONS="${LINK_OUT}/raw_extractions.jsonl"
+  CLEAN_EXTRACTIONS="${LINK_OUT}/cleaned_extractions.jsonl"
 }
 
 _ensure_trust_quads() {
@@ -534,6 +563,21 @@ if ! _is_set "${trust_evaluation_dir:-}"; then
 fi
 if ! _is_set "${trust_log_dir:-}"; then
   trust_log_dir="${YAML_TRUST_LOG_DIR:-}"
+fi
+if ! _is_set "${linking_data_dir:-}"; then
+  linking_data_dir="${YAML_LINKING_DATA_DIR:-}"
+fi
+if ! _is_set "${linking_output:-}"; then
+  linking_output="${YAML_LINKING_OUTPUT:-}"
+fi
+if ! _is_set "${linking_ground_truth:-}"; then
+  linking_ground_truth="${YAML_LINKING_GROUND_TRUTH:-}"
+fi
+if ! _is_set "${linking_evaluation_dir:-}"; then
+  linking_evaluation_dir="${YAML_LINKING_EVALUATION_DIR:-}"
+fi
+if ! _is_set "${linking_log_dir:-}"; then
+  linking_log_dir="${YAML_LINKING_LOG_DIR:-}"
 fi
 
 # ---- CLEAR_PREV_OUTPUT toggle (validated at startup, before any work) ---- #
@@ -923,6 +967,78 @@ case "${KFP_TASK:-}" in
 
     log ""
     log "Trust pipeline completed successfully."
+    ;;
+
+  # ========================================================================
+  # TRANSACTION LINKING — receipt/invoice -> bank-statement debit matching.
+  # ========================================================================
+  # Local dev: chain classify + extract + clean + transaction_link (+ optional
+  # evaluate_linking) in one shell. Matcher-first: the algorithmic matcher links
+  # against the rows extract already pulled; receipts it can't confidently match
+  # fall through to a targeted single-image VLM lookup. Does NOT touch the trust
+  # pipeline.
+  run_transaction_link)
+    log "Mode: run_transaction_link — receipt->bank transaction linking (matcher-first, VLM fallback)."
+    _resolve_linking_vars
+    log "  linking_data_dir:     ${linking_data_dir:-<not set>}"
+    log "  linking_output:       ${linking_output:-<not set>}"
+    log "  linking_ground_truth: ${linking_ground_truth:-<not set>}"
+    log "  link_out:             ${LINK_OUT}"
+    log "  link_log_dir:         ${LINK_LOG_DIR}"
+    # Clear previous outputs only when CLEAR_PREV_OUTPUT=true; otherwise the
+    # GPU stages resume and skip already-processed images from a prior run.
+    _clear_prev_output "$CLASSIFICATIONS" "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS" \
+      "${linking_output:-}" "${LINK_OUT}/.inference_elapsed"
+
+    INFERENCE_START=$(date +%s)
+
+    log ""
+    log "Phase 1/5: classify (GPU)..."
+    _run_classify
+    log "Phase 1/5: classify complete."
+
+    log ""
+    log "Phase 2/5: extract (GPU)..."
+    _run_extract classified
+    log "Phase 2/5: extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
+    log ""
+    log "Phase 3/5: clean (CPU)..."
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "Phase 3/5: clean complete."
+
+    log ""
+    log "Phase 4/5: transaction_link (matcher-first + VLM fallback)..."
+    python3 -m stages.transaction_link \
+      --extractions "$CLEAN_EXTRACTIONS" \
+      --output      "${linking_output:?linking_output is required — set via linking.output in run_config.yml or linking_output env var}" \
+      --data-dir    "${image_dir:?image_dir is required — set via linking.data_dir in run_config.yml or linking_data_dir env var}" \
+      --config      "$CONFIG_FILE" \
+      "${OPT_MODEL[@]}" || exit $?
+    log "Phase 4/5: transaction_link complete."
+
+    if _is_set "${linking_ground_truth:-}"; then
+      log ""
+      log "Phase 5/5: evaluate_linking (CPU)..."
+      LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
+      mkdir -p "$LINK_EVAL_DIR"
+      python3 -m stages.evaluate_linking \
+        --input        "${linking_output}" \
+        --ground-truth "$linking_ground_truth" \
+        --output-dir   "$LINK_EVAL_DIR" || exit $?
+      log "Phase 5/5: evaluate_linking complete."
+    else
+      log ""
+      log "Phase 5/5: evaluate_linking skipped — linking_ground_truth not provided."
+    fi
+
+    log ""
+    log "Transaction linking pipeline completed successfully."
     ;;
 
   "")
