@@ -23,8 +23,13 @@ data:
   # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
   # dir: ../evaluation_data/bank
   # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
-  dir: ../evaluation_data/synthetic_original
-  ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
+  # dir: ../evaluation_data/synthetic_original
+  # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
+  dir: ../evaluation_data/synthetic_transaction_linking
+  ground_truth: null     # no extraction CSV for this set (standard evaluate skipped). The
+                         # transaction-linking task uses linking.ground_truth, not this. An
+                         # extraction CSV could be generated from the per-type YAMLs in
+                         # Synthetic_Doc_Generation/ground_truth (bank_statements/invoices/receipts).
   max_images: null       # null = process all images
   document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
 
