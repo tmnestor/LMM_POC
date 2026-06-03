@@ -155,6 +155,16 @@ log() {
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
 }
 
+# Prominent stage banner — mirrors the top-level run banner so each phase of a
+# multi-stage pipeline stands out in the logs. Leads with a blank line for
+# separation; pass the stage label (e.g. "Phase 1/5: classify (GPU)").
+_banner() {
+  log ""
+  log "================================================================="
+  log "    $1"
+  log "================================================================="
+}
+
 # ---- Cleanup Trap ---- #
 # `trap ... EXIT` runs this code whenever the script exits — whether it
 # succeeds, fails, or gets killed (e.g. OOM). This guarantees you always
@@ -725,13 +735,11 @@ case "${KFP_TASK:-}" in
     # Track GPU inference wall-clock (classify + extract only, not clean/evaluate).
     INFERENCE_START=$(date +%s)
 
-    log ""
-    log "Phase 1/4: classify (fresh process, model reload)..."
+    _banner "Phase 1/4: classify (fresh process, model reload)"
     _run_classify
     log "Phase 1/4: classify complete."
 
-    log ""
-    log "Phase 2/4: extract (fresh process, model reload)..."
+    _banner "Phase 2/4: extract (fresh process, model reload)"
     _run_extract classified
     log "Phase 2/4: extract complete."
 
@@ -767,8 +775,7 @@ case "${KFP_TASK:-}" in
     # Track GPU inference wall-clock (extract only, not clean/evaluate).
     INFERENCE_START=$(date +%s)
 
-    log ""
-    log "Phase 1/3: extract --graph-robust (probe + extract, single GPU process)..."
+    _banner "Phase 1/3: extract --graph-robust (probe + extract, single GPU process)"
     _run_extract graph_robust
     log "Phase 1/3: extract complete."
 
@@ -931,27 +938,23 @@ case "${KFP_TASK:-}" in
 
     TRUST_START=$(date +%s)
 
-    log ""
-    log "Phase 1/4: trust_classify (GPU)..."
+    _banner "Phase 1/4: trust_classify (GPU)"
     _run_trust_classify
     log "Phase 1/4: trust_classify complete."
 
-    log ""
-    log "Phase 2/4: trust_extract (GPU)..."
+    _banner "Phase 2/4: trust_extract (GPU)"
     _run_trust_extract
     log "Phase 2/4: trust_extract complete."
 
     INFERENCE_ELAPSED=$(($(date +%s) - TRUST_START))
     log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
 
-    log ""
-    log "Phase 3/4: trust_clean (CPU)..."
+    _banner "Phase 3/4: trust_clean (CPU)"
     _run_trust_clean
     log "Phase 3/4: trust_clean complete."
 
     if _is_set "${trust_ground_truth:-}"; then
-      log ""
-      log "Phase 4/4: trust_evaluate (CPU)..."
+      _banner "Phase 4/4: trust_evaluate (CPU)"
       TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via trust_distribution.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
       mkdir -p "$TRUST_EVAL_DIR"
       # Orchestrator path: pass the single wall-clock as INFERENCE_ARGS so
@@ -992,28 +995,24 @@ case "${KFP_TASK:-}" in
 
     INFERENCE_START=$(date +%s)
 
-    log ""
-    log "Phase 1/5: classify (GPU)..."
+    _banner "Phase 1/5: classify (GPU)"
     _run_classify
     log "Phase 1/5: classify complete."
 
-    log ""
-    log "Phase 2/5: extract (GPU)..."
+    _banner "Phase 2/5: extract (GPU)"
     _run_extract classified
     log "Phase 2/5: extract complete."
 
     INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
     log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
 
-    log ""
-    log "Phase 3/5: clean (CPU)..."
+    _banner "Phase 3/5: clean (CPU)"
     python3 -m stages.clean \
       --input      "$RAW_EXTRACTIONS" \
       --output-dir "$CLEAN_EXTRACTIONS" || exit $?
     log "Phase 3/5: clean complete."
 
-    log ""
-    log "Phase 4/5: transaction_link (matcher-first + VLM fallback)..."
+    _banner "Phase 4/5: transaction_link (matcher-first + VLM fallback)"
     python3 -m stages.transaction_link \
       --extractions "$CLEAN_EXTRACTIONS" \
       --output      "${linking_output:?linking_output is required — set via linking.output in run_config.yml or linking_output env var}" \
@@ -1023,8 +1022,7 @@ case "${KFP_TASK:-}" in
     log "Phase 4/5: transaction_link complete."
 
     if _is_set "${linking_ground_truth:-}"; then
-      log ""
-      log "Phase 5/5: evaluate_linking (CPU)..."
+      _banner "Phase 5/5: evaluate_linking (CPU)"
       LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
       mkdir -p "$LINK_EVAL_DIR"
       python3 -m stages.evaluate_linking \
