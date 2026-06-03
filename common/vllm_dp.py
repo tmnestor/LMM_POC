@@ -7,7 +7,6 @@ communication during inference.
 
 import importlib
 import logging
-import math
 import multiprocessing as mp
 import os
 import traceback
@@ -38,10 +37,39 @@ def resolve_gpu_count(config: PipelineConfig) -> int:
 
 
 def _partition_images(images: list[Path], n: int) -> list[list[Path]]:
-    """Split images into n contiguous chunks."""
+    """Deal images round-robin into n balanced chunks (stride partition).
+
+    Images arrive sorted by document type (expensive bank statements first,
+    per ``extraction_order``). Contiguous chunking would pile every bank
+    statement onto GPU 0 — it becomes the straggler while the other GPUs race
+    through cheap receipts. Dealing round-robin (``images[i::n]``) spreads each
+    type evenly across GPUs, so every GPU gets roughly the same number of
+    banks / invoices / receipts and thus a balanced workload.
+
+    Per-GPU prefix-cache locality is preserved: the extract worker re-derives
+    its processing order from the global type-sorted list, so each GPU still
+    processes its banks together, then its invoices, then its receipts.
+    """
     n = min(n, len(images))
-    chunk_size = math.ceil(len(images) / n)
-    return [images[i : i + chunk_size] for i in range(0, len(images), chunk_size)]
+    return [images[i::n] for i in range(n)]
+
+
+def _reconstruct_order(
+    gpu_results: dict[int, list[dict[str, Any]]], actual_gpus: int
+) -> list[dict[str, Any]]:
+    """Reassemble round-robin chunk results back into original image order.
+
+    Chunk ``g`` (from :func:`_partition_images`) holds the images at original
+    indices ``g, g + actual_gpus, g + 2*actual_gpus, ...`` and the worker
+    returns its results in that same order. Interleave them back so the merged
+    list matches the input ``images`` order.
+    """
+    indexed: list[tuple[int, dict[str, Any]]] = []
+    for gpu_id in range(actual_gpus):
+        for pos, rec in enumerate(gpu_results[gpu_id]):
+            indexed.append((pos * actual_gpus + gpu_id, rec))
+    indexed.sort(key=lambda x: x[0])
+    return [rec for _, rec in indexed]
 
 
 def run_dp(
@@ -117,12 +145,9 @@ def run_dp(
             msg = f"GPU {i} worker exited with code {p.exitcode}"
             raise RuntimeError(msg)
 
-    # Merge in GPU order (preserves original image order since chunks are contiguous)
-    merged: list[dict[str, Any]] = []
-    for gpu_id in range(actual_gpus):
-        merged.extend(gpu_results[gpu_id])
-
-    return merged
+    # Chunks were dealt round-robin (images[i::n]); interleave the per-GPU
+    # results back into the original image order.
+    return _reconstruct_order(gpu_results, actual_gpus)
 
 
 def _worker_wrapper(
