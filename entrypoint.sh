@@ -193,8 +193,8 @@ log ""
 # the Python dependencies (torch, transformers, etc.) pre-installed.
 log "Activating conda environment..."
 eval "$(conda shell.bash hook)"
-CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/vllm_env}"
-# CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env2}"
+# CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/vllm_env}"
+CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env2}"
 log "Conda env: $CONDA_ENV"
 # Temporarily allow unbound variables — conda activation scripts (e.g. MKL)
 # reference variables that may not be set yet.
