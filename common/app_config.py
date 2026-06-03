@@ -193,7 +193,6 @@ class AppConfig:
     }
 
     _DEFAULT_INFRASTRUCTURE: ClassVar[dict[str, int | float]] = {
-        "dp_timeout": 3600,
         "dp_join_timeout": 60,
         "gpu_memory_threshold_gb": 1.0,
         "gpu_memory_fallback_gb": 24.0,
@@ -414,7 +413,7 @@ class AppConfig:
         """Resolve an infrastructure setting by name.
 
         Args:
-            name: Setting name (e.g. "dp_timeout", "gpu_memory_threshold_gb").
+            name: Setting name (e.g. "dp_join_timeout", "gpu_memory_threshold_gb").
 
         Returns:
             The setting value.

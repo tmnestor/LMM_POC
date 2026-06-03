@@ -11,6 +11,7 @@ import multiprocessing as mp
 import os
 import traceback
 from pathlib import Path
+from queue import Empty
 from typing import Any
 
 from common.app_config import AppConfig
@@ -78,10 +79,15 @@ def run_dp(
     images: list[Path],
     worker_fn: str,
     worker_kwargs: dict[str, Any],
-    timeout: int = 3600,
     app_config: AppConfig | None = None,
 ) -> list[dict[str, Any]]:
     """Launch N workers, collect merged results in original image order.
+
+    No global timeout: workers run until they finish or die. A slow-but-alive
+    worker (e.g. a GPU grinding through dense bank statements) is never falsely
+    killed — the collect loop polls the queue every ``poll_interval`` seconds
+    and only fails if a worker is found dead (OOM/SIGKILL) without having
+    written a result.
 
     Args:
         num_gpus: Number of GPUs / DP ranks.
@@ -89,17 +95,14 @@ def run_dp(
         worker_fn: Dotted path to a top-level function with signature:
             (gpu_id: int, image_paths: list[str], **worker_kwargs) -> list[dict]
         worker_kwargs: Extra kwargs forwarded to worker_fn (must be picklable).
-        timeout: Max seconds to wait for all workers (default 1 hour).
-        app_config: Optional application config. When supplied, overrides
-            *timeout* with ``app_config.get_infra("dp_timeout")`` and the
-            process join timeout with ``app_config.get_infra("dp_join_timeout")``.
+        app_config: Optional application config. When supplied, the process
+            join timeout is read from ``app_config.get_infra("dp_join_timeout")``.
 
     Returns:
         Merged list of result dicts in original image order.
     """
-    if app_config is not None:
-        timeout = int(app_config.get_infra("dp_timeout"))
     join_timeout = int(app_config.get_infra("dp_join_timeout")) if app_config else 60
+    poll_interval = 10  # seconds between liveness checks
     chunks = _partition_images(images, num_gpus)
     actual_gpus = len(chunks)
 
@@ -121,14 +124,28 @@ def run_dp(
         p.start()
         procs.append(p)
 
-    # Collect results
+    # Collect results — no global timeout. Poll the queue on a short interval
+    # and check worker liveness. Workers that complete normally put results on
+    # the queue; workers that hit a Python-level error put an exception. The
+    # only unhandled case is a worker killed by the OS (OOM, SIGKILL) without
+    # writing to the queue — detected via is_alive() + exitcode so a slow but
+    # healthy worker is never falsely timed out.
     gpu_results: dict[int, list[dict]] = {}
     try:
-        for _ in range(actual_gpus):
-            gpu_id, payload = result_queue.get(timeout=timeout)
+        remaining = actual_gpus
+        while remaining > 0:
+            try:
+                gpu_id, payload = result_queue.get(timeout=poll_interval)
+            except Empty:
+                for i, p in enumerate(procs):
+                    if not p.is_alive() and p.exitcode != 0 and i not in gpu_results:
+                        msg = f"GPU {i} worker died (exit code {p.exitcode}) without returning results"
+                        raise RuntimeError(msg) from None
+                continue
             if isinstance(payload, Exception):
                 raise payload
             gpu_results[gpu_id] = payload
+            remaining -= 1
             logger.info("GPU %d finished: %d images", gpu_id, len(payload))
     except Exception:
         for p in procs:

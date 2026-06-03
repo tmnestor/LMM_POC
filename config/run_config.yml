@@ -222,7 +222,8 @@ bank_header_cache:
 
 # Infrastructure settings — timeouts, memory thresholds
 infrastructure:
-  dp_timeout: 3600              # seconds, data-parallel worker timeout
+  # No dp_timeout: data-parallel workers run until they finish or die (run_dp
+  # polls worker liveness instead of imposing an arbitrary wall-clock cap).
   dp_join_timeout: 60           # seconds, process join timeout
   gpu_memory_threshold_gb: 1.0
   gpu_memory_fallback_gb: 24.0
