@@ -798,7 +798,7 @@ case "${KFP_TASK:-}" in
   classify)
     # Stage 1: Document type detection (GPU).
     # Writes classifications.jsonl — one record per image.
-    log "Stage 1: classify — detecting document types..."
+    _banner "Stage 1: classify — detecting document types (GPU)"
     mkdir -p "$OUT_ROOT"
     _clear_prev_output "$CLASSIFICATIONS" "$INFERENCE_ELAPSED_FILE"
     CLASSIFY_START=$(date +%s)
@@ -818,7 +818,7 @@ case "${KFP_TASK:-}" in
     #   - Graph-robust: if no classifications.jsonl, runs probe-based
     #     classification + extraction in one pass (--graph-robust).
     #     This is the default for the 3-stage KFP DAG (extract/clean/evaluate).
-    log "Stage 2: extract — extracting fields (raw responses)..."
+    _banner "Stage 2: extract — extracting fields (GPU)"
     mkdir -p "$OUT_ROOT"
     _clear_prev_output "$RAW_EXTRACTIONS"
     EXTRACT_START=$(date +%s)
@@ -841,7 +841,7 @@ case "${KFP_TASK:-}" in
   clean)
     # Stage 3: Parse and clean raw responses (CPU only, no GPU needed).
     # Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
-    log "Stage 3: clean — parsing and cleaning raw responses..."
+    _banner "Stage 3: clean — parsing and cleaning raw responses (CPU)"
     mkdir -p "$OUT_ROOT"
     _clear_prev_output "$CLEAN_EXTRACTIONS"
     python3 -m stages.clean \
@@ -852,7 +852,7 @@ case "${KFP_TASK:-}" in
   evaluate)
     # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
     # Reads cleaned_extractions.jsonl + ground truth CSV/JSONL, writes evaluation_results.jsonl.
-    log "Stage 4: evaluate — scoring against ground truth..."
+    _banner "Stage 4: evaluate — scoring against ground truth (CPU)"
     mkdir -p "$EVAL_DIR"
     _clear_prev_output "${EVAL_DIR}/evaluation_results.jsonl"
     _read_inference_elapsed "$INFERENCE_ELAPSED_FILE"
@@ -871,7 +871,7 @@ case "${KFP_TASK:-}" in
     # Trust document type classification (GPU).
     # Scans a flat directory for CASEXXX_* documents, classifies each
     # via VLM inference, and assembles a quads CSV for trust_extract.
-    log "Stage 1: trust_classify — classifying trust documents (GPU)..."
+    _banner "Stage 1: trust_classify — classifying trust documents (GPU)"
     _resolve_trust_vars
     log "  trust_data_dir: ${trust_data_dir:-<not set>}  trust_output: ${TRUST_OUT}"
     _clear_prev_output "${trust_classifications:-}" "${trust_quads:-}" \
@@ -889,7 +889,7 @@ case "${KFP_TASK:-}" in
     # Trust distribution field extraction (GPU-only).
     # Reads a quads CSV (4 documents per case), extracts linking fields
     # via VLM calls. Compliance validation is deferred to trust_clean.
-    log "Stage 2: trust_extract — extracting trust distribution fields (GPU)..."
+    _banner "Stage 2: trust_extract — extracting trust distribution fields (GPU)"
     _resolve_trust_vars
     log "  trust_output: ${TRUST_OUT}  trust_log_dir: ${TRUST_LOG_DIR}"
     _ensure_trust_quads
@@ -902,7 +902,7 @@ case "${KFP_TASK:-}" in
   trust_clean)
     # Trust distribution compliance cleaning (CPU-only).
     # Re-parses per-node raw_responses and runs compliance validation.
-    log "Stage 3: trust_clean — running trust compliance validation (CPU)..."
+    _banner "Stage 3: trust_clean — running trust compliance validation (CPU)"
     _resolve_trust_vars
     _clear_prev_output "${trust_compliance_results:-}"
     _run_trust_clean
@@ -911,7 +911,7 @@ case "${KFP_TASK:-}" in
   trust_evaluate)
     # Trust distribution evaluation (CPU).
     # Reads trust_compliance_results.jsonl + ground truth YAML, computes compliance metrics.
-    log "Stage 4: trust_evaluate — scoring trust compliance detection..."
+    _banner "Stage 4: trust_evaluate — scoring trust compliance detection (CPU)"
     _resolve_trust_vars
     log "  trust_output: ${TRUST_OUT}"
     TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via trust_distribution.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
