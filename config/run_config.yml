@@ -201,17 +201,12 @@ vllm:
     limit_mm_per_prompt: 1
     enable_prefix_caching: true
   models:
-    internvl3-vllm:
-      # Raise InternVL image tiles from the checkpoint default (12) to 18 for dense
-      # bank tables (the 10 dense-table misses). Set via mm_processor_kwargs — the
-      # IMAGE processor honors max_dynamic_patch this way; the video processor that
-      # otherwise chokes on it is neutralized by _patch_internvl_video_processor in
-      # model_loader (remove on vLLM upgrade). hf_overrides is silently ignored on
-      # this build, so it is NOT used. Correctness > speed.
-      max_model_len: 16384      # ample for 18 tiles (~4.9k vision) + 4096 bank output
-      mm_processor_kwargs:
-        max_dynamic_patch: 18
-        min_dynamic_patch: 1
+    # NOTE: raising InternVL tiles above the checkpoint default (12) is blocked on
+    # this vLLM build — see plans/2026-06-04-adaptive-tiling-dense-bank.md. Both
+    # mm_processor_kwargs (video processor crashes on max_dynamic_patch) and
+    # hf_overrides (silently ignored) fail here; vLLM main fixes both. Reverted to
+    # the working 12-tile baseline until vLLM is upgraded or the video processor is
+    # patched. The 10 dense-table misses remain at 12 tiles.
     qwen35-vllm:
       max_model_len: 16384
       gpu_memory_utilization: 0.92
