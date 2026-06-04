@@ -33,6 +33,18 @@ tracing:
   raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
   path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
+# vLLM app-side pre-tiling: crop each image into per-doc-type tiles ourselves and
+# hand vLLM the crops as separate images, so OUR tile count is authoritative (the
+# checkpoint's max_dynamic_patch=12 cap no longer bounds dense bank statements).
+# Tile counts come from image_budgets below (bank=18, invoice=12, receipt=6).
+# Enabling this REQUIRES raising vllm.models.<model>.limit_mm_per_prompt to at
+# least max(image_budgets.*.max_tiles) + 1 (load fails fast otherwise).
+# See plans/2026-06-04-adaptive-pre-tiling.md. Leave off to run the 12-tile baseline.
+pre_tiling:
+  enabled: false       # true -> pre-tile; false -> single-image (vLLM tiles internally at 12)
+  image_size: 448      # InternVL3 tile size in pixels
+  use_thumbnail: true  # append a whole-image thumbnail after the detail tiles
+
 # Data paths
 data:
   # dir: /efs/shared/annotations/annotation_images
@@ -201,12 +213,15 @@ vllm:
     limit_mm_per_prompt: 1
     enable_prefix_caching: true
   models:
-    # NOTE: raising InternVL tiles above the checkpoint default (12) is blocked on
-    # this vLLM build — see plans/2026-06-04-adaptive-tiling-dense-bank.md. Both
-    # mm_processor_kwargs (video processor crashes on max_dynamic_patch) and
-    # hf_overrides (silently ignored) fail here; vLLM main fixes both. Reverted to
-    # the working 12-tile baseline until vLLM is upgraded or the video processor is
-    # patched. The 10 dense-table misses remain at 12 tiles.
+    # NOTE: asking vLLM to tile above the checkpoint default (12) via
+    # mm_processor_kwargs/hf_overrides is blocked on this build (see
+    # plans/2026-06-04-adaptive-tiling-dense-bank.md). The supported route is
+    # app-side pre_tiling (above): we crop tiles ourselves and send them as
+    # separate images. To use it, set pre_tiling.enabled: true AND uncomment the
+    # internvl3-vllm limit_mm_per_prompt below (>= max image_budget + 1 = 19).
+    # internvl3-vllm:
+    #   max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
+    #   limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
     qwen35-vllm:
       max_model_len: 16384
       gpu_memory_utilization: 0.92

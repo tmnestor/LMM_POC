@@ -149,6 +149,9 @@ def extract_worker(
             model_type_key=config.model_type,
             chat_template=config.chat_template,
             trace_path=effective_trace_path(config),
+            pre_tiling_enabled=config.pre_tiling_enabled,
+            tile_image_size=config.pre_tiling_image_size,
+            tile_use_thumbnail=config.pre_tiling_use_thumbnail,
         )
         generate_fn = backend.generate_for_graph
 
@@ -281,6 +284,11 @@ def classified_extract_worker(
                 generate_fn=processor.generate,
                 verbose=effective_verbose,
                 use_balance_correction=config.balance_correction,
+                max_tiles=(
+                    app_cfg.get_image_budget("bank_statement")["max_tiles"]
+                    if config.pre_tiling_enabled
+                    else None
+                ),
             )
             logger.info("Bank adapter enabled (GPU %d)", gpu_id)
 

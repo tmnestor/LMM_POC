@@ -97,6 +97,12 @@ class PipelineConfig:
     chat_template: str | None = None  # vLLM only: path to a chat-template override, or None
     trace_raw_prompts: bool = False  # debug: persist every VLM prompt/response to JSONL
     trace_path: str | None = None  # explicit trace JSONL path, or None for <output_dir> default
+    # vLLM pre-tiling: crop images into per-doc-type tiles ourselves and hand
+    # vLLM the crops as separate images (bypasses the checkpoint's max_dynamic_patch
+    # cap for dense bank statements). See plans/2026-06-04-adaptive-pre-tiling.md.
+    pre_tiling_enabled: bool = False
+    pre_tiling_image_size: int = 448
+    pre_tiling_use_thumbnail: bool = True
 
     # Model loading options
     trust_remote_code: bool = True
@@ -226,6 +232,54 @@ def _resolve_tracing(raw_config: dict[str, Any], config_path: Path) -> tuple[boo
     return enabled, path
 
 
+def _resolve_pre_tiling(raw_config: dict[str, Any], config_path: Path) -> tuple[bool, int, bool]:
+    """Resolve the optional ``pre_tiling`` block (vLLM app-side tiling).
+
+    An absent ``pre_tiling`` block means pre-tiling is off (it is opt-in, like
+    ``tracing``). If the block is present it must carry ``enabled`` (bool),
+    ``image_size`` (positive int) and ``use_thumbnail`` (bool); fails fast on a
+    malformed block, at config load.
+
+    Returns:
+        ``(enabled, image_size, use_thumbnail)``.
+    """
+    pre_tiling = raw_config.get("pre_tiling")
+    if pre_tiling is None:
+        return False, 448, True
+
+    required = ("enabled", "image_size", "use_thumbnail")
+    if not isinstance(pre_tiling, dict) or any(k not in pre_tiling for k in required):
+        raise ValueError(
+            "What: the 'pre_tiling' block is malformed (needs 'enabled', "
+            "'image_size' and 'use_thumbnail').\n"
+            f"Where: {config_path} -> pre_tiling\n"
+            "Expected:\n  pre_tiling:\n    enabled: false\n    image_size: 448\n"
+            "    use_thumbnail: true\n"
+            "How to fix: add all three keys under 'pre_tiling', or remove the "
+            "block entirely to disable pre-tiling."
+        )
+
+    enabled = pre_tiling["enabled"]
+    use_thumbnail = pre_tiling["use_thumbnail"]
+    image_size = pre_tiling["image_size"]
+    if not isinstance(enabled, bool) or not isinstance(use_thumbnail, bool):
+        raise ValueError(
+            "What: 'pre_tiling.enabled' and 'pre_tiling.use_thumbnail' must be "
+            f"booleans (got {enabled!r} and {use_thumbnail!r}).\n"
+            f"Where: {config_path} -> pre_tiling.enabled / pre_tiling.use_thumbnail\n"
+            "Expected: true or false, e.g.: enabled: false\n"
+            "How to fix: set both to true or false."
+        )
+    if not isinstance(image_size, int) or image_size < 1:
+        raise ValueError(
+            f"What: 'pre_tiling.image_size' must be a positive integer (got {image_size!r}).\n"
+            f"Where: {config_path} -> pre_tiling.image_size\n"
+            "Expected: the InternVL tile size in pixels, e.g.: image_size: 448\n"
+            "How to fix: set 'pre_tiling.image_size' to a positive integer (448 for InternVL3)."
+        )
+    return enabled, image_size, use_thumbnail
+
+
 def load_yaml_config(
     config_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -293,6 +347,14 @@ def load_yaml_config(
     flat_config["trace_raw_prompts"] = trace_enabled
     if trace_path is not None:
         flat_config["trace_path"] = trace_path
+
+    # vLLM pre-tiling (opt-in; absent block -> off)
+    pre_tiling_enabled, pre_tiling_image_size, pre_tiling_use_thumbnail = _resolve_pre_tiling(
+        raw_config, config_path
+    )
+    flat_config["pre_tiling_enabled"] = pre_tiling_enabled
+    flat_config["pre_tiling_image_size"] = pre_tiling_image_size
+    flat_config["pre_tiling_use_thumbnail"] = pre_tiling_use_thumbnail
 
     # Remove None values from flat config
     flat_config = {k: v for k, v in flat_config.items() if v is not None}

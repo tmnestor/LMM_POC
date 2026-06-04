@@ -447,6 +447,30 @@ def build_vllm_loader(spec: VllmSpec):
                 effective_enable_prefix_caching = vllm_overrides["enable_prefix_caching"]
                 effective_limit_mm = vllm_overrides["limit_mm_per_prompt"]
 
+                # Pre-tiling hands vLLM one image PER tile (plus a thumbnail), so
+                # limit_mm_per_prompt must admit the largest per-doc-type tile
+                # budget + 1. Fail fast here — otherwise vLLM silently drops the
+                # extra sub-images and the dense bank statements stay under-tiled.
+                if cfg.pre_tiling_enabled and "internvl" in spec.model_type:
+                    max_budget = app_config.max_image_budget_tiles()
+                    needed = max_budget + 1  # tiles + thumbnail
+                    if effective_limit_mm < needed:
+                        raise ValueError(
+                            "What: pre-tiling is enabled but "
+                            f"vllm.models.{spec.model_type}.limit_mm_per_prompt="
+                            f"{effective_limit_mm} is too low — pre-tiling sends one "
+                            f"image per tile, and the largest image budget is "
+                            f"{max_budget} tiles (+1 thumbnail = {needed}).\n"
+                            f"  Where: config/run_config.yml -> vllm.models."
+                            f"{spec.model_type}.limit_mm_per_prompt (and image_budgets.*.max_tiles)\n"
+                            f"  Expected: limit_mm_per_prompt >= {needed}, e.g.:\n"
+                            f"    vllm:\n      models:\n        {spec.model_type}:\n"
+                            f"          limit_mm_per_prompt: {needed}\n"
+                            f"  How to fix: raise limit_mm_per_prompt to at least "
+                            f"{needed} for {spec.model_type}, or set pre_tiling.enabled: "
+                            f"false to run the single-image baseline."
+                        ) from None
+
                 console.print(
                     f"\n[bold]Loading {spec.model_type} via vLLM "
                     f"(tp={tp_size}, max_model_len={effective_max_model_len})[/bold]"
@@ -532,6 +556,9 @@ def build_vllm_processor_creator(spec: VllmSpec):
             model_type_key=spec.model_type,
             chat_template=config.chat_template,
             trace_path=effective_trace_path(config),
+            pre_tiling_enabled=config.pre_tiling_enabled,
+            tile_image_size=config.pre_tiling_image_size,
+            tile_use_thumbnail=config.pre_tiling_use_thumbnail,
             debug=config.debug,
         )
 

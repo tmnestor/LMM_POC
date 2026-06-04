@@ -28,6 +28,10 @@ class NodeGenParams:
     stop: list[str] | None = None
     output_schema: dict | None = None  # JSON schema -> vLLM StructuredOutputsParams
     logprobs: int | None = None  # top-k logprobs per token
+    # Pre-tiling tile count for the vLLM backend; None -> single-image path.
+    # Populated from the per-doc-type image budget when the graph path needs
+    # high-resolution tiling (see plans/2026-06-04-adaptive-pre-tiling.md).
+    max_tiles: int | None = None
 
 
 @dataclass

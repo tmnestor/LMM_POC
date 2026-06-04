@@ -521,12 +521,18 @@ class UnifiedBankExtractor:
         use_balance_correction: bool = False,
         verbose: bool = True,
         token_budgets: dict[str, int] | None = None,
+        max_tiles: int | None = None,
     ):
         self.generate_fn = generate_fn
         self.use_balance_correction = use_balance_correction
         self.verbose = verbose
         self._header_tokens = (token_budgets or {}).get("bank_header_detection", 500)
         self._extract_tokens = (token_budgets or {}).get("extract_bank", 4096)
+        # Per-statement tile budget forwarded to the backend as the pre-tiling
+        # tile count. None -> the backend's single-image path. Dense bank tables
+        # need more tiles than the checkpoint default — see
+        # plans/2026-06-04-adaptive-pre-tiling.md.
+        self._max_tiles = max_tiles
 
         catalog = _default_catalog()
         self.column_matcher = ColumnMatcher()
@@ -548,6 +554,11 @@ class UnifiedBankExtractor:
         if self.verbose and stdout is not None:
             stdout.write(msg + "\n")
             stdout.flush()
+
+    def _gen(self, image: Any, prompt: str, max_tokens: int) -> str:
+        """Call the backend, forwarding the pre-tiling tile budget when set."""
+        extra = {"max_tiles": self._max_tiles} if self._max_tiles else None
+        return self.generate_fn(image, prompt, max_tokens=max_tokens, extra=extra)
 
     def extract(
         self,
@@ -592,7 +603,7 @@ class UnifiedBankExtractor:
             turn0_response = ""
         else:
             self._log("[UBE] Turn 0: Detecting headers...")
-            turn0_response = self.generate_fn(image, self._prompts["turn0"], max_tokens=self._header_tokens)
+            turn0_response = self._gen(image, self._prompts["turn0"], self._header_tokens)
             headers = self.parser.parse_headers(turn0_response)
             self._log(f"  Detected {len(headers)} headers: {headers}")
 
@@ -684,7 +695,7 @@ class UnifiedBankExtractor:
         self._log(f"[UBE] Turn 1 Prompt:\n{prompt}")
         self._log("[UBE] Turn 1: Calling model for extraction...")
         try:
-            response = self.generate_fn(image, prompt, max_tokens=self._extract_tokens)
+            response = self._gen(image, prompt, self._extract_tokens)
             self._log(f"[UBE]   Raw response length: {len(response)} chars")
             self._log(f"[UBE]   Response preview:\n{response[:500]}...")
         except Exception as e:
@@ -849,7 +860,7 @@ class UnifiedBankExtractor:
         )
 
         self._log("[UBE] Turn 1: Extracting transactions (amount-description)...")
-        response = self.generate_fn(image, prompt, max_tokens=self._extract_tokens)
+        response = self._gen(image, prompt, self._extract_tokens)
         # Note: Raw response is printed by BankStatementAdapter after bypass context
 
         # Parse response
@@ -945,7 +956,7 @@ class UnifiedBankExtractor:
 
         self._log(f"[UBE] Turn 1 Prompt:\n{prompt}")
         self._log("[UBE] Turn 1: Calling model for extraction (debit-credit)...")
-        response = self.generate_fn(image, prompt, max_tokens=self._extract_tokens)
+        response = self._gen(image, prompt, self._extract_tokens)
         self._log(f"[UBE]   Raw response length: {len(response)} chars")
         self._log(f"[UBE]   Response preview:\n{response[:500]}...")
 
@@ -1040,7 +1051,7 @@ class UnifiedBankExtractor:
 
         self._log("[UBE] Schema fallback: Extracting with direct schema prompt...")
         prompt = self._prompts["schema_fallback"]
-        response = self.generate_fn(image, prompt, max_tokens=self._extract_tokens)
+        response = self._gen(image, prompt, self._extract_tokens)
 
         self._log(f"[UBE]   Raw response length: {len(response)} chars")
         self._log(f"[UBE]   Raw response preview: {response[:500]}...")

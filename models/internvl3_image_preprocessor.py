@@ -14,6 +14,8 @@ import torch
 import torchvision.transforms as T
 from PIL import Image, ImageFilter, ImageStat
 
+from common import image_tiling
+
 # ImageNet normalization constants (for vision transformers)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -224,60 +226,24 @@ class InternVL3ImagePreprocessor:
         )
 
     def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
-        """Standard InternVL3 find_closest_aspect_ratio from official documentation."""
-        best_ratio_diff = float("inf")
-        best_ratio = (1, 1)
-        area = width * height
-        for ratio in target_ratios:
-            target_aspect_ratio = ratio[0] / ratio[1]
-            ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-            if ratio_diff < best_ratio_diff:
-                best_ratio_diff = ratio_diff
-                best_ratio = ratio
-            elif ratio_diff == best_ratio_diff:
-                if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
-                    best_ratio = ratio
-        return best_ratio
+        """Standard InternVL3 find_closest_aspect_ratio (delegates to common.image_tiling)."""
+        return image_tiling.find_closest_aspect_ratio(
+            aspect_ratio, target_ratios, width, height, image_size
+        )
 
     def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
-        """Standard InternVL3 dynamic_preprocess from official documentation."""
-        orig_width, orig_height = image.size
-        aspect_ratio = orig_width / orig_height
+        """Standard InternVL3 dynamic_preprocess (delegates to common.image_tiling).
 
-        target_ratios = set(
-            (i, j)
-            for n in range(min_num, max_num + 1)
-            for i in range(1, n + 1)
-            for j in range(1, n + 1)
-            if i * j <= max_num and i * j >= min_num
+        Single source of truth for tiling so the HF and vLLM-pre-tiling paths crop
+        identically — see ``plans/2026-06-04-adaptive-pre-tiling.md``.
+        """
+        return image_tiling.dynamic_preprocess(
+            image,
+            min_num=min_num,
+            max_num=max_num,
+            image_size=image_size,
+            use_thumbnail=use_thumbnail,
         )
-        target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
-
-        target_aspect_ratio = self.find_closest_aspect_ratio(
-            aspect_ratio, target_ratios, orig_width, orig_height, image_size
-        )
-
-        target_width = image_size * target_aspect_ratio[0]
-        target_height = image_size * target_aspect_ratio[1]
-        blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
-
-        resized_img = image.resize((target_width, target_height))
-        processed_images = []
-
-        for i in range(blocks):
-            box = (
-                (i % (target_width // image_size)) * image_size,
-                (i // (target_width // image_size)) * image_size,
-                ((i % (target_width // image_size)) + 1) * image_size,
-                ((i // (target_width // image_size)) + 1) * image_size,
-            )
-            split_img = resized_img.crop(box)
-            processed_images.append(split_img)
-
-        if use_thumbnail and len(processed_images) != 1:
-            thumbnail_img = image.resize((image_size, image_size))
-            processed_images.append(thumbnail_img)
-        return processed_images
 
     def load_image(
         self, image_file, model, input_size: int = 448, max_num: int | None = None

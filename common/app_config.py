@@ -564,6 +564,14 @@ class AppConfig:
             return dict(budget)
         return dict(self._image_budgets["default"])
 
+    def max_image_budget_tiles(self) -> int:
+        """Return the largest ``max_tiles`` across all configured image budgets.
+
+        Used to size ``limit_mm_per_prompt`` when pre-tiling is enabled (the
+        backend sends one image per tile, so the engine must admit the ceiling).
+        """
+        return max(b["max_tiles"] for b in self._image_budgets.values())
+
     # -- Bank header cache (Phase 7) -------------------------------------------
 
     @property

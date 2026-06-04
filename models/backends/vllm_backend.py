@@ -10,7 +10,7 @@ from typing import Any
 
 from PIL import Image
 
-from common import prompt_trace
+from common import image_tiling, prompt_trace
 from common.extraction_types import GenerateResult, NodeGenParams
 from models.backend import GenerationParams, ModelBackend
 
@@ -32,6 +32,9 @@ class VllmBackend:
         model_type_key: str = "internvl3",
         chat_template: str | None = None,
         trace_path: str | None = None,
+        pre_tiling_enabled: bool = False,
+        tile_image_size: int = 448,
+        tile_use_thumbnail: bool = True,
         debug: bool = False,
     ) -> None:
         self.model = engine  # vLLM LLM engine
@@ -41,10 +44,51 @@ class VllmBackend:
         # uses the model's own template. Forwarded to every engine.chat() call.
         self._chat_template = chat_template
         self._debug = debug
+        # Pre-tiling: when enabled, the backend crops each image into
+        # ``max_tiles`` 448-square sub-images itself and hands vLLM the crops as
+        # separate images, so OUR tile count is authoritative (vLLM's per-image
+        # max_dynamic_patch cap no longer bounds dense bank statements). The
+        # per-call tile count arrives via params.extra["max_tiles"] (generate) or
+        # params.max_tiles (generate_for_graph); None -> the legacy single-image
+        # path. See plans/2026-06-04-adaptive-pre-tiling.md.
+        self._pre_tiling_enabled = pre_tiling_enabled
+        self._tile_image_size = tile_image_size
+        self._tile_use_thumbnail = tile_use_thumbnail
         # Raw-prompt trace: when a path is given, every generate() call is
         # appended to that JSONL via the shared prompt_trace sink (debug only).
         if trace_path:
             prompt_trace.enable(trace_path)
+
+    @staticmethod
+    def _encode_image(image: Image.Image) -> str:
+        """PNG-encode a PIL image as a base64 data URI."""
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        data_uri = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
+        buf.close()
+        return data_uri
+
+    def _image_parts(self, image: Image.Image, max_tiles: int | None) -> list[dict[str, Any]]:
+        """Build the image content parts for one source image.
+
+        When pre-tiling is enabled and *max_tiles* is given, crop the image into
+        up to ``max_tiles`` 448-square tiles (plus a thumbnail) and return one
+        ``image_url`` part per tile — each 448-square crop is a single block
+        inside vLLM, so the crop count is authoritative. Otherwise return a single
+        part with the full image (vLLM tiles it internally, capped at the
+        checkpoint default).
+        """
+        if not (self._pre_tiling_enabled and max_tiles):
+            return [{"type": "image_url", "image_url": {"url": self._encode_image(image)}}]
+
+        tiles = image_tiling.dynamic_preprocess(
+            image,
+            min_num=1,
+            max_num=max_tiles,
+            image_size=self._tile_image_size,
+            use_thumbnail=self._tile_use_thumbnail,
+        )
+        return [{"type": "image_url", "image_url": {"url": self._encode_image(tile)}} for tile in tiles]
 
     def _emit_trace(
         self,
@@ -65,8 +109,13 @@ class VllmBackend:
         )
 
     def _build_messages(
-        self, image: Image.Image, prompt: str, *, image_first: bool = False
-    ) -> tuple[list[dict[str, Any]], str]:
+        self,
+        image: Image.Image,
+        prompt: str,
+        *,
+        image_first: bool = False,
+        max_tiles: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Build OpenAI-compatible messages.
 
         Args:
@@ -75,22 +124,18 @@ class VllmBackend:
             image_first: If True, place image before text in the content
                 array.  Extraction tasks use image-first for lower FP
                 rates; classification uses text-first (the default).
+            max_tiles: When pre-tiling is enabled, crop into this many tiles
+                and send them as separate images; None uses the single-image
+                path (vLLM tiles internally).
 
         Returns:
-            Tuple of (messages list, data_uri string). The data_uri is
-            returned so callers can ``del`` it after use.
+            The messages list.
         """
-        buf = io.BytesIO()
-        image.save(buf, format="PNG")
-        data_uri = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
-        buf.close()
-
         text_part: dict[str, Any] = {"type": "text", "text": prompt}
-        image_part: dict[str, Any] = {"type": "image_url", "image_url": {"url": data_uri}}
-        content = [image_part, text_part] if image_first else [text_part, image_part]
+        image_parts = self._image_parts(image, max_tiles)
+        content = [*image_parts, text_part] if image_first else [text_part, *image_parts]
 
-        messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
-        return messages, data_uri
+        return [{"role": "user", "content": content}]
 
     def _chat_template_kwargs(self) -> dict[str, Any]:
         """Build chat_template_kwargs for thinking suppression.
@@ -113,7 +158,7 @@ class VllmBackend:
         """Run inference via vLLM engine.chat()."""
         from vllm import SamplingParams
 
-        messages, data_uri = self._build_messages(image, prompt)
+        messages = self._build_messages(image, prompt, max_tiles=params.extra.get("max_tiles"))
 
         sampling = SamplingParams(
             max_tokens=params.max_tokens,
@@ -133,7 +178,7 @@ class VllmBackend:
             prompt, text, getattr(outputs[0], "prompt_token_ids", None), outputs[0].outputs[0].token_ids
         )
         # Free vLLM output objects to release shared memory buffer slots.
-        del outputs, messages, data_uri
+        del outputs, messages
         return text
 
     def generate_for_graph(
@@ -153,7 +198,9 @@ class VllmBackend:
         """
         from vllm import SamplingParams
 
-        messages, data_uri = self._build_messages(image, prompt, image_first=True)
+        messages = self._build_messages(
+            image, prompt, image_first=True, max_tiles=getattr(params, "max_tiles", None)
+        )
 
         # Build SamplingParams from NodeGenParams fields
         sampling_kwargs: dict[str, Any] = {
@@ -194,7 +241,7 @@ class VllmBackend:
                 for step in outputs[0].outputs[0].logprobs
             ]
 
-        del outputs, messages, data_uri
+        del outputs, messages
         return GenerateResult(text=text, logprobs=token_logprobs)
 
 

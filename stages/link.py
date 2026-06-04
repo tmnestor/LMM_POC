@@ -159,6 +159,9 @@ def run(
             model_type_key=config.model_type,
             chat_template=config.chat_template,
             trace_path=effective_trace_path(config),
+            pre_tiling_enabled=config.pre_tiling_enabled,
+            tile_image_size=config.pre_tiling_image_size,
+            tile_use_thumbnail=config.pre_tiling_use_thumbnail,
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
@@ -340,6 +343,9 @@ def run_trust_link(
             model_type_key=config.model_type,
             chat_template=config.chat_template,
             trace_path=effective_trace_path(config),
+            pre_tiling_enabled=config.pre_tiling_enabled,
+            tile_image_size=config.pre_tiling_image_size,
+            tile_use_thumbnail=config.pre_tiling_use_thumbnail,
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()

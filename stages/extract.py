@@ -256,6 +256,11 @@ def run(
                 generate_fn=processor.generate,
                 verbose=effective_verbose,
                 use_balance_correction=config.balance_correction,
+                max_tiles=(
+                    app_cfg.get_image_budget("bank_statement")["max_tiles"]
+                    if config.pre_tiling_enabled
+                    else None
+                ),
             )
             logger.info("Bank adapter enabled")
 
