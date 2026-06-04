@@ -127,6 +127,7 @@ def extract_worker(
     from common.app_config import AppConfig
     from common.graph_executor import GraphExecutor
     from common.pipeline_ops import load_model
+    from common.prompt_trace import effective_trace_path
     from common.turn_parsers import build_parser_registry
     from models.backends.vllm_backend import VllmBackend
 
@@ -143,7 +144,12 @@ def extract_worker(
     engine, _ = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(engine, model_type_key=config.model_type, chat_template=config.chat_template)
+        backend = VllmBackend(
+            engine,
+            model_type_key=config.model_type,
+            chat_template=config.chat_template,
+            trace_path=effective_trace_path(config),
+        )
         generate_fn = backend.generate_for_graph
 
         workflow_path = Path(__file__).resolve().parent.parent / "prompts" / "workflows" / workflow_name

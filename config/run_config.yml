@@ -25,6 +25,14 @@ model:
   # resort when the model dir ships a thinking-by-default template.
   chat_template: none
 
+# Raw VLM prompt/response trace (debug observability; default off).
+# When enabled, every extraction VLM call (detection, bank turns, graph nodes,
+# linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
+# raw_response, tokens} via the shared VllmBackend seam.
+tracing:
+  raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
+  path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
+
 # Data paths
 data:
   # dir: /efs/shared/annotations/annotation_images

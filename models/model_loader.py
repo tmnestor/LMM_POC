@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from models.backends.hf_chat_template import ChatTemplateConfig, HFChatTemplateBackend
+from common.prompt_trace import effective_trace_path
 from models.backends.vllm_backend import VllmBackend
 from models.orchestrator import DocumentOrchestrator
 
@@ -522,6 +523,7 @@ def build_vllm_processor_creator(spec: VllmSpec):
             engine=model,
             model_type_key=spec.model_type,
             chat_template=config.chat_template,
+            trace_path=effective_trace_path(config),
             debug=config.debug,
         )
 

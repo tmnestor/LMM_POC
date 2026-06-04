@@ -95,6 +95,8 @@ class PipelineConfig:
     dtype: str = "bfloat16"
     max_new_tokens: int = 2000
     chat_template: str | None = None  # vLLM only: path to a chat-template override, or None
+    trace_raw_prompts: bool = False  # debug: persist every VLM prompt/response to JSONL
+    trace_path: str | None = None  # explicit trace JSONL path, or None for <output_dir> default
 
     # Model loading options
     trust_remote_code: bool = True
@@ -188,6 +190,42 @@ def _resolve_chat_template(model_cfg: dict[str, Any], config_path: Path) -> str 
     return str(template_path)
 
 
+def _resolve_tracing(raw_config: dict[str, Any], config_path: Path) -> tuple[bool, str | None]:
+    """Resolve the optional ``tracing`` block (raw-prompt trace).
+
+    An absent ``tracing`` block means tracing is off (it is a debug feature). If
+    the block is present it must carry both ``raw_prompts`` (bool) and ``path``;
+    fails fast on a malformed block, at config load.
+
+    Returns:
+        ``(enabled, path)`` where ``path`` is None for the no-op values
+        (``none`` / ``null`` / empty) or an explicit string.
+    """
+    tracing = raw_config.get("tracing")
+    if tracing is None:
+        return False, None
+    if not isinstance(tracing, dict) or "raw_prompts" not in tracing or "path" not in tracing:
+        raise ValueError(
+            "What: the 'tracing' block is malformed (needs 'raw_prompts' and 'path').\n"
+            f"Where: {config_path} -> tracing\n"
+            "Expected:\n  tracing:\n    raw_prompts: false\n    path: none\n"
+            "How to fix: add both 'raw_prompts' (true/false) and 'path' under 'tracing'."
+        )
+    enabled = tracing["raw_prompts"]
+    if not isinstance(enabled, bool):
+        raise ValueError(
+            f"What: 'tracing.raw_prompts' must be a boolean (got {enabled!r}).\n"
+            f"Where: {config_path} -> tracing.raw_prompts\n"
+            "Expected: true or false, e.g.: raw_prompts: false\n"
+            "How to fix: set 'tracing.raw_prompts' to true or false."
+        )
+    path_raw = tracing["path"]
+    path = (
+        None if path_raw is None or str(path_raw).strip().lower() in {"none", "null", ""} else str(path_raw)
+    )
+    return enabled, path
+
+
 def load_yaml_config(
     config_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -249,6 +287,12 @@ def load_yaml_config(
             flat_config["low_cpu_mem_usage"] = ml["low_cpu_mem_usage"]
         if "device_map" in ml:
             flat_config["device_map"] = str(ml["device_map"])
+
+    # Raw-prompt trace (debug observability; absent block -> off)
+    trace_enabled, trace_path = _resolve_tracing(raw_config, config_path)
+    flat_config["trace_raw_prompts"] = trace_enabled
+    if trace_path is not None:
+        flat_config["trace_path"] = trace_path
 
     # Remove None values from flat config
     flat_config = {k: v for k, v in flat_config.items() if v is not None}

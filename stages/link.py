@@ -106,6 +106,7 @@ def run(
     from common.graph_executor import GraphExecutor
     from common.pipeline_ops import load_model
     from common.turn_parsers import build_parser_registry
+    from common.prompt_trace import effective_trace_path
     from models.backends.vllm_backend import VllmBackend
 
     # Load pairs
@@ -153,7 +154,12 @@ def run(
     model, tokenizer = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
+        backend = VllmBackend(
+            model,
+            model_type_key=config.model_type,
+            chat_template=config.chat_template,
+            trace_path=effective_trace_path(config),
+        )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
         executor = GraphExecutor(generate_fn, parsers)
@@ -268,6 +274,7 @@ def run_trust_link(
     from common.graph_executor import GraphExecutor
     from common.pipeline_ops import load_model
     from common.turn_parsers import build_parser_registry
+    from common.prompt_trace import effective_trace_path
     from models.backends.vllm_backend import VllmBackend
 
     # Load quads
@@ -328,7 +335,12 @@ def run_trust_link(
     model, tokenizer = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
+        backend = VllmBackend(
+            model,
+            model_type_key=config.model_type,
+            chat_template=config.chat_template,
+            trace_path=effective_trace_path(config),
+        )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
         executor = GraphExecutor(generate_fn, parsers)

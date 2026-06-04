@@ -240,6 +240,7 @@ def run(
     from common.app_config import AppConfig
     from common.pipeline_ops import load_model
     from models.backend import GenerationParams
+    from common.prompt_trace import effective_trace_path
     from models.backends.vllm_backend import VllmBackend
 
     # Discover documents
@@ -299,7 +300,12 @@ def run(
         # Use VllmBackend — same path as stages/classify.py on other branches.
         # VllmBackend uses text-first ordering and handles thinking mode
         # suppression internally via model_type_key.
-        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
+        backend = VllmBackend(
+            model,
+            model_type_key=config.model_type,
+            chat_template=config.chat_template,
+            trace_path=effective_trace_path(config),
+        )
 
         # Read token budget from config
         import yaml

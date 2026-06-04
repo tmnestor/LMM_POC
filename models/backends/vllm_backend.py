@@ -10,6 +10,7 @@ from typing import Any
 
 from PIL import Image
 
+from common import prompt_trace
 from common.extraction_types import GenerateResult, NodeGenParams
 from models.backend import GenerationParams, ModelBackend
 
@@ -30,6 +31,7 @@ class VllmBackend:
         *,
         model_type_key: str = "internvl3",
         chat_template: str | None = None,
+        trace_path: str | None = None,
         debug: bool = False,
     ) -> None:
         self.model = engine  # vLLM LLM engine
@@ -39,6 +41,28 @@ class VllmBackend:
         # uses the model's own template. Forwarded to every engine.chat() call.
         self._chat_template = chat_template
         self._debug = debug
+        # Raw-prompt trace: when a path is given, every generate() call is
+        # appended to that JSONL via the shared prompt_trace sink (debug only).
+        if trace_path:
+            prompt_trace.enable(trace_path)
+
+    def _emit_trace(
+        self,
+        prompt: str,
+        text: str,
+        prompt_token_ids: Any,
+        completion_token_ids: Any,
+    ) -> None:
+        """Append this VLM call to the raw-prompt trace (no-op when disabled)."""
+        if not prompt_trace.is_enabled():
+            return
+        prompt_trace.record(
+            prompt=prompt,
+            response=text,
+            model=self._model_type_key,
+            prompt_tokens=len(prompt_token_ids) if prompt_token_ids else None,
+            completion_tokens=len(completion_token_ids) if completion_token_ids else None,
+        )
 
     def _build_messages(
         self, image: Image.Image, prompt: str, *, image_first: bool = False
@@ -105,6 +129,9 @@ class VllmBackend:
         )
 
         text = outputs[0].outputs[0].text.strip()
+        self._emit_trace(
+            prompt, text, getattr(outputs[0], "prompt_token_ids", None), outputs[0].outputs[0].token_ids
+        )
         # Free vLLM output objects to release shared memory buffer slots.
         del outputs, messages, data_uri
         return text
@@ -155,6 +182,9 @@ class VllmBackend:
         )
 
         text = outputs[0].outputs[0].text.strip()
+        self._emit_trace(
+            prompt, text, getattr(outputs[0], "prompt_token_ids", None), outputs[0].outputs[0].token_ids
+        )
 
         # Extract logprobs if requested
         token_logprobs = None
