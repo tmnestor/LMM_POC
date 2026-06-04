@@ -6,6 +6,7 @@ Uses vLLM's chat API with OpenAI-compatible message format.
 
 import base64
 import io
+import logging
 from typing import Any
 
 from PIL import Image
@@ -13,6 +14,8 @@ from PIL import Image
 from common import image_tiling, prompt_trace
 from common.extraction_types import GenerateResult, NodeGenParams
 from models.backend import GenerationParams, ModelBackend
+
+logger = logging.getLogger(__name__)
 
 
 class VllmBackend:
@@ -79,6 +82,14 @@ class VllmBackend:
         checkpoint default).
         """
         if not (self._pre_tiling_enabled and max_tiles):
+            logger.info(
+                "pre-tiling OFF for %dx%d image (enabled=%s, max_tiles=%s) -- "
+                "sending single image; vLLM tiles internally at the checkpoint default",
+                image.width,
+                image.height,
+                self._pre_tiling_enabled,
+                max_tiles,
+            )
             return [{"type": "image_url", "image_url": {"url": self._encode_image(image)}}]
 
         tiles = image_tiling.dynamic_preprocess(
@@ -87,6 +98,14 @@ class VllmBackend:
             max_num=max_tiles,
             image_size=self._tile_image_size,
             use_thumbnail=self._tile_use_thumbnail,
+        )
+        logger.info(
+            "pre-tiling ON: cropped %dx%d image into %d sub-images (max_tiles=%d, thumbnail=%s)",
+            image.width,
+            image.height,
+            len(tiles),
+            max_tiles,
+            self._tile_use_thumbnail,
         )
         return [{"type": "image_url", "image_url": {"url": self._encode_image(tile)}} for tile in tiles]
 

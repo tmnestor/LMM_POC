@@ -57,6 +57,12 @@ class GraphExecutor:
         max_graph_steps: circuit breaker for infinite loops.
         budget_resolver: optional ``(name) -> int`` to resolve
             ``token_budget: <name>`` references in workflow YAML nodes.
+        tile_budget_resolver: optional ``(image_ref) -> int`` mapping a node's
+            ``image:`` ref (e.g. ``bank_statement``, ``receipt``) to its
+            ``max_tiles`` budget. Populates ``NodeGenParams.max_tiles`` so the
+            vLLM backend's app-side pre-tiling crops to the per-doc-type
+            ceiling. None -> the single-image path (vLLM tiles internally).
+            See plans/2026-06-04-adaptive-pre-tiling.md.
     """
 
     def __init__(
@@ -67,12 +73,14 @@ class GraphExecutor:
         default_max_tokens: int = 4096,
         max_graph_steps: int = 20,
         budget_resolver: Callable[[str], int] | None = None,
+        tile_budget_resolver: Callable[[str], int] | None = None,
     ) -> None:
         self._generate_fn = generate_fn
         self._parsers = parsers
         self._default_max_tokens = default_max_tokens
         self._max_graph_steps = max_graph_steps
         self._budget_resolver = budget_resolver
+        self._tile_budget_resolver = tile_budget_resolver
 
     # ------------------------------------------------------------------
     # Public API
@@ -282,6 +290,7 @@ class GraphExecutor:
             stop=rest.get("stop"),
             output_schema=rest.get("output_schema"),
             logprobs=rest.get("logprobs"),
+            max_tiles=(self._tile_budget_resolver(image_ref) if self._tile_budget_resolver else None),
         )
 
         start = time.time()

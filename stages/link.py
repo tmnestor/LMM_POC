@@ -165,7 +165,16 @@ def run(
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
-        executor = GraphExecutor(generate_fn, parsers)
+        # Resolve each node's max_tiles from its image: ref so the vLLM backend's
+        # app-side pre-tiling crops to the per-doc-type budget (e.g. bank_statement
+        # -> 18, receipt -> 6). Without this the graph path stays single-image and
+        # vLLM tiles internally at the checkpoint default (12).
+        executor = GraphExecutor(
+            generate_fn,
+            parsers,
+            budget_resolver=app_cfg.get_token_budget,
+            tile_budget_resolver=lambda ref: app_cfg.get_image_budget(ref)["max_tiles"],
+        )
 
         # Process pairs
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -349,7 +358,16 @@ def run_trust_link(
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
-        executor = GraphExecutor(generate_fn, parsers)
+        # Resolve each node's max_tiles from its image: ref so the vLLM backend's
+        # app-side pre-tiling crops to the per-doc-type budget (e.g. bank_statement
+        # -> 18, receipt -> 6). Without this the graph path stays single-image and
+        # vLLM tiles internally at the checkpoint default (12).
+        executor = GraphExecutor(
+            generate_fn,
+            parsers,
+            budget_resolver=app_cfg.get_token_budget,
+            tile_budget_resolver=lambda ref: app_cfg.get_image_budget(ref)["max_tiles"],
+        )
 
         # Process quads
         output_path.parent.mkdir(parents=True, exist_ok=True)
