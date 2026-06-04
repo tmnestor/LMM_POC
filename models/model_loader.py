@@ -470,7 +470,12 @@ def build_vllm_loader(spec: VllmSpec):
                     "max_model_len": effective_max_model_len,
                     "gpu_memory_utilization": gpu_mem_util,
                     "max_num_seqs": effective_max_num_seqs,
-                    "limit_mm_per_prompt": {"image": effective_limit_mm},
+                    # video:0 — this pipeline is image-only, and (for InternVL on
+                    # older vLLM) it stops vLLM building the video processor, which
+                    # crashes when image mm_processor_kwargs like max_dynamic_patch
+                    # are merged into it. With no video processor, mm_processor_kwargs
+                    # cleanly sets the image tile count.
+                    "limit_mm_per_prompt": {"image": effective_limit_mm, "video": 0},
                     "trust_remote_code": True,
                     "disable_log_stats": True,
                     "enforce_eager": cfg.enforce_eager,

@@ -207,11 +207,13 @@ vllm:
       # 18 is the floor (the intended max_tiles). 18 tiles ~= 4.9k vision tokens +
       # prompt + 4096 bank output ~= 9.4k, so max_model_len rises from 8192 to fit;
       # max_num_seqs=1 keeps the larger window's KV cost negligible. Correctness > speed.
-      # NOTE: must use hf_overrides (patches the HF config field), NOT
-      # mm_processor_kwargs — vLLM forwards mm_processor_kwargs to the InternVL
-      # video processor, which rejects max_dynamic_patch (TypeError at engine init).
+      # The image processor honors mm_processor_kwargs.max_dynamic_patch (vLLM
+      # internvl get_image_processor: get_merged_mm_kwargs + setdefault). The
+      # video processor used to choke on it — fixed by limit_mm_per_prompt video:0
+      # in model_loader (no video processor is built). hf_overrides did NOT work
+      # (vLLM didn't patch the trust_remote_code config field).
       max_model_len: 9600
-      hf_overrides:
+      mm_processor_kwargs:
         max_dynamic_patch: 18
         min_dynamic_patch: 1
     qwen35-vllm:
