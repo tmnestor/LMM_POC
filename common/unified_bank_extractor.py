@@ -90,6 +90,21 @@ class ColumnMatcher:
         # Strategy selection now properly handles Amount-only statements
         # using AMOUNT_DESCRIPTION strategy instead of pretending Amount is Debit
 
+        # Split a merged debit/credit header (e.g. westpac's "Debits/Credits (-)",
+        # where header detection collapsed two adjacent columns into one). Left as
+        # one header it makes debit_col == credit_col, which asks the extraction
+        # prompt for the same column twice and collapses the debit-credit strategy
+        # (money-out and money-in can't be separated). Split it back into two so
+        # each role gets a distinct column name.
+        if mapping.debit and mapping.debit == mapping.credit and "/" in mapping.debit:
+            parts = [p.strip() for p in mapping.debit.split("/", 1)]
+            if len(parts) == 2 and all(parts):
+                left, right = parts
+                if "debit" in left.lower():
+                    mapping.debit, mapping.credit = left, right
+                else:
+                    mapping.debit, mapping.credit = right, left
+
         return mapping
 
     def _find_match(self, headers: list[str], headers_lower: list[str], keywords: list[str]) -> str | None:
