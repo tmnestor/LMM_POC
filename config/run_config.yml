@@ -201,6 +201,16 @@ vllm:
     limit_mm_per_prompt: 1
     enable_prefix_caching: true
   models:
+    internvl3-vllm:
+      # Override the checkpoint default max_dynamic_patch:12 — dense bank tables
+      # were under-tiled at 12, dropping rows (the 10 remaining dense-table misses).
+      # 18 is the floor (the intended max_tiles). 18 tiles ~= 4.9k vision tokens +
+      # prompt + 4096 bank output ~= 9.4k, so max_model_len rises from 8192 to fit;
+      # max_num_seqs=1 keeps the larger window's KV cost negligible. Correctness > speed.
+      max_model_len: 9600
+      mm_processor_kwargs:
+        max_dynamic_patch: 18
+        min_dynamic_patch: 1
     qwen35-vllm:
       max_model_len: 16384
       gpu_memory_utilization: 0.92
