@@ -12,14 +12,18 @@ carry ``$``, multi-value fields use `` | `` separators, missing fields are
 Image filenames are reconstructed as ``{CASE}_{layout}.png`` from each YAML
 entry's ``layout`` field, matching the synthetic_transaction_linking dataset.
 
-Columns and field-type formatting are derived from ``common.field_schema`` (the
-single source of truth) — not hardcoded — so the CSV tracks schema changes.
+Columns and field-type formatting are read directly from LMM_POC's
+``config/field_definitions.yaml`` (the single source of truth, via ``--schema``)
+-- not hardcoded -- so the CSV tracks schema changes. The script imports nothing
+from the LMM_POC package, so it can live in the Synthetic_Doc_Generation repo and
+run standalone; ``--schema`` just points back at the authoritative file.
 
 Usage:
-    python3 scripts/generate_extraction_gt.py \
+    python3 generate_extraction_gt.py \
         --yaml-dir /Users/tod/Desktop/Synthetic_Doc_Generation/ground_truth \
-        --output   ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv \
-        --data-dir ../evaluation_data/synthetic_transaction_linking
+        --schema   /Users/tod/Desktop/LMM_POC/config/field_definitions.yaml \
+        --output   /Users/tod/Desktop/evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv \
+        --data-dir /Users/tod/Desktop/evaluation_data/synthetic_transaction_linking
 """
 
 import argparse
@@ -30,13 +34,10 @@ from typing import Any
 
 import yaml
 
-# Allow running as a plain script from anywhere: put the repo root on sys.path
-# so ``common.*`` resolves (mirrors how the stages are invoked as modules).
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
-from common.field_schema import get_field_schema  # noqa: E402
+# Fields that exist for validation but are excluded from the evaluation CSV.
+# Mirrors ``common.field_schema._VALIDATION_ONLY`` in LMM_POC -- the only piece
+# of schema policy not expressible in field_definitions.yaml. Keep in sync.
+_VALIDATION_ONLY: frozenset[str] = frozenset({"TRANSACTION_AMOUNTS_RECEIVED", "ACCOUNT_BALANCE"})
 
 # Source YAML file -> the doc-type key whose schema fields it carries.
 _SOURCE_FILES: dict[str, str] = {
@@ -56,17 +57,56 @@ def _diagnostic(what: str, where: str, example: str, fix: str) -> str:
     return f"What: {what}\nWhere: {where}\nExpected: {example}\nHow to fix: {fix}"
 
 
-def _build_columns() -> list[str]:
+def _doc_type_fields(doc_fields: dict[str, Any], doc_type: str, schema_path: Path) -> list[str]:
+    """Per-doc-type extraction field list from the schema YAML, validation-only excluded."""
+    cfg = doc_fields.get(doc_type)
+    if not isinstance(cfg, dict) or not cfg.get("fields"):
+        raise ValueError(
+            _diagnostic(
+                what=f"document type '{doc_type}' is missing or has no non-empty 'fields' list.",
+                where=f"{schema_path} -> document_fields.{doc_type}.fields",
+                example="document_fields:\n  invoice:\n    fields: [SUPPLIER_NAME, TOTAL_AMOUNT, ...]",
+                fix=f"ensure '{doc_type}' with a non-empty 'fields' list exists in the schema YAML.",
+            )
+        )
+    return [f for f in cfg["fields"] if f not in _VALIDATION_ONLY]
+
+
+def _load_schema(schema_path: Path) -> dict[str, Any]:
+    """Read LMM_POC's field_definitions.yaml -- the column / field-type contract.
+
+    Minimal, read-only mirror of ``common.field_schema.get_field_schema()`` so this
+    generator runs standalone (outside LMM_POC) while still tracking that YAML as the
+    single source of truth. Returns invoice/bank field lists + monetary/boolean sets.
+    """
+    if not schema_path.is_file():
+        raise FileNotFoundError(
+            _diagnostic(
+                what="the field-definitions schema YAML does not exist.",
+                where=str(schema_path),
+                example="LMM_POC/config/field_definitions.yaml (the column / field-type contract).",
+                fix="pass --schema pointing at LMM_POC's config/field_definitions.yaml.",
+            )
+        )
+    raw = yaml.safe_load(schema_path.read_text()) or {}
+    doc_fields = raw.get("document_fields", {})
+    field_types = raw.get("evaluation", {}).get("field_types", {})
+    return {
+        "invoice_fields": _doc_type_fields(doc_fields, "invoice", schema_path),
+        "bank_fields": _doc_type_fields(doc_fields, "bank_statement", schema_path),
+        "monetary": frozenset(field_types.get("monetary", [])),
+        "boolean": frozenset(field_types.get("boolean", [])),
+    }
+
+
+def _build_columns(schema: dict[str, Any]) -> list[str]:
     """Derive the CSV column order from the schema (image_file first).
 
     Union of the invoice/receipt and bank-statement extraction fields, ordered
     invoice-fields-first then any bank-only extras, with ``image_file`` prepended.
     """
-    schema = get_field_schema()
-    invoice_fields = list(schema.get_document_type_fields("invoice"))
-    bank_fields = list(schema.get_document_type_fields("bank_statement"))
-    columns = ["image_file", *invoice_fields]
-    for field in bank_fields:
+    columns = ["image_file", *schema["invoice_fields"]]
+    for field in schema["bank_fields"]:
         if field not in columns:
             columns.append(field)
     return columns
@@ -135,7 +175,7 @@ def _row_for_entry(
     return image_file, row
 
 
-def generate(yaml_dir: Path, output: Path, data_dir: Path | None) -> int:
+def generate(yaml_dir: Path, output: Path, data_dir: Path | None, schema: dict[str, Any]) -> int:
     """Generate the extraction ground-truth CSV. Returns the row count."""
     if not yaml_dir.is_dir():
         msg = _diagnostic(
@@ -146,10 +186,9 @@ def generate(yaml_dir: Path, output: Path, data_dir: Path | None) -> int:
         )
         raise FileNotFoundError(msg)
 
-    schema = get_field_schema()
-    monetary = schema.monetary_fields
-    boolean = schema.boolean_fields
-    columns = _build_columns()
+    monetary = schema["monetary"]
+    boolean = schema["boolean"]
+    columns = _build_columns(schema)
 
     rows: list[dict[str, str]] = []
     image_files: list[str] = []
@@ -200,6 +239,12 @@ def main() -> int:
         help="Directory with bank_statements.yml / invoices.yml / receipts.yml.",
     )
     parser.add_argument(
+        "--schema",
+        type=Path,
+        default=Path("/Users/tod/Desktop/LMM_POC/config/field_definitions.yaml"),
+        help="LMM_POC config/field_definitions.yaml (column / field-type contract).",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -213,7 +258,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    count = generate(args.yaml_dir, args.output, args.data_dir)
+    schema = _load_schema(args.schema)
+    count = generate(args.yaml_dir, args.output, args.data_dir, schema)
     print(f"Wrote {count} rows to {args.output}")
     return 0
 
