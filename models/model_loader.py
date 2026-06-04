@@ -487,8 +487,16 @@ def build_vllm_loader(spec: VllmSpec):
                 if effective_mm_proc:
                     llm_kwargs["mm_processor_kwargs"] = effective_mm_proc
 
-                if spec.hf_overrides:
-                    llm_kwargs["hf_overrides"] = dict(spec.hf_overrides)
+                # hf_overrides: spec defaults, then app_config (run_config) overlay.
+                # InternVL tile count (max_dynamic_patch) must be set HERE, by
+                # overriding the HF config field — NOT via mm_processor_kwargs,
+                # which vLLM forwards to the video processor constructor (which
+                # rejects it: InternVLVideoProcessor has no max_dynamic_patch).
+                effective_hf = dict(spec.hf_overrides) if spec.hf_overrides else {}
+                if vllm_overrides.get("hf_overrides"):
+                    effective_hf.update(vllm_overrides["hf_overrides"])
+                if effective_hf:
+                    llm_kwargs["hf_overrides"] = effective_hf
 
                 llm = LLM(**llm_kwargs)
 
