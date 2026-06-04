@@ -143,7 +143,7 @@ def extract_worker(
     engine, _ = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(engine, model_type_key=config.model_type)
+        backend = VllmBackend(engine, model_type_key=config.model_type, chat_template=config.chat_template)
         generate_fn = backend.generate_for_graph
 
         workflow_path = Path(__file__).resolve().parent.parent / "prompts" / "workflows" / workflow_name

@@ -299,7 +299,7 @@ def run(
         # Use VllmBackend — same path as stages/classify.py on other branches.
         # VllmBackend uses text-first ordering and handles thinking mode
         # suppression internally via model_type_key.
-        backend = VllmBackend(model, model_type_key=config.model_type)
+        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
 
         # Read token budget from config
         import yaml

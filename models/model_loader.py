@@ -521,6 +521,7 @@ def build_vllm_processor_creator(spec: VllmSpec):
         backend = VllmBackend(
             engine=model,
             model_type_key=spec.model_type,
+            chat_template=config.chat_template,
             debug=config.debug,
         )
 

@@ -16,6 +16,14 @@ model:
                          #        startup, higher throughput for long runs)
   dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
   max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
+  # vLLM only: override the chat template used by engine.chat().
+  #   none            -> use the model's own template (default)
+  #   <path/to/*.jinja> -> serve with this template instead (must exist)
+  # Use this to disable a serve-side R1/thinking template that emits <think>
+  # blocks. InternVL3.5 thinking is controlled by the system prompt, not
+  # enable_thinking; a custom non-thinking template is the override of last
+  # resort when the model dir ships a thinking-by-default template.
+  chat_template: none
 
 # Data paths
 data:

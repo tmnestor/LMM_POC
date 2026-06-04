@@ -13,6 +13,19 @@ from PIL import Image
 from common.extraction_types import GenerateResult, NodeGenParams
 from models.backend import GenerationParams, ModelBackend
 
+# Plain, non-thinking system prompt for the InternVL3.5 family. InternVL3.5
+# enables "thinking" (<think>...</think>) ONLY when the system prompt is the R1
+# thinking prompt; some serving setups inject that R1 prompt by default, which
+# makes the model reason at length and overrun the detection token budget.
+# Sending our own benign system prompt overrides any served default and keeps
+# the model in direct-answer mode. Deliberately NOT the R1 prompt. Note:
+# enable_thinking / /no_think do NOT work for this family — the system prompt is
+# the only documented control (see HF OpenGVLab/InternVL3_5-8B model card).
+_INTERNVL_SYSTEM_MESSAGE = (
+    "You are a precise document-analysis assistant. Answer directly and "
+    "concisely in exactly the format requested. Do not show your reasoning."
+)
+
 
 class VllmBackend:
     """Backend for vLLM offline engine inference.
@@ -29,11 +42,15 @@ class VllmBackend:
         engine: Any,
         *,
         model_type_key: str = "internvl3",
+        chat_template: str | None = None,
         debug: bool = False,
     ) -> None:
         self.model = engine  # vLLM LLM engine
         self.processor = None  # vLLM handles tokenization internally
         self._model_type_key = model_type_key
+        # Optional chat-template override (path validated at config load); None
+        # uses the model's own template. Forwarded to every engine.chat() call.
+        self._chat_template = chat_template
         self._debug = debug
 
     def _build_messages(
@@ -61,11 +78,30 @@ class VllmBackend:
         image_part: dict[str, Any] = {"type": "image_url", "image_url": {"url": data_uri}}
         content = [image_part, text_part] if image_first else [text_part, image_part]
 
-        messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
+        messages: list[dict[str, Any]] = []
+        system = self._system_message()
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": content})
         return messages, data_uri
 
+    def _system_message(self) -> str:
+        """Non-thinking system prompt for the InternVL3.5 family, else empty.
+
+        Overrides any R1/thinking system prompt a serving setup might inject by
+        default, keeping detection/extraction in direct-answer mode.
+        """
+        if self._model_type_key.startswith("internvl3"):
+            return _INTERNVL_SYSTEM_MESSAGE
+        return ""
+
     def _chat_template_kwargs(self) -> dict[str, Any]:
-        """Build chat_template_kwargs for thinking suppression."""
+        """Build chat_template_kwargs for thinking suppression.
+
+        Note: this only affects Qwen3/Gemma-style templates that honour the
+        ``enable_thinking`` variable. InternVL3.5 ignores it — thinking there is
+        controlled via the system prompt (see ``_system_message``).
+        """
         if self._model_type_key.startswith(("qwen35", "gemma4")):
             return {"chat_template_kwargs": {"enable_thinking": False}}
         return {}
@@ -89,6 +125,7 @@ class VllmBackend:
         outputs = self.model.chat(
             messages=messages,
             sampling_params=sampling,
+            chat_template=self._chat_template,
             use_tqdm=False,
             **self._chat_template_kwargs(),
         )
@@ -138,6 +175,7 @@ class VllmBackend:
         outputs = self.model.chat(
             messages=messages,
             sampling_params=sampling,
+            chat_template=self._chat_template,
             use_tqdm=False,
             **self._chat_template_kwargs(),
         )

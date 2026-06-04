@@ -153,7 +153,7 @@ def run(
     model, tokenizer = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(model, model_type_key=config.model_type)
+        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
         executor = GraphExecutor(generate_fn, parsers)
@@ -328,7 +328,7 @@ def run_trust_link(
     model, tokenizer = model_cm.__enter__()
 
     try:
-        backend = VllmBackend(model, model_type_key=config.model_type)
+        backend = VllmBackend(model, model_type_key=config.model_type, chat_template=config.chat_template)
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
         executor = GraphExecutor(generate_fn, parsers)

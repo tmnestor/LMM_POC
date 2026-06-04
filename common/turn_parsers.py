@@ -409,6 +409,17 @@ class ClassificationParser:
     # Bare COLUMNS label, even with no inline value (e.g. a "### 1. COLUMNS"
     # heading). Presence of the label marks the response as an enriched answer.
     _COLUMNS_LABEL_RE = re.compile(r"\bCOLUMNS\b", re.IGNORECASE)
+    # Reasoning models (InternVL3.5 thinking mode) wrap their chain-of-thought
+    # in <think>...</think>; a truncated response leaves an unterminated <think>
+    # tail. Strip both before parsing so reasoning prose can never be mistaken
+    # for the answer (e.g. "no table with headers like Date, Description, Debit"
+    # must not yield a Debit column). See prompts/document_type_detection.yaml.
+    _THINK_CLOSED_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+    _THINK_OPEN_RE = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)
+    _STRAY_THINK_RE = re.compile(r"</?think>", re.IGNORECASE)
+    # A structured, pipe-delimited header line (>= 2 pipes), e.g.
+    # "Date | Description | Debit | Credit | Balance".
+    _MIN_PIPES = 2
 
     def __init__(self, fallback_type: str = "UNIVERSAL") -> None:
         self._fallback_type = fallback_type
@@ -428,33 +439,56 @@ class ClassificationParser:
         """Strip surrounding markdown emphasis / code-fence noise from a value."""
         return value.strip().strip("*`").strip()
 
+    @classmethod
+    def _strip_think(cls, raw_response: str) -> str:
+        """Remove <think>...</think> blocks and any unterminated <think> tail."""
+        text = cls._THINK_CLOSED_RE.sub("", raw_response)
+        text = cls._THINK_OPEN_RE.sub("", text)
+        text = cls._STRAY_THINK_RE.sub("", text)
+        return text.strip()
+
+    def _recover_pipe_headers(self, text: str) -> list[str]:
+        """Recover headers from the first structured pipe-delimited line.
+
+        Used only when the COLUMNS value is not inline (e.g. a markdown heading
+        with the value on a later line / in a code fence). Restricted to lines
+        with >= 2 pipes so prose sentences can never be harvested as headers —
+        that prose harvesting previously promoted receipts to BANK_STATEMENT.
+        """
+        for line in text.splitlines():
+            if line.count("|") >= self._MIN_PIPES:
+                return self._header_parser._parse_headers(line.strip())
+        return []
+
     def _parse_enriched(self, raw_response: str) -> dict[str, Any] | None:
         """Parse COLUMNS / PAID / ROWS fields and derive document type.
 
-        Resilient to chain-of-thought / markdown drift: if the COLUMNS label is
-        present but its value is not inline (the model put it on a later line or
-        inside a code fence), the headers are recovered by scanning the whole
-        response. The debit/credit/balance guard below means stray non-bank
-        headers can never promote a document to BANK_STATEMENT.
+        Reasoning-model ``<think>`` blocks are stripped first. If the COLUMNS
+        label is present but its value is not inline (a heading with the value
+        on a later line / in a code fence), headers are recovered only from a
+        structured pipe-delimited line — never from prose. The
+        debit/credit/balance guard below then decides BANK_STATEMENT.
         """
+        text = self._strip_think(raw_response)
+
         # An enriched response must at least mention the COLUMNS label; without
         # it, defer to legacy keyword matching.
-        if self._COLUMNS_LABEL_RE.search(raw_response) is None:
+        if self._COLUMNS_LABEL_RE.search(text) is None:
             return None
 
-        columns_match = self._COLUMNS_RE.search(raw_response)
+        columns_match = self._COLUMNS_RE.search(text)
         columns_inline = self._clean_value(columns_match.group(1)) if columns_match else ""
-        paid_match = self._PAID_RE.search(raw_response)
-        rows_match = self._ROWS_RE.search(raw_response)
+        paid_match = self._PAID_RE.search(text)
+        rows_match = self._ROWS_RE.search(text)
 
         if columns_inline.upper() == "NONE":
             headers: list[str] = []
         elif columns_inline:
             headers = self._header_parser._parse_headers(columns_inline)
         else:
-            # Label present but value not inline (CoT / markdown drift) — recover
-            # the column headers from the full response.
-            headers = self._header_parser._parse_headers(raw_response)
+            # Label present but value not inline — recover only from a
+            # structured pipe-delimited header line (no prose harvesting).
+            headers = self._recover_pipe_headers(text)
 
         paid = paid_match.group(1).upper() == "YES" if paid_match else False
         row_count = int(rows_match.group(1)) if rows_match else 0

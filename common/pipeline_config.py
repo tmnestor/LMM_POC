@@ -94,6 +94,7 @@ class PipelineConfig:
     enforce_eager: bool = True  # vLLM only: True = skip CUDA graph compilation
     dtype: str = "bfloat16"
     max_new_tokens: int = 2000
+    chat_template: str | None = None  # vLLM only: path to a chat-template override, or None
 
     # Model loading options
     trust_remote_code: bool = True
@@ -148,6 +149,45 @@ class PipelineConfig:
 # ============================================================================
 
 
+def _resolve_chat_template(model_cfg: dict[str, Any], config_path: Path) -> str | None:
+    """Resolve and validate ``model.chat_template`` (vLLM chat-template override).
+
+    Returns None for the explicit no-op values (``none`` / ``null`` / empty), or
+    the path string for a real template. Fails fast — at config load, before any
+    model work — if the key is missing or names a file that does not exist.
+
+    Args:
+        model_cfg: The ``model:`` mapping from run_config.yml.
+        config_path: Path to the config file (for diagnostics).
+
+    Returns:
+        The validated template path, or None to use the model's own template.
+    """
+    if "chat_template" not in model_cfg:
+        raise ValueError(
+            "What: required key 'model.chat_template' is missing.\n"
+            f"Where: {config_path} -> model.chat_template\n"
+            "Expected: 'none' to use the model's own template, or a path to a "
+            "*.jinja file, e.g.:\n  model:\n    chat_template: none\n"
+            "How to fix: add 'chat_template: none' under the 'model:' section."
+        )
+
+    value = model_cfg["chat_template"]
+    if value is None or str(value).strip().lower() in {"none", "null", ""}:
+        return None
+
+    template_path = Path(str(value)).expanduser()
+    if not template_path.is_file():
+        raise ValueError(
+            f"What: 'model.chat_template' points to a file that does not exist: {value}\n"
+            f"Where: {config_path} -> model.chat_template\n"
+            "Expected: 'none' (use the model's template) or a path to an existing "
+            "*.jinja chat-template file.\n"
+            f"How to fix: correct the path, or set 'chat_template: none' in {config_path}."
+        )
+    return str(template_path)
+
+
 def load_yaml_config(
     config_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -176,6 +216,7 @@ def load_yaml_config(
         flat_config["enforce_eager"] = raw_config["model"].get("enforce_eager")
         flat_config["dtype"] = raw_config["model"].get("dtype")
         flat_config["max_new_tokens"] = raw_config["model"].get("max_new_tokens")
+        flat_config["chat_template"] = _resolve_chat_template(raw_config["model"], config_path)
 
     if "data" in raw_config:
         flat_config["data_dir"] = raw_config["data"].get("dir")
