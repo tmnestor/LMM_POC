@@ -30,7 +30,7 @@ model:
 # linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
 # raw_response, tokens} via the shared VllmBackend seam.
 tracing:
-  raw_prompts: true   # true -> persist every VLM prompt+response to JSONL
+  raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
   path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
 # Data paths
@@ -150,8 +150,7 @@ linking:
   hybrid_date_window_days: 5               # business-day window for date scoring
   hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
   hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
-  # data_dir: ../evaluation_data/synthetic_transaction_linking
-  data_dir: ../evaluation_data/synthetic_transaction_linking_westpac
+  data_dir: ../evaluation_data/synthetic_transaction_linking
   output: ../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl
   ground_truth: ../evaluation_data/synthetic_transaction_linking/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
   evaluation_dir: ../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation
