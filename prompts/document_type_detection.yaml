@@ -3,28 +3,11 @@ prompts:
     name: "Enriched Document Type Detection"
     description: "Classify document type with evidence-based disambiguation and header detection"
     prompt: |
-      Look at this document image and answer the three questions below.
-
-      Answer in EXACTLY this format — three lines, nothing else:
-      1. COLUMNS: <headers separated by " | ", or NONE>
-      2. PAID: <YES or NO>
-      3. ROWS: <number>
-
-      OUTPUT RULES — follow exactly:
-      - Plain text only. NO markdown headings (#, ##, ###), NO bold (**),
-        NO bullet lists (-, *), NO code fences (```), NO sub-points.
-      - Do NOT explain your reasoning. Do NOT write "let's analyze step by
-        step" or any preamble.
-      - Put each answer INLINE, right after the colon, on the SAME line as
-        its label. Never put a value on a following line.
-      - Output only the three numbered lines above, in order, then stop.
-
-      Question details:
+      Look at this document image and answer each question:
 
       1. COLUMNS: If there is a transaction table with rows of dates,
-         descriptions, and amounts, list the exact column headers on the
-         same line, separated by " | " (for example:
-         Date | Description | Debit | Credit | Balance).
+         descriptions, and amounts, list the exact column headers
+         separated by " | ".
          If there is no transaction table, write NONE.
 
       2. PAID: Is there evidence that payment was completed?
@@ -33,7 +16,7 @@ prompts:
          Answer YES or NO.
 
       3. ROWS: How many line items or transaction rows are visible?
-         Answer with a single number.
+         Answer with a number.
 
   detection_complex:
     name: "Enhanced Document Type Detection"
