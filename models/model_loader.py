@@ -386,6 +386,35 @@ def _resolve_vllm_overrides(app_config: Any | None, model_type: str) -> dict[str
     return app_config.get_vllm_config(model_type)
 
 
+def _patch_internvl_video_processor() -> None:
+    """Make vLLM's InternVLVideoProcessor tolerate image mm_processor_kwargs.
+
+    On the installed vLLM build, InternVL's ``get_video_processor`` merges all
+    mm_processor_kwargs (``max_dynamic_patch`` etc.) and forwards them to
+    ``InternVLVideoProcessor.__init__``, which raises ``TypeError`` at engine
+    init. The IMAGE processor honours ``max_dynamic_patch`` via mm_processor_kwargs,
+    so we drop the offending kwargs from the video processor only. Idempotent;
+    no-op if the class/structure differs. Remove once vLLM is upgraded (main is fixed).
+    """
+    try:
+        from vllm.model_executor.models import internvl as _ivl
+    except Exception:
+        return
+    vp = getattr(_ivl, "InternVLVideoProcessor", None)
+    if vp is None or getattr(vp, "_lmm_kwarg_safe", False):
+        return
+    _orig_init = vp.__init__
+    _drop = ("max_dynamic_patch", "min_dynamic_patch", "dynamic_image_size", "use_thumbnail")
+
+    def _safe_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        for key in _drop:
+            kwargs.pop(key, None)
+        _orig_init(self, *args, **kwargs)
+
+    vp.__init__ = _safe_init
+    vp._lmm_kwarg_safe = True
+
+
 def build_vllm_loader(spec: VllmSpec):
     """Build a context-manager vLLM loader from a VllmSpec.
 
@@ -488,15 +517,21 @@ def build_vllm_loader(spec: VllmSpec):
                     llm_kwargs["mm_processor_kwargs"] = effective_mm_proc
 
                 # hf_overrides: spec defaults, then app_config (run_config) overlay.
-                # InternVL tile count (max_dynamic_patch) must be set HERE, by
-                # overriding the HF config field — NOT via mm_processor_kwargs,
-                # which vLLM forwards to the video processor constructor (which
-                # rejects it: InternVLVideoProcessor has no max_dynamic_patch).
+                # Generic capability. NOTE: on the installed vLLM build, hf_overrides
+                # does NOT change InternVL max_dynamic_patch (verified: byte-identical
+                # 12-tile output) — tiles are set via mm_processor_kwargs instead.
                 effective_hf = dict(spec.hf_overrides) if spec.hf_overrides else {}
                 if vllm_overrides.get("hf_overrides"):
                     effective_hf.update(vllm_overrides["hf_overrides"])
                 if effective_hf:
                     llm_kwargs["hf_overrides"] = effective_hf
+
+                # InternVL image-tile control (max_dynamic_patch) goes via
+                # mm_processor_kwargs, which the IMAGE processor honors. On this
+                # vLLM build the VIDEO processor also receives those kwargs and
+                # rejects them (TypeError at engine init), so neutralize it first.
+                if "internvl" in spec.model_type and effective_mm_proc:
+                    _patch_internvl_video_processor()
 
                 llm = LLM(**llm_kwargs)
 
