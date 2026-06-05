@@ -870,7 +870,13 @@ class AppConfig:
         Absent → disabled default (a new opt-in feature must not break existing
         configs). Present → all four keys required and type-checked, fail-fast.
         """
-        default = {"enabled": False, "target_band_height": 900, "overlap_frac": 0.08, "max_bands": 6}
+        default = {
+            "enabled": False,
+            "target_band_height": 900,
+            "overlap_frac": 0.08,
+            "max_bands": 6,
+            "header_frac": 0.12,
+        }
         bs = (raw_config.get("bank_extraction") or {}).get("band_split")
         if bs is None:
             return default
@@ -884,7 +890,8 @@ class AppConfig:
                     f"How to fix: make 'band_split' a YAML mapping in {config_file}."
                 ]
             )
-        missing = {"enabled", "target_band_height", "overlap_frac", "max_bands"} - set(bs)
+        required = {"enabled", "target_band_height", "overlap_frac", "max_bands", "header_frac"}
+        missing = required - set(bs)
         if missing:
             raise ConfigError(
                 [
@@ -892,9 +899,10 @@ class AppConfig:
                     f"What: every band_split key is required when the section is present. "
                     f"Where: {config_file} → bank_extraction.band_split. "
                     f"Expected: enabled (bool), target_band_height (int>0), overlap_frac "
-                    f"(0<=f<0.5), max_bands (int>=1), e.g.:\n"
+                    f"(0<=f<0.5), max_bands (int>=1), header_frac (0<=f<0.5), e.g.:\n"
                     f"  bank_extraction:\n    band_split:\n      enabled: false\n"
                     f"      target_band_height: 900\n      overlap_frac: 0.08\n      max_bands: 6\n"
+                    f"      header_frac: 0.12\n"
                     f"How to fix: add the missing key(s) under 'band_split' in {config_file}."
                 ]
             )
@@ -936,6 +944,16 @@ class AppConfig:
                     f"Where: {config_file} → bank_extraction.band_split.max_bands. "
                     f"Expected: e.g. 6. "
                     f"How to fix: set 'max_bands' to an int >= 1 in {config_file}."
+                ]
+            )
+        if not isinstance(bs["header_frac"], (int, float)) or not 0.0 <= bs["header_frac"] < 0.5:
+            raise ConfigError(
+                [
+                    f"Invalid 'bank_extraction.band_split.header_frac' in {config_file}. "
+                    f"What: expected a number in [0, 0.5), got {bs['header_frac']!r}. "
+                    f"Where: {config_file} → bank_extraction.band_split.header_frac. "
+                    f"Expected: e.g. 0.12 (0 disables the header strip). "
+                    f"How to fix: set 'header_frac' to a value in [0, 0.5) in {config_file}."
                 ]
             )
         return dict(bs)

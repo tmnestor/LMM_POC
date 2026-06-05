@@ -20,7 +20,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .bank_band_split import band_count_for_height, merge_rows, split_into_bands
+from .bank_band_split import (
+    band_count_for_height,
+    dedup_rows,
+    prepend_header,
+    split_into_bands,
+)
 from .bank_corrector import BalanceCorrector, TransactionFilter
 from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
 
@@ -576,6 +581,9 @@ class UnifiedBankExtractor:
         self._band_target_height = int(bs.get("target_band_height", 900))
         self._band_overlap_frac = float(bs.get("overlap_frac", 0.08))
         self._band_max = int(bs.get("max_bands", 6))
+        # Fraction of the statement height prepended to each band as a column-
+        # header strip (header-less strips mis-assign columns). 0 -> no header.
+        self._band_header_frac = float(bs.get("header_frac", 0.12))
 
         catalog = _default_catalog()
         self.column_matcher = ColumnMatcher()
@@ -629,24 +637,32 @@ class UnifiedBankExtractor:
 
         h = getattr(image, "height", "?")
         logger.info(
-            "band-split ON: %s-tall statement -> %d bands (overlap_frac=%s)",
+            "band-split ON: %s-tall statement -> %d bands (overlap_frac=%s, header_frac=%s)",
             h,
             n_bands,
             self._band_overlap_frac,
+            self._band_header_frac,
         )
         bands = split_into_bands(image, n_bands, self._band_overlap_frac)
-        band_rows: list[list[dict[str, Any]]] = []
+        # Column-header strip prepended to the header-less lower bands so columns
+        # assign correctly (band 0 already shows the header).
+        header = None
+        if self._band_header_frac > 0:
+            header = image.crop((0, 0, image.width, max(1, int(image.height * self._band_header_frac))))
+
+        all_rows: list[dict[str, Any]] = []
         raw: dict[str, str] = {}
         for i, band in enumerate(bands):
-            response = self._gen(band, prompt, self._extract_tokens)
+            band_img = band if (i == 0 or header is None) else prepend_header(header, band)
+            response = self._gen(band_img, prompt, self._extract_tokens)
             rows = parse_fn(response)
             logger.info("band-split: band %d/%d -> %d rows", i + 1, n_bands, len(rows))
-            band_rows.append(rows)
+            all_rows.extend(rows)
             raw[f"turn1_band{i}"] = response
-        merged = merge_rows(band_rows, _band_row_key(mapping))
-        logger.info(
-            "band-split: merged %d band-rows -> %d unique rows", sum(len(b) for b in band_rows), len(merged)
-        )
+        # Global de-dup: the header strip + seams repeat the top rows; balance
+        # makes bank rows unique so only true duplicates are dropped.
+        merged = dedup_rows(all_rows, _band_row_key(mapping))
+        logger.info("band-split: %d band-rows -> %d unique rows", len(all_rows), len(merged))
         return merged, raw
 
     def extract(

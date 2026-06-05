@@ -275,6 +275,7 @@ bank_extraction:
     target_band_height: 900   # px; image_height/this (ceil) sets band count
     overlap_frac: 0.08    # band overlap (fraction of band height) so rows aren't bisected
     max_bands: 6          # cap bands per statement
+    header_frac: 0.12     # top fraction prepended to lower bands as column-header context (0 = off)
 
 # Per-bank column-mapping cache (standalone bank workflow only)
 bank_header_cache:

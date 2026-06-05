@@ -26,6 +26,13 @@ def _rows(field: object) -> list[str]:
     return [e.strip() for e in str(field or "").split("|") if e.strip()]
 
 
+def _debits(field: object) -> list[str]:
+    """Debit cells only — the extraction's TRANSACTION_DATES is debit-filtered, so
+    we must compare against GT *debits* (non-NOT_FOUND amounts), NOT all rows
+    (which include credits/deposits). Comparing debit-vs-all is apples-to-oranges."""
+    return [e for e in _rows(field) if e.upper() != "NOT_FOUND"]
+
+
 def _layout(name: str) -> str:
     m = re.match(r"CASE\d+_(.+)\.png", name or "")
     return m.group(1) if m else (name or "?")
@@ -54,13 +61,14 @@ def main(linking_dir: Path) -> int:
         ext_jsonl = out / "cleaned_extractions.jsonl"
     print(f"reading: {ext_jsonl.name}\n")
 
+    # GT debits = non-NOT_FOUND amounts (the extraction outputs debit rows only).
     gt: dict[str, int] = {}
     with gt_csv.open() as f:
         for r in csv.DictReader(f):
             if (r.get("DOCUMENT_TYPE") or "").upper() != "BANK_STATEMENT":
                 continue
             img = r.get("image_file") or r.get("image_name") or ""
-            gt[img] = len(_rows(r.get("TRANSACTION_DATES")))
+            gt[img] = len(_debits(r.get("TRANSACTION_AMOUNTS_PAID")))
 
     ext: dict[str, int] = {}
     for line in ext_jsonl.read_text().splitlines():
@@ -69,16 +77,14 @@ def main(linking_dir: Path) -> int:
         r = json.loads(line)
         if str(r.get("document_type", "")).upper() != "BANK_STATEMENT":
             continue
-        ext[r.get("image_name")] = _bank_row_count(r)
+        ext[r.get("image_name")] = _bank_row_count(r)  # debit-filtered TRANSACTION_DATES
 
     common = sorted(set(gt) & set(ext))
     tot_e = sum(gt[n] for n in common)
     tot_x = sum(ext[n] for n in common)
     print(f"bank statements: {len(common)}")
-    print(
-        f"TOTAL rows: expected={tot_e} extracted={tot_x} -> {tot_x / max(tot_e, 1):.1%} "
-        f"({tot_e - tot_x} dropped)\n"
-    )
+    print(f"DEBIT recovery: extracted={tot_x} / GT_debits={tot_e} = {tot_x / max(tot_e, 1):.1%}")
+    print("  (>100% on a layout = over-extraction: seam/header de-dup leak)\n")
 
     per: defaultdict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     for n in common:
@@ -86,9 +92,10 @@ def main(linking_dir: Path) -> int:
         per[lay][0] += gt[n]
         per[lay][1] += ext[n]
         per[lay][2] += 1
-    print("per-layout (expected -> extracted, %):")
+    print("per-layout (GT debits -> extracted debits, %):")
     for lay, (e, x, k) in sorted(per.items(), key=lambda kv: kv[1][1] / max(kv[1][0], 1)):
-        print(f"  {lay:22s} n={k:2d}  {e:4d} -> {x:4d}  ({x / max(e, 1):5.0%})")
+        flag = "  <-- OVER" if x > e else ("  <-- under" if x < e * 0.9 else "")
+        print(f"  {lay:22s} n={k:2d}  {e:4d} -> {x:4d}  ({x / max(e, 1):5.0%}){flag}")
     return 0
 
 

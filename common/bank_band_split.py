@@ -63,6 +63,42 @@ def plan_band_count(*, expected_rows: int | None, target_rows_per_band: int, max
     return min(max_bands, math.ceil(expected_rows / target_rows_per_band))
 
 
+def prepend_header(header: Image.Image, band: Image.Image) -> Image.Image:
+    """Vertically stack a column-header strip atop a band.
+
+    Header-less band strips (everything below band 0) lose the column-header row,
+    so the model mis-assigns debit/credit/balance and rows fail the debit filter.
+    Prepending the statement's header strip restores that visual column context.
+    """
+    width = max(header.width, band.width)
+    out = Image.new("RGB", (width, header.height + band.height), (255, 255, 255))
+    out.paste(header, (0, 0))
+    out.paste(band, (0, header.height))
+    return out
+
+
+def dedup_rows(
+    rows: Sequence[dict[str, Any]], row_key: Callable[[dict[str, Any]], Hashable]
+) -> list[dict[str, Any]]:
+    """Global, order-preserving de-dup (first occurrence wins).
+
+    Used when bands share content — overlapping seams AND the header strip
+    prepended to every band repeat the top rows. Safe for bank statements because
+    the running balance makes ``(date, amount, balance)`` unique per real
+    transaction, so only true duplicates are removed; two genuine same-day,
+    same-amount transactions differ in balance and both survive.
+    """
+    seen: set[Hashable] = set()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        k = row_key(r)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(r)
+    return out
+
+
 def band_count_for_height(image_height: int, target_band_height: int, max_bands: int) -> int:
     """Height-based band count: ``ceil(image_height / target_band_height)``, capped.
 
