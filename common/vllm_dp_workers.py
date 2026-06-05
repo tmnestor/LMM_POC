@@ -299,6 +299,11 @@ def classified_extract_worker(
             image_name = classification["image_name"]
             doc_type = classification["document_type"]
 
+            # Progress up front: band-split makes a single bank statement take
+            # several minutes across its bands, so log the start (not just the
+            # end) to track which of N statements is in flight.
+            logger.info("[%d/%d] extracting %s (%s)...", idx + 1, total, image_name, doc_type)
+
             img_start = time.time()
 
             try:
