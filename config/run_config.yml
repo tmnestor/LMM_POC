@@ -271,7 +271,7 @@ image_budgets:
 # required when the section is present. See plans/2026-06-05-band-split-bank-extraction.md.
 bank_extraction:
   band_split:
-    enabled: false        # true -> split tall bank statements into bands
+    enabled: true         # true -> split tall bank statements into bands
     target_band_height: 900   # px; image_height/this (ceil) sets band count
     overlap_frac: 0.08    # band overlap (fraction of band height) so rows aren't bisected
     max_bands: 6          # cap bands per statement
