@@ -31,9 +31,28 @@ def _layout(name: str) -> str:
     return m.group(1) if m else (name or "?")
 
 
+def _bank_row_count(record: dict) -> int:
+    """Transaction-row count from a bank record — cleaned (extracted_data) or
+    raw (raw_response) form. extract-only runs produce raw_extractions.jsonl,
+    which carries the rows as a 'TRANSACTION_DATES: a | b | c' line."""
+    ed = record.get("extracted_data") or {}
+    if "TRANSACTION_DATES" in ed:
+        return len(_rows(ed.get("TRANSACTION_DATES")))
+    for line in str(record.get("raw_response", "")).splitlines():
+        if line.strip().upper().startswith("TRANSACTION_DATES"):
+            return len(_rows(line.partition(":")[2]))
+    return 0
+
+
 def main(linking_dir: Path) -> int:
     gt_csv = linking_dir / "ground_truth_extraction.csv"
-    ext_jsonl = linking_dir / "output" / "cleaned_extractions.jsonl"
+    # Prefer the direct extract output (raw_extractions) so extract-only runs can
+    # be measured without running the clean stage; fall back to cleaned.
+    out = linking_dir / "output"
+    ext_jsonl = out / "raw_extractions.jsonl"
+    if not ext_jsonl.exists():
+        ext_jsonl = out / "cleaned_extractions.jsonl"
+    print(f"reading: {ext_jsonl.name}\n")
 
     gt: dict[str, int] = {}
     with gt_csv.open() as f:
@@ -50,8 +69,7 @@ def main(linking_dir: Path) -> int:
         r = json.loads(line)
         if str(r.get("document_type", "")).upper() != "BANK_STATEMENT":
             continue
-        ed = r.get("extracted_data", {})
-        ext[r.get("image_name")] = len(_rows(ed.get("TRANSACTION_DATES")))
+        ext[r.get("image_name")] = _bank_row_count(r)
 
     common = sorted(set(gt) & set(ext))
     tot_e = sum(gt[n] for n in common)
