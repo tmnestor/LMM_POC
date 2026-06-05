@@ -263,6 +263,19 @@ image_budgets:
     min_tiles: 1
     max_tiles: 6
 
+# Band-split bank extraction: the VLM under-reads long transaction tables (~76%
+# row recovery — attention decay, not truncation). When enabled, tall statements
+# are cropped into overlapping horizontal bands, each extracted (short -> fully
+# enumerated), then stitched with overlap-scoped de-dup. Height-based band count:
+# bands = clamp(ceil(image_height / target_band_height), 1, max_bands). All keys
+# required when the section is present. See plans/2026-06-05-band-split-bank-extraction.md.
+bank_extraction:
+  band_split:
+    enabled: false        # true -> split tall bank statements into bands
+    target_band_height: 900   # px; image_height/this (ceil) sets band count
+    overlap_frac: 0.08    # band overlap (fraction of band height) so rows aren't bisected
+    max_bands: 6          # cap bands per statement
+
 # Per-bank column-mapping cache (standalone bank workflow only)
 bank_header_cache:
   enabled: false

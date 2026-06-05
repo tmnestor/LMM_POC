@@ -63,6 +63,22 @@ def plan_band_count(*, expected_rows: int | None, target_rows_per_band: int, max
     return min(max_bands, math.ceil(expected_rows / target_rows_per_band))
 
 
+def band_count_for_height(image_height: int, target_band_height: int, max_bands: int) -> int:
+    """Height-based band count: ``ceil(image_height / target_band_height)``, capped.
+
+    Decided over a model "how many rows?" pass, which would suffer the same
+    attention-decay failure as full-table extraction. Returns 1 (single-pass) for
+    images at or below ``target_band_height``.
+    """
+    if target_band_height <= 0:
+        raise ValueError(f"target_band_height must be > 0, got {target_band_height}")
+    if image_height <= target_band_height:
+        return 1
+    import math
+
+    return min(max_bands, math.ceil(image_height / target_band_height))
+
+
 def merge_rows(
     band_rows: Sequence[Sequence[dict[str, Any]]],
     row_key: Callable[[dict[str, Any]], Hashable],

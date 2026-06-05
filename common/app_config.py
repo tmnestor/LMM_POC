@@ -182,6 +182,7 @@ class AppConfig:
         "_extraction_skip_labels",
         "_image_budgets",
         "_bank_header_cache",
+        "_band_split",
     )
 
     _DEFAULT_VLLM_CONFIG: ClassVar[dict[str, Any]] = {
@@ -215,6 +216,7 @@ class AppConfig:
         extraction_skip_labels: list[str] | None = None,
         image_budgets: dict[str, dict[str, int]] | None = None,
         bank_header_cache: dict[str, Any] | None = None,
+        band_split: dict[str, Any] | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.batch = batch
@@ -231,6 +233,12 @@ class AppConfig:
         self._extraction_skip_labels = extraction_skip_labels or []
         self._image_budgets = image_budgets or {}
         self._bank_header_cache = bank_header_cache or {"enabled": False, "key_pattern": ""}
+        self._band_split = band_split or {
+            "enabled": False,
+            "target_band_height": 900,
+            "overlap_frac": 0.08,
+            "max_bands": 6,
+        }
 
     @classmethod
     def load(
@@ -348,6 +356,7 @@ class AppConfig:
 
         # 20. Validate and build bank_header_cache
         bank_header_cache = cls._validate_bank_header_cache(raw_config, config_file)
+        band_split = cls._validate_band_split(raw_config, config_file)
 
         return cls(
             pipeline=pipeline,
@@ -365,6 +374,7 @@ class AppConfig:
             extraction_skip_labels=skip_labels,
             image_budgets=image_budgets,
             bank_header_cache=bank_header_cache,
+            band_split=band_split,
         )
 
     # -- Token budgets (Phase 1) -----------------------------------------------
@@ -852,3 +862,84 @@ class AppConfig:
                 ]
             ) from None
         return dict(cache)
+
+    @classmethod
+    def _validate_band_split(cls, raw_config: dict, config_file: str) -> dict[str, Any]:
+        """Validate ``bank_extraction.band_split`` (optional section).
+
+        Absent → disabled default (a new opt-in feature must not break existing
+        configs). Present → all four keys required and type-checked, fail-fast.
+        """
+        default = {"enabled": False, "target_band_height": 900, "overlap_frac": 0.08, "max_bands": 6}
+        bs = (raw_config.get("bank_extraction") or {}).get("band_split")
+        if bs is None:
+            return default
+        if not isinstance(bs, dict):
+            raise ConfigError(
+                [
+                    f"Invalid type for 'bank_extraction.band_split' in {config_file}. "
+                    f"What: expected a mapping, got {type(bs).__name__}. "
+                    f"Where: {config_file} → bank_extraction.band_split. "
+                    f"Expected: a mapping with enabled/target_band_height/overlap_frac/max_bands. "
+                    f"How to fix: make 'band_split' a YAML mapping in {config_file}."
+                ]
+            )
+        missing = {"enabled", "target_band_height", "overlap_frac", "max_bands"} - set(bs)
+        if missing:
+            raise ConfigError(
+                [
+                    f"Missing keys {sorted(missing)} in 'bank_extraction.band_split' in {config_file}. "
+                    f"What: every band_split key is required when the section is present. "
+                    f"Where: {config_file} → bank_extraction.band_split. "
+                    f"Expected: enabled (bool), target_band_height (int>0), overlap_frac "
+                    f"(0<=f<0.5), max_bands (int>=1), e.g.:\n"
+                    f"  bank_extraction:\n    band_split:\n      enabled: false\n"
+                    f"      target_band_height: 900\n      overlap_frac: 0.08\n      max_bands: 6\n"
+                    f"How to fix: add the missing key(s) under 'band_split' in {config_file}."
+                ]
+            )
+        if not isinstance(bs["enabled"], bool):
+            raise ConfigError(
+                [
+                    f"Invalid 'bank_extraction.band_split.enabled' in {config_file}. "
+                    f"What: expected a boolean, got {bs['enabled']!r}. "
+                    f"Where: {config_file} → bank_extraction.band_split.enabled. "
+                    f"Expected: true or false. "
+                    f"How to fix: set 'enabled' to a boolean in {config_file}."
+                ]
+            )
+        if not isinstance(bs["target_band_height"], int) or bs["target_band_height"] <= 0:
+            raise ConfigError(
+                [
+                    f"Invalid 'bank_extraction.band_split.target_band_height' in {config_file}. "
+                    f"What: expected a positive integer (pixels), got {bs['target_band_height']!r}. "
+                    f"Where: {config_file} → bank_extraction.band_split.target_band_height. "
+                    f"Expected: a positive int, e.g. 900. "
+                    f"How to fix: set 'target_band_height' to a positive int in {config_file}."
+                ]
+            )
+        if not isinstance(bs["overlap_frac"], (int, float)) or not 0.0 <= bs["overlap_frac"] < 0.5:
+            raise ConfigError(
+                [
+                    f"Invalid 'bank_extraction.band_split.overlap_frac' in {config_file}. "
+                    f"What: expected a number in [0, 0.5), got {bs['overlap_frac']!r}. "
+                    f"Where: {config_file} → bank_extraction.band_split.overlap_frac. "
+                    f"Expected: e.g. 0.08. "
+                    f"How to fix: set 'overlap_frac' to a value in [0, 0.5) in {config_file}."
+                ]
+            )
+        if not isinstance(bs["max_bands"], int) or bs["max_bands"] < 1:
+            raise ConfigError(
+                [
+                    f"Invalid 'bank_extraction.band_split.max_bands' in {config_file}. "
+                    f"What: expected an integer >= 1, got {bs['max_bands']!r}. "
+                    f"Where: {config_file} → bank_extraction.band_split.max_bands. "
+                    f"Expected: e.g. 6. "
+                    f"How to fix: set 'max_bands' to an int >= 1 in {config_file}."
+                ]
+            )
+        return dict(bs)
+
+    def band_split_config(self) -> dict[str, Any]:
+        """Band-split bank-extraction config (enabled/target_band_height/overlap_frac/max_bands)."""
+        return dict(self._band_split)
