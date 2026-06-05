@@ -386,6 +386,52 @@ def _resolve_vllm_overrides(app_config: Any | None, model_type: str) -> dict[str
     return app_config.get_vllm_config(model_type)
 
 
+@contextmanager
+def _fix_mistral_regex_tokenizer(enabled: bool):
+    """Scoped patch: inject ``fix_mistral_regex=True`` into AutoTokenizer loads.
+
+    InternVL3.5 ships a Mistral-based tokenizer whose default pre-tokenizer regex
+    mis-splits runs of whitespace and digits (transformers warns at load and
+    advises ``fix_mistral_regex=True``). On dense bank statements — whitespace-
+    aligned, digit-heavy amount columns — that both corrupts amount tokenization
+    and inflates token counts. vLLM loads its tokenizer internally and exposes no
+    kwarg to set the flag, so we patch ``transformers.AutoTokenizer.from_pretrained``
+    for the duration of ``LLM()``.
+
+    In vLLM V1 the prompt tokenizer is built in THIS front-end process (the
+    EngineCore child works on token ids), so a front-end-scoped patch reaches it.
+    Fail-safe: the patch only ADDS a kwarg and falls back to the un-patched call
+    if it is rejected, so it can never break the engine load. Restored on exit.
+
+    NOTE (verify on-box): if the load-time warning persists after this, EngineCore
+    is also loading a tokenizer (e.g. for structured outputs) and the fix must move
+    to a ``vllm.general_plugins`` entry point that runs inside the child — see
+    plans/2026-06-04-adaptive-tiling-dense-bank.md for the plugin route.
+    """
+    if not enabled:
+        yield
+        return
+
+    import transformers
+
+    orig = transformers.AutoTokenizer.from_pretrained
+
+    def _patched(*args: Any, **kwargs: Any):
+        if "fix_mistral_regex" in kwargs:
+            return orig(*args, **kwargs)
+        try:
+            return orig(*args, fix_mistral_regex=True, **kwargs)
+        except TypeError:
+            # Tokenizer class doesn't accept the flag (non-Mistral) — load plainly.
+            return orig(*args, **kwargs)
+
+    transformers.AutoTokenizer.from_pretrained = staticmethod(_patched)  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        transformers.AutoTokenizer.from_pretrained = orig  # type: ignore[method-assign]
+
+
 def build_vllm_loader(spec: VllmSpec):
     """Build a context-manager vLLM loader from a VllmSpec.
 
@@ -522,7 +568,11 @@ def build_vllm_loader(spec: VllmSpec):
                 if effective_hf:
                     llm_kwargs["hf_overrides"] = effective_hf
 
-                llm = LLM(**llm_kwargs)
+                # InternVL3.5's Mistral tokenizer needs fix_mistral_regex=True to
+                # tokenize whitespace/digit runs correctly (amount columns); vLLM
+                # exposes no kwarg for it, so patch the front-end tokenizer load.
+                with _fix_mistral_regex_tokenizer("internvl" in spec.model_type):
+                    llm = LLM(**llm_kwargs)
 
                 console.print("[bold green]vLLM engine ready![/bold green]")
 
