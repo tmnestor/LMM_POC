@@ -3,6 +3,7 @@
 
 Prints bash-eval-able assignments:
     YAML_MODEL_TYPE=...
+    YAML_MODEL_PATH=...
     YAML_DATA_DIR=...
     YAML_GROUND_TRUTH=...
     YAML_OUTPUT_DIR=...
@@ -49,6 +50,7 @@ def main() -> int:
     if not path.is_file():
         # No config file → all fallbacks empty. Not an error for local dev.
         _emit("YAML_MODEL_TYPE", "")
+        _emit("YAML_MODEL_PATH", "")
         _emit("YAML_DATA_DIR", "")
         _emit("YAML_GROUND_TRUTH", "")
         _emit("YAML_OUTPUT_DIR", "")
@@ -78,6 +80,7 @@ def main() -> int:
     linking = cfg.get("linking", {}) or {}
 
     _emit("YAML_MODEL_TYPE", model.get("type"))
+    _emit("YAML_MODEL_PATH", model.get("path"))
     _emit("YAML_DATA_DIR", data.get("dir"))
     _emit("YAML_GROUND_TRUTH", data.get("ground_truth"))
     _emit("YAML_OUTPUT_DIR", output.get("dir"))

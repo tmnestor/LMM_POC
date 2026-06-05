@@ -264,6 +264,26 @@ else
   log ""
 fi
 
+# ---- Pre-warm fix_mistral_regex-corrected tokenizer (once, before workers) ---- #
+# InternVL3.5's Mistral tokenizer ships a buggy whitespace/digit regex that
+# corrupts amount tokenization on dense bank statements. vLLM loads its tokenizer
+# in the front-end AND every spawned EngineCore child, so a load-time patch can't
+# reach the child; instead we bake a fix_mistral_regex-corrected copy to disk
+# (models/model_loader.ensure_corrected_tokenizer) and hand vLLM that path.
+# Doing it HERE — once, before the DP workers spawn — avoids the parallel workers
+# racing to build the shared cache. Idempotent (instant after first build) and
+# best-effort: a failure only means the engine falls back to the model's own
+# tokenizer, i.e. the prior functional behaviour.
+if [[ "${YAML_MODEL_TYPE:-}" == internvl*-vllm && -n "${YAML_MODEL_PATH:-}" ]]; then
+  log "Pre-warming fix_mistral_regex-corrected tokenizer (${YAML_MODEL_TYPE})..."
+  if _tok_path=$(python3 -c "from models.model_loader import ensure_corrected_tokenizer as e; print(e('${YAML_MODEL_PATH}'))" 2>&1); then
+    log "  corrected tokenizer: ${_tok_path}"
+  else
+    log "  WARNING: tokenizer pre-warm failed — engine load falls back to the model's own tokenizer:"
+    log "  ${_tok_path}"
+  fi
+fi
+
 # #############################################################################
 #  HELPERS: Shared Functions
 # #############################################################################
