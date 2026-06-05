@@ -13,6 +13,7 @@ Usage:
 """
 
 import gc
+import logging
 import re
 import sys
 from contextlib import contextmanager
@@ -22,6 +23,8 @@ from typing import Any
 from .bank_band_split import band_count_for_height, merge_rows, split_into_bands
 from .bank_corrector import BalanceCorrector, TransactionFilter
 from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
+
+logger = logging.getLogger(__name__)
 
 
 def _band_row_key(mapping: ColumnMapping):
@@ -624,18 +627,26 @@ class UnifiedBankExtractor:
             self._log(f"[UBE]   single-pass response: {len(response)} chars")
             return parse_fn(response), {"turn1": response}
 
-        self._log(f"[UBE]   band-split: {n_bands} bands (overlap_frac={self._band_overlap_frac})")
+        h = getattr(image, "height", "?")
+        logger.info(
+            "band-split ON: %s-tall statement -> %d bands (overlap_frac=%s)",
+            h,
+            n_bands,
+            self._band_overlap_frac,
+        )
         bands = split_into_bands(image, n_bands, self._band_overlap_frac)
         band_rows: list[list[dict[str, Any]]] = []
         raw: dict[str, str] = {}
         for i, band in enumerate(bands):
             response = self._gen(band, prompt, self._extract_tokens)
             rows = parse_fn(response)
-            self._log(f"[UBE]   band {i}: {len(rows)} rows ({len(response)} chars)")
+            logger.info("band-split: band %d/%d -> %d rows", i + 1, n_bands, len(rows))
             band_rows.append(rows)
             raw[f"turn1_band{i}"] = response
         merged = merge_rows(band_rows, _band_row_key(mapping))
-        self._log(f"[UBE]   band-split merged: {sum(len(b) for b in band_rows)} -> {len(merged)} rows")
+        logger.info(
+            "band-split: merged %d band-rows -> %d unique rows", sum(len(b) for b in band_rows), len(merged)
+        )
         return merged, raw
 
     def extract(
