@@ -252,15 +252,13 @@ def run(
             graph_bank_executor = _build_graph_bank_executor(processor, app_cfg)
             logger.info("Bank graph executor enabled")
         elif has_bank and config.bank_v2 and getattr(processor, "supports_multi_turn", True):
+            bank_budget = app_cfg.get_image_budget("bank_statement")
             bank_adapter = UnifiedBankExtractor(
                 generate_fn=processor.generate,
                 verbose=effective_verbose,
                 use_balance_correction=config.balance_correction,
-                max_tiles=(
-                    app_cfg.get_image_budget("bank_statement")["max_tiles"]
-                    if config.pre_tiling_enabled
-                    else None
-                ),
+                max_tiles=(bank_budget["max_tiles"] if config.pre_tiling_enabled else None),
+                min_tiles=(bank_budget["min_tiles"] if config.pre_tiling_enabled else None),
             )
             logger.info("Bank adapter enabled")
 

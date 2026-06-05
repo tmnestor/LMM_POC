@@ -522,6 +522,7 @@ class UnifiedBankExtractor:
         verbose: bool = True,
         token_budgets: dict[str, int] | None = None,
         max_tiles: int | None = None,
+        min_tiles: int | None = None,
     ):
         self.generate_fn = generate_fn
         self.use_balance_correction = use_balance_correction
@@ -529,10 +530,12 @@ class UnifiedBankExtractor:
         self._header_tokens = (token_budgets or {}).get("bank_header_detection", 500)
         self._extract_tokens = (token_budgets or {}).get("extract_bank", 4096)
         # Per-statement tile budget forwarded to the backend as the pre-tiling
-        # tile count. None -> the backend's single-image path. Dense bank tables
-        # need more tiles than the checkpoint default — see
-        # plans/2026-06-04-adaptive-pre-tiling.md.
+        # tile count. max_tiles None -> the backend's single-image path. min_tiles
+        # is the floor: dense bank tables need a denser grid than the aspect-ratio
+        # matcher picks on its own (a clean A4 portrait under-tiles to 6 without
+        # it) — see plans/2026-06-04-adaptive-tiling-dense-bank.md.
         self._max_tiles = max_tiles
+        self._min_tiles = min_tiles
 
         catalog = _default_catalog()
         self.column_matcher = ColumnMatcher()
@@ -557,7 +560,9 @@ class UnifiedBankExtractor:
 
     def _gen(self, image: Any, prompt: str, max_tokens: int) -> str:
         """Call the backend, forwarding the pre-tiling tile budget when set."""
-        extra = {"max_tiles": self._max_tiles} if self._max_tiles else None
+        extra = (
+            {"max_tiles": self._max_tiles, "min_tiles": self._min_tiles or 1} if self._max_tiles else None
+        )
         return self.generate_fn(image, prompt, max_tokens=max_tokens, extra=extra)
 
     def extract(

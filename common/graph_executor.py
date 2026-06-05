@@ -57,12 +57,14 @@ class GraphExecutor:
         max_graph_steps: circuit breaker for infinite loops.
         budget_resolver: optional ``(name) -> int`` to resolve
             ``token_budget: <name>`` references in workflow YAML nodes.
-        tile_budget_resolver: optional ``(image_ref) -> int`` mapping a node's
-            ``image:`` ref (e.g. ``bank_statement``, ``receipt``) to its
-            ``max_tiles`` budget. Populates ``NodeGenParams.max_tiles`` so the
-            vLLM backend's app-side pre-tiling crops to the per-doc-type
-            ceiling. None -> the single-image path (vLLM tiles internally).
-            See plans/2026-06-04-adaptive-pre-tiling.md.
+        tile_budget_resolver: optional ``(image_ref) -> {min_tiles, max_tiles}``
+            mapping a node's ``image:`` ref (e.g. ``bank_statement``,
+            ``receipt``) to its tile budget dict. Populates
+            ``NodeGenParams.max_tiles``/``min_tiles`` so the vLLM backend's
+            app-side pre-tiling crops to the per-doc-type ceiling AND floor (the
+            floor matters: clean-aspect docs under-tile without it). None -> the
+            single-image path (vLLM tiles internally).
+            See plans/2026-06-04-adaptive-tiling-dense-bank.md.
     """
 
     def __init__(
@@ -73,7 +75,7 @@ class GraphExecutor:
         default_max_tokens: int = 4096,
         max_graph_steps: int = 20,
         budget_resolver: Callable[[str], int] | None = None,
-        tile_budget_resolver: Callable[[str], int] | None = None,
+        tile_budget_resolver: Callable[[str], dict[str, int]] | None = None,
     ) -> None:
         self._generate_fn = generate_fn
         self._parsers = parsers
@@ -284,13 +286,15 @@ class GraphExecutor:
             reflection = reflection_template.replace("{error}", prev_error)
             prompt = prompt + "\n\n" + reflection
 
+        tile_budget = self._tile_budget_resolver(image_ref) if self._tile_budget_resolver else None
         gen_params = NodeGenParams(
             max_tokens=self._resolve_max_tokens(rest),
             temperature=rest.get("temperature", 0.0),
             stop=rest.get("stop"),
             output_schema=rest.get("output_schema"),
             logprobs=rest.get("logprobs"),
-            max_tiles=(self._tile_budget_resolver(image_ref) if self._tile_budget_resolver else None),
+            max_tiles=tile_budget["max_tiles"] if tile_budget else None,
+            min_tiles=tile_budget["min_tiles"] if tile_budget else 1,
         )
 
         start = time.time()

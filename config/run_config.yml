@@ -240,15 +240,27 @@ secondary_sort: none              # none | image_area_asc | image_area_desc
 # Labels that skip extraction entirely (written as skipped records)
 extraction_skip_labels: []
 
-# Per-doc-type image tile budgets for InternVL3 dynamic tiling
+# Per-doc-type image tile budgets for InternVL3 dynamic tiling.
+# min_tiles is the FLOOR forced into the pre-tiling crop (dynamic_preprocess
+# min_num); max_tiles is the ceiling. Because the InternVL tiling algorithm
+# picks the grid by closest aspect-ratio match, a clean A4-portrait bank
+# statement settles on a 2x3 (6-tile) grid and NEVER reaches max_tiles on its
+# own — so raising max alone does nothing. min_tiles=12 forces the denser 3x4
+# grid (near-square cells, ~1.4x linear resolution) needed to read packed
+# transaction tables. Receipts/invoices keep min_tiles: 1 (aspect-matched).
+# Requires min_tiles <= max_tiles. See plans/2026-06-04-adaptive-tiling-dense-bank.md.
 image_budgets:
   default:
+    min_tiles: 1
     max_tiles: 18
   bank_statement:
+    min_tiles: 12
     max_tiles: 18
   invoice:
+    min_tiles: 1
     max_tiles: 12
   receipt:
+    min_tiles: 1
     max_tiles: 6
 
 # Per-bank column-mapping cache (standalone bank workflow only)

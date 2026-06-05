@@ -71,15 +71,23 @@ class VllmBackend:
         buf.close()
         return data_uri
 
-    def _image_parts(self, image: Image.Image, max_tiles: int | None) -> list[dict[str, Any]]:
+    def _image_parts(
+        self, image: Image.Image, max_tiles: int | None, min_tiles: int = 1
+    ) -> list[dict[str, Any]]:
         """Build the image content parts for one source image.
 
         When pre-tiling is enabled and *max_tiles* is given, crop the image into
-        up to ``max_tiles`` 448-square tiles (plus a thumbnail) and return one
-        ``image_url`` part per tile — each 448-square crop is a single block
-        inside vLLM, so the crop count is authoritative. Otherwise return a single
-        part with the full image (vLLM tiles it internally, capped at the
+        ``min_tiles``..``max_tiles`` 448-square tiles (plus a thumbnail) and
+        return one ``image_url`` part per tile — each 448-square crop is a single
+        block inside vLLM, so the crop count is authoritative. Otherwise return a
+        single part with the full image (vLLM tiles it internally, capped at the
         checkpoint default).
+
+        ``min_tiles`` is the FLOOR: the InternVL tiling algorithm picks the grid
+        by closest aspect-ratio match, so a clean A4-portrait statement settles
+        on a 6-tile (2x3) grid and never reaches ``max_tiles`` on its own.
+        Raising the floor forces the denser grid dense tables need. The floor is
+        clamped to ``[1, max_tiles]`` so a misconfigured budget can't invert.
         """
         if not (self._pre_tiling_enabled and max_tiles):
             logger.info(
@@ -92,18 +100,21 @@ class VllmBackend:
             )
             return [{"type": "image_url", "image_url": {"url": self._encode_image(image)}}]
 
+        min_num = max(1, min(min_tiles, max_tiles))
         tiles = image_tiling.dynamic_preprocess(
             image,
-            min_num=1,
+            min_num=min_num,
             max_num=max_tiles,
             image_size=self._tile_image_size,
             use_thumbnail=self._tile_use_thumbnail,
         )
         logger.info(
-            "pre-tiling ON: cropped %dx%d image into %d sub-images (max_tiles=%d, thumbnail=%s)",
+            "pre-tiling ON: cropped %dx%d image into %d sub-images "
+            "(min_tiles=%d, max_tiles=%d, thumbnail=%s)",
             image.width,
             image.height,
             len(tiles),
+            min_num,
             max_tiles,
             self._tile_use_thumbnail,
         )
@@ -134,6 +145,7 @@ class VllmBackend:
         *,
         image_first: bool = False,
         max_tiles: int | None = None,
+        min_tiles: int = 1,
     ) -> list[dict[str, Any]]:
         """Build OpenAI-compatible messages.
 
@@ -143,15 +155,17 @@ class VllmBackend:
             image_first: If True, place image before text in the content
                 array.  Extraction tasks use image-first for lower FP
                 rates; classification uses text-first (the default).
-            max_tiles: When pre-tiling is enabled, crop into this many tiles
-                and send them as separate images; None uses the single-image
-                path (vLLM tiles internally).
+            max_tiles: When pre-tiling is enabled, crop into at most this many
+                tiles and send them as separate images; None uses the
+                single-image path (vLLM tiles internally).
+            min_tiles: Pre-tiling floor — forces at least this many tiles so
+                clean-aspect documents don't under-tile (see ``_image_parts``).
 
         Returns:
             The messages list.
         """
         text_part: dict[str, Any] = {"type": "text", "text": prompt}
-        image_parts = self._image_parts(image, max_tiles)
+        image_parts = self._image_parts(image, max_tiles, min_tiles)
         content = [*image_parts, text_part] if image_first else [text_part, *image_parts]
 
         return [{"role": "user", "content": content}]
@@ -177,7 +191,12 @@ class VllmBackend:
         """Run inference via vLLM engine.chat()."""
         from vllm import SamplingParams
 
-        messages = self._build_messages(image, prompt, max_tiles=params.extra.get("max_tiles"))
+        messages = self._build_messages(
+            image,
+            prompt,
+            max_tiles=params.extra.get("max_tiles"),
+            min_tiles=params.extra.get("min_tiles", 1),
+        )
 
         sampling = SamplingParams(
             max_tokens=params.max_tokens,
@@ -218,7 +237,11 @@ class VllmBackend:
         from vllm import SamplingParams
 
         messages = self._build_messages(
-            image, prompt, image_first=True, max_tiles=getattr(params, "max_tiles", None)
+            image,
+            prompt,
+            image_first=True,
+            max_tiles=getattr(params, "max_tiles", None),
+            min_tiles=getattr(params, "min_tiles", 1),
         )
 
         # Build SamplingParams from NodeGenParams fields

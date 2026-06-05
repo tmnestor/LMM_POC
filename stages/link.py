@@ -165,15 +165,16 @@ def run(
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
-        # Resolve each node's max_tiles from its image: ref so the vLLM backend's
-        # app-side pre-tiling crops to the per-doc-type budget (e.g. bank_statement
-        # -> 18, receipt -> 6). Without this the graph path stays single-image and
-        # vLLM tiles internally at the checkpoint default (12).
+        # Resolve each node's tile budget from its image: ref so the vLLM backend's
+        # app-side pre-tiling crops to the per-doc-type min..max (e.g. bank_statement
+        # -> 12..18, receipt -> 1..6). Without this the graph path stays single-image
+        # and vLLM tiles internally at the checkpoint default (12); without the floor
+        # a clean-aspect statement under-tiles even with a high ceiling.
         executor = GraphExecutor(
             generate_fn,
             parsers,
             budget_resolver=app_cfg.get_token_budget,
-            tile_budget_resolver=lambda ref: app_cfg.get_image_budget(ref)["max_tiles"],
+            tile_budget_resolver=app_cfg.get_image_budget,
         )
 
         # Process pairs
@@ -358,15 +359,16 @@ def run_trust_link(
         )
         generate_fn = backend.generate_for_graph
         parsers = build_parser_registry()
-        # Resolve each node's max_tiles from its image: ref so the vLLM backend's
-        # app-side pre-tiling crops to the per-doc-type budget (e.g. bank_statement
-        # -> 18, receipt -> 6). Without this the graph path stays single-image and
-        # vLLM tiles internally at the checkpoint default (12).
+        # Resolve each node's tile budget from its image: ref so the vLLM backend's
+        # app-side pre-tiling crops to the per-doc-type min..max (e.g. bank_statement
+        # -> 12..18, receipt -> 1..6). Without this the graph path stays single-image
+        # and vLLM tiles internally at the checkpoint default (12); without the floor
+        # a clean-aspect statement under-tiles even with a high ceiling.
         executor = GraphExecutor(
             generate_fn,
             parsers,
             budget_resolver=app_cfg.get_token_budget,
-            tile_budget_resolver=lambda ref: app_cfg.get_image_budget(ref)["max_tiles"],
+            tile_budget_resolver=app_cfg.get_image_budget,
         )
 
         # Process quads

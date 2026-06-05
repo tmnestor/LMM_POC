@@ -28,10 +28,12 @@ class NodeGenParams:
     stop: list[str] | None = None
     output_schema: dict | None = None  # JSON schema -> vLLM StructuredOutputsParams
     logprobs: int | None = None  # top-k logprobs per token
-    # Pre-tiling tile count for the vLLM backend; None -> single-image path.
-    # Populated from the per-doc-type image budget when the graph path needs
-    # high-resolution tiling (see plans/2026-06-04-adaptive-pre-tiling.md).
+    # Pre-tiling tile budget for the vLLM backend; max_tiles None -> single-image
+    # path. Populated from the per-doc-type image budget when the graph path needs
+    # high-resolution tiling. min_tiles is the floor forced into the crop so
+    # clean-aspect docs don't under-tile (see plans/2026-06-04-adaptive-tiling-dense-bank.md).
     max_tiles: int | None = None
+    min_tiles: int = 1
 
 
 @dataclass

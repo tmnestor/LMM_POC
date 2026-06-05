@@ -736,29 +736,44 @@ class AppConfig:
                 ]
             )
         for doc_type, entry in budgets.items():
-            if not isinstance(entry, dict) or "max_tiles" not in entry:
+            if not isinstance(entry, dict) or "min_tiles" not in entry or "max_tiles" not in entry:
                 raise ConfigError(
                     [
-                        f"Invalid entry for 'image_budgets.{doc_type}' in "
-                        f"{config_file}: each entry must have a 'max_tiles' key. "
+                        f"Invalid entry for 'image_budgets.{doc_type}' in {config_file}. "
+                        f"What: each entry must have both 'min_tiles' and 'max_tiles' "
+                        f"keys; one or both are missing. "
                         f"Where: {config_file} → image_budgets.{doc_type}. "
-                        f"Expected: a mapping with 'max_tiles', e.g.:\n"
+                        f"Expected: a mapping with 'min_tiles' and 'max_tiles', e.g.:\n"
                         f"  image_budgets:\n"
                         f"    {doc_type}:\n"
+                        f"      min_tiles: 1\n"
                         f"      max_tiles: 18\n"
-                        f"How to fix: add 'max_tiles: <int>' under "
-                        f"'image_budgets.{doc_type}' in {config_file}."
+                        f"How to fix: add 'min_tiles: <int>' and 'max_tiles: <int>' "
+                        f"under 'image_budgets.{doc_type}' in {config_file}."
                     ]
                 )
-            if not isinstance(entry["max_tiles"], int) or entry["max_tiles"] < 1:
+            for key in ("min_tiles", "max_tiles"):
+                if not isinstance(entry[key], int) or entry[key] < 1:
+                    raise ConfigError(
+                        [
+                            f"Invalid '{key}' for 'image_budgets.{doc_type}' in {config_file}. "
+                            f"What: '{key}' must be a positive integer, got {entry[key]!r}. "
+                            f"Where: {config_file} → image_budgets.{doc_type}.{key}. "
+                            f"Expected: a positive integer, e.g. 18. "
+                            f"How to fix: set '{key}' to a positive integer under "
+                            f"'image_budgets.{doc_type}' in {config_file}."
+                        ]
+                    )
+            if entry["min_tiles"] > entry["max_tiles"]:
                 raise ConfigError(
                     [
-                        f"Invalid 'max_tiles' for 'image_budgets.{doc_type}' in "
-                        f"{config_file}: expected a positive integer, got "
-                        f"{entry['max_tiles']!r}. "
-                        f"Where: {config_file} → image_budgets.{doc_type}.max_tiles. "
-                        f"Expected: a positive integer, e.g. 18. "
-                        f"How to fix: set 'max_tiles' to a positive integer under "
+                        f"Invalid tile budget for 'image_budgets.{doc_type}' in {config_file}. "
+                        f"What: min_tiles ({entry['min_tiles']}) exceeds max_tiles "
+                        f"({entry['max_tiles']}). "
+                        f"Where: {config_file} → image_budgets.{doc_type}. "
+                        f"Expected: min_tiles <= max_tiles, e.g. min_tiles: 12, "
+                        f"max_tiles: 18. "
+                        f"How to fix: lower 'min_tiles' or raise 'max_tiles' under "
                         f"'image_budgets.{doc_type}' in {config_file}."
                     ]
                 )
