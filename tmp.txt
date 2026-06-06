@@ -1,0 +1,3 @@
+  jq -r 'select(((.image_name//"")|test("CASE037")) and
+  ((.document_type//"")|test("BANK"))) | "\(.prompt_used) :: \(.document_type)"'
+  /home/jovyan/synthetic_clean/output/raw_extractions.jsonl
