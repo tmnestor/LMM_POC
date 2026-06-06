@@ -1,3 +1,2 @@
-  jq -r 'select(((.image_name//"")|test("CASE037")) and
-  ((.document_type//"")|test("BANK"))) | "\(.prompt_used) :: \(.document_type)"'
-  /home/jovyan/synthetic_clean/output/raw_extractions.jsonl
+grep -iE "band-split|Bank adapter enabled|Bank graph executor enabled|-> [0-9]+ bands|[0-9]+ band-rows"
+/home/jovyan/synthetic_clean/output/logs/*.log 2>/dev/null | head -30
