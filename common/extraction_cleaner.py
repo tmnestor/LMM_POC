@@ -127,9 +127,11 @@ class ExtractionCleaner:
             safe_raw_value = sanitize_for_rich(str(raw_value), max_length=100)
             print(f"🧹 CLEANER CALLED: {field_name}: '{safe_raw_value}' -> ", end="")
 
-        # Pre-process lists: convert comma-separated to pipe-separated format
+        # Pre-process lists: convert comma-separated to pipe-separated format.
+        # Split only on delimiter commas, not the thousands separator inside a
+        # number (``$8,026.87`` must stay one value, not become ``$8 | 026.87``).
         if self._is_list_field(field_name) and "," in value and "|" not in value:
-            value = " | ".join(item.strip() for item in value.split(","))
+            value = " | ".join(item.strip() for item in re.split(r",(?!\d)", value))
 
         # Route to appropriate cleaning method based on field type using pattern matching
         field_type = self._get_field_type(field_name)
@@ -268,11 +270,12 @@ class ExtractionCleaner:
             # Fix concatenated amounts: "$251.33 $98.53" → "$251.33 | $98.53"
             value = re.sub(r"(\$\d+\.\d{2})\s+(\$\d+\.\d{2})", r"\1 | \2", value)
 
-        # Split by comma or pipe and clean each item
+        # Split by comma or pipe and clean each item. Comma split ignores the
+        # thousands separator inside a number (see ``,(?!\d)`` note above).
         if "|" in value:
             items = [item.strip() for item in value.split("|")]
         else:
-            items = [item.strip() for item in value.split(",")]
+            items = [item.strip() for item in re.split(r",(?!\d)", value)]
 
         cleaned_items = []
 
