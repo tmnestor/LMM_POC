@@ -42,6 +42,40 @@ class GtStmt:
     paid: list[float]
 
 
+@dataclass
+class StmtResult:
+    """Per-statement comparison result."""
+
+    case: str
+    layout: str
+    gt: int
+    match: int
+    miss: int
+    spur: int
+
+
+@dataclass
+class LayoutStat:
+    """Aggregated counts for one layout."""
+
+    gt: int = 0
+    match: int = 0
+    miss: int = 0
+    spur: int = 0
+
+
+def summarize_by_layout(results: list[StmtResult]) -> dict[str, LayoutStat]:
+    """Sum gt/match/miss/spur across statements, grouped by layout."""
+    out: dict[str, LayoutStat] = defaultdict(LayoutStat)
+    for r in results:
+        stat = out[r.layout]
+        stat.gt += r.gt
+        stat.match += r.match
+        stat.miss += r.miss
+        stat.spur += r.spur
+    return dict(out)
+
+
 def _parse_one(token: str) -> float | None:
     """Parse a single currency token to a non-negative float, or None."""
     s = token.strip()
@@ -142,35 +176,37 @@ def main() -> None:
     gt = load_gt(args.gt)
     extracted = load_extracted(args.extracted)
 
-    rows: list[tuple[str, str, int, int, int, int]] = []
-    layer: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # layout -> [matched, gt_total]
-    tot_matched = tot_gt = tot_spurious = 0
+    results: list[StmtResult] = []
     for case, info in sorted(gt.items()):
         if case not in extracted:
             continue
-        paid = info.paid
-        matched, missing, spurious = diff_amounts(paid, extracted[case], args.tol)
-        rows.append((case, info.layout, len(paid), len(matched), len(missing), len(spurious)))
-        layer[info.layout][0] += len(matched)
-        layer[info.layout][1] += len(paid)
-        tot_matched += len(matched)
-        tot_gt += len(paid)
-        tot_spurious += len(spurious)
+        matched, missing, spurious = diff_amounts(info.paid, extracted[case], args.tol)
+        results.append(
+            StmtResult(case, info.layout, len(info.paid), len(matched), len(missing), len(spurious))
+        )
 
     print(f"\n{'CASE':<10} {'LAYOUT':<22} {'GT':>4} {'MATCH':>6} {'MISS':>5} {'SPUR':>5} {'RECALL':>7}")
     print("-" * 64)
-    for case, layout, n_gt, n_match, n_miss, n_spur in sorted(rows, key=lambda r: r[3] / max(r[2], 1)):
-        recall = n_match / n_gt if n_gt else 1.0
-        print(f"{case:<10} {layout:<22} {n_gt:>4} {n_match:>6} {n_miss:>5} {n_spur:>5} {recall:>6.0%}")
+    for r in sorted(results, key=lambda s: s.match / max(s.gt, 1)):
+        recall = r.match / r.gt if r.gt else 1.0
+        print(f"{r.case:<10} {r.layout:<22} {r.gt:>4} {r.match:>6} {r.miss:>5} {r.spur:>5} {recall:>6.0%}")
 
-    print("\nBy layout (paid-amount recall):")
-    for layout, (m, t) in sorted(layer.items(), key=lambda kv: kv[1][0] / max(kv[1][1], 1)):
-        print(f"  {layout:<24} {m}/{t} ({m / t:.0%})" if t else f"  {layout:<24} 0/0")
+    print(f"\n{'LAYOUT':<24} {'RECALL':>13} {'MISS':>6} {'SPUR':>6}  dominant")
+    print("-" * 60)
+    by_layout = summarize_by_layout(results)
+    for layout, s in sorted(by_layout.items(), key=lambda kv: kv[1].match / max(kv[1].gt, 1)):
+        recall_str = f"{s.match}/{s.gt} ({s.match / s.gt:.0%})" if s.gt else "0/0"
+        dominant = "dropped" if s.miss > s.spur else "misread" if s.spur > s.miss else "mixed"
+        print(f"  {layout:<22} {recall_str:>13} {s.miss:>6} {s.spur:>6}  {dominant}")
 
-    overall = tot_matched / tot_gt if tot_gt else 1.0
-    print(f"\nOVERALL paid-amount recall: {tot_matched}/{tot_gt} ({overall:.1%})")
-    print(f"Spurious (misread) extracted amounts: {tot_spurious}")
-    print(f"Statements compared: {len(rows)} (GT cases: {len(gt)}, extracted cases: {len(extracted)})")
+    tot = summarize_by_layout(results)
+    tot_gt = sum(s.gt for s in tot.values())
+    tot_match = sum(s.match for s in tot.values())
+    tot_spur = sum(s.spur for s in tot.values())
+    overall = tot_match / tot_gt if tot_gt else 1.0
+    print(f"\nOVERALL paid-amount recall: {tot_match}/{tot_gt} ({overall:.1%})")
+    print(f"Spurious (misread) extracted amounts: {tot_spur}")
+    print(f"Statements compared: {len(results)} (GT cases: {len(gt)}, extracted cases: {len(extracted)})")
 
 
 if __name__ == "__main__":
