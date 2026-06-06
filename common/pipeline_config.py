@@ -87,7 +87,7 @@ class PipelineConfig:
     balance_correction: bool = True
 
     # Model options
-    model_type: str = "internvl3"
+    model_type: str = "internvl3-vllm"
     max_tiles: int = 11
     min_tiles: int | None = None  # Set to enable adaptive quality-based tiling
     flash_attn: bool = True
@@ -439,7 +439,7 @@ def merge_configs(
 
     # Auto-detect model path if not specified
     if not merged.get("model_path"):
-        model_type = merged.get("model_type", "internvl3")
+        model_type = merged.get("model_type", "internvl3-vllm")
         search_paths = _resolve_default_paths(raw_config, model_type)
         detected = auto_detect_model_path(search_paths)
         if detected:

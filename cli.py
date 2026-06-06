@@ -82,7 +82,7 @@ def setup_output_directories(config: PipelineConfig) -> dict[str, Path]:
     return output_dirs
 
 
-def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
+def load_prompt_config(model_type: str = "internvl3-vllm") -> dict[str, Any]:
     """Build prompt routing config from PromptCatalog (single source of truth).
 
     Derives supported document types from the extraction prompt YAML keys
@@ -110,7 +110,7 @@ def load_prompt_config(model_type: str = "internvl3") -> dict[str, Any]:
 
 
 def load_pipeline_configs(
-    model_type: str = "internvl3",
+    model_type: str = "internvl3-vllm",
 ) -> tuple[dict[str, Any], list[str], dict[str, list[str]]]:
     """Load prompt configuration and build universal field list.
 
@@ -568,7 +568,7 @@ def main(
     model_type: str | None = typer.Option(
         None,
         "--model",
-        help=f"Model type ({', '.join(list_models())}). Default from config or internvl3.",
+        help=f"Model type ({', '.join(list_models())}). Default from config or internvl3-vllm.",
     ),
     model_path: Path = typer.Option(
         None,
@@ -679,7 +679,7 @@ def main(
         python cli.py --config run_config.yaml
 
         # Specify model type
-        python cli.py --model internvl3 -d ./data -o ./output
+        python cli.py --model internvl3-vllm -d ./data -o ./output
     """
     # Handle version flag
     if version:

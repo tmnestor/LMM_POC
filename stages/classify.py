@@ -36,7 +36,7 @@ def run(
     Args:
         image_dir: Directory containing images.
         output_path: Path to write classifications.jsonl.
-        model_type: Model type (e.g. "internvl3", "llama").
+        model_type: Model type (e.g. "internvl3-vllm").
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         verbose: Tier B output (init/config details). None = read from YAML.
         debug: Tier C output (dev-noise: PARSING DEBUG, prompt dumps). None = YAML.

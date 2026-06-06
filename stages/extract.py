@@ -59,7 +59,7 @@ def run(
         classifications_path: Path to classifications.jsonl from Stage 1.
         image_dir: Directory containing the original images.
         output_path: Path to write raw_extractions.jsonl.
-        model_type: Model type (e.g. "internvl3", "llama").
+        model_type: Model type (e.g. "internvl3-vllm").
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         bank_v2: Use UnifiedBankExtractor for bank statements.
         balance_correction: Enable balance validation in bank extraction.
