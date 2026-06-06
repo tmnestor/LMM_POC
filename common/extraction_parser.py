@@ -607,8 +607,10 @@ def parse_extraction_response(
         if field_name.startswith(list_field_prefixes):
             # Check if value contains markdown bullet points or commas instead of pipes
             if "," in field_value and " | " not in field_value:
-                # Convert comma-separated to pipe-separated
-                items = [item.strip() for item in field_value.split(",") if item.strip()]
+                # Convert comma-separated to pipe-separated. Split only on
+                # delimiter commas, not the thousands separator inside a number
+                # ($8,026.87 must stay one value, not become $8 | 026.87).
+                items = [item.strip() for item in re.split(r",(?!\d)", field_value) if item.strip()]
                 extracted_data[field_name] = " | ".join(items)
             elif "*" in field_value and " | " not in field_value:
                 # Convert markdown list to pipe-separated
