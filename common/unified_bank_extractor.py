@@ -32,24 +32,6 @@ from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
 logger = logging.getLogger(__name__)
 
 
-def forward_fill_dates(rows: list[dict[str, Any]], date_col: str) -> None:
-    """Carry a date-group heading date down to following date-less rows (in place).
-
-    Date-grouped layouts (e.g. NAB classic) print the date once as a section
-    heading; the transaction rows beneath have an empty date cell. ``rows`` are in
-    top-to-bottom statement order, so propagate the last seen date forward until the
-    next heading. Without this, rows with a blank date are dropped by the
-    ``date AND desc AND debit`` assembly filter even though band-split extracted them.
-    """
-    last = ""
-    for row in rows:
-        current = str(row.get(date_col) or "").strip()
-        if current:
-            last = current
-        elif last:
-            row[date_col] = last
-
-
 def _band_row_key(mapping: ColumnMapping):
     """Build a (date, amount, balance) key for seam de-dup from the column mapping.
 
@@ -838,9 +820,6 @@ class UnifiedBankExtractor:
             mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} total transactions")
-        # Date-grouped layouts (e.g. NAB classic) show the date as a section heading;
-        # carry it down so rows below survive the date+desc+debit filter further down.
-        forward_fill_dates(all_rows, date_col)
         for i, row in enumerate(all_rows[:3]):
             self._log(f"[UBE]     Row {i}: {row}")
         if len(all_rows) > 3:
@@ -994,8 +973,6 @@ class UnifiedBankExtractor:
             mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} transactions")
-        # Date-grouped layouts: carry the date-heading down so rows below keep a date.
-        forward_fill_dates(all_rows, date_col)
         # DEBUG: Show first few parsed rows
         for i, row in enumerate(all_rows[:3]):
             self._log(f"[UBE]     Row {i}: {row}")
@@ -1101,8 +1078,6 @@ class UnifiedBankExtractor:
             mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} transactions")
-        # Date-grouped layouts: carry the date-heading down so rows below keep a date.
-        forward_fill_dates(all_rows, date_col)
         for i, row in enumerate(all_rows[:3]):
             self._log(f"[UBE]     Row {i}: {row}")
         if len(all_rows) > 3:
