@@ -14,6 +14,7 @@ This exists because the residual linking false negatives were traced to
 dense-table extraction errors (mis-read amounts + dropped tail rows), NOT a
 post-processing bug — see memory ``thousands-comma-cleaner-bug`` (CORRECTION).
 
+
 Usage::
 
     python scripts/bank_extraction_vs_gt.py \
