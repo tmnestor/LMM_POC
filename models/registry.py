@@ -51,7 +51,15 @@ def get_model(model_type: str) -> ModelRegistration:
     """
     if model_type not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY)) or "(none)"
-        raise ValueError(f"Unknown model type: '{model_type}'. Available: {available}")
+        raise ValueError(
+            f"Unknown model type: {model_type!r}.\n"
+            f"  What: model type {model_type!r} is not registered in models/registry.py.\n"
+            "  Where: config/run_config.yml -> model.type (the single source that selects "
+            "the model); a typo or a retired model name here is the usual cause.\n"
+            f"  Expected: one of the registered types: {available}\n"
+            "  How to fix: set model.type in config/run_config.yml to a registered value "
+            "(e.g. model:\\n  type: internvl3-vllm)."
+        )
     return _REGISTRY[model_type]
 
 
