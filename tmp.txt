@@ -1,2 +1,2 @@
-grep -iE "band-split|Bank adapter enabled|Bank graph executor enabled|-> [0-9]+ bands|[0-9]+ band-rows"
-/home/jovyan/synthetic_clean/output/logs/*.log 2>/dev/null | head -30
+grep -iE "band-split: [0-9]+ band-rows|bank_post_process: strategy"
+/home/jovyan/synthetic_clean/output/logs/entrypoint_20260606_082706.log | head -40
