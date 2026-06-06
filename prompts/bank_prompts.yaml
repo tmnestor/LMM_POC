@@ -45,7 +45,9 @@ prompts:
 
       CRITICAL RULES:
       1. List EVERY balance entry in order from top to bottom
-      2. EVERY balance entry has a date, either on the same row, or above
+      2. EVERY balance entry MUST have a date. When dates appear as a GROUP HEADING above a set of
+         transactions (date-grouped layout), apply that heading date to EVERY transaction below it
+         until the next date heading - never leave a transaction's date blank
       3. Include the FULL {desc_col} text - capture ALL rows that belong to this transaction, not abbreviated
       4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
       5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
@@ -77,7 +79,9 @@ prompts:
 
       CRITICAL RULES:
       1. List EVERY transaction in order from top to bottom
-      2. EVERY entry has a date, either on the same row, or above
+      2. EVERY entry MUST have a date. When dates appear as a GROUP HEADING above a set of
+         transactions (date-grouped layout), apply that heading date to EVERY transaction below it
+         until the next date heading - never leave a transaction's date blank
       3. Include the FULL {desc_col} text - capture ALL rows, not abbreviated
       4. PRESERVE the sign of amounts (negative = withdrawal, positive = deposit)
       5. Do NOT skip any transactions
@@ -102,7 +106,9 @@ prompts:
 
       CRITICAL RULES:
       1. List EVERY transaction in order from top to bottom
-      2. EVERY entry has a date, either on the same row, or above
+      2. EVERY entry MUST have a date. When dates appear as a GROUP HEADING above a set of
+         transactions (date-grouped layout), apply that heading date to EVERY transaction below it
+         until the next date heading - never leave a transaction's date blank
       3. Include the FULL description text, not abbreviated
       4. If amount is in {debit_col} column, put it there and use NOT_FOUND for {credit_col}
       5. If amount is in {credit_col} column, put it there and use NOT_FOUND for {debit_col}
