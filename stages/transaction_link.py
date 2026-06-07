@@ -34,6 +34,7 @@ Usage:
         --model       internvl3-vllm
 """
 
+import functools
 import logging
 import re
 from pathlib import Path
@@ -332,65 +333,109 @@ def _apply_vlm_match(record: dict[str, Any], match: dict[str, str], bank_image_n
     record["bank_transaction_amount"] = _parse_amount_str(match.get("TRANSACTION_AMOUNT", ""))
 
 
-def _run_vlm_fallback(
+def _attempt_on_image(
     record: dict[str, Any],
     receipt: ReceiptSummary,
-    bank_images: list[tuple[str, dict[str, Any] | None]],
+    bank_image_name: str,
+    bank_columns: dict[str, Any] | None,
     *,
     generate_fn: Any,
     data_dir: Path,
     prompt: LinkPrompt,
     max_tokens: int,
 ) -> bool:
-    """Run targeted VLM lookup for one unmatched receipt across bank images.
+    """Query ONE statement image for ONE receipt; apply + return True on FOUND.
 
-    Tries each bank-statement image in turn and stops at the first FOUND. On
-    success ``record`` is updated in place. A per-image failure is logged and
-    skipped — it never aborts the batch.
-
-    Returns:
-        True if the receipt was matched by the VLM, else False.
+    A missing image, a generate error, a bank-row echo, or a NOT_FOUND all
+    return False without aborting — the caller moves on to the next statement.
     """
-    for bank_image_name, bank_columns in bank_images:
-        bank_path = data_dir / bank_image_name
-        if not bank_path.exists():
-            logger.warning("Bank image not found, skipping: %s", bank_path)
-            continue
+    bank_path = data_dir / bank_image_name
+    if not bank_path.exists():
+        logger.warning("Bank image not found, skipping: %s", bank_path)
+        return False
 
-        try:
-            matches = call_vlm_linker(
-                generate_fn,
-                bank_path,
-                receipt,
-                max_tokens=max_tokens,
-                prompt=prompt,
-                bank_columns=bank_columns,
-            )
-        except Exception:
-            logger.exception(
-                "VLM fallback failed for %s x %s — leaving NOT_FOUND",
+    try:
+        matches = call_vlm_linker(
+            generate_fn,
+            bank_path,
+            receipt,
+            max_tokens=max_tokens,
+            prompt=prompt,
+            bank_columns=bank_columns,
+        )
+    except Exception:
+        logger.exception(
+            "VLM fallback failed for %s x %s — leaving NOT_FOUND",
+            receipt.image_name,
+            bank_image_name,
+        )
+        return False
+
+    for match in matches:
+        if _is_bank_row_echo(match):
+            continue
+        if match.get("MATCHED_TRANSACTION", "NOT_FOUND") == "FOUND":
+            _apply_vlm_match(record, match, bank_image_name)
+            logger.info(
+                "VLM fallback matched %s (case %s) on %s",
                 receipt.image_name,
+                record["case_id"],
                 bank_image_name,
             )
-            continue
-
-        for match in matches:
-            if _is_bank_row_echo(match):
-                continue
-            if match.get("MATCHED_TRANSACTION", "NOT_FOUND") == "FOUND":
-                _apply_vlm_match(record, match, bank_image_name)
-                logger.info(
-                    "VLM fallback matched %s (case %s) on %s",
-                    receipt.image_name,
-                    record["case_id"],
-                    bank_image_name,
-                )
-                return True
-
-    record["reasoning"] = (
-        record["reasoning"] or "No amount match in extracted rows; VLM lookup found no debit."
-    )
+            return True
     return False
+
+
+def _run_case_fallback(
+    case_items: list[tuple[int, ReceiptSummary]],
+    bank_images: list[tuple[str, dict[str, Any] | None]],
+    all_results: list[dict[str, Any]],
+    *,
+    attempt_fn: Any,
+) -> int:
+    """Per-statement fallback for one case.
+
+    Iterates STATEMENTS in the outer loop and the case's still-unmatched
+    receipts in the inner loop, so every query against a given statement is
+    issued consecutively — keeping vLLM's shared-prefix cache for that statement
+    warm. A receipt matched on one statement is dropped from ``remaining`` so it
+    is never re-queried against a later statement (first-FOUND-wins, preserving
+    the original semantics). Returns the number of receipts matched by the VLM.
+    """
+    remaining = list(case_items)
+    matched_count = 0
+    for bank_image_name, bank_columns in bank_images:
+        if not remaining:
+            break
+        still: list[tuple[int, ReceiptSummary]] = []
+        for record_index, receipt in remaining:
+            record = all_results[record_index]
+            if attempt_fn(record, receipt, bank_image_name, bank_columns):
+                matched_count += 1
+            else:
+                still.append((record_index, receipt))
+        remaining = still
+
+    for record_index, _receipt in remaining:
+        record = all_results[record_index]
+        record["reasoning"] = (
+            record["reasoning"] or "No amount match in extracted rows; VLM lookup found no debit."
+        )
+    return matched_count
+
+
+def _log_cache_summary(processor: Any) -> None:
+    """Log the fallback pass's prefix-cache hit rate (or 'unavailable')."""
+    summary = processor.cache_hit_summary()
+    if summary.get("available"):
+        logger.info(
+            "prefix-cache: %d/%d fallback prompt tokens served from cache (%.0f%%)",
+            summary["cached_prompt_tokens"],
+            summary["total_prompt_tokens"],
+            summary["hit_ratio"] * 100,
+        )
+    else:
+        logger.info("prefix-cache: unavailable on this vLLM build")
 
 
 def _build_processor(model_type: str | None, data_dir: Path, config_path: Path | None) -> Any:
@@ -550,19 +595,24 @@ def run(
     if actionable:
         processor, model_cm = _build_processor(model_type, data_dir, config_path)
         prompt = load_link_prompt(vlm_prompt_name)
+        # Group by case so a case's receipts are queried one statement at a time
+        # (consecutive same-image calls keep the shared-prefix cache warm).
+        by_case: dict[str, list[tuple[int, ReceiptSummary]]] = {}
+        for record_index, case_id, receipt in actionable:
+            by_case.setdefault(case_id, []).append((record_index, receipt))
         try:
-            for record_index, case_id, receipt in actionable:
-                matched = _run_vlm_fallback(
-                    all_results[record_index],
-                    receipt,
-                    bank_images_by_case[case_id],
-                    generate_fn=processor.generate,
-                    data_dir=data_dir,
-                    prompt=prompt,
-                    max_tokens=vlm_max_tokens,
+            attempt_fn = functools.partial(
+                _attempt_on_image,
+                generate_fn=processor.generate,
+                data_dir=data_dir,
+                prompt=prompt,
+                max_tokens=vlm_max_tokens,
+            )
+            for case_id, items in by_case.items():
+                vlm_matched += _run_case_fallback(
+                    items, bank_images_by_case[case_id], all_results, attempt_fn=attempt_fn
                 )
-                if matched:
-                    vlm_matched += 1
+            _log_cache_summary(processor)
         finally:
             model_cm.__exit__(None, None, None)
         logger.info("VLM fallback: %d/%d queued receipts recovered", vlm_matched, len(actionable))
