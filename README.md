@@ -224,27 +224,32 @@ environment variable — `KFP_TASK` — plus a handful of KFP-injected `input_pa
 1. **Shell safety** — `set -o errexit -o nounset -o pipefail` so any failure stops the run loudly.
 2. **CUDA determinism** — `CUDA_DEVICE_ORDER=PCI_BUS_ID` so `cuda:0` always maps to the same
    physical GPU; log lines like "GPU 0 failed" then match `nvidia-smi`.
-3. **Log directory (pre-conda)** — resolved by `scripts/resolve_log_dirs.py`, which uses **only
-   the Python standard library** so it runs *before* conda is activated. The script then
-   `exec`-redirects all stdout/stderr through `tee` to a timestamped EFS log file
+3. **YAML defaults (single resolver)** — `scripts/resolve_yaml_defaults.py` (PyYAML) fills in the
+   log dirs, `data_dir` / `ground_truth` / `output_dir`, and all `trust_*` / `linking_*` paths from
+   `run_config.yml` so the `typer`-required stage flags always receive concrete values. PyYAML lives
+   only inside the conda env (the **base** env has no `yaml` on DEV/PROD), so the resolver is run
+   with the env's own interpreter **by path** (`$CONDA_ENV/bin/python`) — no activation needed just
+   to launch it. This runs *before* the `tee` redirect so the log dir is known. The script then
+   `exec`-redirects all stdout/stderr through `tee` to a timestamped log file
    (`entrypoint_YYYYMMDD_HHMMSS.log`) — console output (for the KFP UI) **and** a persistent log.
-   Trust tasks use `trust_distribution.log_dir`; all others use `logging.log_dir`. There is **no
-   silent fallback** — a missing log dir is fatal.
-4. **Conda activation** — `conda activate` the env (default `/persistent/storage/.conda/envs/vllm_env`,
-   overridable via `LMM_CONDA_ENV`), then prepend `$CONDA_PREFIX/lib` to `LD_LIBRARY_PATH` so the
-   env's `libstdc++` (with `GLIBCXX_3.4.30`) is found before the older system copy.
-5. **YAML defaults (post-conda)** — `scripts/resolve_yaml_defaults.py` (uses PyYAML, hence
-   post-conda) fills in `data_dir` / `ground_truth` / `output_dir` and all `trust_*` paths from
-   `run_config.yml` so the `typer`-required stage flags always receive concrete values.
-6. **GPU health check** — `nvidia-smi` dump of VRAM, temperature, and ECC errors, with a warning
+   Trust tasks use `trust_distribution.log_dir`; transaction-linking uses `linking.log_dir`; all
+   others use `logging.log_dir`. There is **no silent fallback** — a missing log dir is fatal.
+4. **Conda activation** — `conda activate` the env (default `/home/jovyan/.conda/envs/vllm_env2`,
+   overridable via `LMM_CONDA_ENV`; the same `$CONDA_ENV` bootstrapped in step 3). The env **cannot**
+   come from `run_config.yml` — parsing that YAML needs PyYAML, which only exists inside the very env
+   being located (chicken-and-egg), so it is bootstrapped from `LMM_CONDA_ENV` or the script default.
+   After activation, prepend `$CONDA_PREFIX/lib` to `LD_LIBRARY_PATH` so the env's `libstdc++` (with
+   `GLIBCXX_3.4.30`) is found before the older system copy.
+5. **GPU health check** — `nvidia-smi` dump of VRAM, temperature, and ECC errors, with a warning
    if any GPU reports an error state. Cheaper to catch here than mid-inference after a 60s load.
-7. **Wall-clock timing & cleanup trap** — a `trap ... EXIT` always logs the exit code and elapsed
+6. **Wall-clock timing & cleanup trap** — a `trap ... EXIT` always logs the exit code and elapsed
    seconds, even on OOM/crash.
 
-> **Why the two resolver scripts are split** (`resolve_log_dirs.py` vs `resolve_yaml_defaults.py`):
-> logging must be wired up *before* conda is available, so the log-dir resolver is constrained to
-> stdlib-only; everything else is resolved after conda where PyYAML exists. This is a deliberate
-> timing decision — see [Why two entrypoints](#why-two-entrypoints).
+> **Why one resolver, run by the env's own python:** logging must be wired up *before* `tee`, and
+> the log dir lives in `run_config.yml`, which needs PyYAML to parse. PyYAML isn't in the base/system
+> python on DEV/PROD, so rather than maintain a second stdlib-only parser, the single
+> `resolve_yaml_defaults.py` is invoked with `$CONDA_ENV/bin/python` (the env interpreter, by path)
+> before `conda activate`. One parser, one source of truth — see [Why two entrypoints](#why-two-entrypoints).
 
 ### How KFP passes configuration
 
@@ -833,9 +838,11 @@ decision is paired with the trade-off it resolves.
   flags. The orchestrated `run_*` tasks chain stages locally to *simulate* the KFP DAG for
   sandbox iteration — they are explicitly **not** part of the production DAG.
 
-The pre-conda/post-conda resolver split (`resolve_log_dirs.py` stdlib-only, before conda;
-`resolve_yaml_defaults.py` PyYAML, after conda) falls directly out of this: logging must be live
-before the environment that contains PyYAML is even activated.
+Logging must be live *before* the environment that contains PyYAML is activated. Rather than keep a
+second stdlib-only parser for that pre-activation window, `entrypoint.sh` runs the single
+`resolve_yaml_defaults.py` with the conda env's own interpreter addressed by path
+(`$CONDA_ENV/bin/python`) — which has PyYAML without needing `conda activate` — then activates the
+env normally. One resolver, no fragile regex YAML parsing.
 
 ## Why a staged JSONL contract
 
@@ -1054,8 +1061,7 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   └── io.py                              # JSONL streaming writer + resumption primitive
 ├── scripts/
 │   ├── run_graph_*.sh / run_baseline_bank.sh
-│   ├── resolve_log_dirs.py                # stdlib-only log-dir resolver (pre-conda)
-│   ├── resolve_yaml_defaults.py           # PyYAML YAML-defaults resolver (post-conda)
+│   ├── resolve_yaml_defaults.py           # single PyYAML resolver (run via $CONDA_ENV/bin/python)
 │   ├── csv_to_jsonl.py                    # ground-truth CSV → JSONL
 │   └── generate_trust_manifest.py         # quads CSV from trust ground-truth YAML
 ├── tests/                                 # pytest suite (GPU-free) — local only, gitignored

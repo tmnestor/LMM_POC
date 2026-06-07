@@ -7,6 +7,7 @@ Prints bash-eval-able assignments:
     YAML_DATA_DIR=...
     YAML_GROUND_TRUTH=...
     YAML_OUTPUT_DIR=...
+    YAML_LOG_DIR=...
     YAML_TRUST_DATA_DIR=...
     YAML_TRUST_QUADS=...
     YAML_TRUST_QUADS_INCOMPLETE=...
@@ -54,6 +55,7 @@ def main() -> int:
         _emit("YAML_DATA_DIR", "")
         _emit("YAML_GROUND_TRUTH", "")
         _emit("YAML_OUTPUT_DIR", "")
+        _emit("YAML_LOG_DIR", "")
         _emit("YAML_TRUST_DATA_DIR", "")
         _emit("YAML_TRUST_QUADS", "")
         _emit("YAML_TRUST_QUADS_INCOMPLETE", "")
@@ -76,6 +78,7 @@ def main() -> int:
     model = cfg.get("model", {}) or {}
     data = cfg.get("data", {}) or {}
     output = cfg.get("output", {}) or {}
+    log_cfg = cfg.get("logging", {}) or {}
     trust = cfg.get("trust_distribution", {}) or {}
     linking = cfg.get("linking", {}) or {}
 
@@ -84,6 +87,7 @@ def main() -> int:
     _emit("YAML_DATA_DIR", data.get("dir"))
     _emit("YAML_GROUND_TRUTH", data.get("ground_truth"))
     _emit("YAML_OUTPUT_DIR", output.get("dir"))
+    _emit("YAML_LOG_DIR", log_cfg.get("log_dir"))
     _emit("YAML_TRUST_DATA_DIR", trust.get("data_dir"))
     _emit("YAML_TRUST_QUADS", trust.get("quads"))
     _emit("YAML_TRUST_QUADS_INCOMPLETE", trust.get("quads_incomplete"))

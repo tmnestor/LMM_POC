@@ -19,25 +19,11 @@
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
 #     python3 -m stages.extract --model llama --num-gpus 4 ...
 #
-# Available KFP_TASK values (the dispatcher's `case` near the bottom is the
-# source of truth; _print_task_help mirrors this list at runtime):
-#   Orchestrators (local dev — chain stages in one shell, NOT in the KFP DAG):
-#     run_batch_inference  — 4-stage classic pipeline (classify/extract/clean/evaluate)
-#     run_graph_robust     — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)
-#     run_trust_pipeline   — 4-stage trust distribution compliance pipeline
-#     run_transaction_link — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)
-#   Standard per-stage (KFP production — one pod per stage):
-#     classify             — Stage 1 (GPU)
-#     extract              — Stage 2 (GPU)
-#     clean                — Stage 3 (CPU)
-#     evaluate             — Stage 4 (CPU)
-#   Trust per-stage (KFP production — one pod per stage):
-#     trust_classify       — Trust document type classification (GPU)
-#     trust_extract        — Trust distribution field extraction (GPU)
-#     trust_clean          — Trust compliance validation (CPU)
-#     trust_evaluate       — Trust compliance evaluation (CPU)
-#   Deprecated:
-#     filter               — removed; kept as a no-op for KFP manifest compatibility
+# Available KFP_TASK values: the dispatcher's `case` near the bottom is the
+# source of truth, and `_print_task_help` renders the human-readable list at
+# runtime (run with KFP_TASK unset to print it). To avoid a third copy drifting
+# out of sync, the full list is NOT duplicated here — read `_print_task_help`.
+# Note: `filter` is deprecated — kept as a no-op for KFP manifest compatibility.
 #
 # Local examples:
 #   KFP_TASK=run_batch_inference image_dir=../evaluation_data/synthetic bash entrypoint.sh
@@ -90,43 +76,43 @@ export VLLM_NO_USAGE_STATS="${VLLM_NO_USAGE_STATS:-1}"
 # Priority: LMM_LOG_DIR env var > run_config.yml logging.log_dir > fail
 # No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
 CONFIG_FILE="./config/run_config.yml"
-YAML_LOG_DIR=""
-YAML_MODEL_TYPE=""
-YAML_DATA_DIR=""
-YAML_GROUND_TRUTH=""
-YAML_OUTPUT_DIR=""
-YAML_TRUST_DATA_DIR=""
-YAML_TRUST_QUADS=""
-YAML_TRUST_QUADS_INCOMPLETE=""
-YAML_TRUST_GROUND_TRUTH=""
-YAML_TRUST_CLASSIFICATION_GT=""
-YAML_TRUST_CLASSIFICATIONS=""
-YAML_TRUST_RAW_EXTRACTIONS=""
-YAML_TRUST_COMPLIANCE_RESULTS=""
-YAML_TRUST_OUTPUT_DIR=""
-YAML_TRUST_EVALUATION_DIR=""
-YAML_TRUST_LOG_DIR=""
-YAML_TRUST_LOG_DIR_EARLY=""
-YAML_LINKING_DATA_DIR=""
-YAML_LINKING_OUTPUT=""
-YAML_LINKING_GROUND_TRUTH=""
-YAML_LINKING_EVALUATION_DIR=""
-YAML_LINKING_LOG_DIR=""
-YAML_LINKING_LOG_DIR_EARLY=""
-# Log directories must be resolved BEFORE conda activation because the
-# `exec`/`tee` redirect below needs the path immediately.  All other YAML defaults
-# are resolved post-conda via resolve_yaml_defaults.py (which uses PyYAML).
+
+# ---- Resolve ALL YAML defaults up front, with the conda env's own python ----
+# A SINGLE PyYAML resolver (scripts/resolve_yaml_defaults.py) supplies every
+# YAML_* variable used below — log dirs, data/model paths, trust + linking
+# paths. It must run BEFORE the `exec`/`tee` redirect (which needs the log dir),
+# but PyYAML lives only inside the conda env, never in system/base python (the
+# base env genuinely has no `yaml` on DEV/PROD). So we run the resolver with the
+# conda env's OWN interpreter, addressed by path — no `conda activate` needed
+# just to launch an interpreter — and activate the env properly further down.
 #
-# resolve_log_dirs.py uses only Python stdlib (re, shlex, pathlib) so it
-# runs with system Python — no conda env required.
-eval "$(python3 scripts/resolve_log_dirs.py "$CONFIG_FILE")"
-# Trust tasks use trust_distribution.log_dir; all others use logging.log_dir.
+# The conda env itself cannot be read from run_config.yml: parsing that YAML
+# needs a PyYAML-capable python, which only exists INSIDE this env (chicken-and-
+# egg). So CONDA_ENV is bootstrapped from LMM_CONDA_ENV or the default below.
+# CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/vllm_env}"
+CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env2}"
+CONDA_PY="${CONDA_ENV}/bin/python"
+if [[ ! -x "$CONDA_PY" ]]; then
+  echo "FATAL: bootstrap interpreter not found: $CONDA_PY"
+  echo "  What:  the python used to parse $CONFIG_FILE (it needs PyYAML) is missing."
+  echo "  Where: CONDA_ENV='$CONDA_ENV' — from LMM_CONDA_ENV env var, or the default in entrypoint.sh."
+  echo "  Fix:   point LMM_CONDA_ENV at a real conda env dir so \$LMM_CONDA_ENV/bin/python exists, e.g."
+  echo "           export LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env2"
+  exit 1
+fi
+# Emits YAML_* assignments (every key, unconditionally; missing keys -> ''),
+# all read below as ${YAML_*:-} so `set -o nounset` is satisfied.
+eval "$("$CONDA_PY" scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
+
+# Select this task's log dir (env var > YAML > fail). Trust tasks use
+# trust_distribution.log_dir; transaction-linking uses linking.log_dir;
+# everything else uses logging.log_dir.
 case "${KFP_TASK:-}" in
   trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_pipeline)
-    LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR_EARLY:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
+    LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
   run_transaction_link)
-    LOG_DIR="${LMM_LINKING_LOG_DIR:-${YAML_LINKING_LOG_DIR_EARLY:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
+    LOG_DIR="${LMM_LINKING_LOG_DIR:-${YAML_LINKING_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
   *)
     LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
@@ -193,8 +179,8 @@ log ""
 # the Python dependencies (torch, transformers, etc.) pre-installed.
 log "Activating conda environment..."
 eval "$(conda shell.bash hook)"
-# CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/vllm_env}"
-CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env2}"
+# CONDA_ENV was bootstrapped (and its python validated) during the YAML
+# resolution above, before the tee redirect.
 log "Conda env: $CONDA_ENV"
 # Temporarily allow unbound variables — conda activation scripts (e.g. MKL)
 # reference variables that may not be set yet.
@@ -223,13 +209,6 @@ log "Conda:   $(conda info --envs | grep '*' || echo 'unknown')"
 log "Log dir: $LOG_DIR (source: ${LMM_LOG_DIR:+env}${LMM_LOG_DIR:-${YAML_LOG_DIR:+yaml}})"
 log "---------------------------------------"
 log ""
-
-# ---- Resolve YAML defaults (data_dir / ground_truth / output_dir) ---- #
-# Uses yaml.safe_load via a tiny Python helper — immune to comment churn
-# and whitespace changes in run_config.yml. Must run AFTER conda activate
-# so `import yaml` resolves against the project environment. Missing keys
-# yield empty strings (safe under `set -u` with `${var:-}` later on).
-eval "$(python3 scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
 
 # ---- Route the fix_mistral_regex tokenizer cache to a writable dir ---- #
 # vLLM bakes a fix_mistral_regex-corrected tokenizer copy to disk (see
@@ -562,66 +541,35 @@ _run_trust_evaluate() {
 # fail before AppConfig runs. Apply the YAML fallback HERE so the stage
 # commands below receive a concrete --data-dir / --output-dir value.
 # Env var always wins when explicitly set (matches cli.py semantics).
-if ! _is_set "${model:-}"; then
-  model="${YAML_MODEL_TYPE:-}"
-fi
-if ! _is_set "${image_dir:-}"; then
-  image_dir="${YAML_DATA_DIR:-}"
-fi
-if ! _is_set "${ground_truth:-}"; then
-  ground_truth="${YAML_GROUND_TRUTH:-}"
-fi
-if ! _is_set "${output:-}"; then
-  output="${YAML_OUTPUT_DIR:-}"
-fi
-if ! _is_set "${trust_data_dir:-}"; then
-  trust_data_dir="${YAML_TRUST_DATA_DIR:-}"
-fi
-if ! _is_set "${trust_quads:-}"; then
-  trust_quads="${YAML_TRUST_QUADS:-}"
-fi
-if ! _is_set "${trust_quads_incomplete:-}"; then
-  trust_quads_incomplete="${YAML_TRUST_QUADS_INCOMPLETE:-}"
-fi
-if ! _is_set "${trust_ground_truth:-}"; then
-  trust_ground_truth="${YAML_TRUST_GROUND_TRUTH:-}"
-fi
-if ! _is_set "${trust_classification_gt:-}"; then
-  trust_classification_gt="${YAML_TRUST_CLASSIFICATION_GT:-}"
-fi
-if ! _is_set "${trust_classifications:-}"; then
-  trust_classifications="${YAML_TRUST_CLASSIFICATIONS:-}"
-fi
-if ! _is_set "${trust_raw_extractions:-}"; then
-  trust_raw_extractions="${YAML_TRUST_RAW_EXTRACTIONS:-}"
-fi
-if ! _is_set "${trust_compliance_results:-}"; then
-  trust_compliance_results="${YAML_TRUST_COMPLIANCE_RESULTS:-}"
-fi
-if ! _is_set "${trust_output:-}"; then
-  trust_output="${YAML_TRUST_OUTPUT_DIR:-}"
-fi
-if ! _is_set "${trust_evaluation_dir:-}"; then
-  trust_evaluation_dir="${YAML_TRUST_EVALUATION_DIR:-}"
-fi
-if ! _is_set "${trust_log_dir:-}"; then
-  trust_log_dir="${YAML_TRUST_LOG_DIR:-}"
-fi
-if ! _is_set "${linking_data_dir:-}"; then
-  linking_data_dir="${YAML_LINKING_DATA_DIR:-}"
-fi
-if ! _is_set "${linking_output:-}"; then
-  linking_output="${YAML_LINKING_OUTPUT:-}"
-fi
-if ! _is_set "${linking_ground_truth:-}"; then
-  linking_ground_truth="${YAML_LINKING_GROUND_TRUTH:-}"
-fi
-if ! _is_set "${linking_evaluation_dir:-}"; then
-  linking_evaluation_dir="${YAML_LINKING_EVALUATION_DIR:-}"
-fi
-if ! _is_set "${linking_log_dir:-}"; then
-  linking_log_dir="${YAML_LINKING_LOG_DIR:-}"
-fi
+# Assign the YAML fallback ($2) to the named env var ($1) only when the env
+# var was not already provided (env always wins, matching cli.py). Uses
+# indirect read (${!name}) + `printf -v` write — both available in macOS
+# bash 3.2. The `||` short-circuit keeps a false `_is_set` from tripping
+# `set -o errexit`.
+_default_from_yaml() {
+  local name="$1"
+  _is_set "${!name:-}" || printf -v "$name" '%s' "$2"
+}
+_default_from_yaml model                    "${YAML_MODEL_TYPE:-}"
+_default_from_yaml image_dir                "${YAML_DATA_DIR:-}"
+_default_from_yaml ground_truth             "${YAML_GROUND_TRUTH:-}"
+_default_from_yaml output                   "${YAML_OUTPUT_DIR:-}"
+_default_from_yaml trust_data_dir           "${YAML_TRUST_DATA_DIR:-}"
+_default_from_yaml trust_quads              "${YAML_TRUST_QUADS:-}"
+_default_from_yaml trust_quads_incomplete   "${YAML_TRUST_QUADS_INCOMPLETE:-}"
+_default_from_yaml trust_ground_truth       "${YAML_TRUST_GROUND_TRUTH:-}"
+_default_from_yaml trust_classification_gt  "${YAML_TRUST_CLASSIFICATION_GT:-}"
+_default_from_yaml trust_classifications    "${YAML_TRUST_CLASSIFICATIONS:-}"
+_default_from_yaml trust_raw_extractions    "${YAML_TRUST_RAW_EXTRACTIONS:-}"
+_default_from_yaml trust_compliance_results "${YAML_TRUST_COMPLIANCE_RESULTS:-}"
+_default_from_yaml trust_output             "${YAML_TRUST_OUTPUT_DIR:-}"
+_default_from_yaml trust_evaluation_dir     "${YAML_TRUST_EVALUATION_DIR:-}"
+_default_from_yaml trust_log_dir            "${YAML_TRUST_LOG_DIR:-}"
+_default_from_yaml linking_data_dir         "${YAML_LINKING_DATA_DIR:-}"
+_default_from_yaml linking_output           "${YAML_LINKING_OUTPUT:-}"
+_default_from_yaml linking_ground_truth     "${YAML_LINKING_GROUND_TRUTH:-}"
+_default_from_yaml linking_evaluation_dir   "${YAML_LINKING_EVALUATION_DIR:-}"
+_default_from_yaml linking_log_dir          "${YAML_LINKING_LOG_DIR:-}"
 
 # ---- CLEAR_PREV_OUTPUT toggle (validated at startup, before any work) ---- #
 # Controls whether stages start from a clean slate or resume:
