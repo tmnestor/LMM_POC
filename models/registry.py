@@ -98,37 +98,6 @@ def _internvl3_post_load(model, processor, cfg):
         model.generation_config.pad_token_id = processor.eos_token_id
 
 
-def _llama_backend(model, processor, debug):
-    """Build Llama 3.2 backend."""
-    from models.backends.llama import LlamaBackend
-
-    return LlamaBackend(model=model, processor=processor, debug=debug)
-
-
-def _llama_post_load(model, processor, cfg):
-    """Tie weights and fix generation_config for Llama 3.2."""
-    try:
-        model.tie_weights()
-    except Exception:
-        pass
-    if hasattr(model, "generation_config"):
-        model.generation_config.temperature = None
-        model.generation_config.top_p = None
-        model.generation_config.pad_token_id = processor.tokenizer.eos_token_id
-
-
-def _llama4scout_quantization(cfg):
-    """Build NF4 quantization config at load time (lazy transformers import)."""
-    from transformers import BitsAndBytesConfig
-
-    return BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=cfg.torch_dtype,
-        bnb_4bit_use_double_quant=True,
-    )
-
-
 # ============================================================================
 # Declarative registrations via ModelSpec / VllmSpec
 #
@@ -194,93 +163,6 @@ register_hf_model(
     )
 )
 
-# -- Llama 3.2 (custom backend: processor.apply_chat_template + model.generate) --
-
-register_hf_model(
-    ModelSpec(
-        model_type="llama",
-        model_class="MllamaForConditionalGeneration",
-        prompt_file="llama_prompts.yaml",
-        description="Llama 3.2 11B Vision Instruct",
-        backend_factory=_llama_backend,
-        post_load=_llama_post_load,
-    )
-)
-
-# -- Llama 4 Scout (standard HFChatTemplateBackend, NF4 quantization) -----------
-
-register_hf_model(
-    ModelSpec(
-        model_type="llama4scout",
-        model_class="Llama4ForConditionalGeneration",
-        prompt_file="llama4scout_prompts.yaml",
-        description="Llama 4 Scout 17B-16E (109B MoE) vision-language model",
-        load_kwargs={
-            "attn_implementation": "sdpa",
-            "quantization_config": _llama4scout_quantization,
-        },
-        suppress_gen_warnings=("temperature", "top_p"),
-        message_style="one_step",
-        image_content_key="url",
-    )
-)
-
-# -- Granite 4.0 3B Vision (standard backend, force single GPU, LoRA merge) -----
-
-register_hf_model(
-    ModelSpec(
-        model_type="granite4",
-        model_class="AutoModelForImageTextToText",
-        prompt_file="internvl3_prompts.yaml",
-        description="IBM Granite 4.0 3B Vision (~8 GB BF16)",
-        trust_remote_code=True,
-        force_single_gpu=True,
-        merge_lora=True,
-        message_style="two_step",
-    )
-)
-
-# -- Standard HuggingFace models ------------------------------------------------
-
-register_hf_model(
-    ModelSpec(
-        model_type="qwen3vl",
-        model_class="Qwen3VLForConditionalGeneration",
-        prompt_file="qwen3vl_prompts.yaml",
-        description="Qwen3-VL-8B-Instruct vision-language model",
-        attn_implementation="flash_attention_2",
-        suppress_gen_warnings=("temperature", "top_p", "top_k"),
-        message_style="two_step",
-    )
-)
-
-register_hf_model(
-    ModelSpec(
-        model_type="nemotron",
-        model_class="AutoModelForCausalLM",
-        prompt_file="internvl3_prompts.yaml",
-        description="NVIDIA Nemotron Nano 12B v2 VL (hybrid Transformer-Mamba)",
-        trust_remote_code=True,
-        message_style="two_step",
-        system_message="/no_think",
-        tokenizer_attr="tokenizer",
-    )
-)
-
-register_hf_model(
-    ModelSpec(
-        model_type="qwen35",
-        model_class="Qwen3_5ForConditionalGeneration",
-        prompt_file="internvl3_prompts.yaml",
-        description="Qwen3.5-27B early-fusion VLM (~54 GB BF16)",
-        requires_sharding=True,
-        suppress_gen_warnings=("temperature", "top_p", "top_k"),
-        message_style="one_step",
-        image_content_key="image",
-        chat_template_kwargs={"enable_thinking": False},
-    )
-)
-
 # -- vLLM models -----------------------------------------------------------------
 
 register_vllm_model(
@@ -304,42 +186,5 @@ register_vllm_model(
         model_type="internvl3-38b-vllm",
         prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-38B via vLLM (~77 GB BF16)",
-    )
-)
-
-register_vllm_model(
-    VllmSpec(
-        model_type="llama4scout-w4a16",
-        prompt_file="llama4scout_prompts.yaml",
-        description="Llama 4 Scout W4A16 via vLLM (tensor parallel, ~55 GB)",
-    )
-)
-
-register_vllm_model(
-    VllmSpec(
-        model_type="qwen3vl-vllm",
-        prompt_file="qwen3vl_prompts.yaml",
-        description="Qwen3-VL-8B via vLLM (PagedAttention, tensor parallelism)",
-    )
-)
-
-register_vllm_model(
-    VllmSpec(
-        model_type="qwen35-vllm",
-        prompt_file="internvl3_prompts.yaml",
-        description="Qwen3.5-27B via vLLM (~54 GB BF16)",
-    )
-)
-
-register_vllm_model(
-    VllmSpec(
-        model_type="gemma4",
-        prompt_file="internvl3_prompts.yaml",
-        description="Gemma 4 31B-it via vLLM (~58 GB BF16)",
-        mm_processor_kwargs={"max_soft_tokens": 560},
-        hf_overrides={
-            "vision_config": {"default_output_length": 560},
-            "vision_soft_tokens_per_image": 560,
-        },
     )
 )
