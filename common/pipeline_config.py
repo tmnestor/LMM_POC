@@ -106,8 +106,6 @@ class PipelineConfig:
 
     # Model loading options
     trust_remote_code: bool = True
-    use_fast_tokenizer: bool = False
-    low_cpu_mem_usage: bool = True
     device_map: str = "auto"
 
     # Multi-GPU options
@@ -138,18 +136,6 @@ class PipelineConfig:
             self.model_path = Path(self.model_path)
         if isinstance(self.ground_truth, str):
             self.ground_truth = Path(self.ground_truth)
-
-    @property
-    def torch_dtype(self):
-        """Convert dtype string to torch.dtype (lazy import)."""
-        import torch
-
-        dtype_map = {
-            "bfloat16": torch.bfloat16,
-            "float16": torch.float16,
-            "float32": torch.float32,
-        }
-        return dtype_map.get(self.dtype, torch.bfloat16)
 
 
 # ============================================================================
@@ -335,10 +321,6 @@ def load_yaml_config(
         ml = raw_config["model_loading"]
         if "trust_remote_code" in ml:
             flat_config["trust_remote_code"] = ml["trust_remote_code"]
-        if "use_fast_tokenizer" in ml:
-            flat_config["use_fast_tokenizer"] = ml["use_fast_tokenizer"]
-        if "low_cpu_mem_usage" in ml:
-            flat_config["low_cpu_mem_usage"] = ml["low_cpu_mem_usage"]
         if "device_map" in ml:
             flat_config["device_map"] = str(ml["device_map"])
 
