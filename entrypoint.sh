@@ -231,6 +231,19 @@ log ""
 # yield empty strings (safe under `set -u` with `${var:-}` later on).
 eval "$(python3 scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
 
+# ---- Route the fix_mistral_regex tokenizer cache to a writable dir ---- #
+# vLLM bakes a fix_mistral_regex-corrected tokenizer copy to disk (see
+# models/model_loader.ensure_corrected_tokenizer). Its default is ~/.cache,
+# which is NOT writable in the KFP prod pod — only the run_config.yml output
+# directory (output.dir -> YAML_OUTPUT_DIR) is. Point the cache there so the
+# pre-warm below AND the vLLM workers (which inherit this exported env, incl.
+# vLLM's spawned EngineCore children) can write it. An operator-set
+# LMM_TOKENIZER_CACHE always wins.
+if [[ -z "${LMM_TOKENIZER_CACHE:-}" && -n "${YAML_OUTPUT_DIR:-}" ]]; then
+  export LMM_TOKENIZER_CACHE="${YAML_OUTPUT_DIR%/}/tokenizer_cache"
+  log "Tokenizer cache dir: ${LMM_TOKENIZER_CACHE} (under run_config.yml output.dir)"
+fi
+
 # ---- GPU Health Check ---- #
 # Verify GPUs are accessible and healthy before loading ~16GB models onto them.
 # Catches ECC errors, fallen-off-bus GPUs, and driver mismatches early —
