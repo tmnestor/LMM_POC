@@ -182,6 +182,7 @@ class VllmBackend:
         messages = self._build_messages(
             image,
             prompt,
+            image_first=params.extra.get("image_first", False),
             max_tiles=params.extra.get("max_tiles"),
             min_tiles=params.extra.get("min_tiles", 1),
         )
