@@ -318,6 +318,10 @@ class DocumentOrchestrator:
             return self._resilient_generate(image, prompt, params)
         return self._backend.generate(image, prompt, params)
 
+    def cache_hit_summary(self) -> dict:
+        """Proxy the backend's cumulative prefix-cache hit summary."""
+        return self._backend.cache_hit_summary()
+
     def _resilient_generate(self, image: Image.Image, prompt: str, params: GenerationParams) -> str:
         """Generate with OOM recovery (halve tokens and retry).
 

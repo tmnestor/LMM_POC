@@ -58,6 +58,16 @@ class ModelBackend(Protocol):
         """
         ...
 
+    def cache_hit_summary(self) -> dict:
+        """Return cumulative prefix-cache hit statistics.
+
+        Returns:
+            Dict with at least ``{"available": bool}``.  When available,
+            also includes ``cached_prompt_tokens``, ``total_prompt_tokens``,
+            and ``hit_ratio``.
+        """
+        ...
+
 
 @runtime_checkable
 class BatchInference(Protocol):
