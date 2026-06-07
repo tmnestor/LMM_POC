@@ -47,6 +47,13 @@ class VllmBackend:
         # uses the model's own template. Forwarded to every engine.chat() call.
         self._chat_template = chat_template
         self._debug = debug
+        # Prefix/encoder cache observability: cumulative prompt tokens served
+        # from cache vs total, summed across generate() calls. None of vLLM's
+        # internals are assumed — if RequestOutput lacks num_cached_tokens on
+        # this build, the summary reports {"available": False}.
+        self._cached_prompt_tokens = 0
+        self._total_prompt_tokens = 0
+        self._cache_stats_available = True
         # Pre-tiling: when enabled, the backend crops each image into
         # ``max_tiles`` 448-square sub-images itself and hands vLLM the crops as
         # separate images, so OUR tile count is authoritative (vLLM's per-image
@@ -138,6 +145,35 @@ class VllmBackend:
             completion_tokens=len(completion_token_ids) if completion_token_ids else None,
         )
 
+    def _record_cache_stats(self, output: Any) -> None:
+        """Accumulate cached vs total prompt tokens from one RequestOutput.
+
+        The summary is only meaningful when both num_cached_tokens and
+        prompt_token_ids are present, so a single missing attribute latches the
+        backend's stats to "unavailable" (vLLM's output shape is uniform within
+        a run, so the first miss implies all subsequent ones miss too).
+        """
+        cached = getattr(output, "num_cached_tokens", None)
+        prompt_ids = getattr(output, "prompt_token_ids", None)
+        if cached is None or prompt_ids is None:
+            self._cache_stats_available = False
+            return
+        self._cached_prompt_tokens += int(cached)
+        self._total_prompt_tokens += len(prompt_ids)
+
+    def cache_hit_summary(self) -> dict[str, Any]:
+        """Cumulative prefix-cache hit summary across this backend's generates."""
+        if not self._cache_stats_available:
+            return {"available": False}
+        total = self._total_prompt_tokens
+        ratio = (self._cached_prompt_tokens / total) if total else 0.0
+        return {
+            "available": True,
+            "cached_prompt_tokens": self._cached_prompt_tokens,
+            "total_prompt_tokens": total,
+            "hit_ratio": ratio,
+        }
+
     def _build_messages(
         self,
         image: Image.Image,
@@ -199,6 +235,7 @@ class VllmBackend:
             use_tqdm=False,
         )
 
+        self._record_cache_stats(outputs[0])
         text = outputs[0].outputs[0].text.strip()
         self._emit_trace(
             prompt, text, getattr(outputs[0], "prompt_token_ids", None), outputs[0].outputs[0].token_ids
@@ -257,6 +294,7 @@ class VllmBackend:
             use_tqdm=False,
         )
 
+        self._record_cache_stats(outputs[0])
         text = outputs[0].outputs[0].text.strip()
         self._emit_trace(
             prompt, text, getattr(outputs[0], "prompt_token_ids", None), outputs[0].outputs[0].token_ids
