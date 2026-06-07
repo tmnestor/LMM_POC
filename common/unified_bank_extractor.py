@@ -20,41 +20,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .bank_band_split import (
-    band_count_for_height,
-    dedup_rows,
-    prepend_header,
-    split_into_bands,
-)
 from .bank_corrector import BalanceCorrector, TransactionFilter
 from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
 
 logger = logging.getLogger(__name__)
-
-
-def _band_row_key(mapping: ColumnMapping):
-    """Build a (date, amount, balance) key for seam de-dup from the column mapping.
-
-    Amount = first non-empty of debit/amount/credit; balance disambiguates rows
-    that share a date+amount. All normalised (lowercased date, digits-only amounts)
-    so the same physical row keys identically across two overlapping bands.
-    """
-    date_col = mapping.date or "Date"
-    amt_cols = [c for c in (mapping.debit, mapping.amount, mapping.credit) if c]
-    bal_col = mapping.balance
-
-    def key(row: dict[str, Any]):
-        d = re.sub(r"\s+", "", str(row.get(date_col) or "").lower())
-        amount = ""
-        for c in amt_cols:
-            v = str(row.get(c) or "").strip()
-            if v and v.upper() != "NOT_FOUND":
-                amount = re.sub(r"[^0-9.]", "", v)
-                break
-        bal = re.sub(r"[^0-9.]", "", str(row.get(bal_col) or "")) if bal_col else ""
-        return (d, amount, bal)
-
-    return key
 
 
 def _safe_print(msg: str) -> None:
@@ -557,7 +526,6 @@ class UnifiedBankExtractor:
         token_budgets: dict[str, int] | None = None,
         max_tiles: int | None = None,
         min_tiles: int | None = None,
-        band_split: dict[str, Any] | None = None,
     ):
         self.generate_fn = generate_fn
         self.use_balance_correction = use_balance_correction
@@ -571,19 +539,6 @@ class UnifiedBankExtractor:
         # it) — see plans/2026-06-04-adaptive-tiling-dense-bank.md.
         self._max_tiles = max_tiles
         self._min_tiles = min_tiles
-        # Band-split: the VLM under-reads long tables (~76% row recovery), so for
-        # tall statements we split the image into overlapping horizontal bands,
-        # extract each (short -> fully enumerated), and stitch with overlap-scoped
-        # de-dup. None/disabled -> single-pass (today's behaviour). Height-based
-        # band count. See plans/2026-06-05-band-split-bank-extraction.md.
-        bs = band_split or {}
-        self._band_split_enabled = bool(bs.get("enabled", False))
-        self._band_target_height = int(bs.get("target_band_height", 900))
-        self._band_overlap_frac = float(bs.get("overlap_frac", 0.08))
-        self._band_max = int(bs.get("max_bands", 6))
-        # Fraction of the statement height prepended to each band as a column-
-        # header strip (header-less strips mis-assign columns). 0 -> no header.
-        self._band_header_frac = float(bs.get("header_frac", 0.12))
 
         catalog = _default_catalog()
         self.column_matcher = ColumnMatcher()
@@ -614,56 +569,16 @@ class UnifiedBankExtractor:
         return self.generate_fn(image, prompt, max_tokens=max_tokens, extra=extra)
 
     def _extract_rows(
-        self, image: Any, prompt: str, parse_fn: Any, mapping: ColumnMapping
+        self, image: Any, prompt: str, parse_fn: Any
     ) -> tuple[list[dict[str, Any]], dict[str, str]]:
-        """Run turn-1 extraction, single-pass or band-split, and return parsed rows.
+        """Run turn-1 extraction (single full-image pass) and return parsed rows.
 
-        Band-split (tall statements): crop into overlapping horizontal bands,
-        extract + parse each (short -> fully enumerated, no attention-decay tail
-        loss), then stitch with overlap-scoped de-dup. Returns (rows, raw_responses)
-        where raw_responses keys go into ExtractionResult for tracing. Falls back to
-        a single full-image pass when disabled or the image is short.
-        See plans/2026-06-05-band-split-bank-extraction.md.
+        Returns (rows, raw_responses) where raw_responses keys go into
+        ExtractionResult for tracing.
         """
-        n_bands = 1
-        if self._band_split_enabled:
-            height = getattr(image, "height", None) or getattr(image, "size", (0, 0))[1]
-            n_bands = band_count_for_height(int(height), self._band_target_height, self._band_max)
-
-        if n_bands <= 1:
-            response = self._gen(image, prompt, self._extract_tokens)
-            self._log(f"[UBE]   single-pass response: {len(response)} chars")
-            return parse_fn(response), {"turn1": response}
-
-        h = getattr(image, "height", "?")
-        logger.info(
-            "band-split ON: %s-tall statement -> %d bands (overlap_frac=%s, header_frac=%s)",
-            h,
-            n_bands,
-            self._band_overlap_frac,
-            self._band_header_frac,
-        )
-        bands = split_into_bands(image, n_bands, self._band_overlap_frac)
-        # Column-header strip prepended to the header-less lower bands so columns
-        # assign correctly (band 0 already shows the header).
-        header = None
-        if self._band_header_frac > 0:
-            header = image.crop((0, 0, image.width, max(1, int(image.height * self._band_header_frac))))
-
-        all_rows: list[dict[str, Any]] = []
-        raw: dict[str, str] = {}
-        for i, band in enumerate(bands):
-            band_img = band if (i == 0 or header is None) else prepend_header(header, band)
-            response = self._gen(band_img, prompt, self._extract_tokens)
-            rows = parse_fn(response)
-            logger.info("band-split: band %d/%d -> %d rows", i + 1, n_bands, len(rows))
-            all_rows.extend(rows)
-            raw[f"turn1_band{i}"] = response
-        # Global de-dup: the header strip + seams repeat the top rows; balance
-        # makes bank rows unique so only true duplicates are dropped.
-        merged = dedup_rows(all_rows, _band_row_key(mapping))
-        logger.info("band-split: %d band-rows -> %d unique rows", len(all_rows), len(merged))
-        return merged, raw
+        response = self._gen(image, prompt, self._extract_tokens)
+        self._log(f"[UBE]   single-pass response: {len(response)} chars")
+        return parse_fn(response), {"turn1": response}
 
     def extract(
         self,
@@ -804,7 +719,7 @@ class UnifiedBankExtractor:
         credit_col = mapping.credit or "Credit"
         balance_col = mapping.balance or "Balance"
 
-        # Turn 1: extract rows (single-pass, or band-split for tall statements)
+        # Turn 1: extract rows (single full-image pass)
         self._log("[UBE] Turn 1: Calling model for extraction...")
         all_rows, raw1 = self._extract_rows(
             image,
@@ -817,7 +732,6 @@ class UnifiedBankExtractor:
                 credit_col=credit_col,
                 balance_col=balance_col,
             ),
-            mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} total transactions")
         for i, row in enumerate(all_rows[:3]):
@@ -970,7 +884,6 @@ class UnifiedBankExtractor:
                 amount_col=amount_col,
                 balance_col=balance_col,
             ),
-            mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} transactions")
         # DEBUG: Show first few parsed rows
@@ -1061,7 +974,7 @@ class UnifiedBankExtractor:
         debit_col = mapping.debit or "Debit"
         credit_col = mapping.credit or "Credit"
 
-        # Turn 1: extract rows (single-pass, or band-split for tall statements).
+        # Turn 1: extract rows (single full-image pass).
         # Reuse the balance-description parser (same response format).
         self._log("[UBE] Turn 1: Calling model for extraction (debit-credit)...")
         all_rows, raw1 = self._extract_rows(
@@ -1075,7 +988,6 @@ class UnifiedBankExtractor:
                 credit_col=credit_col,
                 balance_col="Balance",  # Placeholder, not used
             ),
-            mapping,
         )
         self._log(f"[UBE]   Parsed {len(all_rows)} transactions")
         for i, row in enumerate(all_rows[:3]):

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Measure bank-statement row under-extraction (band-split regression gauge).
+"""Measure bank-statement row under-extraction (extraction-quality gauge).
 
 Compares extracted transaction-row count vs ground-truth row count per bank
 statement on the transaction-linking set. The headline number — % of rows
-extracted — is the gauge for the band-split work: today it's ~76%; band-split
-should push it toward ~95%+.
+extracted — is the diagnostic for dense bank-table under-extraction (the
+established root cause of transaction-linking misses).
 
-Phase 0 of plans/2026-06-05-band-split-bank-extraction.md. Pure CPU; reads the
-GT CSV (TRANSACTION_DATES) and the run's cleaned_extractions.jsonl.
+Pure CPU; reads the GT CSV (TRANSACTION_DATES) and the run's
+cleaned_extractions.jsonl.
 
 Usage:
     python scripts/measure_bank_row_extraction.py <linking_dir>

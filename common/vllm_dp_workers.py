@@ -287,7 +287,6 @@ def classified_extract_worker(
                 use_balance_correction=config.balance_correction,
                 max_tiles=(bank_budget["max_tiles"] if config.pre_tiling_enabled else None),
                 min_tiles=(bank_budget["min_tiles"] if config.pre_tiling_enabled else None),
-                band_split=app_cfg.band_split_config(),
             )
             logger.info("Bank adapter enabled (GPU %d)", gpu_id)
 
@@ -299,9 +298,8 @@ def classified_extract_worker(
             image_name = classification["image_name"]
             doc_type = classification["document_type"]
 
-            # Progress up front: band-split makes a single bank statement take
-            # several minutes across its bands, so log the start (not just the
-            # end) to track which of N statements is in flight.
+            # Progress up front: a dense bank statement can take a while, so log
+            # the start (not just the end) to track which of N is in flight.
             logger.info("[%d/%d] extracting %s (%s)...", idx + 1, total, image_name, doc_type)
 
             img_start = time.time()

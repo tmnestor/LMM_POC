@@ -259,7 +259,6 @@ def run(
                 use_balance_correction=config.balance_correction,
                 max_tiles=(bank_budget["max_tiles"] if config.pre_tiling_enabled else None),
                 min_tiles=(bank_budget["min_tiles"] if config.pre_tiling_enabled else None),
-                band_split=app_cfg.band_split_config(),
             )
             logger.info("Bank adapter enabled")
 
