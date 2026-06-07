@@ -50,7 +50,7 @@ from common.transaction_matcher import (
     group_by_case,
     match_all_receipts,
 )
-from common.vlm_linker import call_vlm_linker, load_link_prompt
+from common.vlm_linker import LinkPrompt, call_vlm_linker, load_link_prompt
 
 from .io import read_jsonl, write_jsonl
 
@@ -339,7 +339,7 @@ def _run_vlm_fallback(
     *,
     generate_fn: Any,
     data_dir: Path,
-    prompt: str,
+    prompt: LinkPrompt,
     max_tokens: int,
 ) -> bool:
     """Run targeted VLM lookup for one unmatched receipt across bank images.

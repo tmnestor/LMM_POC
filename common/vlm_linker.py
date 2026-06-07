@@ -23,13 +23,27 @@ call_vlm_linker()     -- Full round-trip: build -> generate -> parse
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from PIL import Image
 
 from common.transaction_matcher import ReceiptSummary
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Data types
+# ---------------------------------------------------------------------------
+
+
+class LinkPrompt(NamedTuple):
+    """Two-part linking prompt: a statement-only ``prefix`` shared across all
+    receipts for one statement (cacheable), and a per-receipt ``query`` suffix."""
+
+    prefix: str
+    query: str
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -185,8 +199,8 @@ def _is_placeholder(block: dict[str, str]) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def load_link_prompt(prompt_name: str | None = None) -> str:
-    """Load a linking prompt template from YAML.
+def load_link_prompt(prompt_name: str | None = None) -> LinkPrompt:
+    """Load a two-part linking prompt (prefix + query) from YAML.
 
     Args:
         prompt_name: Base name of the prompt file (without ``.yaml`` extension).
@@ -194,13 +208,14 @@ def load_link_prompt(prompt_name: str | None = None) -> str:
             If None, loads the default ``single_receipt_link`` prompt.
 
     Returns:
-        The prompt template string.
+        A :class:`LinkPrompt` with ``prefix`` (statement instructions, cacheable)
+        and ``query`` (per-receipt key + answer block).
 
     Raises:
         FileNotFoundError: With a diagnostic error message if the YAML file is
             missing.
-        KeyError: With a diagnostic error message if the ``template`` key is
-            absent from the YAML.
+        KeyError: With a diagnostic error message if either ``prefix_template``
+            or ``query_template`` key is absent from the YAML.
     """
     import yaml
 
@@ -211,44 +226,60 @@ def load_link_prompt(prompt_name: str | None = None) -> str:
         msg = (
             f"What: linking prompt YAML file is missing.\n"
             f"Where: {prompt_path}\n"
-            f"Expected: a YAML file with a 'template' key containing the linking prompt.\n"
-            f"How to fix: create {prompt_path} with a 'template:' key, "
-            f"e.g.:\n  template: |\n    --- RECEIPT 1 ---\n    ..."
+            f"Expected: a YAML file with 'prefix_template' and 'query_template' keys.\n"
+            f"How to fix: create {prompt_path} with both keys, e.g.:\n"
+            f"  prefix_template: |\n"
+            f"    You are given ONE document image: a BANK STATEMENT ...\n"
+            f"  query_template: |\n"
+            f"    RECEIPT TO LOCATE: ...\n"
+            f"    --- RECEIPT 1 ---\n"
+            f"    RECEIPT_STORE: ..."
         )
         raise FileNotFoundError(msg)
 
     with prompt_path.open() as fh:
         data = yaml.safe_load(fh)
 
-    if "template" not in data:
+    missing = [k for k in ("prefix_template", "query_template") if k not in data]
+    if missing:
         msg = (
-            f"What: 'template' key is missing from the linking prompt YAML.\n"
-            f"Where: {prompt_path} — top-level key 'template'\n"
-            f"Expected: a string value under the 'template' key, e.g.:\n"
-            f"  template: |\n    --- RECEIPT 1 ---\n    RECEIPT_STORE: ...\n"
-            f"How to fix: add a 'template:' block to {prompt_path}."
+            f"What: linking prompt YAML is missing key(s): {', '.join(missing)}.\n"
+            f"Where: {prompt_path} — top-level keys 'prefix_template' and 'query_template'\n"
+            f"Expected: both a 'prefix_template:' (statement instructions, no receipt "
+            f"data) and a 'query_template:' (per-receipt key + answer block).\n"
+            f"How to fix: add the missing key(s) to {prompt_path}, e.g.:\n"
+            f"  prefix_template: |\n"
+            f"    You are given ONE document image: a BANK STATEMENT ...\n"
+            f"  query_template: |\n"
+            f"    RECEIPT TO LOCATE: ...\n"
+            f"    --- RECEIPT 1 ---\n"
+            f"    RECEIPT_STORE: ..."
         )
         raise KeyError(msg)
 
-    return data["template"]
+    return LinkPrompt(prefix=data["prefix_template"], query=data["query_template"])
 
 
 def build_link_prompt(
     receipt: ReceiptSummary,
-    prompt: str | None = None,
+    prompt: LinkPrompt | None = None,
     bank_columns: dict[str, Any] | None = None,
 ) -> str:
-    """Build the linking prompt text for a single receipt + bank statement.
+    """Render prefix (with bank column context) + query (with receipt key).
 
-    Substitutes the receipt's extracted details and the bank column context
-    into the template's ``{receipt_store}`` / ``{receipt_date}`` /
-    ``{receipt_total}`` / ``{bank_column_context}`` placeholders.
+    Substitutes ``{bank_column_context}`` in the prefix and
+    ``{receipt_store}`` / ``{receipt_date}`` / ``{receipt_total}``
+    in the query, then concatenates them into a single prompt string.
+
+    Returns ``prefix + query`` — prefix first, so the statement prefix stays a
+    stable shared prefix for vLLM's cache.
 
     Args:
         receipt: The receipt summary (supplier, date, total) to look up.
-        prompt: Prompt template. If None, calls :func:`load_link_prompt`.
+        prompt: Two-part :class:`LinkPrompt`. If None, calls
+            :func:`load_link_prompt`.
         bank_columns: Bank column metadata (headers + mapping) from extraction.
-            If provided, injects specific column names into the prompt template.
+            If provided, injects specific column names into the prefix.
             If None, uses generic fallback text.
 
     Returns:
@@ -262,12 +293,13 @@ def build_link_prompt(
     else:
         context = _GENERIC_COLUMN_CONTEXT
 
-    return (
-        prompt.replace("{bank_column_context}", context)
-        .replace("{receipt_store}", _format_receipt_store(receipt))
+    prefix = prompt.prefix.replace("{bank_column_context}", context)
+    query = (
+        prompt.query.replace("{receipt_store}", _format_receipt_store(receipt))
         .replace("{receipt_date}", _format_receipt_date(receipt))
         .replace("{receipt_total}", _format_receipt_total(receipt))
     )
+    return prefix + query
 
 
 def parse_link_response(raw_response: str) -> list[dict[str, str]]:
@@ -322,23 +354,24 @@ def call_vlm_linker(
     receipt: ReceiptSummary,
     *,
     max_tokens: int = 1024,
-    prompt: str | None = None,
+    prompt: LinkPrompt | None = None,
     bank_columns: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Send the bank-statement image + receipt details to the model and parse.
 
     Builds the single-image prompt (bank statement pixels + receipt fields as
-    text), calls the shared extract seam ``generate_fn(image, prompt,
-    max_tokens=...)`` (deterministic decoding — temperature is fixed at 0 by
-    the backend), and returns parsed receipt match records.
+    text), calls the shared extract seam
+    ``generate_fn(image, prompt, max_tokens=..., extra={"image_first": True})``
+    (deterministic decoding — temperature is fixed at 0 by the backend), and
+    returns parsed receipt match records.
 
     Args:
         generate_fn: The processor's ``generate`` callable, i.e.
-            ``processor.generate(image: Image, prompt: str, max_tokens: int) -> str``.
+            ``processor.generate(image, prompt, max_tokens, extra) -> str``.
         bank_path: Path to the bank-statement image file.
         receipt: Receipt summary to locate in the statement.
         max_tokens: Maximum tokens to generate.
-        prompt: Override prompt. If None, loads from YAML via
+        prompt: Two-part :class:`LinkPrompt`. If None, loads from YAML via
             :func:`load_link_prompt`.
         bank_columns: Bank column metadata from the extraction stage. If
             provided, injects specific column names into the linking prompt.
@@ -350,7 +383,7 @@ def call_vlm_linker(
     full_prompt = build_link_prompt(receipt, prompt=prompt, bank_columns=bank_columns)
     image = _load_image(bank_path)
 
-    text = generate_fn(image, full_prompt, max_tokens=max_tokens)
+    text = generate_fn(image, full_prompt, max_tokens=max_tokens, extra={"image_first": True})
     text = (text or "").strip()
 
     logger.info(

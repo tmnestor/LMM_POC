@@ -1,35 +1,27 @@
 # prompts/single_receipt_link.yaml
-# Single-receipt transaction linking prompt (text-details variant).
+# Two-part single-image transaction-linking prompt.
 #
-# Sent with ONE image: the BANK STATEMENT. The receipt has already been read
-# by the extract stage, so its details (store, date, total) are supplied below
-# as TEXT rather than as a second image. This focuses the model on the one task
-# the algorithmic matcher cannot do reliably: scanning the long, attention-
-# decayed tail of the transaction table for the matching debit row.
+# Sent IMAGE-FIRST with ONE image: the BANK STATEMENT. The prompt is split so
+# the statement instructions form a cacheable prefix shared by every receipt
+# queried against the same statement; only the per-receipt query suffix varies.
 #
-# Placeholders substituted by common.vlm_linker.build_link_prompt:
-#   {receipt_store}        -- supplier/merchant name (or NOT_FOUND)
-#   {receipt_date}         -- receipt date DD/MM/YYYY (or NOT_FOUND)
-#   {receipt_total}        -- receipt grand total, 2dp decimal (or NOT_FOUND)
-#   {bank_column_context}  -- description of the statement's columns
+# prefix_template placeholders:  {bank_column_context}
+# query_template placeholders:   {receipt_store} {receipt_date} {receipt_total}
 
 name: single_receipt_link
 description: >
-  Targeted single-image linking fallback. The receipt is described in text
-  (store, date, total from the extract stage); the model only has to find the
-  matching debit row in the supplied bank-statement image. Used when the
-  algorithmic matcher cannot confidently link a receipt.
+  Targeted single-image linking fallback, split into a cacheable statement-only
+  prefix and a per-receipt query suffix so vLLM's prefix cache can reuse the
+  bank-statement encode across every receipt queried against it.
 
-template: |
+# Shared prefix — IDENTICAL for every receipt against one statement.
+# MUST NOT contain any {receipt_*} placeholder (enforced by a unit test).
+prefix_template: |
   You are given ONE document image: a BANK STATEMENT with a table of transactions.
 
-  A receipt has already been read for you. Its details are:
-  - STORE / SUPPLIER: {receipt_store}
-  - DATE: {receipt_date}
-  - GRAND TOTAL: {receipt_total}
-
-  YOUR TASK: Find the single debit transaction in the bank statement table that
-  matches this receipt's grand total.
+  YOUR TASK: find the single debit transaction in the bank statement whose
+  absolute amount equals the GRAND TOTAL of the receipt described AFTER these
+  instructions.
 
   SCAN THE BANK STATEMENT
   {bank_column_context}
@@ -38,7 +30,7 @@ template: |
 
   1. AMOUNT MATCH (decisive — this alone is sufficient):
      Scan each row in the transaction table. Find any debit/withdrawal
-     whose absolute value equals the receipt GRAND TOTAL above.
+     whose absolute value equals the receipt GRAND TOTAL given below.
      - Debits may appear as positive numbers in a "Debit" column
      - Or as negative numbers in an "Amount" column (e.g. -$567.30)
      - IGNORE minus signs — compare absolute values only
@@ -52,7 +44,7 @@ template: |
 
   2. TIEBREAKER (only when MULTIPLE rows share the same amount):
      If two or more rows have the same debit amount, use the receipt
-     STORE and DATE above to pick the best row:
+     STORE and DATE given below to pick the best row:
      - Bank descriptions are abbreviated to ~18-20 characters, uppercased
      - "Bunnings Warehouse" -> "BUNNINGS W/HOUSE" or "BUNNINGS WHSE"
      - BPAY entries show the payee name and a CRN reference number
@@ -65,7 +57,17 @@ template: |
   Do NOT reject a match just because the description looks different —
   amount is the primary matching signal.
 
-  Return ONLY the structured block below, no other commentary.
+  Return ONLY the structured block specified below, no other commentary.
+
+# Per-receipt suffix — the varying part. Receipt values appear ONLY here.
+# NOTE: the leading blank line below is intentional — it separates the prefix's
+# final line from the receipt header in the concatenated prefix+query prompt.
+query_template: |
+
+  RECEIPT TO LOCATE:
+  - STORE / SUPPLIER: {receipt_store}
+  - DATE: {receipt_date}
+  - GRAND TOTAL: {receipt_total}
 
   --- RECEIPT 1 ---
   RECEIPT_STORE: {receipt_store}
