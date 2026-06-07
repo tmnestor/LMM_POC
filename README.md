@@ -1017,17 +1017,13 @@ dataclass defaults; closing that gap is a handover task (see below).
 ├── models/
 │   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
 │   ├── backend.py                         # ModelBackend + BatchInference Protocols
-│   ├── registry.py                        # Declarative ModelSpec/VllmSpec registrations
-│   ├── model_loader.py                    # Generic loader factories
+│   ├── registry.py                        # Declarative VllmSpec registrations
+│   ├── model_loader.py                    # vLLM loader factory
 │   ├── orchestrator.py                    # DocumentOrchestrator (composition-based)
 │   ├── attention.py                       # SDPA attention routing (manual KV expansion)
 │   ├── sharding.py                        # Multi-GPU model sharding (14B/38B only)
-│   ├── internvl3_image_preprocessor.py    # InternVL3 tiling / preprocessing
 │   └── backends/
-│       ├── internvl3.py                   # .chat() / .batch_chat()   (SUPPORTED)
-│       ├── llama.py                        # unsupported
-│       ├── hf_chat_template.py             # unsupported (Qwen, Nemotron, Granite, …)
-│       └── vllm_backend.py                 # SUPPORTED (internvl3-vllm) + unsupported vLLM keys
+│       └── vllm_backend.py                 # vLLM backend (internvl3-vllm)
 ├── common/
 │   ├── app_config.py                      # AppConfig.load() — cascade + fail-fast validation
 │   ├── pipeline_config.py                 # PipelineConfig dataclass + env mappings

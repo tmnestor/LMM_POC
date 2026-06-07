@@ -1,12 +1,11 @@
 """Pure-PIL InternVL dynamic tiling — the single source for tile cropping.
 
 The official InternVL ``dynamic_preprocess`` algorithm, with no torch / torchvision
-dependency so it can be used in the vLLM pre-tiling path (where images are cropped
-ourselves and handed to vLLM as separate sub-images) as well as the HF preprocessor.
+dependency so it can be used in the vLLM pre-tiling path, where images are cropped
+ourselves and handed to vLLM as separate sub-images.
 
-Both ``models/internvl3_image_preprocessor.py`` (HF path) and
-``models/backends/vllm_backend.py`` (vLLM pre-tiling path) delegate here, so the two
-paths tile identically — see ``plans/2026-06-04-adaptive-pre-tiling.md``.
+``models/backends/vllm_backend.py`` (vLLM pre-tiling path) delegates here — see
+``plans/2026-06-04-adaptive-pre-tiling.md``.
 """
 
 from PIL import Image

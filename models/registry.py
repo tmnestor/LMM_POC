@@ -81,87 +81,12 @@ def _get_requires_sharding(model_type: str) -> bool:
 
 
 # ============================================================================
-# Backend factory functions (lazy imports — only run at model-load time)
-# ============================================================================
-
-
-def _internvl3_backend(model, tokenizer, debug):
-    """Build InternVL3 backend with .chat() / .batch_chat() API."""
-    from models.backends.internvl3 import InternVL3Backend
-
-    return InternVL3Backend(model=model, tokenizer=tokenizer, debug=debug)
-
-
-def _internvl3_post_load(model, processor, cfg):
-    """Set pad_token_id to suppress generation warnings."""
-    if hasattr(model, "generation_config"):
-        model.generation_config.pad_token_id = processor.eos_token_id
-
-
-# ============================================================================
-# Declarative registrations via ModelSpec / VllmSpec
+# Declarative registrations via VllmSpec
 #
-# Each ModelSpec replaces ~200 lines of hand-written loader + processor_creator.
 # Each VllmSpec replaces ~120 lines of hand-written vLLM loader + creator.
 # ============================================================================
 
-from models.model_loader import (  # noqa: E402
-    ModelSpec,
-    VllmSpec,
-    register_hf_model,
-    register_vllm_model,
-)
-
-# -- InternVL3 family (custom backend: model.chat() / model.batch_chat() API) --
-
-register_hf_model(
-    ModelSpec(
-        model_type="internvl3",
-        model_class="AutoModel",
-        processor_class="AutoTokenizer",
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-8B vision-language model",
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2",
-        load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
-        backend_factory=_internvl3_backend,
-        post_load=_internvl3_post_load,
-    )
-)
-
-register_hf_model(
-    ModelSpec(
-        model_type="internvl3-14b",
-        model_class="AutoModel",
-        processor_class="AutoTokenizer",
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-14B vision-language model (~30 GB BF16)",
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2",
-        load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
-        backend_factory=_internvl3_backend,
-        post_load=_internvl3_post_load,
-    )
-)
-
-register_hf_model(
-    ModelSpec(
-        model_type="internvl3-38b",
-        model_class="AutoModel",
-        processor_class="AutoTokenizer",
-        prompt_file="internvl3_prompts.yaml",
-        description="InternVL3.5-38B vision-language model (2x L40S)",
-        requires_sharding=True,
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2",
-        load_kwargs={"low_cpu_mem_usage": True, "use_flash_attn": True},
-        processor_kwargs={"use_fast": True, "fix_mistral_regex": True},
-        backend_factory=_internvl3_backend,
-        post_load=_internvl3_post_load,
-    )
-)
+from models.model_loader import VllmSpec, register_vllm_model  # noqa: E402
 
 # -- vLLM models -----------------------------------------------------------------
 
