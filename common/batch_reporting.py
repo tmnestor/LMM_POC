@@ -86,9 +86,6 @@ class BatchReporter:
         if self.timestamp.startswith("internvl3_"):
             model_name = "InternVL3"
             model_version = "InternVL3-8B"  # Default to 8B, could be enhanced to detect 2B
-        elif self.timestamp.startswith("llama_") or "llama" in self.timestamp.lower():
-            model_name = "Llama Vision"
-            model_version = "Llama-3.2-11B-Vision-Instruct"
 
         # Build report
         report = f"""# {model_name} Batch Processing Report

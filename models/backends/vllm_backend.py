@@ -170,18 +170,6 @@ class VllmBackend:
 
         return [{"role": "user", "content": content}]
 
-    def _chat_template_kwargs(self) -> dict[str, Any]:
-        """Build chat_template_kwargs for thinking suppression.
-
-        Only affects Qwen3/Gemma-style templates that honour the
-        ``enable_thinking`` variable. InternVL3.5 ignores it — and on that family
-        sending ANY system prompt turns thinking ON, so detection sends none: a
-        bare user message keeps the model in direct-answer mode.
-        """
-        if self._model_type_key.startswith(("qwen35", "gemma4")):
-            return {"chat_template_kwargs": {"enable_thinking": False}}
-        return {}
-
     def generate(
         self,
         image: Image.Image,
@@ -208,7 +196,6 @@ class VllmBackend:
             sampling_params=sampling,
             chat_template=self._chat_template,
             use_tqdm=False,
-            **self._chat_template_kwargs(),
         )
 
         text = outputs[0].outputs[0].text.strip()
@@ -267,7 +254,6 @@ class VllmBackend:
             sampling_params=sampling,
             chat_template=self._chat_template,
             use_tqdm=False,
-            **self._chat_template_kwargs(),
         )
 
         text = outputs[0].outputs[0].text.strip()

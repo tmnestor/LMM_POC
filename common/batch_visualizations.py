@@ -58,8 +58,6 @@ class BatchVisualizer:
         model_name = "Vision Model"  # Default fallback
         if timestamp.startswith("internvl3_"):
             model_name = "InternVL3"
-        elif timestamp.startswith("llama_") or "llama" in timestamp.lower():
-            model_name = "Llama Vision"
 
         fig.suptitle(
             f"{model_name} Batch Processing Dashboard - {timestamp}",

@@ -52,19 +52,16 @@ class BatchSettings:
         "internvl3": 4,
         "internvl3-2b": 4,
         "internvl3-8b": 4,
-        "qwen3vl": 4,
     }
     _MAX_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 8,
         "internvl3-2b": 8,
         "internvl3-8b": 16,
-        "qwen3vl": 8,
     }
     _CONSERVATIVE_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 1,
         "internvl3-2b": 2,
         "internvl3-8b": 1,
-        "qwen3vl": 2,
     }
 
     @classmethod

@@ -24,56 +24,6 @@ _GENERATION_CONFIG_SCHEMA: dict[str, dict] = {
         "use_cache": True,
         "pad_token_id": None,  # Set dynamically from tokenizer
     },
-    "llama": {
-        "max_new_tokens_base": 400,
-        "max_new_tokens_per_field": 50,
-        "temperature": 0.0,
-        "do_sample": False,
-        "top_p": 0.95,
-        "use_cache": True,
-    },
-    "llama4scout": {
-        "max_new_tokens_base": 512,
-        "max_new_tokens_per_field": 64,
-        "temperature": 0.0,
-        "do_sample": False,
-        "top_p": 0.95,
-        "use_cache": True,
-    },
-    "qwen3vl": {
-        "max_new_tokens_base": 512,
-        "max_new_tokens_per_field": 64,
-        "temperature": 0.0,
-        "do_sample": False,
-        "top_p": 0.95,
-        "use_cache": True,
-    },
-    "qwen35": {
-        "max_new_tokens_base": 512,
-        "max_new_tokens_per_field": 64,
-        "temperature": 0.0,
-        "do_sample": False,
-        "top_p": 0.95,
-        "use_cache": True,
-    },
-    "nemotron": {
-        "max_new_tokens_base": 512,
-        "max_new_tokens_per_field": 64,
-        "temperature": 0.0,
-        "do_sample": False,
-        "top_p": 0.95,
-        "use_cache": True,
-    },
-    "gemma4": {
-        "max_new_tokens_base": 512,
-        "max_new_tokens_per_field": 64,
-        "do_sample": False,
-    },
-    "granite4": {
-        "max_new_tokens_base": 1024,
-        "max_new_tokens_per_field": 64,
-        "do_sample": False,
-    },
 }
 
 # Backwards-compat alias: _build_generation_registry() in app_config.py
@@ -85,9 +35,9 @@ def get_generation_config(model_type: str) -> dict:
     """Look up generation config by model type key.
 
     Returns a *copy* so callers can mutate without affecting the originals.
-    Falls back to QWEN3VL config for unknown models.
+    Falls back to InternVL3 config for unknown models.
     """
-    return dict(_GENERATION_CONFIG_SCHEMA.get(model_type, _GENERATION_CONFIG_SCHEMA["qwen3vl"]))
+    return dict(_GENERATION_CONFIG_SCHEMA.get(model_type, _GENERATION_CONFIG_SCHEMA["internvl3"]))
 
 
 # ============================================================================
