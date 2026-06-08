@@ -35,6 +35,139 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
+# ---------------------------------------------------------------------------
+# Configuration (fail-fast, 4-element diagnostics)
+# ---------------------------------------------------------------------------
+
+
+def _diagnostic(what: str, where: str, example: str, fix: str) -> str:
+    """Assemble a 4-element diagnostic error message."""
+    return f"What: {what}\nWhere: {where}\nExpected: {example}\nHow to fix: {fix}"
+
+
+def _load_trust_eval_config(config_path: Path | None) -> dict[str, Any]:
+    """Load and validate the ``pipeline.trust`` eval settings from run_config.yml.
+
+    Reads the amount-match tolerance and the id/amount field split used by the
+    per-field accuracy loop. Every key is REQUIRED; a missing or invalid value
+    fails fast with a 4-element diagnostic (what / where / valid example /
+    remediation) before any work begins.
+
+    Args:
+        config_path: Path to run_config.yml. Defaults to the repo config.
+
+    Returns:
+        ``{"amount_tolerance": float, "id_fields": set[str],
+        "amount_fields": set[str]}``.
+    """
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "config" / "run_config.yml"
+
+    if not config_path.exists():
+        raise FileNotFoundError(
+            _diagnostic(
+                what="the configuration file is missing.",
+                where=str(config_path),
+                example="a YAML file with a 'pipeline.trust:' section.",
+                fix=f"create {config_path} or pass --config with a valid path.",
+            )
+        )
+
+    with config_path.open() as f:
+        raw = yaml.safe_load(f) or {}
+
+    pipeline_section = raw.get("pipeline", {})
+    if "trust" not in pipeline_section:
+        raise ValueError(
+            _diagnostic(
+                what="the key 'pipeline.trust' is absent.",
+                where=f"{config_path} -> pipeline.trust",
+                example=(
+                    "pipeline:\n"
+                    "    trust:\n"
+                    "        amount_tolerance: 0.01\n"
+                    "        linking_fields:\n"
+                    "            id_fields: [trust_abn, beneficiary_tfn]\n"
+                    "            amount_fields: [share_of_net_income, franking_credit]"
+                ),
+                fix=f"add a 'pipeline.trust:' section to {config_path}.",
+            )
+        )
+
+    trust = pipeline_section["trust"]
+
+    if "amount_tolerance" not in trust:
+        raise ValueError(
+            _diagnostic(
+                what="required key 'pipeline.trust.amount_tolerance' is missing.",
+                where=f"{config_path} -> pipeline.trust.amount_tolerance",
+                example="a relative tolerance float, e.g.: 0.01",
+                fix=f"add 'amount_tolerance: 0.01' under 'pipeline.trust:' in {config_path}.",
+            )
+        )
+    try:
+        amount_tolerance = float(trust["amount_tolerance"])
+    except (TypeError, ValueError):
+        raise ValueError(
+            _diagnostic(
+                what=(
+                    f"'pipeline.trust.amount_tolerance' is {trust['amount_tolerance']!r}, "
+                    "which is not a number."
+                ),
+                where=f"{config_path} -> pipeline.trust.amount_tolerance",
+                example="a relative tolerance float, e.g.: 0.01",
+                fix=f"set 'pipeline.trust.amount_tolerance' to a float in {config_path}.",
+            )
+        ) from None
+
+    if "linking_fields" not in trust or not isinstance(trust["linking_fields"], dict):
+        raise ValueError(
+            _diagnostic(
+                what=(
+                    "'pipeline.trust.linking_fields' is missing or is not a nested "
+                    "mapping of 'id_fields'/'amount_fields'."
+                ),
+                where=f"{config_path} -> pipeline.trust.linking_fields",
+                example=(
+                    "linking_fields:\n"
+                    "    id_fields: [trust_abn, beneficiary_tfn]\n"
+                    "    amount_fields: [share_of_net_income, franking_credit]"
+                ),
+                fix="replace any flat 'linking_fields' list with the nested "
+                "'id_fields'/'amount_fields' mapping in "
+                f"{config_path}.",
+            )
+        )
+    linking_fields = trust["linking_fields"]
+
+    id_fields = _require_field_list(linking_fields, "id_fields", config_path)
+    amount_fields = _require_field_list(linking_fields, "amount_fields", config_path)
+
+    return {
+        "amount_tolerance": amount_tolerance,
+        "id_fields": id_fields,
+        "amount_fields": amount_fields,
+    }
+
+
+def _require_field_list(linking_fields: dict[str, Any], key: str, config_path: Path) -> set[str]:
+    """Return ``linking_fields[key]`` as a non-empty ``set[str]`` or fail fast."""
+    value = linking_fields.get(key)
+    if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
+        raise ValueError(
+            _diagnostic(
+                what=(
+                    f"'pipeline.trust.linking_fields.{key}' is missing, empty, or not a "
+                    "non-empty list of strings."
+                ),
+                where=f"{config_path} -> pipeline.trust.linking_fields.{key}",
+                example=f"{key}: [field_a, field_b]",
+                fix=f"add a non-empty list under 'pipeline.trust.linking_fields.{key}' in {config_path}.",
+            )
+        )
+    return set(value)
+
+
 def _load_classification_gt(path: Path) -> dict[str, str]:
     """Load classification ground truth YAML (filename -> document_type)."""
     with path.open() as f:
@@ -153,6 +286,7 @@ def run(
     classifications_path: Path | None = None,
     classification_gt_path: Path | None = None,
     inference_seconds: float | None = None,
+    config_path: Path | None = None,
 ) -> Path:
     """Evaluate trust distribution linking results.
 
@@ -163,10 +297,18 @@ def run(
         classifications_path: Optional path to trust_classifications.jsonl.
         classification_gt_path: Optional path to trust_classification_gt.yml.
         inference_seconds: GPU inference wall-clock seconds for throughput.
+        config_path: Path to run_config.yml supplying ``pipeline.trust`` eval
+            settings (amount_tolerance, id/amount field split). Defaults to the
+            repo config.
 
     Returns:
         Path to the written trust_evaluation_results.jsonl.
     """
+    trust_eval_cfg = _load_trust_eval_config(config_path)
+    id_fields = trust_eval_cfg["id_fields"]
+    amount_fields = trust_eval_cfg["amount_fields"]
+    amount_tolerance = trust_eval_cfg["amount_tolerance"]
+    linking_fields = id_fields | amount_fields
     records = read_jsonl(extractions_path)
     if not records:
         msg = f"No records found in {extractions_path}"
@@ -194,10 +336,6 @@ def run(
 
     # --- Evaluate each record ---
     eval_results: list[dict[str, Any]] = []
-
-    id_fields = {"trust_abn", "beneficiary_tfn"}
-    amount_fields = {"share_of_net_income", "franking_credit", "capital_gain_component"}
-    linking_fields = id_fields | amount_fields
 
     for record in records:
         case_id = record.get("image_name", "")
@@ -250,7 +388,7 @@ def run(
             if field_name in id_fields:
                 correct = _ids_match(extracted_val, expected_val)
             else:
-                correct = _amounts_match(extracted_val, expected_val)
+                correct = _amounts_match(extracted_val, expected_val, amount_tolerance)
 
             case_field_accuracy[field_name] = correct
             if not correct:
@@ -483,6 +621,9 @@ def main(
         "--inference-seconds",
         help="GPU inference wall-clock seconds for throughput computation",
     ),
+    config: Path | None = typer.Option(
+        None, "--config", help="YAML configuration file (for pipeline.trust eval settings)"
+    ),
 ) -> None:
     """Evaluate trust distribution compliance detection (CPU only)."""
     logging.basicConfig(
@@ -496,6 +637,7 @@ def main(
         classifications_path=classifications,
         classification_gt_path=classification_gt,
         inference_seconds=inference_seconds,
+        config_path=config,
     )
 
 

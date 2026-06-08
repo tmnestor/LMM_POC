@@ -526,6 +526,7 @@ _run_trust_evaluate() {
     --input        "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
     --ground-truth "${trust_ground_truth:?trust_ground_truth is required — set via pipeline.trust.ground_truth in run_config.yml or trust_ground_truth env var}" \
     --output-dir   "$TRUST_EVAL_DIR" \
+    --config       "$CONFIG_FILE" \
     "${OPT_CLASSIFICATIONS[@]}" \
     "${OPT_CLASSIFICATION_GT[@]}" \
     "${INFERENCE_ARGS[@]}" || exit $?

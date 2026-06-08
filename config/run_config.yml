@@ -214,13 +214,17 @@ pipeline:
       #   distribution_stmt: distribution_statements
       #   income_schedule: trust_income_schedules
       #   beneficiary_itr: beneficiary_itrs
-    amount_tolerance: 0.01
+    amount_tolerance: 0.01    # trust-eval amount match tolerance (relative)
     linking_fields:
-      - trust_abn
-      - beneficiary_tfn
-      - share_of_net_income
-      - franking_credit
-      - capital_gain_component
+      # ID fields compared as ABN/TFN (space-normalised exact match)
+      id_fields:
+        - trust_abn
+        - beneficiary_tfn
+      # Amount fields compared numerically within amount_tolerance
+      amount_fields:
+        - share_of_net_income
+        - franking_credit
+        - capital_gain_component
 
   # Transaction linking — receipt/invoice -> bank-statement debit matching.
   # Standalone task (KFP_TASK=run_transaction_link); does NOT touch the trust
