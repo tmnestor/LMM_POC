@@ -72,7 +72,7 @@ class BatchSettings:
         conservative_sizes = dict(cls._CONSERVATIVE_SIZES)
         kwargs: dict[str, Any] = {}
 
-        batch = raw_config.get("batch", {})
+        batch = raw_config.get("pipeline", {}).get("batch", {})
         if batch:
             if "default_sizes" in batch:
                 default_sizes.update(batch["default_sizes"])
@@ -309,7 +309,7 @@ class AppConfig:
         fields = get_field_schema()
 
         # 12. Token budgets — YAML is the single source of truth
-        yaml_budgets = raw_config.get("token_budgets", {})
+        yaml_budgets = raw_config.get("pipeline", {}).get("token_budgets", {})
 
         # 13. Build vLLM config (defaults + per-model overrides)
         vllm_section = raw_config.get("inference", {}).get("vllm", {})
@@ -328,7 +328,7 @@ class AppConfig:
         infra_section = raw_config.get("infrastructure", {})
 
         # 15. Build classification settings
-        classification_section = raw_config.get("classification", {})
+        classification_section = raw_config.get("pipeline", {}).get("classification", {})
 
         # 16. Validate and build extraction_order
         config_file = str(resolved) if resolved else "config/run_config.yml"
@@ -580,60 +580,68 @@ class AppConfig:
 
     @classmethod
     def _validate_extraction_order(cls, raw_config: dict, config_file: str) -> list[str]:
-        """Validate ``extraction_order`` key in YAML."""
-        if "extraction_order" not in raw_config:
+        """Validate ``pipeline.extraction.order`` key in YAML."""
+        extraction_section = raw_config.get("pipeline", {}).get("extraction", {})
+        if "order" not in extraction_section:
             raise ConfigError(
                 [
-                    f"Missing required key 'extraction_order' in {config_file}. "
-                    f"What: the key 'extraction_order' is absent. "
-                    f"Where: {config_file} → extraction_order. "
+                    f"Missing required key 'pipeline.extraction.order' in {config_file}. "
+                    f"What: the key 'pipeline.extraction.order' is absent. "
+                    f"Where: {config_file} → pipeline.extraction.order. "
                     f"Expected: a YAML list of doc_type strings, e.g.:\n"
-                    f"  extraction_order:\n"
-                    f"    - bank_statement\n"
-                    f"    - invoice\n"
-                    f"    - receipt\n"
-                    f"How to fix: add an 'extraction_order:' list to {config_file}."
+                    f"  pipeline:\n"
+                    f"    extraction:\n"
+                    f"      order:\n"
+                    f"        - bank_statement\n"
+                    f"        - invoice\n"
+                    f"        - receipt\n"
+                    f"How to fix: add a 'pipeline.extraction.order:' list to {config_file}."
                 ]
             )
-        value = raw_config["extraction_order"]
+        value = extraction_section["order"]
         if not isinstance(value, list):
             raise ConfigError(
                 [
-                    f"Invalid type for 'extraction_order' in {config_file}: "
+                    f"Invalid type for 'pipeline.extraction.order' in {config_file}: "
                     f"expected a list, got {type(value).__name__}. "
-                    f"Where: {config_file} → extraction_order. "
+                    f"Where: {config_file} → pipeline.extraction.order. "
                     f"Expected: a YAML list of doc_type strings, e.g.:\n"
-                    f"  extraction_order:\n"
-                    f"    - bank_statement\n"
-                    f"    - invoice\n"
-                    f"    - receipt\n"
-                    f"How to fix: change 'extraction_order' to a YAML list in {config_file}."
+                    f"  pipeline:\n"
+                    f"    extraction:\n"
+                    f"      order:\n"
+                    f"        - bank_statement\n"
+                    f"        - invoice\n"
+                    f"        - receipt\n"
+                    f"How to fix: change 'pipeline.extraction.order' to a YAML list in {config_file}."
                 ]
             )
         return list(value)
 
     @classmethod
     def _validate_secondary_sort(cls, raw_config: dict, config_file: str) -> str:
-        """Validate ``secondary_sort`` key in YAML."""
-        if "secondary_sort" not in raw_config:
+        """Validate ``pipeline.extraction.secondary_sort`` key in YAML."""
+        extraction_section = raw_config.get("pipeline", {}).get("extraction", {})
+        if "secondary_sort" not in extraction_section:
             raise ConfigError(
                 [
-                    f"Missing required key 'secondary_sort' in {config_file}. "
-                    f"What: the key 'secondary_sort' is absent. "
-                    f"Where: {config_file} → extraction_order.secondary_sort. "
+                    f"Missing required key 'pipeline.extraction.secondary_sort' in {config_file}. "
+                    f"What: the key 'pipeline.extraction.secondary_sort' is absent. "
+                    f"Where: {config_file} → pipeline.extraction.secondary_sort. "
                     f"Expected: one of {list(_VALID_SECONDARY_SORTS)}, e.g.:\n"
-                    f"  secondary_sort: none\n"
-                    f"How to fix: add 'secondary_sort: none' to {config_file}."
+                    f"  pipeline:\n"
+                    f"    extraction:\n"
+                    f"      secondary_sort: none\n"
+                    f"How to fix: add 'pipeline.extraction.secondary_sort: none' to {config_file}."
                 ]
             )
-        value = raw_config["secondary_sort"]
+        value = extraction_section["secondary_sort"]
         if value not in _VALID_SECONDARY_SORTS:
             raise ConfigError(
                 [
-                    f"Invalid value for 'secondary_sort' in {config_file}: "
+                    f"Invalid value for 'pipeline.extraction.secondary_sort' in {config_file}: "
                     f"got {value!r}, expected one of {list(_VALID_SECONDARY_SORTS)}. "
-                    f"Where: {config_file} → extraction_order.secondary_sort. "
-                    f"How to fix: set 'secondary_sort' to one of "
+                    f"Where: {config_file} → pipeline.extraction.secondary_sort. "
+                    f"How to fix: set 'pipeline.extraction.secondary_sort' to one of "
                     f"{list(_VALID_SECONDARY_SORTS)} in {config_file}."
                 ]
             )
@@ -641,33 +649,38 @@ class AppConfig:
 
     @classmethod
     def _validate_extraction_skip_labels(cls, raw_config: dict, config_file: str) -> list[str]:
-        """Validate ``extraction_skip_labels`` key in YAML."""
-        if "extraction_skip_labels" not in raw_config:
+        """Validate ``pipeline.extraction.skip_labels`` key in YAML."""
+        extraction_section = raw_config.get("pipeline", {}).get("extraction", {})
+        if "skip_labels" not in extraction_section:
             raise ConfigError(
                 [
-                    f"Missing required key 'extraction_skip_labels' in {config_file}. "
-                    f"What: the key 'extraction_skip_labels' is absent. "
-                    f"Where: {config_file} → extraction_skip_labels. "
+                    f"Missing required key 'pipeline.extraction.skip_labels' in {config_file}. "
+                    f"What: the key 'pipeline.extraction.skip_labels' is absent. "
+                    f"Where: {config_file} → pipeline.extraction.skip_labels. "
                     f"Expected: a YAML list of label strings (may be empty), e.g.:\n"
-                    f"  extraction_skip_labels: []\n"
-                    f"How to fix: add 'extraction_skip_labels: []' to {config_file}."
+                    f"  pipeline:\n"
+                    f"    extraction:\n"
+                    f"      skip_labels: []\n"
+                    f"How to fix: add 'pipeline.extraction.skip_labels: []' to {config_file}."
                 ]
             )
-        value = raw_config["extraction_skip_labels"]
-        # YAML parses `extraction_skip_labels:` (no value) as None
+        value = extraction_section["skip_labels"]
+        # YAML parses `skip_labels:` (no value) as None
         if value is None:
             value = []
         if not isinstance(value, list):
             raise ConfigError(
                 [
-                    f"Invalid type for 'extraction_skip_labels' in {config_file}: "
+                    f"Invalid type for 'pipeline.extraction.skip_labels' in {config_file}: "
                     f"expected a list, got {type(value).__name__}. "
-                    f"Where: {config_file} → extraction_skip_labels. "
+                    f"Where: {config_file} → pipeline.extraction.skip_labels. "
                     f"Expected: a YAML list of label strings, e.g.:\n"
-                    f"  extraction_skip_labels:\n"
-                    f"    - junk\n"
-                    f"    - blank\n"
-                    f"How to fix: change 'extraction_skip_labels' to a YAML list "
+                    f"  pipeline:\n"
+                    f"    extraction:\n"
+                    f"      skip_labels:\n"
+                    f"        - junk\n"
+                    f"        - blank\n"
+                    f"How to fix: change 'pipeline.extraction.skip_labels' to a YAML list "
                     f"in {config_file}."
                 ]
             )
@@ -675,12 +688,12 @@ class AppConfig:
             if not isinstance(entry, str):
                 raise ConfigError(
                     [
-                        f"Invalid entry at index {i} in 'extraction_skip_labels' "
+                        f"Invalid entry at index {i} in 'pipeline.extraction.skip_labels' "
                         f"in {config_file}: expected a string, got "
                         f"{type(entry).__name__} ({entry!r}). "
-                        f"Where: {config_file} → extraction_skip_labels[{i}]. "
+                        f"Where: {config_file} → pipeline.extraction.skip_labels[{i}]. "
                         f"Expected: a string label, e.g. 'junk'. "
-                        f"How to fix: ensure all entries in 'extraction_skip_labels' "
+                        f"How to fix: ensure all entries in 'pipeline.extraction.skip_labels' "
                         f"are strings in {config_file}."
                     ]
                 )
@@ -786,58 +799,61 @@ class AppConfig:
 
     @classmethod
     def _validate_bank_header_cache(cls, raw_config: dict, config_file: str) -> dict[str, Any]:
-        """Validate ``bank_header_cache`` section in YAML."""
-        if "bank_header_cache" not in raw_config:
+        """Validate ``pipeline.bank_header_cache`` section in YAML."""
+        cache = raw_config.get("pipeline", {}).get("bank_header_cache")
+        if cache is None:
             raise ConfigError(
                 [
-                    f"Missing required key 'bank_header_cache' in {config_file}. "
-                    f"What: the key 'bank_header_cache' is absent. "
-                    f"Where: {config_file} → bank_header_cache. "
+                    f"Missing required key 'pipeline.bank_header_cache' in {config_file}. "
+                    f"What: the key 'pipeline.bank_header_cache' is absent. "
+                    f"Where: {config_file} → pipeline.bank_header_cache. "
                     f"Expected: a mapping with 'enabled' and 'key_pattern', e.g.:\n"
-                    f"  bank_header_cache:\n"
-                    f"    enabled: false\n"
-                    f'    key_pattern: "^(?P<institution>[A-Za-z_]+)_"\n'
-                    f"How to fix: add a 'bank_header_cache:' section to {config_file}."
+                    f"  pipeline:\n"
+                    f"    bank_header_cache:\n"
+                    f"      enabled: false\n"
+                    f'      key_pattern: "^(?P<institution>[A-Za-z_]+)_"\n'
+                    f"How to fix: add a 'pipeline.bank_header_cache:' section to {config_file}."
                 ]
             )
-        cache = raw_config["bank_header_cache"]
         if not isinstance(cache, dict):
             raise ConfigError(
                 [
-                    f"Invalid type for 'bank_header_cache' in {config_file}: "
+                    f"Invalid type for 'pipeline.bank_header_cache' in {config_file}: "
                     f"expected a mapping, got {type(cache).__name__}. "
-                    f"Where: {config_file} → bank_header_cache. "
+                    f"Where: {config_file} → pipeline.bank_header_cache. "
                     f"Expected: a mapping with 'enabled' and 'key_pattern'. "
-                    f"How to fix: change 'bank_header_cache' to a YAML mapping "
+                    f"How to fix: change 'pipeline.bank_header_cache' to a YAML mapping "
                     f"in {config_file}."
                 ]
             )
         if "enabled" not in cache:
             raise ConfigError(
                 [
-                    f"Missing required key 'bank_header_cache.enabled' in "
+                    f"Missing required key 'pipeline.bank_header_cache.enabled' in "
                     f"{config_file}. "
-                    f"What: the 'enabled' key is absent from 'bank_header_cache'. "
-                    f"Where: {config_file} → bank_header_cache.enabled. "
+                    f"What: the 'enabled' key is absent from 'pipeline.bank_header_cache'. "
+                    f"Where: {config_file} → pipeline.bank_header_cache.enabled. "
                     f"Expected: a boolean (true/false), e.g.:\n"
-                    f"  bank_header_cache:\n"
-                    f"    enabled: false\n"
-                    f"How to fix: add 'enabled: false' under 'bank_header_cache' "
+                    f"  pipeline:\n"
+                    f"    bank_header_cache:\n"
+                    f"      enabled: false\n"
+                    f"How to fix: add 'enabled: false' under 'pipeline.bank_header_cache' "
                     f"in {config_file}."
                 ]
             )
         if "key_pattern" not in cache:
             raise ConfigError(
                 [
-                    f"Missing required key 'bank_header_cache.key_pattern' in "
+                    f"Missing required key 'pipeline.bank_header_cache.key_pattern' in "
                     f"{config_file}. "
-                    f"What: the 'key_pattern' key is absent from 'bank_header_cache'. "
-                    f"Where: {config_file} → bank_header_cache.key_pattern. "
+                    f"What: the 'key_pattern' key is absent from 'pipeline.bank_header_cache'. "
+                    f"Where: {config_file} → pipeline.bank_header_cache.key_pattern. "
                     f"Expected: a regex string, e.g.:\n"
-                    f"  bank_header_cache:\n"
-                    f'    key_pattern: "^(?P<institution>[A-Za-z_]+)_"\n'
+                    f"  pipeline:\n"
+                    f"    bank_header_cache:\n"
+                    f'      key_pattern: "^(?P<institution>[A-Za-z_]+)_"\n'
                     f"How to fix: add 'key_pattern: <regex>' under "
-                    f"'bank_header_cache' in {config_file}."
+                    f"'pipeline.bank_header_cache' in {config_file}."
                 ]
             )
         # Validate regex compiles
@@ -847,13 +863,13 @@ class AppConfig:
         except re.error as exc:
             raise ConfigError(
                 [
-                    f"Invalid regex in 'bank_header_cache.key_pattern' in "
+                    f"Invalid regex in 'pipeline.bank_header_cache.key_pattern' in "
                     f"{config_file}: {exc}. "
                     f"Pattern: {pattern!r}. "
-                    f"Where: {config_file} → bank_header_cache.key_pattern. "
+                    f"Where: {config_file} → pipeline.bank_header_cache.key_pattern. "
                     f"Expected: a valid Python regex string. "
                     f"How to fix: correct the regex pattern in "
-                    f"'bank_header_cache.key_pattern' in {config_file}."
+                    f"'pipeline.bank_header_cache.key_pattern' in {config_file}."
                 ]
             ) from None
         return dict(cache)

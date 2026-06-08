@@ -81,8 +81,9 @@ def main() -> int:
     data = io_cfg.get("input", {}) or {}
     output = io_cfg.get("output", {}) or {}
     log_cfg = bootstrap.get("logging", {}) or {}
-    trust = cfg.get("trust_distribution", {}) or {}
-    linking = cfg.get("linking", {}) or {}
+    pipeline = cfg.get("pipeline", {}) or {}
+    trust = pipeline.get("trust", {}) or {}
+    linking = pipeline.get("linking", {}) or {}
 
     _emit("YAML_MODEL_TYPE", model.get("type"))
     _emit("YAML_MODEL_PATH", model.get("path"))

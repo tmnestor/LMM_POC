@@ -83,17 +83,17 @@ def _require(linking: dict[str, Any], key: str, config_path: Path, example: str)
     if key not in linking:
         raise ValueError(
             _diagnostic(
-                what=f"required key 'linking.{key}' is missing.",
-                where=f"{config_path} -> linking.{key}",
+                what=f"required key 'pipeline.linking.{key}' is missing.",
+                where=f"{config_path} -> pipeline.linking.{key}",
                 example=example,
-                fix=f"add '{key}' under the 'linking:' section in {config_path}.",
+                fix=f"add '{key}' under the 'pipeline.linking:' section in {config_path}.",
             )
         )
     return linking[key]
 
 
 def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
-    """Load and validate the ``linking:`` block from run_config.yml.
+    """Load and validate the ``pipeline.linking:`` block from run_config.yml.
 
     Every key the orchestration reads is REQUIRED; a missing or invalid value
     fails fast with a 4-element diagnostic (what / where / valid example /
@@ -116,7 +116,7 @@ def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
             _diagnostic(
                 what="the configuration file is missing.",
                 where=str(config_path),
-                example="a YAML file with a 'linking:' section.",
+                example="a YAML file with a 'pipeline.linking:' section.",
                 fix=f"create {config_path} or pass --config with a valid path.",
             )
         )
@@ -124,27 +124,29 @@ def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
     with config_path.open() as f:
         raw = yaml.safe_load(f) or {}
 
-    if "linking" not in raw:
+    pipeline_section = raw.get("pipeline", {})
+    if "linking" not in pipeline_section:
         raise ValueError(
             _diagnostic(
-                what="the top-level key 'linking' is absent.",
-                where=f"{config_path} -> linking",
+                what="the key 'pipeline.linking' is absent.",
+                where=f"{config_path} -> pipeline.linking",
                 example=(
-                    "linking:\n"
-                    '    case_key_pattern: "^(?P<case>[^_]+)_"\n'
-                    "    vlm_prompt: single_receipt_link\n"
-                    "    vlm_max_tokens: 4096\n"
-                    "    vlm_temperature: 0.0\n"
-                    "    hybrid_amount_tolerance: 0.01\n"
-                    "    hybrid_date_window_days: 5\n"
-                    "    hybrid_description_threshold: 0.3\n"
-                    "    hybrid_min_confidence: LOW"
+                    "pipeline:\n"
+                    "    linking:\n"
+                    '        case_key_pattern: "^(?P<case>[^_]+)_"\n'
+                    "        vlm_prompt: single_receipt_link\n"
+                    "        vlm_max_tokens: 4096\n"
+                    "        vlm_temperature: 0.0\n"
+                    "        hybrid_amount_tolerance: 0.01\n"
+                    "        hybrid_date_window_days: 5\n"
+                    "        hybrid_description_threshold: 0.3\n"
+                    "        hybrid_min_confidence: LOW"
                 ),
-                fix=f"add a 'linking:' section to {config_path}.",
+                fix=f"add a 'pipeline.linking:' section to {config_path}.",
             )
         )
 
-    linking = raw["linking"]
+    linking = pipeline_section["linking"]
 
     # case_key_pattern — must compile and expose a (?P<case>...) group.
     pattern_str = _require(
@@ -158,17 +160,17 @@ def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
     except re.error as exc:
         raise ValueError(
             _diagnostic(
-                what=f"'linking.case_key_pattern' is not a valid regex: {exc}.",
-                where=f"{config_path} -> linking.case_key_pattern (pattern={pattern_str!r})",
+                what=f"'pipeline.linking.case_key_pattern' is not a valid regex: {exc}.",
+                where=f"{config_path} -> pipeline.linking.case_key_pattern (pattern={pattern_str!r})",
                 example='a valid regex with a (?P<case>...) group, e.g.: "^(?P<case>[^_]+)_"',
-                fix="correct the regex in 'linking.case_key_pattern'.",
+                fix="correct the regex in 'pipeline.linking.case_key_pattern'.",
             )
         ) from None
     if "case" not in compiled.groupindex:
         raise ValueError(
             _diagnostic(
-                what=f"'linking.case_key_pattern' has no named group 'case': {pattern_str!r}.",
-                where=f"{config_path} -> linking.case_key_pattern",
+                what=f"'pipeline.linking.case_key_pattern' has no named group 'case': {pattern_str!r}.",
+                where=f"{config_path} -> pipeline.linking.case_key_pattern",
                 example='regex with a (?P<case>...) group, e.g.: "^(?P<case>[^_]+)_"',
                 fix="add a (?P<case>...) named group to the regex.",
             )
@@ -186,13 +188,13 @@ def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
         raise ValueError(
             _diagnostic(
                 what=(
-                    f"'linking.vlm_temperature' is {vlm_temperature!r}, but the linking VLM seam "
-                    "(processor.generate, shared with extract) decodes deterministically at "
-                    "temperature 0 and cannot honour another value."
+                    f"'pipeline.linking.vlm_temperature' is {vlm_temperature!r}, but the linking "
+                    "VLM seam (processor.generate, shared with extract) decodes deterministically "
+                    "at temperature 0 and cannot honour another value."
                 ),
-                where=f"{config_path} -> linking.vlm_temperature",
+                where=f"{config_path} -> pipeline.linking.vlm_temperature",
                 example="0.0",
-                fix="set 'linking.vlm_temperature: 0.0' in run_config.yml.",
+                fix="set 'pipeline.linking.vlm_temperature: 0.0' in run_config.yml.",
             )
         )
 
@@ -209,10 +211,12 @@ def _load_linking_config(config_path: Path | None) -> dict[str, Any]:
     if str(min_confidence).upper() not in _ALLOWED_MIN_CONFIDENCE:
         raise ValueError(
             _diagnostic(
-                what=f"'linking.hybrid_min_confidence' is {min_confidence!r}, not an allowed value.",
-                where=f"{config_path} -> linking.hybrid_min_confidence",
+                what=(
+                    f"'pipeline.linking.hybrid_min_confidence' is {min_confidence!r}, not an allowed value."
+                ),
+                where=f"{config_path} -> pipeline.linking.hybrid_min_confidence",
                 example=f"one of {', '.join(_ALLOWED_MIN_CONFIDENCE)}, e.g.: LOW",
-                fix="set 'linking.hybrid_min_confidence' to HIGH, MEDIUM, or LOW.",
+                fix="set 'pipeline.linking.hybrid_min_confidence' to HIGH, MEDIUM, or LOW.",
             )
         )
 

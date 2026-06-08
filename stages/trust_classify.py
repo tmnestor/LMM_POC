@@ -318,7 +318,7 @@ def run(
         if cfg_path.exists():
             with cfg_path.open() as f:
                 raw_cfg = yaml.safe_load(f) or {}
-            budgets = raw_cfg.get("token_budgets", {})
+            budgets = raw_cfg.get("pipeline", {}).get("token_budgets", {})
             token_budget = budgets.get("trust_classify", 300)
 
         gen_params = GenerationParams(max_tokens=token_budget)

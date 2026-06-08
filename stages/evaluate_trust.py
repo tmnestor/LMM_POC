@@ -361,7 +361,7 @@ def run(
         else:
             logger.warning(
                 "No classification_ground_truth YAML provided — "
-                "set trust_distribution.classification_ground_truth in run_config.yml"
+                "set pipeline.trust.classification_ground_truth in run_config.yml"
             )
             classification_gt = {}
         if classification_gt:
@@ -471,12 +471,12 @@ def main(
         None,
         "--classifications",
         "-c",
-        help="Path to trust_classifications.jsonl (from trust_distribution.classifications in run_config.yml)",
+        help="Path to trust_classifications.jsonl (from pipeline.trust.classifications in run_config.yml)",
     ),
     classification_gt: Path | None = typer.Option(
         None,
         "--classification-gt",
-        help="Path to trust_classification_gt.yml (from trust_distribution.classification_ground_truth in run_config.yml)",
+        help="Path to trust_classification_gt.yml (from pipeline.trust.classification_ground_truth in run_config.yml)",
     ),
     inference_seconds: float | None = typer.Option(
         None,

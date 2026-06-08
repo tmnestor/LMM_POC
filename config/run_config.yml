@@ -154,117 +154,121 @@ inference:
     raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
     path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
-# Classification settings
-classification:
-  fallback_type: UNIVERSAL     # Default type when model response can't be parsed
-  complexity_thresholds:
-    low: 5                     # 1-5 rows/items = LOW
-    high: 20                   # 21+ rows/items = HIGH; 6-20 = MEDIUM
+# Pipeline configuration — per-task settings grouped together: classification,
+# processing toggles, token budgets, trust + transaction linking, batch tuning,
+# extraction ordering/skip labels, and the bank-header cache.
+pipeline:
+  # Classification settings
+  classification:
+    fallback_type: UNIVERSAL     # Default type when model response can't be parsed
+    complexity_thresholds:
+      low: 5                     # 1-5 rows/items = LOW
+      high: 20                   # 21+ rows/items = HIGH; 6-20 = MEDIUM
 
-# Processing options
-processing:
-  batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
-  bank_v2: true              # Use V2 bank statement extraction
-  balance_correction: false  # Disable balance validation (reduces accuracy)
-  verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
-  debug: false               # Tier C: dev noise (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/response dumps)
+  # Processing options
+  processing:
+    batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
+    bank_v2: true              # Use V2 bank statement extraction
+    balance_correction: false  # Disable balance validation (reduces accuracy)
+    verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
+    debug: false               # Tier C: dev noise (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/response dumps)
 
-# Named token budgets — single source of truth for all max_tokens values.
-# Workflow YAML nodes reference these by name via `token_budget: <name>`.
-token_budgets:
-  classify: 150
-  detection: 200
-  detect_headers: 500
-  detect_headers_short: 200
-  extract_standard: 2048
-  extract_travel: 1024
-  extract_bank: 4096
-  bank_header_detection: 500
-  transaction_match: 2000
-  receipt_extract: 500
-  orchestrator_generate: 1024
-  bank_statement_floor: 1500
-  fallback_base: 512
-  fallback_per_field: 64
-  trust_classify: 300
-  trust_field_extract: 500
+  # Named token budgets — single source of truth for all max_tokens values.
+  # Workflow YAML nodes reference these by name via `token_budget: <name>`.
+  token_budgets:
+    classify: 150
+    detection: 200
+    detect_headers: 500
+    detect_headers_short: 200
+    extract_standard: 2048
+    extract_travel: 1024
+    extract_bank: 4096
+    bank_header_detection: 500
+    transaction_match: 2000
+    receipt_extract: 500
+    orchestrator_generate: 1024
+    bank_statement_floor: 1500
+    fallback_base: 512
+    fallback_per_field: 64
+    trust_classify: 300
+    trust_field_extract: 500
 
-# Trust distribution linking — NRO Private Wealth compliance checking
-trust_distribution:
-  data_dir: ../private_wealth_docs
-  quads: ../private_wealth_docs/output/trust_quads.csv
-  quads_incomplete: ../private_wealth_docs/output/trust_quads_incomplete.csv
-  ground_truth: ../private_wealth_docs/ground_truth/trust_distribution_links.yml
-  classification_ground_truth: ../private_wealth_docs/ground_truth/trust_classification_gt.yml
-  classifications: ../private_wealth_docs/output/trust_classifications.jsonl
-  raw_extractions: ../private_wealth_docs/output/raw_extractions.jsonl
-  compliance_results: ../private_wealth_docs/output/trust_compliance_results.jsonl
-  output_dir: ../private_wealth_docs/output
-  evaluation_dir: ../private_wealth_docs/output/trust_evaluation
-  log_dir: ../private_wealth_docs/output/logs
-  subdirectories:
-    # Production (flat directory, trust_classify generates quads):
-    trust_return: .
-    distribution_stmt: .
-    income_schedule: .
-    beneficiary_itr: .
-    # Development (pre-sorted subdirectories):
-    #   trust_return: trust_returns
-    #   distribution_stmt: distribution_statements
-    #   income_schedule: trust_income_schedules
-    #   beneficiary_itr: beneficiary_itrs
-  amount_tolerance: 0.01
-  linking_fields:
-    - trust_abn
-    - beneficiary_tfn
-    - share_of_net_income
-    - franking_credit
-    - capital_gain_component
+  # Trust distribution linking — NRO Private Wealth compliance checking
+  trust:
+    data_dir: ../private_wealth_docs
+    quads: ../private_wealth_docs/output/trust_quads.csv
+    quads_incomplete: ../private_wealth_docs/output/trust_quads_incomplete.csv
+    ground_truth: ../private_wealth_docs/ground_truth/trust_distribution_links.yml
+    classification_ground_truth: ../private_wealth_docs/ground_truth/trust_classification_gt.yml
+    classifications: ../private_wealth_docs/output/trust_classifications.jsonl
+    raw_extractions: ../private_wealth_docs/output/raw_extractions.jsonl
+    compliance_results: ../private_wealth_docs/output/trust_compliance_results.jsonl
+    output_dir: ../private_wealth_docs/output
+    evaluation_dir: ../private_wealth_docs/output/trust_evaluation
+    log_dir: ../private_wealth_docs/output/logs
+    subdirectories:
+      # Production (flat directory, trust_classify generates quads):
+      trust_return: .
+      distribution_stmt: .
+      income_schedule: .
+      beneficiary_itr: .
+      # Development (pre-sorted subdirectories):
+      #   trust_return: trust_returns
+      #   distribution_stmt: distribution_statements
+      #   income_schedule: trust_income_schedules
+      #   beneficiary_itr: beneficiary_itrs
+    amount_tolerance: 0.01
+    linking_fields:
+      - trust_abn
+      - beneficiary_tfn
+      - share_of_net_income
+      - franking_credit
+      - capital_gain_component
 
-# Transaction linking — receipt/invoice -> bank-statement debit matching.
-# Standalone task (KFP_TASK=run_transaction_link); does NOT touch the trust
-# pipeline. Matcher-first: the algorithmic matcher links against the rows the
-# extract stage already pulled; receipts it can't confidently match fall
-# through to a targeted single-image VLM lookup. Every key is required —
-# stages/transaction_link.py fails fast on a missing one.
-linking:
-  case_key_pattern: "^(?P<case>[^_]+)_"   # group files by case (split on first "_")
-  vlm_prompt: single_receipt_link          # prompt file in prompts/ (without .yaml)
-  vlm_max_tokens: 4096                      # token budget for the fallback VLM lookup
-  vlm_temperature: 0.0                      # MUST be 0.0 — the shared generate seam is deterministic
-  hybrid_amount_tolerance: 0.01            # $ gate for an algorithmic amount match
-  hybrid_date_window_days: 5               # business-day window for date scoring
-  hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
-  hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
-  data_dir: ../evaluation_data/synthetic_transaction_linking
-  output: ../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl
-  ground_truth: ../evaluation_data/synthetic_transaction_linking/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
-  evaluation_dir: ../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation
-  log_dir: ../evaluation_data/synthetic_transaction_linking/output/logs
+  # Transaction linking — receipt/invoice -> bank-statement debit matching.
+  # Standalone task (KFP_TASK=run_transaction_link); does NOT touch the trust
+  # pipeline. Matcher-first: the algorithmic matcher links against the rows the
+  # extract stage already pulled; receipts it can't confidently match fall
+  # through to a targeted single-image VLM lookup. Every key is required —
+  # stages/transaction_link.py fails fast on a missing one.
+  linking:
+    case_key_pattern: "^(?P<case>[^_]+)_"   # group files by case (split on first "_")
+    vlm_prompt: single_receipt_link          # prompt file in prompts/ (without .yaml)
+    vlm_max_tokens: 4096                      # token budget for the fallback VLM lookup
+    vlm_temperature: 0.0                      # MUST be 0.0 — the shared generate seam is deterministic
+    hybrid_amount_tolerance: 0.01            # $ gate for an algorithmic amount match
+    hybrid_date_window_days: 5               # business-day window for date scoring
+    hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
+    hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
+    data_dir: ../evaluation_data/synthetic_transaction_linking
+    output: ../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl
+    ground_truth: ../evaluation_data/synthetic_transaction_linking/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
+    evaluation_dir: ../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation
+    log_dir: ../evaluation_data/synthetic_transaction_linking/output/logs
 
-# Batch processing tuning
-batch:
-  default_sizes: {internvl3: 4}
-  max_sizes: {internvl3: 8}
-  conservative_sizes: {internvl3: 1}
-  min_size: 1
-  strategy: balanced            # conservative | balanced | aggressive
-  auto_detect: true
+  # Batch processing tuning
+  batch:
+    default_sizes: {internvl3: 4}
+    max_sizes: {internvl3: 8}
+    conservative_sizes: {internvl3: 1}
+    min_size: 1
+    strategy: balanced            # conservative | balanced | aggressive
+    auto_detect: true
 
-# Extraction ordering — controls batch submission order for prefix-cache reuse
-extraction_order:
-  - bank_statement
-  - invoice
-  - receipt
-secondary_sort: none              # none | image_area_asc | image_area_desc
+  # Extraction ordering — controls batch submission order for prefix-cache reuse
+  extraction:
+    order:
+      - bank_statement
+      - invoice
+      - receipt
+    secondary_sort: none              # none | image_area_asc | image_area_desc
+    # Labels that skip extraction entirely (written as skipped records)
+    skip_labels: []
 
-# Labels that skip extraction entirely (written as skipped records)
-extraction_skip_labels: []
-
-# Per-bank column-mapping cache (standalone bank workflow only)
-bank_header_cache:
-  enabled: false
-  key_pattern: "^(?P<institution>[A-Za-z]+)_"
+  # Per-bank column-mapping cache (standalone bank workflow only)
+  bank_header_cache:
+    enabled: false
+    key_pattern: "^(?P<institution>[A-Za-z]+)_"
 
 # Infrastructure settings — timeouts, memory thresholds
 infrastructure:

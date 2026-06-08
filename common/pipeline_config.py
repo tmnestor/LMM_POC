@@ -315,12 +315,13 @@ def load_yaml_config(
         flat_config["skip_visualizations"] = output_cfg.get("skip_visualizations")
         flat_config["skip_reports"] = output_cfg.get("skip_reports")
 
-    if "processing" in raw_config:
-        flat_config["batch_size"] = raw_config["processing"].get("batch_size")
-        flat_config["bank_v2"] = raw_config["processing"].get("bank_v2")
-        flat_config["balance_correction"] = raw_config["processing"].get("balance_correction")
-        flat_config["verbose"] = raw_config["processing"].get("verbose")
-        flat_config["debug"] = raw_config["processing"].get("debug")
+    processing_cfg = raw_config.get("pipeline", {}).get("processing", {})
+    if processing_cfg:
+        flat_config["batch_size"] = processing_cfg.get("batch_size")
+        flat_config["bank_v2"] = processing_cfg.get("bank_v2")
+        flat_config["balance_correction"] = processing_cfg.get("balance_correction")
+        flat_config["verbose"] = processing_cfg.get("verbose")
+        flat_config["debug"] = processing_cfg.get("debug")
 
     gpus_cfg = raw_config.get("bootstrap", {}).get("gpus", {})
     flat_config["num_gpus"] = gpus_cfg.get("num_gpus")

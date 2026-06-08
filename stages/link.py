@@ -333,7 +333,7 @@ def run_trust_link(
     if cfg_path.exists():
         with cfg_path.open() as f:
             raw = yaml.safe_load(f) or {}
-        trust_cfg = raw.get("trust_distribution", {})
+        trust_cfg = raw.get("pipeline", {}).get("trust", {})
     subdirs = trust_cfg.get("subdirectories", {})
     subdir_map = {
         "trust_return": subdirs.get("trust_return", "trust_returns"),
