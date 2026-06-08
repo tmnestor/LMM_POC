@@ -20,6 +20,7 @@ parse_link_response() -- Parse --- RECEIPT N --- blocks from VLM output
 call_vlm_linker()     -- Full round-trip: build -> generate -> parse
 """
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -302,8 +303,43 @@ def build_link_prompt(
     return prefix + query
 
 
+# Greedy match of the outermost {...} object (the model sometimes wraps the
+# answer in a ```json ... ``` fence instead of the --- RECEIPT N --- block).
+_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _parse_json_link_block(raw_response: str) -> dict[str, str] | None:
+    """Parse a JSON-object linking answer into a stringified field dict.
+
+    InternVL3.5 may reply with a ``{...}`` object (often inside a ```json
+    fence) rather than the ``--- RECEIPT N --- / KEY: value`` block. Extract the
+    object, keep only ``_LINK_FIELDS`` keys, and stringify every value so the
+    downstream string handling (``_parse_amount_str``, ``_is_bank_row_echo``)
+    works unchanged. Returns None when no JSON object carrying
+    ``MATCHED_TRANSACTION`` is present, so a real KEY: value block falls through
+    to the block parser.
+    """
+    match = _JSON_OBJ_RE.search(raw_response)
+    if match is None:
+        return None
+    try:
+        obj = json.loads(match.group(0))
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(obj, dict):
+        return None
+    block: dict[str, str] = {}
+    for key, value in obj.items():
+        upper = str(key).strip().upper()
+        if upper in _LINK_FIELDS:
+            block[upper] = "" if value is None else str(value).strip()
+    # Require the decision field, else this isn't a link answer (guards against
+    # stray braces appearing inside a KEY: value response).
+    return block if "MATCHED_TRANSACTION" in block else None
+
+
 def parse_link_response(raw_response: str) -> list[dict[str, str]]:
-    """Parse ``--- RECEIPT N ---`` blocks from a VLM linking response.
+    """Parse a VLM linking response: a ```json object OR ``--- RECEIPT N ---`` blocks.
 
     Each block is parsed into a dict of ``_LINK_FIELDS`` key/value pairs.
     Blocks that look like VLM template placeholders are filtered out via
@@ -318,6 +354,12 @@ def parse_link_response(raw_response: str) -> list[dict[str, str]]:
     """
     if not raw_response or not raw_response.strip():
         return []
+
+    # The model may answer with a ```json {...}``` object instead of the
+    # --- RECEIPT N --- / KEY: value block. Try JSON first; fall back to blocks.
+    json_block = _parse_json_link_block(raw_response)
+    if json_block is not None:
+        return [] if _is_placeholder(json_block) else [json_block]
 
     blocks: list[dict[str, str]] = []
     current_block: dict[str, str] = {}
