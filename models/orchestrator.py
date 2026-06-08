@@ -345,6 +345,7 @@ class DocumentOrchestrator:
             do_sample=params.do_sample,
             temperature=params.temperature,
             top_p=params.top_p,
+            extra=params.extra,
         )
         return self._backend.generate(image, prompt, retry_params)
 
