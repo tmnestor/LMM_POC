@@ -90,6 +90,15 @@ jq -c 'select((.raw_response|contains("MATCHED_TRANSACTION: FOUND"))|not) | {ima
 jq -r '.prompt' ../raw_prompt_trace.jsonl | head -60
 ```
 
+**Full prompt+response pairs for failing calls — the decisive artifact** (shows
+whether receipt details actually substituted and whether the model says "no row
+matches that amount" (recall loss) vs "no amount given / no table" (construction
+bug)):
+
+```bash
+jq -r 'select((.raw_response|contains("MATCHED_TRANSACTION: FOUND"))|not) | "########## " + .image_name + "  (" + (.completion_tokens|tostring) + " tok)\n--- PROMPT ---\n" + .prompt + "\n--- RESPONSE ---\n" + .raw_response + "\n"' ../raw_prompt_trace.jsonl | head -140
+```
+
 ## 4. Interpreting the counts
 
 `vlm_max_tokens` for linking is 4096 (`run_config.yml` → `linking.vlm_max_tokens`).
