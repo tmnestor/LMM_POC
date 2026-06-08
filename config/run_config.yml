@@ -104,12 +104,6 @@ token_budgets:
   receipt_extract: 500
   orchestrator_generate: 1024
   bank_statement_floor: 1500
-  prompt_internvl3: 600
-  prompt_llama: 800
-  prompt_llama4scout: 600
-  prompt_qwen3vl: 600
-  prompt_sroie: 256
-  prompt_wildreceipt: 1024
   fallback_base: 512
   fallback_per_field: 64
   trust_classify: 300
@@ -170,9 +164,9 @@ linking:
 
 # Batch processing tuning
 batch:
-  default_sizes: {internvl3: 4, internvl3-2b: 4, internvl3-8b: 4, qwen3vl: 4}
-  max_sizes: {internvl3: 8, internvl3-2b: 8, internvl3-8b: 16, qwen3vl: 8}
-  conservative_sizes: {internvl3: 1, internvl3-2b: 2, internvl3-8b: 1, qwen3vl: 2}
+  default_sizes: {internvl3: 4}
+  max_sizes: {internvl3: 8}
+  conservative_sizes: {internvl3: 1}
   min_size: 1
   strategy: balanced            # conservative | balanced | aggressive
   auto_detect: true
@@ -190,16 +184,6 @@ generation:
     internvl3:
       max_new_tokens_base: 2000
       max_new_tokens_per_field: 50
-    llama:
-      max_new_tokens_base: 400
-    llama4scout:
-      max_new_tokens_base: 512
-    qwen3vl:
-      max_new_tokens_base: 512
-    gemma4:
-      max_new_tokens_base: 512
-    granite4:
-      max_new_tokens_base: 1024
   token_limits:
     2b: null                    # use calculation
     8b: 800
@@ -222,13 +206,6 @@ vllm:
     internvl3-vllm:
       max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
       limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
-    qwen35-vllm:
-      max_model_len: 16384
-      gpu_memory_utilization: 0.92
-    qwen3vl-vllm:
-      gpu_memory_utilization: 0.92        # was VllmSpec default
-    llama4scout-w4a16:
-      gpu_memory_utilization: 0.92        # was VllmSpec default
 
 # Extraction ordering — controls batch submission order for prefix-cache reuse
 extraction_order:
@@ -290,7 +267,5 @@ model_loading:
   default_paths:
     internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
     internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    llama: /home/jovyan/nfs_share/models/Llama-3.2-11B-Vision-Instruct
     # internvl3: /efs/shared/PTM/InternVL3_5-8B
     # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
-    # llama: /efs/shared/PTM/Llama-3.2-11B-Vision-Instruct
