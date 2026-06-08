@@ -184,17 +184,19 @@ def build_vllm_loader(spec: VllmSpec):
                     if effective_limit_mm < needed:
                         raise ValueError(
                             "What: pre-tiling is enabled but "
-                            f"vllm.models.{spec.model_type}.limit_mm_per_prompt="
+                            f"inference.vllm.models.{spec.model_type}.limit_mm_per_prompt="
                             f"{effective_limit_mm} is too low — pre-tiling sends one "
                             f"image per tile, and the largest image budget is "
                             f"{max_budget} tiles (+1 thumbnail = {needed}).\n"
-                            f"  Where: config/run_config.yml -> vllm.models."
-                            f"{spec.model_type}.limit_mm_per_prompt (and image_budgets.*.max_tiles)\n"
+                            f"  Where: config/run_config.yml -> inference.vllm.models."
+                            f"{spec.model_type}.limit_mm_per_prompt (and inference.tiling.budgets.*.max_tiles)\n"
                             f"  Expected: limit_mm_per_prompt >= {needed}, e.g.:\n"
-                            f"    vllm:\n      models:\n        {spec.model_type}:\n"
-                            f"          limit_mm_per_prompt: {needed}\n"
+                            f"    inference:\n      vllm:\n        models:\n"
+                            f"          {spec.model_type}:\n"
+                            f"            limit_mm_per_prompt: {needed}\n"
                             f"  How to fix: raise limit_mm_per_prompt to at least "
-                            f"{needed} for {spec.model_type}, or set pre_tiling.enabled: "
+                            f"{needed} for {spec.model_type}, or set "
+                            f"inference.tiling.pre_tiling.enabled: "
                             f"false to run the single-image baseline."
                         ) from None
 

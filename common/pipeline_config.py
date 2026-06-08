@@ -193,23 +193,24 @@ def _resolve_tracing(raw_config: dict[str, Any], config_path: Path) -> tuple[boo
         ``(enabled, path)`` where ``path`` is None for the no-op values
         (``none`` / ``null`` / empty) or an explicit string.
     """
-    tracing = raw_config.get("tracing")
+    tracing = raw_config.get("inference", {}).get("tracing")
     if tracing is None:
         return False, None
     if not isinstance(tracing, dict) or "raw_prompts" not in tracing or "path" not in tracing:
         raise ValueError(
             "What: the 'tracing' block is malformed (needs 'raw_prompts' and 'path').\n"
-            f"Where: {config_path} -> tracing\n"
-            "Expected:\n  tracing:\n    raw_prompts: false\n    path: none\n"
-            "How to fix: add both 'raw_prompts' (true/false) and 'path' under 'tracing'."
+            f"Where: {config_path} -> inference.tracing\n"
+            "Expected:\n  inference:\n    tracing:\n      raw_prompts: false\n      path: none\n"
+            "How to fix: add both 'raw_prompts' (true/false) and 'path' under "
+            "'inference.tracing'."
         )
     enabled = tracing["raw_prompts"]
     if not isinstance(enabled, bool):
         raise ValueError(
-            f"What: 'tracing.raw_prompts' must be a boolean (got {enabled!r}).\n"
-            f"Where: {config_path} -> tracing.raw_prompts\n"
+            f"What: 'inference.tracing.raw_prompts' must be a boolean (got {enabled!r}).\n"
+            f"Where: {config_path} -> inference.tracing.raw_prompts\n"
             "Expected: true or false, e.g.: raw_prompts: false\n"
-            "How to fix: set 'tracing.raw_prompts' to true or false."
+            "How to fix: set 'inference.tracing.raw_prompts' to true or false."
         )
     path_raw = tracing["path"]
     path = (
@@ -229,7 +230,7 @@ def _resolve_pre_tiling(raw_config: dict[str, Any], config_path: Path) -> tuple[
     Returns:
         ``(enabled, image_size, use_thumbnail)``.
     """
-    pre_tiling = raw_config.get("pre_tiling")
+    pre_tiling = raw_config.get("inference", {}).get("tiling", {}).get("pre_tiling")
     if pre_tiling is None:
         return False, 448, True
 
@@ -238,11 +239,11 @@ def _resolve_pre_tiling(raw_config: dict[str, Any], config_path: Path) -> tuple[
         raise ValueError(
             "What: the 'pre_tiling' block is malformed (needs 'enabled', "
             "'image_size' and 'use_thumbnail').\n"
-            f"Where: {config_path} -> pre_tiling\n"
-            "Expected:\n  pre_tiling:\n    enabled: false\n    image_size: 448\n"
-            "    use_thumbnail: true\n"
-            "How to fix: add all three keys under 'pre_tiling', or remove the "
-            "block entirely to disable pre-tiling."
+            f"Where: {config_path} -> inference.tiling.pre_tiling\n"
+            "Expected:\n  inference:\n    tiling:\n      pre_tiling:\n        enabled: false\n"
+            "        image_size: 448\n        use_thumbnail: true\n"
+            "How to fix: add all three keys under 'inference.tiling.pre_tiling', "
+            "or remove the block entirely to disable pre-tiling."
         )
 
     enabled = pre_tiling["enabled"]
@@ -250,18 +251,22 @@ def _resolve_pre_tiling(raw_config: dict[str, Any], config_path: Path) -> tuple[
     image_size = pre_tiling["image_size"]
     if not isinstance(enabled, bool) or not isinstance(use_thumbnail, bool):
         raise ValueError(
-            "What: 'pre_tiling.enabled' and 'pre_tiling.use_thumbnail' must be "
+            "What: 'inference.tiling.pre_tiling.enabled' and "
+            "'inference.tiling.pre_tiling.use_thumbnail' must be "
             f"booleans (got {enabled!r} and {use_thumbnail!r}).\n"
-            f"Where: {config_path} -> pre_tiling.enabled / pre_tiling.use_thumbnail\n"
+            f"Where: {config_path} -> inference.tiling.pre_tiling.enabled / "
+            "inference.tiling.pre_tiling.use_thumbnail\n"
             "Expected: true or false, e.g.: enabled: false\n"
             "How to fix: set both to true or false."
         )
     if not isinstance(image_size, int) or image_size < 1:
         raise ValueError(
-            f"What: 'pre_tiling.image_size' must be a positive integer (got {image_size!r}).\n"
-            f"Where: {config_path} -> pre_tiling.image_size\n"
+            "What: 'inference.tiling.pre_tiling.image_size' must be a positive "
+            f"integer (got {image_size!r}).\n"
+            f"Where: {config_path} -> inference.tiling.pre_tiling.image_size\n"
             "Expected: the InternVL tile size in pixels, e.g.: image_size: 448\n"
-            "How to fix: set 'pre_tiling.image_size' to a positive integer (448 for InternVL3)."
+            "How to fix: set 'inference.tiling.pre_tiling.image_size' to a positive "
+            "integer (448 for InternVL3)."
         )
     return enabled, image_size, use_thumbnail
 
@@ -294,7 +299,7 @@ def load_yaml_config(
         flat_config["flash_attn"] = model_cfg.get("flash_attn")
         flat_config["enforce_eager"] = model_cfg.get("enforce_eager")
         flat_config["dtype"] = model_cfg.get("dtype")
-        flat_config["max_new_tokens"] = model_cfg.get("max_new_tokens")
+        flat_config["max_new_tokens"] = raw_config.get("inference", {}).get("max_new_tokens")
         flat_config["chat_template"] = _resolve_chat_template(model_cfg, config_path)
 
     input_cfg = raw_config.get("io", {}).get("input", {})

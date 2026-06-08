@@ -21,7 +21,6 @@ bootstrap:
                            #        lower throughput); false = compile graphs (slower
                            #        startup, higher throughput for long runs)
     dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
-    max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
     # vLLM only: override the chat template used by engine.chat().
     #   none            -> use the model's own template (default)
     #   <path/to/*.jinja> -> serve with this template instead (must exist)
@@ -69,25 +68,91 @@ io:
     skip_visualizations: false  # Skip visualization generation
     skip_reports: false         # Skip report generation
 
-# Raw VLM prompt/response trace (debug observability; default off).
-# When enabled, every extraction VLM call (detection, bank turns, graph nodes,
-# linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
-# raw_response, tokens} via the shared VllmBackend seam.
-tracing:
-  raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
-  path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
+# Inference configuration — generation budget, tiling, sampling, vLLM engine,
+# and debug tracing. Everything that shapes how the model produces output.
+inference:
+  max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
 
-# vLLM app-side pre-tiling: crop each image into per-doc-type tiles ourselves and
-# hand vLLM the crops as separate images, so OUR tile count is authoritative (the
-# checkpoint's max_dynamic_patch=12 cap no longer bounds dense bank statements).
-# Tile counts come from image_budgets below (bank=18, invoice=12, receipt=6).
-# Enabling this REQUIRES raising vllm.models.<model>.limit_mm_per_prompt to at
-# least max(image_budgets.*.max_tiles) + 1 (load fails fast otherwise).
-# See plans/2026-06-04-adaptive-pre-tiling.md. Leave off to run the 12-tile baseline.
-pre_tiling:
-  enabled: true       # true -> pre-tile; false -> single-image (vLLM tiles internally at 12)
-  image_size: 448      # InternVL3 tile size in pixels
-  use_thumbnail: true  # append a whole-image thumbnail after the detail tiles
+  tiling:
+    # vLLM app-side pre-tiling: crop each image into per-doc-type tiles ourselves
+    # and hand vLLM the crops as separate images, so OUR tile count is
+    # authoritative (the checkpoint's max_dynamic_patch=12 cap no longer bounds
+    # dense bank statements). Tile counts come from budgets below
+    # (bank=18, invoice=12, receipt=6). Enabling this REQUIRES raising
+    # vllm.models.<model>.limit_mm_per_prompt to at least
+    # max(budgets.*.max_tiles) + 1 (load fails fast otherwise).
+    # See plans/2026-06-04-adaptive-pre-tiling.md. Leave off to run the 12-tile baseline.
+    pre_tiling:
+      enabled: true       # true -> pre-tile; false -> single-image (vLLM tiles internally at 12)
+      image_size: 448      # InternVL3 tile size in pixels
+      use_thumbnail: true  # append a whole-image thumbnail after the detail tiles
+
+    # Per-doc-type image tile budgets for InternVL3 dynamic tiling.
+    # min_tiles is the FLOOR forced into the pre-tiling crop (dynamic_preprocess
+    # min_num); max_tiles is the ceiling. Because the InternVL tiling algorithm
+    # picks the grid by closest aspect-ratio match, a clean A4-portrait bank
+    # statement settles on a 2x3 (6-tile) grid and NEVER reaches max_tiles on its
+    # own — so raising max alone does nothing. min_tiles=12 forces the denser 3x4
+    # grid (near-square cells, ~1.4x linear resolution) needed to read packed
+    # transaction tables. Receipts/invoices keep min_tiles: 1 (aspect-matched).
+    # Requires min_tiles <= max_tiles. See plans/2026-06-04-adaptive-tiling-dense-bank.md.
+    budgets:
+      default:
+        min_tiles: 1
+        max_tiles: 18
+      bank_statement:
+        min_tiles: 12
+        max_tiles: 18
+      invoice:
+        min_tiles: 1
+        max_tiles: 12
+      receipt:
+        min_tiles: 1
+        max_tiles: 6
+
+  # Generation parameters
+  generation:
+    defaults:
+      max_new_tokens_base: 512
+      max_new_tokens_per_field: 64
+      temperature: 0.0
+      do_sample: false
+      top_p: 0.95
+      use_cache: true
+    models:
+      internvl3:
+        max_new_tokens_base: 2000
+        max_new_tokens_per_field: 50
+    token_limits:
+      2b: null                    # use calculation
+      8b: 800
+
+  # vLLM engine parameters — per-model overrides for VllmSpec defaults
+  vllm:
+    defaults:
+      gpu_memory_utilization: 0.90
+      max_model_len: 8192
+      max_num_seqs: 1
+      limit_mm_per_prompt: 1
+      enable_prefix_caching: true
+    models:
+      # NOTE: asking vLLM to tile above the checkpoint default (12) via
+      # mm_processor_kwargs/hf_overrides is blocked on this build (see
+      # plans/2026-06-04-adaptive-tiling-dense-bank.md). The supported route is
+      # app-side pre_tiling (above): we crop tiles ourselves and send them as
+      # separate images. To use it, set pre_tiling.enabled: true AND uncomment the
+      # internvl3-vllm limit_mm_per_prompt below (>= max image_budget + 1 = 19).
+      internvl3-vllm:
+        max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
+        limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
+
+  # Raw VLM prompt/response trace (debug observability; default off).
+  # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
+  # linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
+  # raw_response, tokens} via the shared VllmBackend seam.
+  tracing:
+    raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
+    path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
 # Classification settings
 classification:
@@ -186,42 +251,6 @@ batch:
   strategy: balanced            # conservative | balanced | aggressive
   auto_detect: true
 
-# Generation parameters
-generation:
-  defaults:
-    max_new_tokens_base: 512
-    max_new_tokens_per_field: 64
-    temperature: 0.0
-    do_sample: false
-    top_p: 0.95
-    use_cache: true
-  models:
-    internvl3:
-      max_new_tokens_base: 2000
-      max_new_tokens_per_field: 50
-  token_limits:
-    2b: null                    # use calculation
-    8b: 800
-
-# vLLM engine parameters — per-model overrides for VllmSpec defaults
-vllm:
-  defaults:
-    gpu_memory_utilization: 0.90
-    max_model_len: 8192
-    max_num_seqs: 1
-    limit_mm_per_prompt: 1
-    enable_prefix_caching: true
-  models:
-    # NOTE: asking vLLM to tile above the checkpoint default (12) via
-    # mm_processor_kwargs/hf_overrides is blocked on this build (see
-    # plans/2026-06-04-adaptive-tiling-dense-bank.md). The supported route is
-    # app-side pre_tiling (above): we crop tiles ourselves and send them as
-    # separate images. To use it, set pre_tiling.enabled: true AND uncomment the
-    # internvl3-vllm limit_mm_per_prompt below (>= max image_budget + 1 = 19).
-    internvl3-vllm:
-      max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
-      limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
-
 # Extraction ordering — controls batch submission order for prefix-cache reuse
 extraction_order:
   - bank_statement
@@ -231,29 +260,6 @@ secondary_sort: none              # none | image_area_asc | image_area_desc
 
 # Labels that skip extraction entirely (written as skipped records)
 extraction_skip_labels: []
-
-# Per-doc-type image tile budgets for InternVL3 dynamic tiling.
-# min_tiles is the FLOOR forced into the pre-tiling crop (dynamic_preprocess
-# min_num); max_tiles is the ceiling. Because the InternVL tiling algorithm
-# picks the grid by closest aspect-ratio match, a clean A4-portrait bank
-# statement settles on a 2x3 (6-tile) grid and NEVER reaches max_tiles on its
-# own — so raising max alone does nothing. min_tiles=12 forces the denser 3x4
-# grid (near-square cells, ~1.4x linear resolution) needed to read packed
-# transaction tables. Receipts/invoices keep min_tiles: 1 (aspect-matched).
-# Requires min_tiles <= max_tiles. See plans/2026-06-04-adaptive-tiling-dense-bank.md.
-image_budgets:
-  default:
-    min_tiles: 1
-    max_tiles: 18
-  bank_statement:
-    min_tiles: 12
-    max_tiles: 18
-  invoice:
-    min_tiles: 1
-    max_tiles: 12
-  receipt:
-    min_tiles: 1
-    max_tiles: 6
 
 # Per-bank column-mapping cache (standalone bank workflow only)
 bank_header_cache:

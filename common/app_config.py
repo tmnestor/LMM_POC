@@ -123,7 +123,7 @@ def _build_generation_registry(raw_config: dict) -> dict[str, dict]:
 
     Returns the result without mutating the originals.
     """
-    gen = raw_config.get("generation", {})
+    gen = raw_config.get("inference", {}).get("generation", {})
 
     # ── New structured format ──────────────────────────────────────────
     if "defaults" in gen:
@@ -300,7 +300,7 @@ class AppConfig:
 
         # 9. Build token limits from YAML overrides
         token_limits: dict[str, int | None] = {"2b": None, "8b": 800}
-        gen = raw_config.get("generation", {})
+        gen = raw_config.get("inference", {}).get("generation", {})
         yaml_limits = gen.get("token_limits", {})
         for size_key, value in yaml_limits.items():
             token_limits[str(size_key)] = value
@@ -312,7 +312,7 @@ class AppConfig:
         yaml_budgets = raw_config.get("token_budgets", {})
 
         # 13. Build vLLM config (defaults + per-model overrides)
-        vllm_section = raw_config.get("vllm", {})
+        vllm_section = raw_config.get("inference", {}).get("vllm", {})
         vllm_defaults = vllm_section.get("defaults", dict(cls._DEFAULT_VLLM_CONFIG))
         vllm_models = vllm_section.get("models", {})
         vllm_config: dict[str, dict] = {"__defaults__": dict(vllm_defaults)}
@@ -688,47 +688,53 @@ class AppConfig:
 
     @classmethod
     def _validate_image_budgets(cls, raw_config: dict, config_file: str) -> dict[str, dict[str, int]]:
-        """Validate ``image_budgets`` section in YAML."""
-        if "image_budgets" not in raw_config:
+        """Validate ``inference.tiling.budgets`` section in YAML."""
+        budgets = raw_config.get("inference", {}).get("tiling", {}).get("budgets")
+        if not budgets:
             raise ConfigError(
                 [
-                    f"Missing required key 'image_budgets' in {config_file}. "
-                    f"What: the key 'image_budgets' is absent. "
-                    f"Where: {config_file} → image_budgets. "
+                    f"Missing required key 'inference.tiling.budgets' in {config_file}. "
+                    f"What: the key 'inference.tiling.budgets' is absent or empty. "
+                    f"Where: {config_file} → inference.tiling.budgets. "
                     f"Expected: a mapping with at least a 'default' entry, e.g.:\n"
-                    f"  image_budgets:\n"
-                    f"    default:\n"
-                    f"      max_tiles: 18\n"
-                    f"How to fix: add an 'image_budgets:' section with a 'default' "
-                    f"entry to {config_file}."
+                    f"  inference:\n"
+                    f"    tiling:\n"
+                    f"      budgets:\n"
+                    f"        default:\n"
+                    f"          max_tiles: 18\n"
+                    f"How to fix: add an 'inference.tiling.budgets:' section with a "
+                    f"'default' entry to {config_file}."
                 ]
             )
-        budgets = raw_config["image_budgets"]
         if not isinstance(budgets, dict):
             raise ConfigError(
                 [
-                    f"Invalid type for 'image_budgets' in {config_file}: "
+                    f"Invalid type for 'inference.tiling.budgets' in {config_file}: "
                     f"expected a mapping, got {type(budgets).__name__}. "
-                    f"Where: {config_file} → image_budgets. "
+                    f"Where: {config_file} → inference.tiling.budgets. "
                     f"Expected: a YAML mapping, e.g.:\n"
-                    f"  image_budgets:\n"
-                    f"    default:\n"
-                    f"      max_tiles: 18\n"
-                    f"How to fix: change 'image_budgets' to a YAML mapping "
+                    f"  inference:\n"
+                    f"    tiling:\n"
+                    f"      budgets:\n"
+                    f"        default:\n"
+                    f"          max_tiles: 18\n"
+                    f"How to fix: change 'inference.tiling.budgets' to a YAML mapping "
                     f"in {config_file}."
                 ]
             )
         if "default" not in budgets:
             raise ConfigError(
                 [
-                    f"Missing required key 'image_budgets.default' in {config_file}. "
-                    f"What: the 'default' entry is absent from 'image_budgets'. "
-                    f"Where: {config_file} → image_budgets.default. "
+                    f"Missing required key 'inference.tiling.budgets.default' in {config_file}. "
+                    f"What: the 'default' entry is absent from 'inference.tiling.budgets'. "
+                    f"Where: {config_file} → inference.tiling.budgets.default. "
                     f"Expected: a mapping with 'max_tiles', e.g.:\n"
-                    f"  image_budgets:\n"
-                    f"    default:\n"
-                    f"      max_tiles: 18\n"
-                    f"How to fix: add a 'default:' entry under 'image_budgets' "
+                    f"  inference:\n"
+                    f"    tiling:\n"
+                    f"      budgets:\n"
+                    f"        default:\n"
+                    f"          max_tiles: 18\n"
+                    f"How to fix: add a 'default:' entry under 'inference.tiling.budgets' "
                     f"in {config_file}."
                 ]
             )
@@ -736,42 +742,44 @@ class AppConfig:
             if not isinstance(entry, dict) or "min_tiles" not in entry or "max_tiles" not in entry:
                 raise ConfigError(
                     [
-                        f"Invalid entry for 'image_budgets.{doc_type}' in {config_file}. "
+                        f"Invalid entry for 'inference.tiling.budgets.{doc_type}' in {config_file}. "
                         f"What: each entry must have both 'min_tiles' and 'max_tiles' "
                         f"keys; one or both are missing. "
-                        f"Where: {config_file} → image_budgets.{doc_type}. "
+                        f"Where: {config_file} → inference.tiling.budgets.{doc_type}. "
                         f"Expected: a mapping with 'min_tiles' and 'max_tiles', e.g.:\n"
-                        f"  image_budgets:\n"
-                        f"    {doc_type}:\n"
-                        f"      min_tiles: 1\n"
-                        f"      max_tiles: 18\n"
+                        f"  inference:\n"
+                        f"    tiling:\n"
+                        f"      budgets:\n"
+                        f"        {doc_type}:\n"
+                        f"          min_tiles: 1\n"
+                        f"          max_tiles: 18\n"
                         f"How to fix: add 'min_tiles: <int>' and 'max_tiles: <int>' "
-                        f"under 'image_budgets.{doc_type}' in {config_file}."
+                        f"under 'inference.tiling.budgets.{doc_type}' in {config_file}."
                     ]
                 )
             for key in ("min_tiles", "max_tiles"):
                 if not isinstance(entry[key], int) or entry[key] < 1:
                     raise ConfigError(
                         [
-                            f"Invalid '{key}' for 'image_budgets.{doc_type}' in {config_file}. "
+                            f"Invalid '{key}' for 'inference.tiling.budgets.{doc_type}' in {config_file}. "
                             f"What: '{key}' must be a positive integer, got {entry[key]!r}. "
-                            f"Where: {config_file} → image_budgets.{doc_type}.{key}. "
+                            f"Where: {config_file} → inference.tiling.budgets.{doc_type}.{key}. "
                             f"Expected: a positive integer, e.g. 18. "
                             f"How to fix: set '{key}' to a positive integer under "
-                            f"'image_budgets.{doc_type}' in {config_file}."
+                            f"'inference.tiling.budgets.{doc_type}' in {config_file}."
                         ]
                     )
             if entry["min_tiles"] > entry["max_tiles"]:
                 raise ConfigError(
                     [
-                        f"Invalid tile budget for 'image_budgets.{doc_type}' in {config_file}. "
+                        f"Invalid tile budget for 'inference.tiling.budgets.{doc_type}' in {config_file}. "
                         f"What: min_tiles ({entry['min_tiles']}) exceeds max_tiles "
                         f"({entry['max_tiles']}). "
-                        f"Where: {config_file} → image_budgets.{doc_type}. "
+                        f"Where: {config_file} → inference.tiling.budgets.{doc_type}. "
                         f"Expected: min_tiles <= max_tiles, e.g. min_tiles: 12, "
                         f"max_tiles: 18. "
                         f"How to fix: lower 'min_tiles' or raise 'max_tiles' under "
-                        f"'image_budgets.{doc_type}' in {config_file}."
+                        f"'inference.tiling.budgets.{doc_type}' in {config_file}."
                     ]
                 )
         return dict(budgets)
