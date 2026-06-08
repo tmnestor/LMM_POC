@@ -99,6 +99,18 @@ bug)):
 jq -r 'select((.raw_response|contains("MATCHED_TRANSACTION: FOUND"))|not) | "########## " + .image_name + "  (" + (.completion_tokens|tostring) + " tok)\n--- PROMPT ---\n" + .prompt + "\n--- RESPONSE ---\n" + .raw_response + "\n"' ../raw_prompt_trace.jsonl | head -140
 ```
 
+**Format-aware FOUND count** — the model may reply in the plain
+`MATCHED_TRANSACTION: FOUND` block OR a ` ```json ` object
+(`"MATCHED_TRANSACTION": "FOUND"`). A `contains("MATCHED_TRANSACTION: FOUND")`
+filter MISSES the JSON form and undercounts matches. Count both:
+
+```bash
+jq -s '{calls: length,
+  block_found: (map(select(.raw_response|test("(^|\\n)MATCHED_TRANSACTION: *FOUND")))|length),
+  json_found:  (map(select(.raw_response|test("\"MATCHED_TRANSACTION\" *: *\"FOUND\"")))|length),
+  fenced_json: (map(select(.raw_response|contains("```json")))|length)}' ../raw_prompt_trace.jsonl
+```
+
 ## 4. Interpreting the counts
 
 `vlm_max_tokens` for linking is 4096 (`run_config.yml` → `linking.vlm_max_tokens`).
@@ -109,3 +121,4 @@ jq -r 'select((.raw_response|contains("MATCHED_TRANSACTION: FOUND"))|not) | "###
 | `calls` ≠ the number the matcher queued | **Loop/queue bug** — the per-statement fallback is dropping receipts. |
 | ~all failing as well-formed `MATCHED_TRANSACTION: NOT_FOUND`, no `<think>` | **Genuine recall loss** — the model isn't finding rows under the current ordering (image-first / key-as-suffix). Isolate by flipping one variable. |
 | malformed / wrong block / `RECEIPT_STORE == TRANSACTION_DESCRIPTION` echo | **Construction/parse bug** — check `common/vlm_linker.py` build + parse. |
+| responses are clean ` ```json ` objects with `"MATCHED_TRANSACTION": "FOUND"` but the pipeline records NOT_FOUND | **Format/parser mismatch** — the model replied in JSON but `parse_link_response` only reads the `--- RECEIPT N --- / KEY: value` block, so matches are silently dropped. (This was the 2026-06-08 "regression".) Fix: teach the parser to accept JSON too. |
