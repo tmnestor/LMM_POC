@@ -54,6 +54,7 @@ class VllmBackend:
         self._cached_prompt_tokens = 0
         self._total_prompt_tokens = 0
         self._cache_stats_available = True
+        self._generate_calls = 0  # count of generate() calls (for ms/call timing)
         # Pre-tiling: when enabled, the backend crops each image into
         # ``max_tiles`` 448-square sub-images itself and hands vLLM the crops as
         # separate images, so OUR tile count is authoritative (vLLM's per-image
@@ -153,6 +154,7 @@ class VllmBackend:
         backend's stats to "unavailable" (vLLM's output shape is uniform within
         a run, so the first miss implies all subsequent ones miss too).
         """
+        self._generate_calls += 1  # count every call, even if cache stats are unavailable
         cached = getattr(output, "num_cached_tokens", None)
         prompt_ids = getattr(output, "prompt_token_ids", None)
         if cached is None or prompt_ids is None:
@@ -164,11 +166,12 @@ class VllmBackend:
     def cache_hit_summary(self) -> dict[str, Any]:
         """Cumulative prefix-cache hit summary across this backend's generates."""
         if not self._cache_stats_available:
-            return {"available": False}
+            return {"available": False, "calls": self._generate_calls}
         total = self._total_prompt_tokens
         ratio = (self._cached_prompt_tokens / total) if total else 0.0
         return {
             "available": True,
+            "calls": self._generate_calls,
             "cached_prompt_tokens": self._cached_prompt_tokens,
             "total_prompt_tokens": total,
             "hit_ratio": ratio,

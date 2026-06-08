@@ -37,6 +37,7 @@ Usage:
 import functools
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -424,9 +425,17 @@ def _run_case_fallback(
     return matched_count
 
 
-def _log_cache_summary(processor: Any) -> None:
-    """Log the fallback pass's prefix-cache hit rate (or 'unavailable')."""
+def _log_cache_summary(processor: Any, elapsed_s: float) -> None:
+    """Log the fallback pass's wall-clock timing + prefix-cache hit rate."""
     summary = processor.cache_hit_summary()
+    calls = int(summary.get("calls", 0))
+    per_call_ms = (elapsed_s / calls * 1000.0) if calls else 0.0
+    logger.info(
+        "fallback timing: %d VLM calls in %.1fs (%.0f ms/call)",
+        calls,
+        elapsed_s,
+        per_call_ms,
+    )
     if summary.get("available"):
         logger.info(
             "prefix-cache: %d/%d fallback prompt tokens served from cache (%.0f%%)",
@@ -608,11 +617,12 @@ def run(
                 prompt=prompt,
                 max_tokens=vlm_max_tokens,
             )
+            fallback_start = time.perf_counter()
             for case_id, items in by_case.items():
                 vlm_matched += _run_case_fallback(
                     items, bank_images_by_case[case_id], all_results, attempt_fn=attempt_fn
                 )
-            _log_cache_summary(processor)
+            _log_cache_summary(processor, time.perf_counter() - fallback_start)
         finally:
             model_cm.__exit__(None, None, None)
         logger.info("VLM fallback: %d/%d queued receipts recovered", vlm_matched, len(actionable))
