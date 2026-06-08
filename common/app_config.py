@@ -96,11 +96,10 @@ class BatchSettings:
 
         # GPU memory thresholds
         thresholds = {"low": 8, "medium": 16, "high": 24, "very_high": 64}
-        gpu = raw_config.get("gpu", {})
-        if gpu:
-            mem_thresholds = gpu.get("memory_thresholds", {})
-            if mem_thresholds:
-                thresholds.update(mem_thresholds)
+        resources = raw_config.get("resources", {})
+        mem_thresholds = resources.get("gpu_memory", {})
+        if mem_thresholds:
+            thresholds.update(mem_thresholds)
         kwargs["gpu_memory_thresholds"] = thresholds
 
         return cls(
@@ -325,7 +324,7 @@ class AppConfig:
                 vllm_config[key]["max_num_seqs"] = cli_max_num_seqs
 
         # 14. Build infrastructure settings
-        infra_section = raw_config.get("infrastructure", {})
+        infra_section = raw_config.get("resources", {}).get("infrastructure", {})
 
         # 15. Build classification settings
         classification_section = raw_config.get("pipeline", {}).get("classification", {})

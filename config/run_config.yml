@@ -270,18 +270,19 @@ pipeline:
     enabled: false
     key_pattern: "^(?P<institution>[A-Za-z]+)_"
 
-# Infrastructure settings — timeouts, memory thresholds
-infrastructure:
-  # No dp_timeout: data-parallel workers run until they finish or die (run_dp
-  # polls worker liveness instead of imposing an arbitrary wall-clock cap).
-  dp_join_timeout: 60           # seconds, process join timeout
-  gpu_memory_threshold_gb: 1.0
-  gpu_memory_fallback_gb: 24.0
-
-# GPU memory management
-gpu:
-  memory_thresholds:
+# Resources — GPU memory thresholds and infrastructure timeouts.
+resources:
+  # GPU memory thresholds (GB) — drive auto-batch-size selection.
+  gpu_memory:
     low: 8                      # GB — conservative batching
     medium: 16                  # GB — balanced batching
     high: 24                    # GB — aggressive batching
     very_high: 64               # GB — maximum batching
+
+  # Infrastructure settings — timeouts, memory thresholds
+  infrastructure:
+    # No dp_timeout: data-parallel workers run until they finish or die (run_dp
+    # polls worker liveness instead of imposing an arbitrary wall-clock cap).
+    dp_join_timeout: 60           # seconds, process join timeout
+    gpu_memory_threshold_gb: 1.0
+    gpu_memory_fallback_gb: 24.0
