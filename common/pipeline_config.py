@@ -285,16 +285,17 @@ def load_yaml_config(
 
     # Flatten nested structure for PipelineConfig
     flat_config: dict[str, Any] = {}
-    if "model" in raw_config:
-        flat_config["model_type"] = raw_config["model"].get("type")
-        flat_config["model_path"] = raw_config["model"].get("path")
-        flat_config["max_tiles"] = raw_config["model"].get("max_tiles")
-        flat_config["min_tiles"] = raw_config["model"].get("min_tiles")
-        flat_config["flash_attn"] = raw_config["model"].get("flash_attn")
-        flat_config["enforce_eager"] = raw_config["model"].get("enforce_eager")
-        flat_config["dtype"] = raw_config["model"].get("dtype")
-        flat_config["max_new_tokens"] = raw_config["model"].get("max_new_tokens")
-        flat_config["chat_template"] = _resolve_chat_template(raw_config["model"], config_path)
+    model_cfg = raw_config.get("bootstrap", {}).get("model", {})
+    if model_cfg:
+        flat_config["model_type"] = model_cfg.get("type")
+        flat_config["model_path"] = model_cfg.get("path")
+        flat_config["max_tiles"] = model_cfg.get("max_tiles")
+        flat_config["min_tiles"] = model_cfg.get("min_tiles")
+        flat_config["flash_attn"] = model_cfg.get("flash_attn")
+        flat_config["enforce_eager"] = model_cfg.get("enforce_eager")
+        flat_config["dtype"] = model_cfg.get("dtype")
+        flat_config["max_new_tokens"] = model_cfg.get("max_new_tokens")
+        flat_config["chat_template"] = _resolve_chat_template(model_cfg, config_path)
 
     if "data" in raw_config:
         flat_config["data_dir"] = raw_config["data"].get("dir")
@@ -313,16 +314,17 @@ def load_yaml_config(
         flat_config["balance_correction"] = raw_config["processing"].get("balance_correction")
         flat_config["verbose"] = raw_config["processing"].get("verbose")
         flat_config["debug"] = raw_config["processing"].get("debug")
-        flat_config["num_gpus"] = raw_config["processing"].get("num_gpus")
-        flat_config["data_parallel_size"] = raw_config["processing"].get("data_parallel_size")
 
-    # Flatten model_loading options into PipelineConfig fields
-    if "model_loading" in raw_config:
-        ml = raw_config["model_loading"]
-        if "trust_remote_code" in ml:
-            flat_config["trust_remote_code"] = ml["trust_remote_code"]
-        if "device_map" in ml:
-            flat_config["device_map"] = str(ml["device_map"])
+    gpus_cfg = raw_config.get("bootstrap", {}).get("gpus", {})
+    flat_config["num_gpus"] = gpus_cfg.get("num_gpus")
+    flat_config["data_parallel_size"] = gpus_cfg.get("data_parallel_size")
+
+    # Flatten model loading options (device_map / trust_remote_code now live
+    # under bootstrap.model) into PipelineConfig fields.
+    if "trust_remote_code" in model_cfg:
+        flat_config["trust_remote_code"] = model_cfg["trust_remote_code"]
+    if "device_map" in model_cfg:
+        flat_config["device_map"] = str(model_cfg["device_map"])
 
     # Raw-prompt trace (debug observability; absent block -> off)
     trace_enabled, trace_path = _resolve_tracing(raw_config, config_path)
@@ -438,12 +440,10 @@ def _resolve_default_paths(
 
     Supports both dict form ({model_type: path}) and legacy list form ([path, ...]).
     """
-    if not raw_config or "model_loading" not in raw_config:
+    if not raw_config or not raw_config.get("bootstrap", {}).get("model", {}).get("default_paths"):
         return None
 
-    default_paths = raw_config["model_loading"].get("default_paths")
-    if default_paths is None:
-        return None
+    default_paths = raw_config["bootstrap"]["model"]["default_paths"]
 
     if isinstance(default_paths, dict):
         # Dict form: try the requested model_type first, then all paths

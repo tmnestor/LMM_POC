@@ -75,10 +75,11 @@ def main() -> int:
         return 0
 
     cfg = yaml.safe_load(path.read_text()) or {}
-    model = cfg.get("model", {}) or {}
+    bootstrap = cfg.get("bootstrap", {}) or {}
+    model = bootstrap.get("model", {}) or {}
     data = cfg.get("data", {}) or {}
     output = cfg.get("output", {}) or {}
-    log_cfg = cfg.get("logging", {}) or {}
+    log_cfg = bootstrap.get("logging", {}) or {}
     trust = cfg.get("trust_distribution", {}) or {}
     linking = cfg.get("linking", {}) or {}
 

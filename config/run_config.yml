@@ -2,28 +2,49 @@
 # All options explicitly stated - YAML takes priority over defaults
 # CLI flags override YAML when explicitly provided
 
-# Model configuration — switch type + path together
-model:
-  # type: internvl3
-  type: internvl3-vllm
-  path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-  # path: /efs/shared/PTM/InternVL3_5-8B
-  max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
-  # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
-  flash_attn: true       # Use Flash Attention 2 (disable for V100)
-  enforce_eager: true    # vLLM: true = skip CUDA graph compilation (faster startup,
-                         #        lower throughput); false = compile graphs (slower
-                         #        startup, higher throughput for long runs)
-  dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
-  max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
-  # vLLM only: override the chat template used by engine.chat().
-  #   none            -> use the model's own template (default)
-  #   <path/to/*.jinja> -> serve with this template instead (must exist)
-  # Use this to disable a serve-side R1/thinking template that emits <think>
-  # blocks. InternVL3.5 thinking is controlled by the system prompt, not
-  # enable_thinking; a custom non-thinking template is the override of last
-  # resort when the model dir ships a thinking-by-default template.
-  chat_template: none
+# Bootstrap configuration — the minimal set the entrypoint and model loader need
+# before any pipeline work begins (model identity, tiling, GPU count, log dir).
+# conda_env: bootstrapped from LMM_CONDA_ENV + the entrypoint default; it CANNOT
+# be a real key here (chicken-and-egg: this YAML is read by the conda python, so
+# the env must already be chosen before this file is parsed).
+bootstrap:
+  # Model configuration — switch type + path together
+  model:
+    # type: internvl3
+    type: internvl3-vllm
+    path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+    # path: /efs/shared/PTM/InternVL3_5-8B
+    max_tiles: 18          # Image tiles (H200: 18-36, V100: 14, L4: 18)
+    # min_tiles: 6         # Set to enable adaptive quality-based tiling (range: min_tiles..max_tiles)
+    flash_attn: true       # Use Flash Attention 2 (disable for V100)
+    enforce_eager: true    # vLLM: true = skip CUDA graph compilation (faster startup,
+                           #        lower throughput); false = compile graphs (slower
+                           #        startup, higher throughput for long runs)
+    dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
+    max_new_tokens: 3500   # Max tokens for generation (increased to avoid truncation on 30+ row statements)
+    # vLLM only: override the chat template used by engine.chat().
+    #   none            -> use the model's own template (default)
+    #   <path/to/*.jinja> -> serve with this template instead (must exist)
+    # Use this to disable a serve-side R1/thinking template that emits <think>
+    # blocks. InternVL3.5 thinking is controlled by the system prompt, not
+    # enable_thinking; a custom non-thinking template is the override of last
+    # resort when the model dir ships a thinking-by-default template.
+    chat_template: none
+    # Model loading options (merged from the old top-level model_loading:).
+    device_map: auto
+    default_paths:
+      internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
+      internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
+      # internvl3: /efs/shared/PTM/InternVL3_5-8B
+      # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
+  # GPU count (moved from the old top-level processing: section).
+  gpus:
+    num_gpus: 0                # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
+    data_parallel_size: null   # null = auto (num_gpus for vLLM, ignored for HF)
+  # Logging
+  logging:
+    # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
+    log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
 # Raw VLM prompt/response trace (debug observability; default off).
 # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
@@ -67,11 +88,6 @@ output:
   skip_visualizations: false  # Skip visualization generation
   skip_reports: false         # Skip report generation
 
-# Logging
-logging:
-  # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
-  log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
-
 # Classification settings
 classification:
   fallback_type: UNIVERSAL     # Default type when model response can't be parsed
@@ -82,8 +98,6 @@ classification:
 # Processing options
 processing:
   batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
-  num_gpus: 0                  # 0 = auto-detect all GPUs, 1 = single GPU, N = use N GPUs
-  data_parallel_size: null     # null = auto (num_gpus for vLLM, ignored for HF)
   bank_v2: true              # Use V2 bank statement extraction
   balance_correction: false  # Disable balance validation (reduces accuracy)
   verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
@@ -260,12 +274,3 @@ gpu:
     medium: 16                  # GB — balanced batching
     high: 24                    # GB — aggressive batching
     very_high: 64               # GB — maximum batching
-
-# Model loading options
-model_loading:
-  device_map: auto
-  default_paths:
-    internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    # internvl3: /efs/shared/PTM/InternVL3_5-8B
-    # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
