@@ -141,8 +141,9 @@ inference:
       # mm_processor_kwargs/hf_overrides is blocked on this build (see
       # plans/2026-06-04-adaptive-tiling-dense-bank.md). The supported route is
       # app-side pre_tiling (above): we crop tiles ourselves and send them as
-      # separate images. To use it, set pre_tiling.enabled: true AND uncomment the
-      # internvl3-vllm limit_mm_per_prompt below (>= max image_budget + 1 = 19).
+      # separate images. pre_tiling.enabled is ON (above), so the internvl3-vllm
+      # limit_mm_per_prompt below MUST stay >= max image_budget + 1 (= 19); at the
+      # defaults value of 1, vLLM silently drops the extra crops -> under-tiling.
       internvl3-vllm:
         max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
         limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
