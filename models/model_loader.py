@@ -28,7 +28,7 @@ class VllmSpec:
 
     Holds only *structural* fields. Engine tuning (gpu_memory_utilization,
     max_model_len, max_num_seqs, limit_mm_per_prompt, enable_prefix_caching)
-    lives in ``config/run_config.yml`` under ``vllm:`` — the YAML is the
+    lives in ``config/run_config.yml`` under ``inference.vllm:`` — the YAML is the
     single source of truth and is resolved at load time via
     ``app_config.get_vllm_config(model_type)``.
     """

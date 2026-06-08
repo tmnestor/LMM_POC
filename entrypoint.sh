@@ -73,7 +73,7 @@ export VLLM_NO_USAGE_STATS="${VLLM_NO_USAGE_STATS:-1}"
 # while still being printed to the console (so KFP UI shows it too).
 # Each run creates its own log file, e.g. entrypoint_20260213_143022.log
 #
-# Priority: LMM_LOG_DIR env var > run_config.yml logging.log_dir > fail
+# Priority: LMM_LOG_DIR env var > run_config.yml bootstrap.logging.log_dir > fail
 # No silent fallback — in KFP, pod-local writes are ephemeral/forbidden.
 CONFIG_FILE="./config/run_config.yml"
 
@@ -105,8 +105,8 @@ fi
 eval "$("$CONDA_PY" scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
 
 # Select this task's log dir (env var > YAML > fail). Trust tasks use
-# trust_distribution.log_dir; transaction-linking uses linking.log_dir;
-# everything else uses logging.log_dir.
+# pipeline.trust.log_dir; transaction-linking uses pipeline.linking.log_dir;
+# everything else uses bootstrap.logging.log_dir.
 case "${KFP_TASK:-}" in
   trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_pipeline)
     LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
@@ -119,7 +119,7 @@ case "${KFP_TASK:-}" in
     ;;
 esac
 if [[ -z "$LOG_DIR" ]]; then
-  echo "FATAL: No log directory configured. Set LMM_LOG_DIR env var or logging.log_dir in $CONFIG_FILE"
+  echo "FATAL: No log directory configured. Set LMM_LOG_DIR env var or bootstrap.logging.log_dir in $CONFIG_FILE"
   exit 1
 fi
 mkdir -p "$LOG_DIR"
@@ -483,7 +483,7 @@ _run_trust_classify() {
     OPT_CLASSIFY_PATHS+=(--quads-incomplete "$trust_quads_incomplete")
   fi
   python3 -m stages.trust_classify \
-    --data-dir   "${trust_data_dir:?trust_data_dir is required — set via trust_distribution.data_dir in run_config.yml or trust_data_dir env var}" \
+    --data-dir   "${trust_data_dir:?trust_data_dir is required — set via pipeline.trust.data_dir in run_config.yml or trust_data_dir env var}" \
     --output-dir "${TRUST_OUT}" \
     "${OPT_CLASSIFY_PATHS[@]}" \
     "${OPT_MODEL[@]}" || exit $?
@@ -494,9 +494,9 @@ _run_trust_extract() {
   # run_trust_pipeline. Expects trust_quads to exist (trust_classify or
   # _ensure_trust_quads produced it).
   python3 -m stages.link trust-link \
-    --quads    "${trust_quads:?trust_quads is required — set via trust_distribution.quads in run_config.yml or trust_quads env var}" \
-    --data-dir "${trust_data_dir:?trust_data_dir is required — set via trust_distribution.data_dir in run_config.yml or trust_data_dir env var}" \
-    --output   "${trust_raw_extractions:?trust_raw_extractions is required — set via trust_distribution.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
+    --quads    "${trust_quads:?trust_quads is required — set via pipeline.trust.quads in run_config.yml or trust_quads env var}" \
+    --data-dir "${trust_data_dir:?trust_data_dir is required — set via pipeline.trust.data_dir in run_config.yml or trust_data_dir env var}" \
+    --output   "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
     "${OPT_MODEL[@]}" || exit $?
 }
 
@@ -504,8 +504,8 @@ _run_trust_clean() {
   # CPU. Runs trust compliance validation. Used by the `trust_clean` pod and
   # run_trust_pipeline.
   python3 -m stages.trust_clean \
-    --input  "${trust_raw_extractions:?trust_raw_extractions is required — set via trust_distribution.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
-    --output "${trust_compliance_results:?trust_compliance_results is required — set via trust_distribution.compliance_results in run_config.yml or trust_compliance_results env var}" || exit $?
+    --input  "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
+    --output "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" || exit $?
 }
 
 _run_trust_evaluate() {
@@ -523,8 +523,8 @@ _run_trust_evaluate() {
     OPT_CLASSIFICATION_GT=(--classification-gt "$trust_classification_gt")
   fi
   python3 -m stages.evaluate_trust \
-    --input        "${trust_compliance_results:?trust_compliance_results is required — set via trust_distribution.compliance_results in run_config.yml or trust_compliance_results env var}" \
-    --ground-truth "${trust_ground_truth:?trust_ground_truth is required — set via trust_distribution.ground_truth in run_config.yml or trust_ground_truth env var}" \
+    --input        "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
+    --ground-truth "${trust_ground_truth:?trust_ground_truth is required — set via pipeline.trust.ground_truth in run_config.yml or trust_ground_truth env var}" \
     --output-dir   "$TRUST_EVAL_DIR" \
     "${OPT_CLASSIFICATIONS[@]}" \
     "${OPT_CLASSIFICATION_GT[@]}" \
@@ -895,7 +895,7 @@ case "${KFP_TASK:-}" in
     _banner "Stage 4: trust_evaluate — scoring trust compliance detection (CPU)"
     _resolve_trust_vars
     log "  trust_output: ${TRUST_OUT}"
-    TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via trust_distribution.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
+    TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via pipeline.trust.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
     mkdir -p "$TRUST_EVAL_DIR"
     _clear_prev_output "${TRUST_EVAL_DIR}/trust_evaluation_results.jsonl"
     _read_inference_elapsed "${TRUST_OUT}/.inference_elapsed"
@@ -936,7 +936,7 @@ case "${KFP_TASK:-}" in
 
     if _is_set "${trust_ground_truth:-}"; then
       _banner "Phase 4/4: trust_evaluate (CPU)"
-      TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via trust_distribution.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
+      TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via pipeline.trust.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
       mkdir -p "$TRUST_EVAL_DIR"
       # Orchestrator path: pass the single wall-clock as INFERENCE_ARGS so
       # _run_trust_evaluate uses the same --inference-seconds flag the per-pod
@@ -996,15 +996,15 @@ case "${KFP_TASK:-}" in
     _banner "Phase 4/5: transaction_link (matcher-first + VLM fallback)"
     python3 -m stages.transaction_link \
       --extractions "$CLEAN_EXTRACTIONS" \
-      --output      "${linking_output:?linking_output is required — set via linking.output in run_config.yml or linking_output env var}" \
-      --data-dir    "${image_dir:?image_dir is required — set via linking.data_dir in run_config.yml or linking_data_dir env var}" \
+      --output      "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --data-dir    "${image_dir:?image_dir is required — set via pipeline.linking.data_dir in run_config.yml or linking_data_dir env var}" \
       --config      "$CONFIG_FILE" \
       "${OPT_MODEL[@]}" || exit $?
     log "Phase 4/5: transaction_link complete."
 
     if _is_set "${linking_ground_truth:-}"; then
       _banner "Phase 5/5: evaluate_linking (CPU)"
-      LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
+      LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via pipeline.linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
       mkdir -p "$LINK_EVAL_DIR"
       python3 -m stages.evaluate_linking \
         --input        "${linking_output}" \

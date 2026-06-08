@@ -159,11 +159,11 @@ def _resolve_chat_template(model_cfg: dict[str, Any], config_path: Path) -> str 
     """
     if "chat_template" not in model_cfg:
         raise ValueError(
-            "What: required key 'model.chat_template' is missing.\n"
-            f"Where: {config_path} -> model.chat_template\n"
+            "What: required key 'bootstrap.model.chat_template' is missing.\n"
+            f"Where: {config_path} -> bootstrap.model.chat_template\n"
             "Expected: 'none' to use the model's own template, or a path to a "
-            "*.jinja file, e.g.:\n  model:\n    chat_template: none\n"
-            "How to fix: add 'chat_template: none' under the 'model:' section."
+            "*.jinja file, e.g.:\n  bootstrap:\n    model:\n      chat_template: none\n"
+            "How to fix: add 'chat_template: none' under 'bootstrap.model:'."
         )
 
     value = model_cfg["chat_template"]
@@ -173,8 +173,8 @@ def _resolve_chat_template(model_cfg: dict[str, Any], config_path: Path) -> str 
     template_path = Path(str(value)).expanduser()
     if not template_path.is_file():
         raise ValueError(
-            f"What: 'model.chat_template' points to a file that does not exist: {value}\n"
-            f"Where: {config_path} -> model.chat_template\n"
+            f"What: 'bootstrap.model.chat_template' points to a file that does not exist: {value}\n"
+            f"Where: {config_path} -> bootstrap.model.chat_template\n"
             "Expected: 'none' (use the model's template) or a path to an existing "
             "*.jinja chat-template file.\n"
             f"How to fix: correct the path, or set 'chat_template: none' in {config_path}."
