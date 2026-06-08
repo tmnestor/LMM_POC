@@ -447,25 +447,6 @@ def _log_cache_summary(processor: Any, elapsed_s: float) -> None:
         logger.info("prefix-cache: unavailable on this vLLM build")
 
 
-def _fallback_cli_args(data_dir: Path, model_type: str | None) -> dict[str, Any]:
-    """CLI-arg overrides for the fallback engine.
-
-    ``num_gpus=1`` forces tensor_parallel_size=1. The fallback issues single-image
-    lookups one at a time and an 8B model fits on one 24 GB GPU, so sharding it
-    across all GPUs (tp=num_gpus) only adds cross-GPU comm and serializes the
-    calls. tp=1 runs each call at full speed on one GPU. (Proper 4x throughput via
-    data-parallel replicas is a separate change — see the dp=4 plan.)
-    """
-    args: dict[str, Any] = {
-        "data_dir": str(data_dir),
-        "output_dir": str(data_dir),
-        "num_gpus": 1,
-    }
-    if model_type:
-        args["model_type"] = model_type
-    return args
-
-
 def _build_processor(model_type: str | None, data_dir: Path, config_path: Path | None) -> Any:
     """Load the model and wrap it in a processor exposing ``.generate``.
 
@@ -477,7 +458,16 @@ def _build_processor(model_type: str | None, data_dir: Path, config_path: Path |
     from common.app_config import AppConfig
     from common.pipeline_ops import create_processor, load_model
 
-    app_cfg = AppConfig.load(_fallback_cli_args(data_dir, model_type), config_path=config_path)
+    # NOTE: do NOT force num_gpus=1 here. Measured 2026-06-08: with the SERIAL
+    # fallback, tp=1 (358s) is ~2x slower than tp=4 (168s) because each lone
+    # request spreads its compute across all GPUs under tp=4. The real fix is
+    # concurrency (batch the calls so vLLM's continuous batching engages), not
+    # changing tp. Leave tp at the configured num_gpus.
+    cli_args: dict[str, Any] = {"data_dir": str(data_dir), "output_dir": str(data_dir)}
+    if model_type:
+        cli_args["model_type"] = model_type
+
+    app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
 
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
