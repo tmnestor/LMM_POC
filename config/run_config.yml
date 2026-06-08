@@ -92,16 +92,17 @@ inference:
     # min_num); max_tiles is the ceiling. Because the InternVL tiling algorithm
     # picks the grid by closest aspect-ratio match, a clean A4-portrait bank
     # statement settles on a 2x3 (6-tile) grid and NEVER reaches max_tiles on its
-    # own — so raising max alone does nothing. min_tiles=12 forces the denser 3x4
-    # grid (near-square cells, ~1.4x linear resolution) needed to read packed
-    # transaction tables. Receipts/invoices keep min_tiles: 1 (aspect-matched).
+    # own — so raising max alone does nothing. min_tiles=max_tiles=18 forces
+    # exactly 18 detail tiles (+ thumbnail = 19 images, the engine's designed
+    # ceiling via limit_mm_per_prompt) needed to read packed dense transaction
+    # tables. Receipts/invoices keep min_tiles: 1 (aspect-matched).
     # Requires min_tiles <= max_tiles. See plans/2026-06-04-adaptive-tiling-dense-bank.md.
     budgets:
       default:
         min_tiles: 1
         max_tiles: 18
       bank_statement:
-        min_tiles: 12
+        min_tiles: 18
         max_tiles: 18
       invoice:
         min_tiles: 1
