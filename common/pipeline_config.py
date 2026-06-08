@@ -297,16 +297,18 @@ def load_yaml_config(
         flat_config["max_new_tokens"] = model_cfg.get("max_new_tokens")
         flat_config["chat_template"] = _resolve_chat_template(model_cfg, config_path)
 
-    if "data" in raw_config:
-        flat_config["data_dir"] = raw_config["data"].get("dir")
-        flat_config["ground_truth"] = raw_config["data"].get("ground_truth")
-        flat_config["max_images"] = raw_config["data"].get("max_images")
-        flat_config["document_types"] = raw_config["data"].get("document_types")
+    input_cfg = raw_config.get("io", {}).get("input", {})
+    if input_cfg:
+        flat_config["data_dir"] = input_cfg.get("dir")
+        flat_config["ground_truth"] = input_cfg.get("ground_truth")
+        flat_config["max_images"] = input_cfg.get("max_images")
+        flat_config["document_types"] = input_cfg.get("document_types")
 
-    if "output" in raw_config:
-        flat_config["output_dir"] = raw_config["output"].get("dir")
-        flat_config["skip_visualizations"] = raw_config["output"].get("skip_visualizations")
-        flat_config["skip_reports"] = raw_config["output"].get("skip_reports")
+    output_cfg = raw_config.get("io", {}).get("output", {})
+    if output_cfg:
+        flat_config["output_dir"] = output_cfg.get("dir")
+        flat_config["skip_visualizations"] = output_cfg.get("skip_visualizations")
+        flat_config["skip_reports"] = output_cfg.get("skip_reports")
 
     if "processing" in raw_config:
         flat_config["batch_size"] = raw_config["processing"].get("batch_size")

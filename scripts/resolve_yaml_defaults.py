@@ -77,8 +77,9 @@ def main() -> int:
     cfg = yaml.safe_load(path.read_text()) or {}
     bootstrap = cfg.get("bootstrap", {}) or {}
     model = bootstrap.get("model", {}) or {}
-    data = cfg.get("data", {}) or {}
-    output = cfg.get("output", {}) or {}
+    io_cfg = cfg.get("io", {}) or {}
+    data = io_cfg.get("input", {}) or {}
+    output = io_cfg.get("output", {}) or {}
     log_cfg = bootstrap.get("logging", {}) or {}
     trust = cfg.get("trust_distribution", {}) or {}
     linking = cfg.get("linking", {}) or {}

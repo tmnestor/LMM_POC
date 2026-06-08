@@ -46,6 +46,29 @@ bootstrap:
     # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
     log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
+# I/O configuration — where inputs are read from and outputs are written to.
+io:
+  # Data paths
+  input:
+    # dir: /efs/shared/annotations/annotation_images
+    # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
+    # dir: ../evaluation_data/bank
+    # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
+    # dir: ../evaluation_data/synthetic_original
+    # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
+    dir: ../evaluation_data/synthetic_transaction_linking
+    # Extraction GT generated from the per-type YAMLs in
+    # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
+    # (Separate from linking.ground_truth, which the transaction-linking task uses.)
+    ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
+    max_images: null       # null = process all images
+    document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
+  # Output settings
+  output:
+    dir: ../evaluation_data/output
+    skip_visualizations: false  # Skip visualization generation
+    skip_reports: false         # Skip report generation
+
 # Raw VLM prompt/response trace (debug observability; default off).
 # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
 # linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
@@ -65,28 +88,6 @@ pre_tiling:
   enabled: true       # true -> pre-tile; false -> single-image (vLLM tiles internally at 12)
   image_size: 448      # InternVL3 tile size in pixels
   use_thumbnail: true  # append a whole-image thumbnail after the detail tiles
-
-# Data paths
-data:
-  # dir: /efs/shared/annotations/annotation_images
-  # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
-  # dir: ../evaluation_data/bank
-  # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
-  # dir: ../evaluation_data/synthetic_original
-  # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
-  dir: ../evaluation_data/synthetic_transaction_linking
-  # Extraction GT generated from the per-type YAMLs in
-  # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
-  # (Separate from linking.ground_truth, which the transaction-linking task uses.)
-  ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
-  max_images: null       # null = process all images
-  document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
-
-# Output settings
-output:
-  dir: ../evaluation_data/output
-  skip_visualizations: false  # Skip visualization generation
-  skip_reports: false         # Skip report generation
 
 # Classification settings
 classification:
