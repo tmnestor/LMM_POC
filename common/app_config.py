@@ -50,18 +50,12 @@ class BatchSettings:
     # Schema documentation only. Runtime values come from run_config.yml.
     _DEFAULT_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 4,
-        "internvl3-2b": 4,
-        "internvl3-8b": 4,
     }
     _MAX_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 8,
-        "internvl3-2b": 8,
-        "internvl3-8b": 16,
     }
     _CONSERVATIVE_SIZES: ClassVar[dict[str, int]] = {
         "internvl3": 1,
-        "internvl3-2b": 2,
-        "internvl3-8b": 1,
     }
 
     @classmethod

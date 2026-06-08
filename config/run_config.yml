@@ -161,9 +161,6 @@ pipeline:
   # Classification settings
   classification:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
-    complexity_thresholds:
-      low: 5                     # 1-5 rows/items = LOW
-      high: 20                   # 21+ rows/items = HIGH; 6-20 = MEDIUM
 
   # Processing options
   processing:
