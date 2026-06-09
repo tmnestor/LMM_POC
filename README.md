@@ -107,7 +107,9 @@ The graph engine emits the **same** `raw_extractions.jsonl` shape (plus an embed
 `WorkflowTrace`), so `clean` and `evaluate` are identical whether the data came from the
 single-pass path or the graph. The streaming writer flushes **per record** in append mode, so a
 killed process leaves a valid partial file that the next run resumes from
-(`stages/io.py` — `StreamingJsonlWriter`, `read_completed_images`).
+(`stages/io.py` — `write_jsonl` / `append_jsonl` / `StreamingJsonlWriter`, `read_completed_images`).
+Every GPU stage resumes this way: `classify` and `extract` both read the partial output, skip the
+already-processed images, and **append** the rest.
 
 ## Supported document types
 
@@ -130,20 +132,20 @@ New document types are added in **YAML only** — see
 
 ## The model: InternVL3.5-8B
 
-The project standardises on **InternVL3.5-8B**, available as **two deployment backends over the
-same weights**:
+The project standardises on **InternVL3.5-8B**, served through a **single deployment backend**:
+vLLM. There is no HuggingFace `model.chat()` path — the system is **vLLM-only**.
 
-| Attribute | `internvl3` (HuggingFace) | `internvl3-vllm` (vLLM) — **production default** |
-|---|---|---|
-| `--model` key | `internvl3` | `internvl3-vllm` |
-| Backend class | `InternVL3Backend` (`models/backends/internvl3.py`) | `VllmBackend` (`models/backends/vllm_backend.py`) |
-| Loader | `AutoModel` / `AutoTokenizer`, `trust_remote_code` | vLLM offline engine (PagedAttention) |
-| Inference API | `model.chat()` / `model.batch_chat()` | OpenAI-compatible chat over the offline engine |
-| Bank extraction | Multi-turn via `UnifiedBankExtractor` | Multi-turn via `UnifiedBankExtractor` |
-| Batch inference | Yes (variable-tile `num_patches_list`, OOM fallback) | Yes (PagedAttention; data-parallel via `common/vllm_dp.py`) |
-| Prompt file | `prompts/internvl3_prompts.yaml` | `prompts/internvl3_prompts.yaml` |
+| Attribute | `internvl3-vllm` (vLLM) — **production default** |
+|---|---|
+| `--model` key | `internvl3-vllm` |
+| Backend class | `VllmBackend` (`models/backends/vllm_backend.py`) |
+| Loader | vLLM offline engine (PagedAttention) |
+| Inference API | OpenAI-compatible chat over the offline engine |
+| Bank extraction | Multi-turn via `UnifiedBankExtractor` |
+| Batch inference | Yes (PagedAttention; data-parallel via `common/vllm_dp.py`) |
+| Prompt file | `prompts/internvl3_prompts.yaml` |
 
-The active backend is whatever `model.type` in `config/run_config.yml` says — currently
+The active backend is whatever `bootstrap.model.type` in `config/run_config.yml` says — currently
 **`internvl3-vllm`**. The `stages.link` / `stages.link trust-link` commands also default their
 `--model` flag to `internvl3-vllm`; `stages.classify` / `stages.extract` leave `--model` unset
 and let the config cascade resolve it (which lands on `internvl3-vllm` from the YAML).
@@ -154,23 +156,23 @@ detection, amount OCR) is the bottleneck. The high dev-set numbers seen earlier 
 9-image set and are not representative. A document-OCR specialist preprocessor is the
 recommended next intervention before swapping the main VLM.
 
-### Other registered backends (unsupported)
+### The registered InternVL3.5 vLLM variants
 
-`models/registry.py` registers **16 model keys total** from earlier multi-model
-experimentation. Only the two InternVL3.5-8B backends above are supported, tuned, and tested.
-The remaining 14 are retained for reference only and are **not supported going forward**:
+`models/registry.py` registers exactly **three** model keys, all InternVL3.5 over vLLM:
 
 ```
-internvl3-14b   internvl3-38b   internvl3-14b-vllm   internvl3-38b-vllm
-llama   llama4scout   llama4scout-w4a16
-qwen3vl   qwen3vl-vllm   qwen35   qwen35-vllm
-granite4   nemotron   gemma4
+internvl3-vllm        # 8B — production default (not sharded)
+internvl3-14b-vllm    # 14B — requires_sharding=True
+internvl3-38b-vllm    # 38B — requires_sharding=True
 ```
+
+The **8B** (`internvl3-vllm`) is the supported, tuned, and tested production model. The 14B and
+38B variants are registered for scale-up experiments and are flagged `requires_sharding=True`;
+the 8B is **not** sharded. There are no HuggingFace, llama, qwen, granite, nemotron, or gemma keys.
 
 > Verify the live list at any time:
 > `python -c "from models.registry import list_models; print(list_models())"`
-> The 14B/38B InternVL variants are the only ones flagged `requires_sharding=True`; the 8B model
-> is **not** sharded (see [Why this multi-GPU design](#why-this-multi-gpu-design)).
+> See [Why this multi-GPU design](#why-this-multi-gpu-design) for why the 8B is loaded whole.
 
 ## Two execution shapes
 
@@ -232,8 +234,9 @@ environment variable — `KFP_TASK` — plus a handful of KFP-injected `input_pa
    to launch it. This runs *before* the `tee` redirect so the log dir is known. The script then
    `exec`-redirects all stdout/stderr through `tee` to a timestamped log file
    (`entrypoint_YYYYMMDD_HHMMSS.log`) — console output (for the KFP UI) **and** a persistent log.
-   Trust tasks use `trust_distribution.log_dir`; transaction-linking uses `linking.log_dir`; all
-   others use `logging.log_dir`. There is **no silent fallback** — a missing log dir is fatal.
+   Trust tasks use `pipeline.trust.log_dir`; transaction-linking uses `pipeline.linking.log_dir`;
+   all others use `bootstrap.logging.log_dir`. There is **no silent fallback** — a missing log dir
+   is fatal.
 4. **Conda activation** — `conda activate` the env (default `/home/jovyan/.conda/envs/vllm_env2`,
    overridable via `LMM_CONDA_ENV`; the same `$CONDA_ENV` bootstrapped in step 3). The env **cannot**
    come from `run_config.yml` — parsing that YAML needs PyYAML, which only exists inside the very env
@@ -425,8 +428,8 @@ free-text type label.
 ### Discrepancy classification (verified against code)
 
 `run_trust_compliance()` compares extracted fields algorithmically and classifies the **first**
-matching discrepancy. All four conditions use a configurable percentage tolerance
-(`trust_distribution.amount_tolerance`, default `0.01` = 1%):
+matching discrepancy. All four conditions use a percentage tolerance (1% = `0.01`); the
+trust **evaluator** reads its tolerance from `pipeline.trust.amount_tolerance`:
 
 | Discrepancy type | Condition |
 |---|---|
@@ -455,19 +458,20 @@ KFP_TASK=trust_evaluate  bash entrypoint.sh   # CPU — scoring (needs trust_gro
 If no quads CSV exists but a ground-truth YAML is set, `entrypoint.sh` auto-generates the quads
 via `scripts/generate_trust_manifest.py` (`_ensure_trust_quads`).
 
-**Document layout** is configured under `trust_distribution.subdirectories` in `run_config.yml`.
+**Document layout** is configured under `pipeline.trust.subdirectories` in `run_config.yml`.
 In **production** all four map to `.` (a single flat directory of `CASEXXX_*` files, from which
 `trust_classify` builds the quads CSV). A **development** layout can point each type at a
 pre-sorted subdirectory:
 
 ```yaml
-trust_distribution:
-  subdirectories:
-    trust_return: .            # production: flat dir
-    distribution_stmt: .
-    income_schedule: .
-    beneficiary_itr: .
-    # dev alternative: trust_returns / distribution_statements / trust_income_schedules / beneficiary_itrs
+pipeline:
+  trust:
+    subdirectories:
+      trust_return: .            # production: flat dir
+      distribution_stmt: .
+      income_schedule: .
+      beneficiary_itr: .
+      # dev alternative: trust_returns / distribution_statements / trust_income_schedules / beneficiary_itrs
 ```
 
 ## Transaction linking
@@ -604,8 +608,10 @@ python -m stages.extract --data-dir /persistent/storage/annotations/evaluation_d
 | `--classification-gt` | `None` | Trust classification ground-truth YAML |
 | `--inference-seconds` | `None` | GPU inference seconds for throughput |
 
-`stages/io.py` is a helper module (not a CLI stage): atomic/streaming JSONL writers, readers,
-and `read_completed_images()` — the resumption primitive shared by every GPU stage.
+`stages/io.py` is a helper module (not a CLI stage): atomic/streaming JSONL writers
+(`write_jsonl`, `append_jsonl`, `StreamingJsonlWriter`), readers, and `read_completed_images()` —
+the resumption primitive shared by every GPU stage (both `classify` and `extract` append to a
+partial output rather than overwriting it).
 
 ### Run scripts (no entrypoint overhead)
 
@@ -661,13 +667,15 @@ Key flags (full set via `python cli.py --help`):
 ## YAML configuration
 
 **`config/run_config.yml` is the single source of truth** for tunables. Read the file itself for
-the authoritative, commented set; the top-level sections are:
+the authoritative, commented set. The file is organised into exactly **five** top-level sections:
 
-```
-model · data · output · logging · classification · processing · token_budgets ·
-trust_distribution · batch · generation · vllm · extraction_order · secondary_sort ·
-extraction_skip_labels · image_budgets · bank_header_cache · infrastructure · gpu · model_loading
-```
+| Section | What lives under it |
+|---|---|
+| `bootstrap` | The minimal set the entrypoint + model loader need first: `model` (type, path, max_tiles, flash_attn, enforce_eager, dtype, chat_template, device_map, default_paths), `gpus` (num_gpus, data_parallel_size), `logging` (log_dir). |
+| `io` | `input` (dir, ground_truth, max_images, document_types) and `output` (dir, skip_visualizations, skip_reports) for the main extraction pipeline. |
+| `inference` | Everything that shapes generation: `max_new_tokens`, `tiling` (`pre_tiling`, `budgets`), `generation`, `vllm` (engine params), `tracing`. |
+| `pipeline` | Per-task settings: `classification`, `processing`, `token_budgets`, `trust`, `linking`, `batch`, `extraction` (`order`, `secondary_sort`, `skip_labels`), `bank_header_cache`. |
+| `resources` | `gpu_memory` thresholds and `infrastructure` timeouts. |
 
 ### Config cascade
 
@@ -683,67 +691,71 @@ automatically when present, and `--config` overrides which file is used.
 `AppConfig.load()` raises `ConfigError` — with a four-part diagnostic naming the file and the
 dotted key path — when any of these **required** sections/keys is missing or invalid:
 
-- `extraction_order` (must be a list of doc-type strings)
-- `secondary_sort` (must be `none` / `image_area_asc` / `image_area_desc`)
-- `extraction_skip_labels` (must be a list; may be empty)
-- `image_budgets` (must contain a `default` entry with `max_tiles`)
-- `bank_header_cache` (must contain `enabled` + a valid regex `key_pattern`)
+- `pipeline.extraction.order` (must be a list of doc-type strings)
+- `pipeline.extraction.secondary_sort` (must be `none` / `image_area_asc` / `image_area_desc`)
+- `pipeline.extraction.skip_labels` (must be a list; may be empty)
+- `inference.tiling.budgets` (must contain a `default` entry with `max_tiles`)
+- `pipeline.bank_header_cache` (must contain `enabled` + a valid regex `key_pattern`)
 
 There is no silent fallback for these — a missing required key fails before any GPU work begins.
 
 ### Representative excerpts (verified values)
 
 ```yaml
-model:
-  type: internvl3-vllm          # production default (InternVL3.5-8B via vLLM)
-  path: /persistent/storage/PTM/InternVL3_5-8B
-  max_tiles: 18                 # YAML override (dataclass default is 11)
-  flash_attn: true
-  enforce_eager: true           # vLLM: true = skip CUDA-graph compile (faster startup)
-  dtype: bfloat16
-  max_new_tokens: 3500          # raised to avoid truncation on 30+ row statements
+bootstrap:
+  model:
+    type: internvl3-vllm          # production default (InternVL3.5-8B via vLLM)
+    path: /home/jovyan/nfs_share/models/InternVL3_5-8B
+    max_tiles: 18                 # YAML override (dataclass default is 11)
+    flash_attn: true
+    enforce_eager: true           # vLLM: true = skip CUDA-graph compile (faster startup)
+    dtype: bfloat16
+    chat_template: none           # vLLM: none = use the model's own template
+    device_map: auto
+    # default_paths is a per-model-type MAP (not a list). The loader picks the entry
+    # matching bootstrap.model.type, falling back to PipelineConfig.DEFAULT_MODEL_PATHS.
+    default_paths:
+      internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
+      internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
+  gpus:
+    num_gpus: 0                   # 0 = auto, 1 = single, N = use N
+    data_parallel_size: null      # null = auto (num_gpus for vLLM)
 
-processing:
-  batch_size: null              # null = auto-detect from VRAM, 1 = sequential
-  num_gpus: 0                   # 0 = auto, 1 = single, N = use N
-  data_parallel_size: null      # null = auto (num_gpus for vLLM, ignored for HF)
-  bank_v2: true
-  balance_correction: false     # NOTE: explicitly disabled here (dataclass default is true)
+inference:
+  max_new_tokens: 3500            # raised to avoid truncation on 30+ row statements
+  tiling:
+    budgets:                      # per-doc-type tile floors/ceilings (validated key)
+      default:        { min_tiles: 1,  max_tiles: 18 }
+      bank_statement: { min_tiles: 12, max_tiles: 18 }
+      invoice:        { min_tiles: 1,  max_tiles: 12 }
+      receipt:        { min_tiles: 1,  max_tiles: 6 }
+  vllm:
+    defaults:
+      gpu_memory_utilization: 0.90
+      max_model_len: 8192
+      max_num_seqs: 1
+      limit_mm_per_prompt: 1
+      enable_prefix_caching: true
+    models:                       # per-model engine overrides
+      internvl3-vllm:
+        max_model_len: 16384      # 18 tiles + thumbnail ~= 4.9k vision + prompt + output
+        limit_mm_per_prompt: 19   # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
 
-vllm:
-  defaults:
-    gpu_memory_utilization: 0.90
-    max_model_len: 8192
-    max_num_seqs: 1
-    limit_mm_per_prompt: 1
-    enable_prefix_caching: true
-  models:                       # per-model overrides for the unsupported vLLM backends
-    qwen35-vllm: { max_model_len: 16384, gpu_memory_utilization: 0.92 }
-
-# default_paths is a per-model-type MAP (not a list). The loader picks the entry
-# matching model.type, falling back to PipelineConfig.DEFAULT_MODEL_PATHS if absent.
-model_loading:
-  device_map: auto
-  default_paths:
-    internvl3: /persistent/storage/PTM/InternVL3_5-8B
-    internvl3-vllm: /persistent/storage/PTM/InternVL3_5-8B
-    llama: /persistent/storage/PTM/Llama-3.2-11B-Vision-Instruct
-
-trust_distribution:
-  data_dir: /persistent/storage/annotations/private_wealth_docs
-  quads: /persistent/storage/annotations/private_wealth_docs/output/trust_quads.csv
-  quads_incomplete: /persistent/storage/annotations/private_wealth_docs/output/trust_quads_incomplete.csv
-  ground_truth: /persistent/storage/annotations/private_wealth_docs/ground_truth/trust_distribution_links.yml
-  classification_ground_truth: /persistent/storage/annotations/private_wealth_docs/ground_truth/trust_classification_gt.yml
-  classifications: /persistent/storage/annotations/private_wealth_docs/output/trust_classifications.jsonl
-  raw_extractions: /persistent/storage/annotations/private_wealth_docs/output/raw_extractions.jsonl
-  compliance_results: /persistent/storage/annotations/private_wealth_docs/output/trust_compliance_results.jsonl
-  output_dir: /persistent/storage/annotations/private_wealth_docs/output
-  evaluation_dir: /persistent/storage/annotations/private_wealth_docs/output/trust_evaluation
-  log_dir: /persistent/storage/annotations/private_wealth_docs/output/logs
-  amount_tolerance: 0.01
-  subdirectories: { trust_return: ., distribution_stmt: ., income_schedule: ., beneficiary_itr: . }
-  linking_fields: [trust_abn, beneficiary_tfn, share_of_net_income, franking_credit, capital_gain_component]
+pipeline:
+  processing:
+    batch_size: null              # null = auto-detect from VRAM, 1 = sequential
+    bank_v2: true
+    balance_correction: false     # NOTE: explicitly disabled here (dataclass default is true)
+  trust:
+    amount_tolerance: 0.01        # trust-eval amount match tolerance (relative)
+    linking_fields:               # nested map (not a flat list)
+      id_fields:                  # compared as ABN/TFN (space-normalised exact match)
+        - trust_abn
+        - beneficiary_tfn
+      amount_fields:              # compared numerically within amount_tolerance
+        - share_of_net_income
+        - franking_credit
+        - capital_gain_component
 ```
 
 ### Environment variables
@@ -883,16 +895,15 @@ accordingly — no stubs, no `NotImplementedError` paths.
 
 ## Why a declarative model registry
 
-`models/registry.py` registers each model as a `ModelSpec` / `VllmSpec` dataclass instead of a
-hand-written loader (~600 lines of near-identical code collapsed to ~8-line registrations). Two
-properties matter:
+`models/registry.py` registers each model as a `VllmSpec` dataclass (`ModelRegistration` under the
+hood) instead of a hand-written loader (~600 lines of near-identical code collapsed to ~8-line
+registrations). Two properties matter:
 
-- **Zero GPU/ML overhead on import.** All `torch` / `transformers` imports are deferred to loader
-  function bodies, so importing the registry (e.g. to list models, or in CI) costs nothing.
-- **Uniform reuse.** Standard HF chat-template models need only a `ModelSpec` + a prompt YAML;
-  models with non-standard APIs (InternVL3's `.chat()`) supply a `backend_factory`; vLLM models
-  use `register_vllm_model(VllmSpec(...))`. The registry uses PEP 695 `type` statements, so it
-  requires Python 3.12+.
+- **Zero GPU/ML overhead on import.** All `torch` / `vllm` imports are deferred to loader function
+  bodies, so importing the registry (e.g. to list models, or in CI) costs nothing.
+- **Uniform reuse.** A new InternVL3.5 variant needs only `register_vllm_model(VllmSpec(...))` plus
+  a prompt YAML — see the three live registrations (`internvl3-vllm`, `internvl3-14b-vllm`,
+  `internvl3-38b-vllm`). The registry uses PEP 695 `type` statements, so it requires Python 3.12+.
 
 ## Why ports & adapters for response handling
 
@@ -1019,7 +1030,6 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   ├── internvl3_prompts.yaml             # InternVL3.5-8B extraction prompts
 │   ├── bank_prompts.yaml                  # Bank statement multi-turn prompts
 │   ├── bank_column_patterns.yaml          # Column header patterns
-│   ├── (llama_prompts.yaml, qwen3vl_prompts.yaml, … — unsupported models)
 │   └── workflows/                         # Graph-engine workflow YAMLs (see table above)
 ├── models/
 │   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
@@ -1072,8 +1082,10 @@ dataclass defaults; closing that gap is a handover task (see below).
 ## Known config gaps (for the Data Engineering team)
 
 The project policy is that `run_config.yml` is authoritative for **every** key. The five required
-keys above already fail fast, but a number of keys still fall back to `PipelineConfig` dataclass
-defaults when absent from the YAML:
+keys above already fail fast, and the trust-eval `pipeline.trust.amount_tolerance` /
+`pipeline.trust.linking_fields` are now **read from config with their own four-part diagnostics**
+(`stages/evaluate_trust.py` → `_load_trust_eval_config`) — no longer Python-hardcoded. A number of
+keys still fall back to `PipelineConfig` dataclass defaults when absent from the YAML:
 
 | Key | Dataclass default | Note |
 |---|---|---|
