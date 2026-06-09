@@ -24,7 +24,7 @@ from typing import Any
 
 import typer
 
-from .io import StreamingJsonlWriter, read_completed_images, read_jsonl, write_jsonl
+from .io import StreamingJsonlWriter, append_jsonl, read_completed_images, read_jsonl, write_jsonl
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -218,7 +218,11 @@ def run(
                 },
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            count = write_jsonl(output_path, records)
+            # Resume-safe: APPEND when resuming (preserve already-extracted
+            # records) OR when skip-label records were written above (a fresh DP
+            # run with skips). write_jsonl truncates, which would drop either.
+            write_fn = append_jsonl if (completed or skipped) else write_jsonl
+            count = write_fn(output_path, records)
             logger.info("Wrote %d extractions to %s", count, output_path)
             return output_path
 
@@ -551,7 +555,11 @@ def _run_unified(
                 },
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            count = write_jsonl(output_path, records)
+            # Resume-safe: APPEND when resuming so the already-extracted records
+            # (filtered out of the work list above) are preserved. write_jsonl
+            # truncates, which on a DP-path resume would drop the completed work.
+            write_fn = append_jsonl if completed else write_jsonl
+            count = write_fn(output_path, records)
             logger.info("Wrote %d extractions to %s", count, output_path)
             return output_path
 

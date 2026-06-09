@@ -20,6 +20,21 @@ def write_jsonl(path: Path, records: list[dict[str, Any]]) -> int:
     return len(records)
 
 
+def append_jsonl(path: Path, records: list[dict[str, Any]]) -> int:
+    """Append records to a JSONL file (created if absent).
+
+    The append counterpart to :func:`write_jsonl`: used when resuming a stage so
+    already-written records are preserved rather than truncated. ``write_jsonl``
+    opens ``"w"`` (truncate); this opens ``"a"``.
+
+    Returns number of records appended.
+    """
+    with path.open("a") as f:
+        for record in records:
+            f.write(json.dumps(record, default=str) + "\n")
+    return len(records)
+
+
 class StreamingJsonlWriter:
     """Append-mode JSONL writer that flushes per record.
 

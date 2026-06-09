@@ -15,10 +15,25 @@ from typing import Any
 
 import typer
 
-from .io import write_jsonl
+from .io import append_jsonl, read_completed_images, write_jsonl
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
+
+
+def _filter_already_classified(images: list[Path], output_path: Path) -> tuple[list[Path], int]:
+    """Drop images already present in *output_path* (resume support).
+
+    Mirrors the extract stage: a prior (possibly crashed) run's partial
+    classifications.jsonl is read for its ``image_name`` set, and those images
+    are skipped. Returns ``(remaining_images, completed_count)``; when the output
+    is absent or empty, returns the input unchanged with a count of 0.
+    """
+    completed = read_completed_images(output_path)
+    if not completed:
+        return images, 0
+    remaining = [img for img in images if img.name not in completed]
+    return remaining, len(completed)
 
 
 def run(
@@ -78,6 +93,25 @@ def run(
 
     logger.info("Found %d images in %s", len(images), config.data_dir)
 
+    # Resume: skip images already classified in a prior (possibly crashed) run,
+    # and APPEND below instead of truncating. A clean-slate re-run is the opt-in
+    # (clear the output first — the entrypoint does this for full re-runs). This
+    # mirrors the extract stage and runs BEFORE the model load, so a fully
+    # resumed run skips the GPU entirely.
+    original_total = len(images)
+    images, completed_count = _filter_already_classified(images, output_path)
+    resuming = completed_count > 0
+    if resuming:
+        logger.info(
+            "Resuming: %d already done, %d remaining (of %d total)",
+            completed_count,
+            len(images),
+            original_total,
+        )
+    if not images:
+        logger.info("All images already classified -- nothing to do")
+        return output_path
+
     # -- vLLM data-parallel fast path ------------------------------------------
     from models.registry import is_vllm_model
 
@@ -96,7 +130,8 @@ def run(
                 },
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            count = write_jsonl(output_path, dp_records)
+            write_fn = append_jsonl if resuming else write_jsonl
+            count = write_fn(output_path, dp_records)
             logger.info("Wrote %d classifications to %s", count, output_path)
             return output_path
 
@@ -204,9 +239,10 @@ def run(
     finally:
         model_cm.__exit__(None, None, None)
 
-    # Write output
+    # Write output (append when resuming so prior records are preserved)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    count = write_jsonl(output_path, records)
+    write_fn = append_jsonl if resuming else write_jsonl
+    count = write_fn(output_path, records)
     logger.info("Wrote %d classifications to %s", count, output_path)
 
     return output_path
