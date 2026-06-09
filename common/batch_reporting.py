@@ -176,9 +176,8 @@ All results have been saved to: `{output_base}`
 ## Technical Details
 
 - **Memory Optimizations:** Enabled (OOM Fallback, Memory Cleanup)
-- **Quantization:** 8-bit with BitsAndBytesConfig
-- **Max Tokens:** 4000
-- **Device:** CUDA (auto-mapped)
+- **Backend:** vLLM (InternVL3.5)
+- **Precision:** bfloat16
 """
 
         return report
