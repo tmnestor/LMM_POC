@@ -45,7 +45,18 @@ bootstrap:
     # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
     log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
-# I/O configuration — where inputs are read from and outputs are written to.
+# I/O configuration — the DEFAULT image-source + output paths, used by the MAIN
+# extraction pipeline: KFP_TASK = run_batch_inference | run_graph_robust |
+# classify | extract | clean | evaluate. Those read images from io.input.dir,
+# score against io.input.ground_truth, and write to io.output.dir.
+#
+# OVERRIDE MECHANISM (why paths appear in two places): the standalone linking
+# and trust tasks REUSE the same classify/extract/clean stages but on their OWN
+# dataset. entrypoint.sh repoints the shared image_dir/output globals at
+# pipeline.linking.* (KFP_TASK=run_transaction_link, via _resolve_linking_vars)
+# or pipeline.trust.* (trust_* tasks, via _resolve_trust_vars). So io.* below
+# drives the main pipeline; for a linking/trust run, edit THOSE blocks instead —
+# their data_dir/output/log_dir SHADOW io.* for the duration of that task.
 io:
   # Data paths
   input:
@@ -191,7 +202,9 @@ pipeline:
     trust_classify: 300
     trust_field_extract: 500
 
-  # Trust distribution linking — NRO Private Wealth compliance checking
+  # Trust distribution linking — NRO Private Wealth compliance checking.
+  # Paths below SHADOW io.input/io.output when KFP_TASK=trust_* (entrypoint.sh
+  # _resolve_trust_vars repoints the shared stages here; see the io: header).
   trust:
     data_dir: ../private_wealth_docs
     quads: ../private_wealth_docs/output/trust_quads.csv
@@ -242,6 +255,10 @@ pipeline:
     hybrid_date_window_days: 5               # business-day window for date scoring
     hybrid_description_threshold: 0.3        # min token-overlap fraction for description support
     hybrid_min_confidence: LOW               # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
+    # --- Paths: these SHADOW io.input/io.output when KFP_TASK=run_transaction_link.
+    # entrypoint.sh _resolve_linking_vars points the shared classify/extract/clean
+    # stages at data_dir below and writes all artifacts under output's parent dir.
+    # (Keys above are linking-specific knobs; see the io: header for the mechanism.)
     data_dir: ../evaluation_data/synthetic_transaction_linking
     output: ../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl
     ground_truth: ../evaluation_data/synthetic_transaction_linking/transaction_links.yml   # optional eval; if set -> evaluate_linking runs
