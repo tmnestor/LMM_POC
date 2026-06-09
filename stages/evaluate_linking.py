@@ -15,6 +15,7 @@ Usage:
 """
 
 import csv
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -117,8 +118,6 @@ def _load_linking_ground_truth_jsonl(path: Path) -> dict[str, list[dict[str, Any
     Same field names as CSV: ``image_file``, ``RECEIPT_TOTAL``, etc.
     Pipe-delimited multi-receipt values are split the same way.
     """
-    import json
-
     result: dict[str, list[dict[str, Any]]] = {}
 
     with path.open() as f:
@@ -375,41 +374,111 @@ def evaluate_linking(
     return results
 
 
-def print_summary(results: list[dict[str, Any]]) -> None:
-    """Print summary table to console (same style as stages/evaluate.py)."""
-    console = Console()
+def _compute_summary_metrics(
+    results: list[dict[str, Any]],
+    *,
+    inference_seconds: float | None = None,
+    fallback_seconds: float = 0.0,
+) -> dict[str, Any]:
+    """Aggregate per-receipt evaluation records into headline + throughput metrics.
 
-    # Filter to results with ground truth (exclude errors)
+    The denominator for both the match-accuracy table and the throughput figure
+    is the number of *scored* receipts (records with a non-``None`` ``correct``),
+    matching the summary table's "Total Receipts Evaluated" row.
+
+    Throughput uses ``inference_seconds`` (GPU wall-clock from the link stage)
+    when provided and positive, else falls back to the summed per-record
+    ``processing_time`` (``fallback_seconds``). When neither is available the
+    figure is reported as ``0.0`` and rendered as N/A — never a fake number.
+
+    Args:
+        results: Per-receipt evaluation records from ``evaluate_linking``.
+        inference_seconds: GPU inference wall-clock seconds, or None.
+        fallback_seconds: Sum of per-record ``processing_time`` to use when no
+            GPU timing was supplied.
+
+    Returns:
+        Summary dict with headline metrics (match accuracy, FOUND/NOT_FOUND
+        counts, precision/recall, per-field accuracy), the confidence
+        distribution, and a ``throughput`` block.
+    """
     scored = [r for r in results if r.get("correct") is not None]
-    if not scored:
-        console.print("\n[yellow]No scored results — check ground truth alignment.[/yellow]")
-        return
-
     total = len(scored)
     correct = sum(1 for r in scored if r["correct"])
     accuracy = correct / total * 100 if total else 0.0
 
-    # Match status breakdown
     expected_found = [r for r in scored if r["expected_match"] == "FOUND"]
     expected_not_found = [r for r in scored if r["expected_match"] == "NOT_FOUND"]
 
-    # False positives: expected NOT_FOUND but got FOUND
+    # False positives: expected NOT_FOUND but got FOUND.
     false_positives = sum(1 for r in expected_not_found if r["actual_match"])
-    # False negatives: expected FOUND but got NOT_FOUND
+    # False negatives: expected FOUND but got NOT_FOUND.
     false_negatives = sum(1 for r in expected_found if not r["actual_match"])
 
-    # Field accuracy (only for correctly matched FOUND results)
+    # Precision/recall on the "predicted FOUND" positive class.
+    tp = sum(1 for r in expected_found if r["actual_match"])
+    precision = tp / (tp + false_positives) if (tp + false_positives) > 0 else 0.0
+    recall = tp / (tp + false_negatives) if (tp + false_negatives) > 0 else 0.0
+
+    # Field accuracy (only for correctly matched FOUND results).
     found_correct = [r for r in expected_found if r["actual_match"] and r.get("correct")]
+    n_found = len(found_correct)
     amount_correct = sum(1 for r in found_correct if r.get("amount_correct"))
     date_correct = sum(1 for r in found_correct if r.get("date_correct"))
     desc_correct = sum(1 for r in found_correct if r.get("description_correct"))
-    n_found = len(found_correct)
 
-    # Confidence distribution (all scored results)
+    def _field(count: int) -> dict[str, Any]:
+        return {
+            "correct": count,
+            "total": n_found,
+            "accuracy": count / n_found if n_found else 0.0,
+        }
+
+    # Confidence distribution (all scored results).
     confidence_counts: dict[str, int] = {}
     for r in scored:
         conf = r.get("confidence", "NONE")
         confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
+
+    # Throughput — prefer the GPU wall-clock, fall back to summed processing_time.
+    inference_time = (
+        inference_seconds if inference_seconds is not None and inference_seconds > 0 else fallback_seconds
+    )
+    receipts_per_min = total / inference_time * 60.0 if inference_time > 0 else 0.0
+    avg_seconds = inference_time / total if (inference_time > 0 and total) else 0.0
+
+    return {
+        "total_receipts_evaluated": total,
+        "correct": correct,
+        "match_accuracy": accuracy,
+        "expected_found": len(expected_found),
+        "expected_not_found": len(expected_not_found),
+        "false_positives": false_positives,
+        "false_negatives": false_negatives,
+        "precision": precision,
+        "recall": recall,
+        "field_accuracy": {
+            "amount": _field(amount_correct),
+            "date": _field(date_correct),
+            "description": _field(desc_correct),
+        },
+        "confidence_distribution": confidence_counts,
+        "throughput": {
+            "receipts_per_min": receipts_per_min,
+            "avg_seconds_per_receipt": avg_seconds,
+            "inference_seconds": inference_time,
+        },
+    }
+
+
+def print_summary(results: list[dict[str, Any]], summary: dict[str, Any]) -> None:
+    """Print summary + throughput tables to console (same style as evaluate_trust)."""
+    console = Console()
+
+    total = summary["total_receipts_evaluated"]
+    if total == 0:
+        console.print("\n[yellow]No scored results — check ground truth alignment.[/yellow]")
+        return
 
     # Summary table
     table = Table(title="Linking Evaluation Summary", show_header=True, header_style="bold")
@@ -417,34 +486,54 @@ def print_summary(results: list[dict[str, Any]]) -> None:
     table.add_column("Value", style="green")
 
     table.add_row("Total Receipts Evaluated", str(total))
-    table.add_row("Match Accuracy", f"{accuracy:.1f}% ({correct}/{total})")
-    table.add_row("Expected FOUND", str(len(expected_found)))
-    table.add_row("Expected NOT_FOUND", str(len(expected_not_found)))
-    table.add_row("False Positives", str(false_positives))
-    table.add_row("False Negatives", str(false_negatives))
+    table.add_row("Match Accuracy", f"{summary['match_accuracy']:.1f}% ({summary['correct']}/{total})")
+    table.add_row("Expected FOUND", str(summary["expected_found"]))
+    table.add_row("Expected NOT_FOUND", str(summary["expected_not_found"]))
+    table.add_row("False Positives", str(summary["false_positives"]))
+    table.add_row("False Negatives", str(summary["false_negatives"]))
+    table.add_row("Precision", f"{summary['precision']:.3f}")
+    table.add_row("Recall", f"{summary['recall']:.3f}")
 
+    field_accuracy = summary["field_accuracy"]
+    n_found = field_accuracy["amount"]["total"]
     if n_found > 0:
         table.add_row("", "")
-        table.add_row(
-            "Amount Match (FOUND)", f"{amount_correct}/{n_found} ({amount_correct / n_found * 100:.1f}%)"
-        )
-        table.add_row(
-            "Date Match (FOUND)", f"{date_correct}/{n_found} ({date_correct / n_found * 100:.1f}%)"
-        )
-        table.add_row(
-            "Description Match (FOUND)", f"{desc_correct}/{n_found} ({desc_correct / n_found * 100:.1f}%)"
-        )
+        for label, key in (
+            ("Amount Match (FOUND)", "amount"),
+            ("Date Match (FOUND)", "date"),
+            ("Description Match (FOUND)", "description"),
+        ):
+            fa = field_accuracy[key]
+            table.add_row(label, f"{fa['correct']}/{n_found} ({fa['accuracy'] * 100:.1f}%)")
 
     console.print()
     console.print(table)
 
     # Confidence distribution
+    confidence_counts = summary["confidence_distribution"]
     if confidence_counts:
         console.print("\n[bold]Confidence Distribution:[/bold]")
         for level in ("HIGH", "MEDIUM", "LOW", "NONE"):
             count = confidence_counts.get(level, 0)
             if count:
                 console.print(f"  {level}: {count}")
+
+    # Throughput table (cyan/green, same style as evaluate_trust._print's tp_table).
+    tp = summary["throughput"]
+    tp_table = Table(title="Throughput", show_header=True, header_style="bold")
+    tp_table.add_column("Metric", style="cyan")
+    tp_table.add_column("Value", style="green")
+    if tp["inference_seconds"] > 0:
+        tp_table.add_row("Receipts/min", f"{tp['receipts_per_min']:.2f}")
+        tp_table.add_row("Avg seconds/receipt", f"{tp['avg_seconds_per_receipt']:.1f}")
+        tp_table.add_row("Total inference time", f"{tp['inference_seconds']:.1f}s")
+    else:
+        # No GPU wall-clock and no per-record processing_time — report N/A, not 0.
+        tp_table.add_row("Receipts/min", "N/A")
+        tp_table.add_row("Avg seconds/receipt", "N/A")
+        tp_table.add_row("Total inference time", "N/A (no GPU timing provided)")
+    console.print()
+    console.print(tp_table)
 
     # Error summary
     errors = [r for r in results if r.get("error")]
@@ -462,13 +551,24 @@ def run(
     input_path: Path,
     ground_truth_path: Path,
     output_dir: Path,
+    inference_seconds: float | None = None,
 ) -> Path:
-    """Orchestration: load, evaluate, write results, print summary.
+    """Orchestration: load, evaluate, write results + summary, print summary.
 
     Args:
         input_path: Path to transaction_links.jsonl from the link stage.
         ground_truth_path: Path to ground truth file (.csv, .jsonl, .yml, or .yaml).
         output_dir: Directory for evaluation output files.
+        inference_seconds: GPU inference wall-clock seconds for throughput
+            computation (summed classify + extract + link pod durations). When
+            None, throughput falls back to the summed per-record
+            ``processing_time``, else reports N/A.
+
+    Note:
+        The GPU ``inference_seconds`` spans classify + extract + link over **all**
+        images (receipts + bank statements), while the throughput denominator is
+        **receipts evaluated** — so the figure is "receipts linked per minute of
+        GPU time", not images/min.
 
     Returns:
         Path to the written linking_evaluation_results.jsonl.
@@ -487,14 +587,26 @@ def run(
     # Evaluate
     results = evaluate_linking(links, ground_truth)
 
-    # Write results
+    # Write per-receipt results
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "linking_evaluation_results.jsonl"
     count = write_jsonl(output_path, results)
     logger.info("Wrote %d linking evaluation results to %s", count, output_path)
 
+    # Compute summary (headline metrics + throughput). Fallback timing = sum of
+    # any per-record processing_time in the link results (else 0.0 -> N/A).
+    fallback_seconds = sum(float(lnk.get("processing_time", 0.0) or 0.0) for lnk in links)
+    summary = _compute_summary_metrics(
+        results, inference_seconds=inference_seconds, fallback_seconds=fallback_seconds
+    )
+
+    # Auditability artifact: one JSON record per pod run with throughput.
+    summary_path = output_dir / "linking_evaluation_summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2))
+    logger.info("Wrote linking evaluation summary to %s", summary_path)
+
     # Print summary
-    print_summary(results)
+    print_summary(results, summary)
 
     return output_path
 
@@ -642,6 +754,11 @@ def main(
         ..., "--ground-truth", "-g", help="Path to ground truth file (.csv, .jsonl, .yml, or .yaml)"
     ),
     output_dir: Path = typer.Option(..., "--output-dir", "-o", help="Directory for evaluation output"),
+    inference_seconds: float | None = typer.Option(
+        None,
+        "--inference-seconds",
+        help="GPU inference wall-clock seconds for throughput computation",
+    ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:
     """Evaluate transaction linking results against ground truth."""
@@ -650,7 +767,7 @@ def main(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    run(input_path, ground_truth, output_dir)
+    run(input_path, ground_truth, output_dir, inference_seconds=inference_seconds)
 
 
 if __name__ == "__main__":

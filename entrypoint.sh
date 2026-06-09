@@ -31,6 +31,8 @@
 #   KFP_TASK=run_trust_pipeline trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
 #   KFP_TASK=run_transaction_link bash entrypoint.sh                                  # paths from run_config.yml linking:
 #   KFP_TASK=run_transaction_link linking_data_dir=../evaluation_data/linking bash entrypoint.sh
+#   # Or as 5 separate KFP pods (mirrors the trust_* split — paths from run_config.yml linking:):
+#   for t in link_classify link_extract link_clean link link_evaluate; do KFP_TASK=$t bash entrypoint.sh; done
 #
 # =============================================================================
 
@@ -111,7 +113,7 @@ case "${KFP_TASK:-}" in
   trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_pipeline)
     LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
-  run_transaction_link)
+  run_transaction_link|link_classify|link_extract|link_clean|link|link_evaluate)
     LOG_DIR="${LMM_LINKING_LOG_DIR:-${YAML_LINKING_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
   *)
@@ -303,6 +305,11 @@ _print_task_help() {
   log "    trust_extract         — Trust distribution field extraction (GPU)"
   log "    trust_clean           — Trust compliance validation (CPU)"
   log "    trust_evaluate        — Trust compliance evaluation (CPU)"
+  log "    link_classify         — Linking Stage 1: document classification (GPU)"
+  log "    link_extract          — Linking Stage 2: field extraction (GPU)"
+  log "    link_clean            — Linking Stage 3: parse/clean (CPU)"
+  log "    link                  — Linking Stage 4: receipt->bank matching, matcher+VLM (GPU)"
+  log "    link_evaluate         — Linking Stage 5: link recall/precision scoring (CPU)"
 }
 
 _clear_prev_output() {
@@ -996,22 +1003,32 @@ case "${KFP_TASK:-}" in
     log "Phase 3/5: clean complete."
 
     _banner "Phase 4/5: transaction_link (matcher-first + VLM fallback)"
+    LINK_START=$(date +%s)
     python3 -m stages.transaction_link \
       --extractions "$CLEAN_EXTRACTIONS" \
       --output      "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
       --data-dir    "${image_dir:?image_dir is required — set via pipeline.linking.data_dir in run_config.yml or linking_data_dir env var}" \
       --config      "$CONFIG_FILE" \
       "${OPT_MODEL[@]}" || exit $?
-    log "Phase 4/5: transaction_link complete."
+    # Add the link phase's GPU (VLM fallback) wall-clock to the inference total so
+    # the orchestrator's throughput matches the split-pod sum (classify+extract+link),
+    # which the `link` pod records by appending to .inference_elapsed.
+    INFERENCE_ELAPSED=$((INFERENCE_ELAPSED + $(date +%s) - LINK_START))
+    log "Phase 4/5: transaction_link complete (GPU inference elapsed now ${INFERENCE_ELAPSED}s)."
 
     if _is_set "${linking_ground_truth:-}"; then
       _banner "Phase 5/5: evaluate_linking (CPU)"
       LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via pipeline.linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
       mkdir -p "$LINK_EVAL_DIR"
+      # Orchestrator path: pass the single classify+extract+link wall-clock as
+      # INFERENCE_ARGS so evaluate_linking reports the same --inference-seconds the
+      # per-pod path builds from _read_inference_elapsed (mirrors run_trust_pipeline).
+      INFERENCE_ARGS=(--inference-seconds "$INFERENCE_ELAPSED")
       python3 -m stages.evaluate_linking \
         --input        "${linking_output}" \
         --ground-truth "$linking_ground_truth" \
-        --output-dir   "$LINK_EVAL_DIR" || exit $?
+        --output-dir   "$LINK_EVAL_DIR" \
+        "${INFERENCE_ARGS[@]}" || exit $?
       log "Phase 5/5: evaluate_linking complete."
     else
       log ""
@@ -1020,6 +1037,78 @@ case "${KFP_TASK:-}" in
 
     log ""
     log "Transaction linking pipeline completed successfully."
+    ;;
+
+  # -- Transaction-linking, per-pod (mirror the trust_* split pods) -----------
+  # Each pod is self-contained on the linking dataset: _resolve_linking_vars
+  # repoints the shared classify/extract/clean globals onto LINK_OUT (the parent
+  # of pipeline.linking.output), isolated from io.*. GPU pods write their elapsed
+  # seconds to ${LINK_OUT}/.inference_elapsed (link_classify truncates as the
+  # first GPU stage; link_extract and link append) so link_evaluate can sum them
+  # for throughput — exactly as the trust_* pods do via ${TRUST_OUT}/.inference_elapsed.
+  link_classify)
+    _banner "Linking Stage 1/5: link_classify — document types on linking set (GPU)"
+    _resolve_linking_vars
+    # Truncate (>) the elapsed file — first GPU stage, resets stale timing on a
+    # reused KFP volume (mirrors the trust_classify / classify branches).
+    _clear_prev_output "$CLASSIFICATIONS" "${LINK_OUT}/.inference_elapsed"
+    LINK_START=$(date +%s)
+    _run_classify
+    echo $(($(date +%s) - LINK_START)) > "${LINK_OUT}/.inference_elapsed"
+    log "link_classify complete ($(cat "${LINK_OUT}/.inference_elapsed")s)."
+    ;;
+  link_extract)
+    _banner "Linking Stage 2/5: link_extract — field extraction on linking set (GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "$RAW_EXTRACTIONS"
+    LINK_START=$(date +%s)
+    _run_extract classified
+    echo $(($(date +%s) - LINK_START)) >> "${LINK_OUT}/.inference_elapsed"
+    log "link_extract complete."
+    ;;
+  link_clean)
+    _banner "Linking Stage 3/5: link_clean — parse/clean responses (CPU, no GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "$CLEAN_EXTRACTIONS"
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "link_clean complete."
+    ;;
+  link)
+    _banner "Linking Stage 4/5: link — receipt->bank matching (matcher-first + VLM fallback, GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "${linking_output:-}"
+    LINK_START=$(date +%s)
+    python3 -m stages.transaction_link \
+      --extractions "$CLEAN_EXTRACTIONS" \
+      --output      "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --data-dir    "${image_dir:?image_dir is required — set via pipeline.linking.data_dir in run_config.yml or linking_data_dir env var}" \
+      --config      "$CONFIG_FILE" \
+      "${OPT_MODEL[@]}" || exit $?
+    # The matcher-first link step does GPU VLM only on the fallback receipts, but
+    # its wall-clock is still GPU-stage time — append so throughput counts it.
+    echo $(($(date +%s) - LINK_START)) >> "${LINK_OUT}/.inference_elapsed"
+    log "link complete."
+    ;;
+  link_evaluate)
+    _banner "Linking Stage 5/5: link_evaluate — scoring link recall/precision + throughput (CPU)"
+    _resolve_linking_vars
+    LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via pipeline.linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
+    mkdir -p "$LINK_EVAL_DIR"
+    _clear_prev_output "${LINK_EVAL_DIR}/linking_evaluation_results.jsonl"
+    # Sum GPU elapsed (link_classify + link_extract + link) -> INFERENCE_ARGS,
+    # exactly as trust_evaluate / evaluate do. Unlike the orchestrator's Phase 5
+    # (which SKIPS eval when linking_ground_truth is unset), a standalone
+    # link_evaluate pod is only ever scheduled when eval is wanted — so it FAILS
+    # FAST on a missing ground truth (matches trust_evaluate + the Fail-Fast rule).
+    _read_inference_elapsed "${LINK_OUT}/.inference_elapsed"
+    python3 -m stages.evaluate_linking \
+      --input        "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --ground-truth "${linking_ground_truth:?linking_ground_truth is required — set via pipeline.linking.ground_truth in run_config.yml or linking_ground_truth env var}" \
+      --output-dir   "$LINK_EVAL_DIR" \
+      "${INFERENCE_ARGS[@]}" || exit $?
+    log "link_evaluate complete."
     ;;
 
   "")
