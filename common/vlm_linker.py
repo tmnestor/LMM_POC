@@ -398,8 +398,6 @@ def call_vlm_linker(
     max_tokens: int = 1024,
     prompt: LinkPrompt | None = None,
     bank_columns: dict[str, Any] | None = None,
-    max_tiles: int | None = None,
-    min_tiles: int | None = None,
 ) -> list[dict[str, str]]:
     """Send the bank-statement image + receipt details to the model and parse.
 
@@ -408,11 +406,6 @@ def call_vlm_linker(
     ``generate_fn(image, prompt, max_tokens=..., extra={"image_first": True})``
     (deterministic decoding — temperature is fixed at 0 by the backend), and
     returns parsed receipt match records.
-
-    When a tile budget is supplied (``max_tiles`` / ``min_tiles``), it is added
-    to the ``extra`` dict so the backend pre-tiles the dense bank-statement
-    image at the configured ceiling instead of vLLM's internal default. Both
-    flow from the ``bank_statement`` image budget in run_config.yml.
 
     Args:
         generate_fn: The processor's ``generate`` callable, i.e.
@@ -424,10 +417,6 @@ def call_vlm_linker(
             :func:`load_link_prompt`.
         bank_columns: Bank column metadata from the extraction stage. If
             provided, injects specific column names into the linking prompt.
-        max_tiles: Pre-tiling ceiling for the bank image. Forwarded to the
-            backend only when not None.
-        min_tiles: Pre-tiling floor for the bank image. Forwarded to the
-            backend only when not None.
 
     Returns:
         Parsed list of receipt match dicts. Empty list if the VLM returns
@@ -436,12 +425,7 @@ def call_vlm_linker(
     full_prompt = build_link_prompt(receipt, prompt=prompt, bank_columns=bank_columns)
     image = _load_image(bank_path)
 
-    extra: dict[str, Any] = {"image_first": True}
-    if max_tiles is not None:
-        extra["max_tiles"] = max_tiles
-    if min_tiles is not None:
-        extra["min_tiles"] = min_tiles
-    text = generate_fn(image, full_prompt, max_tokens=max_tokens, extra=extra)
+    text = generate_fn(image, full_prompt, max_tokens=max_tokens, extra={"image_first": True})
     text = (text or "").strip()
 
     logger.info(

@@ -348,17 +348,11 @@ def _attempt_on_image(
     data_dir: Path,
     prompt: LinkPrompt,
     max_tokens: int,
-    max_tiles: int | None,
-    min_tiles: int | None,
 ) -> bool:
     """Query ONE statement image for ONE receipt; apply + return True on FOUND.
 
     A missing image, a generate error, a bank-row echo, or a NOT_FOUND all
     return False without aborting — the caller moves on to the next statement.
-
-    ``max_tiles`` / ``min_tiles`` carry the bank-statement pre-tiling budget so
-    the dense statement image is tiled at the configured ceiling (forwarded to
-    :func:`call_vlm_linker`).
     """
     bank_path = data_dir / bank_image_name
     if not bank_path.exists():
@@ -373,8 +367,6 @@ def _attempt_on_image(
             max_tokens=max_tokens,
             prompt=prompt,
             bank_columns=bank_columns,
-            max_tiles=max_tiles,
-            min_tiles=min_tiles,
         )
     except Exception:
         logger.exception(
@@ -621,15 +613,6 @@ def run(
     if actionable:
         processor, model_cm = _build_processor(model_type, data_dir, config_path)
         prompt = load_link_prompt(vlm_prompt_name)
-        # Thread the bank-statement tile budget through to the VLM fallback so
-        # the dense statement image is pre-tiled at the configured ceiling
-        # (YAML is the single source — no hardcoded tile count). Only applies
-        # when pre-tiling is enabled; otherwise let the backend tile internally.
-        app_cfg = processor.app_config
-        bank_budget = app_cfg.get_image_budget("bank_statement")
-        pre_tiling = app_cfg.pipeline.pre_tiling_enabled
-        link_max_tiles = bank_budget["max_tiles"] if pre_tiling else None
-        link_min_tiles = bank_budget["min_tiles"] if pre_tiling else None
         # Group by case so a case's receipts are queried one statement at a time
         # (consecutive same-image calls keep the shared-prefix cache warm).
         by_case: dict[str, list[tuple[int, ReceiptSummary]]] = {}
@@ -642,8 +625,6 @@ def run(
                 data_dir=data_dir,
                 prompt=prompt,
                 max_tokens=vlm_max_tokens,
-                max_tiles=link_max_tiles,
-                min_tiles=link_min_tiles,
             )
             fallback_start = time.perf_counter()
             for case_id, items in by_case.items():
