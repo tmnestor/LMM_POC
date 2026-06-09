@@ -428,8 +428,9 @@ free-text type label.
 ### Discrepancy classification (verified against code)
 
 `run_trust_compliance()` compares extracted fields algorithmically and classifies the **first**
-matching discrepancy. All four conditions use a percentage tolerance (1% = `0.01`); the
-trust **evaluator** reads its tolerance from `pipeline.trust.amount_tolerance`:
+matching discrepancy. All four conditions use a percentage tolerance read from
+`pipeline.trust.amount_tolerance` (1% = `0.01`) — `trust_clean` loads it and passes it into the
+validator, and the trust **evaluator** reads the same key — so the value is YAML-driven, not hardcoded:
 
 | Discrepancy type | Condition |
 |---|---|
