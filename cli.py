@@ -611,7 +611,7 @@ def main(
     max_tiles: int | None = typer.Option(
         None,
         "--max-tiles",
-        help="Max image tiles (H200: 11, V100: 14). Default from config or 11.",
+        help="Max image tiles (L4 / A10G: 18). Default from config.",
     ),
     min_tiles: int | None = typer.Option(
         None,
