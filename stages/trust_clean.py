@@ -37,6 +37,51 @@ _EXTRACTION_NODES = (
 )
 
 
+def _diagnostic(what: str, where: str, example: str, fix: str) -> str:
+    """Assemble a 4-element diagnostic error message."""
+    return f"What: {what}\nWhere: {where}\nExpected: {example}\nHow to fix: {fix}"
+
+
+def _load_trust_amount_tolerance(config_path: Path | None) -> float:
+    """Read ``pipeline.trust.amount_tolerance`` — the amount-match tolerance the
+    compliance validator (:func:`run_trust_compliance`) uses to gate discrepancies.
+
+    Fail-fast with a 4-element diagnostic; defaults to the repo config when
+    ``config_path`` is None (mirrors ``stages.transaction_link`` /
+    ``stages.evaluate_trust``). YAML is the single source of truth — the value is
+    NOT hardcoded in the validator's call path.
+    """
+    import yaml
+
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "config" / "run_config.yml"
+
+    if not config_path.exists():
+        raise FileNotFoundError(
+            _diagnostic(
+                what="the configuration file is missing.",
+                where=str(config_path),
+                example="a YAML file with a 'pipeline.trust.amount_tolerance' key.",
+                fix=f"create {config_path} or pass --config with a valid path.",
+            )
+        )
+
+    with config_path.open() as f:
+        raw = yaml.safe_load(f) or {}
+
+    trust = raw.get("pipeline", {}).get("trust", {})
+    if "amount_tolerance" not in trust:
+        raise ValueError(
+            _diagnostic(
+                what="required key 'pipeline.trust.amount_tolerance' is missing.",
+                where=f"{config_path} -> pipeline.trust.amount_tolerance",
+                example="a fractional tolerance, e.g.: amount_tolerance: 0.01",
+                fix="add 'amount_tolerance' under the 'pipeline.trust:' section in run_config.yml.",
+            )
+        )
+    return float(trust["amount_tolerance"])
+
+
 def _build_workflow_state(nodes: list[dict[str, Any]]) -> WorkflowState:
     """Reconstruct WorkflowState from serialized nodes[] array.
 
@@ -76,6 +121,8 @@ def _build_workflow_state(nodes: list[dict[str, Any]]) -> WorkflowState:
 def run(
     input_path: Path,
     output_path: Path,
+    *,
+    config_path: Path | None = None,
 ) -> Path:
     """Parse trust extraction nodes and run compliance validation.
 
@@ -83,16 +130,19 @@ def run(
       1. Extract per-node raw_responses from record["nodes"]
       2. Re-parse each with FieldValueParser
       3. Build WorkflowState with NodeResult per extraction node
-      4. Call run_trust_compliance(state)
+      4. Call run_trust_compliance(state, tolerance=...) with the YAML-configured tolerance
       5. Write record with compliance fields in extracted_data
 
     Args:
         input_path: Path to raw_extractions.jsonl from trust extraction stage.
         output_path: Path to write trust_compliance_results.jsonl.
+        config_path: Optional run_config.yml path; supplies
+            ``pipeline.trust.amount_tolerance`` for the compliance validator.
 
     Returns:
         Path to the written trust_compliance_results.jsonl.
     """
+    amount_tolerance = _load_trust_amount_tolerance(config_path)
     records = read_jsonl(input_path)
     if not records:
         msg = f"No records found in {input_path}"
@@ -123,7 +173,7 @@ def run(
         nodes = record.get("nodes", [])
         state = _build_workflow_state(nodes)
 
-        _all_match, result = run_trust_compliance(state)
+        _all_match, result = run_trust_compliance(state, tolerance=amount_tolerance)
 
         # Remove field_comparisons from extracted_data (internal detail)
         result.pop("field_comparisons", None)
@@ -176,13 +226,16 @@ def main(
         ..., "--input", "-i", help="Path to raw_extractions.jsonl from trust extraction stage"
     ),
     output: Path = typer.Option(..., "--output", "-o", help="Path to write trust_compliance_results.jsonl"),
+    config: Path | None = typer.Option(
+        None, "--config", help="YAML config (supplies pipeline.trust.amount_tolerance)"
+    ),
 ) -> None:
     """Stage: Trust distribution compliance cleaning (CPU only)."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
-    run(input_path, output)
+    run(input_path, output, config_path=config)
 
 
 if __name__ == "__main__":

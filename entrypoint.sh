@@ -505,7 +505,8 @@ _run_trust_clean() {
   # run_trust_pipeline.
   python3 -m stages.trust_clean \
     --input  "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
-    --output "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" || exit $?
+    --output "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
+    --config "$CONFIG_FILE" || exit $?
 }
 
 _run_trust_evaluate() {
