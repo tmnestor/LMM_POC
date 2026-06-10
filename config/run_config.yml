@@ -46,39 +46,9 @@ bootstrap:
     # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
     log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
 
-# I/O configuration — the DEFAULT image-source + output paths, used by the MAIN
-# extraction pipeline: KFP_TASK = run_batch_inference | run_graph_robust |
-# classify | extract | clean | evaluate. Those read images from io.input.dir,
-# score against io.input.ground_truth, and write to io.output.dir.
-#
-# OVERRIDE MECHANISM (why paths appear in two places): the standalone linking
-# and trust tasks REUSE the same classify/extract/clean stages but on their OWN
-# dataset. entrypoint.sh repoints the shared image_dir/output globals at
-# pipeline.linking.* (KFP_TASK=run_transaction_link, via _resolve_linking_vars)
-# or pipeline.trust.* (trust_* tasks, via _resolve_trust_vars). So io.* below
-# drives the main pipeline; for a linking/trust run, edit THOSE blocks instead —
-# their data_dir/output/log_dir SHADOW io.* for the duration of that task.
-io:
-  # Data paths
-  input:
-    # dir: /efs/shared/annotations/annotation_images
-    # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
-    # dir: ../evaluation_data/bank
-    # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
-    # dir: ../evaluation_data/synthetic_original
-    # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
-    dir: ../evaluation_data/synthetic_transaction_linking
-    # Extraction GT generated from the per-type YAMLs in
-    # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
-    # (Separate from linking.ground_truth, which the transaction-linking task uses.)
-    ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
-    max_images: null       # null = process all images
-    document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
-  # Output settings
-  output:
-    dir: ../evaluation_data/output
-    skip_visualizations: false  # Skip visualization generation
-    skip_reports: false         # Skip report generation
+# I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
+# pipelines (information_extraction / trust / linking) are symmetric
+# pipeline.<name> blocks — top-level io.* is retired. See the pipeline: section.
 
 # Inference configuration — generation budget, tiling, sampling, vLLM engine,
 # and debug tracing. Everything that shapes how the model produces output.
@@ -166,10 +136,45 @@ inference:
     raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
     path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
-# Pipeline configuration — per-task settings grouped together: classification,
+# Pipeline configuration — per-task settings grouped together: information
+# extraction (the default classify/extract/clean/evaluate paths), classification,
 # processing toggles, token budgets, trust + transaction linking, batch tuning,
 # extraction ordering/skip labels, and the bank-header cache.
 pipeline:
+  # Information extraction — the DEFAULT image-source + output paths, used by the
+  # MAIN extraction pipeline: KFP_TASK = run_batch_inference | run_graph_robust |
+  # classify | extract | clean | evaluate. Those read images from
+  # information_extraction.input.dir, score against input.ground_truth, and write
+  # to output.dir.
+  #
+  # OVERRIDE MECHANISM (why paths appear in three pipeline.<name> blocks): the
+  # standalone linking and trust tasks REUSE the same classify/extract/clean
+  # stages but on their OWN dataset. entrypoint.sh repoints the shared
+  # image_dir/output globals at pipeline.linking.* (via _resolve_linking_vars) or
+  # pipeline.trust.* (via _resolve_trust_vars), SHADOWING information_extraction.*
+  # for the duration of that task.
+  information_extraction:
+    # Data paths
+    input:
+      # dir: /efs/shared/annotations/annotation_images
+      # ground_truth: /efs/shared/annotations/lmm_poc_gt_20260325.csv
+      # dir: ../evaluation_data/bank
+      # ground_truth: ../evaluation_data/bank/ground_truth_bank.csv
+      # dir: ../evaluation_data/synthetic_original
+      # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
+      dir: ../evaluation_data/synthetic_transaction_linking
+      # Extraction GT generated from the per-type YAMLs in
+      # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
+      # (Separate from linking.ground_truth, which the transaction-linking task uses.)
+      ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
+      max_images: null       # null = process all images
+      document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
+    # Output settings
+    output:
+      dir: ../evaluation_data/output
+      skip_visualizations: false  # Skip visualization generation
+      skip_reports: false         # Skip report generation
+
   # Classification settings
   classification:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed

@@ -288,6 +288,27 @@ def load_yaml_config(
     with config_path.open() as f:
         raw_config = yaml.safe_load(f)
 
+    # Fail fast on a retired top-level `io:` block. The classic information-
+    # extraction pipeline's paths moved under `pipeline.information_extraction:`
+    # (2026-06-10); a leftover top-level `io:` would otherwise be SILENTLY ignored.
+    if isinstance(raw_config, dict) and "io" in raw_config:
+        raise ValueError(
+            "What: top-level 'io:' is retired — its keys now live under "
+            "'pipeline.information_extraction:'.\n"
+            f"Where: {config_path} -> top-level 'io:' key.\n"
+            "Expected:\n"
+            "  pipeline:\n"
+            "    information_extraction:\n"
+            "      input:\n"
+            "        dir: <image dir>\n"
+            "        ground_truth: <gt file>\n"
+            "      output:\n"
+            "        dir: <output dir>\n"
+            f"How to fix: move the entire 'io:' block under "
+            "'pipeline.information_extraction:' in "
+            f"{config_path} and delete the top-level 'io:' key."
+        )
+
     # Flatten nested structure for PipelineConfig
     flat_config: dict[str, Any] = {}
     model_cfg = raw_config.get("bootstrap", {}).get("model", {})
@@ -302,14 +323,17 @@ def load_yaml_config(
         flat_config["max_new_tokens"] = raw_config.get("inference", {}).get("max_new_tokens")
         flat_config["chat_template"] = _resolve_chat_template(model_cfg, config_path)
 
-    input_cfg = raw_config.get("io", {}).get("input", {})
+    # Classic information-extraction pipeline paths live under
+    # pipeline.information_extraction.* (retired from top-level io.*, 2026-06-10).
+    info_extract_cfg = raw_config.get("pipeline", {}).get("information_extraction", {})
+    input_cfg = info_extract_cfg.get("input", {})
     if input_cfg:
         flat_config["data_dir"] = input_cfg.get("dir")
         flat_config["ground_truth"] = input_cfg.get("ground_truth")
         flat_config["max_images"] = input_cfg.get("max_images")
         flat_config["document_types"] = input_cfg.get("document_types")
 
-    output_cfg = raw_config.get("io", {}).get("output", {})
+    output_cfg = info_extract_cfg.get("output", {})
     if output_cfg:
         flat_config["output_dir"] = output_cfg.get("dir")
         flat_config["skip_visualizations"] = output_cfg.get("skip_visualizations")

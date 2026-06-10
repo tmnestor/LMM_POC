@@ -1042,7 +1042,8 @@ case "${KFP_TASK:-}" in
   # -- Transaction-linking, per-pod (mirror the trust_* split pods) -----------
   # Each pod is self-contained on the linking dataset: _resolve_linking_vars
   # repoints the shared classify/extract/clean globals onto LINK_OUT (the parent
-  # of pipeline.linking.output), isolated from io.*. GPU pods write their elapsed
+  # of pipeline.linking.output), isolated from pipeline.information_extraction.*.
+  # GPU pods write their elapsed
   # seconds to ${LINK_OUT}/.inference_elapsed (link_classify truncates as the
   # first GPU stage; link_extract and link append) so link_evaluate can sum them
   # for throughput — exactly as the trust_* pods do via ${TRUST_OUT}/.inference_elapsed.

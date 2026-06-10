@@ -77,11 +77,15 @@ def main() -> int:
     cfg = yaml.safe_load(path.read_text()) or {}
     bootstrap = cfg.get("bootstrap", {}) or {}
     model = bootstrap.get("model", {}) or {}
-    io_cfg = cfg.get("io", {}) or {}
-    data = io_cfg.get("input", {}) or {}
-    output = io_cfg.get("output", {}) or {}
     log_cfg = bootstrap.get("logging", {}) or {}
     pipeline = cfg.get("pipeline", {}) or {}
+    # Classic information-extraction paths moved from top-level io.* to
+    # pipeline.information_extraction.* (2026-06-10). The emitted var names stay
+    # UNPREFIXED (YAML_DATA_DIR/GROUND_TRUTH/OUTPUT_DIR) so the entrypoint.sh
+    # contract is unchanged; the YAML_INFORMATION_EXTRACTION_* rename is deferred.
+    info_extract = pipeline.get("information_extraction", {}) or {}
+    data = info_extract.get("input", {}) or {}
+    output = info_extract.get("output", {}) or {}
     trust = pipeline.get("trust", {}) or {}
     linking = pipeline.get("linking", {}) or {}
 
