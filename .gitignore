@@ -111,7 +111,6 @@ plans/
 PrivateWealth/
 data/
 evaluation_data/
-.gitignore
 
 TODO.md
 authentication.md
