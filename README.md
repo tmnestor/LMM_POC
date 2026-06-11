@@ -969,22 +969,16 @@ cost 3 (a type-specific probe after the winner is chosen).
 
 ## Why this multi-GPU design
 
-`MultiGPUOrchestrator` (`common/multi_gpu.py`) makes four deliberate choices:
+Multi-GPU lives in two places, both vLLM-native:
 
-1. **Independent model per GPU, no sharding.** The 8B model fits comfortably (~16–18 GB), so each
-   GPU loads a complete copy — simpler and faster than splitting one model across devices.
-   (`models/sharding.py` exists only for the 14B/38B variants flagged `requires_sharding=True`.)
-2. **ThreadPoolExecutor, not multiprocessing.** PyTorch releases the GIL during CUDA kernel
-   execution, so threads get true GPU parallelism — without serialising model objects or paying
-   process-fork overhead.
-3. **Sequential load, then parallel process.** Models load one at a time (under a lock, with
-   `torch.cuda.set_device` per GPU) to avoid a `transformers` lazy-import race; only then do all
-   GPUs process in parallel.
-4. **Per-worker device pinning.** Each worker thread calls `torch.cuda.set_device(gpu_id)` before
-   any `empty_cache()` / `synchronize()`. Without this, a worker inherits the main thread's
-   current device (cuda:0) and memory-release calls hit the wrong GPU — letting fragmentation
-   grow unbounded on the others and eventually OOM. Images are partitioned into **contiguous**
-   chunks (not round-robin) to preserve ordering; post-processing runs once on the merged results.
+1. **Data parallel for classify/extract** (`common/vllm_dp.py` + `common/vllm_dp_workers.py`):
+   one tp=1 engine per GPU, each in a spawned process pinned via `CUDA_VISIBLE_DEVICES` *before*
+   any torch/vLLM import. Images are partitioned round-robin and re-ordered on merge; every worker
+   queues its results (or its exception) back to the parent, which fails loud if a worker dies —
+   a shard's results are never silently lost.
+2. **Tensor parallel for the link fallback** (`stages/transaction_link.py`): a single tp=4
+   sharded engine — the only tp>1 stage (2x faster than serial tp=1 for the targeted VLM
+   lookups). NCCL needs the release pod template's large `/dev/shm`.
 
 ## Why these GPU memory & attention choices
 
@@ -995,11 +989,9 @@ cost 3 (a type-specific probe after the winner is chosen).
   token budget. `common/gpu_memory.py` releases fragmented memory only when
   `(reserved - allocated)` exceeds a threshold, and can target a single `cuda:N` for the
   multi-GPU worker case.
-- **SDPA with *manual* KV-head expansion.** `models/attention.py` routes eager attention to
-  PyTorch's `scaled_dot_product_attention` (flash backend on Ampere+), avoiding the O(N²)
-  attention matrix. It expands KV heads manually rather than using `enable_gqa=True`, because the
-  manual path measured **67.9% vs 64.4% accuracy** (and 4.31 vs 3.48 img/min) on InternVL3.5-8B.
-  The faster-but-wrong path was rejected.
+- **Attention backend is vLLM's choice.** `VllmSpec.attention_backend`
+  (`models/model_loader.py`) pins the backend per model; on Ampere+ vLLM uses FlashAttention
+  natively. (The HF-era eager→SDPA monkeypatch was deleted with the transformers backend.)
 
 ## Why config is the single source of truth
 
@@ -1033,13 +1025,10 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   ├── bank_column_patterns.yaml          # Column header patterns
 │   └── workflows/                         # Graph-engine workflow YAMLs (see table above)
 ├── models/
-│   ├── protocol.py                        # DocumentProcessor Protocol + TypedDicts
 │   ├── backend.py                         # ModelBackend + BatchInference Protocols
 │   ├── registry.py                        # Declarative VllmSpec registrations
 │   ├── model_loader.py                    # vLLM loader factory
 │   ├── orchestrator.py                    # DocumentOrchestrator (composition-based)
-│   ├── attention.py                       # SDPA attention routing (manual KV expansion)
-│   ├── sharding.py                        # Multi-GPU model sharding (14B/38B only)
 │   └── backends/
 │       └── vllm_backend.py                 # vLLM backend (internvl3-vllm)
 ├── common/
@@ -1058,7 +1047,6 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   ├── response_handler.py                # ResponseHandler (ports & adapters)
 │   ├── extraction_parser.py / extraction_cleaner.py / extraction_sort.py
 │   ├── extraction_evaluator.py / evaluation_metrics.py
-│   ├── multi_gpu.py                       # MultiGPUOrchestrator (ThreadPoolExecutor)
 │   ├── gpu_memory.py                      # VRAM queries, fragmentation handling
 │   ├── vllm_dp.py / vllm_dp_workers.py    # vLLM data-parallel helpers
 │   ├── field_schema.py                    # FieldSchema (frozen, cached singleton)

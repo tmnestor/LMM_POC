@@ -1,7 +1,7 @@
 """Typed dataclasses for batch processing pipeline phases.
 
-These replace the anonymous dicts that currently flow between detection,
-extraction, and evaluation phases in batch_processor.py.
+These replace the anonymous dicts that flow between the detection,
+extraction, and evaluation phases.
 """
 
 from dataclasses import dataclass, field
@@ -44,7 +44,7 @@ class BatchStats:
     num_extraction_calls: int
 
     def to_dict(self) -> dict[str, float]:
-        """Convert to the dict shape expected by cli.py and multi_gpu.py."""
+        """Convert to the dict shape expected by cli.py."""
         return {
             "configured_batch_size": float(self.configured_batch_size),
             "avg_detection_batch": self.avg_detection_batch,

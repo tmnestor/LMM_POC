@@ -4,9 +4,6 @@
 # Stage 1:  Extract receipt details (store, date, total) per receipt.
 # Stage 2a: Detect column headers from bank statement.
 # Stage 2b: Match each receipt to a bank statement debit transaction.
-#
-# Prompts aligned with prompts/staged_transaction_linking.yaml from the
-# transaction-linking branch.
 
 name: transaction_link
 description: >

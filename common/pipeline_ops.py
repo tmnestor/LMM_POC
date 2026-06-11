@@ -1,7 +1,7 @@
 """Pipeline operations: model loading, processor creation, batch execution.
 
-Extracted from cli.py to break the circular dependency between cli.py and
-multi_gpu.py.  Both modules import from here; neither imports from the other.
+Extracted from cli.py so the stages can share the load/create/run seams
+without importing the CLI.
 """
 
 from pathlib import Path

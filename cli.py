@@ -14,7 +14,6 @@ Usage:
 
 import logging
 import os
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -412,73 +411,55 @@ def run_pipeline(config: PipelineConfig, *, app_config: AppConfig | None = None)
             )
             raise typer.Exit(EXIT_CONFIG_ERROR) from None
 
-    # Large models (requires_sharding=True) need the full device_map="auto"
-    # to shard across all GPUs via split_model.  Force single-model path
-    # (no orchestrator) — the loader handles multi-GPU sharding internally.
+    # Every registered model is a VllmSpec (requires_sharding=True): vLLM owns
+    # multi-GPU via tensor_parallel inside the loader, so the CLI always runs
+    # the single-engine path regardless of how many GPUs are visible.
     model_reg = get_model(config.model_type)
     if model_reg.requires_sharding and available_gpus > 1:
         console.print(
-            f"\n[bold cyan]Model '{config.model_type}' requires cross-GPU "
-            f"sharding — using split_model across {available_gpus} GPUs[/bold cyan]"
+            f"\n[bold cyan]Model '{config.model_type}' shards internally "
+            f"(vLLM tensor_parallel) across {available_gpus} GPUs[/bold cyan]"
         )
-        resolved_gpus = 1  # bypass orchestrator, loader shards internally
-
-    # Pin model to GPU 0 when running single-GPU on a multi-GPU machine.
-    # device_map="auto" would spread layers across all GPUs, wasting memory.
-    # Skip pinning for sharded models — they need device_map="auto".
-    if resolved_gpus == 1 and available_gpus > 1 and config.device_map == "auto":
-        if not model_reg.requires_sharding:
-            config = replace(config, device_map="cuda:0")
+        resolved_gpus = 1
 
     import time as _time
 
     _wall_start = _time.time()
 
     try:
-        if resolved_gpus > 1:
-            # Multi-GPU parallel processing (model loading happens per-worker)
-            from common.multi_gpu import MultiGPUOrchestrator
+        try:
+            model_cm = load_model(config, app_config=app_config)
+            model, tokenizer = model_cm.__enter__()
+        except typer.Exit:
+            raise
+        except Exception as e:
+            console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
+            if config.verbose:
+                console.print_exception()
+            raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
 
-            orchestrator = MultiGPUOrchestrator(config, resolved_gpus, app_config=app_config)
-            batch_results, processing_times, document_types_found, batch_stats = orchestrator.run(
-                images, prompt_config, universal_fields, field_definitions
+        try:
+            processor = create_processor(
+                model,
+                tokenizer,
+                config,
+                prompt_config,
+                universal_fields,
+                field_definitions,
+                app_config=app_config,
             )
-            inference_time = orchestrator.inference_elapsed
-        else:
-            # Single-GPU path (default)
-            try:
-                model_cm = load_model(config, app_config=app_config)
-                model, tokenizer = model_cm.__enter__()
-            except typer.Exit:
-                raise
-            except Exception as e:
-                console.print(f"\n[red]FATAL: Model loading failed: {e}[/red]")
-                if config.verbose:
-                    console.print_exception()
-                raise typer.Exit(EXIT_MODEL_LOAD_ERROR) from None
 
-            try:
-                processor = create_processor(
-                    model,
-                    tokenizer,
-                    config,
-                    prompt_config,
-                    universal_fields,
-                    field_definitions,
-                    app_config=app_config,
-                )
-
-                _inference_start = _time.time()
-                batch_results, processing_times, document_types_found, batch_stats = run_batch(
-                    config,
-                    processor,
-                    images,
-                    field_definitions,
-                )
-                inference_time = _time.time() - _inference_start
-            finally:
-                model_cm.__exit__(None, None, None)
-            # Model freed here — post-processing is CPU-only
+            _inference_start = _time.time()
+            batch_results, processing_times, document_types_found, batch_stats = run_batch(
+                config,
+                processor,
+                images,
+                field_definitions,
+            )
+            inference_time = _time.time() - _inference_start
+        finally:
+            model_cm.__exit__(None, None, None)
+        # Model freed here — post-processing is CPU-only
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Processing interrupted by user[/yellow]")

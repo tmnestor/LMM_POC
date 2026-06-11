@@ -104,68 +104,18 @@ def main() -> None:
 
 
 def _check_attention_backend() -> None:
-    """Inspect what 'eager' attention resolves to in the HF registry.
+    """Report attention support for the vLLM backend.
 
-    After models.attention.patch_eager_attention_to_sdpa() runs, the
-    'eager' entry in transformers.modeling_utils.ALL_ATTENTION_FUNCTIONS
-    should point to our _sdpa_attention wrapper (which calls
-    F.scaled_dot_product_attention). If it still points to transformers'
-    eager_attention_forward, the SDPA patch did NOT fire and the model
-    will materialize the full O(N^2) attention matrix -> OOM risk.
-
-    This runs the patch (idempotent, safe outside a model load), then
-    prints the resolved function for each attention key. Useful on prod
-    to confirm SDPA is active before a full eval.
+    vLLM picks its own attention backend (FlashAttention on Ampere+, see
+    VllmSpec.attention_backend in models/model_loader.py); the HF-era
+    eager->SDPA monkeypatch is gone with the transformers backend.
     """
-    try:
-        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
-    except ImportError as exc:
-        print(f"ALL_ATTENTION_FUNCTIONS: unavailable ({exc})")
-        return
-
-    # Pre-patch state
-    pre = ALL_ATTENTION_FUNCTIONS.get("eager")
-    pre_repr = f"{pre.__module__}.{pre.__name__}" if pre is not None else "None"
-    print(f"{'eager (pre-patch)':.<30s} {pre_repr}")
-
-    # Apply the patch (idempotent) and show post-patch state
-    try:
-        from models.attention import (
-            is_sdpa_patched,
-            mark_sdpa_patched,
-            patch_eager_attention_to_sdpa,
-        )
-    except ImportError as exc:
-        print(f"models.attention: unavailable ({exc})")
-        return
-
-    if not is_sdpa_patched():
-        if patch_eager_attention_to_sdpa():
-            mark_sdpa_patched()
-
-    post = ALL_ATTENTION_FUNCTIONS.get("eager")
-    post_repr = f"{post.__module__}.{post.__name__}" if post is not None else "None"
-    print(f"{'eager (post-patch)':.<30s} {post_repr}")
-    print(f"{'is_sdpa_patched()':.<30s} {is_sdpa_patched()}")
-
-    # Native flash availability
     try:
         import flash_attn  # noqa: F401
 
-        print(f"{'native flash-attn':.<30s} available (preferred)")
+        print(f"{'native flash-attn':.<30s} available")
     except ImportError:
-        print(f"{'native flash-attn':.<30s} NOT installed (SDPA patch required)")
-
-    # Expected post-patch: models.attention._sdpa_attention
-    # If you see transformers.*.eager_attention_forward, the patch did
-    # NOT apply and attention will materialize the full NxN matrix.
-    expected = "models.attention._sdpa_attention"
-    if post_repr == expected:
-        print(f"\n[OK] eager is patched to SDPA ({expected})")
-    else:
-        print("\n[WARN] eager is NOT patched to SDPA")
-        print(f"       expected: {expected}")
-        print(f"       actual:   {post_repr}")
+        print(f"{'native flash-attn':.<30s} NOT installed (vLLM falls back internally)")
 
 
 if __name__ == "__main__":
