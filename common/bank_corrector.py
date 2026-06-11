@@ -7,8 +7,30 @@ Extracted from unified_bank_extractor.py to enable unit testing
 of correction logic without VLM infrastructure.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+# Every date shape the row parser emits (UnifiedBankExtractor date patterns
+# 1-6) must be parseable here, or chronology detection silently fails and the
+# corrector computes sign-inverted deltas on reverse-chronological statements.
+# No-year formats parse to year 1900: ordering stays valid within a statement,
+# but a Dec->Jan year boundary cannot be inferred without a year.
+_DATE_FORMATS = [
+    "%d/%m/%Y",  # 03/05/2025
+    "%d %b %Y",  # 04 Sep 2025
+    "%d %B %Y",  # 04 September 2025
+    "%a %d %b %Y",  # Thu 04 Sep 2025
+    "%Y-%m-%d",  # 2025-09-04
+    "%m/%d/%Y",  # 05/03/2025 (US format)
+    "%d/%m/%y",  # 03/05/25 (2-digit year)
+    "%d %b %y",  # 06 Aug 24
+    "%d %B %y",  # 06 August 24
+    "%d %b",  # 20 May (no year)
+    "%d %B",  # 20 September (no year)
+]
 
 
 @dataclass
@@ -34,15 +56,21 @@ class TransactionFilter:
     """Filter and process extracted transactions."""
 
     @staticmethod
-    def parse_amount(value: str) -> float:
-        """Extract numeric value from currency string."""
+    def parse_amount_or_none(value: str) -> float | None:
+        """Extract numeric value from currency string; None when unparseable."""
         if not value or not value.strip():
-            return 0.0
+            return None
         cleaned = value.replace("$", "").replace(",", "").replace("CR", "").replace("DR", "").strip()
         try:
             return float(cleaned)
         except ValueError:
-            return 0.0
+            return None
+
+    @classmethod
+    def parse_amount(cls, value: str) -> float:
+        """Extract numeric value from currency string (legacy zero-on-failure)."""
+        amount = cls.parse_amount_or_none(value)
+        return amount if amount is not None else 0.0
 
     @staticmethod
     def is_non_transaction(row: dict[str, str], desc_col: str) -> bool:
@@ -69,6 +97,7 @@ class TransactionFilter:
         We use abs() to handle both positive and negative representations.
         """
         debit_rows = []
+        unparseable: list[str] = []
         for row in rows:
             debit_value = row.get(debit_col, "").strip()
 
@@ -77,9 +106,15 @@ class TransactionFilter:
             if debit_value.upper() == "NOT_FOUND":
                 continue
 
+            parsed = cls.parse_amount_or_none(debit_value)
+            if parsed is None:
+                # A populated debit cell that fails to parse is a REAL
+                # transaction being deleted (OCR-mangled amount) — surface it.
+                unparseable.append(debit_value)
+                continue
+
             # Use abs() to handle negative amounts (some statements show debits as negative)
-            amount = abs(cls.parse_amount(debit_value))
-            if amount <= 0:
+            if abs(parsed) <= 0:
                 continue
 
             if desc_col and cls.is_non_transaction(row, desc_col):
@@ -87,6 +122,13 @@ class TransactionFilter:
 
             debit_rows.append(row)
 
+        if unparseable:
+            logger.warning(
+                "filter_debits: dropped %d row(s) with unparseable %r values (e.g. %r)",
+                len(unparseable),
+                debit_col,
+                unparseable[:3],
+            )
         return debit_rows
 
     @classmethod
@@ -334,20 +376,10 @@ class BalanceCorrector:
         if not first_date_str or not last_date_str:
             return False, "Missing date values"
 
-        # Try parsing dates with common formats
-        date_formats = [
-            "%d/%m/%Y",  # 03/05/2025
-            "%d %b %Y",  # 04 Sep 2025
-            "%d %B %Y",  # 04 September 2025
-            "%a %d %b %Y",  # Thu 04 Sep 2025
-            "%Y-%m-%d",  # 2025-09-04
-            "%m/%d/%Y",  # 05/03/2025 (US format)
-        ]
-
         first_date = None
         last_date = None
 
-        for fmt in date_formats:
+        for fmt in _DATE_FORMATS:
             if first_date is None:
                 try:
                     first_date = datetime.strptime(first_date_str, fmt)
@@ -386,18 +418,10 @@ class BalanceCorrector:
         Returns:
             Rows sorted by date (oldest first). Unparseable dates go to end.
         """
-        date_formats = [
-            "%d/%m/%Y",  # 03/05/2025
-            "%d %b %Y",  # 04 Sep 2025
-            "%d %B %Y",  # 04 September 2025
-            "%a %d %b %Y",  # Thu 04 Sep 2025
-            "%Y-%m-%d",  # 2025-09-04
-            "%m/%d/%Y",  # 05/03/2025 (US format)
-        ]
 
         def parse_date(date_str: str) -> datetime | None:
             """Parse date string to datetime object."""
-            for fmt in date_formats:
+            for fmt in _DATE_FORMATS:
                 try:
                     return datetime.strptime(date_str.strip(), fmt)
                 except ValueError:

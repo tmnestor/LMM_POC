@@ -26,6 +26,21 @@ from .bank_types import ColumnMapping, ExtractionResult, ExtractionStrategy
 logger = logging.getLogger(__name__)
 
 
+def _warn_dropped_rows(strategy: str, *, kept: int, total: int) -> None:
+    """Surface rows discarded by final-array assembly (always-on WARNING).
+
+    Dropped tail rows are the project's #1 linking-miss cause — this loss must
+    be visible in pod logs, not gated behind the verbose flag.
+    """
+    if kept < total:
+        logger.warning(
+            "[UBE] %s: dropped %d/%d debit rows missing date/description/amount",
+            strategy,
+            total - kept,
+            total,
+        )
+
+
 def _safe_print(msg: str) -> None:
     """Print without triggering Rich console recursion in Jupyter.
 
@@ -807,6 +822,8 @@ class UnifiedBankExtractor:
                 # Always append balance (even if empty) to maintain array alignment
                 balances.append(balance_val if balance_val else "NOT_FOUND")
 
+        _warn_dropped_rows("balance_description", kept=len(dates), total=len(debit_rows))
+
         # Calculate date range from ALL parsed transactions (including opening/closing balance)
         # Use all_rows, not corrected_rows, to include full statement period
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
@@ -923,6 +940,8 @@ class UnifiedBankExtractor:
                 # Always append balance (even if empty) to maintain array alignment
                 balances.append(balance_val if balance_val else "NOT_FOUND")
 
+        _warn_dropped_rows("amount_description", kept=len(dates), total=len(debit_rows))
+
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
@@ -1022,6 +1041,8 @@ class UnifiedBankExtractor:
                 # No balance in this strategy, but maintain alignment
                 balances.append("NOT_FOUND")
 
+        _warn_dropped_rows("debit_credit_description", kept=len(dates), total=len(debit_rows))
+
         # Date range from all transactions
         all_dates = [r.get(date_col, "") for r in all_rows if r.get(date_col)]
         date_range = self._compute_date_range(all_dates) if all_dates else "NOT_FOUND"
@@ -1094,14 +1115,32 @@ class UnifiedBankExtractor:
         )
 
         # Ensure arrays are same length (truncate to shortest)
+        max_len = max(len(dates), len(descriptions), len(amounts))
         min_len = (
             min(len(dates), len(descriptions), len(amounts)) if dates and descriptions and amounts else 0
         )
         if min_len > 0:
+            if min_len < max_len:
+                logger.warning(
+                    "[UBE] schema_fallback: array length mismatch "
+                    "(dates=%d, descriptions=%d, amounts=%d) — truncated to %d rows",
+                    len(dates),
+                    len(descriptions),
+                    len(amounts),
+                    min_len,
+                )
             dates = dates[:min_len]
             descriptions = descriptions[:min_len]
             amounts = amounts[:min_len]
         else:
+            if max_len > 0:
+                logger.warning(
+                    "[UBE] schema_fallback: discarding ALL rows — empty array among "
+                    "dates=%d, descriptions=%d, amounts=%d",
+                    len(dates),
+                    len(descriptions),
+                    len(amounts),
+                )
             # If any is empty, set all to empty
             dates = []
             descriptions = []
@@ -1222,13 +1261,19 @@ class UnifiedBankExtractor:
         first_str_clean = day_prefix.sub("", first_str)
         last_str_clean = day_prefix.sub("", last_str)
 
-        # Common date formats to try (after stripping day prefix)
+        # Common date formats to try (after stripping day prefix) — must cover
+        # every shape the row parser emits (date patterns 1-6 above).
         date_formats = [
             "%d/%m/%Y",  # 03/05/2025
             "%d %b %Y",  # 04 Sep 2025
             "%d %B %Y",  # 04 September 2025
             "%Y-%m-%d",  # 2025-09-04
             "%m/%d/%Y",  # 05/03/2025 (US format)
+            "%d/%m/%y",  # 03/05/25 (2-digit year)
+            "%d %b %y",  # 06 Aug 24
+            "%d %B %y",  # 06 August 24
+            "%d %b",  # 20 May (no year; parses to 1900 — ordering only)
+            "%d %B",  # 20 September (no year)
         ]
 
         first_date = None

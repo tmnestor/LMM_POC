@@ -30,6 +30,11 @@ _DATE_FORMATS = [
     "%d %B %Y",  # 04 September 2025
     "%Y-%m-%d",  # 2025-09-04
     "%m/%d/%Y",  # 05/03/2025 (US format)
+    "%d/%m/%y",  # 03/05/25 (2-digit year)
+    "%d %b %y",  # 06 Aug 24
+    "%d %B %y",  # 06 August 24
+    "%d %b",  # 20 May (no year; parses to 1900 — ordering only)
+    "%d %B",  # 20 September (no year)
 ]
 
 
@@ -122,6 +127,12 @@ def _align_balance_arrays(
             bal = r.get(balance_col, "") if balance_col else ""
             balances.append(bal if bal else "NOT_FOUND")
 
+    if len(dates) < len(debit_rows):
+        logger.warning(
+            "_align_balance_arrays: dropped %d/%d debit rows missing date/description/amount",
+            len(debit_rows) - len(dates),
+            len(debit_rows),
+        )
     return dates, descriptions, amounts, balances
 
 
@@ -150,6 +161,12 @@ def _align_amount_arrays(
             bal = r.get(balance_col, "") if balance_col else ""
             balances.append(bal if bal else "NOT_FOUND")
 
+    if len(dates) < len(debit_rows):
+        logger.warning(
+            "_align_amount_arrays: dropped %d/%d debit rows missing date/description/amount",
+            len(debit_rows) - len(dates),
+            len(debit_rows),
+        )
     return dates, descriptions, amounts, balances
 
 

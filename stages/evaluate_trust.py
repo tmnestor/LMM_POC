@@ -254,7 +254,7 @@ def _parse_amount(s: str) -> float | None:
     """Parse a numeric string, stripping $, commas, spaces."""
     if not s or s.upper() in ("NOT_FOUND", "N/A", "NONE", "NULL"):
         return None
-    cleaned = re.sub(r"[$,\\s]", "", s.strip())
+    cleaned = re.sub(r"[$,\s]", "", s.strip())
     try:
         return float(cleaned)
     except ValueError:
