@@ -302,6 +302,29 @@ def _parse_amount_str(s: str) -> float | None:
         return None
 
 
+def _passes_amount_gate(
+    receipt_total: float | None,
+    match: dict[str, str],
+    amount_tolerance: float,
+) -> bool:
+    """Verify a FOUND block's transaction amount against the receipt total.
+
+    The matcher pass only ever links on an amount match, so the VLM fallback
+    must hold the same line: a FOUND whose amount disagrees with the receipt
+    total beyond ``amount_tolerance`` (pipeline.linking.hybrid_amount_tolerance)
+    is a hallucination, not a match. With a known total, an unparseable
+    transaction amount also fails — an unverifiable FOUND is not accepted.
+    A receipt with no extracted total has nothing to verify against and
+    passes through.
+    """
+    if receipt_total is None:
+        return True
+    tx_amount = _parse_amount_str(match.get("TRANSACTION_AMOUNT", ""))
+    if tx_amount is None:
+        return False
+    return abs(tx_amount - abs(receipt_total)) <= amount_tolerance
+
+
 def _is_bank_row_echo(match: dict[str, str]) -> bool:
     """Detect a hallucinated block that just echoes a bank-statement row.
 
@@ -348,11 +371,13 @@ def _attempt_on_image(
     data_dir: Path,
     prompt: LinkPrompt,
     max_tokens: int,
+    amount_tolerance: float,
 ) -> bool:
     """Query ONE statement image for ONE receipt; apply + return True on FOUND.
 
-    A missing image, a generate error, a bank-row echo, or a NOT_FOUND all
-    return False without aborting — the caller moves on to the next statement.
+    A missing image, a generate error, a bank-row echo, an amount-gate
+    rejection, or a NOT_FOUND all return False without aborting — the caller
+    moves on to the next statement.
     """
     bank_path = data_dir / bank_image_name
     if not bank_path.exists():
@@ -380,6 +405,15 @@ def _attempt_on_image(
         if _is_bank_row_echo(match):
             continue
         if match.get("MATCHED_TRANSACTION", "NOT_FOUND") == "FOUND":
+            if not _passes_amount_gate(receipt.total, match, amount_tolerance):
+                logger.info(
+                    "Amount gate rejected VLM FOUND for %s on %s: receipt total %s vs transaction %r",
+                    receipt.image_name,
+                    bank_image_name,
+                    receipt.total,
+                    match.get("TRANSACTION_AMOUNT"),
+                )
+                continue
             _apply_vlm_match(record, match, bank_image_name)
             logger.info(
                 "VLM fallback matched %s (case %s) on %s",
@@ -625,6 +659,7 @@ def run(
                 data_dir=data_dir,
                 prompt=prompt,
                 max_tokens=vlm_max_tokens,
+                amount_tolerance=amount_tolerance,
             )
             fallback_start = time.perf_counter()
             for case_id, items in by_case.items():

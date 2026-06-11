@@ -218,20 +218,21 @@ def evaluate_linking(
     links: list[dict[str, Any]],
     ground_truth: dict[str, list[dict[str, Any]]],
     *,
-    amount_tolerance: float = 0.01,
-    date_tolerance_days: int = 0,
+    amount_tolerance: float,
 ) -> list[dict[str, Any]]:
     """Compare link results against ground truth.
 
     For multi-receipt images, matches link records to ground truth entries
     by amount (since amounts are unique identifiers within a case).
     Falls back to positional matching if amounts don't disambiguate.
+    Dates are compared exactly (DD/MM/YYYY string match).
 
     Args:
         links: Records from transaction_links.jsonl.
         ground_truth: Output of load_linking_ground_truth().
-        amount_tolerance: Tolerance for amount comparisons.
-        date_tolerance_days: Tolerance for date comparisons (0 = exact).
+        amount_tolerance: Tolerance for amount comparisons. Required — the
+            stage sources it from pipeline.linking.hybrid_amount_tolerance so
+            the evaluation gate always measures what the matcher enforces.
 
     Returns:
         Per-receipt evaluation records.
@@ -350,7 +351,7 @@ def evaluate_linking(
                 # Date check
                 bank_date = (link_rec.get("bank_transaction_date") or "").strip()
                 gt_date = (gt_rec.get("bank_date") or "").strip()
-                dt_correct = _dates_match(bank_date, gt_date, date_tolerance_days)
+                dt_correct = _dates_match(bank_date, gt_date)
 
                 # Description check (case-insensitive substring match)
                 bank_desc = (link_rec.get("bank_transaction_description") or "").strip().upper()
@@ -552,6 +553,7 @@ def run(
     ground_truth_path: Path,
     output_dir: Path,
     inference_seconds: float | None = None,
+    config_path: Path | None = None,
 ) -> Path:
     """Orchestration: load, evaluate, write results + summary, print summary.
 
@@ -563,6 +565,10 @@ def run(
             computation (summed classify + extract + link pod durations). When
             None, throughput falls back to the summed per-record
             ``processing_time``, else reports N/A.
+        config_path: Path to run_config.yml. None = the repo default. The
+            amount tolerance comes from pipeline.linking.hybrid_amount_tolerance
+            (fail-fast if absent) so the evaluator and the link stage can never
+            drift apart.
 
     Note:
         The GPU ``inference_seconds`` spans classify + extract + link over **all**
@@ -584,8 +590,15 @@ def run(
     # Load ground truth
     ground_truth = load_linking_ground_truth(ground_truth_path)
 
+    # Tolerance comes from the SAME validated config block the link stage
+    # reads — the evaluation gate must measure what the matcher enforces.
+    from stages.transaction_link import _load_linking_config
+
+    linking_cfg = _load_linking_config(config_path)
+    amount_tolerance = float(linking_cfg["hybrid_amount_tolerance"])
+
     # Evaluate
-    results = evaluate_linking(links, ground_truth)
+    results = evaluate_linking(links, ground_truth, amount_tolerance=amount_tolerance)
 
     # Write per-receipt results
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -759,6 +772,7 @@ def main(
         "--inference-seconds",
         help="GPU inference wall-clock seconds for throughput computation",
     ),
+    config: Path | None = typer.Option(None, "--config", help="YAML configuration file"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:
     """Evaluate transaction linking results against ground truth."""
@@ -767,7 +781,13 @@ def main(
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    run(input_path, ground_truth, output_dir, inference_seconds=inference_seconds)
+    run(
+        input_path,
+        ground_truth,
+        output_dir,
+        inference_seconds=inference_seconds,
+        config_path=config,
+    )
 
 
 if __name__ == "__main__":
