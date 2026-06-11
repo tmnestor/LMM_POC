@@ -271,16 +271,48 @@ def _resolve_pre_tiling(raw_config: dict[str, Any], config_path: Path) -> tuple[
     return enabled, image_size, use_thumbnail
 
 
+def _require_section_keys(
+    section: dict[str, Any],
+    keys: list[str],
+    section_path: str,
+    config_path: Path,
+) -> None:
+    """Fail fast when a PRESENT config section is missing a key it must declare.
+
+    A wholly-absent section is legal (CLI-driven modes supply those values via
+    cli_args), but a present section must list every key explicitly — an
+    explicit ``null`` keeps the default behavior visible, while a MISSING key
+    would silently fall through to a PipelineConfig dataclass default.
+    """
+    missing = [k for k in keys if k not in section]
+    if missing:
+        raise ValueError(
+            f"What: the '{section_path}:' block is present but missing required "
+            f"key(s): {', '.join(missing)}.\n"
+            f"Where: {config_path} -> {section_path}.{missing[0]}\n"
+            f"Expected: every key listed explicitly (null is allowed where it "
+            f"means 'default behavior'), e.g.:\n"
+            f"  {missing[0]}: null\n"
+            f"How to fix: add the missing key(s) to the '{section_path}:' block "
+            f"in {config_path} — use an explicit null to keep a default visible."
+        )
+
+
 def load_yaml_config(
     config_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load configuration from YAML file.
+
+    Sections are optional as a whole, but a PRESENT section must be complete
+    (see _require_section_keys) — missing keys never silently fall back to
+    Python defaults.
 
     Returns:
         Tuple of (flat_config for PipelineConfig, raw_config for apply_yaml_overrides).
 
     Raises:
         FileNotFoundError: If config_path does not exist.
+        ValueError: If a present section is missing a required key.
     """
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -313,6 +345,12 @@ def load_yaml_config(
     flat_config: dict[str, Any] = {}
     model_cfg = raw_config.get("bootstrap", {}).get("model", {})
     if model_cfg:
+        _require_section_keys(
+            model_cfg,
+            ["type", "path", "max_tiles", "min_tiles", "flash_attn", "enforce_eager", "dtype"],
+            "bootstrap.model",
+            config_path,
+        )
         flat_config["model_type"] = model_cfg.get("type")
         flat_config["model_path"] = model_cfg.get("path")
         flat_config["max_tiles"] = model_cfg.get("max_tiles")
@@ -323,11 +361,21 @@ def load_yaml_config(
         flat_config["max_new_tokens"] = raw_config.get("inference", {}).get("max_new_tokens")
         flat_config["chat_template"] = _resolve_chat_template(model_cfg, config_path)
 
+    inference_cfg = raw_config.get("inference")
+    if inference_cfg:
+        _require_section_keys(inference_cfg, ["max_new_tokens"], "inference", config_path)
+
     # Classic information-extraction pipeline paths live under
     # pipeline.information_extraction.* (retired from top-level io.*, 2026-06-10).
     info_extract_cfg = raw_config.get("pipeline", {}).get("information_extraction", {})
     input_cfg = info_extract_cfg.get("input", {})
     if input_cfg:
+        _require_section_keys(
+            input_cfg,
+            ["dir", "ground_truth", "max_images", "document_types"],
+            "pipeline.information_extraction.input",
+            config_path,
+        )
         flat_config["data_dir"] = input_cfg.get("dir")
         flat_config["ground_truth"] = input_cfg.get("ground_truth")
         flat_config["max_images"] = input_cfg.get("max_images")
@@ -335,12 +383,24 @@ def load_yaml_config(
 
     output_cfg = info_extract_cfg.get("output", {})
     if output_cfg:
+        _require_section_keys(
+            output_cfg,
+            ["dir", "skip_visualizations", "skip_reports"],
+            "pipeline.information_extraction.output",
+            config_path,
+        )
         flat_config["output_dir"] = output_cfg.get("dir")
         flat_config["skip_visualizations"] = output_cfg.get("skip_visualizations")
         flat_config["skip_reports"] = output_cfg.get("skip_reports")
 
     processing_cfg = raw_config.get("pipeline", {}).get("processing", {})
     if processing_cfg:
+        _require_section_keys(
+            processing_cfg,
+            ["batch_size", "bank_v2", "balance_correction", "verbose", "debug"],
+            "pipeline.processing",
+            config_path,
+        )
         flat_config["batch_size"] = processing_cfg.get("batch_size")
         flat_config["bank_v2"] = processing_cfg.get("bank_v2")
         flat_config["balance_correction"] = processing_cfg.get("balance_correction")
@@ -348,8 +408,10 @@ def load_yaml_config(
         flat_config["debug"] = processing_cfg.get("debug")
 
     gpus_cfg = raw_config.get("bootstrap", {}).get("gpus", {})
-    flat_config["num_gpus"] = gpus_cfg.get("num_gpus")
-    flat_config["data_parallel_size"] = gpus_cfg.get("data_parallel_size")
+    if gpus_cfg:
+        _require_section_keys(gpus_cfg, ["num_gpus", "data_parallel_size"], "bootstrap.gpus", config_path)
+    flat_config["num_gpus"] = gpus_cfg.get("num_gpus") if gpus_cfg else None
+    flat_config["data_parallel_size"] = gpus_cfg.get("data_parallel_size") if gpus_cfg else None
 
     # Flatten model loading options (device_map / trust_remote_code now live
     # under bootstrap.model) into PipelineConfig fields.
