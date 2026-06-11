@@ -54,7 +54,7 @@ laptop or sandbox GPU box.
 
 **Appendices**
 - [Project structure](#project-structure)
-- [Known config gaps (for the Data Engineering team)](#known-config-gaps-for-the-data-engineering-team)
+- [Config completeness (for the Data Engineering team)](#config-completeness-for-the-data-engineering-team)
 - [Development & handoff notes](#development--handoff-notes)
 - [Authoritative sources](#authoritative-sources)
 
@@ -102,6 +102,7 @@ the next. This contract is the backbone of the whole system — it is what lets 
 | `raw_extractions.jsonl` | `extract` / `link` | image (or case) | `image_name`, `document_type`, `raw_response`, `processing_time` |
 | `cleaned_extractions.jsonl` | `clean` | image | `image_name`, `document_type`, `extracted_data` (structured dict) |
 | `evaluation_results.jsonl` | `evaluate` | image | `image_name`, `document_type`, per-field accuracy, `median_f1` |
+| `transaction_links.jsonl` | `link` (`stages.transaction_link`) | receipt | `image_name`, `case_id`, `matched`, `confidence`, `match_scores`, `bank_transaction_*` |
 
 The graph engine emits the **same** `raw_extractions.jsonl` shape (plus an embedded
 `WorkflowTrace`), so `clean` and `evaluate` are identical whether the data came from the
@@ -202,7 +203,7 @@ graph TB
 |---|---|---|
 | Invoice / receipt / travel / logbook | Single-pass | One image → one prompt → field set; no state to carry between turns. |
 | Bank statement | Multi-turn | Turn 0 detects column headers; Turn 1 adapts the extraction prompt to that layout. |
-| Receipt → bank linking | Cross-image graph | Receipt fields are injected into the bank-matching prompt; a validator gates the match by amount tolerance. |
+| Receipt → bank linking | Matcher-first + targeted VLM fallback | An algorithmic matcher links receipts against already-extracted bank rows; only unconfident cases go to a single-image VLM lookup, gated by amount tolerance. |
 | Trust distribution compliance | 4-stage pipeline (4 docs/case) | Classify 4 doc types → extract linking fields → validate compliance algorithmically → score. |
 | Mixed-type batches | Probe-based graph (`--graph-robust`) | Two extraction probes; the engine picks the winner by counting recovered fields. *The extraction IS the classification.* |
 
@@ -275,7 +276,8 @@ as the literal `"None"`, so the script's `_is_set()` helper rejects both empty a
 | `trust_data_dir` | Yes (trust) | Root dir of trust documents |
 | `trust_quads` | Trust (after classify) | Quads CSV produced by `trust_classify` |
 | `trust_ground_truth` | No | Ground-truth YAML for trust compliance eval |
-| `LMM_CONDA_ENV` | No | Conda env path (default `/persistent/storage/.conda/envs/vllm_env`) |
+| `linking_data_dir` / `linking_output` / `linking_ground_truth` / `linking_evaluation_dir` / `linking_log_dir` | No (linking) | Transaction-linking paths (else from `pipeline.linking.*` in `run_config.yml`) |
+| `LMM_CONDA_ENV` | No | Conda env path (default `/home/jovyan/.conda/envs/vllm_env2`) |
 | `LMM_LOG_DIR` / `LMM_TRUST_LOG_DIR` | No | Log dir override (else from `run_config.yml`) |
 
 `CLEAR_PREV_OUTPUT` is normalised (`tr` to lowercase, `None`→`false`) and **validated at
@@ -334,10 +336,12 @@ only, *not* in the KFP DAG) and **individual stage names** (one KFP pod each).
 | Classic | `run_batch_inference` | classify → extract → clean → evaluate | Production-shaped local runs; one-prompt-per-type docs |
 | Robust (graph) | `run_graph_robust` | extract `--graph-robust` → clean → evaluate | Mixed-type batches; eliminating misclassification |
 | Trust compliance | `run_trust_pipeline` | trust_classify → trust_extract → trust_clean → trust_evaluate | NRO Private Wealth trust compliance |
+| Transaction linking | `run_transaction_link` | classify → extract → clean → transaction_link → evaluate_linking | Receipt → bank-statement debit matching (matcher-first, VLM fallback) |
 
 **Individual stage tasks (one KFP pod each):**
 `classify`, `extract`, `clean`, `evaluate`,
-`trust_classify`, `trust_extract`, `trust_clean`, `trust_evaluate`.
+`trust_classify`, `trust_extract`, `trust_clean`, `trust_evaluate`,
+`link_classify`, `link_extract`, `link_clean`, `link`, `link_evaluate`.
 (`filter` is a deprecated no-op kept for KFP manifest compatibility.)
 
 > **Not orchestrated:** `--graph-unified` and `--graph-bank` exist only as flags on the `extract`
@@ -477,21 +481,45 @@ pipeline:
 
 ## Transaction linking
 
-Pairs a receipt image with a bank-statement image and produces a single `raw_extractions.jsonl`
-record via the four-node graph
-(`extract_receipts → detect_headers → match_to_statement → validate_amounts`), flowing receipt
-fields and bank-header columns into the matching prompt. An amount-tolerance validator overrides
-matches that disagree by more than the configured tolerance.
+Matches receipts/invoices to the corresponding **debit row of a bank statement**. The production
+path is **matcher-first**: the classic GPU stages first classify and extract *all* documents in
+the linking dataset; then `stages.transaction_link` links each receipt **algorithmically**
+(`common/transaction_matcher.py` — amount gate + date-window + description-overlap scoring)
+against the bank rows the extract stage already pulled. Only receipts the matcher cannot link
+with sufficient confidence fall through to a **targeted single-image VLM lookup**
+(`common/vlm_linker.py`, prompt `prompts/single_receipt_link.yaml`), and even those VLM matches
+must pass the amount gate. This sidesteps long-table attention decay: the VLM is asked to locate
+*one* debit row, never to re-read the whole statement.
 
-```bash
-python -m stages.link \
-  --pairs pairs.csv \
-  --data-dir /data/images \
-  --output /artifacts/raw_extractions.jsonl \
-  --model internvl3-vllm
+```mermaid
+graph LR
+    A["link_classify<br/>(GPU)"] --> B["link_extract<br/>(GPU)"] --> C["link_clean<br/>(CPU)"] --> D["link<br/>(matcher + VLM fallback, GPU)"] --> E["link_evaluate<br/>(CPU)"]
 ```
 
-Output is compatible with `stages.clean` / `stages.evaluate` (`transaction_link` = 8 fields).
+```bash
+# Local dev — chain all 5 phases (paths from pipeline.linking.* in run_config.yml)
+KFP_TASK=run_transaction_link bash entrypoint.sh
+
+# KFP production — one pod per stage (mirrors the trust_* split pods)
+KFP_TASK=link_classify  bash entrypoint.sh   # GPU — classify the linking dataset
+KFP_TASK=link_extract   bash entrypoint.sh   # GPU — extract fields (incl. all bank rows)
+KFP_TASK=link_clean     bash entrypoint.sh   # CPU — parse/clean responses
+KFP_TASK=link           bash entrypoint.sh   # GPU — matcher-first linking → transaction_links.jsonl
+KFP_TASK=link_evaluate  bash entrypoint.sh   # CPU — link recall/precision + throughput
+```
+
+All knobs live under `pipeline.linking` in `run_config.yml` (`case_key_pattern`, the four
+`hybrid_*` matcher thresholds, `vlm_prompt` / `vlm_max_tokens` / `vlm_temperature`, and the
+dataset paths) — every key is required; `stages/transaction_link.py` fails fast on a missing one.
+The GPU pods write elapsed seconds to `.inference_elapsed` (classify truncates, extract and link
+append) so `link_evaluate` can report end-to-end throughput, exactly as the trust pods do.
+`link_evaluate` accepts CSV/JSONL/YAML ground truth; the orchestrated mode skips evaluation when
+`pipeline.linking.ground_truth` is unset, while a standalone `link_evaluate` pod fails fast.
+
+An older **graph-based pairs mode** still exists for ad-hoc experiments: `stages.link --pairs`
+runs the four-node `transaction_link.yaml` workflow over explicit receipt/statement pairs and
+emits a `raw_extractions.jsonl` record compatible with `stages.clean` / `stages.evaluate`
+(`transaction_link` = 8 fields). It is not wired into any `KFP_TASK`.
 
 ## `stages.*` CLI reference
 
@@ -519,8 +547,8 @@ definitions; **`python -m stages.<name> --help` is always authoritative**.
 | `--output-dir, -o` | *required* | Output JSONL path |
 | `--model` | `None` → YAML | Model type |
 | `--batch-size` | `None` (auto) | Images per extraction batch |
-| `--bank-v2/--no-bank-v2` | `true` | Multi-turn bank extraction (`UnifiedBankExtractor`) |
-| `--balance-correction/--no-balance-correction` | `true` | Balance validation for bank statements |
+| `--bank-v2/--no-bank-v2` | `None` → YAML | Multi-turn bank extraction (unset ⇒ `pipeline.processing.bank_v2`) |
+| `--balance-correction/--no-balance-correction` | `None` → YAML | Balance validation (unset ⇒ `pipeline.processing.balance_correction`) |
 | `--graph-bank/--no-graph-bank` | `false` | Graph-engine bank extraction (overrides `bank_v2`) |
 | `--graph-unified/--no-graph-unified` | `false` | Unified classify+extract graph (skips Stage 1) |
 | `--graph-robust/--no-graph-robust` | `false` | Probe-based classification graph (skips Stage 1) |
@@ -557,7 +585,29 @@ python -m stages.extract --data-dir /persistent/storage/annotations/evaluation_d
 | `--math-enhancement/--no-math-enhancement` | `false` | Bank balance calculations |
 | `--inference-seconds` | `None` | GPU inference wall-clock seconds (extract elapsed); used for throughput. Falls back to the sum of per-image `processing_time`. |
 
-### `stages.link` (transaction) (GPU)
+### `stages.transaction_link` (= `link`) (GPU)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--extractions, -i` | *required* | `cleaned_extractions.jsonl` from the clean stage |
+| `--output, -o` | *required* | Path to write `transaction_links.jsonl` |
+| `--data-dir` | *required* | Image directory (needed for the VLM fallback) |
+| `--model` | `None` → YAML | Model type (unset ⇒ `bootstrap.model.type`) |
+| `--config` | `None` | Path to `run_config.yml` |
+| `--debug` | `false` | Debug logging |
+
+### `stages.evaluate_linking` (= `link_evaluate`) (CPU)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--input, -i` | *required* | `transaction_links.jsonl` from the link stage |
+| `--ground-truth, -g` | *required* | Ground truth (`.csv`, `.jsonl`, `.yml`, or `.yaml`) |
+| `--output-dir, -o` | *required* | Directory for evaluation output |
+| `--inference-seconds` | `None` | GPU inference wall-clock seconds for throughput |
+| `--config` | `None` | Path to `run_config.yml` |
+| `--debug` | `false` | Debug logging |
+
+### `stages.link` (pairs mode, ad-hoc) (GPU)
 
 | Flag | Default | Description |
 |---|---|---|
@@ -660,23 +710,31 @@ Key flags (full set via `python cli.py --help`):
 | `--dtype` | `bfloat16` | `bfloat16` / `float16` / `float32` |
 | `-b, --batch-size` | `None` (auto) | Images per batch (`null` = auto from VRAM) |
 | `--num-gpus` | `0` (auto) | `0`=auto, `1`=single, `N`=use N |
-| `--bank-v2 / --no-bank-v2` | `true` | Multi-turn bank extraction |
-| `--balance-correction / --no-balance-correction` | `true` | Bank balance validation |
+| `--bank-v2 / --no-bank-v2` | *from YAML* | Multi-turn bank extraction (`pipeline.processing.bank_v2`) |
+| `--balance-correction / --no-balance-correction` | *from YAML* | Bank balance validation (`pipeline.processing.balance_correction`) |
 | `--enforce-eager / --no-enforce-eager` | `false` | vLLM only: skip CUDA-graph compile |
 | `-c, --config` | `config/run_config.yml` | YAML config path |
 
 ## YAML configuration
 
 **`config/run_config.yml` is the single source of truth** for tunables. Read the file itself for
-the authoritative, commented set. The file is organised into exactly **five** top-level sections:
+the authoritative, commented set. The file is organised into exactly **four** top-level sections:
 
 | Section | What lives under it |
 |---|---|
 | `bootstrap` | The minimal set the entrypoint + model loader need first: `model` (type, path, max_tiles, flash_attn, enforce_eager, dtype, chat_template, device_map, default_paths), `gpus` (num_gpus, data_parallel_size), `logging` (log_dir). |
-| `io` | `input` (dir, ground_truth, max_images, document_types) and `output` (dir, skip_visualizations, skip_reports) for the main extraction pipeline. |
 | `inference` | Everything that shapes generation: `max_new_tokens`, `tiling` (`pre_tiling`, `budgets`), `generation`, `vllm` (engine params), `tracing`. |
-| `pipeline` | Per-task settings: `classification`, `processing`, `token_budgets`, `trust`, `linking`, `batch`, `extraction` (`order`, `secondary_sort`, `skip_labels`), `bank_header_cache`. |
+| `pipeline` | Per-task settings: `information_extraction` (`input` / `output` paths for the main pipeline), `classification`, `processing`, `token_budgets`, `trust`, `linking`, `batch`, `extraction` (`order`, `secondary_sort`, `skip_labels`), `bank_header_cache`. |
 | `resources` | `gpu_memory` thresholds and `infrastructure` timeouts. |
+
+> The former top-level `io:` section was retired (2026-06-10) into
+> `pipeline.information_extraction.*` so the three pipelines (information_extraction / trust /
+> linking) are symmetric — each owns its paths under `pipeline.<name>`. A leftover `io:` block
+> now **fails fast**; a PROD `run_config.yml` must migrate in lockstep with this code. The
+> trust and linking tasks reuse the same classify/extract/clean stages on their own datasets:
+> `entrypoint.sh` (`_resolve_trust_vars` / `_resolve_linking_vars`) repoints the shared path
+> globals at `pipeline.trust.*` / `pipeline.linking.*`, shadowing `information_extraction.*`
+> for the duration of that task.
 
 ### Config cascade
 
@@ -698,16 +756,35 @@ dotted key path — when any of these **required** sections/keys is missing or i
 - `inference.tiling.budgets` (must contain a `default` entry with `max_tiles`)
 - `pipeline.bank_header_cache` (must contain `enabled` + a valid regex `key_pattern`)
 
-There is no silent fallback for these — a missing required key fails before any GPU work begins.
+In addition, **a present section must be complete** (`common/pipeline_config.py` —
+`_require_section_keys`): a section may be omitted wholly (CLI-driven modes supply those values
+via flags), but once it appears in the YAML it must declare **every** key explicitly — an
+explicit `null` keeps default behavior visible, while a missing key would silently fall through
+to a Python dataclass default. Enforced for:
+
+| Section | Keys that must all be declared |
+|---|---|
+| `bootstrap.model` | `type`, `path`, `max_tiles`, `min_tiles`, `flash_attn`, `enforce_eager`, `dtype` |
+| `bootstrap.gpus` | `num_gpus`, `data_parallel_size` |
+| `inference` | `max_new_tokens` |
+| `pipeline.information_extraction.input` | `dir`, `ground_truth`, `max_images`, `document_types` |
+| `pipeline.information_extraction.output` | `dir`, `skip_visualizations`, `skip_reports` |
+| `pipeline.processing` | `batch_size`, `bank_v2`, `balance_correction`, `verbose`, `debug` |
+
+There is no silent fallback for any of these — a missing required key fails before any GPU work
+begins. `pipeline.linking` is validated separately by `stages/transaction_link.py` (every key
+required, same four-part diagnostics), and `pipeline.trust.amount_tolerance` /
+`pipeline.trust.linking_fields` by `stages/evaluate_trust.py`.
 
 ### Representative excerpts (verified values)
 
 ```yaml
 bootstrap:
-  model:
+  model:                          # present section ⇒ all keys declared (fail-fast)
     type: internvl3-vllm          # production default (InternVL3.5-8B via vLLM)
     path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    max_tiles: 18                 # YAML override (dataclass default is 11)
+    max_tiles: 18
+    min_tiles: null               # null = disabled; set (e.g. 6) for adaptive tiling
     flash_attn: true
     enforce_eager: true           # vLLM: true = skip CUDA-graph compile (faster startup)
     dtype: bfloat16
@@ -743,10 +820,12 @@ inference:
         limit_mm_per_prompt: 19   # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
 
 pipeline:
-  processing:
+  processing:                     # present section ⇒ ALL five keys must be declared
     batch_size: null              # null = auto-detect from VRAM, 1 = sequential
     bank_v2: true
-    balance_correction: false     # NOTE: explicitly disabled here (dataclass default is true)
+    balance_correction: false     # NOTE: explicitly disabled (reduces accuracy)
+    verbose: false
+    debug: false
   trust:
     amount_tolerance: 0.01        # trust-eval amount match tolerance (relative)
     linking_fields:               # nested map (not a flat list)
@@ -757,6 +836,15 @@ pipeline:
         - share_of_net_income
         - franking_credit
         - capital_gain_component
+  linking:                        # transaction linking — EVERY key required (fail-fast)
+    case_key_pattern: "^(?P<case>[^_]+)_"  # group files by case (split on first "_")
+    vlm_prompt: single_receipt_link        # fallback prompt file in prompts/ (without .yaml)
+    vlm_max_tokens: 4096
+    vlm_temperature: 0.0          # MUST be 0.0 — the shared generate seam is deterministic
+    hybrid_amount_tolerance: 0.01 # $ gate for an algorithmic amount match
+    hybrid_date_window_days: 5    # business-day window for date scoring
+    hybrid_description_threshold: 0.3  # min token-overlap fraction for description support
+    hybrid_min_confidence: LOW    # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
 ```
 
 ### Environment variables
@@ -953,7 +1041,7 @@ Workflow YAMLs live in `prompts/workflows/`:
 | `robust_extract.yaml` | `extract --graph-robust` | live |
 | `unified_extract.yaml` | `extract --graph-unified` | live |
 | `bank_extract.yaml` | `extract --graph-bank` | live |
-| `transaction_link.yaml` | `stages.link` | live |
+| `transaction_link.yaml` | `stages.link` (pairs mode, ad-hoc) | live — but the production linking path is `stages.transaction_link` (matcher-first, no graph) |
 | `trust_distribution_extract.yaml` | `stages.link trust-link` | live |
 | `trust_distribution_link.yaml` | *(nothing)* | **dead code** — a legacy single-graph variant with an inline compliance validator; not loaded by any code path. Treat as dead unless intentionally revived. |
 
@@ -1000,8 +1088,8 @@ fail-fast validator in `app_config.py` enforces this for the required keys, with
 always state **what** is wrong, **where** to fix it (file + dotted path), **what** a valid value
 looks like, and **how** to recover. Operator intent must be readable from the YAML alone — which
 is why no-op features are committed as explicit values (`extraction_skip_labels: []`,
-`secondary_sort: none`) rather than omitted. A number of keys still fall back to Python
-dataclass defaults; closing that gap is a handover task (see below).
+`secondary_sort: none`) rather than omitted, and why a **present** config section must declare
+every key explicitly (see [Config completeness](#config-completeness-for-the-data-engineering-team)).
 
 ---
 
@@ -1023,6 +1111,7 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   ├── internvl3_prompts.yaml             # InternVL3.5-8B extraction prompts
 │   ├── bank_prompts.yaml                  # Bank statement multi-turn prompts
 │   ├── bank_column_patterns.yaml          # Column header patterns
+│   ├── single_receipt_link.yaml           # Targeted VLM-fallback prompt (transaction linking)
 │   └── workflows/                         # Graph-engine workflow YAMLs (see table above)
 ├── models/
 │   ├── backend.py                         # ModelBackend + BatchInference Protocols
@@ -1044,6 +1133,8 @@ dataclass defaults; closing that gap is a handover task (see below).
 │   ├── bank_corrector.py / bank_header_cache.py / bank_types.py / bank_statement_calculator.py
 │   ├── trust_compliance.py                # Trust compliance validator (pure Python)
 │   ├── trust_classify_parser.py           # Evidence-based trust doc classification
+│   ├── transaction_matcher.py             # Algorithmic receipt→bank-row matcher (CPU)
+│   ├── vlm_linker.py                      # Targeted single-image VLM fallback lookup
 │   ├── response_handler.py                # ResponseHandler (ports & adapters)
 │   ├── extraction_parser.py / extraction_cleaner.py / extraction_sort.py
 │   ├── extraction_evaluator.py / evaluation_metrics.py
@@ -1054,7 +1145,9 @@ dataclass defaults; closing that gap is a handover task (see below).
 ├── stages/
 │   ├── classify.py / extract.py           # Classic GPU stages 1–2
 │   ├── clean.py / evaluate.py             # Classic CPU stages 3–4
-│   ├── link.py                            # Cross-image linking: transaction + trust-link (GPU)
+│   ├── link.py                            # Graph-based linking: pairs mode (ad-hoc) + trust-link (GPU)
+│   ├── transaction_link.py                # Matcher-first receipt→bank linking + VLM fallback (GPU)
+│   ├── evaluate_linking.py                # Linking recall/precision/throughput scoring (CPU)
 │   ├── trust_classify.py                  # Trust stage 1: classify docs, build quads (GPU)
 │   ├── trust_clean.py / evaluate_trust.py # Trust CPU stages 3–4
 │   └── io.py                              # JSONL streaming writer + resumption primitive
@@ -1068,35 +1161,35 @@ dataclass defaults; closing that gap is a handover task (see below).
 └── docs/                                  # design docs (transaction_linking_comparison.md)
 ```
 
-## Known config gaps (for the Data Engineering team)
+## Config completeness (for the Data Engineering team)
 
-The project policy is that `run_config.yml` is authoritative for **every** key. The five required
-keys above already fail fast, and the trust-eval `pipeline.trust.amount_tolerance` /
-`pipeline.trust.linking_fields` are now **read from config with their own four-part diagnostics**
-(`stages/evaluate_trust.py` → `_load_trust_eval_config`) — no longer Python-hardcoded. A number of
-keys still fall back to `PipelineConfig` dataclass defaults when absent from the YAML:
+The project policy is that `run_config.yml` is authoritative for **every** key, and the
+historical gap here is now closed:
 
-| Key | Dataclass default | Note |
-|---|---|---|
-| `max_tiles` | 11 | YAML currently sets 18 |
-| `min_tiles` | `None` | |
-| `flash_attn` | `true` | |
-| `enforce_eager` | `true` | |
-| `dtype` | `bfloat16` | |
-| `max_new_tokens` | 2000 | YAML currently sets 3500 |
-| `bank_v2` | `true` | |
-| `balance_correction` | `true` | **YAML sets `false`** — the *active* value is `false`; the dataclass default is only a fallback |
-| `num_gpus` | 0 | |
-| `data_parallel_size` / `batch_size` | `None` | |
+- The five structurally-required keys (extraction order, tiling budgets, bank-header cache, …)
+  fail fast in `app_config.py`.
+- The trust-eval `pipeline.trust.amount_tolerance` / `pipeline.trust.linking_fields` are read
+  from config with their own four-part diagnostics (`stages/evaluate_trust.py` →
+  `_load_trust_eval_config`); the trust **validator** receives the same tolerance from
+  `trust_clean` — nothing trust-related is Python-hardcoded.
+- `pipeline.linking.*` is fully required — `stages/transaction_link.py` fails fast on any
+  missing key.
+- **Present sections must be complete** (`common/pipeline_config.py` →
+  `_require_section_keys`): if `bootstrap.model`, `bootstrap.gpus`, `inference`,
+  `pipeline.information_extraction.input`/`.output`, or `pipeline.processing` appears in the
+  YAML, every key in it must be declared (explicit `null` allowed) — a missing key fails fast
+  instead of silently falling through to a `PipelineConfig` dataclass default.
 
-To make the YAML truly authoritative, move these into the required-key validation in
-`app_config.py` (fail fast if missing) rather than defaulting in Python. Until then, **set them
-explicitly in `run_config.yml`**.
+The one **deliberate** residual: a section that is *wholly absent* still resolves from
+`PipelineConfig` dataclass defaults — this keeps ad-hoc CLI-driven runs (all values via flags)
+working without a YAML. Production should never rely on it: ship a complete `run_config.yml`,
+and remember a leftover top-level `io:` block fails fast (migrate it to
+`pipeline.information_extraction.*`).
 
 ## Development & handoff notes
 
 - **Environment:** `conda env create -f conda_envs/vllm_env.yml` (production, matches
-  `entrypoint.sh`'s `/persistent/storage/.conda/envs/vllm_env`) or `conda_envs/IVL3.5_env.yml`. Project is
+  `entrypoint.sh`'s default `/home/jovyan/.conda/envs/vllm_env2`) or `conda_envs/IVL3.5_env.yml`. Project is
   uniformly **Python 3.12** (pinned) — `models/registry.py`
   uses PEP 695 `type` statements that require 3.12+. Never downgrade an env YAML to 3.11.
 - **Inference is remote-only** — model inference runs on the GPU server; only linting, formatting,
@@ -1106,7 +1199,7 @@ explicitly in `run_config.yml`**.
 - **Linting:** `ruff check --fix` then `ruff format`; `mypy . --ignore-missing-imports`. Line
   length 108.
 - **Config discipline:** do not reintroduce hardcoded config values in Python; prefer extending
-  the fail-fast validation in `app_config.py` (see Known config gaps).
+  the fail-fast validation in `app_config.py` / `pipeline_config.py` (see Config completeness).
 - **Prompt authoring:** prompts must be generic — never embed store names, amounts, or any data
   from real evaluation images; examples must use fictitious merchant names.
 
@@ -1121,4 +1214,3 @@ When this README and the code disagree, the code wins. The fast-moving details l
 - `python -m stages.<name> --help` — stage flags
 - [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md) — graph engine deep-dive
 - [`docs/transaction_linking_comparison.md`](docs/transaction_linking_comparison.md) — linking design comparison
-```
