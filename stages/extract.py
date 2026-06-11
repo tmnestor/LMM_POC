@@ -30,6 +30,44 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
+def _build_cli_args(
+    image_dir: Path,
+    output_path: Path,
+    *,
+    model_type: str | None = None,
+    batch_size: int | None = None,
+    bank_v2: bool | None = None,
+    balance_correction: bool | None = None,
+    max_num_seqs: int | None = None,
+    verbose: bool | None = None,
+    debug: bool | None = None,
+) -> dict[str, Any]:
+    """Build the CLI-overrides dict for the config cascade (CLI > YAML).
+
+    Every optional key is injected only when the caller passed an explicit
+    value — None means "let YAML win" (run_config.yml pipeline.processing.*).
+    """
+    cli_args: dict[str, Any] = {
+        "data_dir": str(image_dir),
+        "output_dir": str(output_path.parent),
+    }
+    if model_type is not None:
+        cli_args["model_type"] = model_type
+    if batch_size is not None:
+        cli_args["batch_size"] = batch_size
+    if bank_v2 is not None:
+        cli_args["bank_v2"] = bank_v2
+    if balance_correction is not None:
+        cli_args["balance_correction"] = balance_correction
+    if max_num_seqs is not None:
+        cli_args["max_num_seqs"] = max_num_seqs
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
+    return cli_args
+
+
 def run(
     classifications_path: Path | None,
     image_dir: Path,
@@ -37,8 +75,8 @@ def run(
     *,
     model_type: str | None = None,
     batch_size: int | None = None,
-    bank_v2: bool = True,
-    balance_correction: bool = True,
+    bank_v2: bool | None = None,
+    balance_correction: bool | None = None,
     graph_bank: bool = False,
     graph_unified: bool = False,
     graph_robust: bool = False,
@@ -61,8 +99,10 @@ def run(
         output_path: Path to write raw_extractions.jsonl.
         model_type: Model type (e.g. "internvl3-vllm").
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
-        bank_v2: Use UnifiedBankExtractor for bank statements.
+        bank_v2: Use UnifiedBankExtractor for bank statements. None = YAML
+            processing.bank_v2.
         balance_correction: Enable balance validation in bank extraction.
+            None = YAML processing.balance_correction.
         graph_bank: Use graph-based bank extraction (opt-in, overrides bank_v2).
         graph_unified: Use unified graph workflow (classify + extract in one
             graph walk). Skips Stage 1 -- discovers images directly from
@@ -131,24 +171,19 @@ def run(
         logger.info("All images already processed -- nothing to do")
         return output_path
 
-    # Build config through the standard cascade. Only inject verbose/debug
-    # when the caller passed an explicit bool — None means "let YAML win".
-    cli_args: dict[str, Any] = {
-        "data_dir": str(image_dir),
-        "output_dir": str(output_path.parent),
-        "bank_v2": bank_v2,
-        "balance_correction": balance_correction,
-    }
-    if model_type is not None:
-        cli_args["model_type"] = model_type
-    if verbose is not None:
-        cli_args["verbose"] = verbose
-    if debug is not None:
-        cli_args["debug"] = debug
-    if batch_size is not None:
-        cli_args["batch_size"] = batch_size
-    if max_num_seqs is not None:
-        cli_args["max_num_seqs"] = max_num_seqs
+    # Build config through the standard cascade. Optional keys are injected
+    # only when the caller passed an explicit value — None means "let YAML win".
+    cli_args = _build_cli_args(
+        image_dir,
+        output_path,
+        model_type=model_type,
+        batch_size=batch_size,
+        bank_v2=bank_v2,
+        balance_correction=balance_correction,
+        max_num_seqs=max_num_seqs,
+        verbose=verbose,
+        debug=debug,
+    )
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
@@ -687,8 +722,16 @@ def main(
     output: Path = typer.Option(..., "--output-dir", "-o", help="Path to write raw_extractions.jsonl"),
     model: str | None = typer.Option(None, "--model", help="Model type"),
     batch_size: int | None = typer.Option(None, "--batch-size", help="Images per extraction batch"),
-    bank_v2: bool = typer.Option(True, "--bank-v2/--no-bank-v2"),
-    balance_correction: bool = typer.Option(True, "--balance-correction/--no-balance-correction"),
+    bank_v2: bool | None = typer.Option(
+        None,
+        "--bank-v2/--no-bank-v2",
+        help="Use UnifiedBankExtractor for bank statements. Default: YAML processing.bank_v2.",
+    ),
+    balance_correction: bool | None = typer.Option(
+        None,
+        "--balance-correction/--no-balance-correction",
+        help="Enable balance validation in bank extraction. Default: YAML processing.balance_correction.",
+    ),
     graph_bank: bool = typer.Option(
         False,
         "--graph-bank/--no-graph-bank",
