@@ -231,7 +231,7 @@ class AppConfig:
     ) -> AppConfig:
         """Single entry point. No mutable globals touched.
 
-        Handles: YAML loading, ENV loading, merge (CLI > YAML > ENV > defaults),
+        Handles: YAML loading, merge (CLI > YAML > defaults),
         validation, batch settings, generation registry, field schema,
         token budgets, vLLM config, infrastructure settings.
 
@@ -240,7 +240,6 @@ class AppConfig:
             FileNotFoundError: If an explicit config_path does not exist.
         """
         from common.pipeline_config import (
-            load_env_config,
             load_yaml_config,
             merge_configs,
             validate_config,
@@ -256,55 +255,54 @@ class AppConfig:
         if resolved:
             yaml_config, raw_config = load_yaml_config(resolved)
 
-        # 3. Load ENV
-        env_config = load_env_config()
-
-        # 4. Pre-validate required fields (before PipelineConfig construction)
-        merged_preview = {**env_config, **yaml_config, **cli_args}
+        # 3. Pre-validate required fields (before PipelineConfig construction)
+        merged_preview = {**yaml_config, **cli_args}
         errors: list[str] = []
         if not merged_preview.get("data_dir"):
             errors.append(
-                "--data-dir is required (via CLI, config file, or IVL_DATA_DIR environment variable)"
+                "--data-dir is required (via CLI, or pipeline.information_extraction.input.dir "
+                "in config/run_config.yml)"
             )
         if not merged_preview.get("output_dir"):
             errors.append(
-                "--output-dir is required (via CLI, config file, or IVL_OUTPUT_DIR environment variable)"
+                "--output-dir is required (via CLI, or pipeline.information_extraction.output.dir "
+                "in config/run_config.yml)"
             )
         if errors:
             raise ConfigError(errors)
 
-        # 4b. Extract vLLM-specific CLI overrides before PipelineConfig merge
+        # 3b. Extract vLLM-specific CLI overrides before PipelineConfig merge
         #     (PipelineConfig doesn't know about max_num_seqs)
         cli_max_num_seqs = cli_args.pop("max_num_seqs", None)
 
-        # 5. Merge with precedence: CLI > YAML > ENV > defaults
-        pipeline = merge_configs(cli_args, yaml_config, env_config, raw_config)
+        # 4. Merge with precedence: CLI > YAML > defaults
+        pipeline = merge_configs(cli_args, yaml_config, raw_config)
 
-        # 6. Validate
+        # 5. Validate
         val_errors = validate_config(pipeline)
         if val_errors:
             raise ConfigError(val_errors)
 
-        # 7. Build BatchSettings (immutable copy of batch/gpu config)
+        # 6. Build BatchSettings (immutable copy of batch/gpu config)
         batch = BatchSettings.from_raw(raw_config)
 
-        # 8. Build generation registry (immutable copy with YAML overrides)
+        # 7. Build generation registry (immutable copy with YAML overrides)
         generation_registry = _build_generation_registry(raw_config)
 
-        # 9. Build token limits from YAML overrides
+        # 8. Build token limits from YAML overrides
         token_limits: dict[str, int | None] = {"2b": None, "8b": 800}
         gen = raw_config.get("inference", {}).get("generation", {})
         yaml_limits = gen.get("token_limits", {})
         for size_key, value in yaml_limits.items():
             token_limits[str(size_key)] = value
 
-        # 10-11. Load field schema (single YAML read) and extract min_tokens
+        # 9-10. Load field schema (single YAML read) and extract min_tokens
         fields = get_field_schema()
 
-        # 12. Token budgets — YAML is the single source of truth
+        # 11. Token budgets — YAML is the single source of truth
         yaml_budgets = raw_config.get("pipeline", {}).get("token_budgets", {})
 
-        # 13. Build vLLM config (defaults + per-model overrides)
+        # 12. Build vLLM config (defaults + per-model overrides)
         vllm_section = raw_config.get("inference", {}).get("vllm", {})
         vllm_defaults = vllm_section.get("defaults", dict(cls._DEFAULT_VLLM_CONFIG))
         vllm_models = vllm_section.get("models", {})
@@ -312,31 +310,31 @@ class AppConfig:
         for model_name, overrides in vllm_models.items():
             vllm_config[model_name] = {**vllm_defaults, **overrides}
 
-        # 13b. Apply CLI max_num_seqs override (beats YAML per-model and defaults)
+        # 12b. Apply CLI max_num_seqs override (beats YAML per-model and defaults)
         if cli_max_num_seqs is not None:
             for key in vllm_config:
                 vllm_config[key]["max_num_seqs"] = cli_max_num_seqs
 
-        # 14. Build infrastructure settings
+        # 13. Build infrastructure settings
         infra_section = raw_config.get("resources", {}).get("infrastructure", {})
 
-        # 15. Build classification settings
+        # 14. Build classification settings
         classification_section = raw_config.get("pipeline", {}).get("classification", {})
 
-        # 16. Validate and build extraction_order
+        # 15. Validate and build extraction_order
         config_file = str(resolved) if resolved else "config/run_config.yml"
         extraction_order = cls._validate_extraction_order(raw_config, config_file)
 
-        # 17. Validate and build secondary_sort
+        # 16. Validate and build secondary_sort
         secondary_sort = cls._validate_secondary_sort(raw_config, config_file)
 
-        # 18. Validate and build extraction_skip_labels
+        # 17. Validate and build extraction_skip_labels
         skip_labels = cls._validate_extraction_skip_labels(raw_config, config_file)
 
-        # 19. Validate and build image_budgets
+        # 18. Validate and build image_budgets
         image_budgets = cls._validate_image_budgets(raw_config, config_file)
 
-        # 20. Validate and build bank_header_cache
+        # 19. Validate and build bank_header_cache
         bank_header_cache = cls._validate_bank_header_cache(raw_config, config_file)
 
         return cls(

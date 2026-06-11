@@ -3,7 +3,6 @@
 from .pipeline_config import (
     PipelineConfig,
     discover_images,
-    load_env_config,
     load_yaml_config,
     merge_configs,
     validate_config,
@@ -12,7 +11,6 @@ from .pipeline_config import (
 __all__ = [
     "PipelineConfig",
     "discover_images",
-    "load_env_config",
     "load_yaml_config",
     "merge_configs",
     "validate_config",

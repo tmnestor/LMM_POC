@@ -739,11 +739,15 @@ the authoritative, commented set. The file is organised into exactly **four** to
 ### Config cascade
 
 ```
-CLI flags  >  YAML (run_config.yml)  >  ENV (IVL_*)  >  PipelineConfig dataclass defaults
+CLI flags  >  YAML (run_config.yml)  >  PipelineConfig dataclass defaults
 ```
 
 `AppConfig.load()` (`common/app_config.py`) resolves this cascade; `config/run_config.yml` loads
-automatically when present, and `--config` overrides which file is used.
+automatically when present, and `--config` overrides which file is used. There are exactly
+**two** config surfaces: the YAML for operator intent, and CLI flags for what `entrypoint.sh`
+computes per stage. (A former `IVL_*` environment-variable layer below the YAML was removed —
+nothing set it, and because YAML keys shadowed it, a manifest-set `IVL_*` var silently lost.
+Shell-level vars like `LMM_*` / `NCCL_*` are `entrypoint.sh` concerns, not part of this cascade.)
 
 ### Fail-fast on missing required keys
 
@@ -845,18 +849,6 @@ pipeline:
     hybrid_date_window_days: 5    # business-day window for date scoring
     hybrid_description_threshold: 0.3  # min token-overlap fraction for description support
     hybrid_min_confidence: LOW    # min matcher confidence to accept without VLM (HIGH|MEDIUM|LOW)
-```
-
-### Environment variables
-
-All prefixed `IVL_`, mapped in `common/pipeline_config.py`:
-
-```
-IVL_DATA_DIR        IVL_OUTPUT_DIR       IVL_GROUND_TRUTH    IVL_MAX_IMAGES
-IVL_MODEL_TYPE      IVL_MODEL_PATH       IVL_BATCH_SIZE      IVL_NUM_GPUS
-IVL_MAX_TILES       IVL_MIN_TILES        IVL_FLASH_ATTN      IVL_DTYPE
-IVL_BANK_V2         IVL_ENFORCE_EAGER    IVL_DEBUG           IVL_VERBOSE
-IVL_DATA_PARALLEL_SIZE
 ```
 
 ## Ground truth formats
@@ -1122,7 +1114,7 @@ every key explicitly (see [Config completeness](#config-completeness-for-the-dat
 │       └── vllm_backend.py                 # vLLM backend (internvl3-vllm)
 ├── common/
 │   ├── app_config.py                      # AppConfig.load() — cascade + fail-fast validation
-│   ├── pipeline_config.py                 # PipelineConfig dataclass + env mappings
+│   ├── pipeline_config.py                 # PipelineConfig dataclass + YAML flattening/validation
 │   ├── pipeline_ops.py                    # load_model, create_processor, run_batch
 │   ├── document_pipeline.py               # DocumentPipeline (detect → extract → evaluate)
 │   ├── graph_executor.py                  # GraphExecutor — YAML graph walker (~547 LoC)

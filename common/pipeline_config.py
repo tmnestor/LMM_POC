@@ -4,7 +4,6 @@ Provides configuration loading, merging, and validation without
 framework dependencies (no typer, rich, or torch at module level).
 """
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +22,6 @@ DEFAULT_MODEL_PATHS = [
 ]
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp"}
-
-ENV_PREFIX = "IVL_"
 
 # Default structure suffixes (overridden by extraction YAML settings.structure_suffixes)
 _DEFAULT_STRUCTURE_SUFFIXES = ("_flat", "_date_grouped")
@@ -440,38 +437,6 @@ def load_yaml_config(
     return flat_config, raw_config
 
 
-def load_env_config() -> dict[str, Any]:
-    """Load configuration from environment variables."""
-    env_config: dict[str, Any] = {}
-
-    env_mappings: dict[str, tuple[str, Any]] = {
-        f"{ENV_PREFIX}DATA_DIR": ("data_dir", str),
-        f"{ENV_PREFIX}OUTPUT_DIR": ("output_dir", str),
-        f"{ENV_PREFIX}MODEL_TYPE": ("model_type", str),
-        f"{ENV_PREFIX}MODEL_PATH": ("model_path", str),
-        f"{ENV_PREFIX}GROUND_TRUTH": ("ground_truth", str),
-        f"{ENV_PREFIX}MAX_IMAGES": ("max_images", int),
-        f"{ENV_PREFIX}BATCH_SIZE": ("batch_size", int),
-        f"{ENV_PREFIX}NUM_GPUS": ("num_gpus", int),
-        f"{ENV_PREFIX}MAX_TILES": ("max_tiles", int),
-        f"{ENV_PREFIX}MIN_TILES": ("min_tiles", int),
-        f"{ENV_PREFIX}FLASH_ATTN": ("flash_attn", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}ENFORCE_EAGER": ("enforce_eager", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}DTYPE": ("dtype", str),
-        f"{ENV_PREFIX}BANK_V2": ("bank_v2", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}VERBOSE": ("verbose", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}DEBUG": ("debug", lambda x: x.lower() == "true"),
-        f"{ENV_PREFIX}DATA_PARALLEL_SIZE": ("data_parallel_size", int),
-    }
-
-    for env_var, (config_key, converter) in env_mappings.items():
-        value = os.environ.get(env_var)
-        if value is not None:
-            env_config[config_key] = converter(value)
-
-    return env_config
-
-
 def auto_detect_model_path(
     search_paths: list[str] | None = None,
 ) -> Path | None:
@@ -491,17 +456,13 @@ def auto_detect_model_path(
 def merge_configs(
     cli_args: dict[str, Any],
     yaml_config: dict[str, Any],
-    env_config: dict[str, Any],
     raw_config: dict[str, Any] | None = None,
 ) -> PipelineConfig:
-    """Merge configs with CLI > YAML > ENV > defaults priority."""
+    """Merge configs with CLI > YAML > defaults priority."""
     # Start with defaults (handled by dataclass)
     merged: dict[str, Any] = {}
 
-    # Layer in env config (lowest priority)
-    merged.update({k: v for k, v in env_config.items() if v is not None})
-
-    # Layer in YAML config
+    # Layer in YAML config (lowest priority above dataclass defaults)
     merged.update({k: v for k, v in yaml_config.items() if v is not None})
 
     # Layer in CLI args (highest priority)
@@ -607,7 +568,7 @@ def validate_config(config: PipelineConfig) -> list[str]:
         errors.append(
             f"Model path not specified and could not be auto-detected. "
             f"Searched: {searched}. "
-            f"Specify with --model-path or IVL_MODEL_PATH environment variable."
+            f"Specify with --model-path or bootstrap.model.path in config/run_config.yml."
         )
         return errors
 
