@@ -208,7 +208,7 @@ graph TB
 | Mixed-type batches | Probe-based graph (`--graph-robust`) | Two extraction probes; the engine picks the winner by counting recovered fields. *The extraction IS the classification.* |
 
 The graph engine (`common/graph_executor.py`, ~547 lines) is **framework-free Python** — no
-LangChain / LangGraph dependency. See [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md)
+LangChain / LangGraph dependency. See [`docs/AGENTIC_ENGINE_README.md`](docs/AGENTIC_ENGINE_README.md)
 for the walk loop, node types, and a guide to authoring workflows.
 
 ---
@@ -1132,8 +1132,7 @@ every key explicitly (see [Config completeness](#config-completeness-for-the-dat
 │   ├── extraction_evaluator.py / evaluation_metrics.py
 │   ├── gpu_memory.py                      # VRAM queries, fragmentation handling
 │   ├── vllm_dp.py / vllm_dp_workers.py    # vLLM data-parallel helpers
-│   ├── field_schema.py                    # FieldSchema (frozen, cached singleton)
-│   └── AGENTIC_ENGINE_README.md           # Engine deep-dive (graph internals)
+│   └── field_schema.py                    # FieldSchema (frozen, cached singleton)
 ├── stages/
 │   ├── classify.py / extract.py           # Classic GPU stages 1–2
 │   ├── clean.py / evaluate.py             # Classic CPU stages 3–4
@@ -1150,7 +1149,7 @@ every key explicitly (see [Config completeness](#config-completeness-for-the-dat
 │   └── generate_trust_manifest.py         # quads CSV from trust ground-truth YAML
 ├── tests/                                 # pytest suite (GPU-free) — local only, gitignored
 ├── conda_envs/                            # vllm_env.yml (production), IVL3.5_env.yml, …
-└── docs/                                  # design docs (transaction_linking_comparison.md)
+└── docs/                                  # design docs (AGENTIC_ENGINE_README.md, transaction_linking_comparison.md, …)
 ```
 
 ## Config completeness (for the Data Engineering team)
@@ -1204,6 +1203,6 @@ When this README and the code disagree, the code wins. The fast-moving details l
 - `config/field_definitions.yaml` — document types and field counts
 - `entrypoint.sh` — the `KFP_TASK` dispatch and per-stage runners
 - `python -m stages.<name> --help` — stage flags
-- [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md) — graph engine deep-dive
+- [`docs/AGENTIC_ENGINE_README.md`](docs/AGENTIC_ENGINE_README.md) — graph engine deep-dive
 - [`docs/transaction_linking_comparison.md`](docs/transaction_linking_comparison.md) — linking design comparison
 - [`docs/document_classification.md`](docs/document_classification.md) — document classification deep-dive
