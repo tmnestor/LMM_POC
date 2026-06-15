@@ -48,6 +48,7 @@ laptop or sandbox GPU box.
 - [Why a callable-based bank extractor](#why-a-callable-based-bank-extractor)
 - [Why a framework-free graph engine](#why-a-framework-free-graph-engine)
 - [Why probe-based classification](#why-probe-based-classification)
+- [Document classification deep dive](docs/document_classification.md)
 - [Why this multi-GPU design](#why-this-multi-gpu-design)
 - [Why these GPU memory & attention choices](#why-these-gpu-memory--attention-choices)
 - [Why config is the single source of truth](#why-config-is-the-single-source-of-truth)
@@ -98,7 +99,7 @@ the next. This contract is the backbone of the whole system — it is what lets 
 
 | Artifact | Written by | One record per | Key fields |
 |---|---|---|---|
-| `classifications.jsonl` | `classify` | image | `image_name`, `document_type`, `confidence`, `raw_response` |
+| `classifications.jsonl` | `classify` | image | `image_name`, `document_type`, `confidence`, `raw_response` ([deep dive](docs/document_classification.md)) |
 | `raw_extractions.jsonl` | `extract` / `link` | image (or case) | `image_name`, `document_type`, `raw_response`, `processing_time` |
 | `cleaned_extractions.jsonl` | `clean` | image | `image_name`, `document_type`, `extracted_data` (structured dict) |
 | `evaluation_results.jsonl` | `evaluate` | image | `image_name`, `document_type`, per-field accuracy, `median_f1` |

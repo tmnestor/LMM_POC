@@ -70,7 +70,7 @@ Thumbs.db
 ~$*.docx
 
 # Local-only directories
-docs/
+# docs/
 tests/
 .coverage
 htmlcov/
@@ -81,7 +81,7 @@ htmlcov/
 .ruff_cache/
 
 # Documentation
-docs/
+# docs/
 
 # Datasets and images
 datasets/
@@ -114,3 +114,4 @@ evaluation_data/
 
 TODO.md
 authentication.md
+docs/github-to-gitlab-content-sync.md
