@@ -48,7 +48,6 @@ laptop or sandbox GPU box.
 - [Why a callable-based bank extractor](#why-a-callable-based-bank-extractor)
 - [Why a framework-free graph engine](#why-a-framework-free-graph-engine)
 - [Why probe-based classification](#why-probe-based-classification)
-- [Document classification deep dive](docs/document_classification.md)
 - [Why this multi-GPU design](#why-this-multi-gpu-design)
 - [Why these GPU memory & attention choices](#why-these-gpu-memory--attention-choices)
 - [Why config is the single source of truth](#why-config-is-the-single-source-of-truth)
@@ -1207,3 +1206,4 @@ When this README and the code disagree, the code wins. The fast-moving details l
 - `python -m stages.<name> --help` — stage flags
 - [`common/AGENTIC_ENGINE_README.md`](common/AGENTIC_ENGINE_README.md) — graph engine deep-dive
 - [`docs/transaction_linking_comparison.md`](docs/transaction_linking_comparison.md) — linking design comparison
+- [`docs/document_classification.md`](docs/document_classification.md) — document classification deep-dive
