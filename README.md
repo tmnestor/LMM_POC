@@ -891,21 +891,31 @@ e.g. `FATAL: Requested 4 GPUs but only 2 available`). See
 
 ## Configuring a new document type
 
-Adding a document type requires **YAML changes only** — no Python. Worked example: a purchase
-order.
+Adding the **extraction** side of a new type is **YAML only** — no Python. Making the new type
+**detectable**, however, requires a Python change, because the default classifier derives the type
+from evidence rather than keyword-matching (see step 2). Worked example: a purchase order.
 
 1. **Register the type and fields** in `config/field_definitions.yaml` (`document_fields.<type>`
    with `count` + `fields`, add to `supported_document_types`, add `document_type_aliases`).
-2. **Add detection support** in `prompts/document_type_detection.yaml` (prompt options,
-   `type_mappings`, `fallback_keywords`).
+2. **Make it detectable.** The default detection prompt (`detection`) asks for evidence
+   (COLUMNS/PAID/ROWS) and `ClassificationParser._parse_enriched`
+   (`common/turn_parsers.py`) derives the type from that evidence — it can currently only emit
+   `INVOICE` / `RECEIPT` / `BANK_STATEMENT`. To classify a genuinely new type you must **extend
+   that derivation logic in Python** (or point `detection_key` at a different prompt + parser).
+   Editing `type_mappings` / `fallback_keywords` in `prompts/document_type_detection.yaml` only
+   affects the legacy keyword fallback, which runs **only when the model response omits a
+   `COLUMNS` label** — so on its own it will not make a new type reliably detectable.
 3. **Write the extraction prompt** in `prompts/internvl3_prompts.yaml` under `prompts.<type>`.
+   Routing is automatic: `PromptCatalog.build_extraction_routing()` cross-references the prompt
+   keys against `supported_document_types`, so no Python change is needed for extraction.
 4. *(Optional)* add ground-truth records.
 
-| File | What to add |
-|---|---|
-| `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases` |
-| `prompts/document_type_detection.yaml` | detection options, `type_mappings`, `fallback_keywords` |
-| `prompts/internvl3_prompts.yaml` | extraction prompt with the field template |
+| File | What to add | Covers |
+|---|---|---|
+| `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases` | extraction (YAML only) |
+| `prompts/internvl3_prompts.yaml` | extraction prompt with the field template | extraction (YAML only) |
+| `common/turn_parsers.py` (`_parse_enriched`) | evidence → new-type derivation rule | **detection (Python)** |
+| `prompts/document_type_detection.yaml` | `type_mappings` / `fallback_keywords` (legacy keyword fallback only) | detection (partial) |
 
 For types with distinct visual layouts (like bank statements: flat vs date-grouped), create
 layout-specific prompts with a suffix and register it under `settings.structure_suffixes`; the
