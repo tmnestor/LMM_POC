@@ -292,7 +292,7 @@ startup** before any work — an invalid value fails fast with a four-part diagn
 
 ```bash
 # Classic 4-stage pipeline (classify → extract → clean → evaluate)
-KFP_TASK=run_batch_inference \
+KFP_TASK=run_info_extract \
   image_dir=/persistent/storage/annotations/evaluation_data/synthetic \
   ground_truth=/persistent/storage/annotations/evaluation_data/synthetic/ground_truth.jsonl \
   bash entrypoint.sh
@@ -310,7 +310,7 @@ KFP_TASK=run_graph_robust image_dir=/persistent/storage/annotations/evaluation_d
 KFP_TASK=run_trust_link bash entrypoint.sh
 
 # Clean-slate re-run instead of resume
-KFP_TASK=run_batch_inference CLEAR_PREV_OUTPUT=true image_dir=... bash entrypoint.sh
+KFP_TASK=run_info_extract CLEAR_PREV_OUTPUT=true image_dir=... bash entrypoint.sh
 
 # Extra args after the script name go straight to the stage (last wins)
 bash entrypoint.sh --verbose
@@ -333,7 +333,7 @@ only, *not* in the KFP DAG) and **individual stage names** (one KFP pod each).
 
 | Mode | `KFP_TASK` | Stages | Best for |
 |---|---|---|---|
-| Classic | `run_batch_inference` | classify → extract → clean → evaluate | Production-shaped local runs; one-prompt-per-type docs |
+| Classic | `run_info_extract` | classify → extract → clean → evaluate | Production-shaped local runs; one-prompt-per-type docs |
 | Robust (graph) | `run_graph_robust` | extract `--graph-robust` → clean → evaluate | Mixed-type batches; eliminating misclassification |
 | Trust compliance | `run_trust_link` | trust_classify → trust_extract → trust_clean → trust_evaluate | NRO Private Wealth trust compliance |
 | Transaction linking | `run_transaction_link` | classify → extract → clean → transaction_link → evaluate_linking | Receipt → bank-statement debit matching (matcher-first, VLM fallback) |

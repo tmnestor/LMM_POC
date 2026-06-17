@@ -142,7 +142,7 @@ inference:
 # extraction ordering/skip labels, and the bank-header cache.
 pipeline:
   # Information extraction — the DEFAULT image-source + output paths, used by the
-  # MAIN extraction pipeline: KFP_TASK = run_batch_inference | run_graph_robust |
+  # MAIN extraction pipeline: KFP_TASK = run_info_extract | run_graph_robust |
   # classify | extract | clean | evaluate. Those read images from
   # information_extraction.input.dir, score against input.ground_truth, and write
   # to output.dir.

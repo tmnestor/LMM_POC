@@ -26,7 +26,7 @@
 # Note: `filter` is deprecated — kept as a no-op for KFP manifest compatibility.
 #
 # Local examples:
-#   KFP_TASK=run_batch_inference image_dir=../evaluation_data/synthetic bash entrypoint.sh
+#   KFP_TASK=run_info_extract image_dir=../evaluation_data/synthetic bash entrypoint.sh
 #   KFP_TASK=run_graph_robust image_dir=../evaluation_data/synthetic ground_truth=../evaluation_data/synthetic/ground_truth.jsonl bash entrypoint.sh
 #   KFP_TASK=run_trust_link trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
 #   KFP_TASK=run_transaction_link bash entrypoint.sh                                  # paths from run_config.yml linking:
@@ -293,7 +293,7 @@ _print_task_help() {
   # and unknown (*) dispatch branches.  Keep the header comment at the top of
   # this file in sync with this list.
   log "  Available tasks:"
-  log "    run_batch_inference   — 4-stage classic pipeline (classify/extract/clean/evaluate)  [local dev]"
+  log "    run_info_extract      — 4-stage classic pipeline (classify/extract/clean/evaluate)  [local dev]"
   log "    run_graph_robust      — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)  [local dev]"
   log "    run_trust_link        — 4-stage trust distribution compliance pipeline  [local dev]"
   log "    run_transaction_link  — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)  [local dev]"
@@ -388,7 +388,7 @@ _read_inference_elapsed() {
 }
 
 _run_cpu_stages() {
-  # Run the clean + evaluate CPU tail shared by run_batch_inference and
+  # Run the clean + evaluate CPU tail shared by run_info_extract and
   # run_graph_robust.  Expects INFERENCE_ELAPSED, RAW_EXTRACTIONS,
   # CLEAN_EXTRACTIONS, EVAL_DIR to be set by the caller.
   local clean_label="${1:?usage: _run_cpu_stages <clean_label> <eval_label>}"
@@ -431,7 +431,7 @@ _run_cpu_stages() {
 
 _run_classify() {
   # GPU. Document type detection. Used by the `classify` pod and
-  # run_batch_inference Phase 1 (identical invocation).
+  # run_info_extract Phase 1 (identical invocation).
   python3 -m stages.classify \
     --data-dir   "${image_dir:?image_dir env var required}" \
     --output-dir "$CLASSIFICATIONS" \
@@ -443,7 +443,7 @@ _run_extract() {
   #   auto         — classified if $CLASSIFICATIONS exists, else graph-robust
   #                  (the `extract` pod auto-detects per the KFP DAG shape)
   #   classified   — type-specific extraction from $CLASSIFICATIONS
-  #                  (run_batch_inference, where classify always ran first)
+  #                  (run_info_extract, where classify always ran first)
   #   graph_robust — force probe-based extraction, ignoring any (stale)
   #                  classifications file (run_graph_robust)
   local mode="${1:?usage: _run_extract <auto|classified|graph_robust>}"
@@ -662,7 +662,7 @@ log ""
 # ---- Per-stage flag builders ---- #
 # Each stages.X CLI expects different flag names than cli.py. Build
 # stage-specific argument arrays from the same env vars so both the
-# orchestrated `run_batch_inference` path and the standalone KFP stage
+# orchestrated `run_info_extract` path and the standalone KFP stage
 # pods produce identical invocations.
 #
 # Optional flags use bash arrays so they expand to nothing when unset
@@ -702,18 +702,18 @@ case "${KFP_TASK:-}" in
   # ========================================================================
   # In production, KFP runs each stage in its own pod by setting
   # KFP_TASK=classify / extract / clean / evaluate (see branches below).
-  # The `run_batch_inference` branch chains all stages in a single shell
+  # The `run_info_extract` branch chains all stages in a single shell
   # for sandbox/laptop iteration — it does NOT appear in the KFP DAG and
   # should never be set by the KFP manifest. Keep it for local smoke tests.
   # ========================================================================
-  run_batch_inference)
+  run_info_extract)
     # Local simulation of the KFP pipeline.
     # Each phase is a FRESH python3 process: model loads, runs, exits,
     # CUDA context is torn down and GPU memory fully released before the
     # next phase starts. This mirrors pod-per-stage KFP deployment and
     # isolates GPU state between phases (no fragmentation leak across
     # classify → extract → clean → evaluate).
-    log "Mode: run_batch_inference — simulating 4-stage KFP pipeline locally."
+    log "Mode: run_info_extract — simulating 4-stage KFP pipeline locally."
     log "Output root: $OUT_ROOT"
     mkdir -p "$OUT_ROOT"
 
@@ -1115,7 +1115,7 @@ case "${KFP_TASK:-}" in
   "")
     log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
     log "  For local dev, set KFP_TASK explicitly:"
-    log "  KFP_TASK=run_batch_inference bash entrypoint.sh --model internvl3"
+    log "  KFP_TASK=run_info_extract bash entrypoint.sh --model internvl3"
     log ""
     _print_task_help
     exit 1
