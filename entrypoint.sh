@@ -28,7 +28,7 @@
 # Local examples:
 #   KFP_TASK=run_batch_inference image_dir=../evaluation_data/synthetic bash entrypoint.sh
 #   KFP_TASK=run_graph_robust image_dir=../evaluation_data/synthetic ground_truth=../evaluation_data/synthetic/ground_truth.jsonl bash entrypoint.sh
-#   KFP_TASK=run_trust_pipeline trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
+#   KFP_TASK=run_trust_link trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
 #   KFP_TASK=run_transaction_link bash entrypoint.sh                                  # paths from run_config.yml linking:
 #   KFP_TASK=run_transaction_link linking_data_dir=../evaluation_data/linking bash entrypoint.sh
 #   # Or as 5 separate KFP pods (mirrors the trust_* split — paths from run_config.yml linking:):
@@ -110,7 +110,7 @@ eval "$("$CONDA_PY" scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
 # pipeline.trust.log_dir; transaction-linking uses pipeline.linking.log_dir;
 # everything else uses bootstrap.logging.log_dir.
 case "${KFP_TASK:-}" in
-  trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_pipeline)
+  trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_link)
     LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
     ;;
   run_transaction_link|link_classify|link_extract|link_clean|link|link_evaluate)
@@ -295,7 +295,7 @@ _print_task_help() {
   log "  Available tasks:"
   log "    run_batch_inference   — 4-stage classic pipeline (classify/extract/clean/evaluate)  [local dev]"
   log "    run_graph_robust      — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)  [local dev]"
-  log "    run_trust_pipeline    — 4-stage trust distribution compliance pipeline  [local dev]"
+  log "    run_trust_link        — 4-stage trust distribution compliance pipeline  [local dev]"
   log "    run_transaction_link  — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)  [local dev]"
   log "    classify              — Stage 1: document type detection (GPU)"
   log "    extract               — Stage 2: field extraction (GPU)"
@@ -478,7 +478,7 @@ _run_extract() {
 
 _run_trust_classify() {
   # GPU. Builds OPT_CLASSIFY_PATHS from the optional trust path vars, then runs
-  # stages.trust_classify. Used by the `trust_classify` pod and run_trust_pipeline.
+  # stages.trust_classify. Used by the `trust_classify` pod and run_trust_link.
   OPT_CLASSIFY_PATHS=()
   if _is_set "${trust_classifications:-}"; then
     OPT_CLASSIFY_PATHS+=(--classifications "$trust_classifications")
@@ -498,7 +498,7 @@ _run_trust_classify() {
 
 _run_trust_extract() {
   # GPU. Runs the trust-link extraction. Used by the `trust_extract` pod and
-  # run_trust_pipeline. Expects trust_quads to exist (trust_classify or
+  # run_trust_link. Expects trust_quads to exist (trust_classify or
   # _ensure_trust_quads produced it).
   python3 -m stages.link trust-link \
     --quads    "${trust_quads:?trust_quads is required — set via pipeline.trust.quads in run_config.yml or trust_quads env var}" \
@@ -509,7 +509,7 @@ _run_trust_extract() {
 
 _run_trust_clean() {
   # CPU. Runs trust compliance validation. Used by the `trust_clean` pod and
-  # run_trust_pipeline.
+  # run_trust_link.
   python3 -m stages.trust_clean \
     --input  "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
     --output "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
@@ -518,7 +518,7 @@ _run_trust_clean() {
 
 _run_trust_evaluate() {
   # CPU. Builds optional flags and runs stages.evaluate_trust. Used by the
-  # `trust_evaluate` pod and run_trust_pipeline. The caller MUST set:
+  # `trust_evaluate` pod and run_trust_link. The caller MUST set:
   #   TRUST_EVAL_DIR  — output dir (already created)
   #   INFERENCE_ARGS  — (--inference-seconds N) or () — from _read_inference_elapsed
   #                     (pod path) or the orchestrator's wall-clock.
@@ -911,9 +911,9 @@ case "${KFP_TASK:-}" in
     _run_trust_evaluate
     log "Trust evaluation complete."
     ;;
-  run_trust_pipeline)
+  run_trust_link)
     # Local dev: chain trust_classify + trust_extract + trust_clean + trust_evaluate in one shell.
-    log "Mode: run_trust_pipeline — trust distribution compliance pipeline (4-stage)."
+    log "Mode: run_trust_link — trust distribution compliance pipeline (4-stage)."
     _resolve_trust_vars
     log "  trust_data_dir:      ${trust_data_dir:-<not set>}"
     log "  trust_quads:         ${trust_quads:-<not set>}"
@@ -1022,7 +1022,7 @@ case "${KFP_TASK:-}" in
       mkdir -p "$LINK_EVAL_DIR"
       # Orchestrator path: pass the single classify+extract+link wall-clock as
       # INFERENCE_ARGS so evaluate_linking reports the same --inference-seconds the
-      # per-pod path builds from _read_inference_elapsed (mirrors run_trust_pipeline).
+      # per-pod path builds from _read_inference_elapsed (mirrors run_trust_link).
       INFERENCE_ARGS=(--inference-seconds "$INFERENCE_ELAPSED")
       python3 -m stages.evaluate_linking \
         --input        "${linking_output}" \
