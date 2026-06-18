@@ -618,7 +618,7 @@ def _run_unified(
             app_config=app_cfg,
         )
 
-        executor, definition = _build_unified_executor(processor, workflow_name, app_cfg)
+        executor, definition = _build_unified_executor(processor, app_cfg, workflow_name)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.time()
@@ -688,8 +688,8 @@ def _run_unified(
 
 def _build_unified_executor(
     processor: Any,
+    app_cfg: Any,
     workflow_name: str = "unified_extract.yaml",
-    app_cfg: Any = None,
 ) -> tuple[Any, dict[str, Any]]:
     """Build a GraphExecutor + workflow definition for a graph workflow."""
     import yaml
@@ -706,9 +706,8 @@ def _build_unified_executor(
         text = processor.generate(image, prompt, max_tokens=params.max_tokens)
         return GenerateResult(text=text)
 
-    budget_resolver = app_cfg.get_token_budget if app_cfg is not None else None
-    fallback = app_cfg.classification_fallback_type if app_cfg is not None else "UNIVERSAL"
-    parsers = build_parser_registry(fallback_type=fallback)
+    budget_resolver = app_cfg.get_token_budget
+    parsers = build_parser_registry(fallback_type=app_cfg.classification_fallback_type)
     executor = GraphExecutor(generate_fn, parsers, budget_resolver=budget_resolver)
     return executor, definition
 
