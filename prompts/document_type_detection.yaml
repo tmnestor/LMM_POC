@@ -178,3 +178,105 @@ fallback_keywords:
     - bill
     - tax
 
+# ============================================================================
+# EVIDENCE-BASED CLASSIFICATION (primary path: ClassificationParser._parse_enriched)
+# ============================================================================
+# These two blocks drive the evidence-based classifier. The model is asked for
+# observable facts (COLUMNS / PAID / ROWS); the Python layer derives the type
+# from those facts using the declarative rules below — no hardcoded heuristics.
+
+# Semantic column roles: role -> header keywords that map to it.
+# Source of truth for HeaderListParser._match_columns (replaces the former
+# hardcoded COLUMN_PATTERNS literal). Keywords are matched case-insensitively.
+column_roles:
+  date:
+    - date
+    - trans date
+    - transaction date
+    - value date
+    - posting date
+  description:
+    - description
+    - details
+    - transaction
+    - particulars
+    - narrative
+    - transaction details
+    - reference
+  debit:
+    - debit
+    - withdrawal
+    - withdrawals
+    - dr
+    - money out
+  credit:
+    - credit
+    - deposit
+    - deposits
+    - cr
+    - money in
+  balance:
+    - balance
+    - running balance
+    - closing balance
+  amount:
+    - amount
+    - transaction amount
+  # Vehicle-logbook columns
+  distance:
+    - distance
+    - distance travelled
+    - km
+    - kilometres
+  odometer:
+    - odometer
+    - odometer reading
+    - start odometer
+    - end odometer
+  purpose:
+    - purpose
+    - purpose of trip
+    - reason
+  # Itemised invoice/billing-table columns
+  quantity:
+    - quantity
+    - qty
+    - units
+  unit_price:
+    - unit price
+    - price
+    - rate
+  gst:
+    - gst
+    - tax
+    - vat
+
+# Evidence-based classification rules, evaluated TOP-DOWN, first match wins.
+# This list IS the precedence the if/elif chain in _parse_enriched used to
+# hardcode. A rule fires when every condition in its `when:` clause holds,
+# given the parsed evidence (which column roles are present + the PAID flag).
+#   when: vocabulary -> any_roles: [...], all_roles: [...], paid: true|false
+#   (multiple keys in one `when:` are AND-ed)
+# default: type assigned when NO rule matches.
+#   none   -> return None -> defer to the legacy keyword path (_parse_legacy)
+#   <TYPE> -> a hard default
+classification_evidence:
+  rules:
+    # Bank statements: financial-ledger columns.
+    - type: BANK_STATEMENT
+      when: { any_roles: [debit, credit, balance] }
+    # Vehicle logbooks: trip/odometer columns.
+    - type: LOGBOOK
+      when: { any_roles: [distance, odometer, purpose] }
+    # Payment evidence wins over an itemised table (a paid, itemised receipt
+    # stays a RECEIPT) — so RECEIPT is checked before INVOICE.
+    - type: RECEIPT
+      when: { paid: true }
+    # Unpaid itemised billing table -> invoice.
+    - type: INVOICE
+      when: { any_roles: [gst, unit_price, quantity] }
+  # No rule matched -> defer to the legacy keyword path (_parse_legacy).
+  # NOTE: TRAVEL has no distinctive table columns, so it is not detectable via
+  # evidence rules; travel documents fall through to keyword matching here.
+  default: none
+

@@ -891,20 +891,26 @@ e.g. `FATAL: Requested 4 GPUs but only 2 available`). See
 
 ## Configuring a new document type
 
-Adding the **extraction** side of a new type is **YAML only** — no Python. Making the new type
-**detectable**, however, requires a Python change, because the default classifier derives the type
-from evidence rather than keyword-matching (see step 2). Worked example: a purchase order.
+Adding a new type — **both extraction and detection** — is **YAML only**, no Python. The default
+classifier derives the type from evidence (column headers + payment), and that derivation is driven
+by declarative rules in `prompts/document_type_detection.yaml` (see step 2). Worked example: a
+vehicle logbook.
 
 1. **Register the type and fields** in `config/field_definitions.yaml` (`document_fields.<type>`
    with `count` + `fields`, add to `supported_document_types`, add `document_type_aliases`).
-2. **Make it detectable.** The default detection prompt (`detection`) asks for evidence
-   (COLUMNS/PAID/ROWS) and `ClassificationParser._parse_enriched`
-   (`common/turn_parsers.py`) derives the type from that evidence — it can currently only emit
-   `INVOICE` / `RECEIPT` / `BANK_STATEMENT`. To classify a genuinely new type you must **extend
-   that derivation logic in Python** (or point `detection_key` at a different prompt + parser).
-   Editing `type_mappings` / `fallback_keywords` in `prompts/document_type_detection.yaml` only
-   affects the legacy keyword fallback, which runs **only when the model response omits a
-   `COLUMNS` label** — so on its own it will not make a new type reliably detectable.
+2. **Make it detectable (YAML).** The detection prompt (`detection`) asks for evidence
+   (COLUMNS/PAID/ROWS); `ClassificationParser._parse_enriched` (`common/turn_parsers.py`) then
+   derives the type from the `classification_evidence` rules in
+   `prompts/document_type_detection.yaml`. Two cases:
+   - **The type has distinctive table columns** (e.g. a logbook's `odometer` / `distance`): add
+     those header keywords under `column_roles`, then add a rule under
+     `classification_evidence.rules` that emits the canonical type, e.g.
+     `- type: LOGBOOK\n  when: { any_roles: [distance, odometer, purpose] }`. Rules are evaluated
+     top-down (first match wins), so place it by precedence. The emitted `type` must be in
+     `supported_document_types` (validated fail-fast at load).
+   - **The type has no distinctive columns** (e.g. travel documents): add entries to
+     `type_mappings` / `fallback_keywords`. Because `classification_evidence.default` is `none`,
+     any document matching no evidence rule falls through to this keyword path.
 3. **Write the extraction prompt** in `prompts/internvl3_prompts.yaml` under `prompts.<type>`.
    Routing is automatic: `PromptCatalog.build_extraction_routing()` cross-references the prompt
    keys against `supported_document_types`, so no Python change is needed for extraction.
@@ -912,10 +918,9 @@ from evidence rather than keyword-matching (see step 2). Worked example: a purch
 
 | File | What to add | Covers |
 |---|---|---|
-| `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases` | extraction (YAML only) |
+| `config/field_definitions.yaml` | `document_fields.<type>`, `supported_document_types`, `document_type_aliases` | extraction + detection (YAML only) |
 | `prompts/internvl3_prompts.yaml` | extraction prompt with the field template | extraction (YAML only) |
-| `common/turn_parsers.py` (`_parse_enriched`) | evidence → new-type derivation rule | **detection (Python)** |
-| `prompts/document_type_detection.yaml` | `type_mappings` / `fallback_keywords` (legacy keyword fallback only) | detection (partial) |
+| `prompts/document_type_detection.yaml` | `column_roles` + a `classification_evidence` rule (column-bearing types), or `type_mappings` / `fallback_keywords` (no-column types) | detection (YAML only) |
 
 For types with distinct visual layouts (like bank statements: flat vs date-grouped), create
 layout-specific prompts with a suffix and register it under `settings.structure_suffixes`; the

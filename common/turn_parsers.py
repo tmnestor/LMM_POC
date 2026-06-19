@@ -76,32 +76,22 @@ def _parse_amount(s: str) -> float | None:
 class HeaderListParser:
     """Parse numbered/comma/pipe column headers, then map to semantic roles.
 
-    Duplicates logic from ``unified_bank_extractor.ResponseParser.parse_headers``
-    and ``ColumnMatcher.match``.
+    Column-role keyword lists are read from ``column_roles`` in
+    ``document_type_detection.yaml`` (single source of truth) — see
+    ``PromptCatalog.get_column_roles``. Duplicates the parsing logic from
+    ``unified_bank_extractor.ResponseParser.parse_headers``.
     """
 
-    COLUMN_PATTERNS: dict[str, list[str]] = {
-        "date": [
-            "date",
-            "trans date",
-            "transaction date",
-            "value date",
-            "posting date",
-        ],
-        "description": [
-            "description",
-            "details",
-            "transaction",
-            "particulars",
-            "narrative",
-            "transaction details",
-            "reference",
-        ],
-        "debit": ["debit", "withdrawal", "withdrawals", "dr", "money out"],
-        "credit": ["credit", "deposit", "deposits", "cr", "money in"],
-        "balance": ["balance", "running balance", "closing balance"],
-        "amount": ["amount", "transaction amount"],
-    }
+    def __init__(self, column_roles: dict[str, list[str]] | None = None) -> None:
+        # Lazy-loaded from YAML on first use; injectable for tests.
+        self._column_roles = column_roles
+
+    def _get_column_roles(self) -> dict[str, list[str]]:
+        if self._column_roles is None:
+            from common.prompt_catalog import PromptCatalog
+
+            self._column_roles = PromptCatalog().get_column_roles()
+        return self._column_roles
 
     def parse(self, raw_response: str, context: WorkflowState) -> dict[str, Any]:
         """Parse column headers and produce column_mapping."""
@@ -143,17 +133,11 @@ class HeaderListParser:
 
     def _match_columns(self, headers: list[str]) -> dict[str, str | None]:
         """Map detected headers to semantic column types."""
-        mapping: dict[str, str | None] = {
-            "date": None,
-            "description": None,
-            "debit": None,
-            "credit": None,
-            "balance": None,
-            "amount": None,
-        }
+        roles = self._get_column_roles()
+        mapping: dict[str, str | None] = dict.fromkeys(roles)
         headers_lower = [h.lower() for h in headers]
 
-        for col_type, keywords in self.COLUMN_PATTERNS.items():
+        for col_type, keywords in roles.items():
             matched = self._find_match(headers, headers_lower, keywords)
             if matched:
                 mapping[col_type] = matched
@@ -493,21 +477,21 @@ class ClassificationParser:
         paid = paid_match.group(1).upper() == "YES" if paid_match else False
         row_count = int(rows_match.group(1)) if rows_match else 0
 
-        # Derive document type from evidence
+        # Derive document type from evidence using the YAML-driven rule set
+        # (classification_evidence in document_type_detection.yaml). The rules
+        # encode the precedence that used to be a hardcoded if/elif chain.
         column_mapping: dict[str, str | None] | None = None
-        has_bank_columns = False
         if headers:
             column_mapping = self._header_parser._match_columns(headers)
-            # Bank statements have financial columns (debit/credit/balance);
-            # invoices/receipts also have tables (Qty/Price/Total) but lack these.
-            has_bank_columns = any(column_mapping.get(k) for k in ("debit", "credit", "balance"))
 
-        if has_bank_columns:
-            doc_type = "BANK_STATEMENT"
-        elif paid:
-            doc_type = "RECEIPT"
-        else:
-            doc_type = "INVOICE"
+        from common.prompt_catalog import PromptCatalog
+
+        evidence = PromptCatalog().get_classification_evidence()
+        doc_type = _evaluate_classification(column_mapping, paid, evidence)
+        if doc_type is None:
+            # No rule matched and default is `none` -> defer to the legacy
+            # keyword path (_parse_legacy).
+            return None
 
         complexity = _compute_complexity(row_count)
 
@@ -565,6 +549,48 @@ def _match_document_type(
 
     # 3. Ultimate fallback
     return fallback_type
+
+
+def _present_roles(column_mapping: dict[str, str | None] | None) -> set[str]:
+    """Roles with a matched header in ``column_mapping`` (empty if None)."""
+    if not column_mapping:
+        return set()
+    return {role for role, col in column_mapping.items() if col}
+
+
+def _when_matches(when: dict[str, Any], present_roles: set[str], paid: bool) -> bool:
+    """True if a rule's ``when:`` clause holds for the parsed evidence.
+
+    Supported keys (all AND-ed when present): ``any_roles`` (at least one role
+    present), ``all_roles`` (every role present), ``paid`` (matches the PAID
+    flag).
+    """
+    if "any_roles" in when and not (set(when["any_roles"]) & present_roles):
+        return False
+    if "all_roles" in when and not set(when["all_roles"]).issubset(present_roles):
+        return False
+    return not ("paid" in when and bool(when["paid"]) != paid)
+
+
+def _evaluate_classification(
+    column_mapping: dict[str, str | None] | None,
+    paid: bool,
+    evidence: dict[str, Any],
+) -> str | None:
+    """Derive the document type from evidence using ``classification_evidence``.
+
+    Walks ``rules`` top-down (first match wins). When no rule matches, returns
+    the ``default`` — or ``None`` when ``default`` is ``"none"``, signalling the
+    caller to defer to the legacy keyword path.
+    """
+    present = _present_roles(column_mapping)
+    for rule in evidence["rules"]:
+        if _when_matches(rule["when"], present, paid):
+            return rule["type"]
+    default = evidence["default"]
+    if isinstance(default, str) and default.lower() == "none":
+        return None
+    return default
 
 
 def _compute_complexity(row_count: int) -> str:

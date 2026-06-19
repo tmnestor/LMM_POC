@@ -12,13 +12,14 @@ The classifier takes an image and returns a **canonical document type**
 - The VLM is **not** asked "what document is this?". Instead it is asked three
   concrete, observable questions (what are the table column headers, is there
   payment evidence, how many rows).
-- The Python layer then **derives the type from that evidence** — the model
-  reports facts, the code makes the decision. This is far more robust than
-  trusting a model's one-word self-classification, especially with reasoning
-  ("thinking") models that drift.
+- The Python layer then **derives the type from that evidence** using
+  declarative rules in YAML (`classification_evidence`) — the model reports
+  facts, the rules make the decision. This is far more robust than trusting a
+  model's one-word self-classification, especially with reasoning ("thinking")
+  models that drift.
 
 If you want to adapt this to a new task, the pattern to copy is
-**"ask for evidence, derive the label in code"** — see
+**"ask for evidence, derive the label from declarative rules"** — see
 [Reusing this for a new task](#reusing-this-for-a-new-task).
 
 ---
@@ -28,8 +29,8 @@ If you want to adapt this to a new task, the pattern to copy is
 | Component | Path |
 |---|---|
 | Entry method `detect_and_classify_document()` | `models/orchestrator.py` |
-| Evidence parser + type derivation | `common/turn_parsers.py` (`ClassificationParser`) |
-| Classification prompt | `prompts/document_type_detection.yaml` |
+| Evidence parser + rule evaluator | `common/turn_parsers.py` (`ClassificationParser`) |
+| Classification prompt + evidence rules (`column_roles`, `classification_evidence`) | `prompts/document_type_detection.yaml` |
 | Pipeline stage (`KFP_TASK=classify`) | `stages/classify.py` |
 | Config | `config/run_config.yml` (`classification:`, `token_budgets.classify`) |
 
@@ -105,10 +106,13 @@ Why this shape:
 
 ---
 
-## Step 2 — Derive the type from the evidence (in code)
+## Step 2 — Derive the type from the evidence (YAML-driven rules)
 
 `ClassificationParser._parse_enriched()` (`common/turn_parsers.py`) turns the
-three answers into a label. The decision is pure Python:
+three answers into a label. The Python layer parses the evidence and matches
+headers to a `column_mapping`; the **decision itself is declared in YAML**
+(`classification_evidence` in `prompts/document_type_detection.yaml`) and walked
+generically — no hardcoded type heuristics:
 
 ```mermaid
 flowchart TD
@@ -117,23 +121,33 @@ flowchart TD
     T -->|no| L[Return None →<br/>legacy keyword fallback]
     T -->|yes| U[Extract COLUMNS / PAID / ROWS]
     U --> V[Match headers → column_mapping]
-    V --> W{debit / credit / balance<br/>column found?}
-    W -->|yes| BANK[BANK_STATEMENT]
-    W -->|no| X{PAID = YES?}
-    X -->|yes| RECEIPT[RECEIPT]
-    X -->|no| INVOICE[INVOICE]
+    V --> W[Walk classification_evidence.rules<br/>top-down, first match wins]
+    W -->|rule matched| TYPE[emit rule.type]
+    W -->|no rule| D{default}
+    D -->|none| L
+    D -->|TYPE| TYPE
 ```
 
-The core of it:
+The rules (`prompts/document_type_detection.yaml`) — first match wins:
 
-```python
-if has_bank_columns:        # column_mapping has debit/credit/balance
-    doc_type = "BANK_STATEMENT"
-elif paid:                  # PAID: YES
-    doc_type = "RECEIPT"
-else:
-    doc_type = "INVOICE"
+```yaml
+classification_evidence:
+  rules:
+    - type: BANK_STATEMENT
+      when: { any_roles: [debit, credit, balance] }
+    - type: LOGBOOK
+      when: { any_roles: [distance, odometer, purpose] }
+    - type: RECEIPT
+      when: { paid: true }          # payment wins over an itemised table
+    - type: INVOICE
+      when: { any_roles: [gst, unit_price, quantity] }
+  default: none                     # no match -> legacy keyword fallback
 ```
+
+`_evaluate_classification()` evaluates each rule's `when:` clause against the
+present column roles and the PAID flag, returning the first matching `type`
+(or the `default`). Adding a type is a YAML edit — see the README's
+*Configuring a new document type*.
 
 Design points worth stealing:
 

@@ -142,6 +142,155 @@ class PromptCatalog:
         path = self._dir / "document_type_detection.yaml"
         return self._load_yaml(path)
 
+    def get_column_roles(self) -> dict[str, list[str]]:
+        """Load semantic column-role -> header-keyword lists from detection YAML.
+
+        Source of truth for ``HeaderListParser._match_columns``.
+
+        Returns:
+            Mapping of role name to its list of header keywords.
+
+        Raises:
+            ValueError: If the ``column_roles`` block is missing or malformed.
+        """
+        path = self._dir / "document_type_detection.yaml"
+        data = self._load_yaml(path)
+        roles = data.get("column_roles")
+        if not isinstance(roles, dict) or not roles:
+            raise ValueError(
+                "Missing or empty 'column_roles' block in "
+                f"{path.absolute()} (key: column_roles).\n"
+                "Expected a non-empty mapping of role -> keyword list, e.g.:\n"
+                "  column_roles:\n"
+                "    debit:\n      - debit\n      - withdrawal\n"
+                "Fix: add the column_roles: section to document_type_detection.yaml."
+            )
+        for role, keywords in roles.items():
+            if not isinstance(keywords, list) or not keywords:
+                raise ValueError(
+                    f"Role '{role}' in 'column_roles' must be a non-empty list of "
+                    f"keyword strings.\n"
+                    f"Where: {path.absolute()} (key: column_roles.{role}).\n"
+                    f"Found: {keywords!r}.\n"
+                    f"Fix: give '{role}' at least one keyword, e.g. "
+                    f"`{role}:\n  - <header keyword>`."
+                )
+        return roles
+
+    def get_classification_evidence(self) -> dict[str, Any]:
+        """Load the evidence-based classification rule set from detection YAML.
+
+        Drives ``ClassificationParser._parse_enriched``: an ordered list of
+        ``rules`` (first match wins) plus a ``default`` for when none match.
+
+        Returns:
+            Dict with keys ``rules`` (list) and ``default`` (str).
+
+        Raises:
+            ValueError: If the ``classification_evidence`` block is missing or
+                structurally invalid.
+        """
+        path = self._dir / "document_type_detection.yaml"
+        data = self._load_yaml(path)
+        evidence = data.get("classification_evidence")
+        if not isinstance(evidence, dict):
+            raise ValueError(
+                "Missing 'classification_evidence' block in "
+                f"{path.absolute()} (key: classification_evidence).\n"
+                "Expected a mapping with 'rules' and 'default', e.g.:\n"
+                "  classification_evidence:\n"
+                "    rules:\n"
+                "      - type: BANK_STATEMENT\n"
+                "        when: { any_roles: [debit, credit, balance] }\n"
+                "    default: none\n"
+                "Fix: add the classification_evidence: section to "
+                "document_type_detection.yaml."
+            )
+        rules = evidence.get("rules")
+        if not isinstance(rules, list) or not rules:
+            raise ValueError(
+                "'classification_evidence.rules' must be a non-empty list.\n"
+                f"Where: {path.absolute()} (key: classification_evidence.rules).\n"
+                f"Found: {rules!r}.\n"
+                "Fix: add at least one rule with 'type' and a 'when' clause."
+            )
+        if "default" not in evidence:
+            raise ValueError(
+                "'classification_evidence.default' is required.\n"
+                f"Where: {path.absolute()} (key: classification_evidence.default).\n"
+                "Expected 'none' (defer to keyword fallback) or a document-type "
+                "string (e.g. INVOICE).\n"
+                "Fix: add `default: none` under classification_evidence."
+            )
+        self._validate_evidence_references(evidence, rules, path)
+        return evidence
+
+    def _validate_evidence_references(self, evidence: dict[str, Any], rules: list, path: Path) -> None:
+        """Cross-reference rules against column_roles and supported types.
+
+        Ensures every referenced role exists, every `when:` uses known keys,
+        and every emitted type (and the default) is a supported document type.
+        """
+        from common.field_schema import get_field_schema
+
+        known_roles = set(self.get_column_roles())
+        supported = {t.lower() for t in get_field_schema().supported_document_types}
+        allowed_when_keys = {"any_roles", "all_roles", "paid"}
+
+        for i, rule in enumerate(rules):
+            loc = f"classification_evidence.rules[{i}]"
+            if not isinstance(rule, dict) or "type" not in rule or "when" not in rule:
+                raise ValueError(
+                    f"Each classification rule needs 'type' and 'when'.\n"
+                    f"Where: {path.absolute()} ({loc}).\n"
+                    f"Found: {rule!r}.\n"
+                    "Fix: e.g. `- type: RECEIPT\n    when: { paid: true }`."
+                )
+            rtype = rule["type"]
+            if not isinstance(rtype, str) or rtype.lower() not in supported:
+                raise ValueError(
+                    f"Rule type '{rtype}' is not a supported document type.\n"
+                    f"Where: {path.absolute()} ({loc}.type).\n"
+                    f"Allowed: {sorted(supported)}.\n"
+                    "Fix: use one of the supported types, or register the new "
+                    "type in config/field_definitions.yaml (supported_document_types)."
+                )
+            when = rule["when"]
+            if not isinstance(when, dict) or not when:
+                raise ValueError(
+                    f"Rule 'when:' must be a non-empty mapping.\n"
+                    f"Where: {path.absolute()} ({loc}.when).\n"
+                    f"Found: {when!r}.\n"
+                    "Fix: add a condition, e.g. `when: { any_roles: [debit] }`."
+                )
+            unknown_keys = set(when) - allowed_when_keys
+            if unknown_keys:
+                raise ValueError(
+                    f"Unknown 'when:' key(s) {sorted(unknown_keys)}.\n"
+                    f"Where: {path.absolute()} ({loc}.when).\n"
+                    f"Allowed keys: {sorted(allowed_when_keys)}.\n"
+                    "Fix: remove the unknown key or correct the spelling."
+                )
+            for role_key in ("any_roles", "all_roles"):
+                for role in when.get(role_key, []):
+                    if role not in known_roles:
+                        raise ValueError(
+                            f"Rule references unknown column role '{role}'.\n"
+                            f"Where: {path.absolute()} ({loc}.when.{role_key}).\n"
+                            f"Known roles: {sorted(known_roles)}.\n"
+                            f"Fix: add '{role}' under column_roles, or use a "
+                            "known role name."
+                        )
+
+        default = evidence["default"]
+        if isinstance(default, str) and default.lower() != "none" and default.lower() not in supported:
+            raise ValueError(
+                f"classification_evidence.default '{default}' is not a supported type.\n"
+                f"Where: {path.absolute()} (key: classification_evidence.default).\n"
+                f"Allowed: 'none' or one of {sorted(supported)}.\n"
+                "Fix: set `default: none` or a supported document type."
+            )
+
     # -- Auxiliary: column patterns (bank-specific structured data) ------------
 
     def get_column_patterns(self) -> dict[str, Any]:
