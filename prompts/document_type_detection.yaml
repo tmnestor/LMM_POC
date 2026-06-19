@@ -115,35 +115,35 @@ type_mappings:
   "store receipt": "RECEIPT"
 
   # Travel expense variations
-  "travel expense": "TRAVEL_EXPENSE"
-  "travel_expense": "TRAVEL_EXPENSE"
-  "travelexpense": "TRAVEL_EXPENSE"
-  "boarding pass": "TRAVEL_EXPENSE"
-  "boardingpass": "TRAVEL_EXPENSE"
-  "boarding_pass": "TRAVEL_EXPENSE"
-  "airline ticket": "TRAVEL_EXPENSE"
-  "e-ticket": "TRAVEL_EXPENSE"
-  "eticket": "TRAVEL_EXPENSE"
-  "itinerary": "TRAVEL_EXPENSE"
-  "flight itinerary": "TRAVEL_EXPENSE"
-  "train ticket": "TRAVEL_EXPENSE"
-  "bus ticket": "TRAVEL_EXPENSE"
-  "taxi receipt": "TRAVEL_EXPENSE"
-  "rideshare receipt": "TRAVEL_EXPENSE"
-  "uber receipt": "TRAVEL_EXPENSE"
-  "plane ticket": "TRAVEL_EXPENSE"
+  "travel expense": "TRAVEL"
+  "travel_expense": "TRAVEL"
+  "travelexpense": "TRAVEL"
+  "boarding pass": "TRAVEL"
+  "boardingpass": "TRAVEL"
+  "boarding_pass": "TRAVEL"
+  "airline ticket": "TRAVEL"
+  "e-ticket": "TRAVEL"
+  "eticket": "TRAVEL"
+  "itinerary": "TRAVEL"
+  "flight itinerary": "TRAVEL"
+  "train ticket": "TRAVEL"
+  "bus ticket": "TRAVEL"
+  "taxi receipt": "TRAVEL"
+  "rideshare receipt": "TRAVEL"
+  "uber receipt": "TRAVEL"
+  "plane ticket": "TRAVEL"
 
   # Vehicle logbook variations
-  "vehicle logbook": "VEHICLE_LOGBOOK"
-  "vehicle_logbook": "VEHICLE_LOGBOOK"
-  "vehiclelogbook": "VEHICLE_LOGBOOK"
-  "logbook": "VEHICLE_LOGBOOK"
-  "motor vehicle logbook": "VEHICLE_LOGBOOK"
-  "car logbook": "VEHICLE_LOGBOOK"
-  "mileage log": "VEHICLE_LOGBOOK"
-  "trip log": "VEHICLE_LOGBOOK"
-  "ato logbook": "VEHICLE_LOGBOOK"
-  "travel log": "VEHICLE_LOGBOOK"
+  "vehicle logbook": "LOGBOOK"
+  "vehicle_logbook": "LOGBOOK"
+  "vehiclelogbook": "LOGBOOK"
+  "logbook": "LOGBOOK"
+  "motor vehicle logbook": "LOGBOOK"
+  "car logbook": "LOGBOOK"
+  "mileage log": "LOGBOOK"
+  "trip log": "LOGBOOK"
+  "ato logbook": "LOGBOOK"
+  "travel log": "LOGBOOK"
 
 # Fallback keyword matching (used when type_mappings don't match)
 # Maps canonical document types to keywords that indicate that type.
@@ -157,7 +157,7 @@ fallback_keywords:
     - receipt
     - purchase
     - payment
-  TRAVEL_EXPENSE:
+  TRAVEL:
     - travel
     - ticket
     - boarding
@@ -165,7 +165,7 @@ fallback_keywords:
     - flight
     - itinerary
     - passenger
-  VEHICLE_LOGBOOK:
+  LOGBOOK:
     - logbook
     - vehicle logbook
     - motor vehicle
