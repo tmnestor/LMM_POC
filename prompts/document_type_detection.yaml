@@ -275,8 +275,14 @@ classification_evidence:
     # Unpaid itemised billing table -> invoice.
     - type: INVOICE
       when: { any_roles: [gst, unit_price, quantity] }
-  # No rule matched -> defer to the legacy keyword path (_parse_legacy).
-  # NOTE: TRAVEL has no distinctive table columns, so it is not detectable via
-  # evidence rules; travel documents fall through to keyword matching here.
-  default: none
+  # No rule matched -> hard-default to INVOICE (the dominant non-bank/non-receipt
+  # type). Set via remote smoke (2026-06-20): `default: none` deferred unmatched
+  # docs to the keyword path and sent ~21% of the dev set to UNIVERSAL (extracted
+  # with the generic 33-field prompt), dropping F1 mean 0.650 -> 0.626. INVOICE
+  # restores parity (F1 mean 0.650, median 0.846) and routes them to the focused
+  # invoice prompt.
+  # NOTE: TRAVEL has no distinctive table columns, so it is not detectable via the
+  # evidence rules; a travel document with no recognised table is classified
+  # INVOICE here rather than deferring to keyword matching.
+  default: INVOICE
 
