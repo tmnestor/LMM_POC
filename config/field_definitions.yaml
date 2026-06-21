@@ -424,6 +424,7 @@ document_type_aliases:
   travel:
     - travel
     - travel expense
+    - travel_expense
     - boarding pass
     - airline ticket
     - e-ticket

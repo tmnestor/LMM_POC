@@ -232,7 +232,7 @@ prompts:
 
       OUTPUT FORMAT (8 FIELDS):
 
-      DOCUMENT_TYPE: TRAVEL_EXPENSE
+      DOCUMENT_TYPE: TRAVEL
       PASSENGER_NAME: [Name or NOT_FOUND]
       TRAVEL_MODE: [plane / train / bus / taxi / uber / ferry or NOT_FOUND]
       TRAVEL_ROUTE: [Route description or NOT_FOUND]
@@ -317,7 +317,7 @@ prompts:
 
       OUTPUT FORMAT (15 FIELDS):
 
-      DOCUMENT_TYPE: VEHICLE_LOGBOOK
+      DOCUMENT_TYPE: LOGBOOK
       VEHICLE_MAKE: [Make or NOT_FOUND]
       VEHICLE_MODEL: [Model or NOT_FOUND]
       VEHICLE_REGISTRATION: [Rego or NOT_FOUND]
