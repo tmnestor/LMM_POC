@@ -178,7 +178,7 @@ prompts:
   # TRAVEL EXPENSE EXTRACTION - 8 Fields (Taxpayer Work-Related Expense Claims)
   # Focused on: WHO travelled, WHERE, WHEN, HOW, HOW MUCH, GST
   # ============================================================================
-  travel_expense:
+  travel:
     name: "Travel Expense Extraction"
     description: "Extract travel expense details for taxpayer work-related claims (8 fields)"
     prompt: |
@@ -253,7 +253,7 @@ prompts:
   # VEHICLE LOGBOOK EXTRACTION - 15 Fields (ATO Motor Vehicle Expense Claims)
   # Focused on: VEHICLE details, LOGBOOK PERIOD, ODOMETER, BUSINESS USE %
   # ============================================================================
-  vehicle_logbook:
+  logbook:
     name: "Vehicle Logbook Extraction"
     description: "Extract vehicle logbook details for ATO motor vehicle expense claims (15 fields)"
     prompt: |
