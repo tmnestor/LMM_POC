@@ -339,11 +339,26 @@ class PromptCatalog:
         suffixes = load_structure_suffixes(path)
 
         routing: dict[str, str] = {}
+        orphans: list[str] = []
         for key in prompt_keys:
             base_type = strip_structure_suffixes(key, suffixes)
             if base_type in supported_types:
-                canonical = base_type.upper()
-                routing[canonical] = key
+                routing[base_type.upper()] = key
+            else:
+                orphans.append(key)
+
+        if orphans:
+            raise ValueError(
+                "Orphaned extraction prompt key(s) do not map to any supported "
+                f"document type: {sorted(orphans)}.\n"
+                f"Where: {path.absolute()} (under the 'prompts:' section).\n"
+                "Each prompt key (after stripping structure suffixes "
+                f"{list(suffixes)}) must equal a supported_document_types entry in "
+                "config/field_definitions.yaml.\n"
+                f"Allowed types: {sorted(supported_types)}.\n"
+                "Fix: rename the key to its canonical type (e.g. 'travel_expense' "
+                "-> 'travel'), or add the new type to supported_document_types."
+            )
 
         if not routing:
             raise ValueError(
