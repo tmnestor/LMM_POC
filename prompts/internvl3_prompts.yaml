@@ -175,7 +175,7 @@ prompts:
       ACCOUNT_BALANCE: [Balances with $ and " | " or NOT_FOUND]
 
   # ============================================================================
-  # TRAVEL EXPENSE EXTRACTION - 8 Fields (Taxpayer Work-Related Expense Claims)
+  # TRAVEL EXPENSE EXTRACTION - 9 Fields (Taxpayer Work-Related Expense Claims)
   # Focused on: WHO travelled, WHERE, WHEN, HOW, HOW MUCH, GST
   # ============================================================================
   travel:
@@ -250,7 +250,7 @@ prompts:
       - Use NOT_FOUND only if information is genuinely not visible
 
   # ============================================================================
-  # VEHICLE LOGBOOK EXTRACTION - 15 Fields (ATO Motor Vehicle Expense Claims)
+  # VEHICLE LOGBOOK EXTRACTION - 16 Fields (ATO Motor Vehicle Expense Claims)
   # Focused on: VEHICLE details, LOGBOOK PERIOD, ODOMETER, BUSINESS USE %
   # ============================================================================
   logbook:
