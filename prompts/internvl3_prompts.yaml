@@ -180,7 +180,7 @@ prompts:
   # ============================================================================
   travel:
     name: "Travel Expense Extraction"
-    description: "Extract travel expense details for taxpayer work-related claims (8 fields)"
+    description: "Extract travel expense details for taxpayer work-related claims (9 fields)"
     prompt: |
       Extract travel expense information from this document for a work-related expense claim.
 
@@ -230,7 +230,7 @@ prompts:
          - Bus company (e.g., "Greyhound", "Premier")
          - Rideshare company (e.g., "Uber", "DiDi")
 
-      OUTPUT FORMAT (8 FIELDS):
+      OUTPUT FORMAT (9 FIELDS):
 
       DOCUMENT_TYPE: TRAVEL
       PASSENGER_NAME: [Name or NOT_FOUND]
@@ -255,7 +255,7 @@ prompts:
   # ============================================================================
   logbook:
     name: "Vehicle Logbook Extraction"
-    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (15 fields)"
+    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (16 fields)"
     prompt: |
       Extract vehicle logbook information from this document for a motor vehicle expense claim.
 
@@ -315,7 +315,7 @@ prompts:
           - Use " | " separator
           - Match order with JOURNEY_DATES
 
-      OUTPUT FORMAT (15 FIELDS):
+      OUTPUT FORMAT (16 FIELDS):
 
       DOCUMENT_TYPE: LOGBOOK
       VEHICLE_MAKE: [Make or NOT_FOUND]
