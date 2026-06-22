@@ -91,7 +91,7 @@ document_fields:
       - DISCREPANCY_DETAILS
 
   logbook:
-    count: 16
+    count: 15
     fields:
       - DOCUMENT_TYPE
       - VEHICLE_MAKE

@@ -250,12 +250,12 @@ prompts:
       - Use NOT_FOUND only if information is genuinely not visible
 
   # ============================================================================
-  # VEHICLE LOGBOOK EXTRACTION - 16 Fields (ATO Motor Vehicle Expense Claims)
+  # VEHICLE LOGBOOK EXTRACTION - 15 Fields (ATO Motor Vehicle Expense Claims)
   # Focused on: VEHICLE details, LOGBOOK PERIOD, ODOMETER, BUSINESS USE %
   # ============================================================================
   logbook:
     name: "Vehicle Logbook Extraction"
-    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (16 fields)"
+    description: "Extract vehicle logbook details for ATO motor vehicle expense claims (15 fields)"
     prompt: |
       Extract vehicle logbook information from this document for a motor vehicle expense claim.
 
@@ -315,7 +315,7 @@ prompts:
           - Use " | " separator
           - Match order with JOURNEY_DATES
 
-      OUTPUT FORMAT (16 FIELDS):
+      OUTPUT FORMAT (15 FIELDS):
 
       DOCUMENT_TYPE: LOGBOOK
       VEHICLE_MAKE: [Make or NOT_FOUND]
