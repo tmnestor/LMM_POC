@@ -18,6 +18,10 @@ prompts:
       3. ROWS: How many line items or transaction rows are visible?
          Answer with a number.
 
+      4. TRAVEL: Is this a flight ticket, e-ticket, boarding pass, or
+         travel itinerary (showing passenger names, flights, or travel
+         legs)? Answer YES or NO.
+
   detection_complex:
     name: "Enhanced Document Type Detection"
     description: "Identify business document type using visual layout cues and content indicators"
@@ -237,22 +241,6 @@ column_roles:
     - purpose
     - purpose of trip
     - reason
-  # Travel-itinerary columns (flight/boarding-pass/ticket leg tables). These have
-  # no financial-ledger columns, so without these roles a travel itinerary matches
-  # no evidence rule and falls through to the INVOICE default. See the TRAVEL rule
-  # in classification_evidence below.
-  flight:
-    - flight
-    - flight no
-    - flight number
-  gate:
-    - gate
-    - gate no
-    - boarding gate
-  seat:
-    - seat
-    - seat no
-    - seat number
   # Itemised invoice/billing-table columns
   quantity:
     - quantity
@@ -284,10 +272,13 @@ classification_evidence:
     # Vehicle logbooks: trip/odometer columns.
     - type: LOGBOOK
       when: { any_roles: [distance, odometer, purpose] }
-    # Travel itineraries: flight/boarding-pass leg-table columns. Checked before
+    # Travel docs (flight ticket / e-ticket / boarding pass / itinerary). These
+    # carry no transaction table — the model reports COLUMNS: NONE — so they are
+    # undetectable from columns. The detection prompt asks a dedicated TRAVEL
+    # YES/NO question instead; this rule fires on that boolean. Checked before
     # RECEIPT so a paid e-ticket stays TRAVEL rather than downgrading to RECEIPT.
     - type: TRAVEL
-      when: { any_roles: [flight, gate, seat] }
+      when: { travel: true }
     # Payment evidence wins over an itemised table (a paid, itemised receipt
     # stays a RECEIPT) — so RECEIPT is checked before INVOICE.
     - type: RECEIPT
@@ -301,9 +292,9 @@ classification_evidence:
   # with the generic 33-field prompt), dropping F1 mean 0.650 -> 0.626. INVOICE
   # restores parity (F1 mean 0.650, median 0.846) and routes them to the focused
   # invoice prompt.
-  # NOTE: TRAVEL is detected via the flight/gate/seat leg-table columns (see the
-  # TRAVEL rule above). An itinerary whose leg table is reported with none of those
-  # columns (e.g. the model emits COLUMNS: NONE) still falls through to this INVOICE
-  # default — broaden the travel column_roles above if that surfaces in practice.
+  # NOTE: TRAVEL is detected from the prompt's TRAVEL YES/NO evidence field (the
+  # `travel: true` rule above), NOT from columns — travel docs report COLUMNS: NONE.
+  # A travel doc the model fails to flag (TRAVEL: NO) falls through to this INVOICE
+  # default.
   default: INVOICE
 

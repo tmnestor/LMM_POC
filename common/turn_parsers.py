@@ -390,6 +390,22 @@ class ClassificationParser:
     _COLUMNS_RE = re.compile(rf"{_LABEL_PREFIX}COLUMNS\**\s*:\s*(.+)$", re.MULTILINE | re.IGNORECASE)
     _PAID_RE = re.compile(rf"{_LABEL_PREFIX}PAID\**\s*:\s*(YES|NO)\b", re.MULTILINE | re.IGNORECASE)
     _ROWS_RE = re.compile(rf"{_LABEL_PREFIX}ROWS\**\s*:\s*(\d+)", re.MULTILINE | re.IGNORECASE)
+    # Travel docs (flight ticket / e-ticket / boarding pass / itinerary) carry no
+    # transaction table, so they are invisible to COLUMNS-based rules. The prompt
+    # asks a dedicated TRAVEL YES/NO question; this captures the answer.
+    # Inline (terse) form: "4. TRAVEL: YES".
+    _TRAVEL_RE = re.compile(rf"{_LABEL_PREFIX}TRAVEL\**\s*:\s*(YES|NO)\b", re.MULTILINE | re.IGNORECASE)
+    # Anchored TRAVEL field label for the verbose chain-of-thought form, where the
+    # answer lands on a later line ("### 4. TRAVEL\n...Answer: YES"). Requires a
+    # heading (#) or number (N.) prefix so a prose mention ("not a travel doc")
+    # cannot be mistaken for the field.
+    _TRAVEL_LABEL_RE = re.compile(
+        r"(?:^|\n)\s*(?:#{1,6}\s*\d*\.?\s*|\d+\s*[.\)]\s*)TRAVEL\b", re.IGNORECASE
+    )
+    # The question echoes "Answer YES or NO" — strip it so the instruction can
+    # never be read as the answer.
+    _YESNO_ECHO_RE = re.compile(r"yes\s+or\s+no|no\s+or\s+yes", re.IGNORECASE)
+    _YESNO_TOKEN_RE = re.compile(r"\b(YES|NO)\b", re.IGNORECASE)
     # Bare COLUMNS label, even with no inline value (e.g. a "### 1. COLUMNS"
     # heading). Presence of the label marks the response as an enriched answer.
     _COLUMNS_LABEL_RE = re.compile(r"\bCOLUMNS\b", re.IGNORECASE)
@@ -444,6 +460,24 @@ class ClassificationParser:
                 return self._header_parser._parse_headers(line.strip())
         return []
 
+    def _recover_travel_flag(self, text: str) -> bool:
+        """Recover the TRAVEL YES/NO answer from a verbose chain-of-thought reply.
+
+        Used only when the terse inline form ("TRAVEL: YES") is absent. Isolates
+        the TRAVEL field section (anchored on a heading/number prefix so a prose
+        mention can't trigger it), strips the echoed "Answer YES or NO"
+        instruction, then takes the last explicit YES/NO token in that section —
+        the model states its conclusion after the reasoning. Returns False when
+        no answer is recoverable (defers to the INVOICE default).
+        """
+        labels = list(self._TRAVEL_LABEL_RE.finditer(text))
+        if not labels:
+            return False
+        section = text[labels[-1].end() :]
+        section = self._YESNO_ECHO_RE.sub("", section)
+        tokens = self._YESNO_TOKEN_RE.findall(section)
+        return bool(tokens) and tokens[-1].upper() == "YES"
+
     def _parse_enriched(self, raw_response: str) -> dict[str, Any] | None:
         """Parse COLUMNS / PAID / ROWS fields and derive document type.
 
@@ -464,6 +498,7 @@ class ClassificationParser:
         columns_inline = self._clean_value(columns_match.group(1)) if columns_match else ""
         paid_match = self._PAID_RE.search(text)
         rows_match = self._ROWS_RE.search(text)
+        travel_match = self._TRAVEL_RE.search(text)
 
         if columns_inline.upper() == "NONE":
             headers: list[str] = []
@@ -475,6 +510,7 @@ class ClassificationParser:
             headers = self._recover_pipe_headers(text)
 
         paid = paid_match.group(1).upper() == "YES" if paid_match else False
+        travel = travel_match.group(1).upper() == "YES" if travel_match else self._recover_travel_flag(text)
         row_count = int(rows_match.group(1)) if rows_match else 0
 
         # Derive document type from evidence using the YAML-driven rule set
@@ -487,7 +523,7 @@ class ClassificationParser:
         from common.prompt_catalog import PromptCatalog
 
         evidence = PromptCatalog().get_classification_evidence()
-        doc_type = _evaluate_classification(column_mapping, paid, evidence)
+        doc_type = _evaluate_classification(column_mapping, paid, travel, evidence)
         if doc_type is None:
             # No rule matched and default is `none` -> defer to the legacy
             # keyword path (_parse_legacy).
@@ -500,6 +536,7 @@ class ClassificationParser:
             "complexity": complexity,
             "row_count": row_count,
             "payment_evidence": paid,
+            "travel_evidence": travel,
         }
         if column_mapping is not None:
             result["column_mapping"] = column_mapping
@@ -558,23 +595,26 @@ def _present_roles(column_mapping: dict[str, str | None] | None) -> set[str]:
     return {role for role, col in column_mapping.items() if col}
 
 
-def _when_matches(when: dict[str, Any], present_roles: set[str], paid: bool) -> bool:
+def _when_matches(when: dict[str, Any], present_roles: set[str], paid: bool, travel: bool) -> bool:
     """True if a rule's ``when:`` clause holds for the parsed evidence.
 
     Supported keys (all AND-ed when present): ``any_roles`` (at least one role
     present), ``all_roles`` (every role present), ``paid`` (matches the PAID
-    flag).
+    flag), ``travel`` (matches the TRAVEL flag).
     """
     if "any_roles" in when and not (set(when["any_roles"]) & present_roles):
         return False
     if "all_roles" in when and not set(when["all_roles"]).issubset(present_roles):
         return False
-    return not ("paid" in when and bool(when["paid"]) != paid)
+    if "paid" in when and bool(when["paid"]) != paid:
+        return False
+    return not ("travel" in when and bool(when["travel"]) != travel)
 
 
 def _evaluate_classification(
     column_mapping: dict[str, str | None] | None,
     paid: bool,
+    travel: bool,
     evidence: dict[str, Any],
 ) -> str | None:
     """Derive the document type from evidence using ``classification_evidence``.
@@ -585,7 +625,7 @@ def _evaluate_classification(
     """
     present = _present_roles(column_mapping)
     for rule in evidence["rules"]:
-        if _when_matches(rule["when"], present, paid):
+        if _when_matches(rule["when"], present, paid, travel):
             return rule["type"]
     default = evidence["default"]
     if isinstance(default, str) and default.lower() == "none":

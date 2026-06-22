@@ -235,7 +235,7 @@ class PromptCatalog:
 
         known_roles = set(self.get_column_roles())
         supported = {t.lower() for t in get_field_schema().supported_document_types}
-        allowed_when_keys = {"any_roles", "all_roles", "paid"}
+        allowed_when_keys = {"any_roles", "all_roles", "paid", "travel"}
 
         for i, rule in enumerate(rules):
             loc = f"classification_evidence.rules[{i}]"
