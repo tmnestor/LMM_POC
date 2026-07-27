@@ -160,10 +160,14 @@ register_vllm_model(
 # running a vision tower.
 #
 # REQUIRES A NIGHTLY vLLM. Support landed in vllm-project/vllm#44429 and is NOT
-# in any stable release (<= 0.22.1 cannot load it); use the pinned
-# vllm/vllm-openai:gemma4-unified image or a nightly wheel. Verify this on the box
-# BEFORE the smoke — a stable vLLM fails at engine load with an unknown
-# architecture, which is unrelated to anything in this repo.
+# in any stable release (<= 0.22.1 cannot load it). conda_envs/vllm_env2.yaml pins
+# vllm==0.19.0, so THIS MODEL CANNOT LOAD on the standard env — it needs a nightly
+# wheel in a separate conda env (the AI Sandbox has no Docker, so the upstream
+# recipe's pinned container is not an option). A stable vLLM fails at engine load
+# with an unknown-architecture error unrelated to anything in this repo.
+# Setup runbook: docs/gemma4-12b-sandbox-setup.md.
+# NOTE: the 31B W4A16 above needs none of this — compressed-tensors is already a
+# vllm 0.19.0 dependency, so it runs on the standard env today.
 #
 # ~12 B params -> ~24 GB BF16, so it fits the single L40S unquantised (a QAT
 # w4a16-ct variant also exists if the headroom is ever wanted).

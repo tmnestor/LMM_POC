@@ -16,6 +16,16 @@ Support landed in `vllm-project/vllm#44429` and **has not shipped in a stable re
 ≤ 0.22.1 cannot load it: the engine fails at startup with an unknown-architecture error that has nothing
 to do with this repo's code. There is no workaround short of upgrading the engine.
 
+**This is already settled, not something to discover on the box.** The environment in use,
+`conda_envs/vllm_env2.yaml`, pins **`vllm==0.19.0`** — below the threshold. The 12B cannot run on the
+current stack.
+
+> **The 31B does NOT need a nightly.** `vllm==0.19.0` already carries `compressed-tensors` as a
+> transitive dependency, which is the quantisation path `google/gemma-4-31B-it-qat-w4a16-ct` uses
+> (`quant_method: compressed-tensors`, `format: pack-quantized`). So if the goal is to get *a* Gemma 4
+> running for comparison, the **31B W4A16 is runnable today on `vllm_env2`** and only needs its weights
+> downloaded. The engine upgrade is a 12B-specific cost. Worth weighing before spending time on Part 2.
+
 | Fact | Value |
 |---|---|
 | Repo | `google/gemma-4-12B-it` |
@@ -23,7 +33,7 @@ to do with this repo's code. There is no workaround short of upgrading the engin
 | Download size | ~23.95 GB (single unsharded `model.safetensors` = 23,919,549,408 bytes) |
 | Licence | Apache-2.0, **not gated** — no token, no click-through |
 | Fits | Single 40 GB+ GPU unquantised (~24 GB BF16) |
-| Engine | vLLM **nightly** or the pinned `vllm/vllm-openai:gemma4-unified` image |
+| Engine | vLLM **nightly** in a separate conda env (no Docker in the sandbox, so the container route is unavailable) |
 
 ---
 
@@ -32,14 +42,11 @@ to do with this repo's code. There is no workaround short of upgrading the engin
 Nothing below is destructive; run it before deciding which route to take.
 
 ```bash
-# What vLLM is actually installed? (the env yaml does NOT pin a version)
-conda activate LMM_POC_VLLM
+# Confirm the installed engine matches the pin (expect 0.19.0)
+conda activate vllm_env2
 python -c "import vllm; print(vllm.__version__)"
 
-# CUDA toolkit version — this decides whether the pip route is safe (see Part 2)
-nvcc --version
-
-# GPU and free VRAM
+# GPU, driver and free VRAM
 nvidia-smi
 
 # Space for the weights (~24 GB, plus headroom)
@@ -49,61 +56,83 @@ df -h /home/jovyan/nfs_share/models
 ls /home/jovyan/nfs_share/models | grep -i gemma
 ```
 
-If `vllm.__version__` is already a nightly/dev build that post-dates PR #44429, skip Part 2 entirely.
+If `vllm.__version__` reports something other than `0.19.0`, the env has drifted from
+`conda_envs/vllm_env2.yaml` — find out why before continuing. If it is already a nightly/dev build that
+post-dates PR #44429, skip Part 2 entirely.
 
 ---
 
 ## Part 2 — Nightly vLLM
 
-### ⚠️ Do not install into `LMM_POC_VLLM`
+### ⚠️ Never upgrade `vllm_env2` in place
 
-That env runs the validated InternVL3.5-8B production path. `conda_envs/vllm_env.yml` installs vLLM
-**unpinned** (`pip install vllm --no-cache-dir` in its post-install notes), so there is no version floor
-protecting it — upgrading in place would silently replace the engine the 91.8% baseline was measured on,
-with no way back except rebuilding the env. Use a separate environment.
+That env runs the validated InternVL3.5-8B production path, and it is a **tightly matched stack**:
 
-### ⚠️ CUDA toolkit mismatch is the likely failure
-
-`conda_envs/vllm_env.yml` pins torch to the **cu124** index with the note *"must match nvcc toolkit
-(12.4), not driver (13.0)"*. vLLM's default nightly wheel is built against **CUDA 12.9**. Installing it
-will pull a torch built for 12.9 against a 12.4 toolkit.
-
-This is the main reason to prefer the container route below.
-
-### Route A — pinned Docker image (recommended)
-
-The container ships its own CUDA runtime, so the toolkit mismatch cannot arise, and the stable conda env
-is untouched.
-
-```bash
-docker pull vllm/vllm-openai:gemma4-unified
+```
+vllm==0.19.0  torch==2.10.0  torchvision==0.25.0  torchaudio==2.10.0
+flashinfer-python==0.6.6  flashinfer-cubin==0.6.6
 ```
 
-Run it with the model share mounted and the GPU exposed; serve or exec into it for offline inference.
-This is the route the vLLM Gemma 4 recipe recommends for this model.
+The yaml's own note: these are *"exact `==` pins; must install together from the same CUDA build or vLLM
+will fail to load"*. Bumping `vllm` alone would break that matching — and rebuilding it is the only way
+back to the engine the 91.8% baseline was measured on. Create a separate environment.
 
-### Route B — separate conda env with a nightly wheel
+### There is no Docker in the AI Sandbox
 
-Only if Docker is unavailable on the box. Per the project convention, create a **new env yaml** rather
-than installing ad hoc — copy `conda_envs/vllm_env.yml` to `conda_envs/vllm_nightly_env.yml`, change
-`name:` to `LMM_POC_VLLM_NIGHTLY`, then:
+The vLLM Gemma 4 recipe recommends the pinned `vllm/vllm-openai:gemma4-unified` image, and that is **not
+available to us** — the sandbox has no Docker. The nightly pip wheel below is therefore the only route,
+with no container fallback if it goes wrong. That raises the stakes on two things: keep `vllm_env2`
+pristine (the separate env is now the *only* protection for the working stack), and pin a commit rather
+than a moving nightly so a working setup can be rebuilt.
+
+### The route — separate conda env with a nightly wheel
+
+Per the project convention, add a **new env yaml** rather than installing ad hoc. Copy
+`conda_envs/vllm_env2.yaml` to `conda_envs/vllm_nightly_env.yaml` and change `name:` to `vllm_nightly`.
+
+**Do not carry the exact pins across.** `torch==2.10.0` and `flashinfer==0.6.6` are matched to vLLM
+0.19.0; a nightly will want its own versions and the old pins will conflict. Strip the `vllm`, `torch*`
+and `flashinfer*` lines from the copy and let the nightly resolve them:
 
 ```bash
-conda env create -f conda_envs/vllm_nightly_env.yml
-conda activate LMM_POC_VLLM_NIGHTLY
+conda env create -f conda_envs/vllm_nightly_env.yaml
+conda activate vllm_nightly
 
-# Nightly wheel (default variant is CUDA 12.9 — see the toolkit warning above)
+# --torch-backend=auto lets the wheel pick its own matching torch build
 uv pip install -U vllm --torch-backend=auto \
   --extra-index-url https://wheels.vllm.ai/nightly
 ```
 
-To pin an exact commit instead of a moving nightly — preferable for anything you want to reproduce later:
+CUDA compatibility is not expected to be a problem: the current stack already runs **cu129** wheels
+(0.19.0's default build), which is also what the nightly defaults to, and per NVIDIA's minor-version
+compatibility policy CUDA 12.x is cross-compatible within 12.x on the 13.0-capable driver. Note the env
+sets `VLLM_ATTENTION_BACKEND=FLASHINFER`; if the nightly's bundled FlashInfer differs, let it resolve
+rather than forcing 0.6.6.
+
+To pin an exact commit instead of a moving nightly — strongly preferred for anything whose result you
+want to reproduce or report:
 
 ```bash
 export VLLM_COMMIT=<sha>
 uv pip install vllm --torch-backend=auto \
   --extra-index-url https://wheels.vllm.ai/${VLLM_COMMIT}
 ```
+
+### If the nightly will not resolve
+
+With no container fallback, these are the remaining options, cheapest first:
+
+1. **Try an older nightly.** Pick a commit shortly after PR #44429 landed rather than today's `main` —
+   less drift from the 0.19.0-era dependency set, and it still has the architecture.
+2. **Loosen resolution:** add `--index-strategy unsafe-best-match` so the resolver can mix the nightly
+   index with PyPI. Use only if a straight install deadlocks on a dependency conflict.
+3. **Stop and report.** If the nightly needs a torch that the driver or the rest of the stack can't
+   accommodate, that is a real finding: the 12B is not reachable on this sandbox without infrastructure
+   work. The **31B W4A16 runs on the existing engine today** — say so and fall back to it rather than
+   burning days on the engine.
+
+Building vLLM from source is possible but is a multi-hour compile with its own CUDA toolchain
+requirements; treat it as out of scope for an evaluation.
 
 Verify the architecture is registered before going further:
 
@@ -222,8 +251,8 @@ Confirm from the logs:
 
 | Symptom | Cause |
 |---|---|
-| Unknown/unsupported architecture at engine load | vLLM predates PR #44429 — Part 2 not done, or done in the wrong env |
-| `ImportError` / torch CUDA mismatch after pip install | cu129 nightly wheel against the 12.4 toolkit — use Route A |
+| Unknown/unsupported architecture at engine load | vLLM predates PR #44429 — Part 2 not done, or running in `vllm_env2` (0.19.0) instead of the nightly env |
+| `ImportError` / undefined symbol after pip install | torch/flashinfer pins carried over from the 0.19.0 yaml — remove them and let the nightly resolve |
 | Loads but behaves as if budget is 280 | `hf_overrides` not landing; re-check the Part 3 `jq` output |
 | Silently reads only part of the page | `pre_tiling.enabled` still true, or `limit_mm_per_prompt` > 1 |
 | `<think>` blocks in output | Thinking is opt-in on this model via a `<\|think\|>` token in the system prompt; check nothing is injecting a system prompt |
@@ -232,4 +261,5 @@ Confirm from the logs:
 
 Set `bootstrap.model.type: internvl3-vllm`, restore its path, and set
 `inference.tiling.pre_tiling.enabled: true`. Nothing in the Gemma work changes InternVL behaviour, and
-the stable `LMM_POC_VLLM` env is untouched provided Part 2's warning was respected.
+`vllm_env2` is untouched provided Part 2's warning was respected — which is the whole reason for the
+separate nightly env.
