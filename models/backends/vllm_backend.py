@@ -34,6 +34,8 @@ class VllmBackend:
         *,
         model_type_key: str = "internvl3",
         chat_template: str | None = None,
+        chat_template_kwargs: dict[str, Any] | None = None,
+        default_image_first: bool = False,
         trace_path: str | None = None,
         pre_tiling_enabled: bool = False,
         tile_image_size: int = 448,
@@ -46,6 +48,12 @@ class VllmBackend:
         # Optional chat-template override (path validated at config load); None
         # uses the model's own template. Forwarded to every engine.chat() call.
         self._chat_template = chat_template
+        # Per-model chat-template kwargs (e.g. {"enable_thinking": False} for a
+        # thinking-by-default template). Comes from the model's VllmSpec, so the
+        # backend never has to test model_type strings to decide.
+        self._chat_template_kwargs = dict(chat_template_kwargs) if chat_template_kwargs else {}
+        # Default content order for generate() — see VllmSpec.default_image_first.
+        self._default_image_first = default_image_first
         self._debug = debug
         # Prefix/encoder cache observability: cumulative prompt tokens served
         # from cache vs total, summed across generate() calls. None of vLLM's
@@ -69,6 +77,16 @@ class VllmBackend:
         # appended to that JSONL via the shared prompt_trace sink (debug only).
         if trace_path:
             prompt_trace.enable(trace_path)
+
+    def _chat_kwargs(self) -> dict[str, Any]:
+        """Extra kwargs for ``engine.chat()`` — thinking suppression, if configured.
+
+        Empty when the model's spec sets no ``chat_template_kwargs``, so the call
+        site stays identical to the old behaviour for InternVL.
+        """
+        if not self._chat_template_kwargs:
+            return {}
+        return {"chat_template_kwargs": dict(self._chat_template_kwargs)}
 
     @staticmethod
     def _encode_image(image: Image.Image) -> str:
@@ -221,7 +239,7 @@ class VllmBackend:
         messages = self._build_messages(
             image,
             prompt,
-            image_first=params.extra.get("image_first", False),
+            image_first=params.extra.get("image_first", self._default_image_first),
             max_tiles=params.extra.get("max_tiles"),
             min_tiles=params.extra.get("min_tiles", 1),
         )
@@ -236,6 +254,7 @@ class VllmBackend:
             sampling_params=sampling,
             chat_template=self._chat_template,
             use_tqdm=False,
+            **self._chat_kwargs(),
         )
 
         self._record_cache_stats(outputs[0])
@@ -295,6 +314,7 @@ class VllmBackend:
             sampling_params=sampling,
             chat_template=self._chat_template,
             use_tqdm=False,
+            **self._chat_kwargs(),
         )
 
         self._record_cache_stats(outputs[0])

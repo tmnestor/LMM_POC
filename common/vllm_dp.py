@@ -37,6 +37,40 @@ def resolve_gpu_count(config: PipelineConfig) -> int:
         return 1
 
 
+def resolve_dp_gpus(config: PipelineConfig, model_type: str) -> int | None:
+    """Resolve the DP rank count, or None when the DP fast path must not run.
+
+    ``None`` means "use the single-engine path", for one of two reasons: only one
+    GPU is available, or *model_type* cannot hold one whole engine per GPU (a
+    quantised 31B still wants the entire card once KV cache and vision
+    activations are counted, so N engines would OOM).
+
+    The second case is logged: an operator who asked for N GPUs and silently got
+    a slower single-engine run would have no way to tell from the output.
+
+    Args:
+        config: Pipeline config carrying the GPU/DP counts.
+        model_type: Registered model type, used to look up the capability.
+
+    Returns:
+        Number of DP ranks to spawn, or None to skip the data-parallel path.
+    """
+    from models.registry import supports_data_parallel
+
+    gpus = resolve_gpu_count(config)
+    if gpus <= 1:
+        return None
+    if not supports_data_parallel(model_type):
+        logger.info(
+            "%s cannot run one engine per GPU; using the single-engine path despite "
+            "%d GPUs being available",
+            model_type,
+            gpus,
+        )
+        return None
+    return gpus
+
+
 def _partition_images(images: list[Path], n: int) -> list[list[Path]]:
     """Deal images round-robin into n balanced chunks (stride partition).
 

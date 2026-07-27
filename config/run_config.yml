@@ -9,8 +9,15 @@
 # the env must already be chosen before this file is parsed).
 bootstrap:
   # Model — InternVL3.5 via vLLM (we run the 8B). Registered types:
-  # internvl3-vllm (8B, default), internvl3-14b-vllm, internvl3-38b-vllm.
+  # internvl3-vllm (8B, default), internvl3-14b-vllm, internvl3-38b-vllm,
+  # gemma4-31b-w4a16-vllm and gemma4-12b-unified-vllm (A/B alternatives, 1xL40S
+  # only — see the notes below; the 12B additionally needs a NIGHTLY vLLM).
   # Switch type + path together.
+  #
+  # Switching to EITHER gemma4-* type ALSO requires setting
+  # inference.tiling.pre_tiling.enabled: false — Gemma sizes images via its own
+  # soft-token budget, not InternVL 448-px tiling, and the load fails fast with
+  # that explained if you forget.
   model:
     type: internvl3-vllm
     path: /home/jovyan/nfs_share/models/InternVL3_5-8B
@@ -35,6 +42,8 @@ bootstrap:
     default_paths:
       internvl3: /home/jovyan/nfs_share/models/InternVL3_5-8B
       internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
+      gemma4-31b-w4a16-vllm: /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct
+      gemma4-12b-unified-vllm: /home/jovyan/nfs_share/models/gemma-4-12B-it
       # internvl3: /efs/shared/PTM/InternVL3_5-8B
       # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
   # GPU count (moved from the old top-level processing: section).
@@ -105,6 +114,20 @@ inference:
       internvl3:
         max_new_tokens_base: 2000
         max_new_tokens_per_field: 50
+      # Keys are NORMALISED model types (app_config._normalize_model_type), NOT
+      # the full registered names. The normalisation is not uniform, so these are
+      # spelled out per model and locked by a test:
+      #   gemma4-31b-w4a16-vllm   -> gemma4-31b
+      #   gemma4-12b-unified-vllm -> gemma4-12b-unified
+      # A wrong key here does NOT fail — the lookup silently falls back to
+      # generation.defaults above, which is how it can look correct while doing
+      # nothing.
+      gemma4-31b:
+        max_new_tokens_base: 512
+        max_new_tokens_per_field: 64
+      gemma4-12b-unified:
+        max_new_tokens_base: 512
+        max_new_tokens_per_field: 64
     token_limits:
       2b: null                    # use calculation
       8b: 800
@@ -127,6 +150,52 @@ inference:
       internvl3-vllm:
         max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
         limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
+      # Gemma 4 31B-it QAT W4A16 (compressed-tensors) on 1xL40S, tp=1.
+      # Weights ~18 GB of ~44-48 GiB, so unlike the BF16 31B (~58 GB, 2xL40S)
+      # there is real headroom for KV cache and vision-encoder activations.
+      # History worth respecting (old-repo commit a4b131d, BF16): soft tokens
+      # 1120 OOM'd, gpu_memory_utilization 0.92 OOM'd, max_model_len 16384 was
+      # cut to 8192. Activations were the binding resource, not weights — so
+      # those limits are expected to lift at 4-bit, but VERIFY rather than assume.
+      gemma4-31b-w4a16-vllm:
+        max_model_len: 8192
+        gpu_memory_utilization: 0.85
+        limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
+        max_num_seqs: 1
+        enable_prefix_caching: true
+        mm_processor_kwargs:
+          # Gemma 4 accepts a DISCRETE set of visual token budgets:
+          # 70 | 140 | 280 | 560 | 1120. Start at the value old history settled
+          # on; 1120 is the sweep target for dense bank tables (Phase 5).
+          max_soft_tokens: 560
+        hf_overrides:
+          vision_soft_tokens_per_image: 560
+          vision_config:
+            default_output_length: 560
+      # Gemma 4 12B-it "Unified" (encoder-free, model_type gemma4_unified) on
+      # 1xL40S, tp=1. ~24 GB BF16 — fits unquantised on a 40 GB+ card.
+      # REQUIRES A NIGHTLY vLLM (support landed in vllm-project/vllm#44429, not in
+      # any stable release <= 0.22.1). Confirm the engine build before running.
+      # Budget note: this variant's own default is 280 soft tokens; 560 is set
+      # here to match the 31B block so the A/B compares like with like.
+      gemma4-12b-unified-vllm:
+        max_model_len: 16384         # vLLM recipe recommends 16384-32768 for this model
+        gpu_memory_utilization: 0.90 # recipe value; the 31B's 0.85 was a BF16 OOM workaround
+        limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
+        max_num_seqs: 1
+        enable_prefix_caching: true
+        mm_processor_kwargs:
+          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+        # The override field names DIFFER from the 31B block above — verified
+        # 2026-07-27 against this checkpoint's own config.json. The unified model
+        # has NO top-level `vision_soft_tokens_per_image` and NO
+        # `vision_config.default_output_length`; its budget knob is
+        # `vision_config.num_soft_tokens` (ships as 280). Using the 31B's names
+        # here sets attributes nothing reads — a silent no-op that leaves the
+        # engine at 280 while the YAML claims 560.
+        hf_overrides:
+          vision_config:
+            num_soft_tokens: 560
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
@@ -272,9 +341,12 @@ pipeline:
 
   # Batch processing tuning
   batch:
-    default_sizes: {internvl3: 4}
-    max_sizes: {internvl3: 8}
-    conservative_sizes: {internvl3: 1}
+    # Keys are NORMALISED model types (see the generation.models note above).
+    # Both Gemma variants are pinned to 1: a single-card engine has no room to
+    # widen, and stating it explicitly beats falling through to batch.min_size.
+    default_sizes: {internvl3: 4, gemma4-31b: 1, gemma4-12b-unified: 1}
+    max_sizes: {internvl3: 8, gemma4-31b: 1, gemma4-12b-unified: 1}
+    conservative_sizes: {internvl3: 1, gemma4-31b: 1, gemma4-12b-unified: 1}
     min_size: 1
     strategy: balanced            # conservative | balanced | aggressive
     auto_detect: true

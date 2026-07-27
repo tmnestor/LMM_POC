@@ -39,7 +39,26 @@ class VllmSpec:
     attention_backend: str | None = None  # None = vLLM auto-selects
     mm_processor_kwargs: dict[str, Any] = field(default_factory=dict)
     hf_overrides: dict[str, Any] = field(default_factory=dict)
+    # Forwarded to every engine.chat() call. Suppresses a thinking-by-default
+    # chat template (e.g. Gemma 4: {"enable_thinking": False}). NOTE: this does
+    # nothing on InternVL3.5, where thinking is driven by the system prompt, not
+    # an enable_thinking flag — use bootstrap.model.chat_template there instead.
     chat_template_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    # -- Capabilities: properties of the MODEL, so they live in code, not YAML --
+    # (Operator *intent* stays in run_config.yml; what a checkpoint can physically
+    # do is structural, same rationale as attention_backend above.)
+
+    # False for models that size images themselves (Gemma 4: soft-token budget +
+    # pan-and-scan) rather than via InternVL 448-px dynamic tiling.
+    supports_pre_tiling: bool = True
+    # False for models too large to hold one whole engine per GPU — the DP fast
+    # path would start N independent engines and OOM.
+    supports_data_parallel: bool = True
+    # Default content order for generate(). Gemma 4's card recommends image
+    # before text; InternVL keeps text-first. An explicit extra["image_first"]
+    # always wins over this default.
+    default_image_first: bool = False
 
 
 def _resolve_vllm_overrides(app_config: Any | None, model_type: str) -> dict[str, Any]:
@@ -129,6 +148,33 @@ def build_vllm_loader(spec: VllmSpec):
         @contextmanager
         def _loader(cfg):
             import os
+
+            # App-side pre-tiling crops 448-px InternVL tiles. A model that sizes
+            # images its own way (Gemma 4: soft-token budget + pan-and-scan) must
+            # not be fed those crops — with limit_mm_per_prompt=1 vLLM would
+            # silently drop all but the first, so the run would look healthy while
+            # reading one corner of the page. Fail fast instead.
+            # Checked FIRST — before the vLLM import and before engine tuning is
+            # resolved — so the diagnostic appears even on a machine without vLLM
+            # installed, and isn't masked by an unrelated ImportError.
+            if cfg.pre_tiling_enabled and not spec.supports_pre_tiling:
+                raise ValueError(
+                    f"What: app-side pre-tiling is enabled, but model "
+                    f"{spec.model_type!r} does not support it — it sizes images via "
+                    f"its own budget (e.g. Gemma 4's soft-token budget + pan-and-scan), "
+                    f"not InternVL 448-px dynamic tiling.\n"
+                    f"  Where: config/run_config.yml -> "
+                    f"inference.tiling.pre_tiling.enabled (currently true), selected "
+                    f"together with bootstrap.model.type: {spec.model_type}\n"
+                    f"  Expected:\n"
+                    f"    inference:\n      tiling:\n        pre_tiling:\n"
+                    f"          enabled: false\n"
+                    f"  How to fix: set inference.tiling.pre_tiling.enabled: false when "
+                    f"running {spec.model_type} (tune image detail via that model's own "
+                    f"knobs under inference.vllm.models.{spec.model_type} instead), or "
+                    f"switch bootstrap.model.type back to a tiling model such as "
+                    f"internvl3-vllm."
+                ) from None
 
             os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
 
@@ -302,6 +348,8 @@ def build_vllm_processor_creator(spec: VllmSpec):
             engine=model,
             model_type_key=spec.model_type,
             chat_template=config.chat_template,
+            chat_template_kwargs=spec.chat_template_kwargs,
+            default_image_first=spec.default_image_first,
             trace_path=effective_trace_path(config),
             pre_tiling_enabled=config.pre_tiling_enabled,
             tile_image_size=config.pre_tiling_image_size,
@@ -346,5 +394,6 @@ def register_vllm_model(spec: VllmSpec) -> None:
             description=spec.description,
             requires_sharding=True,
             is_vllm=True,
+            supports_data_parallel=spec.supports_data_parallel,
         )
     )

@@ -238,10 +238,11 @@ def run(
     from models.registry import is_vllm_model
 
     if is_vllm_model(config.model_type):
-        from common.vllm_dp import resolve_gpu_count, run_dp
+        from common.vllm_dp import resolve_dp_gpus, run_dp
 
-        resolved_gpus = resolve_gpu_count(config)
-        if resolved_gpus > 1:
+        # None -> single GPU, or a model that can't replicate per GPU.
+        resolved_gpus = resolve_dp_gpus(config, config.model_type)
+        if resolved_gpus:
             records = run_dp(
                 num_gpus=resolved_gpus,
                 images=[Path(c["image_path"]) for c in classifications],
@@ -574,10 +575,11 @@ def _run_unified(
     from models.registry import is_vllm_model
 
     if is_vllm_model(config.model_type):
-        from common.vllm_dp import resolve_gpu_count, run_dp
+        from common.vllm_dp import resolve_dp_gpus, run_dp
 
-        resolved_gpus = resolve_gpu_count(config)
-        if resolved_gpus > 1:
+        # None -> single GPU, or a model that can't replicate per GPU.
+        resolved_gpus = resolve_dp_gpus(config, config.model_type)
+        if resolved_gpus:
             records = run_dp(
                 num_gpus=resolved_gpus,
                 images=images,
