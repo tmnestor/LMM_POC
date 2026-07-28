@@ -159,13 +159,12 @@ register_vllm_model(
 # patches (and audio waveforms) straight into the LLM embedding space instead of
 # running a vision tower.
 #
-# REQUIRES A NIGHTLY vLLM. Support landed in vllm-project/vllm#44429 and is NOT
-# in any stable release (<= 0.22.1 cannot load it). conda_envs/vllm_env2.yaml pins
-# vllm==0.19.0, so THIS MODEL CANNOT LOAD on the standard env — it needs a nightly
-# wheel in a separate conda env (the AI Sandbox has no Docker, so the upstream
-# recipe's pinned container is not an option). A stable vLLM fails at engine load
-# with an unknown-architecture error unrelated to anything in this repo.
-# Setup runbook: docs/gemma4-12b-sandbox-setup.md.
+# REQUIRES vLLM >= 0.23.0. Support (vllm-project/vllm#44429) shipped in STABLE
+# v0.23.0 on 2026-06-15 — no nightly needed; use a pinned stable release.
+# conda_envs/vllm_env2.yaml pins vllm==0.19.0, so this model CANNOT load on the
+# standard env: it needs a separate env on >= 0.23.0. Verified present at v0.25.1.
+# Anything older fails at engine load with an unknown-architecture error that is
+# unrelated to this repo. Setup runbook: docs/gemma4-12b-sandbox-setup.md.
 # NOTE: the 31B W4A16 above needs none of this — compressed-tensors is already a
 # vllm 0.19.0 dependency, so it runs on the standard env today.
 #

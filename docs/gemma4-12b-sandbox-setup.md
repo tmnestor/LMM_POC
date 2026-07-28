@@ -26,9 +26,18 @@ pending, and it takes the wait off the critical path.
 `Gemma4UnifiedForConditionalGeneration`. It is encoder-free — raw image patches and audio waveforms are
 projected straight into the LLM embedding space, with no vision tower.
 
-Support landed in `vllm-project/vllm#44429` and **has not shipped in a stable release**. Releases
-≤ 0.22.1 cannot load it: the engine fails at startup with an unknown-architecture error that has nothing
-to do with this repo's code. There is no workaround short of upgrading the engine.
+Support (`vllm-project/vllm#44429`) shipped in **stable v0.23.0 on 2026-06-15** — its release notes read
+*"Added encoder-free Gemma 4 Unified support (#44429) and Gemma 4 MTP (#43241), plus numerous accuracy and
+startup fixes."* Verified still registered at v0.25.1.
+
+**So a nightly is NOT required — use a pinned stable release ≥ 0.23.0.** Anything older fails at engine
+load with an unknown-architecture error that has nothing to do with this repo's code.
+
+> **Correction (2026-07-28):** earlier revisions of this document claimed the model needed a nightly wheel,
+> based on the upstream vLLM *recipes* page, which is stale — it predates the v0.23.0 release. The nightly
+> route below still works and is recorded for anyone who already took it, but a pinned stable release is
+> the right answer: reproducible by construction, no commit-SHA resolution, no wheel archiving, no risk of
+> the build being pruned from the nightly index, and realistically a precondition for KFP.
 
 **This is already settled, not something to discover on the box.** The environment in use,
 `conda_envs/vllm_env2.yaml`, pins **`vllm==0.19.0`** — below the threshold. The 12B cannot run on the
@@ -47,7 +56,7 @@ current stack.
 | Download size | ~23.95 GB (single unsharded `model.safetensors` = 23,919,549,408 bytes) |
 | Licence | Apache-2.0, **not gated** — no token, no click-through |
 | Fits | Single 40 GB+ GPU unquantised (~24 GB BF16) |
-| Engine | vLLM **nightly** in a separate conda env (no Docker in the sandbox, so the container route is unavailable) |
+| Engine | vLLM **≥ 0.23.0** (stable — recommend a pinned `0.25.1`) in a separate conda env |
 
 ---
 
@@ -91,15 +100,63 @@ The yaml's own note: these are *"exact `==` pins; must install together from the
 will fail to load"*. Bumping `vllm` alone would break that matching — and rebuilding it is the only way
 back to the engine the 91.8% baseline was measured on. Create a separate environment.
 
-### There is no Docker in the AI Sandbox
+### Route A — pinned stable release (RECOMMENDED)
 
-The vLLM Gemma 4 recipe recommends the pinned `vllm/vllm-openai:gemma4-unified` image, and that is **not
-available to us** — the sandbox has no Docker. The nightly pip wheel below is therefore the only route,
-with no container fallback if it goes wrong. That raises the stakes on two things: keep `vllm_env2`
-pristine (the separate env is now the *only* protection for the working stack), and pin a commit rather
-than a moving nightly so a working setup can be rebuilt.
+**Version choice:** **0.23.0** is the minimum with the architecture; **0.25.1** (2026-07-14) is the
+recommendation — two weeks old, arch verified present, and several releases of Gemma 4 fixes past 0.23.0,
+whose own notes still mention accuracy and startup fixes landing. **0.26.0** (2026-07-27) is latest stable
+but only a day old.
 
-### The route — separate conda env with a nightly wheel
+Plain `pip` is correct here — an ordinary PyPI release, so no nightly-index caveats and no `uv`. That also
+keeps us inside the constraint `conda_envs/vllm_env2.yaml` records: *"Do not add --index-url here; data
+engineering policy forbids extra indexes."* The nightly route violates that policy by construction, which
+is a second reason to prefer this one.
+
+**Do NOT copy `vllm_env2.yaml`'s pins.** `torch==2.10.0` / `flashinfer==0.6.6` are matched to vLLM 0.19.0.
+Follow the *discipline* instead: derive the pins from the new wheel's own metadata, then freeze them.
+
+**1. Resolve, don't guess.** Create a minimal env and let `vllm==0.25.1` pull its own stack:
+
+```bash
+conda create -n vllm_env3 python=3.12 "pip>=24.0" "libstdcxx-ng>=12" -c conda-forge
+conda activate vllm_env3
+pip install vllm==0.25.1
+```
+
+**2. Read what it resolved** — these become the exact pins:
+
+```bash
+pip freeze | grep -iE "^(vllm|torch|torchvision|torchaudio|flashinfer)"
+
+# and what vLLM itself demands, which is where vllm_env2's pins came from:
+python -c "import importlib.metadata as m; print([r for r in m.requires('vllm') if any(k in r.lower() for k in ('torch','flashinfer'))])"
+```
+
+**3. Write `conda_envs/vllm_env3.yaml`** mirroring `vllm_env2.yaml`'s structure: `name: vllm_env3`,
+`conda-forge`, `python=3.12` / `pip>=24.0` / `libstdcxx-ng>=12`, then a `pip:` block with the torch family
+and `vllm` + `flashinfer` pinned `==` to the versions from step 2, plus `pandas` and `seaborn`. Pin
+flashinfer explicitly even though it is transitive — `vllm_env2`'s comment gives the reason: *"so an
+accidental later `pip install --upgrade` of flashinfer cannot silently break vLLM."* Update the header
+comment block to document the 0.25.1 stack, as that file documents 0.19.0's.
+
+**4. Prove the yaml reproduces the env** — the step that makes it real rather than aspirational:
+
+```bash
+conda env remove -n vllm_env3
+conda env create -f conda_envs/vllm_env3.yaml
+conda activate vllm_env3
+pip freeze > vllm-0.25.1-frozen-requirements.txt   # hand this to data engineering
+```
+
+Then run `vllm_env2.yaml`'s own verify snippet (versions of vllm/torch/torchvision/torchaudio/flashinfer,
+`from vllm import _custom_ops`, device count) — note `_custom_ops` and `device_count` need the GPU, so save
+those two for when the L40S is up.
+
+### Route B — nightly wheel (recorded; no longer necessary)
+
+Kept for anyone who already went this way before the v0.23.0 release was noticed. Note there is **no
+Docker in the AI Sandbox**, so the upstream recipe's pinned `vllm/vllm-openai:gemma4-unified` container is
+not an option either way.
 
 Per the project convention, add a **new env yaml** rather than installing ad hoc. Copy
 `conda_envs/vllm_env2.yaml` to `conda_envs/vllm_nightly_env.yaml` and change `name:` to `vllm_nightly`.
@@ -140,14 +197,53 @@ sets `VLLM_ATTENTION_BACKEND=FLASHINFER`; if the nightly's bundled FlashInfer di
 rather than forcing 0.6.6.
 
 To pin an exact commit instead of a moving nightly — strongly preferred for anything whose result you
-want to reproduce or report:
+want to reproduce or report.
+
+**Finding the commit.** It is already in the version string: `0.23.1rc1.dev1458+ge222c33f2` — the `+g` is
+git's marker, so the short commit is `e222c33f2`. The wheels index needs the full 40 characters; the
+GitHub API resolves abbreviated SHAs:
 
 ```bash
-export VLLM_COMMIT=<sha>
+curl -s https://api.github.com/repos/vllm-project/vllm/commits/e222c33f2 \
+  | python -c "import json,sys; print(json.load(sys.stdin)['sha'])"
+```
+
+No GitHub egress? Try the local install record first — if it was installed from a URL, the nightly URL
+embeds the full SHA (returns `None` when installed from an index):
+
+```bash
+python -c "import importlib.metadata as m; print(m.distribution('vllm').read_text('direct_url.json'))"
+```
+
+Last resort, a blobless clone, which is then offline-resolvable:
+`git clone --filter=blob:none --bare https://github.com/vllm-project/vllm.git && git -C vllm.git rev-parse e222c33f2`
+
+**Confirm the build is still on the index, then install:**
+
+```bash
+export VLLM_COMMIT=<full-40-char-sha>
+curl -sI "https://wheels.vllm.ai/${VLLM_COMMIT}/" | head -1   # expect 200
+
 uv pip install vllm --torch-backend=auto \
   --extra-index-url https://wheels.vllm.ai/${VLLM_COMMIT} \
   --python "$CONDA_PREFIX/bin/python"
 ```
+
+### ⚠️ A recorded SHA is provenance, not a guarantee
+
+Nightly wheels are not kept on `wheels.vllm.ai` indefinitely — old builds get pruned, so a pinned commit
+may stop being installable. If this env matters (and it does once a smoke result is reported), **archive
+the wheel itself** to the share:
+
+```bash
+uv cache dir
+find "$(uv cache dir)" -name "vllm-0.23*.whl" -exec ls -l {} \;
+# copy the result somewhere durable, e.g. /home/jovyan/nfs_share/models/wheels/
+```
+
+A local `.whl` plus the recorded torch version rebuilds the env regardless of upstream pruning. The
+cleaner long-term answer is still a **stable 0.23.x release** if one carries the architecture —
+reproducible by construction, and effectively required before this could run under KFP.
 
 **Plain-pip fallback, only if installing `uv` is blocked.** Requires the full wheel URL — package names
 do not work against the nightly index — plus installing torch separately from the correct index and
@@ -175,21 +271,11 @@ With no container fallback, these are the remaining options, cheapest first:
 Building vLLM from source is possible but is a multi-hour compile with its own CUDA toolchain
 requirements; treat it as out of scope for an evaluation.
 
-**Known-good build (verified on the sandbox 2026-07-28):**
+**Known-good nightly (verified on the sandbox 2026-07-28):** `vllm 0.23.1rc1.dev1458+ge222c33f2`, which
+registers `Gemma4UnifiedForConditionalGeneration`. This works, but it is superseded by Route A — a stable
+pin needs no SHA resolution and cannot be pruned from the index.
 
-```
-vllm 0.23.1rc1.dev1458+ge222c33f2
-```
-
-That build registers `Gemma4UnifiedForConditionalGeneration`. The short commit is `e222c33f2` — the
-`wheels.vllm.ai` index wants the full 40-char SHA, so resolve it against the vLLM repo if you need the
-pinned-commit form to rebuild this env.
-
-Since 0.23.x exists, **check whether a stable 0.23.x release already carries this architecture** before
-treating a nightly as permanent. A pinned stable release is far better for reproducibility, and is
-effectively a precondition for running this model under KFP.
-
-Verify the architecture is registered before going further:
+Verify the architecture is registered — do this whichever route you took:
 
 ```bash
 python -c "import vllm; print(vllm.__version__)"
