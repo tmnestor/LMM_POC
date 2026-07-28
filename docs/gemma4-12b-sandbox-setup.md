@@ -1,7 +1,15 @@
-# Sandbox setup: `google/gemma-4-12B-it` + nightly vLLM
+# Sandbox setup: Gemma 4 on vLLM (12B Unified + 31B W4A16)
 
-Operational runbook for making `gemma4-12b-unified-vllm` runnable on the sandbox. Two independent
-prerequisites: a **nightly vLLM engine** (the harder one) and the **~24 GB model download**.
+Operational runbook for making the two registered Gemma 4 models runnable on the sandbox:
+
+| Model type | Checkpoint | Size | Architecture |
+| --- | --- | --- | --- |
+| `gemma4-12b-unified-vllm` | `google/gemma-4-12B-it` | 23.9 GB | `gemma4_unified` (encoder-free) |
+| `gemma4-31b-w4a16-vllm` | `google/gemma-4-31B-it-qat-w4a16-ct` | 23.3 GB | `gemma4` (dense, compressed-tensors W4A16) |
+
+**Both run in the same `vllm_env3` env** (vLLM 0.25.1 registers both architectures and ships
+`compressed-tensors==0.17.0`), so the engine work below is done once and serves both. Budget **~47 GB**
+of share space for the pair.
 
 Target box: 1xL40S (~44-48 GiB). The model registration and config already exist on branch
 `feature/gemma4` — this document only covers getting the environment and weights in place.
@@ -13,12 +21,12 @@ preparation can all be done while waiting for a GPU allocation:
 | --- | --- | --- |
 | Part 2 — create `vllm_env3` (vllm 0.25.1) | ✅ | |
 | Part 2 — arch-registry check | ✅ (pure Python import) | |
-| Part 3 — download + `jq` verification | ✅ (network + disk) | |
+| Part 3 / 3b — downloads + verification | ✅ (network + disk) | |
 | Part 4 — `run_config.yml` edits | ✅ | |
 | Part 5 — engine load and smoke | | ✅ |
 
-The ~24 GB download is the long pole, so start it first — it costs nothing to run while an allocation is
-pending, and it takes the wait off the critical path.
+The downloads are the long pole (~47 GB for both models), so start them first — they cost nothing to run
+while an allocation is pending, and they take the wait off the critical path.
 
 ## Why a nightly engine is required
 
@@ -403,6 +411,55 @@ running — a mismatch means the override silently no-ops and the engine quietly
 
 ---
 
+## Part 3b — Download the 31B W4A16
+
+Also public and ungated, and it needs **no additional engine work** — `vllm_env3` already registers
+`Gemma4ForConditionalGeneration` and ships `compressed-tensors==0.17.0`. Same download pattern, but the
+**verification fields differ**: this is a different architecture, and checking the 12B's field names here
+would prove nothing.
+
+```bash
+df -h /home/jovyan/nfs_share/models    # ~23.3 GB more, on top of the 12B
+
+hf download google/gemma-4-31B-it-qat-w4a16-ct --dry-run
+hf download google/gemma-4-31B-it-qat-w4a16-ct \
+  --local-dir /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct
+```
+
+9 files, 23,297,522,074 bytes total, of which `model.safetensors` is 23,265,352,448.
+
+```bash
+cd /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct
+ls -l model.safetensors    # expect exactly 23265352448 bytes
+
+python -c "import json; c=json.load(open('config.json')); print('arch:', c['architectures'][0]); print('model_type:', c['model_type']); print('soft_tokens_top:', c.get('vision_soft_tokens_per_image')); print('default_output_length:', c['vision_config'].get('default_output_length')); print('quant:', c['quantization_config'].get('quant_method'), c['quantization_config'].get('format'))"
+```
+
+Expected:
+
+```
+arch: Gemma4ForConditionalGeneration
+model_type: gemma4
+soft_tokens_top: 280
+default_output_length: 280
+quant: compressed-tensors pack-quantized
+```
+
+**ALL VERIFIED on the sandbox 2026-07-28** — byte count exact, and every field as predicted:
+`Gemma4ForConditionalGeneration` / `gemma4` / `soft_tokens_top: 280` / `default_output_length: 280` /
+`quant: compressed-tensors pack-quantized`.
+
+Note the contrast with the 12B: this model **has** a top-level `vision_soft_tokens_per_image` and
+`vision_config.default_output_length`, and has **no** `vision_config.num_soft_tokens`. That is exactly why
+the two YAML blocks carry different `hf_overrides` keys, and why
+`test_no_cross_architecture_budget_fields` exists to stop them being copied between models.
+
+**Memory note:** 23.3 GB of weights at `gpu_memory_utilization: 0.85` leaves roughly 16 GB on the L40S for
+KV cache and vision activations. Activations are what OOM'd the BF16 31B at `max_soft_tokens=1120`
+(old-repo commit `a4b131d`), so treat the 560 → 1120 step as an experiment to watch, not a safe default.
+
+---
+
 ## Part 4 — Switch the pipeline to it
 
 In `config/run_config.yml`, three coupled edits:
@@ -425,6 +482,14 @@ diagnostic if you forget, so a missed edit is loud rather than silent.
 
 Everything else (`max_model_len`, `gpu_memory_utilization`, soft-token budget) is already set under
 `inference.vllm.models.gemma4-12b-unified-vllm`.
+
+**For the 31B instead**, the same three edits with its own values — `type: gemma4-31b-w4a16-vllm`,
+`path: /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct`, and `pre_tiling.enabled: false`. Its
+engine tuning lives under `inference.vllm.models.gemma4-31b-w4a16-vllm`, which differs from the 12B's
+(`max_model_len: 8192`, `gpu_memory_utilization: 0.85`, and the dense architecture's override field names).
+
+Only one model runs at a time — `bootstrap.model.type` selects it. Switching between the two Gemma models
+is a two-line edit; both use `vllm_env3`, so no environment change is needed.
 
 ---
 
