@@ -124,7 +124,14 @@ to vLLM 0.19.0 and would conflict. Its pins come from the `vllm==0.25.1` wheel m
 | torchvision | 0.25.0 | 0.26.0 |
 | torchaudio | 2.10.0 | 2.11.0 |
 | flashinfer-python / -cubin | 0.6.6 | 0.6.13 |
-| transformers | >=4.56 | **>=5.5.3** |
+| transformers | >=4.56 | **>=5.5.3** (resolved 5.14.1) |
+| CUDA runtime | 12.8 | **13.0** (`torch 2.11.0+cu130`) |
+
+**All pins confirmed against a real install on 2026-07-28** — every version resolved exactly as the yaml
+specifies. The one surprise was the CUDA runtime: torch 2.11.0's default PyPI wheel is **cu130**, a
+major-version jump from vllm_env2's 12.8. That is *not* covered by NVIDIA's minor-version compatibility
+policy, so this env needs a driver supporting CUDA 13.0. Driver 580 on the L4/L40S boxes is fine; the
+**prod A10G driver is unverified** — check `nvidia-smi` there before assuming this env can run in prod.
 
 **1. Create it:**
 

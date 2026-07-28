@@ -26,7 +26,14 @@
 #   torchaudio  2.11.0    /  same CUDA build or vLLM will fail to load
 #   flashinfer-python  0.6.13   (pinned ==, transitive from vLLM)
 #   flashinfer-cubin   0.6.13   (pinned ==, pre-compiled CUDA kernels)
-#   transformers       >=5.5.3  (resolved transitively -- see warning above)
+#   transformers       >=5.5.3  (resolved to 5.14.1 -- see warning above)
+#
+#   VERIFIED 2026-07-28: creating this env resolved every pin above exactly as
+#   specified (vllm 0.25.1, torch 2.11.0, torchvision 0.26.0, torchaudio 2.11.0,
+#   flashinfer-python/-cubin 0.6.13, transformers 5.14.1). Two further packages
+#   arrive transitively and are deliberately NOT pinned, being ordinary deps
+#   rather than version-sensitive ones: torchcodec 0.15.0, torch_c_dlpack_ext
+#   0.1.5.
 #   Python      3.12      (hard requirement -- prod runs 3.12; vLLM 0.25.1
 #                          supports >=3.10,<3.15, but the rest of LMM_POC
 #                          assumes 3.12 and models/registry.py uses PEP 695
@@ -45,15 +52,23 @@
 #   It does NOT fit an L4/A10G, so this model must not go down the
 #   data-parallel path (the registry marks it supports_data_parallel=False).
 #
-# CUDA
-#   Torch is installed from plain PyPI, whose default wheel bundles its own
-#   nvidia-*-cu12 runtime libs. Per NVIDIA's Minor Version Compatibility
-#   policy, CUDA 12.x code runs on the 12.x/13.0-capable driver on these
-#   boxes. Do NOT add --index-url here: data engineering policy forbids extra
-#   indexes (same rule as vllm_env2.yaml).
-#   AFTER FIRST INSTALL, record the actual runtime here:
+# CUDA  -- ⚠️ THIS IS A CUDA 13.0 BUILD, UNLIKE vllm_env2
+#   Confirmed on the sandbox 2026-07-28:
 #     python -c "import torch; print(torch.__version__, torch.version.cuda)"
-#     torch 2.11.0 cuda <fill-in>
+#     -> 2.11.0+cu130   13.0
+#
+#   torch 2.11.0's default PyPI wheel bundles the CUDA **13.0** runtime, where
+#   vllm_env2's torch 2.10.0 bundled 12.8. That is a major-version jump, not a
+#   minor one, so NVIDIA's Minor Version Compatibility policy does NOT cover
+#   it: this env requires a driver that supports CUDA 13.0.
+#     - L4 / L40S boxes: driver 580 supports CUDA 13.0 -> OK.
+#     - A10G (prod, 4x sm_86): driver version was TBD in vllm_env2.yaml and is
+#       NOT verified. CHECK `nvidia-smi` there before assuming this env can run
+#       in prod -- an older 12.x-only driver will fail to initialise CUDA.
+#   This does not affect vllm_env2, which stays on the 12.8 runtime.
+#
+#   Do NOT add --index-url here: data engineering policy forbids extra indexes
+#   (same rule as vllm_env2.yaml).
 #
 # Flash-Attention
 #   Deliberately NOT installed separately -- vLLM bundles its own flash-attn
@@ -118,9 +133,13 @@ dependencies:
 
 # ---------------------------------------------------------------------------
 # NOTE ON THESE PINS
-#   Derived from the published vllm==0.25.1 wheel metadata on PyPI, not yet
-#   confirmed against a real install. On first creation, run the VERIFY block
-#   above and reconcile: if pip resolves anything different, update this file
-#   to match what actually installed, then destroy and recreate the env from
-#   this file to prove it reproduces.
+#   Originally derived from the published vllm==0.25.1 wheel metadata on PyPI,
+#   then CONFIRMED against a real install on the sandbox (2026-07-28): every
+#   pin resolved exactly as written. The only correction needed was the CUDA
+#   runtime, which is 13.0 rather than the 12.x assumed -- see the CUDA block.
+#
+#   Still outstanding: prove reproduction by destroying and recreating the env
+#   from this file (`conda env remove -n vllm_env3` then `conda env create -f`),
+#   and confirm Gemma4UnifiedForConditionalGeneration is registered via the
+#   VERIFY block. The arch check runs on a CPU-only node.
 # ---------------------------------------------------------------------------
