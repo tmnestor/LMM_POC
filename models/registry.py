@@ -129,8 +129,11 @@ register_vllm_model(
 
 # -- Gemma 4 ---------------------------------------------------------------------
 # Google's own QAT W4A16 checkpoint (compressed-tensors), which vLLM loads
-# natively — ~18 GB, so it fits a single L40S with room for KV cache AND the
-# vision-encoder activations that OOM'd the BF16 31B at max_soft_tokens=1120.
+# natively — 23.3 GB on disk (NOT the ~18 GB a naive 4-bit estimate suggests;
+# the vision embedder is excluded from quantisation). Fits a single L40S, but
+# at gpu_memory_utilization 0.85 that leaves ~16 GB for KV cache AND vision
+# activations — and activations are what OOM'd the BF16 31B at
+# max_soft_tokens=1120, so raising the budget still needs care.
 # Engine tuning (soft-token budget, max_model_len, gpu_memory_utilization) lives
 # in run_config.yml under inference.vllm.models — only capabilities are here.
 # Registered as an ALTERNATIVE for A/B against InternVL3.5; not the default.
