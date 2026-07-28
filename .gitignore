@@ -45,7 +45,7 @@ env/
 *.pt
 
 # Output directories
-# output/
+output/
 results/
 /logs/
 !output/logs/
