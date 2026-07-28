@@ -6,6 +6,20 @@ prerequisites: a **nightly vLLM engine** (the harder one) and the **~24 GB model
 Target box: 1xL40S (~44-48 GiB). The model registration and config already exist on branch
 `feature/gemma4` — this document only covers getting the environment and weights in place.
 
+**Most of this runs on a CPU-only node.** Only the engine load and the smoke need the GPU, so the
+preparation can all be done while waiting for a GPU allocation:
+
+| Step | CPU-only node | Needs the L40S |
+| --- | --- | --- |
+| Part 2 — nightly vLLM install | ✅ | |
+| Part 2 — arch-registry check | ✅ (pure Python import) | |
+| Part 3 — download + `jq` verification | ✅ (network + disk) | |
+| Part 4 — `run_config.yml` edits | ✅ | |
+| Part 5 — engine load and smoke | | ✅ |
+
+The ~24 GB download is the long pole, so start it first — it costs nothing to run while an allocation is
+pending, and it takes the wait off the critical path.
+
 ## Why a nightly engine is required
 
 `google/gemma-4-12B-it` is the *Unified* variant: `model_type: gemma4_unified`, architecture
@@ -97,11 +111,27 @@ and `flashinfer*` lines from the copy and let the nightly resolve them:
 ```bash
 conda env create -f conda_envs/vllm_nightly_env.yaml
 conda activate vllm_nightly
-
-# --torch-backend=auto lets the wheel pick its own matching torch build
-uv pip install -U vllm --torch-backend=auto \
-  --extra-index-url https://wheels.vllm.ai/nightly
 ```
+
+**`uv` is required and is NOT installed on the sandbox.** This is not a style preference — vLLM's docs
+state that installing from the nightly index with plain `pip` is *"not supported, because pip combines
+packages from `--extra-index-url` and the default index, choosing only the latest version"*, and
+`--torch-backend=auto` (which detects the CUDA driver and picks the matching torch wheel) is a uv-only
+flag with no pip equivalent. Install uv into the env — an ordinary pip package, no root needed:
+
+```bash
+pip install uv
+
+# --torch-backend=auto lets the wheel pick its own matching torch build.
+# --python is belt-and-braces: uv is venv-oriented and can refuse to act on a
+# conda env, or resolve to the wrong interpreter.
+uv pip install -U vllm --torch-backend=auto \
+  --extra-index-url https://wheels.vllm.ai/nightly \
+  --python "$CONDA_PREFIX/bin/python"
+```
+
+If PyPI is unreachable, the standalone installer is
+`curl -LsSf https://astral.sh/uv/install.sh | sh` (installs to `~/.local/bin`).
 
 CUDA compatibility is not expected to be a problem: the current stack already runs **cu129** wheels
 (0.19.0's default build), which is also what the nightly defaults to, and per NVIDIA's minor-version
@@ -115,8 +145,19 @@ want to reproduce or report:
 ```bash
 export VLLM_COMMIT=<sha>
 uv pip install vllm --torch-backend=auto \
-  --extra-index-url https://wheels.vllm.ai/${VLLM_COMMIT}
+  --extra-index-url https://wheels.vllm.ai/${VLLM_COMMIT} \
+  --python "$CONDA_PREFIX/bin/python"
 ```
+
+**Plain-pip fallback, only if installing `uv` is blocked.** Requires the full wheel URL — package names
+do not work against the nightly index — plus installing torch separately from the correct index and
+resolving the rest by hand:
+
+```bash
+pip install -U https://wheels.vllm.ai/<commit>/vllm-<version>+g<hash>-cp38-abi3-manylinux_2_28_x86_64.whl
+```
+
+The filename changes every build, so this is fiddly and hard to reproduce. Prefer `pip install uv`.
 
 ### If the nightly will not resolve
 
@@ -134,6 +175,20 @@ With no container fallback, these are the remaining options, cheapest first:
 Building vLLM from source is possible but is a multi-hour compile with its own CUDA toolchain
 requirements; treat it as out of scope for an evaluation.
 
+**Known-good build (verified on the sandbox 2026-07-28):**
+
+```
+vllm 0.23.1rc1.dev1458+ge222c33f2
+```
+
+That build registers `Gemma4UnifiedForConditionalGeneration`. The short commit is `e222c33f2` — the
+`wheels.vllm.ai` index wants the full 40-char SHA, so resolve it against the vLLM repo if you need the
+pinned-commit form to rebuild this env.
+
+Since 0.23.x exists, **check whether a stable 0.23.x release already carries this architecture** before
+treating a nightly as permanent. A pinned stable release is far better for reproducibility, and is
+effectively a precondition for running this model under KFP.
+
 Verify the architecture is registered before going further:
 
 ```bash
@@ -144,6 +199,26 @@ print([a for a in R.get_supported_archs() if 'emma' in a])"
 
 `Gemma4UnifiedForConditionalGeneration` must appear in that list. If it does not, the wheel predates the
 PR and nothing downstream will work.
+
+**A Triton warning during this check is expected on a CPU-only node and can be ignored:**
+
+```
+Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton
+```
+
+It just means the process saw no GPU driver. The arch check is a pure Python import, so it is valid
+regardless — this is exactly why Part 2 can be completed before a GPU allocation arrives.
+
+Before the Part 5 smoke (not before the download), confirm the GPU is actually visible:
+
+```bash
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.device_count())"
+```
+
+`False 0` means no GPU in this session. Note the engine will get as far as vLLM's init and fail there —
+the loader resolves tensor-parallel size from `nvidia-smi` and falls back to 1, so a CPU-node attempt
+does not fail on GPU *counting*. Don't read that failure as a problem with the model or the config.
 
 ---
 
@@ -253,6 +328,9 @@ Confirm from the logs:
 |---|---|
 | Unknown/unsupported architecture at engine load | vLLM predates PR #44429 — Part 2 not done, or running in `vllm_env2` (0.19.0) instead of the nightly env |
 | `ImportError` / undefined symbol after pip install | torch/flashinfer pins carried over from the 0.19.0 yaml — remove them and let the nightly resolve |
+| `bash: uv: command not found` | `uv` is not on the sandbox — `pip install uv` into the nightly env first (see Part 2) |
+| uv installs into the wrong place, or refuses to run | Pass `--python "$CONDA_PREFIX/bin/python"` so it targets the active conda env |
+| Nightly install "succeeds" but vLLM is still 0.19.0 | pip was used against the nightly index — it silently prefers the default index's latest release. Use uv |
 | Loads but behaves as if budget is 280 | `hf_overrides` not landing; re-check the Part 3 `jq` output |
 | Silently reads only part of the page | `pre_tiling.enabled` still true, or `limit_mm_per_prompt` > 1 |
 | `<think>` blocks in output | Thinking is opt-in on this model via a `<\|think\|>` token in the system prompt; check nothing is injecting a system prompt |
