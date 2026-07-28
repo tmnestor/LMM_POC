@@ -138,8 +138,13 @@ dependencies:
 #   pin resolved exactly as written. The only correction needed was the CUDA
 #   runtime, which is 13.0 rather than the 12.x assumed -- see the CUDA block.
 #
+#   ARCH CHECK PASSED on the sandbox 2026-07-28 (CPU-only node):
+#     ['Gemma4ForCausalLM', 'Gemma4ForConditionalGeneration',
+#      'Gemma4UnifiedForConditionalGeneration', 'Gemma4MTPModel']
+#   So the stable 0.25.1 build carries the arch on this machine -- confirmed
+#   empirically, not just read from the release source. No nightly is needed,
+#   and vllm_nightly_env can be deleted.
+#
 #   Still outstanding: prove reproduction by destroying and recreating the env
-#   from this file (`conda env remove -n vllm_env3` then `conda env create -f`),
-#   and confirm Gemma4UnifiedForConditionalGeneration is registered via the
-#   VERIFY block. The arch check runs on a CPU-only node.
+#   from this file (`conda env remove -n vllm_env3` then `conda env create -f`).
 # ---------------------------------------------------------------------------

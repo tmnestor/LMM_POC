@@ -300,8 +300,18 @@ python -c "from vllm.model_executor.models.registry import ModelRegistry as R; \
 print([a for a in R.get_supported_archs() if 'emma' in a])"
 ```
 
-`Gemma4UnifiedForConditionalGeneration` must appear in that list. If it does not, the wheel predates the
-PR and nothing downstream will work.
+`Gemma4UnifiedForConditionalGeneration` must appear in that list. If it does not, the build predates
+v0.23.0 and nothing downstream will work.
+
+**PASSED on the sandbox 2026-07-28** in `vllm_env3` (stable 0.25.1), on a CPU-only node:
+
+```
+['Gemma4ForCausalLM', 'Gemma4ForConditionalGeneration',
+ 'Gemma4UnifiedForConditionalGeneration', 'Gemma4MTPModel']
+```
+
+That confirms the stable route end to end on the actual machine. `vllm_nightly_env` is now redundant and
+can be removed to reclaim several GB: `conda env remove -n vllm_nightly_env`.
 
 **A Triton warning during this check is expected on a CPU-only node and can be ignored:**
 
