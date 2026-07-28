@@ -184,7 +184,7 @@ register_vllm_model(
     VllmSpec(
         model_type="gemma4-12b-unified-vllm",
         prompt_file="internvl3_prompts.yaml",
-        description="Gemma 4 12B-it Unified (encoder-free) via vLLM — NIGHTLY vLLM required",
+        description="Gemma 4 12B-it Unified (encoder-free) via vLLM — needs vLLM >= 0.23.0",
         chat_template_kwargs={"enable_thinking": False},
         supports_pre_tiling=False,
         supports_data_parallel=False,

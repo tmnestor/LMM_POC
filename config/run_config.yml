@@ -10,9 +10,15 @@
 bootstrap:
   # Model — InternVL3.5 via vLLM (we run the 8B). Registered types:
   # internvl3-vllm (8B, default), internvl3-14b-vllm, internvl3-38b-vllm,
-  # gemma4-31b-w4a16-vllm and gemma4-12b-unified-vllm (A/B alternatives, 1xL40S
-  # only — see the notes below; the 12B additionally needs a NIGHTLY vLLM).
+  # gemma4-31b-w4a16-vllm and gemma4-12b-unified-vllm (A/B alternatives, 1xL40S).
   # Switch type + path together.
+  #
+  # ENV MATTERS: both gemma4-* types need vLLM >= 0.23.0, so they run in
+  # `vllm_env3` (conda_envs/vllm_env3.yaml, vllm==0.25.1) — NOT `vllm_env2`,
+  # which pins vllm==0.19.0 and lacks Gemma4UnifiedForConditionalGeneration.
+  # Keep InternVL in vllm_env2: vllm_env3 pulls transformers 5.x, and
+  # ensure_corrected_tokenizer()'s fix_mistral_regex path is unverified there.
+  # Setup runbook: docs/gemma4-12b-sandbox-setup.md.
   #
   # Switching to EITHER gemma4-* type ALSO requires setting
   # inference.tiling.pre_tiling.enabled: false — Gemma sizes images via its own
@@ -177,8 +183,8 @@ inference:
             default_output_length: 560
       # Gemma 4 12B-it "Unified" (encoder-free, model_type gemma4_unified) on
       # 1xL40S, tp=1. ~24 GB BF16 — fits unquantised on a 40 GB+ card.
-      # REQUIRES A NIGHTLY vLLM (support landed in vllm-project/vllm#44429, not in
-      # any stable release <= 0.22.1). Confirm the engine build before running.
+      # Needs vLLM >= 0.23.0 (support landed in vllm-project/vllm#44429, released
+      # in STABLE v0.23.0 on 2026-06-15) — run it in vllm_env3 (vllm==0.25.1).
       # Budget note: this variant's own default is 280 soft tokens; 560 is set
       # here to match the 31B block so the A/B compares like with like.
       gemma4-12b-unified-vllm:
