@@ -11,7 +11,7 @@ preparation can all be done while waiting for a GPU allocation:
 
 | Step | CPU-only node | Needs the L40S |
 | --- | --- | --- |
-| Part 2 — nightly vLLM install | ✅ | |
+| Part 2 — create `vllm_env3` (vllm 0.25.1) | ✅ | |
 | Part 2 — arch-registry check | ✅ (pure Python import) | |
 | Part 3 — download + `jq` verification | ✅ (network + disk) | |
 | Part 4 — `run_config.yml` edits | ✅ | |
@@ -65,7 +65,8 @@ current stack.
 Nothing below is destructive; run it before deciding which route to take.
 
 ```bash
-# Confirm the installed engine matches the pin (expect 0.19.0)
+# Confirm the production env still matches its pin (expect 0.19.0) — this env
+# CANNOT run the 12B; it is checked only to confirm it has not drifted.
 conda activate vllm_env2
 python -c "import vllm; print(vllm.__version__)"
 
@@ -112,34 +113,40 @@ keeps us inside the constraint `conda_envs/vllm_env2.yaml` records: *"Do not add
 engineering policy forbids extra indexes."* The nightly route violates that policy by construction, which
 is a second reason to prefer this one.
 
-**Do NOT copy `vllm_env2.yaml`'s pins.** `torch==2.10.0` / `flashinfer==0.6.6` are matched to vLLM 0.19.0.
-Follow the *discipline* instead: derive the pins from the new wheel's own metadata, then freeze them.
+**The env file already exists: `conda_envs/vllm_env3.yaml`** (`name: vllm_env3`). It follows
+`vllm_env2.yaml`'s discipline without copying its pins — `torch==2.10.0` / `flashinfer==0.6.6` are matched
+to vLLM 0.19.0 and would conflict. Its pins come from the `vllm==0.25.1` wheel metadata:
 
-**1. Resolve, don't guess.** Create a minimal env and let `vllm==0.25.1` pull its own stack:
+| Package | vllm_env2 (0.19.0) | vllm_env3 (0.25.1) |
+| --- | --- | --- |
+| vllm | 0.19.0 | 0.25.1 |
+| torch | 2.10.0 | 2.11.0 |
+| torchvision | 0.25.0 | 0.26.0 |
+| torchaudio | 2.10.0 | 2.11.0 |
+| flashinfer-python / -cubin | 0.6.6 | 0.6.13 |
+| transformers | >=4.56 | **>=5.5.3** |
+
+**1. Create it:**
 
 ```bash
-conda create -n vllm_env3 python=3.12 "pip>=24.0" "libstdcxx-ng>=12" -c conda-forge
+conda env create -f conda_envs/vllm_env3.yaml
 conda activate vllm_env3
-pip install vllm==0.25.1
 ```
 
-**2. Read what it resolved** — these become the exact pins:
+**2. Verify, and reconcile the pins against reality.** The yaml's pins are derived from published metadata,
+not yet from a real install — so confirm what pip actually resolved:
 
 ```bash
-pip freeze | grep -iE "^(vllm|torch|torchvision|torchaudio|flashinfer)"
-
-# and what vLLM itself demands, which is where vllm_env2's pins came from:
-python -c "import importlib.metadata as m; print([r for r in m.requires('vllm') if any(k in r.lower() for k in ('torch','flashinfer'))])"
+pip freeze | grep -iE "^(vllm|torch|torchvision|torchaudio|flashinfer|transformers)"
+python -c "import torch; print(torch.__version__, torch.version.cuda)"
 ```
 
-**3. Write `conda_envs/vllm_env3.yaml`** mirroring `vllm_env2.yaml`'s structure: `name: vllm_env3`,
-`conda-forge`, `python=3.12` / `pip>=24.0` / `libstdcxx-ng>=12`, then a `pip:` block with the torch family
-and `vllm` + `flashinfer` pinned `==` to the versions from step 2, plus `pandas` and `seaborn`. Pin
-flashinfer explicitly even though it is transitive — `vllm_env2`'s comment gives the reason: *"so an
-accidental later `pip install --upgrade` of flashinfer cannot silently break vLLM."* Update the header
-comment block to document the 0.25.1 stack, as that file documents 0.19.0's.
+If anything differs from the table above, **edit `conda_envs/vllm_env3.yaml` to match what installed**, and
+fill in the CUDA runtime version in its header where marked. Then run the file's VERIFY block — the arch
+check works on a CPU-only node; `_custom_ops` and `device_count` need the GPU.
 
-**4. Prove the yaml reproduces the env** — the step that makes it real rather than aspirational:
+**3. Prove the yaml reproduces the env** — the step that makes it a reproducible artifact rather than a
+hopeful description:
 
 ```bash
 conda env remove -n vllm_env3
@@ -148,9 +155,12 @@ conda activate vllm_env3
 pip freeze > vllm-0.25.1-frozen-requirements.txt   # hand this to data engineering
 ```
 
-Then run `vllm_env2.yaml`'s own verify snippet (versions of vllm/torch/torchvision/torchaudio/flashinfer,
-`from vllm import _custom_ops`, device count) — note `_custom_ops` and `device_count` need the GPU, so save
-those two for when the L40S is up.
+### ⚠️ vllm_env3 is for Gemma 4 only
+
+vLLM 0.25.1 requires **transformers>=5.5.3** — a major-version jump from the `>=4.56` that `vllm_env2`'s
+stack was validated against. `ensure_corrected_tokenizer()` calls
+`AutoTokenizer(..., fix_mistral_regex=True)` for InternVL, and that API surface is not verified on
+transformers 5.x. Run InternVL in `vllm_env2`, Gemma in `vllm_env3`, and don't cross them.
 
 ### Route B — nightly wheel (recorded; no longer necessary)
 

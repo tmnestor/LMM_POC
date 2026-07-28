@@ -1,0 +1,126 @@
+# ---------------------------------------------------------------------------
+# Conda environment for vLLM 0.25.1 -- Gemma 4 evaluation ONLY
+# ---------------------------------------------------------------------------
+# WHY THIS ENV EXISTS
+#   google/gemma-4-12B-it is the encoder-free "Unified" variant
+#   (model_type gemma4_unified / Gemma4UnifiedForConditionalGeneration).
+#   Support shipped in vLLM 0.23.0 (2026-06-15, PR #44429), so it CANNOT load
+#   on vllm_env2's pinned vllm==0.19.0. This env provides a >= 0.23.0 engine
+#   WITHOUT touching vllm_env2, whose exact pins back the validated
+#   InternVL3.5-8B production path (91.8% linking baseline).
+#
+#   Registered model type: gemma4-12b-unified-vllm
+#   Setup runbook:         docs/gemma4-12b-sandbox-setup.md
+#
+# ⚠️  DO NOT RUN THE INTERNVL PRODUCTION PATH IN THIS ENV.
+#   vLLM 0.25.1 requires transformers>=5.5.3, a MAJOR version jump from the
+#   >=4.56 that vllm_env2's stack was validated against. common/model_loader
+#   ensure_corrected_tokenizer() calls AutoTokenizer(..., fix_mistral_regex=True)
+#   for InternVL, and that API surface is not verified on transformers 5.x.
+#   Use vllm_env2 for InternVL, this env for Gemma 4 only.
+#
+# TARGET STACK (all exact pins taken from the vLLM 0.25.1 wheel METADATA):
+#   vLLM        0.25.1
+#   torch       2.11.0    \
+#   torchvision 0.26.0    |  exact == pins; must install together from the
+#   torchaudio  2.11.0    /  same CUDA build or vLLM will fail to load
+#   flashinfer-python  0.6.13   (pinned ==, transitive from vLLM)
+#   flashinfer-cubin   0.6.13   (pinned ==, pre-compiled CUDA kernels)
+#   transformers       >=5.5.3  (resolved transitively -- see warning above)
+#   Python      3.12      (hard requirement -- prod runs 3.12; vLLM 0.25.1
+#                          supports >=3.10,<3.15, but the rest of LMM_POC
+#                          assumes 3.12 and models/registry.py uses PEP 695
+#                          `type` statements which need 3.12+)
+#
+# VERSION CHOICE
+#   0.23.0 is the MINIMUM release carrying Gemma4UnifiedForConditionalGeneration.
+#   0.25.1 (2026-07-14) is chosen: arch verified present, plus several releases
+#   of Gemma 4 accuracy/startup fixes past 0.23.0. 0.26.0 (2026-07-27) is the
+#   latest stable but was a day old at the time of writing.
+#
+# HARDWARE
+#   Sandbox: 1x NVIDIA L40S (Ada sm_89, ~44-48 GB)
+#   Also present: 4x L4 (Ada sm_89, 23 GB), 4x A10G (Ampere sm_86, 24 GB)
+#   gemma-4-12B-it is ~24 GB BF16 -> fits the L40S unquantised at tp=1.
+#   It does NOT fit an L4/A10G, so this model must not go down the
+#   data-parallel path (the registry marks it supports_data_parallel=False).
+#
+# CUDA
+#   Torch is installed from plain PyPI, whose default wheel bundles its own
+#   nvidia-*-cu12 runtime libs. Per NVIDIA's Minor Version Compatibility
+#   policy, CUDA 12.x code runs on the 12.x/13.0-capable driver on these
+#   boxes. Do NOT add --index-url here: data engineering policy forbids extra
+#   indexes (same rule as vllm_env2.yaml).
+#   AFTER FIRST INSTALL, record the actual runtime here:
+#     python -c "import torch; print(torch.__version__, torch.version.cuda)"
+#     torch 2.11.0 cuda <fill-in>
+#
+# Flash-Attention
+#   Deliberately NOT installed separately -- vLLM bundles its own flash-attn
+#   kernels and FlashInfer is the default/recommended attention backend.
+#
+# Changes from vllm_env2.yaml (0.19.0):
+#   - vllm        0.19.0 -> 0.25.1
+#   - torch       2.10.0 -> 2.11.0 (torchvision 0.25.0 -> 0.26.0,
+#                                   torchaudio  2.10.0 -> 2.11.0)
+#   - flashinfer  0.6.6  -> 0.6.13 (both -python and -cubin)
+#   - transformers >=4.56 -> >=5.5.3  (MAJOR bump; see the warning above)
+#
+# USAGE
+#   conda env create -f conda_envs/vllm_env3.yaml
+#   conda activate vllm_env3
+#   pip freeze > vllm-0.25.1-frozen-requirements.txt   # <-- give this to
+#                                                      #     data engineering
+#
+# VERIFY (the last two lines need a GPU; the rest work on a CPU-only node)
+#   python -c "
+#   import vllm, torch, torchvision, torchaudio, flashinfer
+#   print('vllm       ', vllm.__version__)
+#   print('torch      ', torch.__version__, 'cuda', torch.version.cuda)
+#   print('torchvision', torchvision.__version__)
+#   print('torchaudio ', torchaudio.__version__)
+#   print('flashinfer ', flashinfer.__version__)
+#   from vllm.model_executor.models.registry import ModelRegistry as R
+#   print('gemma4 archs:', [a for a in R.get_supported_archs() if 'emma4' in a])
+#   from vllm import _custom_ops
+#   print('custom ops loaded OK')
+#   print('devices:', torch.cuda.device_count())
+#   "
+#   Gemma4UnifiedForConditionalGeneration MUST appear in the arch list.
+# ---------------------------------------------------------------------------
+
+name: vllm_env3
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip>=24.0
+  - libstdcxx-ng>=12      # provides CXXABI_1.3.15+ for ICU/sqlite3
+
+  - pip:
+      # Torch family -- installed from plain PyPI, versions taken verbatim
+      # from the vllm==0.25.1 wheel METADATA. Do not add --index-url here;
+      # data engineering policy forbids extra indexes.
+      - torch==2.11.0
+      - torchvision==0.26.0
+      - torchaudio==2.11.0
+
+      # vLLM and its two most version-sensitive hard deps. Listed explicitly
+      # (even though transitive) so an accidental later
+      # `pip install --upgrade` of flashinfer cannot silently break vLLM.
+      - vllm==0.25.1
+      - flashinfer-python==0.6.13
+      - flashinfer-cubin==0.6.13
+
+      # Analysis / visualization -- not vllm deps, needed for our pipeline
+      - pandas
+      - seaborn
+
+# ---------------------------------------------------------------------------
+# NOTE ON THESE PINS
+#   Derived from the published vllm==0.25.1 wheel metadata on PyPI, not yet
+#   confirmed against a real install. On first creation, run the VERIFY block
+#   above and reconcile: if pip resolves anything different, update this file
+#   to match what actually installed, then destroy and recreate the env from
+#   this file to prove it reproduces.
+# ---------------------------------------------------------------------------
