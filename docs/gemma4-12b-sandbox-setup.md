@@ -262,15 +262,25 @@ rsync -av --progress ./gemma-4-12B-it/ <box>:/home/jovyan/nfs_share/models/gemma
 ### Verify the download
 
 A truncated `model.safetensors` is the most likely silent problem — the byte count is the check.
-(`jq` is installed on the box.)
+
+**`jq` is NOT installed on the AI Sandbox** (it is present on the remote GPU/cluster box; don't assume it
+here). Use python, which is always available inside the conda env:
 
 ```bash
 cd /home/jovyan/nfs_share/models/gemma-4-12B-it
 
-ls -l model.safetensors                              # expect exactly 23919549408 bytes
-jq -r '.architectures[0], .model_type' config.json   # Gemma4UnifiedForConditionalGeneration / gemma4_unified
-jq '.vision_config.num_soft_tokens' config.json      # expect 280 — the budget knob we override
-jq 'has("vision_soft_tokens_per_image")' config.json # expect false (that field belongs to the 31B)
+ls -l model.safetensors    # expect exactly 23919549408 bytes
+
+python -c "import json; c=json.load(open('config.json')); print('arch:', c['architectures'][0]); print('model_type:', c['model_type']); print('num_soft_tokens:', c['vision_config'].get('num_soft_tokens')); print('has vision_soft_tokens_per_image:', 'vision_soft_tokens_per_image' in c)"
+```
+
+Expected:
+
+```
+arch: Gemma4UnifiedForConditionalGeneration
+model_type: gemma4_unified
+num_soft_tokens: 280
+has vision_soft_tokens_per_image: False
 ```
 
 The last two matter: this model's soft-token budget lives at `vision_config.num_soft_tokens`, **not** the
