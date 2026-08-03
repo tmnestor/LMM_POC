@@ -73,7 +73,8 @@ DOC_TYPE_SUFFIX = {
 }
 
 # Generator field name -> canonical schema field name (only where they differ).
-# Mirrors ``_FIELD_ALIASES`` in scripts/generate_extraction_gt.py.
+# Mirrors ``_FIELD_ALIASES`` in Synthetic_Doc_Generation's
+# scripts/generate_extraction_gt.py. Keep in sync across the two repos.
 FIELD_ALIASES = {
     "TRANSACTION_DESCRIPTIONS": "LINE_ITEM_DESCRIPTIONS",  # bank statements
 }

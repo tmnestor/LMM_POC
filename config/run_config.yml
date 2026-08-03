@@ -164,7 +164,12 @@ pipeline:
       # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
       dir: ../evaluation_data/synthetic_transaction_linking
       # Extraction GT generated from the per-type YAMLs in
-      # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
+      # Synthetic_Doc_Generation/ground_truth by that repo's
+      # scripts/generate_extraction_gt.py --schema <this repo>/config/field_definitions.yaml
+      # (the generator lives there because it reads that repo's ground truth).
+      # WARNING: those YAMLs describe a DIFFERENT corpus from the CSV and images
+      # in ../evaluation_data — regenerating over this path replaces the eval set.
+      # Patch the CSV in place instead, and back it up first.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
       ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
       max_images: null       # null = process all images
