@@ -191,3 +191,33 @@ register_vllm_model(
         default_image_first=True,
     )
 )
+
+# Gemma 4 12B Unified, Google's QAT W4A16 (compressed-tensors) — the SAME
+# architecture as the BF16 12B above (Gemma4UnifiedForConditionalGeneration /
+# gemma4_unified), verified 2026-08-11 against this checkpoint's own config.json,
+# so the spec and the hf_overrides field name are identical. Only weights differ.
+#
+# 10,264,229,896 bytes (9.56 GiB) — NOT the ~6 GB a naive 4-bit estimate gives:
+# the quantisation ignore list excludes the vision embedder, the patch dense
+# layers and lm_head, the same effect that made the 31B 23.3 GB, not ~18 GB.
+#
+# THIS is the registration that unlocks 2xL4. At 9.56 GiB of ~22.5 GiB per card
+# one WHOLE engine fits per GPU, so supports_data_parallel is True and run_dp
+# spawns one engine per L4 (tp=1 each) rather than sharding a single engine tp=2
+# across PCIe (L4 has no NVLink). The DP path also uses no NCCL and no /dev/shm
+# (see common/vllm_dp.py), so it sidesteps the tensor-parallel SHM deadlock
+# recorded at the top of entrypoint.sh entirely.
+#
+# Same vLLM >= 0.23.0 floor as the BF16 12B — run it in vllm_env3.
+register_vllm_model(
+    VllmSpec(
+        model_type="gemma4-12b-unified-w4a16-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="Gemma 4 12B-it Unified QAT W4A16 via vLLM (9.56 GiB, 2xL4 DP=2/tp=1)",
+        chat_template_kwargs={"enable_thinking": False},
+        supports_pre_tiling=False,
+        # The one capability that differs from the BF16 12B above.
+        supports_data_parallel=True,
+        default_image_first=True,
+    )
+)
