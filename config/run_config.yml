@@ -241,11 +241,16 @@ inference:
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
-  # linking fallback) appends one JSONL line {image_name, pipeline, label, prompt,
-  # raw_response, tokens} via the shared VllmBackend seam.
+  # linking fallback) appends one JSONL line via the shared VllmBackend seam.
+  # The keys are, EXACTLY (see common/prompt_trace.py:record):
+  #   image_name, pipeline, label, model, prompt, raw_response,
+  #   prompt_tokens, completion_tokens
+  # NOTE there is no `tokens` key — the counts are the two separate
+  # prompt_tokens / completion_tokens fields. An earlier version of this comment
+  # said `tokens`, which sends anyone reading it here to write `r.get("tokens")`
+  # and silently get None for every line.
   tracing:
-    # raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
-    raw_prompts: true    # TEMPORARY 2026-08-11: diagnosing Gemma 4 classify -> UNIVERSAL
+    raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
     path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
 # Pipeline configuration — per-task settings grouped together: information
@@ -287,8 +292,7 @@ pipeline:
       # (common/evaluation_metrics.py) and the evaluator runs in _jsonl_mode,
       # scoring exactly the fields each GT record carries.
       ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
-      # max_images: null       # null = process all images
-      max_images: 3          # TEMPORARY 2026-08-11: 3 images is enough to read the raw reply
+      max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
     output:
