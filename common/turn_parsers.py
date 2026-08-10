@@ -420,6 +420,15 @@ class ClassificationParser:
     # A structured, pipe-delimited header line (>= 2 pipes), e.g.
     # "Date | Description | Debit | Credit | Balance".
     _MIN_PIPES = 2
+    # Positional (label-free) answers to the prompt's four numbered questions.
+    # Restricted to 1-4 so a longer numbered list cannot be harvested; "10." does
+    # not match because the character after the digit must be "." or ")".
+    _POSITIONAL_RE = re.compile(r"^\s*([1-4])\s*[.)]\s*(.+?)\s*$", re.MULTILINE)
+    # Answers 2 and 4 must be EXACTLY yes/no — this is the guard that stops
+    # ordinary numbered prose being read as evidence.
+    _YESNO_ONLY_RE = re.compile(r"^(YES|NO)$", re.IGNORECASE)
+    # Answer 3 must start with an integer ("33", "5 line items"), never prose.
+    _LEADING_INT_RE = re.compile(r"^(\d+)\b")
 
     def __init__(self, fallback_type: str = "UNIVERSAL") -> None:
         self._fallback_type = fallback_type
@@ -460,6 +469,52 @@ class ClassificationParser:
                 return self._header_parser._parse_headers(line.strip())
         return []
 
+    def _parse_positional(self, text: str) -> tuple[str, bool, int, bool] | None:
+        """Parse label-free answers to the prompt's four NUMBERED questions.
+
+        The detection prompt asks "1. COLUMNS: ... 2. PAID: ... 3. ROWS: ...
+        4. TRAVEL: ..." but never instructs the model to repeat the label.
+        InternVL3.5 echoes it; Gemma 4 answers positionally::
+
+            1. Date | Description | Withdrawal | Deposit | Balance
+            2. YES
+            3. 33
+            4. NO
+
+        Deliberately strict, because a numbered list is a shape prose can
+        accidentally take: all four numbers must be present, answers 2 and 4
+        must be exactly YES/NO, and answer 3 must start with an integer. Any
+        deviation returns None so the caller defers to legacy keyword matching
+        rather than inventing evidence — the same conservatism that stops
+        ``_recover_pipe_headers`` harvesting prose.
+
+        Returns:
+            ``(columns_inline, paid, row_count, travel)``, or None if the text
+            is not an unambiguous positional answer.
+        """
+        answers: dict[int, str] = {}
+        for match in self._POSITIONAL_RE.finditer(text):
+            index = int(match.group(1))
+            # First occurrence wins: a model that restates its answers cannot
+            # have the later copy override the first.
+            if index not in answers:
+                answers[index] = self._clean_value(match.group(2))
+
+        if set(answers) != {1, 2, 3, 4}:
+            return None
+        if not self._YESNO_ONLY_RE.match(answers[2]) or not self._YESNO_ONLY_RE.match(answers[4]):
+            return None
+        rows_match = self._LEADING_INT_RE.match(answers[3])
+        if rows_match is None:
+            return None
+
+        return (
+            answers[1],
+            answers[2].upper() == "YES",
+            int(rows_match.group(1)),
+            answers[4].upper() == "YES",
+        )
+
     def _recover_travel_flag(self, text: str) -> bool:
         """Recover the TRAVEL YES/NO answer from a verbose chain-of-thought reply.
 
@@ -489,16 +544,28 @@ class ClassificationParser:
         """
         text = self._strip_think(raw_response)
 
-        # An enriched response must at least mention the COLUMNS label; without
-        # it, defer to legacy keyword matching.
-        if self._COLUMNS_LABEL_RE.search(text) is None:
-            return None
-
-        columns_match = self._COLUMNS_RE.search(text)
-        columns_inline = self._clean_value(columns_match.group(1)) if columns_match else ""
-        paid_match = self._PAID_RE.search(text)
-        rows_match = self._ROWS_RE.search(text)
-        travel_match = self._TRAVEL_RE.search(text)
+        # An enriched response normally mentions the COLUMNS label. When it does
+        # not, try the POSITIONAL form before giving up: the detection prompt
+        # numbers its four questions but never asks the model to echo the label
+        # back, so a terse model may answer "1. <headers>\n2. YES\n3. 33\n4. NO".
+        # InternVL3.5 volunteers the labels; Gemma 4 does not. Only then defer to
+        # legacy keyword matching.
+        if self._COLUMNS_LABEL_RE.search(text) is not None:
+            columns_match = self._COLUMNS_RE.search(text)
+            columns_inline = self._clean_value(columns_match.group(1)) if columns_match else ""
+            paid_match = self._PAID_RE.search(text)
+            rows_match = self._ROWS_RE.search(text)
+            travel_match = self._TRAVEL_RE.search(text)
+            paid = paid_match.group(1).upper() == "YES" if paid_match else False
+            travel = (
+                travel_match.group(1).upper() == "YES" if travel_match else self._recover_travel_flag(text)
+            )
+            row_count = int(rows_match.group(1)) if rows_match else 0
+        else:
+            positional = self._parse_positional(text)
+            if positional is None:
+                return None
+            columns_inline, paid, row_count, travel = positional
 
         if columns_inline.upper() == "NONE":
             headers: list[str] = []
@@ -508,10 +575,6 @@ class ClassificationParser:
             # Label present but value not inline — recover only from a
             # structured pipe-delimited header line (no prose harvesting).
             headers = self._recover_pipe_headers(text)
-
-        paid = paid_match.group(1).upper() == "YES" if paid_match else False
-        travel = travel_match.group(1).upper() == "YES" if travel_match else self._recover_travel_flag(text)
-        row_count = int(rows_match.group(1)) if rows_match else 0
 
         # Derive document type from evidence using the YAML-driven rule set
         # (classification_evidence in document_type_detection.yaml). The rules
