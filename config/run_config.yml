@@ -35,9 +35,15 @@ bootstrap:
     max_tiles: 18          # Image tiles (L4 / A10G: 18)
     min_tiles: null        # null = disabled; set (e.g. 6) for adaptive quality-based tiling (min_tiles..max_tiles)
     flash_attn: true       # Use Flash Attention 2 (L4 / A10G are Ampere+ — always on)
-    enforce_eager: true    # vLLM: true = skip CUDA graph compilation (faster startup,
+    # enforce_eager: true  # vLLM: true = skip CUDA graph compilation (faster startup,
                            #        lower throughput); false = compile graphs (slower
                            #        startup, higher throughput for long runs)
+    # false from 2026-08-11: a 165-image run pays the compilation cost ONCE and
+    # gets the decode speedup 165 times, so eager is the wrong trade here. Costs
+    # extra VRAM for the captured graphs — there is ~10.7 GiB spare per L4 at
+    # gpu_memory_utilization 0.90, but watch for OOM at engine load if the
+    # soft-token budget is ever raised from 560.
+    enforce_eager: false
     dtype: bfloat16        # Torch dtype (bfloat16, float16, float32)
     # vLLM only: override the chat template used by engine.chat().
     #   none            -> use the model's own template (default)
