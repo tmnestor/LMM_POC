@@ -1,18 +1,29 @@
-# Sandbox setup: Gemma 4 on vLLM (12B Unified + 31B W4A16)
+# Sandbox setup: Gemma 4 on vLLM (12B Unified BF16 + W4A16, 31B W4A16)
 
-Operational runbook for making the two registered Gemma 4 models runnable on the sandbox:
+Operational runbook for making the three registered Gemma 4 models runnable on the sandbox:
 
 | Model type | Checkpoint | Size | Architecture |
 | --- | --- | --- | --- |
+| `gemma4-12b-unified-w4a16-vllm` | `google/gemma-4-12B-it-qat-w4a16-ct` | 10.3 GB | `gemma4_unified` (encoder-free, compressed-tensors W4A16) |
 | `gemma4-12b-unified-vllm` | `google/gemma-4-12B-it` | 23.9 GB | `gemma4_unified` (encoder-free) |
 | `gemma4-31b-w4a16-vllm` | `google/gemma-4-31B-it-qat-w4a16-ct` | 23.3 GB | `gemma4` (dense, compressed-tensors W4A16) |
 
-**Both run in the same `vllm_env3` env** (vLLM 0.25.1 registers both architectures and ships
-`compressed-tensors==0.17.0`), so the engine work below is done once and serves both. Budget **~47 GB**
-of share space for the pair.
+**All three run in the same `vllm_env3` env** (vLLM 0.25.1 registers both architectures and ships
+`compressed-tensors==0.17.0`), so the engine work below is done once and serves all of them. Budget
+**~57 GB** of share space for all three, or just **~10 GB** for the W4A16 12B alone — which is the
+only one the current 2xL4 evaluation needs.
 
-Target box: 1xL40S (~44-48 GiB). The model registration and config already exist on branch
-`feature/gemma4` — this document only covers getting the environment and weights in place.
+**Target box: 2xL4 (~22.5 GiB usable each)** for `gemma4-12b-unified-w4a16-vllm`, which is the current
+evaluation target. At 9.56 GiB it fits one WHOLE engine per card, so the pipeline runs **DP=2 / tp=1**
+via `run_dp` — roughly 2x the throughput of sharding a single engine tp=2 over PCIe (the L4 has no
+NVLink). The DP path uses no NCCL and no `/dev/shm`, so it also sidesteps the tensor-parallel SHM
+deadlock noted at the top of `entrypoint.sh`.
+
+The two larger checkpoints below do not fit one L4 and need **1xL40S (~44-48 GiB) at tp=1** — that
+was this document's original target, and their sections still assume it.
+
+The model registration and config already exist on branch `feature/gemma4` — this document only
+covers getting the environment and weights in place.
 
 **Most of this runs on a CPU-only node.** Only the engine load and the smoke need the GPU, so the
 preparation can all be done while waiting for a GPU allocation:
@@ -460,6 +471,55 @@ KV cache and vision activations. Activations are what OOM'd the BF16 31B at `max
 
 ---
 
+## Part 3c — Download the 12B QAT W4A16 (the 2xL4 target)
+
+Public and ungated, and it needs no engine work beyond `vllm_env3`. At ~10.3 GB it is by far the
+smallest of the three, and it is the **only one the current 2xL4 evaluation needs**.
+
+**The verification fields are the UNIFIED ones** — this is the same architecture as the BF16 12B, so
+checking the 31B's field names here would prove nothing.
+
+```bash
+hf download google/gemma-4-12B-it-qat-w4a16-ct --dry-run
+hf download google/gemma-4-12B-it-qat-w4a16-ct \
+  --local-dir /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
+```
+
+10 files, 10,296,461,592 bytes total, of which `model.safetensors` is 10,264,229,896.
+
+```bash
+cd /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
+ls -l model.safetensors    # expect exactly 10264229896 bytes
+
+python -c "import json; c=json.load(open('config.json')); print('arch:', c['architectures'][0]); print('model_type:', c['model_type']); print('num_soft_tokens:', c['vision_config'].get('num_soft_tokens')); print('has vision_soft_tokens_per_image:', 'vision_soft_tokens_per_image' in c); print('quant:', c['quantization_config'].get('quant_method'), c['quantization_config'].get('format'))"
+```
+
+Expected:
+
+```
+arch: Gemma4UnifiedForConditionalGeneration
+model_type: gemma4_unified
+num_soft_tokens: 280
+has vision_soft_tokens_per_image: False
+quant: compressed-tensors pack-quantized
+```
+
+**Why 10.3 GB and not ~6 GB:** the quantisation ignore list holds 17 entries excluding the vision
+embedder, the patch dense layers and `lm_head` — the same effect that made the 31B 23.3 GB rather
+than the ~18 GB a naive 4-bit estimate predicts.
+
+**Memory note (2xL4):** 9.56 GiB of weights against ~22.5 GiB usable per card. At
+`gpu_memory_utilization: 0.90` that is a ~20.25 GiB budget, leaving **~10.7 GiB per card** for KV
+cache and vision activations — comfortable, and enough for one whole engine per GPU. That is what
+makes `supports_data_parallel=True` correct for this checkpoint and wrong for the other two.
+
+> **Unverified on GPU:** `vllm_env3` is confirmed to load compressed-tensors W4A16 on the *dense*
+> `gemma4` 31B. This checkpoint pairs that quantisation with the `gemma4_unified` architecture for
+> the first time. Quantisation is layer-level so it is expected to hold, and it fails **loudly** at
+> engine load if it does not — but it is the one genuine unknown in this setup.
+
+---
+
 ## Part 4 — Switch the pipeline to it
 
 In `config/run_config.yml`, three coupled edits:
@@ -504,7 +564,11 @@ KFP_TASK=run_info_extract bash entrypoint.sh
 
 Confirm from the logs:
 
-1. Engine loads, `tp=1`.
+1. For `gemma4-12b-unified-w4a16-vllm` on 2xL4: **two** engines load, `tp=1` each, and the log shows
+   `vLLM DP: distributing N images across 2 GPUs (TP=1 per GPU)`. If instead you see the
+   single-engine fallback from `common/vllm_dp.py` ("cannot run one engine per GPU"), the capability
+   flag or the GPU count is wrong — the run still works, at half the throughput. For the two larger
+   checkpoints on 1xL40S: one engine, `tp=1`.
 2. No `<think>` blocks in raw output (enable `inference.tracing.raw_prompts: true` for one run to inspect).
 3. The image part precedes the text part in the prompt.
 4. Accuracy and s/image, compared against an InternVL3.5-8B run **from the same day and same code** —
@@ -525,7 +589,23 @@ Confirm from the logs:
 
 ## Rollback
 
-Set `bootstrap.model.type: internvl3-vllm`, restore its path, and set
-`inference.tiling.pre_tiling.enabled: true`. Nothing in the Gemma work changes InternVL behaviour, and
-`vllm_env2` is untouched provided Part 2's warning was respected — which is the whole reason for the
-separate nightly env.
+**Switch branch.** InternVL3.5-8B is run from `main`, Gemma 4 from `feature/gemma4` — one model per
+branch. Returning to the InternVL baseline means `git checkout main`, not editing config here. Each
+branch's `entrypoint.sh` already defaults `CONDA_ENV` to the env its model needs (`vllm_env2` on
+`main`, `vllm_env3` here), so no `LMM_CONDA_ENV` export is needed on either.
+
+**Never run InternVL from the Gemma branch.** It would not crash — that is precisely the problem.
+vLLM 0.25.1 pulls transformers 5.x, where `ensure_corrected_tokenizer()`'s `fix_mistral_regex=True`
+path is unverified, so the failure mode is a silently degraded tokenizer on exactly the
+whitespace-aligned, digit-dense bank amounts the 91.8% baseline rests on. A quiet wrong number, not
+an error.
+
+Reverting *within* this branch (only if the Gemma work is abandoned in place) is two steps, because
+the `entrypoint.sh` change is the one whose effect is not additive:
+
+1. `config/run_config.yml` — uncomment the original `bootstrap.model.type` / `path` lines, comment
+   out the Gemma ones, and set `inference.tiling.pre_tiling.enabled: true`.
+2. `entrypoint.sh` — uncomment the `vllm_env2` `CONDA_ENV` line (and its recovery hint) and comment
+   out the `vllm_env3` ones.
+
+The `vllm_env2` environment itself is never modified either way.
