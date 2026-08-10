@@ -26,9 +26,11 @@ bootstrap:
   # that explained if you forget.
   model:
     # type: internvl3-vllm
-    type: gemma4-12b-unified-vllm
+    # type: gemma4-12b-unified-vllm
+    type: gemma4-12b-unified-w4a16-vllm
     # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
-    path: /home/jovyan/nfs_share/models/gemma-4-12B-it
+    # path: /home/jovyan/nfs_share/models/gemma-4-12B-it
+    path: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
     # path: /efs/shared/PTM/InternVL3_5-8B   # alternate (EFS) deployment path
     max_tiles: 18          # Image tiles (L4 / A10G: 18)
     min_tiles: null        # null = disabled; set (e.g. 6) for adaptive quality-based tiling (min_tiles..max_tiles)
@@ -52,6 +54,7 @@ bootstrap:
       internvl3-vllm: /home/jovyan/nfs_share/models/InternVL3_5-8B
       gemma4-31b-w4a16-vllm: /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct
       gemma4-12b-unified-vllm: /home/jovyan/nfs_share/models/gemma-4-12B-it
+      gemma4-12b-unified-w4a16-vllm: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
       # internvl3: /efs/shared/PTM/InternVL3_5-8B
       # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
   # GPU count (moved from the old top-level processing: section).
@@ -126,8 +129,12 @@ inference:
       # Keys are NORMALISED model types (app_config._normalize_model_type), NOT
       # the full registered names. The normalisation is not uniform, so these are
       # spelled out per model and locked by a test:
-      #   gemma4-31b-w4a16-vllm   -> gemma4-31b
-      #   gemma4-12b-unified-vllm -> gemma4-12b-unified
+      #   gemma4-31b-w4a16-vllm         -> gemma4-31b
+      #   gemma4-12b-unified-vllm       -> gemma4-12b-unified
+      #   gemma4-12b-unified-w4a16-vllm -> gemma4-12b-unified  (SHARED with the
+      #     BF16 12B above — deliberate. `-vllm` strips, "w4a16" fails the
+      #     size-suffix test, then `-w4a16` strips. Same architecture, so the
+      #     same generation budget; no separate key is needed or wanted.)
       # A wrong key here does NOT fail — the lookup silently falls back to
       # generation.defaults above, which is how it can look correct while doing
       # nothing.
@@ -202,6 +209,29 @@ inference:
         # `vision_config.num_soft_tokens` (ships as 280). Using the 31B's names
         # here sets attributes nothing reads — a silent no-op that leaves the
         # engine at 280 while the YAML claims 560.
+        hf_overrides:
+          vision_config:
+            num_soft_tokens: 560
+      # Gemma 4 12B-it Unified, QAT W4A16 (compressed-tensors) — the 2xL4 target.
+      # SAME architecture as the BF16 12B above, so the hf_overrides field name is
+      # identical (vision_config.num_soft_tokens); only the weights differ.
+      # 9.56 GiB of ~22.5 GiB per L4 leaves ~10.7 GiB for KV cache and vision
+      # activations at gpu_memory_utilization 0.90 — so one WHOLE engine fits per
+      # card and run_dp spawns two (DP=2, tp=1 each), rather than sharding one
+      # engine tp=2 across PCIe. See models/registry.py for the capability flag.
+      gemma4-12b-unified-w4a16-vllm:
+        max_model_len: 16384         # vLLM recipe recommends 16384-32768 for this model
+        gpu_memory_utilization: 0.90 # ~20.25 GiB budget/card; 9.56 GiB of it is weights
+        limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
+        max_num_seqs: 1
+        enable_prefix_caching: true
+        mm_processor_kwargs:
+          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+        # Unified architecture: the knob is vision_config.num_soft_tokens. This
+        # checkpoint has NO top-level vision_soft_tokens_per_image and NO
+        # vision_config.default_output_length (verified 2026-08-11 against its own
+        # config.json) — using the 31B's names would set attributes nothing reads,
+        # leaving the engine silently at 280 while the YAML claims 560.
         hf_overrides:
           vision_config:
             num_soft_tokens: 560
