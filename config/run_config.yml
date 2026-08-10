@@ -64,7 +64,10 @@ bootstrap:
   # Logging
   logging:
     # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
-    log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+    # log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+    # Kept beside the dataset and the run outputs under tod_2026 (2026-08-11), so
+    # a run's images, ground truth, artifacts and logs all live in one tree.
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -287,7 +290,10 @@ pipeline:
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
     output:
-      dir: ../evaluation_data/output
+      # dir: ../evaluation_data/output
+      # Under tod_2026 alongside the input set (2026-08-11). The raw prompt trace
+      # (inference.tracing.path: none) derives from this dir, so it follows.
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
