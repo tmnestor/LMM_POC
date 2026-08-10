@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from common import prompt_trace
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,8 +72,16 @@ def classify_worker(
 
         records: list[dict[str, Any]] = []
         for idx, image_path in enumerate(image_paths):
-            result = processor.detect_and_classify_document(image_path, verbose=config.verbose)
+            # image_name is resolved BEFORE the call so the raw-prompt trace can
+            # attribute each line to its image; without this context every trace
+            # row carries image_name/pipeline/label = null.
             image_name = Path(image_path).name
+            with prompt_trace.trace_context(
+                image_name=image_name,
+                pipeline="information_extraction",
+                label="classify",
+            ):
+                result = processor.detect_and_classify_document(image_path, verbose=config.verbose)
             records.append(
                 {
                     "image_path": image_path,
@@ -171,12 +181,19 @@ def extract_worker(
             doc_type = "UNKNOWN"
 
             try:
-                session = executor.run(
-                    document_type="UNKNOWN",
-                    definition=definition,
-                    image_path=image_path,
+                # A graph run makes SEVERAL VLM calls per image, so without this
+                # context the trace is an unattributable stream of prompts.
+                with prompt_trace.trace_context(
                     image_name=image_name,
-                )
+                    pipeline="information_extraction",
+                    label=f"graph_{label}",
+                ):
+                    session = executor.run(
+                        document_type="UNKNOWN",
+                        definition=definition,
+                        image_path=image_path,
+                        image_name=image_name,
+                    )
                 record = session.to_record()
                 record["prompt_used"] = f"graph_{label}_{session.strategy}"
                 records.append(record)
@@ -304,9 +321,19 @@ def classified_extract_worker(
 
             img_start = time.time()
 
+            # Attribution for the raw-prompt trace. Shared by both branches
+            # below; a bank statement makes several VLM calls per image, so
+            # without it the trace cannot be tied back to a document.
+            trace_ctx = {
+                "image_name": image_name,
+                "pipeline": "information_extraction",
+                "label": f"extract_{doc_type.lower()}",
+            }
+
             try:
                 if doc_type.upper() == "BANK_STATEMENT" and bank_adapter is not None:
-                    schema_fields, metadata = bank_adapter.extract_bank_statement(image_path)
+                    with prompt_trace.trace_context(**trace_ctx):
+                        schema_fields, metadata = bank_adapter.extract_bank_statement(image_path)
                     img_time = time.time() - img_start
                     raw_response_str = "\n".join(
                         f"{field}: {value}" for field, value in schema_fields.items()
@@ -324,9 +351,10 @@ def classified_extract_worker(
                         }
                     )
                 else:
-                    result = processor.process_document_aware(
-                        image_path, classification, verbose=effective_verbose
-                    )
+                    with prompt_trace.trace_context(**trace_ctx):
+                        result = processor.process_document_aware(
+                            image_path, classification, verbose=effective_verbose
+                        )
                     img_time = time.time() - img_start
                     records.append(
                         {
