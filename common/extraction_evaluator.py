@@ -555,11 +555,27 @@ class ExtractionEvaluator:
                 len(balance_list),
             ]
             if len(set(lengths)) > 1:
-                logger.warning(
-                    "Array length mismatch: %s - skipping debit filtering",
-                    lengths,
+                # Same reasoning as the except-clause below: returning the
+                # unfiltered extraction scores it against a ground truth that
+                # HAS been filtered, so every row sits offset and the
+                # order-aware scorer marks all of them wrong -- silently.
+                msg = (
+                    f"What:  the transaction register columns have mismatched "
+                    f"lengths {dict(zip(('descriptions', 'dates', 'paid', 'balance'), lengths))}, "
+                    f"so debit filtering cannot align them.\n"
+                    f"  Where: common/extraction_evaluator.py -> "
+                    f"_filter_debit_transactions, on the TRANSACTION_* / "
+                    f"ACCOUNT_BALANCE fields of the document being scored.\n"
+                    f"  Expected: every present register column has the SAME "
+                    f"number of pipe-delimited members, e.g.\n"
+                    f"    TRANSACTION_DATES:        '02/03/2023 | 05/03/2023'\n"
+                    f"    TRANSACTION_AMOUNTS_PAID: '13.60 | NOT_FOUND'\n"
+                    f"  How to fix: correct the mismatched column in the "
+                    f"extraction or the ground truth. Scoring unfiltered data "
+                    f"against filtered ground truth would misalign every row, so "
+                    f"this raises rather than skipping the filter."
                 )
-                return extracted_data
+                raise ValueError(msg)
 
             # Create DataFrame from transaction data
             transactions_df = pd.DataFrame(
@@ -595,7 +611,28 @@ class ExtractionEvaluator:
 
             return filtered_data
 
-        except Exception as e:
-            logger.error("Pandas filtering failed: %s", e)
-            logger.warning("Falling back to original data")
-            return extracted_data
+        except Exception as exc:
+            # Returning the UNFILTERED extraction here scores it against a
+            # ground truth that HAS been filtered -- the two lists sit offset by
+            # the credit-row count and the order-aware scorer marks every
+            # position wrong. That is exactly the misalignment that reported
+            # bank F1 0.316 instead of 0.86, and it did so silently, so there
+            # was nothing to notice. A wrong number is worse than no number.
+            msg = (
+                f"What:  debit-transaction filtering failed for a bank statement "
+                f"({type(exc).__name__}: {exc}), so the extraction cannot be "
+                f"aligned with the ground truth.\n"
+                f"  Where: common/extraction_evaluator.py -> "
+                f"_filter_debit_transactions, on the TRANSACTION_* register of "
+                f"the document being scored.\n"
+                f"  Expected: every present TRANSACTION_* / ACCOUNT_BALANCE list "
+                f"is an index-aligned column with the SAME number of "
+                f"pipe-delimited members, e.g.\n"
+                f"    TRANSACTION_DATES:        '02/03/2023 | 05/03/2023'\n"
+                f"    TRANSACTION_AMOUNTS_PAID: '13.60 | NOT_FOUND'\n"
+                f"  How to fix: correct the mismatched register in the extraction "
+                f"or the ground truth. Scoring unfiltered data against filtered "
+                f"ground truth would silently misalign every row, so this raises "
+                f"rather than falling back."
+            )
+            raise ValueError(msg) from exc
