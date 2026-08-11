@@ -44,7 +44,8 @@ bootstrap:
   # Logging
   logging:
     # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
-    log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+    # log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
+    log_dir: ../evaluation_data/output_internvl_degraded/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -163,7 +164,11 @@ pipeline:
       # dir: ../evaluation_data/synthetic_original
       # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
       # dir: ../evaluation_data/synthetic_transaction_linking
-      dir: ../evaluation_data/synthetic_20260811
+      # DEGRADATION RUN 2026-08-12: 55 receipts x 3 severity tiers (_v1 light,
+      # _v2 moderate, _v3 heavy). One run covers all three — tier is recovered
+      # from the filename suffix at analysis time. Swap back for the clean set.
+      # dir: ../evaluation_data/synthetic_20260811
+      dir: ../evaluation_data/degraded_20260811
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth by that repo's
       # scripts/generate_extraction_gt.py --schema <this repo>/config/field_definitions.yaml
@@ -172,13 +177,21 @@ pipeline:
       # in ../evaluation_data — regenerating over this path replaces the eval set.
       # Patch the CSV in place instead, and back it up first.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
-      ground_truth: ../evaluation_data/synthetic_20260811/ground_truth.jsonl
+      # MUST swap together with input.dir. The degraded GT carries the SAME
+      # values as the clean set — distortion never changes the answer — and
+      # differs only in the _v1/_v2/_v3 filenames.
+      # ground_truth: ../evaluation_data/synthetic_20260811/ground_truth.jsonl
+      ground_truth: ../evaluation_data/degraded_20260811/ground_truth.jsonl
       # ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
     output:
-      dir: ../evaluation_data/output
+      # Separate dir per model: read_completed_images() resumes from image_name,
+      # so sharing one would make the second model's run silently skip all 165.
+      # ../evaluation_data/output holds the InternVL CLEAN-set result (0.847).
+      # dir: ../evaluation_data/output
+      dir: ../evaluation_data/output_internvl_degraded
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
