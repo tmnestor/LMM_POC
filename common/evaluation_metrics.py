@@ -700,6 +700,64 @@ def calculate_field_accuracy_with_method(
         )
 
 
+def _edit_distance(first: str, second: str) -> int:
+    """Levenshtein distance, in pure Python.
+
+    Exists so text-field scoring does not silently change behaviour when the
+    optional ``Levenshtein`` package is absent. It is declared in no environment
+    file in this repo, so the previous ``except ImportError -> exact match``
+    fallback was ALWAYS the live path: every address, name and description was
+    scored by exact string equality rather than ANLS similarity. One comma in
+    ``BUSINESS_ADDRESS`` cost the whole field, for both models, at every tier.
+
+    Two-row dynamic programming: O(len(first) x len(second)) time, O(len(second))
+    space. The fast C implementation is preferred when installed; this returns
+    the same distance.
+    """
+    if first == second:
+        return 0
+    if not first:
+        return len(second)
+    if not second:
+        return len(first)
+
+    previous = list(range(len(second) + 1))
+    for i, first_char in enumerate(first, start=1):
+        current = [i]
+        for j, second_char in enumerate(second, start=1):
+            current.append(
+                min(
+                    previous[j] + 1,  # deletion
+                    current[j - 1] + 1,  # insertion
+                    previous[j - 1] + (first_char != second_char),  # substitution
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def _text_similarity(extracted: str, ground_truth: str) -> float:
+    """ANLS-style similarity in [0, 1]: 1 - edit_distance / longest.
+
+    Used for text fields (addresses, supplier and payer names) where a
+    formatting difference should cost a little and a wrong value should cost
+    everything. The 0.5 floor is applied by the caller.
+    """
+    left, right = extracted.lower(), ground_truth.lower()
+    longest = max(len(left), len(right))
+    if longest == 0:
+        return 1.0
+
+    try:  # the C implementation when present; identical result, faster
+        from Levenshtein import distance as fast_distance
+
+        distance = fast_distance(left, right)
+    except ImportError:
+        distance = _edit_distance(left, right)
+
+    return 1.0 - (distance / longest)
+
+
 def _fuzzy_text_match(text1: str, text2: str, threshold: float | None = None) -> bool:
     """
     Check if two text strings match using fuzzy word-based comparison.
@@ -1159,34 +1217,16 @@ def calculate_field_accuracy_f1(
                 else:
                     f1_score = 0.0
             else:
-                # For text fields (addresses, names), use fuzzy matching with Levenshtein distance
-                try:
-                    from Levenshtein import distance as levenshtein_distance
+                # For text fields (addresses, names), score by edit-distance
+                # similarity. _text_similarity computes this with or without the
+                # optional Levenshtein package, so the score never depends on
+                # whether that package happens to be installed -- it previously
+                # did, and the absent-package path (exact match) was the live one.
+                similarity = _text_similarity(extracted_normalized, ground_truth_normalized)
 
-                    # Calculate normalized similarity (ANLS-style)
-                    edit_dist = levenshtein_distance(
-                        extracted_normalized.lower(), ground_truth_normalized.lower()
-                    )
-                    max_len = max(len(extracted_normalized), len(ground_truth_normalized))
-
-                    if max_len == 0:
-                        similarity = 1.0
-                    else:
-                        similarity = 1.0 - (edit_dist / max_len)
-
-                    # Apply 0.5 threshold like ANLS (standard in DocVQA)
-                    # Below 50% similarity = 0.0, above = give partial credit
-                    if similarity >= 0.5:
-                        f1_score = similarity
-                    else:
-                        f1_score = 0.0
-
-                except ImportError:
-                    # Fallback to exact match if Levenshtein not installed
-                    if extracted_normalized.lower() == ground_truth_normalized.lower():
-                        f1_score = 1.0
-                    else:
-                        f1_score = 0.0
+                # ANLS 0.5 floor (standard in DocVQA): below half similarity is
+                # a wrong answer, not a near miss, so it collapses to zero.
+                f1_score = similarity if similarity >= 0.5 else 0.0
 
             # For text fields, precision = recall = f1 (single value)
             return {
