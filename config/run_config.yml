@@ -73,7 +73,9 @@ bootstrap:
     # log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
     # Kept beside the dataset and the run outputs under tod_2026 (2026-08-11), so
     # a run's images, ground truth, artifacts and logs all live in one tree.
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output/logs
+    # Follows output.dir when that is re-dated — keep the two in step.
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output/logs
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -289,15 +291,22 @@ pipeline:
       # The 165-image synthetic set for the Gemma 4 evaluation (2026-08-11).
       # Absolute, and NOT tilde-prefixed: YAML reads a bare `~` as null and
       # nothing in the entrypoint path shell-expands these values.
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728
+      # synthetic_20260728 is CORRUPT — it holds 330 images (55 cases x 6) while
+      # its ground truth covers only 165, so half of every run was extracted but
+      # unscorable. Replaced 2026-08-11 by synthetic_20260807: 165 images, 165 GT
+      # records, exact 1:1, 55 each of BANK_STATEMENT / INVOICE / RECEIPT.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
       # ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
       # JSONL, not CSV — load_ground_truth() dispatches on the suffix
       # (common/evaluation_metrics.py) and the evaluator runs in _jsonl_mode,
-      # scoring exactly the fields each GT record carries.
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
+      # scoring exactly the fields each GT record carries. The set also ships a
+      # ground_truth.csv; keep the JSONL, which is what _jsonl_mode expects.
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807/ground_truth.jsonl
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
@@ -305,7 +314,12 @@ pipeline:
       # dir: ../evaluation_data/output
       # Under tod_2026 alongside the input set (2026-08-11). The raw prompt trace
       # (inference.tracing.path: none) derives from this dir, so it follows.
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output
+      # DATED per dataset. The stages resume from image_name values already in
+      # this directory's JSONLs (stages/io.py read_completed_images), so reusing
+      # the old `output/` — which holds the corrupt 20260728 run's 330 records —
+      # would silently skip every image instead of re-running it.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
