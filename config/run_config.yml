@@ -75,7 +75,9 @@ bootstrap:
     # a run's images, ground truth, artifacts and logs all live in one tree.
     # Follows output.dir when that is re-dated — keep the two in step.
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output/logs
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807/logs
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807/logs
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_degraded_20260811/logs
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -295,8 +297,15 @@ pipeline:
       # its ground truth covers only 165, so half of every run was extracted but
       # unscorable. Replaced 2026-08-11 by synthetic_20260807: 165 images, 165 GT
       # records, exact 1:1, 55 each of BANK_STATEMENT / INVOICE / RECEIPT.
+      # Regenerated on the box 2026-08-11 via
+      #   python -m generators.pipeline eval-set --out ~/nfs_share/tod_2026/evaluation_data
+      # which emits a CLEAN and a DEGRADED set of 165 each, ground truth written
+      # into both. Images and GT come from the SAME pass, so they cannot drift.
+      # Swap the two lines below to score robustness against scan artefacts.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
@@ -305,8 +314,12 @@ pipeline:
       # (common/evaluation_metrics.py) and the evaluator runs in _jsonl_mode,
       # scoring exactly the fields each GT record carries. The set also ships a
       # ground_truth.csv; keep the JSONL, which is what _jsonl_mode expects.
+      # MUST be swapped together with input.dir above — each set carries its own
+      # copy of the ground truth, and crossing them scores the wrong images.
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807/ground_truth.jsonl
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807/ground_truth.jsonl
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
@@ -318,8 +331,12 @@ pipeline:
       # this directory's JSONLs (stages/io.py read_completed_images), so reusing
       # the old `output/` — which holds the corrupt 20260728 run's 330 records —
       # would silently skip every image instead of re-running it.
+      # Dated per DATASET, not per day: a clean and a degraded run must not share
+      # an output dir or the second inherits the first's completed image_names.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_degraded_20260811
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
