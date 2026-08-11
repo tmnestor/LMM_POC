@@ -55,6 +55,27 @@ prompts:
       8. Amounts in {balance_col} may include a CR suffix, but amounts in {debit_col} and {credit_col} NEVER have CR suffix
          - {balance_col} example: $223.38 CR
          - {debit_col}/{credit_col} example: 35.00 (no CR suffix)
+      9. Never reproduce runs of repeated filler characters — dots, dashes or
+         underscores used for column spacing or to mark a truncated value.
+         Write the text once and continue to the next entry. A long run of
+         identical characters is never part of the {desc_col} value.
+
+  # Rule 9 added 2026-08-11. It clarifies rule 3 rather than contradicting it:
+  # "ALL rows" means all rows of transaction TEXT, not the spacing filler.
+  #
+  # Diagnosed on Gemma 4 12B W4A16: 4 of the 6 `nab_classic` statements scored
+  # 0.000 because the model obeyed rule 3 on a `Ref: <number>....` continuation
+  # line and reproduced the dot run until it hit the 4096-token ceiling, leaving
+  # the response unparseable and all three transaction lists NOT_FOUND. Header
+  # detection was byte-identical on the passing and failing cases, so the model
+  # SAW the table perfectly — this was never a vision or resolution problem
+  # (raising max_soft_tokens to 1120 made everything worse and was reverted).
+  # Under temperature=0 the loop is deterministic and cannot self-terminate.
+  #
+  # Deliberately narrow: it removes no description CONTENT. Reference text is
+  # legitimately part of the ground truth in other layouts (e.g. "BPAY VERRALL
+  # REF30033"), so a rule omitting references outright would break the 51
+  # statements that already match. Only the filler run is pathological.
 
   # Turn 1: Amount-description extraction (2-turn strategy for Amount-only statements)
   # Used when statement has Amount column (signed values) instead of separate Debit/Credit
