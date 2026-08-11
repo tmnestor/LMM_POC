@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 # Used by _normalize_transaction_order to sort both sides chronologically
 # before comparison so that document-order vs chronological-order
 # differences do not penalise F1 scores.
+# The paid/debit column. A NOT_FOUND here marks a credit row in the ground
+# truth; see _drop_credit_rows.
+_PAID_FIELD = "TRANSACTION_AMOUNTS_PAID"
+
 _TRANSACTION_SORT_GROUPS: dict[str, dict[str, Any]] = {
     "bank_statement": {
         "sort_key": "TRANSACTION_DATES",
@@ -37,6 +41,78 @@ _TRANSACTION_SORT_GROUPS: dict[str, dict[str, Any]] = {
         ],
     },
 }
+
+
+def _drop_credit_rows(
+    data: dict[str, str],
+    doc_type: str,
+) -> dict[str, str]:
+    """Drop credit rows from a bank statement's parallel transaction lists.
+
+    Bank ground truth carries EVERY row and blanks the credit rows with
+    ``NOT_FOUND`` in ``TRANSACTION_AMOUNTS_PAID``. The extraction prompt asks
+    only for the paid column, so the model emits the debit rows and nothing
+    else. Under the default order-aware scorer the two lists are then offset by
+    the number of credit rows, every position mismatches, and a substantially
+    correct extraction scores 0.000.
+
+    Applied to BOTH sides independently so each ends up debit-only: a side that
+    carries no ``NOT_FOUND`` placeholders is already debit-only and comes back
+    unchanged, while one that does gets them removed. Filtering only the ground
+    truth would re-introduce the offset for any model that does emit
+    placeholders.
+
+    This is deliberately separate from :meth:`_filter_debit_transactions`, which
+    solves the same problem from balance arithmetic and needs ``ACCOUNT_BALANCE``
+    / ``TRANSACTION_AMOUNTS_RECEIVED`` — fields the current 5-field bank prompt
+    does not request, so it can never run on this corpus.
+
+    Returns a shallow copy with credit rows removed, or the original dict
+    unchanged when filtering is not applicable or would not be safe.
+    """
+    group = _TRANSACTION_SORT_GROUPS.get(doc_type.lower())
+    if not group:
+        return data
+
+    paid_raw = str(data.get(_PAID_FIELD, "NOT_FOUND")).strip()
+    if paid_raw.upper() == "NOT_FOUND" or "|" not in paid_raw:
+        return data
+
+    paid_items = [i.strip() for i in paid_raw.split("|") if i.strip()]
+    keep = [i for i, v in enumerate(paid_items) if v.upper() != "NOT_FOUND"]
+
+    # Nothing to drop, or dropping everything — leave the data alone. An empty
+    # list would score 0 against a populated one, which is worse than the bug.
+    if len(keep) == len(paid_items) or not keep:
+        return data
+
+    result = dict(data)
+    dropped = 0
+    for field in list(group["fields"]):
+        val = str(data.get(field, "NOT_FOUND")).strip()
+        if val.upper() == "NOT_FOUND" or "|" not in val:
+            continue
+        items = [i.strip() for i in val.split("|") if i.strip()]
+        if len(items) != len(paid_items):
+            # A parallel field of the wrong length cannot be index-filtered
+            # safely — leave it whole rather than dropping the wrong rows.
+            logger.debug(
+                "Skipping field %s: length %d != paid-column length %d",
+                field,
+                len(items),
+                len(paid_items),
+            )
+            continue
+        result[field] = " | ".join(items[i] for i in keep)
+        dropped += 1
+
+    logger.debug(
+        "Dropped %d credit row(s) from %d transaction field(s) for %s",
+        len(paid_items) - len(keep),
+        dropped,
+        doc_type,
+    )
+    return result
 
 
 def _normalize_transaction_order(
@@ -278,6 +354,16 @@ class ExtractionEvaluator:
         filtered_ground_truth = {
             field: ground_truth[field] for field in evaluation_fields if field in ground_truth
         }
+
+        # Drop credit rows from BOTH sides before anything positional.
+        # Ground truth keeps every row and blanks credits with NOT_FOUND in the
+        # paid column; the prompt asks only for the paid column, so the model
+        # emits debit rows only. Left alone, the two lists are offset by the
+        # credit count and the order-aware scorer marks every position wrong —
+        # a correct extraction scores 0.000. Runs BEFORE the chronological sort
+        # so that sort sees lists of equal, already-aligned length.
+        extracted_data = _drop_credit_rows(extracted_data, document_type)
+        filtered_ground_truth = _drop_credit_rows(filtered_ground_truth, document_type)
 
         # Normalise transaction order before scoring.
         # Post-processing may sort extractions to chronological order
