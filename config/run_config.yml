@@ -239,15 +239,29 @@ inference:
         max_num_seqs: 1
         enable_prefix_caching: true
         mm_processor_kwargs:
-          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+          # 560 -> 1120 on 2026-08-11. At 560 the `nab_classic` layout sat right
+          # on the legibility threshold: 2 of its 6 statements read perfectly and
+          # the other 4 returned NOT_FOUND for every transaction list — the model
+          # saw a bank statement but resolved no table at all. Bimodal
+          # all-or-nothing at a fixed visual budget is a resolution limit, not a
+          # reading error. Every other layout scored 0.924 at 560.
+          # MEMORY WATCH: 1120 doubles peak prefill activation, and it competes
+          # with CUDA graphs (enforce_eager: false) and disable_chunked_mm_input,
+          # which forces each image's soft tokens through in ONE prefill step.
+          # It fails loudly at engine load if it does not fit — revert to 560.
+          # max_soft_tokens: 560
+          max_soft_tokens: 1120      # legal: 70 | 140 | 280 (model default) | 560 | 1120
         # Unified architecture: the knob is vision_config.num_soft_tokens. This
         # checkpoint has NO top-level vision_soft_tokens_per_image and NO
         # vision_config.default_output_length (verified 2026-08-11 against its own
         # config.json) — using the 31B's names would set attributes nothing reads,
-        # leaving the engine silently at 280 while the YAML claims 560.
+        # leaving the engine silently at 280 while the YAML claims otherwise.
+        # MUST match max_soft_tokens above — a test asserts they agree, because a
+        # mismatch leaves the engine at one budget while the YAML claims another.
         hf_overrides:
           vision_config:
-            num_soft_tokens: 560
+            # num_soft_tokens: 560
+            num_soft_tokens: 1120
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
