@@ -115,3 +115,6 @@ evaluation_data/
 TODO.md
 authentication.md
 docs/github-to-gitlab-content-sync.md
+
+# Generated notebook figures (regenerate by running the notebook)
+notebooks/figures/
