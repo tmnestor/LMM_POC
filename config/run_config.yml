@@ -79,7 +79,8 @@ bootstrap:
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_degraded_20260811/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811/logs
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9/logs
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9/logs
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -328,10 +329,13 @@ pipeline:
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
-      # PROBE ENDED 2026-08-11: rule 9 fixed CASE014 (0.000 -> 1.000) with
-      # CASE003 holding at 1.000 as the control. Back to the full 165-image set.
+      # DEGRADATION RUN 2026-08-12: 55 receipts x 3 severity tiers (_v1 light,
+      # _v2 moderate, _v3 heavy). Tier is recovered from the filename suffix at
+      # analysis time, so one run covers all three. Swap back to synthetic_ for
+      # the clean set — the clean receipt scores are the tier-0 baseline.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
@@ -345,8 +349,12 @@ pipeline:
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
+      # MUST swap together with input.dir — each set ships its own GT copy, and
+      # the degraded GT carries the SAME values (distortion never changes the
+      # answer), differing only in the _v1/_v2/_v3 filenames.
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe/ground_truth.jsonl
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
@@ -368,7 +376,8 @@ pipeline:
       # directly comparable per document, not just by headline.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
