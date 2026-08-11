@@ -77,7 +77,9 @@ bootstrap:
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_degraded_20260811/logs
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811/logs
+    # PROBE 2026-08-11 (TEMPORARY): follows output.dir.
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811/logs
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -281,7 +283,10 @@ inference:
   # said `tokens`, which sends anyone reading it here to write `r.get("tokens")`
   # and silently get None for every line.
   tracing:
-    raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
+    # PROBE 2026-08-11 (TEMPORARY): capture both bank turns for the 2 probe
+    # images. Only 2 documents, so the trace stays small.
+    # raw_prompts: false   # true -> persist every VLM prompt+response to JSONL
+    raw_prompts: true
     path: none           # none -> <output_dir>/raw_prompt_trace.jsonl ; or an explicit path
 
 # Pipeline configuration — per-task settings grouped together: information
@@ -326,7 +331,11 @@ pipeline:
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
+      # PROBE 2026-08-11 (TEMPORARY): 2 nab_classic statements only —
+      # CASE003 (scores 1.000) vs CASE014 (scores 0.000). Same layout, opposite
+      # outcomes, so the difference between these two documents IS the question.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
@@ -340,7 +349,9 @@ pipeline:
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260728/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260807/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
+      # PROBE 2026-08-11 (TEMPORARY): the 2-record GT filtered to match nab_probe.
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe/ground_truth.jsonl
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
@@ -357,7 +368,10 @@ pipeline:
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260807
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_degraded_20260811
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811
+      # PROBE 2026-08-11 (TEMPORARY): separate dir so the 165-image 0.953 result
+      # in output_20260811 is neither overwritten nor inherited by resume.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
