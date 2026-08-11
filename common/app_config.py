@@ -104,6 +104,62 @@ class BatchSettings:
         )
 
 
+def _validate_model_override_keys(
+    *,
+    vllm_models: dict,
+    generation_models: dict,
+) -> None:
+    """Reject per-model override keys that no registered model resolves to.
+
+    Both ``inference.vllm.models`` and ``inference.generation.models`` fall back
+    to their ``defaults`` block when a key is absent. That fallback is
+    deliberate -- it is how a model inherits shared tuning -- but it makes a
+    TYPO indistinguishable from inheritance: the block reads as configured
+    while doing nothing, and the run completes on default tuning.
+
+    The two sections use DIFFERENT key conventions, which is the trap this
+    guards. ``inference.vllm.models`` is keyed by the FULL registered type
+    (``gemma4-12b-unified-w4a16-vllm``); ``inference.generation.models`` is
+    keyed by the NORMALISED form (``gemma4-12b-unified``), and the
+    normalisation is not uniform across suffixes.
+
+    Raises:
+        ValueError: If any key matches no registered model, with a
+            four-element diagnostic naming the offending keys.
+    """
+    from models.registry import list_models
+
+    registered = list_models()
+    normalised = {AppConfig._normalize_model_type(name) for name in registered}
+
+    unknown_vllm = sorted(set(vllm_models) - set(registered))
+    unknown_generation = sorted(set(generation_models) - normalised)
+    if not unknown_vllm and not unknown_generation:
+        return
+
+    problems = []
+    if unknown_vllm:
+        problems.append(f"inference.vllm.models: {unknown_vllm}")
+    if unknown_generation:
+        problems.append(f"inference.generation.models: {unknown_generation}")
+
+    msg = (
+        f"What:  per-model override key(s) match no registered model, so the "
+        f"block is dead config -- the lookup silently falls through to the "
+        f"`defaults` block and the tuning is never applied. "
+        f"Offending: {'; '.join(problems)}\n"
+        f"  Where: config/run_config.yml -> {' and '.join(p.split(':')[0] for p in problems)}\n"
+        f"  Expected: inference.vllm.models is keyed by the FULL registered "
+        f"type, one of: {', '.join(sorted(registered))}. "
+        f"inference.generation.models is keyed by the NORMALISED type, one of: "
+        f"{', '.join(sorted(normalised))}. The two conventions differ and the "
+        f"normalisation is not uniform -- check it rather than inferring it.\n"
+        f"  How to fix: correct the key to a listed value, or delete the block "
+        f"if the model should inherit the `defaults` above it."
+    )
+    raise ValueError(msg)
+
+
 def _build_generation_registry(raw_config: dict) -> dict[str, dict]:
     """Build generation config registry with YAML overrides applied.
 
@@ -306,6 +362,15 @@ class AppConfig:
         vllm_section = raw_config.get("inference", {}).get("vllm", {})
         vllm_defaults = vllm_section.get("defaults", dict(cls._DEFAULT_VLLM_CONFIG))
         vllm_models = vllm_section.get("models", {})
+
+        # A per-model key that matches no registered model is dead config: the
+        # lookup falls through to `defaults` and the block reads as configured
+        # while doing nothing. Catch it at startup rather than at the end of a
+        # GPU run whose tuning was silently ignored.
+        _validate_model_override_keys(
+            vllm_models=vllm_models,
+            generation_models=gen.get("models", {}),
+        )
         vllm_config: dict[str, dict] = {"__defaults__": dict(vllm_defaults)}
         for model_name, overrides in vllm_models.items():
             vllm_config[model_name] = {**vllm_defaults, **overrides}

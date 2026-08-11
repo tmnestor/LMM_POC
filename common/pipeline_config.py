@@ -44,7 +44,19 @@ def load_structure_suffixes(
 ) -> tuple[str, ...]:
     """Load structure suffixes from extraction YAML settings.
 
-    Falls back to _DEFAULT_STRUCTURE_SUFFIXES if not specified.
+    Passing ``None`` means "no override" and legitimately uses the defaults, as
+    does a readable file that simply declares no ``structure_suffixes``.
+
+    A file that is named but cannot be READ is a different thing entirely, and
+    raises. It previously caught every exception and returned the Python
+    defaults, so a missing file, a permissions error or a YAML syntax error all
+    produced a plausible-looking config that silently ignored the operator's
+    settings -- the pattern CLAUDE.md forbids ("If a YAML key is missing, fail
+    fast with a clear error -- do not silently fall back to a Python constant").
+
+    Raises:
+        ValueError: If *extraction_yaml_path* is given but cannot be read or
+            parsed, with a four-element diagnostic.
     """
     if extraction_yaml_path is None:
         return _DEFAULT_STRUCTURE_SUFFIXES
@@ -52,12 +64,37 @@ def load_structure_suffixes(
     try:
         with extraction_yaml_path.open() as f:
             data = yaml.safe_load(f)
-        suffixes = data.get("settings", {}).get("structure_suffixes")
-        if suffixes:
-            return tuple(suffixes)
-    except Exception:
-        pass
+    except (OSError, yaml.YAMLError) as exc:
+        msg = (
+            f"What:  the extraction YAML at {extraction_yaml_path} could not be "
+            f"read or parsed ({type(exc).__name__}: {exc}).\n"
+            f"  Where: {extraction_yaml_path} -> settings.structure_suffixes\n"
+            f"  Expected: a readable YAML file, e.g.\n"
+            f"    settings:\n"
+            f"      structure_suffixes: ['_VALUE', '_TEXT']\n"
+            f"  How to fix: correct the YAML syntax or the path, or pass None to "
+            f"use the built-in defaults deliberately rather than by accident."
+        )
+        raise ValueError(msg) from exc
 
+    if not isinstance(data, dict):
+        msg = (
+            f"What:  the extraction YAML at {extraction_yaml_path} did not parse "
+            f"to a mapping (got {type(data).__name__}).\n"
+            f"  Where: {extraction_yaml_path} -> the document root\n"
+            f"  Expected: a top-level mapping, e.g.\n"
+            f"    settings:\n"
+            f"      structure_suffixes: ['_VALUE', '_TEXT']\n"
+            f"  How to fix: make the file a YAML mapping, or pass None to use the "
+            f"built-in defaults deliberately."
+        )
+        raise ValueError(msg)
+
+    suffixes = data.get("settings", {}).get("structure_suffixes")
+    if suffixes:
+        return tuple(suffixes)
+
+    # Read fine, declares no override -- inheriting the defaults is legal here.
     return _DEFAULT_STRUCTURE_SUFFIXES
 
 
