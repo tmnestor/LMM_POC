@@ -337,6 +337,15 @@ evaluation:
     word_overlap_low: 0.60
     monetary_tolerance: 0.01
     anls_threshold: 0.50
+    # Edit-distance similarity required to call two TRANSACTION register
+    # descriptions the same row. NOT the ANLS 0.50 floor above: that is for
+    # partial credit on a scalar answer, whereas this is a boolean "is this the
+    # same transaction". Measured on the 55-statement corpus, genuine
+    # single-character confusions score 0.94-0.97 ('DO COASTAL CHAR' vs
+    # 'DD COASTAL CHAR') while DIFFERENT transactions sharing a prefix reach
+    # 0.857 ('BPAY VERRALL REF30033' vs 'BPAY VERRALL REF74032'). 0.90 sits in
+    # the gap; anything at or below 0.86 credits the wrong row.
+    transaction_text_similarity: 0.90
 
   # Field type handling
   field_types:
@@ -386,12 +395,21 @@ evaluation:
       - RECEIPT_DATE
       - BANK_TRANSACTION_DATE
 
-    # Transaction list fields - trigger type-aware matching (monetary/date)
+    # Transaction list fields - trigger type-aware matching (monetary/date/text)
+    #
+    # LINE_ITEM_DESCRIPTIONS added 2026-08-12. It is the third index-aligned
+    # column of the same bank register as TRANSACTION_DATES and
+    # TRANSACTION_AMOUNTS_PAID, and _TRANSACTION_SORT_GROUPS already reordered
+    # it as part of that register -- so its absence here meant the schema and
+    # the sorter disagreed about what the register is. Absent, it fell to
+    # Jaccard word-overlap at 0.75, which on a 3-word description fails on ANY
+    # single wrong word ((n-1)/(n+1) >= 0.75 needs n >= 7).
     transaction_list:
       - TRANSACTION_DATES
       - TRANSACTION_AMOUNTS_PAID
       - TRANSACTION_AMOUNTS_RECEIVED
       - ACCOUNT_BALANCE
+      - LINE_ITEM_DESCRIPTIONS
       - TRAVEL_DATES
       - JOURNEY_DATES
       - JOURNEY_DISTANCES

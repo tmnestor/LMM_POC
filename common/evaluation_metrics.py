@@ -286,8 +286,20 @@ def _transaction_item_matches(extracted_item: str, ground_truth_item: str, field
         # Monetary comparison for balances
         return _compare_monetary_values(extracted_item, ground_truth_item, False) == 1.0
     else:
-        # Text comparison for descriptions
-        return extracted_item.lower().strip() == ground_truth_item.lower().strip()
+        # Text comparison for descriptions, by edit-distance similarity rather
+        # than exact match. A transaction description is short (3-5 words), so
+        # exact match makes one mis-read character cost the whole row: measured
+        # on the 55-statement corpus, 12.8% of Gemma's description positions
+        # were >= 0.90 similar to ground truth yet scored zero, e.g.
+        # 'DO COASTAL CHAR REF74032' vs 'DD COASTAL CHAR REF74032'.
+        #
+        # The threshold is deliberately HIGH (0.90, from YAML) and not ANLS's
+        # 0.50 floor: this is a boolean "same row?", not partial credit. Two
+        # DIFFERENT transactions sharing a prefix reach 0.857
+        # ('BPAY VERRALL REF30033' vs 'BPAY VERRALL REF74032'), so a loose
+        # threshold would credit the wrong row.
+        threshold = get_field_schema().get_threshold("transaction_text_similarity", 0.90)
+        return _text_similarity(extracted_item.strip(), ground_truth_item.strip()) >= threshold
 
 
 def _compare_date_field(extracted: str, ground_truth: str, field_name: str, debug: bool = False) -> float:
