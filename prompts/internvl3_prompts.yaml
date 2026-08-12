@@ -61,6 +61,12 @@ prompts:
       - Find store: Business name at top
       - Find transaction date: Use DD/MM/YYYY format
       - Find purchased items: List with " | " separator
+      - Find item names: The product name on its own, with no leading count. A
+        line printed as "3x <item name>" gives the item name by itself, and the
+        count goes in LINE_ITEM_QUANTITIES
+      - Find quantities: One plain number per item, digits only, like "3" rather
+        than "3x". Write 1 for an item the receipt shows no count for, so the
+        quantity list is the same length as the item name list
       - Find amounts: Include $ symbol
       - Replace NOT_FOUND with actual values
 
