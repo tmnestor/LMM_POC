@@ -164,21 +164,25 @@ pipeline:
       # dir: ../evaluation_data/synthetic_original
       # ground_truth: ../evaluation_data/synthetic_original/ground_truth_synthetic.csv
       # dir: ../evaluation_data/synthetic_transaction_linking
-      # DEGRADATION RUN 2026-08-12: 55 receipts x 3 severity tiers (_v1 light,
-      # _v2 moderate, _v3 heavy). One run covers all three — tier is recovered
-      # from the filename suffix at analysis time. Swap back for the clean set.
-      # REGENERATED 2026-08-12 (UTC — the box stamps these with the UTC date, so
-      # a set built on the morning of the 13th AEST is named ..._20260812).
-      # Same documents as the _20260811 pair: the source YAMLs have not changed
-      # since 2026-08-09, and the render is deterministic. What changed is the
-      # ANSWER KEY. LINE_ITEM_PRICES no longer carries a derived unit price for
-      # a line the receipt prints only a total for — a receipt line shows one
-      # amount and that amount is the line total, so the per-unit figure was a
-      # value no reader could extract. Positions where quantity is 1 keep their
-      # amount (there the two coincide); the rest are NOT_FOUND. Invoices are
-      # untouched, their layout has a real Unit Price column.
-      # dir: ../evaluation_data/synthetic_20260811
-      # dir: ../evaluation_data/degraded_20260811
+      # DEGRADED set: 55 receipts x 3 severity tiers (_v1 light, _v2 moderate,
+      # _v3 heavy). Tier is recovered from the filename suffix at analysis time,
+      # so one run covers all three. Swap to synthetic_ for the clean set — the
+      # clean receipt scores are the tier-0 baseline.
+      #
+      # The _20260812 pair is the ONLY dated set on the box: the _20260811 pair
+      # it replaced was deleted 2026-08-13, and the earlier _20260728 /
+      # _20260807 sets before that. Nothing here is a fallback — if a path below
+      # names a set that no longer exists, the run fails at the dataset check in
+      # scripts/run_full_comparison.sh rather than scoring anything.
+      #
+      # It carries the same DOCUMENTS as _20260811 (the source YAMLs have not
+      # changed since 2026-08-09 and the render is deterministic) but a
+      # corrected ANSWER KEY: LINE_ITEM_PRICES no longer holds a derived unit
+      # price for a line the receipt prints only a total for. A receipt line
+      # shows one amount and that amount is the line total, so the per-unit
+      # figure was a value no reader could extract. Positions where quantity is
+      # 1 keep their amount (there the two coincide); the rest are NOT_FOUND.
+      # Invoices are untouched — their layout has a real Unit Price column.
       # dir: ../evaluation_data/synthetic_20260812
       dir: ../evaluation_data/degraded_20260812
       # Extraction GT generated from the per-type YAMLs in
@@ -189,15 +193,18 @@ pipeline:
       # in ../evaluation_data — regenerating over this path replaces the eval set.
       # Patch the CSV in place instead, and back it up first.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
-      # MUST swap together with input.dir. The degraded GT carries the SAME
-      # values as the clean set — distortion never changes the answer — and
-      # differs only in the _v1/_v2/_v3 filenames.
-      # The _20260812 pair carries the corrected LINE_ITEM_PRICES answer key.
-      # Crossing a _20260812 image dir with a _20260811 ground truth (or the
-      # reverse) does NOT error — the filenames match — it just scores the new
-      # extractions against the old contract. Swap both lines together.
-      # ground_truth: ../evaluation_data/synthetic_20260811/ground_truth.jsonl
-      # ground_truth: ../evaluation_data/degraded_20260811/ground_truth.jsonl
+      # JSONL, not CSV — load_ground_truth() dispatches on the suffix
+      # (common/evaluation_metrics.py) and the evaluator runs in _jsonl_mode,
+      # scoring exactly the fields each GT record carries. The set also ships a
+      # ground_truth.csv; keep the JSONL, which is what _jsonl_mode expects.
+      #
+      # MUST be swapped together with input.dir above. Each set ships its own GT
+      # copy, and the clean and degraded copies of one dated pair hold the SAME
+      # values (distortion never changes the answer), differing only in the
+      # _v1/_v2/_v3 filenames — so crossing them inside a pair is harmless but
+      # crossing DATED SETS is not: filenames match across dates, so the run
+      # would score new extractions against an older answer key and report
+      # plausible numbers. Keep the date on both lines identical.
       # ground_truth: ../evaluation_data/synthetic_20260812/ground_truth.jsonl
       ground_truth: ../evaluation_data/degraded_20260812/ground_truth.jsonl
       # ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv

@@ -33,11 +33,12 @@ set -o nounset
 set -o pipefail
 
 DATA_ROOT="${LMM_DATA_ROOT:-/home/jovyan/nfs_share/tod_2026/evaluation_data}"
-# Regenerated 2026-08-12 (the box stamps these with the UTC date). Same
-# documents as the _20260811 pair; the answer key differs, LINE_ITEM_PRICES no
-# longer carrying a unit price the receipt never printed. The older pair is
-# still on disk, so pointing at it is a one-word mistake that produces plausible
-# numbers against the previous contract rather than an error.
+# Regenerated 2026-08-12 (the box stamps these with the UTC date, so a set built
+# on the morning of the 13th AEST is named ..._20260812). The answer key differs
+# from the set it replaced: LINE_ITEM_PRICES no longer carries a unit price the
+# receipt never printed. Earlier dated sets have been deleted, so this is the
+# only pair on the box — a wrong date here fails the dataset check below rather
+# than scoring against stale truth.
 CLEAN_SET="${LMM_CLEAN_SET:-synthetic_20260812}"
 DEGRADED_SET="${LMM_DEGRADED_SET:-degraded_20260812}"
 
