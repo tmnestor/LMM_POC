@@ -250,7 +250,7 @@ nodes:
       STOP after TRANSACTION_AMOUNTS_PAID. No explanations or additional text.
 
       Instructions:
-      - STATEMENT_DATE_RANGE: Find the statement period (e.g., "01/01/2024 - 31/01/2024")
+      - STATEMENT_DATE_RANGE: Find the statement period, written as "DD/MM/YYYY - DD/MM/YYYY"
       - TRANSACTION_DATES: Dates of DEBIT transactions only, separated by " | "
       - LINE_ITEM_DESCRIPTIONS: Descriptions of DEBIT transactions only, separated by " | "
       - TRANSACTION_AMOUNTS_PAID: DEBIT/withdrawal amounts with $ separated by " | "
