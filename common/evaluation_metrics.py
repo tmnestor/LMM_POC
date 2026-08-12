@@ -286,20 +286,27 @@ def _transaction_item_matches(extracted_item: str, ground_truth_item: str, field
         # Monetary comparison for balances
         return _compare_monetary_values(extracted_item, ground_truth_item, False) == 1.0
     else:
-        # Text comparison for descriptions, by edit-distance similarity rather
-        # than exact match. A transaction description is short (3-5 words), so
-        # exact match makes one mis-read character cost the whole row: measured
-        # on the 55-statement corpus, 12.8% of Gemma's description positions
-        # were >= 0.90 similar to ground truth yet scored zero, e.g.
-        # 'DO COASTAL CHAR REF74032' vs 'DD COASTAL CHAR REF74032'.
+        # Text comparison for descriptions. Two measures, and an item matches if
+        # EITHER passes -- they fail on opposite, complementary error types, and
+        # measurement on the 165-document corpus showed neither alone is enough:
         #
-        # The threshold is deliberately HIGH (0.90, from YAML) and not ANLS's
-        # 0.50 floor: this is a boolean "same row?", not partial credit. Two
-        # DIFFERENT transactions sharing a prefix reach 0.857
-        # ('BPAY VERRALL REF30033' vs 'BPAY VERRALL REF74032'), so a loose
-        # threshold would credit the wrong row.
+        #   token-level noise  '2x USB Hub 4-port' vs 'USB Hub 4-port'
+        #     (receipts prefix the quantity)  Jaccard 3/4 = 0.750 PASS / similarity 0.824 fail
+        #   character-level noise  'DO COASTAL CHAR ...' vs 'DD COASTAL CHAR ...'
+        #     (one mis-read glyph)           Jaccard 5/7 = 0.714 fail / similarity 0.970 PASS
+        #
+        # Using similarity ALONE regressed receipts from 85.3% to 34.2% for
+        # InternVL and 94.0% to 72.8% for Gemma; using Jaccard alone left 12.8%
+        # of Gemma's bank positions scoring zero at >= 0.90 similarity.
+        #
+        # The similarity threshold is deliberately HIGH (0.90, from YAML) and not
+        # ANLS's 0.50 floor: this is a boolean "same row?", not partial credit.
+        # Two DIFFERENT transactions sharing a prefix reach 0.857
+        # ('BPAY VERRALL REF30033' vs 'BPAY VERRALL REF74032') and Jaccard 0.5,
+        # so the union still rejects them.
+        extracted, truth = extracted_item.strip(), ground_truth_item.strip()
         threshold = get_field_schema().get_threshold("transaction_text_similarity", 0.90)
-        return _text_similarity(extracted_item.strip(), ground_truth_item.strip()) >= threshold
+        return _text_similarity(extracted, truth) >= threshold or _fuzzy_text_match(extracted, truth)
 
 
 def _compare_date_field(extracted: str, ground_truth: str, field_name: str, debug: bool = False) -> float:
