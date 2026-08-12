@@ -334,8 +334,20 @@ pipeline:
       # analysis time, so one run covers all three. Swap back to synthetic_ for
       # the clean set — the clean receipt scores are the tier-0 baseline.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe
+      # REGENERATED 2026-08-12 (UTC — the box stamps these with the UTC date, so
+      # a set built on the morning of the 13th AEST is named ..._20260812).
+      # Same documents as the _20260811 pair: the source YAMLs have not changed
+      # since 2026-08-09, and the render is deterministic. What changed is the
+      # ANSWER KEY. LINE_ITEM_PRICES no longer carries a derived unit price for
+      # a line the receipt prints only a total for — a receipt line shows one
+      # amount and that amount is the line total, so the per-unit figure was a
+      # value no reader could extract. Positions where quantity is 1 keep their
+      # amount (there the two coincide); the rest are NOT_FOUND. Invoices are
+      # untouched, their layout has a real Unit Price column.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
@@ -354,7 +366,13 @@ pipeline:
       # answer), differing only in the _v1/_v2/_v3 filenames.
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260811/ground_truth.jsonl
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260811/ground_truth.jsonl
+      # The _20260812 pair carries the corrected LINE_ITEM_PRICES answer key.
+      # Crossing a _20260812 image dir with a _20260811 ground truth (or the
+      # reverse) does NOT error — the filenames match — it just scores the new
+      # extractions against the old contract. Swap both lines together.
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812/ground_truth.jsonl
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
