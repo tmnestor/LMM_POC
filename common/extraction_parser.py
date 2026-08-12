@@ -268,6 +268,46 @@ def _repair_truncated_json(text: str, expected_fields: list[str]) -> str:
     return text
 
 
+# A quantity models write as "3x", "x3" or "3 EACH" is the right count wearing a
+# multiplier or unit. Both patterns are anchored on a digit, so a quantity that is
+# genuinely textual is left alone rather than silently mangled -- "BOX" keeps its
+# X, and a bare "EACH" with no count is not turned into an empty string.
+_QUANTITY_LEADING_MULTIPLIER = re.compile(r"^\s*[xX]\s*(?=\d)")
+_QUANTITY_TRAILING_DECORATION = re.compile(r"(?<=\d)\s*(?:X|EACH)\s*$", re.IGNORECASE)
+
+
+def normalise_quantity_items(value: str) -> str:
+    """Strip the multiplier or unit decoration models add to item quantities.
+
+    Ground truth writes a bare count (``3``); models write ``3x``, ``x3`` or
+    ``3 EACH``. The count itself is correct and only the decoration differs, but
+    the scorer compares these as text, so the whole field scored 0.000. Measured
+    on the 55-receipt corpus, this cost Gemma 29 of 55 receipts and roughly 43
+    points of ``LINE_ITEM_QUANTITIES`` F1 on clean images (0.333 -> 0.764) while
+    leaving InternVL, which already writes bare digits, untouched.
+
+    The receipt prompt now also asks for digits only. This is the belt to that
+    prompt's braces: the prompt stops it being emitted, this stops it mattering,
+    and neither depends on the other holding.
+
+    Args:
+        value: Pipe-separated quantity list, or ``NOT_FOUND``.
+
+    Returns:
+        The same list with multiplier and unit decoration removed.
+    """
+    if not value or str(value).strip().upper() == "NOT_FOUND":
+        return value
+
+    items = []
+    for item in str(value).split("|"):
+        item = item.strip()
+        item = _QUANTITY_LEADING_MULTIPLIER.sub("", item)
+        item = _QUANTITY_TRAILING_DECORATION.sub("", item).strip()
+        items.append(item)
+    return " | ".join(items)
+
+
 def hybrid_parse_response(response_text: str, expected_fields: list[str] | None = None) -> dict[str, str]:
     """
     Hybrid parser that handles both JSON and plain text formats automatically.
@@ -293,6 +333,14 @@ def hybrid_parse_response(response_text: str, expected_fields: list[str] | None 
     # Step 1: Try JSON parsing first (fast path for complex documents)
     json_result = _try_parse_json(response_text.strip(), expected_fields)
     if json_result is not None:
+        # This path returns WITHOUT running parse_extraction_response, so none of
+        # its per-field normalisation applies here. Quantity decoration has to be
+        # stripped explicitly or a JSON response keeps its "3x" while an
+        # otherwise identical text response does not.
+        if "LINE_ITEM_QUANTITIES" in json_result:
+            json_result["LINE_ITEM_QUANTITIES"] = normalise_quantity_items(
+                json_result["LINE_ITEM_QUANTITIES"]
+            )
         return json_result
 
     # Step 2: Fallback to existing plain text parser
@@ -622,14 +670,9 @@ def parse_extraction_response(
                 items = [item.strip() for item in re.split(r"\s{2,}", field_value) if item.strip()]
                 extracted_data[field_name] = " | ".join(items)
 
-            # Special handling for LINE_ITEM_QUANTITIES: remove " EACH" suffix
+            # Strip multiplier and unit decoration: "3x", "x3", "3 EACH" -> "3".
             if field_name == "LINE_ITEM_QUANTITIES":
-                # Remove " EACH" from each quantity item
-                items = [item.strip() for item in extracted_data[field_name].split(" | ")]
-                cleaned_items = [
-                    re.sub(r"\s+EACH$", "", item, flags=re.IGNORECASE).strip() for item in items
-                ]
-                extracted_data[field_name] = " | ".join(cleaned_items)
+                extracted_data[field_name] = normalise_quantity_items(extracted_data[field_name])
 
         # Handle address fields: remove commas entirely
         elif field_name in address_fields and "," in field_value:
