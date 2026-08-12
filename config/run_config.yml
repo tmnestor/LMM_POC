@@ -167,8 +167,20 @@ pipeline:
       # DEGRADATION RUN 2026-08-12: 55 receipts x 3 severity tiers (_v1 light,
       # _v2 moderate, _v3 heavy). One run covers all three — tier is recovered
       # from the filename suffix at analysis time. Swap back for the clean set.
+      # REGENERATED 2026-08-12 (UTC — the box stamps these with the UTC date, so
+      # a set built on the morning of the 13th AEST is named ..._20260812).
+      # Same documents as the _20260811 pair: the source YAMLs have not changed
+      # since 2026-08-09, and the render is deterministic. What changed is the
+      # ANSWER KEY. LINE_ITEM_PRICES no longer carries a derived unit price for
+      # a line the receipt prints only a total for — a receipt line shows one
+      # amount and that amount is the line total, so the per-unit figure was a
+      # value no reader could extract. Positions where quantity is 1 keep their
+      # amount (there the two coincide); the rest are NOT_FOUND. Invoices are
+      # untouched, their layout has a real Unit Price column.
       # dir: ../evaluation_data/synthetic_20260811
-      dir: ../evaluation_data/degraded_20260811
+      # dir: ../evaluation_data/degraded_20260811
+      # dir: ../evaluation_data/synthetic_20260812
+      dir: ../evaluation_data/degraded_20260812
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth by that repo's
       # scripts/generate_extraction_gt.py --schema <this repo>/config/field_definitions.yaml
@@ -180,8 +192,14 @@ pipeline:
       # MUST swap together with input.dir. The degraded GT carries the SAME
       # values as the clean set — distortion never changes the answer — and
       # differs only in the _v1/_v2/_v3 filenames.
+      # The _20260812 pair carries the corrected LINE_ITEM_PRICES answer key.
+      # Crossing a _20260812 image dir with a _20260811 ground truth (or the
+      # reverse) does NOT error — the filenames match — it just scores the new
+      # extractions against the old contract. Swap both lines together.
       # ground_truth: ../evaluation_data/synthetic_20260811/ground_truth.jsonl
-      ground_truth: ../evaluation_data/degraded_20260811/ground_truth.jsonl
+      # ground_truth: ../evaluation_data/degraded_20260811/ground_truth.jsonl
+      # ground_truth: ../evaluation_data/synthetic_20260812/ground_truth.jsonl
+      ground_truth: ../evaluation_data/degraded_20260812/ground_truth.jsonl
       # ground_truth: ../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv
       max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
