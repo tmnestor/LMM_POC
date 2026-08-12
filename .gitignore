@@ -115,5 +115,12 @@ TODO.md
 authentication.md
 docs/github-to-gitlab-content-sync.md
 
-# notebooks/figures/ is tracked on purpose: the exported SVG and PNG go into
-# slides and reports, so they need to be readable without running a notebook.
+# notebooks/figures/*.svg is tracked on purpose: the exports go into slides and
+# reports, so they need to be readable without running a notebook first, and SVG
+# is text that git can diff.
+#
+# The PNGs alongside them are NOT tracked. They are byte-unstable binaries -- a
+# Run All rewrites all of them even when no number changed -- so tracking them
+# meant a dirty tree after every execution and diffs git cannot show. Regenerate
+# them by running the notebook.
+notebooks/figures/*.png
