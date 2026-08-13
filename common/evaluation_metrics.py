@@ -309,6 +309,51 @@ def _transaction_item_matches(extracted_item: str, ground_truth_item: str, field
         return _text_similarity(extracted, truth) >= threshold or _fuzzy_text_match(extracted, truth)
 
 
+def _list_item_matches(extracted_item: str, ground_truth_item: str, field_name: str) -> bool:
+    """Compare one item of a pipe-separated list field, by the field's TYPE.
+
+    Every list path used to ask only "is this a transaction_list field?" and, if
+    not, fall through to text matching. That is a STRUCTURAL question standing in
+    for a semantic one, and it silently mis-scored every monetary list field the
+    bank register does not contain:
+
+        LINE_ITEM_TOTAL_PRICES  extracted "9.72 | 111.69"
+                                truth     "$9.72 | $111.69"   ->  f1 0.000
+
+    The values are right; only the currency symbol differs. Compared as text, a
+    Jaccard overlap of 0 and a similarity of 0.80 both miss, so InternVL lost the
+    whole field on all 55 receipts while Gemma, which happens to emit "$", scored
+    0.987. That reads as a capability gap and is a formatting difference.
+
+    ``config/field_definitions.yaml`` already declares both fields under
+    ``field_types.monetary`` -- the scorer simply never consulted it for list
+    items. This dispatches on the schema instead of on a name substring, so a
+    field is compared the way the schema says it should be, wherever it appears.
+
+    Args:
+        extracted_item: One item from the extracted list.
+        ground_truth_item: The item it is being compared against.
+        field_name: The field both items belong to.
+
+    Returns:
+        True when the two items match under the field's own comparison rule.
+    """
+    fields = get_field_schema()
+
+    # The bank register keeps its own comparator: those fields are index-aligned
+    # columns with rules of their own (see _transaction_item_matches).
+    if field_name in fields.transaction_list_fields:
+        return _transaction_item_matches(extracted_item, ground_truth_item, field_name)
+
+    if field_name in fields.monetary_fields:
+        return _compare_monetary_values(extracted_item, ground_truth_item, False) == 1.0
+
+    if field_name in fields.date_fields:
+        return _compare_dates_fuzzy(extracted_item, ground_truth_item)
+
+    return _fuzzy_text_match(extracted_item, ground_truth_item)
+
+
 def _compare_date_field(extracted: str, ground_truth: str, field_name: str, debug: bool = False) -> float:
     """
     Compare date fields with semantic understanding.
@@ -903,10 +948,7 @@ def calculate_field_accuracy_f1_position_agnostic(
     for ext_item in extracted_items:
         for i, gt_item in enumerate(ground_truth_items):
             if i not in matched_gt_indices:
-                if field_name in fields.transaction_list_fields:
-                    match = _transaction_item_matches(ext_item, gt_item, field_name)
-                else:
-                    match = _fuzzy_text_match(ext_item, gt_item)
+                match = _list_item_matches(ext_item, gt_item, field_name)
 
                 if match:
                     tp += 1
@@ -1272,13 +1314,15 @@ def calculate_field_accuracy_f1(
 
     for i in range(max_len):
         if i < len(ground_truth_items) and i < len(extracted_items):
-            # Both have an item at this position - check if they match
-            if field_name in fields.transaction_list_fields:
-                match = _transaction_item_matches(extracted_items[i], ground_truth_items[i], field_name)
-            else:
-                # Use fuzzy text matching (threshold from field_definitions.yaml)
-                # This allows "EATS Sydney" to match "UBER EATS Sydney" (0.80 similarity)
-                match = _fuzzy_text_match(extracted_items[i], ground_truth_items[i])
+            # Both have an item at this position, so compare it by whatever kind
+            # the schema says the field is: monetary numerically, dates
+            # semantically, anything else by fuzzy text (which lets
+            # "EATS Sydney" match "UBER EATS Sydney" at 0.80).
+            #
+            # Do NOT open a comment line here with "type:" -- mypy reads that as
+            # a PEP 484 type comment and fails the file with a syntax error that
+            # Python itself does not raise.
+            match = _list_item_matches(extracted_items[i], ground_truth_items[i], field_name)
 
             if match:
                 tp += 1
