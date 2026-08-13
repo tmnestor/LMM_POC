@@ -292,18 +292,32 @@ class ExtractionCleaner:
                 # General text cleaning for descriptions and quantities
                 cleaned_item = self._clean_text_field(item)
 
-            # PRESERVE POSITIONAL ARRAY STRUCTURE: Keep NOT_FOUND values for bank statement arrays
-            # This is critical for TRANSACTION_AMOUNTS_* fields where position matters
-            if (
-                field_name.upper().startswith("TRANSACTION_AMOUNTS")
-                or field_name.upper() == "ACCOUNT_BALANCE"
-            ):
-                # For bank statement transaction arrays, preserve ALL positions including NOT_FOUND
-                cleaned_items.append(cleaned_item if cleaned_item else "NOT_FOUND")
-            else:
-                # For other list fields, filter out NOT_FOUND (original behavior)
-                if cleaned_item and cleaned_item != "NOT_FOUND":
-                    cleaned_items.append(cleaned_item)
+            # PRESERVE POSITIONAL ARRAY STRUCTURE. A list field here is one
+            # column of an index-aligned group -- LINE_ITEM_*, TRANSACTION_* and
+            # JOURNEY_* are all parallel lists where position n names the same
+            # row across every column. Dropping a NOT_FOUND shortens one column
+            # and shifts every value after it against its siblings.
+            #
+            # This used to preserve placeholders ONLY for TRANSACTION_AMOUNTS*
+            # and ACCOUNT_BALANCE, named literally. That is the right property
+            # recognised on the wrong grounds, and it silently corrupted the
+            # receipt line-item columns. Measured 2026-08-13: Gemma returned
+            #     NOT_FOUND | $111.69 | NOT_FOUND | NOT_FOUND | $12.87
+            # matching ground truth exactly, and the cleaner reduced it to
+            #     $111.69 | $12.87
+            # so a perfect extraction scored as two misplaced values. The model
+            # was right and the pipeline broke it.
+            cleaned_items.append(cleaned_item if cleaned_item else "NOT_FOUND")
+
+        # A list of nothing but placeholders carries no more information than the
+        # scalar, and the answer key writes the scalar: the ground-truth
+        # projection collapses an all-NOT_FOUND column the same way
+        # (Synthetic_Doc_Generation, _blank_unprinted_unit_prices). Emitting
+        # "NOT_FOUND | NOT_FOUND | NOT_FOUND" against a ground truth of
+        # "NOT_FOUND" scores zero on a field where both sides agree there is
+        # nothing to find -- measured on 10 of 55 receipts, 2026-08-13.
+        if cleaned_items and all(item == "NOT_FOUND" for item in cleaned_items):
+            return "NOT_FOUND"
 
         # Always return pipe-separated format for consistency
         return " | ".join(cleaned_items) if cleaned_items else "NOT_FOUND"
