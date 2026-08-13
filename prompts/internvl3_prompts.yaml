@@ -70,10 +70,12 @@ prompts:
       - Find line totals: The amount printed against an item is the total for
         that whole line and goes in LINE_ITEM_TOTAL_PRICES. It already covers
         every unit, so never multiply it by the quantity
-      - Find unit prices: Only when the receipt prints a separate per-unit price
-        for a line, which most receipts do not. Write NOT_FOUND for any line
-        showing a single amount, because that amount is the line total. Never
-        divide a line total to produce a unit price
+      - Find unit prices: Decide per line from that line's quantity. Quantity 1
+        means the single printed amount is also the unit price, so write it.
+        Quantity 2 or more means the per-unit figure is not printed anywhere,
+        so write NOT_FOUND for that line. Never divide a line total to produce
+        a unit price. Keep one entry per item so the list stays the same length
+        as the item name list
       - Find amounts: Include $ symbol
       - Replace NOT_FOUND with actual values
 
