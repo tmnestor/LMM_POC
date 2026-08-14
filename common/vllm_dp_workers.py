@@ -403,7 +403,7 @@ def sroie_worker(
     config_path: str | None,
     cli_overrides: dict[str, Any],
     max_new_tokens: int,
-    max_tiles: int,
+    tile_budget: dict[str, int],
     batch_size: int,
 ) -> list[dict[str, Any]]:
     """Worker: build vLLM engine, ask each receipt for its four fields.
@@ -420,7 +420,11 @@ def sroie_worker(
         config_path: Path to run_config.yml (or None).
         cli_overrides: CLI args dict for AppConfig.load().
         max_new_tokens: Generation budget per receipt.
-        max_tiles: Receipt tile budget (inert unless pre-tiling is on).
+        tile_budget: GenerationParams.extra carrying BOTH min_tiles and
+            max_tiles, from common.sroie.tiling.tile_extra. Inert unless
+            pre-tiling is on. min_tiles is the lever — sending only the
+            ceiling leaves the backend on its min_tiles=1 default.
+        batch_size: Receipts submitted to the engine per chat() call.
 
     Returns:
         One dict per image: image_id, image_path, raw_response, error.
@@ -476,7 +480,7 @@ def sroie_worker(
                         images,
                         [SROIE_PROMPT] * len(images),
                         max_tokens=max_new_tokens,
-                        extra={"max_tiles": max_tiles},
+                        extra=dict(tile_budget),
                     )
                 finally:
                     for image in images:
@@ -497,7 +501,7 @@ def sroie_worker(
                                     image.convert("RGB"),
                                     SROIE_PROMPT,
                                     max_tokens=max_new_tokens,
-                                    extra={"max_tiles": max_tiles},
+                                    extra=dict(tile_budget),
                                 )
                             )
                         errors.append(None)

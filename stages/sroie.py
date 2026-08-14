@@ -38,6 +38,7 @@ from common.sroie.runner import (
     run_benchmark_batched,
 )
 from common.sroie.scoring import MatchPolicy, score_records
+from common.sroie.tiling import tile_extra
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ def run(
                 "config_path": str(config_path) if config_path else None,
                 "cli_overrides": cli_args,
                 "max_new_tokens": settings.max_new_tokens,
-                "max_tiles": tile_budget["max_tiles"],
+                "tile_budget": tile_extra(tile_budget),
                 "batch_size": settings.batch_size,
             },
             app_config=app_cfg,
@@ -170,7 +171,7 @@ def run(
                     images,
                     [SROIE_PROMPT] * len(images),
                     max_tokens=settings.max_new_tokens,
-                    extra={"max_tiles": tile_budget["max_tiles"]},
+                    extra=tile_extra(tile_budget),
                 )
             finally:
                 for image in images:
