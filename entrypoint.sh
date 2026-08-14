@@ -878,8 +878,19 @@ case "${KFP_TASK:-}" in
     # deliberate: the comparison between two models is only valid if the
     # ONLY difference between their runs is bootstrap.model.type, so the
     # run is not parameterisable from the shell.
+    # sroie_max_images: optional, for a SHORT diagnostic run before
+    # committing 17 minutes to the full split, e.g.
+    #   KFP_TASK=sroie sroie_max_images=40 bash entrypoint.sh
+    # Unset = score the whole split. It is the one thing here that may be
+    # set from the shell, because it changes how MUCH is scored, never HOW
+    # — a partial run's artefacts are labelled by their own total_images.
     _banner "SROIE benchmark — 4-field receipt extraction (GPU)"
-    python3 -m stages.sroie || exit $?
+    SROIE_ARGS=()
+    if [[ -n "${sroie_max_images:-}" ]]; then
+      SROIE_ARGS+=(--max-images "${sroie_max_images}")
+      log "  sroie_max_images: ${sroie_max_images} (PARTIAL run — not a publishable score)"
+    fi
+    python3 -m stages.sroie "${SROIE_ARGS[@]}" || exit $?
     log "SROIE benchmark complete."
     ;;
 
