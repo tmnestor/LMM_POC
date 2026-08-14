@@ -366,3 +366,106 @@ def classified_extract_worker(
         return records
     finally:
         model_cm.__exit__(None, None, None)
+
+
+def sroie_worker(
+    gpu_id: int,
+    image_paths: list[str],
+    *,
+    config_path: str | None,
+    cli_overrides: dict[str, Any],
+    max_new_tokens: int,
+    max_tiles: int,
+) -> list[dict[str, Any]]:
+    """Worker: build vLLM engine, ask each receipt for its four fields.
+
+    Returns RAW responses only. Parsing and scoring stay in the parent, so
+    the serial and data-parallel paths share one parser and cannot drift.
+
+    A failure on one image is recorded and the worker continues — losing a
+    whole partition to one bad receipt would waste the run.
+
+    Args:
+        gpu_id: GPU rank (for logging).
+        image_paths: Absolute paths to receipt images (strings).
+        config_path: Path to run_config.yml (or None).
+        cli_overrides: CLI args dict for AppConfig.load().
+        max_new_tokens: Generation budget per receipt.
+        max_tiles: Receipt tile budget (inert unless pre-tiling is on).
+
+    Returns:
+        One dict per image: image_id, image_path, raw_response, error.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(levelname)s [GPU {gpu_id}] %(name)s: %(message)s",
+    )
+
+    from PIL import Image
+
+    from cli import load_pipeline_configs
+    from common.app_config import AppConfig
+    from common.pipeline_ops import create_processor, load_model
+    from common.sroie.prompt import SROIE_PROMPT
+
+    # Force single-GPU in this worker
+    overrides = dict(cli_overrides)
+    overrides["num_gpus"] = 1
+
+    cfg_path = Path(config_path) if config_path else None
+    app_cfg = AppConfig.load(overrides, config_path=cfg_path)
+    config = app_cfg.pipeline
+
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
+
+    logger.info("Loading model: %s (GPU %d)", config.model_type, gpu_id)
+    model_cm = load_model(config, app_config=app_cfg)
+    model, tokenizer = model_cm.__enter__()
+
+    try:
+        processor = create_processor(
+            model,
+            tokenizer,
+            config,
+            prompt_config,
+            universal_fields,
+            field_definitions,
+            app_config=app_cfg,
+        )
+
+        records: list[dict[str, Any]] = []
+        for idx, image_path in enumerate(image_paths):
+            image_id = Path(image_path).stem
+            img_start = time.time()
+            try:
+                with Image.open(image_path) as image:
+                    response = processor.generate(
+                        image.convert("RGB"),
+                        SROIE_PROMPT,
+                        max_tokens=max_new_tokens,
+                        extra={"max_tiles": max_tiles},
+                    )
+                error = None
+            except Exception as err:  # noqa: BLE001 - one image must not end the run
+                logger.error("[%d/%d] %s FAILED: %s", idx + 1, len(image_paths), image_id, err)
+                response, error = "", str(err)
+
+            records.append(
+                {
+                    "image_id": image_id,
+                    "image_path": image_path,
+                    "raw_response": response,
+                    "error": error,
+                }
+            )
+            logger.info(
+                "[%d/%d] %s (%.1fs)",
+                idx + 1,
+                len(image_paths),
+                image_id,
+                time.time() - img_start,
+            )
+
+        return records
+    finally:
+        model_cm.__exit__(None, None, None)
