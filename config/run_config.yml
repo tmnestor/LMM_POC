@@ -299,9 +299,26 @@ inference:
           #
           # Baseline to beat (batch 10, 560 soft tokens, 165 degraded
           # receipts): overall 0.915, BUSINESS_ADDRESS 0.9657, 158.4s.
+          # RESULT 2026-08-14: 280 REJECTED. Worse on every axis.
+          #
+          #   soft tokens  overall  inference  concurrency  note
+          #       280       0.882     180.6s      3.43x     BUSINESS_ABN -0.182
+          #       560       0.915     158.4s      3.43x     <- keep
+          #      1120       0.275       —           —       address to 0.0000
+          #
+          # Concurrency did NOT move, and could not have: vLLM computes
+          # "Maximum concurrency" as KV tokens / max_model_len, a worst-case
+          # reservation. Soft tokens change the ACTUAL prompt length, not
+          # that reservation. The lever for concurrency is max_model_len (or
+          # more free VRAM), never the visual budget.
+          #
+          # 560 is a genuine optimum for this checkpoint, not a default
+          # nobody questioned: both neighbours are worse, in opposite ways.
+          # Halving loses small-print detail (an 11-digit ABN is the first
+          # casualty); doubling corrupts the representation outright.
           # max_soft_tokens: 1120    # tested twice, regressed both times
-          # max_soft_tokens: 560     # baseline: overall 0.915, 158.4s
-          max_soft_tokens: 280       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+          # max_soft_tokens: 280     # tested 2026-08-14, 0.915 -> 0.882
+          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
         # Unified architecture: the knob is vision_config.num_soft_tokens. This
         # checkpoint has NO top-level vision_soft_tokens_per_image and NO
         # vision_config.default_output_length (verified 2026-08-11 against its own
@@ -311,11 +328,11 @@ inference:
         # mismatch leaves the engine at one budget while the YAML claims another.
         hf_overrides:
           vision_config:
-            # Moved to 280 with max_soft_tokens above for the 2026-08-14
-            # probe. These two MUST always change together.
+            # Reverted to 560 with max_soft_tokens above after the 280 probe
+            # regressed. These two MUST always change together.
             # num_soft_tokens: 1120
-            # num_soft_tokens: 560
-            num_soft_tokens: 280
+            # num_soft_tokens: 280
+            num_soft_tokens: 560
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
