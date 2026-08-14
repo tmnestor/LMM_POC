@@ -244,7 +244,10 @@ inference:
         max_model_len: 16384         # vLLM recipe recommends 16384-32768 for this model
         gpu_memory_utilization: 0.90 # ~20.25 GiB budget/card; 9.56 GiB of it is weights
         limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
-        max_num_seqs: 1
+        # max_num_seqs is set ONCE, further down this block — see the note
+        # there. It was briefly duplicated here on 2026-08-14: PyYAML takes
+        # the LAST occurrence, so the engine ran at 8 while this line still
+        # read 1. Do not re-add it here.
         enable_prefix_caching: true
         mm_processor_kwargs:
           # 560 -> 1120 on 2026-08-11. At 560 the `nab_classic` layout sat right
@@ -264,8 +267,21 @@ inference:
           # extract share the visual budget, so degrading both means the IMAGE
           # REPRESENTATION got worse at 1120 — more visual tokens is not more
           # detail for this checkpoint. Do not re-try 1120.
-          # max_soft_tokens: 1120
-          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+          #
+          # RE-TESTING 1120 on SROIE, 2026-08-14. The reversal above stands
+          # on synthetic-corpus evidence gathered through the full
+          # classify->extract pipeline. SROIE is a cleaner instrument for
+          # the same question: extraction only (no classification stage to
+          # confound), deterministic scoring with confidence intervals,
+          # real scanned receipts, ~6 minutes per run.
+          #
+          # A regression here CONFIRMS the 2026-08-11 finding on
+          # independent data — that is a useful result, not a wasted run.
+          # REVERT TO 560 either way unless SROIE shows a clear gain.
+          # Baseline to beat (Gemma 4, 347-image test split, batch 8):
+          #   lenient overall 0.8365 | address 0.6686 | company 0.8501
+          # max_soft_tokens: 560     # legal: 70 | 140 | 280 (default) | 560 | 1120
+          max_soft_tokens: 1120
         # Unified architecture: the knob is vision_config.num_soft_tokens. This
         # checkpoint has NO top-level vision_soft_tokens_per_image and NO
         # vision_config.default_output_length (verified 2026-08-11 against its own
@@ -275,8 +291,10 @@ inference:
         # mismatch leaves the engine at one budget while the YAML claims another.
         hf_overrides:
           vision_config:
-            # num_soft_tokens: 1120
-            num_soft_tokens: 560
+            # MUST match max_soft_tokens above — moved to 1120 together for
+            # the 2026-08-14 SROIE probe. Revert BOTH to 560 together.
+            # num_soft_tokens: 560
+            num_soft_tokens: 1120
         # Concurrent sequences the scheduler may run. The defaults value of
         # 1 disables vLLM's continuous batching entirely: every request
         # waits for the previous one, so N GPUs give N in-flight requests
