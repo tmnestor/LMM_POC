@@ -885,6 +885,12 @@ case "${KFP_TASK:-}" in
     # set from the shell, because it changes how MUCH is scored, never HOW
     # — a partial run's artefacts are labelled by their own total_images.
     _banner "SROIE benchmark — 4-field receipt extraction (GPU)"
+    # The CLEAR_PREV_OUTPUT banner above is printed for every task and does
+    # NOT apply here: this stage has no resume path, never reads previous
+    # output, and truncates both artefacts on every run.
+    log "  Note: sroie does not resume — every run scores the WHOLE split and"
+    log "        OVERWRITES sroie_per_image.csv and sroie_summary.json in the"
+    log "        output dir. A partial run (sroie_max_images) clobbers a full one."
     SROIE_ARGS=()
     if [[ -n "${sroie_max_images:-}" ]]; then
       SROIE_ARGS+=(--max-images "${sroie_max_images}")
