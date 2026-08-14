@@ -183,9 +183,22 @@ def _print_summary_table(
     # Fall back to sum of per-image processing_time — correct for
     # single-GPU sequential, but always equals total compute regardless
     # of parallelism (misleading for multi-GPU DP).
-    inference_time = (
-        inference_seconds if inference_seconds is not None and inference_seconds > 0 else total_processing
-    )
+    # Prefer the GPU stages' own timing when they recorded it: the
+    # entrypoint measures from outside the process, so its number includes
+    # engine startup, and under data parallelism the sum of per-image times
+    # is total COMPUTE rather than elapsed.
+    from common.stage_timing import read_stage_timings, summarise_timings
+
+    timing_summary = summarise_timings(read_stage_timings(output_dir.parent))
+
+    if timing_summary is not None and timing_summary.inference_seconds > 0:
+        inference_time = timing_summary.inference_seconds
+    else:
+        inference_time = (
+            inference_seconds
+            if inference_seconds is not None and inference_seconds > 0
+            else total_processing
+        )
     throughput = (num / inference_time * 60.0) if inference_time > 0 else 0.0
 
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
@@ -210,6 +223,14 @@ def _print_summary_table(
     table.add_row("Images Processed", str(num))
     table.add_row("Inference Time", f"{inference_time:.1f}s")
     table.add_row("Throughput", f"{throughput:.2f} images/min")
+    if timing_summary is not None:
+        # Only shown when the GPU stages recorded their own timing. The
+        # entrypoint's number bundles engine startup in and knows nothing
+        # about data parallelism, so these rows would be misleading if
+        # derived from it.
+        table.add_row("Execution Mode", timing_summary.execution_mode)
+        table.add_row("Total Wall Clock", f"{timing_summary.wall_clock:.1f}s")
+        table.add_row("Engine Startup", f"{timing_summary.startup_seconds:.1f}s")
     if scored:
         table.add_row("Avg F1 (mean)", f"{avg_f1_mean:.3f}")
         table.add_row("Avg F1 (median)", f"{avg_f1_median:.3f}")
