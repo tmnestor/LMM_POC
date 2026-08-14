@@ -271,6 +271,12 @@ def run(
     for c in classifications:
         budget = app_cfg.get_image_budget(c["document_type"])
         c["_max_tiles"] = budget["max_tiles"]
+        # BOTH bounds, or the floor never reaches the backend. Injecting
+        # only the ceiling made min_tiles inert for every type except
+        # bank_statement (which routes via UnifiedBankExtractor, the one
+        # caller that passed both) — so raising min_tiles in run_config
+        # produced a bit-for-bit identical run.
+        c["_min_tiles"] = budget["min_tiles"]
 
     # -- vLLM data-parallel fast path (classified) --------------------------------
     from models.registry import is_vllm_model

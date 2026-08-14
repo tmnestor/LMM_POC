@@ -318,6 +318,34 @@ class DocumentOrchestrator:
             return self._resilient_generate(image, prompt, params)
         return self._backend.generate(image, prompt, params)
 
+    @staticmethod
+    def tile_extra_from_classification(classification_info: dict) -> dict | None:
+        """Build GenerationParams.extra from an injected per-type tile budget.
+
+        BOTH bounds must travel. ``min_tiles`` is the actual lever: the
+        InternVL tiling algorithm picks its grid by closest aspect-ratio
+        match, so a receipt settles on 2-3 detail tiles and never
+        approaches ``max_tiles``. Forwarding only the ceiling leaves the
+        backend on its ``min_tiles=1`` default, which made
+        ``inference.tiling.budgets.<type>.min_tiles`` inert for every type
+        except bank_statement — the one path that passed both, via
+        UnifiedBankExtractor.
+
+        Args:
+            classification_info: Classification record, optionally carrying
+                ``_max_tiles`` and ``_min_tiles`` injected by the dispatch.
+
+        Returns:
+            The extra dict, or None when no budget was injected (pre-tiling
+            off), which sends the backend down its single-image path.
+        """
+        max_tiles = classification_info.get("_max_tiles")
+        if max_tiles is None:
+            return None
+        # Absent floor reproduces the previous behaviour rather than
+        # silently forcing a dense grid on a caller that never asked.
+        return {"max_tiles": max_tiles, "min_tiles": classification_info.get("_min_tiles", 1)}
+
     def cache_hit_summary(self) -> dict:
         """Proxy the backend's cumulative prefix-cache hit summary."""
         return self._backend.cache_hit_summary()
@@ -488,10 +516,7 @@ class DocumentOrchestrator:
             doc_specific_tokens = self._calculate_max_tokens(len(doc_field_list), base_doc_type)
 
             # Per-type tile budget (Phase 3: injected by extraction dispatch)
-            extra: dict | None = None
-            max_tiles = classification_info.get("_max_tiles")
-            if max_tiles is not None:
-                extra = {"max_tiles": max_tiles}
+            extra = self.tile_extra_from_classification(classification_info)
 
             # Process with document-specific settings
             result = self.process_single_image(
