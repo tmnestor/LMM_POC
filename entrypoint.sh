@@ -319,6 +319,7 @@ _print_task_help() {
   log "    link_clean            — Linking Stage 3: parse/clean (CPU)"
   log "    link                  — Linking Stage 4: receipt->bank matching, matcher+VLM (GPU)"
   log "    link_evaluate         — Linking Stage 5: link recall/precision scoring (CPU)"
+  log "    sroie                 — SROIE benchmark: 347 public receipts, 4 fields (GPU)"
 }
 
 _clear_prev_output() {
@@ -861,6 +862,25 @@ case "${KFP_TASK:-}" in
       --output-dir   "$EVAL_DIR" \
       "${INFERENCE_ARGS[@]}" || exit $?
     log "Evaluation complete."
+    ;;
+
+  # ========================================================================
+  # SROIE BENCHMARK — ICDAR 2019 Task 3, public receipt dataset.
+  # ========================================================================
+  sroie)
+    # Single-stage benchmark (GPU): 347 test-split receipts, 4 fields each
+    # (company/date/address/total), scored under both the official
+    # exact-match protocol and a read-the-receipt policy.
+    #
+    # Unlike every other task here, it takes NO path env vars. Its data,
+    # output and tiling all come from pipeline.sroie in run_config.yml, and
+    # a missing key there fails at startup with a diagnostic. That is
+    # deliberate: the comparison between two models is only valid if the
+    # ONLY difference between their runs is bootstrap.model.type, so the
+    # run is not parameterisable from the shell.
+    _banner "SROIE benchmark — 4-field receipt extraction (GPU)"
+    python3 -m stages.sroie || exit $?
+    log "SROIE benchmark complete."
     ;;
 
   # ========================================================================
