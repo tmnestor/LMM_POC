@@ -112,17 +112,23 @@ inference:
         # the receipt was never resolution-limited, small print was. Cost
         # 22% throughput (84.41 -> 65.88 images/min).
         #
-        # Now probing the next rung: 12 detail tiles + thumbnail = 13
-        # images per request, ~2.4x baseline linear resolution, still
-        # inside limit_mm_per_prompt: 19. Expect diminishing returns and
-        # roughly double the compute again.
+        # min_tiles 12 was then probed and REJECTED: 13 tiles/image bought
+        # address lenient 0.7637 -> 0.7666 (ONE document) for 79% more
+        # compute (316s -> 565s, throughput 65.88 -> 36.86 images/min).
+        # It also made total STRICT worse, 0.7781 -> 0.7435, while lenient
+        # rose — at that resolution the model resolves the currency marker
+        # and starts including it. More tiles is not monotonically better.
         #
-        # To revert: min_tiles 6 is the validated setting; min_tiles 1 is
-        # the original aspect-matched baseline.
-        # min_tiles: 1        # original: 2-3 detail tiles, address 0.7032
-        # min_tiles: 6        # validated: 7 tiles, address 0.7637
-        min_tiles: 12
-        max_tiles: 12
+        # Measured curve on the 347-image SROIE test split:
+        #   min_tiles  tiles/img  address(lenient)  overall  images/min
+        #       1         3-4          0.7032       0.8691     84.41
+        #       6          7           0.7637       0.8892     65.88   <- knee
+        #      12         13           0.7666       0.8926     36.86
+        #
+        # min_tiles: 1         # original aspect-matched baseline
+        # min_tiles: 12        # rejected — see above
+        min_tiles: 6
+        max_tiles: 6
 
   # Generation parameters
   generation:
