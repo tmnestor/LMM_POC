@@ -28,6 +28,7 @@ from common.sroie.prompt import SROIE_PROMPT
 from common.sroie.report import (
     execution_summary_rows,
     render_execution_summary,
+    render_per_field_table,
     write_per_image_csv,
     write_summary_json,
 )
@@ -223,6 +224,8 @@ def _finish(
         summary_path,
         model_name=model_name,
         scores=scores,
+        records=records,
+        predictions=result.predictions,
         image_count=len(records),
         elapsed_seconds=elapsed,
         execution_mode=execution_mode,
@@ -232,6 +235,7 @@ def _finish(
         logger.info("SROIE %s overall F1: %.4f", policy.value, scores[policy].overall_f1)
     logger.info("Wrote %s and %s", csv_path, summary_path)
 
+    render_per_field_table(scores, records, result.predictions)
     render_execution_summary(
         execution_summary_rows(
             image_count=len(records),

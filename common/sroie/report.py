@@ -8,17 +8,83 @@ would make any pooled metric uncomputable without re-running the model.
 
 import csv
 import json
+import statistics
 from pathlib import Path
 
 from common.sroie.ground_truth import SROIE_FIELDS, SroieRecord
-from common.sroie.scoring import MatchPolicy, PolicyScore, field_matches
+from common.sroie.scoring import (
+    MatchPolicy,
+    PolicyScore,
+    field_matches,
+    per_document_f1,
+    per_field_document_scores,
+    wilson_interval,
+)
 
 __all__ = [
     "execution_summary_rows",
     "render_execution_summary",
+    "render_per_field_table",
     "write_per_image_csv",
     "write_summary_json",
 ]
+
+
+def _distribution(values: list[float]) -> dict[str, float | int]:
+    """Mean, median, population SD and n for a list of scores."""
+    if not values:
+        return {"mean": 0.0, "median": 0.0, "sd": 0.0, "n": 0}
+    return {
+        "mean": round(statistics.fmean(values), 4),
+        "median": round(statistics.median(values), 4),
+        # Population SD: these ARE all the documents, not a sample of them.
+        "sd": round(statistics.pstdev(values), 4) if len(values) > 1 else 0.0,
+        "n": len(values),
+    }
+
+
+def _policy_block(
+    score: PolicyScore,
+    records: list[SroieRecord],
+    predictions: dict[str, dict[str, str]],
+    policy: MatchPolicy,
+) -> dict[str, object]:
+    """Assemble one policy's numbers: per-field, per-document, overall.
+
+    Per field the mean and SD are taken over documents, matching the
+    convention another team reports against. Because a SROIE field is a
+    single value, each document scores 1 or 0, so that SD is mechanically
+    ``sqrt(p(1-p))`` and adds nothing to the mean — the Wilson interval
+    and ``n`` beside it are what actually express uncertainty.
+    """
+    by_field = per_field_document_scores(records, predictions, policy=policy)
+
+    per_field = {}
+    for field_name, counts in score.per_field.items():
+        values = by_field.get(field_name, [])
+        low, high = wilson_interval(
+            successes=int(sum(values)),
+            trials=len(values),
+        )
+        per_field[field_name] = {
+            "precision": round(counts.precision, 4),
+            "recall": round(counts.recall, 4),
+            "f1": round(counts.f1, 4),
+            **_distribution(values),
+            "ci_low": round(low, 4),
+            "ci_high": round(high, 4),
+            "true_positives": counts.true_positives,
+            "false_positives": counts.false_positives,
+            "false_negatives": counts.false_negatives,
+        }
+
+    return {
+        "overall_f1": round(score.overall_f1, 4),
+        "per_field": per_field,
+        # A genuine distribution: a receipt can score anywhere from 0 to 1,
+        # so mean, median and SD each say something the others do not.
+        "per_document": _distribution(per_document_f1(records, predictions, policy=policy)),
+    }
 
 
 def execution_summary_rows(
@@ -67,6 +133,46 @@ def execution_summary_rows(
 
     rows.append(("Output Directory", str(output_dir)))
     return rows
+
+
+def render_per_field_table(
+    scores: dict[MatchPolicy, PolicyScore],
+    records: list[SroieRecord],
+    predictions: dict[str, dict[str, str]],
+) -> None:
+    """Print per-field mean, SD and 95% interval for each policy."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    for policy, score in scores.items():
+        by_field = per_field_document_scores(records, predictions, policy=policy)
+
+        table = Table(
+            title=f"Per-Field F1 — {policy.value}",
+            show_header=True,
+            header_style="bold",
+        )
+        table.add_column("Field", style="cyan")
+        table.add_column("Mean", style="green", justify="right")
+        table.add_column("SD", style="green", justify="right")
+        table.add_column("95% CI", style="green", justify="right")
+        table.add_column("n", style="green", justify="right")
+
+        for field_name in score.per_field:
+            values = by_field.get(field_name, [])
+            stats = _distribution(values)
+            low, high = wilson_interval(successes=int(sum(values)), trials=len(values))
+            table.add_row(
+                field_name,
+                f"{stats['mean']:.4f}",
+                f"{stats['sd']:.4f}",
+                f"{low:.3f}–{high:.3f}",
+                str(stats["n"]),
+            )
+
+        console.print()
+        console.print(table)
 
 
 def render_execution_summary(rows: list[tuple[str, str]]) -> None:
@@ -144,6 +250,8 @@ def write_summary_json(
     *,
     model_name: str,
     scores: dict[MatchPolicy, PolicyScore],
+    records: list[SroieRecord],
+    predictions: dict[str, dict[str, str]],
     image_count: int,
     elapsed_seconds: float,
     execution_mode: str = "single-engine",
@@ -172,20 +280,7 @@ def write_summary_json(
         "throughput_images_per_min": round(throughput, 2),
         "execution_mode": execution_mode,
         "policies": {
-            policy.value: {
-                "overall_f1": round(score.overall_f1, 4),
-                "per_field": {
-                    field_name: {
-                        "precision": round(counts.precision, 4),
-                        "recall": round(counts.recall, 4),
-                        "f1": round(counts.f1, 4),
-                        "true_positives": counts.true_positives,
-                        "false_positives": counts.false_positives,
-                        "false_negatives": counts.false_negatives,
-                    }
-                    for field_name, counts in score.per_field.items()
-                },
-            }
+            policy.value: _policy_block(score, records, predictions, policy)
             for policy, score in scores.items()
         },
     }
