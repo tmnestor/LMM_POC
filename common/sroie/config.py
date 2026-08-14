@@ -17,7 +17,6 @@ pipeline:
   sroie:
     data_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/test
     output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
-    max_tiles: 12
     max_new_tokens: 256"""
 
 
@@ -38,11 +37,17 @@ def _fail(what: str, config_path: Path, key: str, expected: str) -> None:
 
 @dataclass(frozen=True)
 class SroieSettings:
-    """Everything a SROIE benchmark run needs from the YAML."""
+    """Everything a SROIE benchmark run needs from THIS block.
+
+    Deliberately not here: the image tile budget. Tiling has one home,
+    ``inference.tiling.budgets.receipt``, and the stage reads it from
+    there. A second tile knob in this block would read as operator intent
+    while changing nothing — pre-tiling is off, and the Gemma 4 loader
+    rejects enabling it outright.
+    """
 
     data_dir: Path
     output_dir: Path
-    max_tiles: int
     max_new_tokens: int
 
     @classmethod
@@ -65,7 +70,7 @@ class SroieSettings:
                 what=f"the {_SECTION} configuration block is missing.",
                 config_path=config_path,
                 key=_SECTION,
-                expected="a mapping holding data_dir, output_dir, max_tiles and max_new_tokens.",
+                expected="a mapping holding data_dir, output_dir and max_new_tokens.",
             )
 
         paths = {}
@@ -80,22 +85,18 @@ class SroieSettings:
                 )
             paths[key] = Path(value)
 
-        integers = {}
-        for key in ("max_tiles", "max_new_tokens"):
-            value = block.get(key)
-            # bool is an int subclass; a YAML `true` here is a config error.
-            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
-                _fail(
-                    what=f"{_SECTION}.{key} is missing or is not a positive integer.",
-                    config_path=config_path,
-                    key=_SECTION,
-                    expected=f"{key}: a positive integer, e.g. {12 if key == 'max_tiles' else 256}",
-                )
-            integers[key] = value
+        max_new_tokens = block.get("max_new_tokens")
+        # bool is an int subclass; a YAML `true` here is a config error.
+        if not isinstance(max_new_tokens, int) or isinstance(max_new_tokens, bool) or max_new_tokens < 1:
+            _fail(
+                what=f"{_SECTION}.max_new_tokens is missing or is not a positive integer.",
+                config_path=config_path,
+                key=_SECTION,
+                expected="max_new_tokens: a positive integer, e.g. 256",
+            )
 
         return cls(
             data_dir=paths["data_dir"],
             output_dir=paths["output_dir"],
-            max_tiles=integers["max_tiles"],
-            max_new_tokens=integers["max_new_tokens"],
+            max_new_tokens=max_new_tokens,
         )

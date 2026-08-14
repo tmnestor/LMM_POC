@@ -96,6 +96,18 @@ def run(
             app_config=app_cfg,
         )
 
+        # SROIE is 100% receipts, so the tile budget is the RECEIPT budget
+        # from inference.tiling.budgets — the same one production uses.
+        # Note it only takes effect when inference.tiling.pre_tiling is
+        # enabled; with pre-tiling off, vLLM tiles internally and this is
+        # inert. Gemma 4 cannot pre-tile at all (its loader rejects it),
+        # so the two models are compared as each is actually served.
+        tile_budget = app_cfg.get_image_budget("receipt")
+        logger.info(
+            "Receipt tile budget: %s (applies only when pre-tiling is enabled)",
+            tile_budget,
+        )
+
         def generate(record: SroieRecord) -> str:
             """Ask the model for one receipt's four fields."""
             with Image.open(record.image_path) as image:
@@ -103,7 +115,7 @@ def run(
                     image.convert("RGB"),
                     SROIE_PROMPT,
                     max_tokens=settings.max_new_tokens,
-                    extra={"max_tiles": settings.max_tiles},
+                    extra={"max_tiles": tile_budget["max_tiles"]},
                 )
 
         started = time.time()
