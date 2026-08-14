@@ -369,8 +369,26 @@ def run(
         count = 0
         total = len(classifications)
 
+        batches = _plan_batches(classifications, config_path)
+
         with StreamingJsonlWriter(output_path) as writer:
-            for classification in classifications:
+            for batch in batches:
+                # A multi-document batch is one engine call. Singletons —
+                # bank statements, and any type whose batch size is 1 — fall
+                # through to the per-image path below, unchanged.
+                if len(batch) > 1:
+                    _extract_standard_batch(writer, processor, batch, effective_verbose)
+                    count += len(batch)
+                    logger.info(
+                        "[%d/%d] batch of %d %s",
+                        count,
+                        total,
+                        len(batch),
+                        batch[0]["document_type"],
+                    )
+                    continue
+
+                classification = batch[0]
                 image_path = classification["image_path"]
                 image_name = classification["image_name"]
                 doc_type = classification["document_type"]
@@ -542,6 +560,104 @@ def _extract_bank_with_adapter(
             "error": None,
         }
     )
+
+
+# Types that can never share an engine call. Bank statements run multi-turn
+# through UnifiedBankExtractor (or the graph executor), where turn N depends
+# on turn N-1's answer, so there is nothing to batch.
+UNBATCHABLE_TYPES = {"BANK_STATEMENT"}
+
+
+def _plan_batches(
+    classifications: list[dict[str, Any]],
+    config_path: Path | None,
+) -> list[list[dict[str, Any]]]:
+    """Group classifications into engine-call batches.
+
+    Falls back to one document per batch if the batching config cannot be
+    read — the pre-batching behaviour, which is always safe.
+    """
+    from common.extraction_batching import plan_extraction_batches, read_batch_sizes
+    from common.pipeline_config import load_yaml_config
+
+    resolved = config_path or Path(__file__).resolve().parent.parent / "config" / "run_config.yml"
+    _, raw_config = load_yaml_config(resolved)
+    batch_sizes = read_batch_sizes(raw_config, config_path=resolved)
+
+    batches = plan_extraction_batches(
+        classifications,
+        batch_sizes=batch_sizes,
+        unbatchable=UNBATCHABLE_TYPES,
+    )
+    logger.info(
+        "Extraction batching: %d documents in %d calls (sizes: %s)",
+        len(classifications),
+        len(batches),
+        batch_sizes,
+    )
+    return batches
+
+
+def _extract_standard_batch(
+    writer: StreamingJsonlWriter,
+    processor,
+    batch: list[dict[str, Any]],
+    verbose: bool,
+) -> None:
+    """Extract a batch of standard documents in one engine call.
+
+    Writes the same record shape as ``_extract_standard`` — RAW responses,
+    which the clean stage parses. The two paths must stay
+    indistinguishable in the output file, or resume and re-cleaning break.
+
+    A batch that raises is retried one document at a time, so an
+    out-of-memory on a large batch costs only the document that genuinely
+    fails rather than every document that shared it.
+    """
+    started = time.time()
+    image_paths = [c["image_path"] for c in batch]
+
+    try:
+        results = processor.extract_batch(image_paths, batch, verbose=verbose)
+        if len(results) != len(batch):
+            raise ValueError(
+                f"backend returned {len(results)} results for {len(batch)} images; "
+                f"matching by position is unsafe"
+            )
+    except Exception as err:  # noqa: BLE001 - one batch must not end the run
+        logger.warning(
+            "Batch of %d %s failed (%s) — retrying one at a time",
+            len(batch),
+            batch[0]["document_type"],
+            err,
+        )
+        for classification in batch:
+            _extract_standard(
+                writer,
+                processor,
+                classification["image_path"],
+                classification["image_name"],
+                classification["document_type"],
+                classification,
+                verbose,
+            )
+        return
+
+    # Inside a batch the requests overlap, so per-image timing is not
+    # separable; charge each an equal share of the call's wall clock.
+    share = (time.time() - started) / len(batch)
+    for classification, result in zip(batch, results, strict=True):
+        writer.write(
+            {
+                "image_name": classification["image_name"],
+                "image_path": classification["image_path"],
+                "document_type": classification["document_type"],
+                "raw_response": result.get("raw_response", ""),
+                "processing_time": share,
+                "prompt_used": classification["document_type"].lower(),
+                "error": None,
+            }
+        )
 
 
 def _extract_standard(

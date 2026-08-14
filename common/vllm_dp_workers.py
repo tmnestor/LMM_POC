@@ -244,6 +244,77 @@ def extract_worker(
         model_cm.__exit__(None, None, None)
 
 
+def _extract_batch_records(
+    processor: Any,
+    batch: list[dict[str, Any]],
+    *,
+    verbose: bool,
+) -> list[dict[str, Any]]:
+    """Extract a batch of standard documents in one engine call.
+
+    Returns the same record shape the per-image path writes — RAW
+    responses, which the clean stage parses. The two paths must stay
+    indistinguishable in raw_extractions.jsonl, or resume and re-cleaning
+    break.
+
+    A batch that raises is retried one document at a time, so an
+    out-of-memory costs only the document that genuinely fails.
+    """
+    started = time.time()
+    image_paths = [c["image_path"] for c in batch]
+
+    try:
+        results = processor.extract_batch(image_paths, batch, verbose=verbose)
+        if len(results) != len(batch):
+            raise ValueError(f"backend returned {len(results)} results for {len(batch)} images")
+    except Exception as err:  # noqa: BLE001 - one batch must not end the run
+        logger.warning(
+            "Batch of %d %s failed (%s) — retrying one at a time",
+            len(batch),
+            batch[0]["document_type"],
+            err,
+        )
+        records = []
+        for classification in batch:
+            img_start = time.time()
+            try:
+                result = processor.process_document_aware(
+                    classification["image_path"], classification, verbose=verbose
+                )
+                raw, error = result.get("raw_response", ""), None
+            except Exception as inner:  # noqa: BLE001
+                logger.error("Error extracting %s: %s", classification["image_name"], inner)
+                raw, error = "", str(inner)
+            records.append(
+                {
+                    "image_name": classification["image_name"],
+                    "image_path": classification["image_path"],
+                    "document_type": classification["document_type"],
+                    "raw_response": raw,
+                    "processing_time": time.time() - img_start,
+                    "prompt_used": classification["document_type"].lower() if error is None else "error",
+                    "error": error,
+                }
+            )
+        return records
+
+    # Inside a batch the requests overlap, so per-image timing is not
+    # separable; charge each an equal share of the call's wall clock.
+    share = (time.time() - started) / len(batch)
+    return [
+        {
+            "image_name": classification["image_name"],
+            "image_path": classification["image_path"],
+            "document_type": classification["document_type"],
+            "raw_response": result.get("raw_response", ""),
+            "processing_time": share,
+            "prompt_used": classification["document_type"].lower(),
+            "error": None,
+        }
+        for classification, result in zip(batch, results, strict=True)
+    ]
+
+
 def classified_extract_worker(
     gpu_id: int,
     image_paths: list[str],
@@ -326,14 +397,48 @@ def classified_extract_worker(
         records: list[dict[str, Any]] = []
         total = len(my_classifications)
 
-        for idx, classification in enumerate(my_classifications):
+        # Group into engine calls. Batching happens INSIDE the worker, after
+        # run_dp has partitioned across GPUs, so each rank batches only its
+        # own share and the two levels of parallelism compose.
+        from common.extraction_batching import plan_extraction_batches, read_batch_sizes
+        from common.pipeline_config import load_yaml_config
+        from stages.extract import UNBATCHABLE_TYPES
+
+        _, raw_config = load_yaml_config(
+            cfg_path or Path(__file__).resolve().parent.parent / "config" / "run_config.yml"
+        )
+        batch_sizes = read_batch_sizes(
+            raw_config,
+            config_path=cfg_path or Path("config/run_config.yml"),
+        )
+        batches = plan_extraction_batches(
+            my_classifications,
+            batch_sizes=batch_sizes,
+            unbatchable=UNBATCHABLE_TYPES,
+        )
+        logger.info(
+            "GPU %d: %d documents in %d engine calls", gpu_id, len(my_classifications), len(batches)
+        )
+
+        idx = 0
+        for batch in batches:
+            # A multi-document batch is one engine call; singletons fall
+            # through to the per-image path below unchanged.
+            if len(batch) > 1:
+                records.extend(_extract_batch_records(processor, batch, verbose=effective_verbose))
+                idx += len(batch)
+                logger.info("[%d/%d] batch of %d %s", idx, total, len(batch), batch[0]["document_type"])
+                continue
+
+            classification = batch[0]
+            idx += 1
             image_path = classification["image_path"]
             image_name = classification["image_name"]
             doc_type = classification["document_type"]
 
             # Progress up front: a dense bank statement can take a while, so log
             # the start (not just the end) to track which of N is in flight.
-            logger.info("[%d/%d] extracting %s (%s)...", idx + 1, total, image_name, doc_type)
+            logger.info("[%d/%d] extracting %s (%s)...", idx, total, image_name, doc_type)
 
             img_start = time.time()
 
@@ -400,7 +505,7 @@ def classified_extract_worker(
 
             logger.info(
                 "[%d/%d] %s: %s (%.1fs)",
-                idx + 1,
+                idx,
                 total,
                 image_name,
                 doc_type,
