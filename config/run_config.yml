@@ -259,7 +259,8 @@ inference:
         # costs throughput, never results — watch for "retrying one at a
         # time" and lower BOTH if it appears.
         # max_num_seqs: 1            # pre-2026-08-14 behaviour, one at a time
-        max_num_seqs: 8
+        # max_num_seqs: 8            # 0.930 -> 0.915, IS_GST_INCLUDED -0.273
+        max_num_seqs: 10
         enable_prefix_caching: true
         mm_processor_kwargs:
           # 560 -> 1120 on 2026-08-11. At 560 the `nab_classic` layout sat right
@@ -447,16 +448,27 @@ pipeline:
   # batch 8 / max_num_seqs 8 with 560 soft tokens and no retries, reaching
   # 106 images/min. The InternVL3.5 branch uses 4 for the same reason in
   # reverse — 7 images per prompt is a far heavier request.
+  # DOSE PROBE 2026-08-14, was 8. At batch 8 the whole 165-receipt set held
+  # accuracy except IS_GST_INCLUDED, which fell 0.8485 -> 0.5758 and took
+  # the overall mean 0.930 -> 0.915. It is a single-token boolean, so it is
+  # the field most exposed to the attention-kernel numerics that change with
+  # batch composition. Raising to 10 asks whether the effect scales with
+  # concurrency (dose-dependent, so a point on the curve can be chosen) or
+  # is structural (a fixed defect in the batch path, worth finding instead).
+  #
+  # Interpret against the ACTUAL concurrency, not this number: if the KV
+  # cache admits fewer than 10, the dose is whatever vLLM managed. Run with
+  # VLLM_LOGGING_LEVEL=INFO to see "Maximum concurrency for N tokens".
   batching:
-    receipt: 8
-    invoice: 8
+    receipt: 10
+    invoice: 10
     # Bank statements are NOT batched: with processing.bank_v2 they run
     # multi-turn through UnifiedBankExtractor, where turn N depends on turn
     # N-1's answer, so a batch has nothing to batch. This value is a
     # documented ceiling for anyone who later makes that path batchable —
     # it is NOT in effect today.
     bank_statement: 2
-    default: 8
+    default: 10
 
   processing:
     batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
