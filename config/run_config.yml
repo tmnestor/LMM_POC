@@ -120,8 +120,13 @@ inference:
         min_tiles: 1
         max_tiles: 18
       bank_statement:
+        # Fixed at 12 (2026-08-14, was min 12 / max 18). The floor was
+        # already 12 and the aspect-matcher rarely reached 18, so the
+        # ceiling mostly added variance in peak memory rather than detail —
+        # and peak memory is what bounds concurrency for every other type
+        # sharing the card.
         min_tiles: 12
-        max_tiles: 18
+        max_tiles: 12
       invoice:
         min_tiles: 1
         max_tiles: 12
@@ -398,6 +403,36 @@ pipeline:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
 
   # Processing options
+  # Extraction batching — documents submitted to the engine in ONE chat()
+  # call, so vLLM's scheduler can run them concurrently. Calling generate()
+  # per image keeps exactly one sequence in flight however max_num_seqs is
+  # set, which is what the pipeline did until 2026-08-14 and what made its
+  # throughput ~3x lower than it needed to be.
+  #
+  # ONE BATCH HOLDS ONE DOCUMENT TYPE. An engine call carries a single
+  # GenerationParams, so every image in it shares a tile budget — an
+  # 18-tile bank statement and a 6-tile receipt cannot ride together. The
+  # classify stage runs first, so the type is known before batching.
+  #
+  # THE CEILING IS inference.vllm.models.<model>.max_num_seqs. These values
+  # only decide how many requests are OFFERED at once; the scheduler still
+  # runs at most max_num_seqs concurrently. Raise both together or neither
+  # moves.
+  #
+  # Sizes are bounded by peak memory, which scales with tiles per prompt:
+  # receipts carry ~6 + thumbnail, invoices up to 12, bank statements 12.
+  # Set every value to 1 to reproduce exactly the pre-batching behaviour.
+  batching:
+    receipt: 4
+    invoice: 2
+    # Bank statements are NOT batched: with processing.bank_v2 they run
+    # multi-turn through UnifiedBankExtractor, where turn N depends on turn
+    # N-1's answer, so a batch has nothing to batch. This value is a
+    # documented ceiling for anyone who later makes that path batchable —
+    # it is NOT in effect today.
+    bank_statement: 2
+    default: 2
+
   processing:
     batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
     bank_v2: true              # Use V2 bank statement extraction

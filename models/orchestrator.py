@@ -726,7 +726,14 @@ class DocumentOrchestrator:
             tokens = self._calculate_max_tokens(len(doc_field_list), base_doc_type)
             max_tokens_needed = max(max_tokens_needed, tokens)
 
-        params = GenerationParams(max_tokens=max_tokens_needed)
+        # Per-type tile budget. A batch holds ONE document type by
+        # construction (see common/extraction_batching.py), so every image
+        # here shares a budget and the first record speaks for all of them.
+        # Without this the batch path would run with pre-tiling disabled
+        # while the per-image path tiled normally — the same output from
+        # two different pipelines.
+        extra = self.tile_extra_from_classification(classification_infos[0])
+        params = GenerationParams(max_tokens=max_tokens_needed, extra=extra or {})
 
         # Safe: pipeline only calls this when supports_batch is True
         backend = self._backend
