@@ -13,6 +13,77 @@ from pathlib import Path
 from common.sroie.ground_truth import SROIE_FIELDS, SroieRecord
 from common.sroie.scoring import MatchPolicy, PolicyScore, field_matches
 
+__all__ = [
+    "execution_summary_rows",
+    "render_execution_summary",
+    "write_per_image_csv",
+    "write_summary_json",
+]
+
+
+def execution_summary_rows(
+    *,
+    image_count: int,
+    elapsed_seconds: float,
+    scores: dict[MatchPolicy, PolicyScore],
+    output_dir: Path,
+    execution_mode: str,
+    failed_images: int,
+) -> list[tuple[str, str]]:
+    """Build the Execution Summary metric/value rows.
+
+    Kept separate from rendering so the numbers are testable without a
+    terminal, and mirrors the table ``stages/evaluate.py`` prints so runs
+    end with a familiar shape.
+
+    Args:
+        image_count: Receipts scored.
+        elapsed_seconds: Inference wall-clock.
+        scores: One PolicyScore per match policy.
+        output_dir: Where the artefacts were written.
+        execution_mode: How inference ran, e.g. "data-parallel (2 GPUs)".
+            Recorded because throughput is meaningless without it.
+        failed_images: Count of images that errored during inference.
+
+    Returns:
+        Ordered (metric, value) pairs.
+    """
+    throughput = (image_count / elapsed_seconds * 60.0) if elapsed_seconds > 0 else 0.0
+
+    rows = [
+        ("Images Processed", str(image_count)),
+        ("Inference Time", f"{elapsed_seconds:.1f}s"),
+        ("Throughput", f"{throughput:.2f} images/min"),
+        ("Execution Mode", execution_mode),
+    ]
+    for policy in MatchPolicy:
+        rows.append((f"{policy.value.title()} F1", f"{scores[policy].overall_f1:.4f}"))
+
+    # Only shown when non-zero: a clean run should not carry a "Failed
+    # Images: 0" line, but a run WITH failures must never present a
+    # headline score as though every receipt was read.
+    if failed_images:
+        rows.append(("Failed Images", str(failed_images)))
+
+    rows.append(("Output Directory", str(output_dir)))
+    return rows
+
+
+def render_execution_summary(rows: list[tuple[str, str]]) -> None:
+    """Print the Execution Summary table, matching the evaluate stage."""
+    from rich.console import Console
+    from rich.table import Table
+
+    table = Table(title="Execution Summary", show_header=True, header_style="bold")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+    for metric, value in rows:
+        table.add_row(metric, value)
+
+    console = Console()
+    console.print()
+    console.print(table)
+
 
 def write_per_image_csv(
     path: Path,
@@ -75,6 +146,7 @@ def write_summary_json(
     scores: dict[MatchPolicy, PolicyScore],
     image_count: int,
     elapsed_seconds: float,
+    execution_mode: str = "single-engine",
 ) -> Path:
     """Write the headline numbers for both policies.
 
@@ -84,14 +156,21 @@ def write_summary_json(
         scores: One PolicyScore per match policy.
         image_count: Number of receipts scored.
         elapsed_seconds: Wall-clock inference time.
+        execution_mode: How inference ran. Stored alongside throughput
+            because a rate is uninterpretable without it — the same model
+            reads twice as fast data-parallel across two GPUs.
 
     Returns:
         The path written.
     """
+    throughput = (image_count / elapsed_seconds * 60.0) if elapsed_seconds > 0 else 0.0
+
     summary = {
         "model": model_name,
         "total_images": image_count,
         "elapsed_seconds": round(elapsed_seconds, 2),
+        "throughput_images_per_min": round(throughput, 2),
+        "execution_mode": execution_mode,
         "policies": {
             policy.value: {
                 "overall_f1": round(score.overall_f1, 4),
