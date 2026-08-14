@@ -162,6 +162,14 @@ def main(
     config_path: Path = typer.Option(None, "--config", help="Path to run_config.yml."),
 ) -> None:
     """Run the SROIE benchmark stage."""
+    # Per-image progress is always at INFO — it is the only sign the user
+    # has that inference is advancing. A 347-image run takes ~35 minutes
+    # and writes its artefacts only at the end, so without this the stage
+    # is indistinguishable from a hang.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
     run(model_type=model_type, max_images=max_images, config_path=config_path)
 
 
