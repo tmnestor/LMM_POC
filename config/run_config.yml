@@ -90,7 +90,25 @@ inference:
         min_tiles: 1
         max_tiles: 12
       receipt:
-        min_tiles: 1
+        # min_tiles: 1        # aspect-matched: most SROIE receipts got only
+        #                     # 2 detail tiles + thumbnail
+        # RAISED 2026-08-14 for the SROIE address experiment.
+        #
+        # Measured on the 347-image SROIE test split: of 103 lenient address
+        # misses, 61 were character-level errors on small print and most of
+        # the 19 "different" ones were too (JLN TASIK -> JLN ASIK, SECTION 25
+        # -> SECTION 26). Scope confusion accounted for only 22. That is a
+        # resolution signature, not a prompt one.
+        #
+        # min_tiles is the lever, NOT max_tiles: the InternVL tiling
+        # algorithm picks the grid by closest aspect-ratio match, so a
+        # 880x1728 receipt settles on 2 detail tiles and never approaches
+        # the ceiling of 6. Computed over 120 real images: min 1 gave
+        # {3 tiles: 66, 4: 30, 5: 2, 7: 22}; min 6 gives 7 for every image.
+        #
+        # Baseline to beat: address lenient 0.7032 (CI 0.653-0.749).
+        # Revert to min_tiles: 1 if it does not clear ~0.75.
+        min_tiles: 6
         max_tiles: 6
 
   # Generation parameters
