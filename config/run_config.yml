@@ -419,8 +419,12 @@ pipeline:
     # Dated per MODEL, not per day. Swap when switching model type, or the
     # second model's artefacts overwrite the first's and the comparison is
     # lost.
-    # output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_gemma4
-    output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
+    # output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
+    # This branch runs Gemma 4 (bootstrap.model.type =
+    # gemma4-12b-unified-w4a16-vllm), so its artefacts go to their own dir.
+    # Sharing one with the InternVL3 run would overwrite it and lose the
+    # comparison.
+    output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_gemma4
     # Four short fields. 256 is ample; a larger budget only lengthens a
     # runaway repetition loop before it is caught.
     max_new_tokens: 256
