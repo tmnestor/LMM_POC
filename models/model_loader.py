@@ -200,9 +200,14 @@ def build_vllm_loader(spec: VllmSpec):
                             f"false to run the single-image baseline."
                         ) from None
 
+                # max_num_seqs is printed because it is the ceiling on
+                # concurrency and there is otherwise NO way to tell from a run
+                # whether the configured value reached the engine — vLLM's own
+                # startup lines are INFO, and entrypoint.sh suppresses those.
                 console.print(
                     f"\n[bold]Loading {spec.model_type} via vLLM "
-                    f"(tp={tp_size}, max_model_len={effective_max_model_len})[/bold]"
+                    f"(tp={tp_size}, max_model_len={effective_max_model_len}, "
+                    f"max_num_seqs={effective_max_num_seqs})[/bold]"
                 )
                 console.print(f"[dim]Model path: {cfg.model_path}[/dim]")
                 console.print(
