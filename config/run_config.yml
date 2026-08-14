@@ -421,14 +421,18 @@ pipeline:
     # lost.
     # output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_gemma4
     output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
-    # Matches the configured max_tiles for internvl3_5_8b in
-    # config/model_config.yaml. Receipts are tall narrow scans where the
-    # address is what a low tile budget loses first — do NOT lower this for
-    # throughput.
-    max_tiles: 12
     # Four short fields. 256 is ample; a larger budget only lengthens a
     # runaway repetition loop before it is caught.
     max_new_tokens: 256
+    #
+    # There is deliberately NO max_tiles key here. Image tiling has one
+    # home — inference.tiling.budgets.receipt — and the stage reads it from
+    # there, since SROIE is 100% receipts. A tile knob in this block would
+    # read as operator intent while changing nothing: budgets apply only
+    # when inference.tiling.pre_tiling.enabled is true, and the Gemma 4
+    # loader FAILS FAST if you enable it (supports_pre_tiling=False in
+    # models/registry.py). With pre-tiling off, vLLM tiles internally and
+    # each model is measured as it is actually served.
 
   # Classification settings
   classification:
