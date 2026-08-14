@@ -96,6 +96,76 @@ def read_stage_timings(output_dir: Path) -> list[StageTiming]:
     return timings
 
 
+@dataclass(frozen=True)
+class ResolvedTiming:
+    """Which clock the summary is using, and where it came from.
+
+    ``source`` is printed alongside the number. A run's timing can come
+    from three places of very different quality, and an unlabelled figure
+    invites the reader to trust the worst of them.
+    """
+
+    inference_seconds: float | None
+    source: str
+    summary: TimingSummary | None
+
+
+def resolve_timing(
+    timings: list[StageTiming],
+    *,
+    entrypoint_seconds: float | None,
+    per_image_total: float,
+    images: int,
+) -> ResolvedTiming:
+    """Choose the best available timing and name it.
+
+    Preference order:
+
+    1. **Stage sidecar** — written by the GPU stages themselves, excludes
+       engine startup, DP-aware. Rejected as stale when it covers a
+       different image count than the evaluation, which is what happens
+       when ``evaluate`` is re-run against an older output dir.
+    2. **Entrypoint elapsed** — measured outside the process, so it
+       includes engine startup and knows nothing about parallelism. Also
+       undetectably stale on a standalone re-run: one such run reported
+       3.0s for 165 images, i.e. 3300 images/min. Labelled, not hidden.
+    3. **Sum of per-image processing time** — under data parallelism this
+       is total COMPUTE, not elapsed, so it understates throughput by
+       roughly the GPU count.
+
+    With none of the three, the answer is that timing was not recorded —
+    NOT 0.0s, which a caller would turn into an absurd throughput.
+
+    Args:
+        timings: Stage sidecar rows for this output dir.
+        entrypoint_seconds: The ``--inference-seconds`` value, if passed.
+        per_image_total: Sum of per-image processing times.
+        images: Number of documents being evaluated now.
+
+    Returns:
+        The chosen seconds (or None), its provenance, and the stage
+        summary when one applies.
+    """
+    summary = summarise_timings(timings)
+    if summary is not None and summary.inference_seconds > 0:
+        recorded_images = sum(t.images for t in timings) // max(1, len(timings))
+        if recorded_images == images:
+            return ResolvedTiming(summary.inference_seconds, "stage timing (this run)", summary)
+        logger.warning(
+            "Stage timing covers %d images but %d are being evaluated — treating it as stale",
+            recorded_images,
+            images,
+        )
+
+    if entrypoint_seconds is not None and entrypoint_seconds > 0:
+        return ResolvedTiming(entrypoint_seconds, "entrypoint elapsed (includes engine startup)", None)
+
+    if per_image_total > 0:
+        return ResolvedTiming(per_image_total, "per-image sum (unreliable under data parallelism)", None)
+
+    return ResolvedTiming(None, "not recorded", None)
+
+
 def inference_seconds_from_records(records: list[dict], *, fallback: float) -> float:
     """Elapsed inference implied by per-image processing times.
 

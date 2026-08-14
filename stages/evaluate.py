@@ -179,27 +179,21 @@ def _print_summary_table(
     num = len(eval_results)
     total_processing = sum(r.get("processing_time", 0.0) for r in cleaned_records)
 
-    # Prefer GPU wall-clock (extract-phase elapsed) for throughput.
-    # Fall back to sum of per-image processing_time — correct for
-    # single-GPU sequential, but always equals total compute regardless
-    # of parallelism (misleading for multi-GPU DP).
     # Prefer the GPU stages' own timing when they recorded it: the
     # entrypoint measures from outside the process, so its number includes
     # engine startup, and under data parallelism the sum of per-image times
     # is total COMPUTE rather than elapsed.
-    from common.stage_timing import read_stage_timings, summarise_timings
+    from common.stage_timing import read_stage_timings, resolve_timing
 
-    timing_summary = summarise_timings(read_stage_timings(output_dir.parent))
-
-    if timing_summary is not None and timing_summary.inference_seconds > 0:
-        inference_time = timing_summary.inference_seconds
-    else:
-        inference_time = (
-            inference_seconds
-            if inference_seconds is not None and inference_seconds > 0
-            else total_processing
-        )
-    throughput = (num / inference_time * 60.0) if inference_time > 0 else 0.0
+    resolved = resolve_timing(
+        read_stage_timings(output_dir.parent),
+        entrypoint_seconds=inference_seconds,
+        per_image_total=total_processing,
+        images=num,
+    )
+    timing_summary = resolved.summary
+    inference_time = resolved.inference_seconds
+    throughput = (num / inference_time * 60.0) if inference_time and inference_time > 0 else None
 
     scored = [r for r in eval_results if "median_f1" in r and not r.get("error")]
     avg_f1_mean = sum(r.get("overall_accuracy", 0.0) for r in scored) / len(scored) if scored else 0.0
@@ -221,8 +215,10 @@ def _print_summary_table(
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
     table.add_row("Images Processed", str(num))
-    table.add_row("Inference Time", f"{inference_time:.1f}s")
-    table.add_row("Throughput", f"{throughput:.2f} images/min")
+    # "not recorded" beats 0.0s: a fabricated rate reads as a measurement.
+    table.add_row("Inference Time", f"{inference_time:.1f}s" if inference_time else "not recorded")
+    table.add_row("Throughput", f"{throughput:.2f} images/min" if throughput else "not recorded")
+    table.add_row("Timing Source", resolved.source)
     if timing_summary is not None:
         # Only shown when the GPU stages recorded their own timing. The
         # entrypoint's number bundles engine startup in and knows nothing
