@@ -263,9 +263,9 @@ inference:
         # max_model_len 16384, so 8 and 10 both delivered the SAME dose and
         # scored identically (0.915). 2 is the first value below that
         # ceiling, so it is the first that genuinely changes concurrency.
-        # max_num_seqs: 8            # 0.930 -> 0.915, IS_GST_INCLUDED 0.5758
-        # max_num_seqs: 10           # 0.915, IS_GST_INCLUDED 0.5636 — same dose
-        max_num_seqs: 2
+        # max_num_seqs: 2            # 0.914 AND 2.8x slower — worst of both
+        # max_num_seqs: 8            # 0.915, IS_GST_INCLUDED 0.5758
+        max_num_seqs: 10
         enable_prefix_caching: true
         mm_processor_kwargs:
           # 560 -> 1120 on 2026-08-11. At 560 the `nab_classic` layout sat right
@@ -285,8 +285,23 @@ inference:
           # extract share the visual budget, so degrading both means the IMAGE
           # REPRESENTATION got worse at 1120 — more visual tokens is not more
           # detail for this checkpoint. Do not re-try 1120.
-          # max_soft_tokens: 1120
-          max_soft_tokens: 560       # legal: 70 | 140 | 280 (model default) | 560 | 1120
+          #
+          # PROBE 2026-08-14, 560 -> 280 (the checkpoint's own default).
+          # Soft tokens are the per-request vision cost, so this attacks the
+          # KV ceiling itself rather than trading accuracy against it the way
+          # batch size does: halving them should cut prefill compute AND let
+          # more sequences fit, lifting the measured 3.43x concurrency.
+          #
+          # NOT an extrapolation from the 1120 result. That direction made
+          # the image representation worse (address collapsed to 0.0000);
+          # this direction removes detail instead — a different failure mode
+          # that has to be measured, not inferred.
+          #
+          # Baseline to beat (batch 10, 560 soft tokens, 165 degraded
+          # receipts): overall 0.915, BUSINESS_ADDRESS 0.9657, 158.4s.
+          # max_soft_tokens: 1120    # tested twice, regressed both times
+          # max_soft_tokens: 560     # baseline: overall 0.915, 158.4s
+          max_soft_tokens: 280       # legal: 70 | 140 | 280 (model default) | 560 | 1120
         # Unified architecture: the knob is vision_config.num_soft_tokens. This
         # checkpoint has NO top-level vision_soft_tokens_per_image and NO
         # vision_config.default_output_length (verified 2026-08-11 against its own
@@ -296,8 +311,11 @@ inference:
         # mismatch leaves the engine at one budget while the YAML claims another.
         hf_overrides:
           vision_config:
+            # Moved to 280 with max_soft_tokens above for the 2026-08-14
+            # probe. These two MUST always change together.
             # num_soft_tokens: 1120
-            num_soft_tokens: 560
+            # num_soft_tokens: 560
+            num_soft_tokens: 280
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
@@ -480,16 +498,32 @@ pipeline:
   # reduces concurrency. If IS_GST_INCLUDED recovers toward 0.85 the effect
   # is dose-dependent and a point on the curve can be chosen; if it stays
   # near 0.57 the batch path is doing something structural to that field.
+  # SETTLED AT 10 (2026-08-14) after a dose probe on the 165 degraded
+  # receipts. The KV cache caps real concurrency at 3.43x, so 8 and 10 gave
+  # the same dose; 2 gave the same ACCURACY as 10 and was 2.8x slower.
+  #
+  #   batch  concurrency  IS_GST_INCLUDED  overall  inference
+  #     1        1.0          0.8485        0.930      —
+  #     2        2.0          0.5515        0.914    438.5s
+  #     8        3.43         0.5758        0.915    174.6s
+  #    10        3.43         0.5636        0.915    158.4s   <- fastest
+  #
+  # IS_GST_INCLUDED is a THRESHOLD effect, not a gradient: it collapses the
+  # moment concurrency exceeds 1 and then stays flat, because batched
+  # attention numerics flip a single-token boolean sitting on the decision
+  # boundary. It cannot be tuned away with batch size. It is also fragile
+  # unbatched (0.8485, SD 0.44 — bimodal) and DERIVABLE from GST_AMOUNT,
+  # which is the real fix.
   batching:
-    receipt: 2
-    invoice: 2
+    receipt: 10
+    invoice: 10
     # Bank statements are NOT batched: with processing.bank_v2 they run
     # multi-turn through UnifiedBankExtractor, where turn N depends on turn
     # N-1's answer, so a batch has nothing to batch. This value is a
     # documented ceiling for anyone who later makes that path batchable —
     # it is NOT in effect today.
     bank_statement: 2
-    default: 2
+    default: 10
 
   processing:
     batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
