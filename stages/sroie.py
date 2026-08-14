@@ -18,6 +18,7 @@ Run it through the entrypoint, never directly:
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -25,12 +26,17 @@ from common.sroie.config import SroieSettings
 from common.sroie.ground_truth import SroieRecord, load_sroie_split
 from common.sroie.prompt import SROIE_PROMPT
 from common.sroie.report import write_per_image_csv, write_summary_json
-from common.sroie.runner import run_benchmark
+from common.sroie.runner import benchmark_from_worker_responses, run_benchmark
 from common.sroie.scoring import MatchPolicy, score_records
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False)
+
+# run_dp resolves this by dotted string in a subprocess, so a typo here
+# would only surface minutes into a GPU run. Named as a constant so a test
+# can import it and check it resolves.
+SROIE_WORKER_FN = "common.vllm_dp_workers.sroie_worker"
 
 
 def run(
@@ -56,6 +62,7 @@ def run(
     from common.app_config import AppConfig
     from common.pipeline_config import load_yaml_config
     from common.pipeline_ops import create_processor, load_model
+    from common.vllm_dp import run_dp
     from PIL import Image
 
     from cli import load_pipeline_configs
@@ -79,6 +86,47 @@ def run(
         records = records[:max_images]
     logger.info("SROIE: %d records from %s", len(records), settings.data_dir)
 
+    # SROIE is 100% receipts, so the tile budget is the RECEIPT budget from
+    # inference.tiling.budgets — the same one production uses. It only takes
+    # effect when inference.tiling.pre_tiling is enabled; with pre-tiling off,
+    # vLLM tiles internally and this is inert. Gemma 4 cannot pre-tile at all
+    # (its loader rejects it), so each model is measured as it is served.
+    tile_budget = app_cfg.get_image_budget("receipt")
+    logger.info(
+        "Receipt tile budget: %s (applies only when pre-tiling is enabled)",
+        tile_budget,
+    )
+
+    # -- vLLM data-parallel fast path -----------------------------------------
+    # 347 receipts are independent single-image requests, so one engine per
+    # GPU (DP) beats one model split across GPUs (TP): the work partitions
+    # perfectly and nothing is shared. Mirrors stages/classify.py.
+    dp_gpus = _resolve_dp_ranks(config)
+    if dp_gpus:
+        started = time.time()
+        worker_records = run_dp(
+            num_gpus=dp_gpus,
+            images=[record.image_path for record in records],
+            worker_fn=SROIE_WORKER_FN,
+            worker_kwargs={
+                "config_path": str(config_path) if config_path else None,
+                "cli_overrides": cli_args,
+                "max_new_tokens": settings.max_new_tokens,
+                "max_tiles": tile_budget["max_tiles"],
+            },
+            app_config=app_cfg,
+        )
+        elapsed = time.time() - started
+        result = benchmark_from_worker_responses(records, worker_records)
+        return _finish(
+            records=records,
+            result=result,
+            settings=settings,
+            model_name=config.model_type,
+            elapsed=elapsed,
+        )
+
+    # -- Single-engine path ---------------------------------------------------
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
 
     logger.info("Loading model: %s", config.model_type)
@@ -94,18 +142,6 @@ def run(
             universal_fields,
             field_definitions,
             app_config=app_cfg,
-        )
-
-        # SROIE is 100% receipts, so the tile budget is the RECEIPT budget
-        # from inference.tiling.budgets — the same one production uses.
-        # Note it only takes effect when inference.tiling.pre_tiling is
-        # enabled; with pre-tiling off, vLLM tiles internally and this is
-        # inert. Gemma 4 cannot pre-tile at all (its loader rejects it),
-        # so the two models are compared as each is actually served.
-        tile_budget = app_cfg.get_image_budget("receipt")
-        logger.info(
-            "Receipt tile budget: %s (applies only when pre-tiling is enabled)",
-            tile_budget,
         )
 
         def generate(record: SroieRecord) -> str:
@@ -124,6 +160,52 @@ def run(
     finally:
         model_cm.__exit__(None, None, None)
 
+    return _finish(
+        records=records,
+        result=result,
+        settings=settings,
+        model_name=config.model_type,
+        elapsed=elapsed,
+    )
+
+
+def _resolve_dp_ranks(config: Any) -> int | None:
+    """Return the DP rank count, or None for the single-engine path.
+
+    Prefers ``resolve_dp_gpus``, which also refuses DP for models that
+    cannot hold one whole engine per GPU. That helper exists only on the
+    branches carrying Gemma 4; elsewhere fall back to the plain GPU count,
+    which is what stages/classify.py uses. Keeping both here lets this
+    file stay byte-identical across the model branches — the thing the
+    whole comparison rests on.
+    """
+    from models.registry import is_vllm_model
+
+    if not is_vllm_model(config.model_type):
+        return None
+
+    try:
+        # Absent on the InternVL3 line, so mypy cannot see it from here.
+        from common.vllm_dp import resolve_dp_gpus  # type: ignore[attr-defined]
+    except ImportError:
+        from common.vllm_dp import resolve_gpu_count
+
+        gpus = resolve_gpu_count(config)
+        return gpus if gpus > 1 else None
+
+    ranks: int | None = resolve_dp_gpus(config, config.model_type)
+    return ranks
+
+
+def _finish(
+    *,
+    records: list[SroieRecord],
+    result: Any,
+    settings: SroieSettings,
+    model_name: str,
+    elapsed: float,
+) -> Path:
+    """Score, write both artefacts, and surface any inference failures."""
     scores = {policy: score_records(records, result.predictions, policy=policy) for policy in MatchPolicy}
 
     csv_path = settings.output_dir / "sroie_per_image.csv"
@@ -131,7 +213,7 @@ def run(
     write_per_image_csv(csv_path, records, result.predictions)
     write_summary_json(
         summary_path,
-        model_name=config.model_type,
+        model_name=model_name,
         scores=scores,
         image_count=len(records),
         elapsed_seconds=elapsed,
