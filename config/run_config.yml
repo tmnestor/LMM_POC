@@ -106,10 +106,23 @@ inference:
         # the ceiling of 6. Computed over 120 real images: min 1 gave
         # {3 tiles: 66, 4: 30, 5: 2, 7: 22}; min 6 gives 7 for every image.
         #
-        # Baseline to beat: address lenient 0.7032 (CI 0.653-0.749).
-        # Revert to min_tiles: 1 if it does not clear ~0.75.
-        min_tiles: 6
-        max_tiles: 6
+        # RESULT at min_tiles 6 (7 tiles/image): address lenient
+        # 0.7032 -> 0.7637 (+21 documents), strict 0.5159 -> 0.5879.
+        # company was UNCHANGED to four decimals — large text at the top of
+        # the receipt was never resolution-limited, small print was. Cost
+        # 22% throughput (84.41 -> 65.88 images/min).
+        #
+        # Now probing the next rung: 12 detail tiles + thumbnail = 13
+        # images per request, ~2.4x baseline linear resolution, still
+        # inside limit_mm_per_prompt: 19. Expect diminishing returns and
+        # roughly double the compute again.
+        #
+        # To revert: min_tiles 6 is the validated setting; min_tiles 1 is
+        # the original aspect-matched baseline.
+        # min_tiles: 1        # original: 2-3 detail tiles, address 0.7032
+        # min_tiles: 6        # validated: 7 tiles, address 0.7637
+        min_tiles: 12
+        max_tiles: 12
 
   # Generation parameters
   generation:
