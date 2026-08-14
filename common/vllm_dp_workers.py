@@ -478,21 +478,21 @@ def sroie_worker(
                 logger.error("[%d/%d] %s FAILED: %s", idx + 1, len(image_paths), image_id, err)
                 response, error = "", str(err)
 
+            img_elapsed = time.time() - img_start
             records.append(
                 {
                     "image_id": image_id,
                     "image_path": image_path,
                     "raw_response": response,
                     "error": error,
+                    # Timed per image and tagged with the rank, so the parent
+                    # can report the SLOWEST worker's inference time rather
+                    # than wall clock that includes engine startup.
+                    "gpu_id": gpu_id,
+                    "elapsed": img_elapsed,
                 }
             )
-            logger.info(
-                "[%d/%d] %s (%.1fs)",
-                idx + 1,
-                len(image_paths),
-                image_id,
-                time.time() - img_start,
-            )
+            logger.info("[%d/%d] %s (%.1fs)", idx + 1, len(image_paths), image_id, img_elapsed)
 
         return records
     finally:
