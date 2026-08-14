@@ -275,13 +275,26 @@ inference:
           # confound), deterministic scoring with confidence intervals,
           # real scanned receipts, ~6 minutes per run.
           #
-          # A regression here CONFIRMS the 2026-08-11 finding on
-          # independent data — that is a useful result, not a wasted run.
-          # REVERT TO 560 either way unless SROIE shows a clear gain.
-          # Baseline to beat (Gemma 4, 347-image test split, batch 8):
-          #   lenient overall 0.8365 | address 0.6686 | company 0.8501
-          # max_soft_tokens: 560     # legal: 70 | 140 | 280 (default) | 560 | 1120
-          max_soft_tokens: 1120
+          # RESULT 2026-08-14: 1120 CONFIRMED as a severe regression on a
+          # second, independent corpus. SROIE 24-image smoke, Gemma 4:
+          #
+          #   field      560      1120
+          #   company   0.8501   0.0417
+          #   date      0.8473   0.5417
+          #   address   0.6686   0.0000   <- not one correct in 24
+          #   total     0.9712   0.5000
+          #   overall   0.8365   0.2752
+          #
+          # The engine loaded cleanly (82.1s, no OOM), so this is NOT a
+          # memory limit. Strict equalled lenient on three fields, so it is
+          # NOT formatting. The image representation itself degrades — the
+          # finest-detail fields collapse first, address to zero.
+          #
+          # That is now two corpora, two pipelines, one conclusion. 1120 is
+          # unusable for this checkpoint. DO NOT RE-TRY IT; a 24-image
+          # smoke settles it in 100 seconds if anyone doubts this again.
+          # max_soft_tokens: 1120    # tested twice, regressed both times
+          max_soft_tokens: 560       # legal: 70 | 140 | 280 (default) | 560 | 1120
         # Unified architecture: the knob is vision_config.num_soft_tokens. This
         # checkpoint has NO top-level vision_soft_tokens_per_image and NO
         # vision_config.default_output_length (verified 2026-08-11 against its own
@@ -291,10 +304,11 @@ inference:
         # mismatch leaves the engine at one budget while the YAML claims another.
         hf_overrides:
           vision_config:
-            # MUST match max_soft_tokens above — moved to 1120 together for
-            # the 2026-08-14 SROIE probe. Revert BOTH to 560 together.
-            # num_soft_tokens: 560
-            num_soft_tokens: 1120
+            # MUST match max_soft_tokens above. Both were moved to 1120 for
+            # the 2026-08-14 SROIE probe and both reverted together when it
+            # regressed — see the result table above.
+            # num_soft_tokens: 1120
+            num_soft_tokens: 560
         # Concurrent sequences the scheduler may run. The defaults value of
         # 1 disables vLLM's continuous batching entirely: every request
         # waits for the previous one, so N GPUs give N in-flight requests
