@@ -12,6 +12,7 @@ noise: in the earlier 626-image run it was 8.8 F1 points, and it fell
 almost entirely on two fields.
 """
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -140,6 +141,104 @@ def field_matches(
         return False
 
     return bool(expected == actual)
+
+
+def wilson_interval(*, successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a proportion, default 95%.
+
+    Preferred over the normal approximation because it stays inside [0, 1]
+    and behaves at the extremes: 347/347 yields an interval whose lower
+    bound is below 1, rather than the degenerate (1.0, 1.0) that would
+    claim certainty from a finite sample.
+
+    Args:
+        successes: Number of matches.
+        trials: Number of documents scored for this field.
+        z: Standard normal quantile; 1.96 is 95%.
+
+    Returns:
+        (low, high), or (0.0, 1.0) when there are no trials.
+    """
+    if trials <= 0:
+        return (0.0, 1.0)
+
+    proportion = successes / trials
+    denominator = 1 + z**2 / trials
+    centre = proportion + z**2 / (2 * trials)
+    spread = z * math.sqrt(proportion * (1 - proportion) / trials + z**2 / (4 * trials**2))
+
+    low = (centre - spread) / denominator
+    high = (centre + spread) / denominator
+    return (max(0.0, low), min(1.0, high))
+
+
+def per_field_document_scores(
+    records: list[SroieRecord],
+    predictions: dict[str, dict[str, str]],
+    *,
+    policy: MatchPolicy,
+) -> dict[str, list[float]]:
+    """Per-document score for each field, in record order.
+
+    SROIE fields hold a single value, so each score is 1.0 or 0.0 and the
+    mean over documents equals the pooled F1. The list form exists because
+    the mean and standard deviation are reported per field, matching the
+    convention another team publishes against.
+
+    Args:
+        records: Ground-truth records for the split.
+        predictions: Image id to parsed field values.
+        policy: Which match policy to apply.
+
+    Returns:
+        Field name to one score per document.
+    """
+    by_field: dict[str, list[float]] = {name: [] for name in SROIE_FIELDS}
+
+    for record in records:
+        answers = predictions.get(record.image_id, {})
+        for field_name in SROIE_FIELDS:
+            actual = answers.get(field_name)
+            matched = bool(
+                actual
+                and field_matches(
+                    field_name,
+                    getattr(record, field_name),
+                    actual,
+                    policy=policy,
+                    source=record.image_id,
+                )
+            )
+            by_field[field_name].append(1.0 if matched else 0.0)
+
+    return by_field
+
+
+def per_document_f1(
+    records: list[SroieRecord],
+    predictions: dict[str, dict[str, str]],
+    *,
+    policy: MatchPolicy,
+) -> list[float]:
+    """Each receipt's score: the share of its four fields read correctly.
+
+    Unlike the per-field scores this is a genuine distribution — a receipt
+    can land anywhere from 0.0 to 1.0 — so its mean, median and standard
+    deviation each carry information.
+
+    Args:
+        records: Ground-truth records for the split.
+        predictions: Image id to parsed field values.
+        policy: Which match policy to apply.
+
+    Returns:
+        One score per record, in record order.
+    """
+    by_field = per_field_document_scores(records, predictions, policy=policy)
+    return [
+        sum(by_field[name][index] for name in SROIE_FIELDS) / len(SROIE_FIELDS)
+        for index in range(len(records))
+    ]
 
 
 def score_records(
