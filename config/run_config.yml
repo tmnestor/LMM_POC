@@ -220,6 +220,43 @@ pipeline:
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
+  # SROIE benchmark (KFP_TASK=sroie) — ICDAR 2019 Task 3 receipt key
+  # information extraction, on a PUBLIC dataset. Separate from
+  # information_extraction above: its own data, its own 4-field answer key
+  # (company/date/address/total), its own prompt and scorer, and its own
+  # output dir. It does NOT run classify/extract/clean/evaluate.
+  #
+  # The stage reads ONLY this block. Every key below is required — a
+  # missing key fails at startup with a diagnostic rather than defaulting.
+  #
+  # Comparability between models rests on this block and the model type
+  # being the ONLY things that differ between two runs: same prompt, same
+  # parser, same scorer. Give each model its OWN output_dir so a second run
+  # cannot overwrite the first.
+  sroie:
+    # The split ROOT — the directory CONTAINING img/ and entities/, not
+    # either subdirectory.
+    #
+    # test/ is the 347-image ICDAR leaderboard split and is what we report.
+    # The 626-image train split also ships (as img/ + key/ at the dataset
+    # root); it is NOT interchangeable — two of its records have a blank
+    # answer-key field and the loader rejects them by design.
+    # dir: /home/jovyan/nfs_share/tod_2026/data/sroie          # 626-image train split
+    data_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/test  # 347-image test split
+    # Dated per MODEL, not per day. Swap when switching model type, or the
+    # second model's artefacts overwrite the first's and the comparison is
+    # lost.
+    # output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_gemma4
+    output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
+    # Matches the configured max_tiles for internvl3_5_8b in
+    # config/model_config.yaml. Receipts are tall narrow scans where the
+    # address is what a low tile budget loses first — do NOT lower this for
+    # throughput.
+    max_tiles: 12
+    # Four short fields. 256 is ample; a larger budget only lengthens a
+    # runaway repetition loop before it is caught.
+    max_new_tokens: 256
+
   # Classification settings
   classification:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
