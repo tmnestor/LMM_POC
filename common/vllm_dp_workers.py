@@ -404,6 +404,7 @@ def sroie_worker(
     cli_overrides: dict[str, Any],
     max_new_tokens: int,
     max_tiles: int,
+    batch_size: int,
 ) -> list[dict[str, Any]]:
     """Worker: build vLLM engine, ask each receipt for its four fields.
 
@@ -462,37 +463,75 @@ def sroie_worker(
         )
 
         records: list[dict[str, Any]] = []
-        for idx, image_path in enumerate(image_paths):
-            image_id = Path(image_path).stem
-            img_start = time.time()
+        total = len(image_paths)
+
+        for start in range(0, total, batch_size):
+            chunk = image_paths[start : start + batch_size]
+            batch_start = time.time()
+
             try:
-                with Image.open(image_path) as image:
-                    response = processor.generate(
-                        image.convert("RGB"),
-                        SROIE_PROMPT,
+                images = [Image.open(p).convert("RGB") for p in chunk]
+                try:
+                    responses = processor.generate_batch(
+                        images,
+                        [SROIE_PROMPT] * len(images),
                         max_tokens=max_new_tokens,
                         extra={"max_tiles": max_tiles},
                     )
-                error = None
-            except Exception as err:  # noqa: BLE001 - one image must not end the run
-                logger.error("[%d/%d] %s FAILED: %s", idx + 1, len(image_paths), image_id, err)
-                response, error = "", str(err)
+                finally:
+                    for image in images:
+                        image.close()
+                if len(responses) != len(chunk):
+                    raise ValueError(f"backend returned {len(responses)} responses for {len(chunk)} images")
+                errors: list[str | None] = [None] * len(chunk)
+            except Exception as err:  # noqa: BLE001 - a batch must not end the run
+                # Retry singly so an out-of-memory on a large batch costs
+                # only the image that genuinely fails.
+                logger.warning("Batch of %d failed (%s) — retrying one at a time", len(chunk), err)
+                responses, errors = [], []
+                for image_path in chunk:
+                    try:
+                        with Image.open(image_path) as image:
+                            responses.append(
+                                processor.generate(
+                                    image.convert("RGB"),
+                                    SROIE_PROMPT,
+                                    max_tokens=max_new_tokens,
+                                    extra={"max_tiles": max_tiles},
+                                )
+                            )
+                        errors.append(None)
+                    except Exception as inner:  # noqa: BLE001
+                        logger.error("%s FAILED: %s", Path(image_path).stem, inner)
+                        responses.append("")
+                        errors.append(str(inner))
 
-            img_elapsed = time.time() - img_start
-            records.append(
-                {
-                    "image_id": image_id,
-                    "image_path": image_path,
-                    "raw_response": response,
-                    "error": error,
-                    # Timed per image and tagged with the rank, so the parent
-                    # can report the SLOWEST worker's inference time rather
-                    # than wall clock that includes engine startup.
-                    "gpu_id": gpu_id,
-                    "elapsed": img_elapsed,
-                }
+            # Charge each image an equal share of the batch's wall clock:
+            # inside a batch the requests overlap, so per-image timing is
+            # not separable, and the parent only needs the per-GPU total.
+            share = (time.time() - batch_start) / len(chunk)
+            for image_path, response, error in zip(chunk, responses, errors, strict=True):
+                records.append(
+                    {
+                        "image_id": Path(image_path).stem,
+                        "image_path": image_path,
+                        "raw_response": response,
+                        "error": error,
+                        # Tagged with the rank so the parent can report the
+                        # SLOWEST worker's inference time rather than wall
+                        # clock that includes engine startup.
+                        "gpu_id": gpu_id,
+                        "elapsed": share,
+                    }
+                )
+
+            logger.info(
+                "[%d/%d] batch of %d in %.1fs",
+                start + len(chunk),
+                total,
+                len(chunk),
+                time.time() - batch_start,
             )
-            logger.info("[%d/%d] %s (%.1fs)", idx + 1, len(image_paths), image_id, img_elapsed)
 
         return records
     finally:

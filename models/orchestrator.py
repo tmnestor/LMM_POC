@@ -318,6 +318,45 @@ class DocumentOrchestrator:
             return self._resilient_generate(image, prompt, params)
         return self._backend.generate(image, prompt, params)
 
+    def generate_batch(
+        self,
+        images: list[Image.Image],
+        prompts: list[str],
+        max_tokens: int = 1024,
+        extra: dict | None = None,
+    ) -> list[str]:
+        """Run one batched inference over several images.
+
+        Deliberately WITHOUT the OOM-recovery wrapper that ``generate``
+        uses: halving the token budget would silently change what a batch
+        measured, and the caller is better placed to react — the SROIE
+        runner retries a failed batch one image at a time, so only the
+        image that genuinely fails is lost.
+
+        Args:
+            images: One PIL image per request.
+            prompts: One prompt per image, same order and length.
+            max_tokens: Generation budget, shared by every request.
+            extra: Passed through to GenerationParams.extra.
+
+        Returns:
+            Raw response strings, in submission order.
+        """
+        if not isinstance(self._backend, BatchInference):
+            raise TypeError(
+                f"What: backend {type(self._backend).__name__} does not implement "
+                f"generate_batch, so it cannot run batched inference.\n"
+                f"Where: models/orchestrator.py generate_batch().\n"
+                f"Expected: a backend satisfying the BatchInference protocol "
+                f"(models/backend.py).\n"
+                f"How to fix: call generate() per image instead, or implement "
+                f"generate_batch on that backend. Check supports_batch before "
+                f"calling this."
+            )
+
+        params = GenerationParams(max_tokens=max_tokens, extra=extra or {})
+        return self._backend.generate_batch(images, prompts, params)
+
     def cache_hit_summary(self) -> dict:
         """Proxy the backend's cumulative prefix-cache hit summary."""
         return self._backend.cache_hit_summary()

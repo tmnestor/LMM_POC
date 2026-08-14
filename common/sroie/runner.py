@@ -30,6 +30,76 @@ class BenchmarkRun:
     errors: dict[str, str] = field(default_factory=dict)
 
 
+def run_benchmark_batched(
+    records: list[SroieRecord],
+    generate_batch: Callable[[list[SroieRecord]], list[str]],
+    *,
+    batch_size: int,
+) -> BenchmarkRun:
+    """Run the split in batches so vLLM can schedule requests concurrently.
+
+    Submitting one request at a time keeps exactly one sequence in flight
+    regardless of ``max_num_seqs``; batching is what lets the scheduler
+    fill the GPU.
+
+    A batch that raises is retried one image at a time, so an out-of-memory
+    on a large batch costs only the receipt that genuinely fails rather
+    than every receipt that happened to share it.
+
+    Args:
+        records: Ground-truth records for the split.
+        generate_batch: Returns one raw response per record, in order.
+        batch_size: Records per submission.
+
+    Returns:
+        The same shape ``run_benchmark`` produces.
+    """
+    run = BenchmarkRun()
+    total = len(records)
+
+    for start in range(0, total, batch_size):
+        batch = records[start : start + batch_size]
+        try:
+            responses = generate_batch(batch)
+            if len(responses) != len(batch):
+                raise ValueError(
+                    f"backend returned {len(responses)} responses for "
+                    f"{len(batch)} images; matching by position is unsafe"
+                )
+        except Exception as err:  # noqa: BLE001 - fall back, do not lose the batch
+            if len(batch) == 1:
+                logger.error("%s FAILED: %s", batch[0].image_id, err)
+                _record_failure(run, batch[0], str(err))
+                continue
+
+            logger.warning(
+                "Batch of %d failed (%s) — retrying one at a time so only the offending image is lost",
+                len(batch),
+                err,
+            )
+            for record in batch:
+                sub = run_benchmark_batched([record], generate_batch, batch_size=1)
+                run.predictions.update(sub.predictions)
+                run.raw_responses.update(sub.raw_responses)
+                run.errors.update(sub.errors)
+            continue
+
+        for record, response in zip(batch, responses, strict=True):
+            run.raw_responses[record.image_id] = response
+            run.predictions[record.image_id] = parse_sroie_response(response)
+
+        logger.info("[%d/%d] batch of %d complete", start + len(batch), total, len(batch))
+
+    return run
+
+
+def _record_failure(run: BenchmarkRun, record: SroieRecord, message: str) -> None:
+    """Mark one record as failed without dropping it from the run."""
+    run.errors[record.image_id] = message
+    run.raw_responses[record.image_id] = ""
+    run.predictions[record.image_id] = {}
+
+
 def inference_seconds_from_responses(
     responses: list[dict[str, Any]],
     *,

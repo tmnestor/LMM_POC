@@ -266,6 +266,82 @@ class VllmBackend:
         del outputs, messages
         return text
 
+    def generate_batch(
+        self,
+        images: list[Image.Image],
+        prompts: list[str],
+        params: GenerationParams,
+    ) -> list[str]:
+        """Run one batched engine.chat() over several images.
+
+        Submitting the conversations together is what lets vLLM's scheduler
+        run them concurrently — up to ``max_num_seqs``. Calling generate()
+        in a loop instead keeps exactly one sequence in flight no matter how
+        that limit is set.
+
+        Args:
+            images: One PIL image per request.
+            prompts: One prompt per image, same order and length.
+            params: Generation hyper-parameters, shared by every request.
+
+        Returns:
+            Raw response strings, in submission order.
+
+        Raises:
+            ValueError: If the image and prompt counts differ.
+        """
+        from vllm import SamplingParams
+
+        if len(images) != len(prompts):
+            raise ValueError(
+                f"What: generate_batch got {len(images)} images and {len(prompts)} "
+                f"prompts.\n"
+                f"Where: models/backends/vllm_backend.py.\n"
+                f"Expected: one prompt per image, in the same order.\n"
+                f"How to fix: build both lists from the same iteration. Do NOT "
+                f"zip-truncate — responses are matched to inputs by position, so "
+                f"a length mismatch would score answers against the wrong images."
+            )
+
+        if not images:
+            return []
+
+        conversations = [
+            self._build_messages(
+                image,
+                prompt,
+                image_first=params.extra.get("image_first", False),
+                max_tiles=params.extra.get("max_tiles"),
+                min_tiles=params.extra.get("min_tiles", 1),
+            )
+            for image, prompt in zip(images, prompts, strict=True)
+        ]
+
+        sampling = SamplingParams(max_tokens=params.max_tokens, temperature=0)
+
+        outputs = self.model.chat(
+            messages=conversations,
+            sampling_params=sampling,
+            chat_template=self._chat_template,
+            use_tqdm=False,
+        )
+
+        texts = []
+        for output, prompt in zip(outputs, prompts, strict=True):
+            self._record_cache_stats(output)
+            text = output.outputs[0].text.strip()
+            self._emit_trace(
+                prompt,
+                text,
+                getattr(output, "prompt_token_ids", None),
+                output.outputs[0].token_ids,
+            )
+            texts.append(text)
+
+        # Free vLLM output objects to release shared memory buffer slots.
+        del outputs, conversations
+        return texts
+
     def generate_for_graph(
         self,
         image: Image.Image,

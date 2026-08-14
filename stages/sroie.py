@@ -35,7 +35,7 @@ from common.sroie.report import (
 from common.sroie.runner import (
     benchmark_from_worker_responses,
     inference_seconds_from_responses,
-    run_benchmark,
+    run_benchmark_batched,
 )
 from common.sroie.scoring import MatchPolicy, score_records
 
@@ -123,6 +123,7 @@ def run(
                 "cli_overrides": cli_args,
                 "max_new_tokens": settings.max_new_tokens,
                 "max_tiles": tile_budget["max_tiles"],
+                "batch_size": settings.batch_size,
             },
             app_config=app_cfg,
         )
@@ -161,18 +162,22 @@ def run(
             app_config=app_cfg,
         )
 
-        def generate(record: SroieRecord) -> str:
-            """Ask the model for one receipt's four fields."""
-            with Image.open(record.image_path) as image:
-                return processor.generate(
-                    image.convert("RGB"),
-                    SROIE_PROMPT,
+        def generate_batch(batch: list[SroieRecord]) -> list[str]:
+            """Ask the model for a batch of receipts' four fields."""
+            images = [Image.open(record.image_path).convert("RGB") for record in batch]
+            try:
+                return processor.generate_batch(
+                    images,
+                    [SROIE_PROMPT] * len(images),
                     max_tokens=settings.max_new_tokens,
                     extra={"max_tiles": tile_budget["max_tiles"]},
                 )
+            finally:
+                for image in images:
+                    image.close()
 
         started = time.time()
-        result = run_benchmark(records, generate)
+        result = run_benchmark_batched(records, generate_batch, batch_size=settings.batch_size)
         elapsed = time.time() - started
     finally:
         model_cm.__exit__(None, None, None)

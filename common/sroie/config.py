@@ -17,7 +17,8 @@ pipeline:
   sroie:
     data_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/test
     output_dir: /home/jovyan/nfs_share/tod_2026/data/sroie/output_internvl3
-    max_new_tokens: 256"""
+    max_new_tokens: 256
+    batch_size: 8"""
 
 
 class SroieConfigError(ValueError):
@@ -49,6 +50,7 @@ class SroieSettings:
     data_dir: Path
     output_dir: Path
     max_new_tokens: int
+    batch_size: int
 
     @classmethod
     def from_raw(cls, raw_config: dict[str, Any], *, config_path: Path) -> "SroieSettings":
@@ -85,18 +87,22 @@ class SroieSettings:
                 )
             paths[key] = Path(value)
 
-        max_new_tokens = block.get("max_new_tokens")
-        # bool is an int subclass; a YAML `true` here is a config error.
-        if not isinstance(max_new_tokens, int) or isinstance(max_new_tokens, bool) or max_new_tokens < 1:
-            _fail(
-                what=f"{_SECTION}.max_new_tokens is missing or is not a positive integer.",
-                config_path=config_path,
-                key=_SECTION,
-                expected="max_new_tokens: a positive integer, e.g. 256",
-            )
+        integers = {}
+        for key, example in (("max_new_tokens", 256), ("batch_size", 8)):
+            value = block.get(key)
+            # bool is an int subclass; a YAML `true` here is a config error.
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                _fail(
+                    what=f"{_SECTION}.{key} is missing or is not a positive integer.",
+                    config_path=config_path,
+                    key=_SECTION,
+                    expected=f"{key}: a positive integer, e.g. {example}",
+                )
+            integers[key] = value
 
         return cls(
             data_dir=paths["data_dir"],
             output_dir=paths["output_dir"],
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=integers["max_new_tokens"],
+            batch_size=integers["batch_size"],
         )

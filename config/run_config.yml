@@ -182,6 +182,11 @@ inference:
       internvl3-vllm:
         max_model_len: 16384         # 18 tiles + thumbnail ~= 4.9k vision + prompt + 4096 output
         limit_mm_per_prompt: 19      # 18 detail tiles + 1 thumbnail (required when pre_tiling on)
+        # See the note on the gemma4-12b block below for why this is 8 and
+        # not the defaults value of 1. Inert on this branch — the active
+        # model is gemma4-12b-unified-w4a16-vllm — but kept identical to
+        # feature/sroie-eval so the two configs stay diffable.
+        max_num_seqs: 8
       # Gemma 4 31B-it QAT W4A16 (compressed-tensors) on 1xL40S, tp=1.
       # Weights ~18 GB of ~44-48 GiB, so unlike the BF16 31B (~58 GB, 2xL40S)
       # there is real headroom for KV cache and vision-encoder activations.
@@ -272,6 +277,19 @@ inference:
           vision_config:
             # num_soft_tokens: 1120
             num_soft_tokens: 560
+        # Concurrent sequences the scheduler may run. The defaults value of
+        # 1 disables vLLM's continuous batching entirely: every request
+        # waits for the previous one, so N GPUs give N in-flight requests
+        # for the WHOLE machine. Measured 2026-08-14 on the synthetic set:
+        # 7898s of compute in ~4000s of wall clock on 2 GPUs — data-parallel
+        # scaling was perfect, but each GPU still ran one sequence at a time.
+        #
+        # 8 pairs with pipeline.sroie.batch_size. A SROIE receipt is ONE
+        # image at 560 soft tokens, so 8 in flight is light next to the
+        # 9.56 GiB of W4A16 weights on a 23 GiB L4. Smoke-test before
+        # trusting it: this model's history (old-repo a4b131d) is that
+        # ACTIVATIONS, not weights, were the binding resource.
+        max_num_seqs: 8
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
@@ -428,6 +446,20 @@ pipeline:
     # Four short fields. 256 is ample; a larger budget only lengthens a
     # runaway repetition loop before it is caught.
     max_new_tokens: 256
+    # Receipts submitted to the engine in one chat() call, so vLLM's
+    # scheduler can run them concurrently instead of one at a time.
+    #
+    # THE REAL CEILING IS inference.vllm.models.<model>.max_num_seqs. This
+    # value only decides how many requests are OFFERED at once; the
+    # scheduler still runs at most max_num_seqs of them concurrently, so
+    # raising this alone changes nothing. Raise both together.
+    #
+    # 8 is a deliberate starting point, not a tuned value: SROIE receipts
+    # aspect-match to 2-3 tiles plus a thumbnail, far lighter than the
+    # 18-tile bank statements, so 8 concurrent requests is well inside the
+    # 23 GiB L4 budget. A failed batch is retried one image at a time, so
+    # an over-large value costs throughput, never results.
+    batch_size: 8
     #
     # There is deliberately NO max_tiles key here. Image tiling has one
     # home — inference.tiling.budgets.receipt — and the stage reads it from
@@ -444,7 +476,19 @@ pipeline:
 
   # Processing options
   processing:
-    batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
+    # Pinned to 1 on this branch (2026-08-14), NOT auto-detect.
+    #
+    # Implementing VllmBackend.generate_batch for the SROIE benchmark flips
+    # DocumentOrchestrator.supports_batch to True for every vLLM model,
+    # because it is an isinstance(BatchInference) check. stages/classify.py
+    # gates its detect_batch path on `supports_batch and batch_size > 1` —
+    # a path that has NEVER run for a vLLM model. Left at null, auto-detect
+    # could resolve >1 on a 23 GiB L4 and silently switch classification to
+    # that untested path as a side effect of a benchmark change.
+    #
+    # 1 reproduces exactly today's behaviour. Enabling batched classify is
+    # a separate, deliberate change that needs its own validation.
+    batch_size: 1                # Images per batch (null = auto-detect from VRAM, 1 = sequential)
     bank_v2: true              # Use V2 bank statement extraction
     balance_correction: false  # Disable balance validation (reduces accuracy)
     verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
