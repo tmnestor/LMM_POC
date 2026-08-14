@@ -32,7 +32,11 @@ from common.sroie.report import (
     write_per_image_csv,
     write_summary_json,
 )
-from common.sroie.runner import benchmark_from_worker_responses, run_benchmark
+from common.sroie.runner import (
+    benchmark_from_worker_responses,
+    inference_seconds_from_responses,
+    run_benchmark,
+)
 from common.sroie.scoring import MatchPolicy, score_records
 
 logger = logging.getLogger(__name__)
@@ -122,8 +126,13 @@ def run(
             },
             app_config=app_cfg,
         )
-        elapsed = time.time() - started
+        wall_clock = time.time() - started
         result = benchmark_from_worker_responses(records, worker_records)
+        # Wall clock here includes each worker spinning up its own vLLM
+        # engine. Report the slowest worker's INFERENCE time instead, so
+        # throughput means the same thing as on the single-engine path —
+        # which starts its timer after the model has loaded.
+        elapsed = inference_seconds_from_responses(worker_records, fallback=wall_clock)
         return _finish(
             records=records,
             result=result,
@@ -131,6 +140,7 @@ def run(
             model_name=config.model_type,
             elapsed=elapsed,
             execution_mode=f"data-parallel ({dp_gpus} GPUs)",
+            wall_clock=wall_clock,
         )
 
     # -- Single-engine path ---------------------------------------------------
@@ -174,6 +184,7 @@ def run(
         model_name=config.model_type,
         elapsed=elapsed,
         execution_mode="single-engine",
+        wall_clock=None,
     )
 
 
@@ -213,6 +224,7 @@ def _finish(
     model_name: str,
     elapsed: float,
     execution_mode: str,
+    wall_clock: float | None,
 ) -> Path:
     """Score, write both artefacts, and surface any inference failures."""
     scores = {policy: score_records(records, result.predictions, policy=policy) for policy in MatchPolicy}
@@ -244,6 +256,7 @@ def _finish(
             output_dir=settings.output_dir,
             execution_mode=execution_mode,
             failed_images=len(result.errors),
+            wall_clock_seconds=wall_clock,
         )
     )
 

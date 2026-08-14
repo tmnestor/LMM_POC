@@ -30,6 +30,39 @@ class BenchmarkRun:
     errors: dict[str, str] = field(default_factory=dict)
 
 
+def inference_seconds_from_responses(
+    responses: list[dict[str, Any]],
+    *,
+    fallback: float,
+) -> float:
+    """Wall-clock inference time across data-parallel workers.
+
+    Workers run concurrently, so the elapsed time is the SLOWEST worker's
+    total, not the sum of all of them — summing would report total compute
+    and understate throughput by roughly the number of GPUs.
+
+    Engine startup is excluded because each worker times only its own
+    generate calls. That keeps the number comparable with the
+    single-engine path, which starts its timer after the model has loaded.
+
+    Args:
+        responses: Worker dicts carrying ``gpu_id`` and ``elapsed``.
+        fallback: Value to use when workers reported no timings, e.g. the
+            caller's own wall clock. Never falls back to 0.0, which would
+            surface as an absurd throughput rather than as missing data.
+
+    Returns:
+        Seconds of inference on the slowest worker.
+    """
+    per_gpu: dict[Any, float] = {}
+    for item in responses:
+        if "gpu_id" not in item or "elapsed" not in item:
+            continue
+        per_gpu[item["gpu_id"]] = per_gpu.get(item["gpu_id"], 0.0) + float(item["elapsed"])
+
+    return max(per_gpu.values()) if per_gpu else fallback
+
+
 def benchmark_from_worker_responses(
     records: list[SroieRecord],
     responses: list[dict[str, Any]],

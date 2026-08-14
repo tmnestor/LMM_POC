@@ -95,6 +95,7 @@ def execution_summary_rows(
     output_dir: Path,
     execution_mode: str,
     failed_images: int,
+    wall_clock_seconds: float | None = None,
 ) -> list[tuple[str, str]]:
     """Build the Execution Summary metric/value rows.
 
@@ -122,6 +123,16 @@ def execution_summary_rows(
         ("Throughput", f"{throughput:.2f} images/min"),
         ("Execution Mode", execution_mode),
     ]
+
+    # Data-parallel wall clock also covers each worker starting its own
+    # engine, which Inference Time excludes so throughput means the same
+    # thing in both modes. Show the gap rather than let one number quietly
+    # change meaning between runs.
+    if wall_clock_seconds is not None:
+        rows.append(("Total Wall Clock", f"{wall_clock_seconds:.1f}s"))
+        startup = wall_clock_seconds - elapsed_seconds
+        if startup > 0:
+            rows.append(("Engine Startup", f"{startup:.1f}s"))
     for policy in MatchPolicy:
         rows.append((f"{policy.value.title()} F1", f"{scores[policy].overall_f1:.4f}"))
 
