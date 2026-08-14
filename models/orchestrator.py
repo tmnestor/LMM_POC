@@ -657,9 +657,21 @@ class DocumentOrchestrator:
         prompts = [detection_prompt] * len(image_paths)
         params = GenerationParams(max_tokens=max_tokens)
 
-        # Safe: pipeline only calls this when supports_batch is True
         backend = self._backend
-        assert isinstance(backend, BatchInference)  # noqa: S101
+        if not isinstance(backend, BatchInference):
+            # A bare assert here failed with an EMPTY message, so a caller's
+            # fallback logged "Batch of 4 RECEIPT failed ()" and every batch
+            # silently degraded to per-image with no clue why.
+            raise TypeError(
+                f"What: backend {type(backend).__name__} does not implement "
+                f"generate_batch, so batched inference cannot run.\n"
+                f"Where: models/orchestrator.py.\n"
+                f"Expected: a backend satisfying the BatchInference protocol "
+                f"(models/backend.py).\n"
+                f"How to fix: implement generate_batch on that backend, or set "
+                f"every pipeline.batching.* size to 1 so the stage stays on the "
+                f"per-image path."
+            )
         responses = backend.generate_batch(images, prompts, params)
 
         results = []
@@ -735,9 +747,21 @@ class DocumentOrchestrator:
         extra = self.tile_extra_from_classification(classification_infos[0])
         params = GenerationParams(max_tokens=max_tokens_needed, extra=extra or {})
 
-        # Safe: pipeline only calls this when supports_batch is True
         backend = self._backend
-        assert isinstance(backend, BatchInference)  # noqa: S101
+        if not isinstance(backend, BatchInference):
+            # A bare assert here failed with an EMPTY message, so a caller's
+            # fallback logged "Batch of 4 RECEIPT failed ()" and every batch
+            # silently degraded to per-image with no clue why.
+            raise TypeError(
+                f"What: backend {type(backend).__name__} does not implement "
+                f"generate_batch, so batched inference cannot run.\n"
+                f"Where: models/orchestrator.py.\n"
+                f"Expected: a backend satisfying the BatchInference protocol "
+                f"(models/backend.py).\n"
+                f"How to fix: implement generate_batch on that backend, or set "
+                f"every pipeline.batching.* size to 1 so the stage stays on the "
+                f"per-image path."
+            )
         responses = backend.generate_batch(images, prompts, params)
 
         # Parse responses and clean extracted data
