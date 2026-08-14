@@ -197,6 +197,13 @@ def _print_summary_table(
         dt = r.get("document_type", "UNKNOWN")
         doc_types[dt] = doc_types.get(dt, 0) + 1
 
+    # Per-field dispersion, printed BEFORE the summary so the headline mean
+    # is read with the spread already in view. Built from field_scores the
+    # evaluator already stores — no scorer change involved.
+    from common.field_report import field_distributions, render_field_table
+
+    render_field_table(field_distributions(eval_results))
+
     table = Table(title="Execution Summary", show_header=True, header_style="bold")
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
