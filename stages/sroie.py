@@ -25,7 +25,12 @@ import typer
 from common.sroie.config import SroieSettings
 from common.sroie.ground_truth import SroieRecord, load_sroie_split
 from common.sroie.prompt import SROIE_PROMPT
-from common.sroie.report import write_per_image_csv, write_summary_json
+from common.sroie.report import (
+    execution_summary_rows,
+    render_execution_summary,
+    write_per_image_csv,
+    write_summary_json,
+)
 from common.sroie.runner import benchmark_from_worker_responses, run_benchmark
 from common.sroie.scoring import MatchPolicy, score_records
 
@@ -124,6 +129,7 @@ def run(
             settings=settings,
             model_name=config.model_type,
             elapsed=elapsed,
+            execution_mode=f"data-parallel ({dp_gpus} GPUs)",
         )
 
     # -- Single-engine path ---------------------------------------------------
@@ -166,6 +172,7 @@ def run(
         settings=settings,
         model_name=config.model_type,
         elapsed=elapsed,
+        execution_mode="single-engine",
     )
 
 
@@ -204,6 +211,7 @@ def _finish(
     settings: SroieSettings,
     model_name: str,
     elapsed: float,
+    execution_mode: str,
 ) -> Path:
     """Score, write both artefacts, and surface any inference failures."""
     scores = {policy: score_records(records, result.predictions, policy=policy) for policy in MatchPolicy}
@@ -217,11 +225,23 @@ def _finish(
         scores=scores,
         image_count=len(records),
         elapsed_seconds=elapsed,
+        execution_mode=execution_mode,
     )
 
     for policy in MatchPolicy:
         logger.info("SROIE %s overall F1: %.4f", policy.value, scores[policy].overall_f1)
     logger.info("Wrote %s and %s", csv_path, summary_path)
+
+    render_execution_summary(
+        execution_summary_rows(
+            image_count=len(records),
+            elapsed_seconds=elapsed,
+            scores=scores,
+            output_dir=settings.output_dir,
+            execution_mode=execution_mode,
+            failed_images=len(result.errors),
+        )
+    )
 
     # Artefacts are written first so a partly-failed run is still
     # inspectable, then the failure is surfaced. A run with inference
