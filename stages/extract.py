@@ -30,6 +30,40 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
+def _record_stage_timing(
+    output_dir: Path,
+    *,
+    stage: str,
+    records: list[dict[str, Any]],
+    wall_clock: float,
+    execution_mode: str,
+) -> None:
+    """Write this stage's timing sidecar for the evaluate summary.
+
+    Observability only — a failure here must never fail a run that has
+    already done its expensive work.
+    """
+    try:
+        from common.stage_timing import (
+            StageTiming,
+            inference_seconds_from_records,
+            write_stage_timing,
+        )
+
+        write_stage_timing(
+            output_dir,
+            StageTiming(
+                stage=stage,
+                wall_clock=wall_clock,
+                inference_seconds=inference_seconds_from_records(records, fallback=wall_clock),
+                execution_mode=execution_mode,
+                images=len(records),
+            ),
+        )
+    except Exception as err:  # noqa: BLE001 - timing must not break the stage
+        logger.warning("Could not record %s stage timing: %s", stage, err)
+
+
 def _build_cli_args(
     image_dir: Path,
     output_path: Path,
@@ -229,6 +263,10 @@ def run(
         app_cfg.secondary_sort,
     )
 
+    # Stage wall clock, used by BOTH paths below so "Total Wall Clock" and
+    # "Engine Startup" mean the same thing however the stage ran.
+    stage_started = time.time()
+
     # -- Phase 3: inject per-type tile budgets into classification records --------
     for c in classifications:
         budget = app_cfg.get_image_budget(c["document_type"])
@@ -257,6 +295,15 @@ def run(
                     "cli_overrides": cli_args,
                     "classifications": classifications,
                 },
+            )
+            # Wall clock here spans each worker spinning up its own engine;
+            # inference comes from the slowest worker's per-image times.
+            _record_stage_timing(
+                output_path.parent,
+                stage="extract",
+                records=records,
+                wall_clock=time.time() - stage_started,
+                execution_mode=f"data-parallel ({resolved_gpus} GPUs)",
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             # Resume-safe: APPEND when resuming (preserve already-extracted
@@ -385,6 +432,15 @@ def run(
 
         elapsed = time.time() - start
         logger.info("Extraction complete: %d images in %.1fs", count, elapsed)
+        # Sequential, so the loop's elapsed IS the inference time; the gap
+        # to stage wall clock is engine startup.
+        _record_stage_timing(
+            output_path.parent,
+            stage="extract",
+            records=[{"processing_time": elapsed}],
+            wall_clock=time.time() - stage_started,
+            execution_mode="single-engine",
+        )
     finally:
         model_cm.__exit__(None, None, None)
 

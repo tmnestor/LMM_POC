@@ -70,6 +70,7 @@ def classify_worker(
 
         records: list[dict[str, Any]] = []
         for idx, image_path in enumerate(image_paths):
+            img_start = time.time()
             result = processor.detect_and_classify_document(image_path, verbose=config.verbose)
             image_name = Path(image_path).name
             records.append(
@@ -80,6 +81,9 @@ def classify_worker(
                     "confidence": result.get("confidence", 1.0),
                     "raw_response": result.get("raw_response", ""),
                     "prompt_used": result.get("prompt_used", "detection"),
+                    # Timed so the stage can report inference separately
+                    # from wall clock, which includes engine startup.
+                    "processing_time": time.time() - img_start,
                 }
             )
             logger.info(
@@ -90,6 +94,12 @@ def classify_worker(
                 result["document_type"],
             )
 
+        # Tag every record with the rank that produced it. Workers run
+        # concurrently, so the parent needs this to report the SLOWEST
+        # worker's inference time — summing across workers would give total
+        # compute and understate throughput by roughly the GPU count.
+        for record in records:
+            record["gpu_id"] = gpu_id
         return records
     finally:
         model_cm.__exit__(None, None, None)
@@ -206,6 +216,12 @@ def extract_worker(
                 img_time,
             )
 
+        # Tag every record with the rank that produced it. Workers run
+        # concurrently, so the parent needs this to report the SLOWEST
+        # worker's inference time — summing across workers would give total
+        # compute and understate throughput by roughly the GPU count.
+        for record in records:
+            record["gpu_id"] = gpu_id
         return records
     finally:
         model_cm.__exit__(None, None, None)
@@ -363,6 +379,12 @@ def classified_extract_worker(
                 time.time() - img_start,
             )
 
+        # Tag every record with the rank that produced it. Workers run
+        # concurrently, so the parent needs this to report the SLOWEST
+        # worker's inference time — summing across workers would give total
+        # compute and understate throughput by roughly the GPU count.
+        for record in records:
+            record["gpu_id"] = gpu_id
         return records
     finally:
         model_cm.__exit__(None, None, None)
