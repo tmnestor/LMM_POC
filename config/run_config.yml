@@ -244,7 +244,22 @@ inference:
         max_model_len: 16384         # vLLM recipe recommends 16384-32768 for this model
         gpu_memory_utilization: 0.90 # ~20.25 GiB budget/card; 9.56 GiB of it is weights
         limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
-        max_num_seqs: 1
+        # Concurrent sequences the scheduler may run. The defaults value of
+        # 1 disables vLLM's continuous batching entirely: every request waits
+        # for the previous one, so N GPUs give N in-flight requests for the
+        # WHOLE machine. That is what this pipeline did until 2026-08-14.
+        #
+        # Pairs with pipeline.batching (8 for the batchable types). Raising
+        # this alone does nothing while the stage submits one image per call,
+        # and raising the batch sizes alone does nothing while the cap is 1.
+        #
+        # 8 is evidence-based: the SROIE benchmark ran this checkpoint at 8
+        # with 560 soft tokens, no retries, 106 images/min. A batch that does
+        # not fit is retried one image at a time, so an over-large value
+        # costs throughput, never results — watch for "retrying one at a
+        # time" and lower BOTH if it appears.
+        # max_num_seqs: 1            # pre-2026-08-14 behaviour, one at a time
+        max_num_seqs: 8
         enable_prefix_caching: true
         mm_processor_kwargs:
           # 560 -> 1120 on 2026-08-11. At 560 the `nab_classic` layout sat right
@@ -422,16 +437,26 @@ pipeline:
   # Sizes are bounded by peak memory, which scales with tiles per prompt:
   # receipts carry ~6 + thumbnail, invoices up to 12, bank statements 12.
   # Set every value to 1 to reproduce exactly the pre-batching behaviour.
+  # SIZED FOR GEMMA 4 ON THIS BRANCH (2026-08-14). Gemma sends ONE image per
+  # prompt — it pan-and-scans internally rather than receiving pre-cropped
+  # tiles — where InternVL3.5 sends up to 7. It is also smaller once
+  # quantised: 9.56 GiB of W4A16 weights against ~16 GiB of bf16, leaving
+  # ~11 GiB rather than ~4.7 for KV cache and activations on a 23 GiB L4.
+  #
+  # 8 is not a guess: the SROIE benchmark ran this exact checkpoint at
+  # batch 8 / max_num_seqs 8 with 560 soft tokens and no retries, reaching
+  # 106 images/min. The InternVL3.5 branch uses 4 for the same reason in
+  # reverse — 7 images per prompt is a far heavier request.
   batching:
-    receipt: 4
-    invoice: 2
+    receipt: 8
+    invoice: 8
     # Bank statements are NOT batched: with processing.bank_v2 they run
     # multi-turn through UnifiedBankExtractor, where turn N depends on turn
     # N-1's answer, so a batch has nothing to batch. This value is a
     # documented ceiling for anyone who later makes that path batchable —
     # it is NOT in effect today.
     bank_statement: 2
-    default: 2
+    default: 8
 
   processing:
     batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
