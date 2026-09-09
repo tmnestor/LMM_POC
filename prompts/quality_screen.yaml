@@ -618,6 +618,69 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v11 -- v9 with the answer-space leak closed. The current best candidate.
+  # =======================================================================
+  # v9, scored correctly, is the strongest variant measured on 60 images:
+  #
+  #   inverted criteria    recall 1.000, precision 0.31-0.74
+  #   FADED F1 0.849, SPECKLE 0.822, BLUR 0.734, TILT 0.478
+  #   invoices             FADED 0.971, SPECKLE 0.944, SHADOW 1.000
+  #   OVERALL              41/51 = 80%, against 55% for v6 and 48% for the
+  #                        no-criteria control
+  #
+  # Polarity turned out to be a precision/recall dial. Defect-phrased gives
+  # precision 1.000 and misses most defects; good-phrased gives recall 1.000
+  # and over-flags. A screen exists to catch images needing re-capture, so a
+  # false positive costs a second look and a false negative ships a bad image
+  # into extraction. Recall is the side worth buying.
+  #
+  # Its one flaw: 9 of 60 responses were unreadable, every one of them the
+  # model answering NONE to SPECKLE. SPECKLE was the last binary question,
+  # directly above an OVERALL whose options are NONE / MODERATE / HEAVY, and
+  # its own wording ("with no grain or speckling") primes the word. The answer
+  # space leaked one slot upward.
+  #
+  # Two changes, both aimed at that: questions 1-6 are explicitly constrained
+  # to YES or NO, and SPECKLE no longer contains the word "no". Nothing else
+  # moves, so v11 stays comparable to v9.
+  quality_screen_v11:
+    name: "quality_screen_v11"
+    evidence:
+      blur: false
+      shadow: true
+      crease: true
+      faded: false
+      tilt: false
+      speckle: false
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      Questions 1 to 6 must be answered with the single word YES or NO. Nothing else.
+      Answer YES only if the statement is completely true of the whole picture.
+      If any part of it falls short, answer NO.
+
+      1. BLUR: Is every word perfectly sharp and in focus, across the whole picture?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is the printing even and unbroken everywhere, with no faded or patchy parts?
+      5. TILT: Is the paper perfectly square to the edges of the picture, not turned at all?
+      6. SPECKLE: Is the picture perfectly smooth and free of grain, speckling or noise?
+
+      Question 7 is different. Judge the picture as a whole and answer with one of
+      NONE, MODERATE or HEAVY.
+      7. OVERALL: Answer NONE only if the picture is perfect in every way.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # CONTROL -- OVERALL only, no criteria. Answers "does the scaffolding help?"
   # =======================================================================
   # If the six questions exist to make the model reason before it judges, the
