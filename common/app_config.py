@@ -885,7 +885,10 @@ class AppConfig:
             "      condition_to_level:\n"
             "        clean: NONE\n"
             "        moderate: MODERATE\n"
-            "        heavy: HEAVY"
+            "        heavy: HEAVY\n"
+            "      tiling:\n"
+            "        min_tiles: 6\n"
+            "        max_tiles: 12"
         )
         if screen is None:
             raise ConfigError(
@@ -907,7 +910,7 @@ class AppConfig:
                     f"How to fix: change 'pipeline.quality_screen' to a YAML mapping."
                 ]
             )
-        for key in ("prompt_file", "variant", "output_name", "condition_to_level"):
+        for key in ("prompt_file", "variant", "output_name", "condition_to_level", "tiling"):
             if key not in screen:
                 raise ConfigError(
                     [
@@ -919,6 +922,31 @@ class AppConfig:
                         f"How to fix: add '{key}:' under 'pipeline.quality_screen'."
                     ]
                 )
+        tiling = screen["tiling"]
+        if not isinstance(tiling, dict) or not {"min_tiles", "max_tiles"} <= set(tiling):
+            raise ConfigError(
+                [
+                    f"Invalid 'pipeline.quality_screen.tiling' in {config_file}. "
+                    f"What: it must declare both 'min_tiles' and 'max_tiles'. Without a budget "
+                    f"the backend skips pre-tiling and a small receipt is seen at roughly one "
+                    f"tile, at which resolution the model reports heavy damage as good condition. "
+                    f"Where: {config_file} → pipeline.quality_screen.tiling. "
+                    f"Expected: a mapping with both keys, e.g.:\n{example}\n"
+                    f"How to fix: add 'min_tiles:' and 'max_tiles:' under "
+                    f"'pipeline.quality_screen.tiling'."
+                ]
+            )
+        if tiling["min_tiles"] > tiling["max_tiles"]:
+            raise ConfigError(
+                [
+                    f"Inverted tile budget in {config_file}. "
+                    f"What: min_tiles ({tiling['min_tiles']}) exceeds max_tiles "
+                    f"({tiling['max_tiles']}), so the floor cannot be satisfied. "
+                    f"Where: {config_file} → pipeline.quality_screen.tiling. "
+                    f"Expected: min_tiles <= max_tiles, e.g.:\n{example}\n"
+                    f"How to fix: lower min_tiles or raise max_tiles."
+                ]
+            )
         if not isinstance(screen["condition_to_level"], dict) or not screen["condition_to_level"]:
             raise ConfigError(
                 [

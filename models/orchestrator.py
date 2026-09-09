@@ -683,7 +683,12 @@ class DocumentOrchestrator:
         return results
 
     def screen_batch(
-        self, image_paths: list[str], prompt: str, max_tokens: int, verbose: bool = False
+        self,
+        image_paths: list[str],
+        prompt: str,
+        max_tokens: int,
+        verbose: bool = False,
+        tile_extra: dict | None = None,
     ) -> list[str]:
         """Run one prompt over a batch of images and return the raw responses.
 
@@ -706,6 +711,12 @@ class DocumentOrchestrator:
             prompt: The prompt to ask about every image.
             max_tokens: Generation budget.
             verbose: Whether to log per-image progress.
+            tile_extra: Optional `{"min_tiles": n, "max_tiles": m}` forwarded to
+                GenerationParams.extra. Without it the backend skips app-side
+                pre-tiling and lets vLLM tile internally, where the grid is
+                chosen by closest aspect-ratio match -- which settles a small
+                receipt on roughly ONE tile. `min_tiles` is the floor that
+                forces a denser grid; `max_tiles` alone does nothing.
 
         Returns:
             One raw response per image, in the order given.
@@ -715,18 +726,18 @@ class DocumentOrchestrator:
 
         if verbose:
             mode = "batched" if self.supports_batch else "sequential"
-            sys.stdout.write(f"Screening {len(image_paths)} images ({mode})\n")
+            sys.stdout.write(f"Screening {len(image_paths)} images ({mode}, tiles={tile_extra})\n")
             sys.stdout.flush()
 
         images = [self.load_document_image(path) for path in image_paths]
 
         if self.supports_batch:
-            params = GenerationParams(max_tokens=max_tokens)
+            params = GenerationParams(max_tokens=max_tokens, extra=tile_extra or {})
             backend = self._backend
             assert isinstance(backend, BatchInference)  # noqa: S101
             return backend.generate_batch(images, [prompt] * len(image_paths), params)
 
-        return [self.generate(image, prompt, max_tokens) for image in images]
+        return [self.generate(image, prompt, max_tokens, extra=tile_extra) for image in images]
 
     def extract_batch(
         self,

@@ -44,8 +44,8 @@ class FakeOrchestrator:
     def load_document_image(self, path):
         return f"image:{path}"
 
-    def generate(self, image, prompt, max_tokens):
-        self.generate_calls.append((image, prompt, max_tokens))
+    def generate(self, image, prompt, max_tokens, extra=None):
+        self.generate_calls.append((image, prompt, max_tokens, extra))
         return f"answer for {image}"
 
     screen_batch = DocumentOrchestrator.screen_batch
@@ -89,6 +89,27 @@ def test_a_batching_backend_is_used_in_one_call():
     assert len(backend.batch_calls) == 1
     assert responses == ["batched 0", "batched 1"]
     assert orchestrator.generate_calls == []
+
+
+def test_tile_budgets_reach_the_model():
+    """Without a budget the backend skips pre-tiling and lets vLLM choose the
+    grid by aspect ratio, which puts a small receipt on about one tile. The
+    floor is the lever, and it only works if it actually arrives."""
+    orchestrator = FakeOrchestrator(FakeBackend(), supports_batch=False)
+
+    orchestrator.screen_batch(["/a.png"], "ask", 200, tile_extra={"min_tiles": 6, "max_tiles": 6})
+
+    assert orchestrator.generate_calls[0][3] == {"min_tiles": 6, "max_tiles": 6}
+
+
+def test_no_tile_budget_passes_none_rather_than_an_empty_dict():
+    """An empty dict and None mean different things downstream: the backend
+    tests `max_tiles` truthiness to decide whether to pre-tile at all."""
+    orchestrator = FakeOrchestrator(FakeBackend(), supports_batch=False)
+
+    orchestrator.screen_batch(["/a.png"], "ask", 200)
+
+    assert orchestrator.generate_calls[0][3] is None
 
 
 @pytest.mark.parametrize("supports_batch", [True, False])

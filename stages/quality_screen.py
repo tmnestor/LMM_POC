@@ -102,7 +102,13 @@ def run_quality_screen(
     return records
 
 
-def orchestrator_inference(orchestrator, max_tokens: int, *, verbose: bool = False) -> InferenceFn:
+def orchestrator_inference(
+    orchestrator,
+    max_tokens: int,
+    *,
+    verbose: bool = False,
+    tile_extra: dict | None = None,
+) -> InferenceFn:
     """Adapt a loaded orchestrator to the injected-inference seam.
 
     Thin by design: everything the stage does with the responses is tested on
@@ -119,7 +125,9 @@ def orchestrator_inference(orchestrator, max_tokens: int, *, verbose: bool = Fal
     """
 
     def _infer(image_paths: list[str], prompt: str) -> list[str]:
-        return orchestrator.screen_batch(image_paths, prompt, max_tokens, verbose=verbose)
+        return orchestrator.screen_batch(
+            image_paths, prompt, max_tokens, verbose=verbose, tile_extra=tile_extra
+        )
 
     return _infer
 
@@ -149,6 +157,8 @@ def run(
     verbose: bool | None = None,
     config_path: Path | None = None,
     variant: str | None = None,
+    min_tiles: int | None = None,
+    max_tiles: int | None = None,
 ) -> Path:
     """Screen every image in a directory, write quality_screen.jsonl.
 
@@ -163,6 +173,9 @@ def run(
             An override rather than a default: comparing prompts is the whole
             reason several variants exist, and editing config between runs
             makes it easy to lose track of which produced which output.
+        min_tiles: Override the configured tile floor. The floor is the lever
+            for small images; sweeping it is how its effect gets measured.
+        max_tiles: Override the configured tile ceiling.
 
     Returns:
         Path to the written records.
@@ -195,6 +208,13 @@ def run(
     vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=resolved_variant)
     max_tokens = app_cfg.get_token_budget("quality_screen")
 
+    tile_extra = dict(screen_cfg["tiling"])
+    if min_tiles is not None:
+        tile_extra["min_tiles"] = min_tiles
+    if max_tiles is not None:
+        tile_extra["max_tiles"] = max_tiles
+    logger.info("Tile budget: %s", tile_extra)
+
     images = list(discover_images(config.data_dir))
     if not images:
         msg = f"No images found in {config.data_dir}"
@@ -223,6 +243,7 @@ def run(
                     "config_path": str(config_path) if config_path else None,
                     "cli_overrides": cli_args,
                     "variant": resolved_variant,
+                    "tile_extra": tile_extra,
                 },
                 app_config=app_cfg,
             )
@@ -248,7 +269,9 @@ def run(
         )
         records = run_quality_screen(
             [str(path) for path in images],
-            infer=orchestrator_inference(orchestrator, max_tokens, verbose=config.verbose),
+            infer=orchestrator_inference(
+                orchestrator, max_tokens, verbose=config.verbose, tile_extra=tile_extra
+            ),
             vocabulary=vocabulary,
         )
     finally:
@@ -300,6 +323,8 @@ def main(
         "--variant",
         help="Prompt variant to run, overriding the one in run_config.yml.",
     ),
+    min_tiles: int | None = typer.Option(None, "--min-tiles", help="Override the tile floor."),
+    max_tiles: int | None = typer.Option(None, "--max-tiles", help="Override the tile ceiling."),
 ) -> None:
     """Stage 1: screen image quality for every image in a directory."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -311,6 +336,8 @@ def main(
         verbose=verbose,
         config_path=config,
         variant=variant,
+        min_tiles=min_tiles,
+        max_tiles=max_tiles,
     )
 
 

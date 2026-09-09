@@ -112,6 +112,7 @@ def quality_screen_worker(
     config_path: str | None,
     cli_overrides: dict[str, Any],
     variant: str | None = None,
+    tile_extra: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Worker: build vLLM engine + processor, screen each image's quality.
 
@@ -129,6 +130,9 @@ def quality_screen_worker(
             parent: a worker falling back to the configured variant while the
             parent was told to run another one would shard a single run across
             two different prompts.
+        tile_extra: Tile budget, threaded from the parent for the same reason.
+            A worker without it skips pre-tiling, and its shard would be judged
+            at a different resolution from every other shard.
 
     Returns:
         List of quality-screen record dicts.
@@ -177,7 +181,9 @@ def quality_screen_worker(
         started = time.time()
         records = run_quality_screen(
             image_paths,
-            infer=orchestrator_inference(processor, max_tokens, verbose=config.verbose),
+            infer=orchestrator_inference(
+                processor, max_tokens, verbose=config.verbose, tile_extra=tile_extra
+            ),
             vocabulary=vocabulary,
         )
         elapsed = time.time() - started

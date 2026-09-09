@@ -243,6 +243,29 @@ pipeline:
     # paying for 330 images of inference again.
     output_name: quality_screen.jsonl
 
+    # Tile budget for the screen. NOT optional in practice.
+    #
+    # Without a budget the backend skips app-side pre-tiling and lets vLLM
+    # choose the grid by closest aspect-ratio match. A 2510x4478 invoice lands
+    # on many tiles and the model duly reports its crease, shadow and grain. A
+    # 558x848 receipt lands on about ONE, and the model then describes a heavy
+    # receipt -- fold, cast shadow, washed-out print -- as "good physical
+    # condition", word for word identically to the clean one.
+    #
+    # min_tiles is the lever, not max_tiles: the aspect-ratio match settles
+    # small images low and never reaches the ceiling on its own. Raising the
+    # floor forces the denser grid.
+    #
+    # One budget for both document types, because the screen runs before any
+    # classification and does not know which it is looking at. 6 is the
+    # documented knee for receipts; 12 is the invoice ceiling elsewhere in this
+    # file, and is not raised here because invoice prompts already approach
+    # max_model_len (a 16734 > 14588 overflow was logged on the composited
+    # invoice at single-image tiling).
+    tiling:
+      min_tiles: 6
+      max_tiles: 12
+
     # The corpus records a condition; the prompt answers a severity level. Two
     # vocabularies for one ladder, and the mapping between them is a contract
     # between this repo and Synthetic_Doc_Generation. Declared here rather than
