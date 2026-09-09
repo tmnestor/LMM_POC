@@ -308,6 +308,63 @@ prompts:
       9. SKEWING:
 
   # =======================================================================
+  # v6 -- v5 with the threshold lowered. Same six criteria, same names.
+  # =======================================================================
+  # v5 and the describe variant were run on the same images at the same
+  # tiling. The model DESCRIBED a moderate receipt as "slightly blurry towards
+  # the bottom, faded or patchy areas, slightly grainy and speckled" -- and
+  # then answered NO to blur, faded and speckle when asked YES or NO.
+  #
+  # So it perceives the damage and reports it as a matter of DEGREE. Its own
+  # words are "slightly", "mostly sharp", "a bit grainy". A binary question
+  # forces that onto a threshold, and the model's threshold for YES sits well
+  # above the corpus's: a drawn blur sigma of 0.65 is a defect in the ground
+  # truth and "mostly sharp" to the model.
+  #
+  # v6 changes nothing but where the bar sits. Every question asks whether the
+  # defect is present AT ALL, and the instruction says so explicitly. The
+  # criteria names are unchanged, so the scorer and the corpus labels need no
+  # translation.
+  #
+  # If this closes the gap, the screen works. If it overshoots into answering
+  # YES to everything, the clean third of the corpus will catch it -- which is
+  # what that third is for, and why the report gives precision per criterion
+  # rather than one blended number.
+  quality_screen_v6:
+    name: "quality_screen_v6"
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice and answer each question with YES or NO.
+
+      Answer YES if you notice the problem at all, even slightly, or in only part of the
+      picture. Answer NO only if the problem is completely absent.
+
+      1. BLUR: Is any of the writing blurry, soft or out of focus, even slightly?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy, uneven or broken up?
+      5. TILT: Is the paper crooked or rotated at all, instead of square to the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy anywhere?
+      7. OVERALL: How bad is the picture overall? Answer NONE, MODERATE or HEAVY.
+         Answer NONE only if you found no problems at all above.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
   # =======================================================================
   # Answers one question: does the model PERCEIVE the degradation at all?
