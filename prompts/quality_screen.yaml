@@ -681,6 +681,69 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v12 -- v11 with a severity vocabulary that cannot collide with YES/NO.
+  # =======================================================================
+  # v9 lost 9 of 60 responses and v11 lost 15, and the reasons name the cause
+  # exactly:
+  #
+  #   8x  speckle answered 'NONE'   -- borrowed from OVERALL's options
+  #   7x  overall answered 'NO'     -- borrowed from the questions
+  #
+  # The bleed runs BOTH ways across the slot 6 / slot 7 boundary. One template
+  # carrying two answer spaces, and the model does not reliably switch between
+  # them. v11's attempt to fix this by announcing "Question 7 is different"
+  # left the first failure untouched and introduced the second.
+  #
+  # So remove the collision instead of signposting it. GOOD / FAIR / POOR
+  # shares no token with YES or NO, and -- unlike NONE -- none of them is a
+  # natural answer to "is there any grain?". The criteria questions are v11's,
+  # unchanged.
+  #
+  # The variant brings its own condition_to_level, because renaming the levels
+  # without remapping the corpus conditions would fail every severity call
+  # while the criteria kept scoring fine.
+  quality_screen_v12:
+    name: "quality_screen_v12"
+    evidence:
+      blur: false
+      shadow: true
+      crease: true
+      faded: false
+      tilt: false
+      speckle: false
+    overall_levels: [GOOD, FAIR, POOR]
+    condition_to_level:
+      clean: GOOD
+      moderate: FAIR
+      heavy: POOR
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      Questions 1 to 6 must be answered with the single word YES or NO.
+      Answer YES only if the statement is completely true of the whole picture.
+      If any part of it falls short, answer NO.
+
+      1. BLUR: Is every word perfectly sharp and in focus, across the whole picture?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is the printing even and unbroken everywhere, with no faded or patchy parts?
+      5. TILT: Is the paper perfectly square to the edges of the picture, not turned at all?
+      6. SPECKLE: Is the picture perfectly smooth and free of grain, speckling or noise?
+      7. OVERALL: Rate the whole picture as GOOD, FAIR or POOR.
+         GOOD means you found nothing wrong with it at all.
+         FAIR means you found something wrong but the receipt is still easy to use.
+         POOR means several things are wrong with it.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # CONTROL -- OVERALL only, no criteria. Answers "does the scaffolding help?"
   # =======================================================================
   # If the six questions exist to make the model reason before it judges, the

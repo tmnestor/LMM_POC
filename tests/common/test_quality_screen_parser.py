@@ -257,6 +257,40 @@ def test_a_good_phrased_criterion_declares_false_polarity(tmp_path):
     assert vocabulary.polarity == {"blur": False, "shadow": True}
 
 
+def test_a_variant_may_declare_its_own_condition_mapping(tmp_path):
+    """A variant that renames its severity levels must also say how corpus
+    conditions map onto them, or the scorer compares two vocabularies."""
+    import yaml as _yaml
+
+    path = tmp_path / "levels.yaml"
+    path.write_text(
+        _yaml.safe_dump(
+            {
+                "prompts": {
+                    "graded": {
+                        "evidence": {"blur": True},
+                        "overall_levels": ["GOOD", "FAIR", "POOR"],
+                        "condition_to_level": {"clean": "GOOD", "moderate": "FAIR", "heavy": "POOR"},
+                        "prompt": "x",
+                    }
+                }
+            }
+        )
+    )
+
+    vocabulary = load_screen_vocabulary(path, variant="graded")
+
+    assert vocabulary.overall_levels == ["GOOD", "FAIR", "POOR"]
+    assert vocabulary.condition_to_level == {"clean": "GOOD", "moderate": "FAIR", "heavy": "POOR"}
+
+
+def test_a_variant_without_its_own_mapping_reports_none(tmp_path):
+    """So the caller can fall back to config rather than guess."""
+    vocabulary = load_screen_vocabulary(PROMPT_CONFIG, variant=VARIANT)
+
+    assert vocabulary.condition_to_level is None
+
+
 def test_vocabulary_order_matches_the_prompts_question_order():
     """The reader checks slot numbers against this order, so if it disagreed
     with the prompt every well-formed response would be reported unreadable."""

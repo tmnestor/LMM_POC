@@ -229,6 +229,13 @@ def run(
     responses = load_screen_records(screen_path)
     truths = load_truths(ground_truth)
 
+    # A variant that renames its severity levels brings its own mapping; config
+    # supplies the default. Scoring GOOD/FAIR/POOR answers against a
+    # NONE/MODERATE/HEAVY mapping would fail every severity call.
+    if vocabulary.condition_to_level:
+        condition_to_level = vocabulary.condition_to_level
+        logger.info("Using the variant's own condition mapping: %s", condition_to_level)
+
     score = score_quality_screen(
         responses,
         truths,

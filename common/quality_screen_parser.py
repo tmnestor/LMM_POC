@@ -73,6 +73,10 @@ class ScreenVocabulary:
             comparing the model's boolean straight against the corpus label is
             correct only while every question is defect-phrased.
         overall_levels: Permitted OVERALL answers.
+        condition_to_level: Corpus condition -> this variant's severity level,
+            or None to fall back to run_config. A variant that renames its
+            levels must bring its own mapping, or the scorer compares two
+            different vocabularies and every severity call reads as wrong.
         prompt: The prompt text, so a caller can send it and a test can check
             it against the vocabulary.
     """
@@ -81,6 +85,7 @@ class ScreenVocabulary:
     polarity: dict[str, bool]
     overall_levels: list[str]
     prompt: str
+    condition_to_level: dict[str, str] | None = None
 
 
 def load_screen_vocabulary(config_path: Path, *, variant: str) -> ScreenVocabulary:
@@ -140,6 +145,7 @@ def load_screen_vocabulary(config_path: Path, *, variant: str) -> ScreenVocabula
         polarity={name: bool(value) for name, value in block["evidence"].items()},
         overall_levels=list(block["overall_levels"]),
         prompt=str(block["prompt"]),
+        condition_to_level=(dict(block["condition_to_level"]) if block.get("condition_to_level") else None),
     )
 
 
