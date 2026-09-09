@@ -46,7 +46,11 @@ InferenceFn = Callable[[list[str], str], list[str]]
 
 
 def run_quality_screen(
-    image_paths: list[str], *, infer: InferenceFn, vocabulary: ScreenVocabulary
+    image_paths: list[str],
+    *,
+    infer: InferenceFn,
+    vocabulary: ScreenVocabulary,
+    variant: str | None = None,
 ) -> list[dict]:
     """Screen every image and return one record each.
 
@@ -54,6 +58,11 @@ def run_quality_screen(
         image_paths: Images to screen, in the order they should be reported.
         infer: Callable running the prompt over the images.
         vocabulary: The prompt, its criteria and its permitted OVERALL levels.
+        variant: Name of the variant that produced these answers, stamped on
+            every record. Without it the evaluate stage has to guess from
+            config, and a run screened with one prompt can be scored against
+            another's criteria and polarity -- which fails loudly on a
+            criteria mismatch and silently on a polarity one.
 
     Returns:
         One record per image, in input order.
@@ -91,6 +100,7 @@ def run_quality_screen(
             {
                 "image_path": path,
                 "image_name": Path(path).name,
+                "variant": variant,
                 "answers": result.answers,
                 "overall": result.overall,
                 "malformed": result.malformed,
@@ -273,6 +283,7 @@ def run(
                 orchestrator, max_tokens, verbose=config.verbose, tile_extra=tile_extra
             ),
             vocabulary=vocabulary,
+            variant=resolved_variant,
         )
     finally:
         model_cm.__exit__(None, None, None)

@@ -49,6 +49,27 @@ def load_screen_records(path: Path) -> dict[str, QualityResponse]:
     }
 
 
+def variant_of_run(path: Path) -> str | None:
+    """Read which prompt variant produced a screen file.
+
+    The records carry it because the two stages must agree on the prompt. A
+    run screened with one variant and scored against another's vocabulary
+    fails loudly when the criteria differ -- and silently when only the
+    POLARITY differs, producing a full report of inverted numbers that look
+    entirely plausible.
+
+    Args:
+        path: The quality_screen.jsonl written by the classify stage.
+
+    Returns:
+        The variant name, or None for a file written before it was recorded.
+    """
+    for line in path.read_text().splitlines():
+        if line.strip():
+            return json.loads(line).get("variant")
+    return None
+
+
 def _criterion_dict(criterion) -> dict:
     """One criterion's counts and rates, `None` where a rate is undefined."""
     return {
@@ -115,7 +136,7 @@ def format_report(report: dict) -> str:
     """
     counts = report["counts"]
     lines = [
-        "Image-quality screen",
+        f"Image-quality screen -- {report.get('variant', 'unknown variant')}",
         "=" * 60,
         f"images {counts['total']}   scored {counts['scored']}   "
         f"malformed {counts['malformed']}   missing {counts['missing']}   "
@@ -188,7 +209,23 @@ def run(
     Returns:
         Path to the written JSON report.
     """
-    vocabulary = load_screen_vocabulary(prompt_file, variant=variant)
+    # The run says which prompt made it; config only supplies a fallback for
+    # files written before that was recorded. Trusting config over the records
+    # is how a run gets scored against another variant's criteria and polarity.
+    recorded = variant_of_run(screen_path)
+    if recorded and recorded != variant:
+        logger.info("Scoring against the variant the run recorded: %s (config says %s)", recorded, variant)
+    elif not recorded:
+        logger.warning(
+            "%s records no variant, so it predates variant stamping. Scoring against the "
+            "configured variant %r -- if the run used a different prompt, the criteria and "
+            "polarity below are wrong.",
+            screen_path,
+            variant,
+        )
+    resolved_variant = recorded or variant
+
+    vocabulary = load_screen_vocabulary(prompt_file, variant=resolved_variant)
     responses = load_screen_records(screen_path)
     truths = load_truths(ground_truth)
 
@@ -204,6 +241,7 @@ def run(
         polarity=vocabulary.polarity,
     )
     report = build_report(score, responses)
+    report["variant"] = resolved_variant
 
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "quality_screen_report.json"

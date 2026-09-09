@@ -15,7 +15,12 @@ from pathlib import Path
 
 from common.quality_screen_parser import QualityResponse
 from common.quality_screen_scorer import score_quality_screen
-from stages.evaluate_quality_screen import build_report, format_report, load_screen_records
+from stages.evaluate_quality_screen import (
+    build_report,
+    format_report,
+    load_screen_records,
+    variant_of_run,
+)
 from stages.evaluate_quality_screen import run as stage_run
 from stages.quality_screen import run_quality_screen, write_screen_records
 from tests.stages.test_quality_screen import CRITERIA, VOCABULARY, fake_infer, response
@@ -248,6 +253,83 @@ def test_the_stage_scores_with_the_variants_own_polarity(tmp_path):
     report = json.loads(report_path.read_text())
     assert report["per_criterion"]["blur"]["true_positives"] == 1, "NO on a good-phrased question"
     assert report["per_criterion"]["shadow"]["true_positives"] == 1, "YES on a defect-phrased one"
+
+
+def test_the_run_records_which_variant_produced_it(tmp_path):
+    records = run_quality_screen(
+        ["/data/a.png"],
+        infer=fake_infer({"a.png": response(blur=True)}),
+        vocabulary=VOCABULARY,
+        variant="quality_screen_v10",
+    )
+    path = write_screen_records(records, tmp_path / "quality_screen.jsonl")
+
+    assert records[0]["variant"] == "quality_screen_v10"
+    assert variant_of_run(path) == "quality_screen_v10"
+
+
+def test_scoring_follows_the_recorded_variant_not_the_configured_one(tmp_path):
+    """The bug this closes: classify was told one variant by env var while
+    evaluate read another from config, so a run was scored against the wrong
+    criteria and the wrong polarity. Criteria mismatches crash; polarity
+    mismatches produce a full report of inverted numbers that look fine.
+    """
+    import yaml as _yaml
+
+    prompt = tmp_path / "prompts.yaml"
+    prompt.write_text(
+        _yaml.safe_dump(
+            {
+                "prompts": {
+                    # Configured variant: defect-phrased.
+                    "configured": {
+                        "evidence": dict.fromkeys(CRITERIA, True),
+                        "overall_levels": ["NONE", "MODERATE", "HEAVY"],
+                        "prompt": "x",
+                    },
+                    # What actually ran: blur inverted.
+                    "actual": {
+                        "evidence": {c: (c != "blur") for c in CRITERIA},
+                        "overall_levels": ["NONE", "MODERATE", "HEAVY"],
+                        "prompt": "x",
+                    },
+                }
+            }
+        )
+    )
+
+    screen = tmp_path / "quality_screen.jsonl"
+    screen.write_text(
+        json.dumps(
+            {
+                "image_name": "a.png",
+                "variant": "actual",
+                "answers": {c: (c != "blur") for c in CRITERIA},
+                "overall": "HEAVY",
+                "malformed": False,
+                "malformed_reason": None,
+                "think_drift": False,
+            }
+        )
+        + "\n"
+    )
+    gt = tmp_path / "gt.jsonl"
+    gt.write_text(json.dumps(truth("a.png", condition="heavy", **dict.fromkeys(CRITERIA, True))) + "\n")
+
+    report_path = stage_run(
+        screen,
+        gt,
+        tmp_path / "eval",
+        prompt_file=prompt,
+        variant="configured",  # deliberately the wrong one
+        condition_to_level=CONDITION_TO_LEVEL,
+    )
+
+    report = json.loads(report_path.read_text())
+    assert report["variant"] == "actual", "the recorded variant must win over config"
+    # Under "actual" polarity, NO on blur is a detection. Under "configured" it
+    # would have been scored a miss.
+    assert report["per_criterion"]["blur"]["true_positives"] == 1
 
 
 def test_a_variant_with_no_criteria_still_scores_its_severity_calls():

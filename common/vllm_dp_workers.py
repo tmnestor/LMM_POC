@@ -185,6 +185,7 @@ def quality_screen_worker(
                 processor, max_tokens, verbose=config.verbose, tile_extra=tile_extra
             ),
             vocabulary=vocabulary,
+            variant=resolved_variant,
         )
         elapsed = time.time() - started
 
