@@ -235,8 +235,27 @@ pipeline:
   quality_screen:
     # Which prompt, by name. A variant, not a constant: reading this file must
     # answer "which prompt did this run use?" without consulting Python.
+    #
+    # v12 is the measured default (60 images, 2026-09-09). Collapsed to the
+    # decision the screen exists to make -- does this image need attention? --
+    # it scores recall 0.975, precision 0.907, F1 0.940: one degraded image in
+    # forty passed, four clean images flagged unnecessarily. Three-level
+    # severity is fuzzier at 41/60, with the confusion at the FAIR/POOR
+    # boundary rather than at GOOD.
+    #
+    # It is the first variant with zero unreadable responses. v9 lost 9 of 60
+    # and v11 lost 15, both to the model confusing the YES/NO answer space with
+    # the severity one; v12 rates GOOD/FAIR/POOR, which shares no token with
+    # either answer.
+    #
+    # Its criteria are deliberately MIXED polarity. Defect-phrased questions
+    # give precision 1.000 and find a third of the defects; good-phrased give
+    # recall 1.000 and over-flag. A screen should buy recall -- a false positive
+    # costs a second look, a false negative ships a bad image into extraction.
+    # See the variant's own `evidence:` block for which is which; the scorer
+    # reads it from there.
     prompt_file: prompts/quality_screen.yaml
-    variant: quality_screen_v5
+    variant: quality_screen_v12
 
     # Written by classify, read by evaluate. Keeping the raw responses out of
     # the scorer's way means a threshold or parser change re-scores without
@@ -263,7 +282,16 @@ pipeline:
     # max_model_len (a 16734 > 14588 overflow was logged on the composited
     # invoice at single-image tiling).
     tiling:
-      min_tiles: 6
+      # 12, measured. 6 rescued heavy damage on receipts but not moderate; 12
+      # rescued both. Note this differs from the extraction budget, where 6 is
+      # the knee and 12 was rejected -- judging whether text is blurred needs
+      # more resolution than reading it does.
+      #
+      # For a small receipt the tiles are UPSAMPLED (a 506x850 image becomes 12
+      # tiles of 448x448), so this buys no extra information. It buys model
+      # capacity per unit of image area: a fold spanning 20 pixels in the
+      # original spans ~50 in a tile and is attended to accordingly.
+      min_tiles: 12
       max_tiles: 12
 
     # The corpus records a condition; the prompt answers a severity level. Two
