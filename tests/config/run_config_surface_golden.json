@@ -1,0 +1,121 @@
+{
+  "bank_header_cache_config": {
+    "enabled": false,
+    "key_pattern": "^(?P<institution>[A-Za-z]+)_"
+  },
+  "batch.default_internvl3": 4,
+  "classification_fallback_type": "UNIVERSAL",
+  "extraction_order": [
+    "bank_statement",
+    "invoice",
+    "receipt"
+  ],
+  "extraction_skip_labels": [],
+  "generation_config": {
+    "do_sample": false,
+    "max_new_tokens_base": 2000,
+    "max_new_tokens_per_field": 50,
+    "temperature": 0.0,
+    "top_p": 0.95,
+    "use_cache": true
+  },
+  "image_budget.bank_statement": {
+    "max_tiles": 18,
+    "min_tiles": 12
+  },
+  "image_budget.default": {
+    "max_tiles": 18,
+    "min_tiles": 1
+  },
+  "image_budget.invoice": {
+    "max_tiles": 12,
+    "min_tiles": 1
+  },
+  "image_budget.receipt": {
+    "max_tiles": 6,
+    "min_tiles": 6
+  },
+  "linking_config": {
+    "case_key_pattern": "^(?P<case>[^_]+)_",
+    "data_dir": "../evaluation_data/synthetic_transaction_linking",
+    "evaluation_dir": "../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation",
+    "ground_truth": "../evaluation_data/synthetic_transaction_linking/transaction_links.yml",
+    "hybrid_amount_tolerance": 0.01,
+    "hybrid_date_window_days": 5,
+    "hybrid_description_threshold": 0.3,
+    "hybrid_min_confidence": "LOW",
+    "log_dir": "../evaluation_data/synthetic_transaction_linking/output/logs",
+    "output": "../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl",
+    "vlm_max_tokens": 4096,
+    "vlm_prompt": "single_receipt_link",
+    "vlm_temperature": 0.0
+  },
+  "max_image_budget_tiles": 18,
+  "pc.balance_correction": false,
+  "pc.bank_v2": true,
+  "pc.batch_size": 1,
+  "pc.data_parallel_size": null,
+  "pc.debug": false,
+  "pc.device_map": "auto",
+  "pc.document_types": null,
+  "pc.dtype": "bfloat16",
+  "pc.enforce_eager": false,
+  "pc.flash_attn": true,
+  "pc.max_images": null,
+  "pc.max_new_tokens": 3500,
+  "pc.max_tiles": 18,
+  "pc.min_tiles": null,
+  "pc.model_type": "internvl3-vllm",
+  "pc.num_gpus": 0,
+  "pc.pre_tiling_enabled": true,
+  "pc.pre_tiling_image_size": 448,
+  "pc.pre_tiling_use_thumbnail": true,
+  "pc.trace_raw_prompts": false,
+  "pc.verbose": false,
+  "resolve_defaults": {
+    "YAML_DATA_DIR": "../evaluation_data/synthetic_transaction_linking",
+    "YAML_GROUND_TRUTH": "../evaluation_data/synthetic_transaction_linking/ground_truth_extraction.csv",
+    "YAML_LINKING_DATA_DIR": "../evaluation_data/synthetic_transaction_linking",
+    "YAML_LINKING_EVALUATION_DIR": "../evaluation_data/synthetic_transaction_linking/output/transaction_evaluation",
+    "YAML_LINKING_GROUND_TRUTH": "../evaluation_data/synthetic_transaction_linking/transaction_links.yml",
+    "YAML_LINKING_LOG_DIR": "../evaluation_data/synthetic_transaction_linking/output/logs",
+    "YAML_LINKING_OUTPUT": "../evaluation_data/synthetic_transaction_linking/output/transaction_links.jsonl",
+    "YAML_LOG_DIR": "../evaluation_data/output/logs",
+    "YAML_MODEL_TYPE": "internvl3-vllm",
+    "YAML_OUTPUT_DIR": "../evaluation_data/output",
+    "YAML_TRUST_CLASSIFICATIONS": "../private_wealth_docs/output/trust_classifications.jsonl",
+    "YAML_TRUST_CLASSIFICATION_GT": "../private_wealth_docs/ground_truth/trust_classification_gt.yml",
+    "YAML_TRUST_COMPLIANCE_RESULTS": "../private_wealth_docs/output/trust_compliance_results.jsonl",
+    "YAML_TRUST_DATA_DIR": "../private_wealth_docs",
+    "YAML_TRUST_EVALUATION_DIR": "../private_wealth_docs/output/trust_evaluation",
+    "YAML_TRUST_GROUND_TRUTH": "../private_wealth_docs/ground_truth/trust_distribution_links.yml",
+    "YAML_TRUST_LOG_DIR": "../private_wealth_docs/output/logs",
+    "YAML_TRUST_OUTPUT_DIR": "../private_wealth_docs/output",
+    "YAML_TRUST_QUADS": "../private_wealth_docs/output/trust_quads.csv",
+    "YAML_TRUST_QUADS_INCOMPLETE": "../private_wealth_docs/output/trust_quads_incomplete.csv",
+    "YAML_TRUST_RAW_EXTRACTIONS": "../private_wealth_docs/output/raw_extractions.jsonl"
+  },
+  "secondary_sort": "none",
+  "token_budget.bank_statement_floor": 1500,
+  "token_budget.classify": 150,
+  "token_budget.detection": 200,
+  "token_budget.extract_bank": 4096,
+  "token_budget.fallback_base": 512,
+  "token_budget.fallback_per_field": 64,
+  "token_budget.transaction_match": 2000,
+  "token_budget.trust_classify": 300,
+  "trust.subdirectories": {
+    "beneficiary_itr": ".",
+    "distribution_stmt": ".",
+    "income_schedule": ".",
+    "trust_return": "."
+  },
+  "trust_classify_budget": 300,
+  "vllm_config": {
+    "enable_prefix_caching": true,
+    "gpu_memory_utilization": 0.9,
+    "limit_mm_per_prompt": 19,
+    "max_model_len": 16384,
+    "max_num_seqs": 8
+  }
+}

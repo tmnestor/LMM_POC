@@ -70,7 +70,7 @@ Thumbs.db
 
 # Local-only directories
 # docs/
-tests/
+# tests/  -- now tracked; see the note further down
 .coverage
 htmlcov/
 .pytest_cache/
@@ -105,7 +105,14 @@ synthetic_invoice.json
 .env
 standard_labels.txt
 
-tests/
+# Test code IS tracked. It was local-only, which is workable while tests only
+# confirm behaviour, but the image-quality screen's tests are the specification
+# of a contract that is invisible in the source: that an unreadable model
+# response is reported as unreadable rather than becoming six confident NOs.
+# The mutation checks proving those guards actually fire live here too, and a
+# reviewer cannot see any of it from the implementation alone.
+#
+# Caches stay ignored via the __pycache__/.pytest_cache/.mypy_cache rules above.
 plans/
 PrivateWealth/
 data/
