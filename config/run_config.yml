@@ -291,10 +291,12 @@ pipeline:
   # Workflow YAML nodes reference these by name via `token_budget: <name>`.
   token_budgets:
     classify: 150
-    # Eight short lines. Generous enough that a model which prefixes a
-    # sentence still finishes the template -- a truncated final slot reads as
-    # a missing answer and costs the whole record.
-    quality_screen: 200
+    # Eight short lines, plus room for a description ahead of them: v7 asks the
+    # model to describe the paper before answering, because asked bare YES/NO
+    # questions it answers from a prior rather than from the image. A truncated
+    # final slot reads as a missing answer and costs the whole record, so this
+    # is sized for the longest variant rather than the shortest.
+    quality_screen: 400
     detection: 200
     detect_headers: 500
     detect_headers_short: 200

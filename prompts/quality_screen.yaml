@@ -365,6 +365,69 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v7 -- describe first, then answer. One pass.
+  # =======================================================================
+  # The evidence this is built on, all at min_tiles 12 on the same images:
+  #
+  #   describe   receipt moderate 5/6, receipt heavy 5/6
+  #   v5         receipt moderate 2/6, receipt heavy 3/6
+  #   v6         receipt moderate 2/6, receipt heavy 4/6
+  #
+  # v6 lowered the YES threshold and barely moved the moderate case, so the
+  # problem is not only where the bar sits. Asked to describe, the model
+  # examines the picture and reports what it sees. Asked YES or NO, it appears
+  # to answer from a prior rather than from the image.
+  #
+  # So make it describe first and answer second, in a single generation. The
+  # description is not decoration: it is the model doing the looking that the
+  # bare questions skip. The reader already ignores prose around the numbered
+  # template, so this needs no parser change.
+  #
+  # Note the tension with prompts-need-cot-drift-defense: asking InternVL3.5 to
+  # reason is close to the behaviour that triggers <think> drift. This asks for
+  # a description rather than reasoning, and never says "think" or "step by
+  # step". think_drift is recorded per response, so the rate is measurable
+  # rather than assumed -- if it climbs, that is the cost of this variant.
+  quality_screen_v7:
+    name: "quality_screen_v7"
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      First write one or two sentences describing the physical condition of the paper
+      and the printing. Say what you actually see.
+
+      Then answer each question with YES or NO, based on what you just described.
+      Answer YES if you notice the problem at all, even slightly, or in only part of
+      the picture.
+
+      1. BLUR: Is any of the writing blurry, soft or out of focus, even slightly?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy, uneven or broken up?
+      5. TILT: Is the paper crooked or rotated at all, instead of square to the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy anywhere?
+      7. OVERALL: How bad is the picture overall? Answer NONE, MODERATE or HEAVY.
+         Answer NONE only if you found no problems at all above.
+
+      Use this format:
+      DESCRIPTION: <your one or two sentences>
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
   # =======================================================================
   # Answers one question: does the model PERCEIVE the degradation at all?
