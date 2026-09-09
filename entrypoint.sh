@@ -450,9 +450,17 @@ _run_quality_screen() {
   # There is no clean stage after this one. `clean` normalises free-text field
   # values before comparison, and these answers are already canonical tokens,
   # so the path is classify -> evaluate.
+  # Optional screen_variant env var overrides the prompt declared in
+  # run_config.yml, so prompt variants can be compared without editing config
+  # between runs and losing track of which produced which output.
+  local variant_args=()
+  if [ -n "${screen_variant:-}" ]; then
+    variant_args=(--variant "$screen_variant")
+  fi
   python3 -m stages.quality_screen \
     --data-dir "${image_dir:?image_dir env var required}" \
     --output   "$QUALITY_SCREEN" \
+    "${variant_args[@]}" \
     "${OPT_MODEL[@]}" || exit $?
 }
 

@@ -148,6 +148,7 @@ def run(
     batch_size: int | None = None,
     verbose: bool | None = None,
     config_path: Path | None = None,
+    variant: str | None = None,
 ) -> Path:
     """Screen every image in a directory, write quality_screen.jsonl.
 
@@ -158,6 +159,10 @@ def run(
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         verbose: Tier B output. None = read from YAML.
         config_path: Optional path to run_config.yml.
+        variant: Prompt variant to run. None = the one declared in YAML.
+            An override rather than a default: comparing prompts is the whole
+            reason several variants exist, and editing config between runs
+            makes it easy to lose track of which produced which output.
 
     Returns:
         Path to the written records.
@@ -183,15 +188,18 @@ def run(
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
     screen_cfg = app_cfg.quality_screen_config
+    resolved_variant = variant or screen_cfg["variant"]
+    if variant:
+        logger.info("Prompt variant overridden on the command line: %s", resolved_variant)
 
-    vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=screen_cfg["variant"])
+    vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=resolved_variant)
     max_tokens = app_cfg.get_token_budget("quality_screen")
 
     images = list(discover_images(config.data_dir))
     if not images:
         msg = f"No images found in {config.data_dir}"
         raise FileNotFoundError(msg)
-    logger.info("Screening %d images with %s", len(images), screen_cfg["variant"])
+    logger.info("Screening %d images with %s", len(images), resolved_variant)
 
     # -- vLLM data-parallel fast path -----------------------------------------
     # Same shape as the classify stage: shard the images across GPUs, each
@@ -214,6 +222,7 @@ def run(
                 worker_kwargs={
                     "config_path": str(config_path) if config_path else None,
                     "cli_overrides": cli_args,
+                    "variant": resolved_variant,
                 },
                 app_config=app_cfg,
             )
@@ -286,6 +295,11 @@ def main(
     batch_size: int | None = typer.Option(None, "--batch-size", help="Images per batch"),
     config: Path | None = typer.Option(None, "--config", help="YAML configuration file"),
     verbose: bool | None = typer.Option(None, "--verbose/--no-verbose", help="Tier B output"),
+    variant: str | None = typer.Option(
+        None,
+        "--variant",
+        help="Prompt variant to run, overriding the one in run_config.yml.",
+    ),
 ) -> None:
     """Stage 1: screen image quality for every image in a directory."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -296,6 +310,7 @@ def main(
         batch_size=batch_size,
         verbose=verbose,
         config_path=config,
+        variant=variant,
     )
 
 

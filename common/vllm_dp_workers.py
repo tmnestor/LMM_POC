@@ -111,6 +111,7 @@ def quality_screen_worker(
     *,
     config_path: str | None,
     cli_overrides: dict[str, Any],
+    variant: str | None = None,
 ) -> list[dict[str, Any]]:
     """Worker: build vLLM engine + processor, screen each image's quality.
 
@@ -124,6 +125,10 @@ def quality_screen_worker(
         image_paths: Absolute paths to images (strings).
         config_path: Path to run_config.yml (or None).
         cli_overrides: CLI args dict for AppConfig.load().
+        variant: Prompt variant override. Must be threaded through from the
+            parent: a worker falling back to the configured variant while the
+            parent was told to run another one would shard a single run across
+            two different prompts.
 
     Returns:
         List of quality-screen record dicts.
@@ -148,7 +153,8 @@ def quality_screen_worker(
     config = app_cfg.pipeline
 
     screen_cfg = app_cfg.quality_screen_config
-    vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=screen_cfg["variant"])
+    resolved_variant = variant or screen_cfg["variant"]
+    vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=resolved_variant)
     max_tokens = app_cfg.get_token_budget("quality_screen")
 
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)

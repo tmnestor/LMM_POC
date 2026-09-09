@@ -308,6 +308,46 @@ prompts:
       9. SKEWING:
 
   # =======================================================================
+  # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
+  # =======================================================================
+  # Answers one question: does the model PERCEIVE the degradation at all?
+  #
+  # The first real run answered NO to 23 of 24 questions, including on heavy
+  # images carrying a fold, a cast shadow, washed-out print and visible grain.
+  # Two explanations fit that equally well -- the image never arrives in a
+  # state where the damage is visible, or it arrives fine and the questions do
+  # not elicit a YES. They call for opposite fixes, so guessing is expensive.
+  #
+  # This asks for a description instead of an answer. If the reply describes a
+  # clean crisp document, the image path is at fault. If it describes folds and
+  # blur while v5 still answers NO, the prompt is.
+  #
+  # The reader will mark every response to this variant malformed, which is
+  # correct -- it is not a screen. `raw_response` is kept on every record, so
+  # the text is readable anyway. That is what the raw field is for.
+  quality_screen_describe:
+    name: "quality_screen_describe"
+    # Present so load_screen_vocabulary can read this variant. The reader will
+    # reject the free-text answers against them, by design.
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a paper document and describe its physical condition.
+
+      Say whether the writing looks sharp or blurry, whether any part of the paper is
+      in shadow, whether the paper looks folded, creased or torn, whether any of the
+      printing looks faded or patchy, whether the paper is straight or crooked, and
+      whether the picture looks grainy or speckled.
+
+      Answer in a few plain sentences. Describe what you can actually see.
+
+  # =======================================================================
   # v5 -- the receipt/invoice screen. This is the variant the classify stage
   # runs; v1-v4 above are kept for reference.
   # =======================================================================
