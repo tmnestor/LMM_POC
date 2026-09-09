@@ -221,6 +221,38 @@ pipeline:
       skip_reports: false         # Skip report generation
 
   # Classification settings
+  # ------------------------------------------------------------------------
+  # Image-quality screen (KFP_TASK=classify on this branch)
+  # ------------------------------------------------------------------------
+  # Answers six YES/NO defect questions and one graded OVERALL per image, and
+  # scores them against the corpus's own defect labels. Runs as
+  # classify -> evaluate with NO clean stage between: `clean` normalises
+  # free-text field values, and these answers are already canonical tokens.
+  #
+  # Note this branch repurposes the `classify` POD only. `_run_classify` is
+  # still wired to document-type detection for run_info_extract Phase 1, which
+  # is untouched.
+  quality_screen:
+    # Which prompt, by name. A variant, not a constant: reading this file must
+    # answer "which prompt did this run use?" without consulting Python.
+    prompt_file: prompts/quality_screen.yaml
+    variant: quality_screen_v5
+
+    # Written by classify, read by evaluate. Keeping the raw responses out of
+    # the scorer's way means a threshold or parser change re-scores without
+    # paying for 330 images of inference again.
+    output_name: quality_screen.jsonl
+
+    # The corpus records a condition; the prompt answers a severity level. Two
+    # vocabularies for one ladder, and the mapping between them is a contract
+    # between this repo and Synthetic_Doc_Generation. Declared here rather than
+    # assumed in the scorer: a condition with no level fails fast instead of
+    # dropping a whole severity from the report.
+    condition_to_level:
+      clean: NONE
+      moderate: MODERATE
+      heavy: HEAVY
+
   classification:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
 
@@ -236,6 +268,10 @@ pipeline:
   # Workflow YAML nodes reference these by name via `token_budget: <name>`.
   token_budgets:
     classify: 150
+    # Eight short lines. Generous enough that a model which prefixes a
+    # sentence still finishes the template -- a truncated final slot reads as
+    # a missing answer and costs the whole record.
+    quality_screen: 200
     detection: 200
     detect_headers: 500
     detect_headers_short: 200

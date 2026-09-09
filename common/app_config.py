@@ -228,6 +228,7 @@ class AppConfig:
         "_extraction_skip_labels",
         "_image_budgets",
         "_bank_header_cache",
+        "_quality_screen",
     )
 
     _DEFAULT_VLLM_CONFIG: ClassVar[dict[str, Any]] = {
@@ -261,6 +262,7 @@ class AppConfig:
         extraction_skip_labels: list[str] | None = None,
         image_budgets: dict[str, dict[str, int]] | None = None,
         bank_header_cache: dict[str, Any] | None = None,
+        quality_screen: dict[str, Any] | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.batch = batch
@@ -277,6 +279,7 @@ class AppConfig:
         self._extraction_skip_labels = extraction_skip_labels or []
         self._image_budgets = image_budgets or {}
         self._bank_header_cache = bank_header_cache or {"enabled": False, "key_pattern": ""}
+        self._quality_screen = quality_screen or {}
 
     @classmethod
     def load(
@@ -402,6 +405,9 @@ class AppConfig:
         # 19. Validate and build bank_header_cache
         bank_header_cache = cls._validate_bank_header_cache(raw_config, config_file)
 
+        # 20. Validate and build quality_screen
+        quality_screen = cls._validate_quality_screen(raw_config, config_file)
+
         return cls(
             pipeline=pipeline,
             batch=batch,
@@ -418,6 +424,7 @@ class AppConfig:
             extraction_skip_labels=skip_labels,
             image_budgets=image_budgets,
             bank_header_cache=bank_header_cache,
+            quality_screen=quality_screen,
         )
 
     # -- Token budgets (Phase 1) -----------------------------------------------
@@ -631,6 +638,11 @@ class AppConfig:
     def bank_header_cache_config(self) -> dict[str, Any]:
         """Bank header cache configuration dict."""
         return dict(self._bank_header_cache)
+
+    @property
+    def quality_screen_config(self) -> dict[str, Any]:
+        """Image-quality screen configuration dict."""
+        return dict(self._quality_screen)
 
     # -- Validation classmethods -----------------------------------------------
 
@@ -852,6 +864,73 @@ class AppConfig:
                     ]
                 )
         return dict(budgets)
+
+    @classmethod
+    def _validate_quality_screen(cls, raw_config: dict, config_file: str) -> dict[str, Any]:
+        """Validate ``pipeline.quality_screen`` section in YAML.
+
+        Every key is required. The screen's whole purpose is a trustworthy
+        answer key, and each of these silently defaulted would produce a run
+        that looks fine and measures the wrong thing: the wrong prompt variant,
+        results written where the scorer will not find them, or a condition
+        mapping that quietly drops a severity from the report.
+        """
+        screen = raw_config.get("pipeline", {}).get("quality_screen")
+        example = (
+            "  pipeline:\n"
+            "    quality_screen:\n"
+            "      prompt_file: prompts/quality_screen.yaml\n"
+            "      variant: quality_screen_v5\n"
+            "      output_name: quality_screen.jsonl\n"
+            "      condition_to_level:\n"
+            "        clean: NONE\n"
+            "        moderate: MODERATE\n"
+            "        heavy: HEAVY"
+        )
+        if screen is None:
+            raise ConfigError(
+                [
+                    f"Missing required key 'pipeline.quality_screen' in {config_file}. "
+                    f"What: the key 'pipeline.quality_screen' is absent. "
+                    f"Where: {config_file} → pipeline.quality_screen. "
+                    f"Expected: a mapping, e.g.:\n{example}\n"
+                    f"How to fix: add a 'pipeline.quality_screen:' section to {config_file}."
+                ]
+            )
+        if not isinstance(screen, dict):
+            raise ConfigError(
+                [
+                    f"Invalid type for 'pipeline.quality_screen' in {config_file}: "
+                    f"expected a mapping, got {type(screen).__name__}. "
+                    f"Where: {config_file} → pipeline.quality_screen. "
+                    f"Expected: a mapping, e.g.:\n{example}\n"
+                    f"How to fix: change 'pipeline.quality_screen' to a YAML mapping."
+                ]
+            )
+        for key in ("prompt_file", "variant", "output_name", "condition_to_level"):
+            if key not in screen:
+                raise ConfigError(
+                    [
+                        f"Missing required key 'pipeline.quality_screen.{key}' in {config_file}. "
+                        f"What: the '{key}' key is absent from 'pipeline.quality_screen'. "
+                        f"Where: {config_file} → pipeline.quality_screen.{key}. "
+                        f"Expected: all of prompt_file, variant, output_name and "
+                        f"condition_to_level, e.g.:\n{example}\n"
+                        f"How to fix: add '{key}:' under 'pipeline.quality_screen'."
+                    ]
+                )
+        if not isinstance(screen["condition_to_level"], dict) or not screen["condition_to_level"]:
+            raise ConfigError(
+                [
+                    f"Invalid 'pipeline.quality_screen.condition_to_level' in {config_file}. "
+                    f"What: it is not a non-empty mapping, so no corpus condition can be "
+                    f"scored against a prompt severity level. "
+                    f"Where: {config_file} → pipeline.quality_screen.condition_to_level. "
+                    f"Expected: one entry per condition the corpus uses, e.g.:\n{example}\n"
+                    f"How to fix: map every corpus condition to an OVERALL level."
+                ]
+            )
+        return dict(screen)
 
     @classmethod
     def _validate_bank_header_cache(cls, raw_config: dict, config_file: str) -> dict[str, Any]:

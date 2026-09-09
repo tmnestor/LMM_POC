@@ -430,11 +430,29 @@ _run_cpu_stages() {
 # (OPT_MODEL, OUT_ROOT-derived paths, TRUST_OUT, trust_* vars).
 
 _run_classify() {
-  # GPU. Document type detection. Used by the `classify` pod and
-  # run_info_extract Phase 1 (identical invocation).
+  # GPU. Document type detection. Used by run_info_extract Phase 1 and the
+  # link_classify / trust paths.
+  #
+  # NOTE: the `classify` POD no longer calls this on this branch — it runs the
+  # image-quality screen instead (see _run_quality_screen and the classify)
+  # case). This runner is left untouched so document-type detection keeps
+  # working for every other caller.
   python3 -m stages.classify \
     --data-dir   "${image_dir:?image_dir env var required}" \
     --output-dir "$CLASSIFICATIONS" \
+    "${OPT_MODEL[@]}" || exit $?
+}
+
+_run_quality_screen() {
+  # GPU. Image-quality screen: six YES/NO defect questions and one graded
+  # OVERALL per image, written to $QUALITY_SCREEN for the evaluate stage.
+  #
+  # There is no clean stage after this one. `clean` normalises free-text field
+  # values before comparison, and these answers are already canonical tokens,
+  # so the path is classify -> evaluate.
+  python3 -m stages.quality_screen \
+    --data-dir "${image_dir:?image_dir env var required}" \
+    --output   "$QUALITY_SCREEN" \
     "${OPT_MODEL[@]}" || exit $?
 }
 
@@ -676,6 +694,10 @@ fi
 # a previous run (this is also what the KFP pod volume mount sees).
 OUT_ROOT="${output:-./outputs}"
 CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
+# Image-quality screen output, written by the classify pod on this branch and
+# read by evaluate. Named separately from classifications.jsonl so a screen run
+# and a document-type run can share an output root without overwriting.
+QUALITY_SCREEN="${OUT_ROOT}/quality_screen.jsonl"
 RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
 CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
@@ -786,13 +808,23 @@ case "${KFP_TASK:-}" in
   # ========================================================================
   # -- Staged pipeline (GPU stages) ------------------------------------------
   classify)
-    # Stage 1: Document type detection (GPU).
-    # Writes classifications.jsonl — one record per image.
-    _banner "Stage 1: classify — detecting document types (GPU)"
+    # Stage 1: Image-quality screen (GPU).
+    # Writes quality_screen.jsonl — one record per image, carrying six defect
+    # answers, a graded OVERALL, and the raw response for audit.
+    #
+    # This branch repurposes the classify POD for the quality screen. The
+    # previous document-type detection is commented out below rather than
+    # deleted; _run_classify itself is untouched and still serves
+    # run_info_extract Phase 1 and the link/trust paths.
+    #
+    # _banner "Stage 1: classify — detecting document types (GPU)"
+    # _clear_prev_output "$CLASSIFICATIONS" "$INFERENCE_ELAPSED_FILE"
+    # _run_classify
+    _banner "Stage 1: classify — screening image quality (GPU)"
     mkdir -p "$OUT_ROOT"
-    _clear_prev_output "$CLASSIFICATIONS" "$INFERENCE_ELAPSED_FILE"
+    _clear_prev_output "$QUALITY_SCREEN" "$INFERENCE_ELAPSED_FILE"
     CLASSIFY_START=$(date +%s)
-    _run_classify
+    _run_quality_screen
     # Write classify elapsed to the shared file. The extract pod will
     # append its own elapsed time; evaluate sums all lines.
     echo $(($(date +%s) - CLASSIFY_START)) > "$INFERENCE_ELAPSED_FILE"
@@ -842,15 +874,29 @@ case "${KFP_TASK:-}" in
   evaluate)
     # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
     # Reads cleaned_extractions.jsonl + ground truth CSV/JSONL, writes evaluation_results.jsonl.
-    _banner "Stage 4: evaluate — scoring against ground truth (CPU)"
+    # This branch scores the image-quality screen rather than extraction, so
+    # it reads $QUALITY_SCREEN (written by the classify pod) instead of
+    # $CLEAN_EXTRACTIONS. There is no clean stage in between: the screen's
+    # answers are already canonical tokens with nothing to normalise.
+    #
+    # The extraction scoring is commented out rather than deleted; stages/
+    # evaluate.py itself is untouched and still serves run_info_extract.
+    #
+    # _banner "Stage 4: evaluate — scoring against ground truth (CPU)"
+    # _clear_prev_output "${EVAL_DIR}/evaluation_results.jsonl"
+    # python3 -m stages.evaluate \
+    #   --input        "$CLEAN_EXTRACTIONS" \
+    #   --ground-truth "${ground_truth:?ground_truth env var required}" \
+    #   --output-dir   "$EVAL_DIR" \
+    #   "${INFERENCE_ARGS[@]}" || exit $?
+    _banner "Stage 2: evaluate — scoring the image-quality screen (CPU)"
     mkdir -p "$EVAL_DIR"
-    _clear_prev_output "${EVAL_DIR}/evaluation_results.jsonl"
+    _clear_prev_output "${EVAL_DIR}/quality_screen_report.json"
     _read_inference_elapsed "$INFERENCE_ELAPSED_FILE"
-    python3 -m stages.evaluate \
-      --input        "$CLEAN_EXTRACTIONS" \
+    python3 -m stages.evaluate_quality_screen \
+      --input        "$QUALITY_SCREEN" \
       --ground-truth "${ground_truth:?ground_truth env var required}" \
-      --output-dir   "$EVAL_DIR" \
-      "${INFERENCE_ARGS[@]}" || exit $?
+      --output-dir   "$EVAL_DIR" || exit $?
     log "Evaluation complete."
     ;;
 

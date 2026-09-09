@@ -682,6 +682,40 @@ class DocumentOrchestrator:
 
         return results
 
+    def screen_batch(
+        self, image_paths: list[str], prompt: str, max_tokens: int, verbose: bool = False
+    ) -> list[str]:
+        """Run one prompt over a batch of images and return the raw responses.
+
+        Deliberately returns text and nothing else. Unlike `detect_batch`, no
+        parsing happens here: the image-quality screen's reader lives in
+        `common.quality_screen_parser` because reading its answers is a testable
+        unit in its own right, and the distinction between "the model said NO"
+        and "the model said something unreadable" is the whole point of it.
+
+        Args:
+            image_paths: Images to send.
+            prompt: The prompt to ask about every image.
+            max_tokens: Generation budget.
+            verbose: Whether to log per-image progress.
+
+        Returns:
+            One raw response per image, in the order given.
+        """
+        if not image_paths:
+            return []
+
+        if verbose:
+            sys.stdout.write(f"Screening {len(image_paths)} images\n")
+            sys.stdout.flush()
+
+        images = [self.load_document_image(path) for path in image_paths]
+        params = GenerationParams(max_tokens=max_tokens)
+
+        backend = self._backend
+        assert isinstance(backend, BatchInference)  # noqa: S101
+        return backend.generate_batch(images, [prompt] * len(image_paths), params)
+
     def extract_batch(
         self,
         image_paths: list[str],
