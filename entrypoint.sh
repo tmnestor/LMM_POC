@@ -450,17 +450,29 @@ _run_quality_screen() {
   # There is no clean stage after this one. `clean` normalises free-text field
   # values before comparison, and these answers are already canonical tokens,
   # so the path is classify -> evaluate.
-  # Optional screen_variant env var overrides the prompt declared in
-  # run_config.yml, so prompt variants can be compared without editing config
-  # between runs and losing track of which produced which output.
-  local variant_args=()
+  # Optional overrides, so a diagnostic sweep never requires editing config
+  # between runs -- which is how you lose track of which settings produced
+  # which output.
+  #
+  #   screen_variant    prompt variant, overriding run_config
+  #   screen_min_tiles  tile floor. The lever for small images: the
+  #                     aspect-ratio match settles a small receipt on about one
+  #                     tile, at which resolution heavy damage reads as none.
+  #   screen_max_tiles  tile ceiling
+  local screen_args=()
   if [ -n "${screen_variant:-}" ]; then
-    variant_args=(--variant "$screen_variant")
+    screen_args+=(--variant "$screen_variant")
+  fi
+  if [ -n "${screen_min_tiles:-}" ]; then
+    screen_args+=(--min-tiles "$screen_min_tiles")
+  fi
+  if [ -n "${screen_max_tiles:-}" ]; then
+    screen_args+=(--max-tiles "$screen_max_tiles")
   fi
   python3 -m stages.quality_screen \
     --data-dir "${image_dir:?image_dir env var required}" \
     --output   "$QUALITY_SCREEN" \
-    "${variant_args[@]}" \
+    "${screen_args[@]}" \
     "${OPT_MODEL[@]}" || exit $?
 }
 
