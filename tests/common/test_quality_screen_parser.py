@@ -220,6 +220,43 @@ def test_vocabulary_is_read_from_the_prompt_config():
     assert vocabulary.overall_levels == OVERALL_LEVELS
 
 
+def test_vocabulary_exposes_the_answer_that_means_the_defect_is_present():
+    """The `evidence:` block records polarity per criterion: the answer value
+    that means the defect IS there. It is only meaningful if a consumer can
+    read it -- the scorer compared booleans directly and ignored it, which is
+    correct only while every question is defect-phrased.
+    """
+    vocabulary = load_screen_vocabulary(PROMPT_CONFIG, variant=VARIANT)
+
+    assert vocabulary.polarity == dict.fromkeys(CRITERIA, True)
+
+
+def test_a_good_phrased_criterion_declares_false_polarity(tmp_path):
+    """A question asking "is it good?" is answered NO when the defect is
+    present, so its evidence value is false."""
+    import yaml as _yaml
+
+    path = tmp_path / "mixed.yaml"
+    path.write_text(
+        _yaml.safe_dump(
+            {
+                "prompts": {
+                    "mixed": {
+                        "evidence": {"blur": False, "shadow": True},
+                        "overall_levels": OVERALL_LEVELS,
+                        "prompt": "x",
+                    }
+                }
+            }
+        )
+    )
+
+    vocabulary = load_screen_vocabulary(path, variant="mixed")
+
+    assert vocabulary.criteria == ["blur", "shadow"]
+    assert vocabulary.polarity == {"blur": False, "shadow": True}
+
+
 def test_vocabulary_order_matches_the_prompts_question_order():
     """The reader checks slot numbers against this order, so if it disagreed
     with the prompt every well-formed response would be reported unreadable."""

@@ -85,6 +85,7 @@ def score_quality_screen(
     *,
     criteria: list[str],
     condition_to_level: dict[str, str],
+    polarity: dict[str, bool] | None = None,
 ) -> QualityScore:
     """Score one run.
 
@@ -95,10 +96,34 @@ def score_quality_screen(
         condition_to_level: Generator condition -> the OVERALL level that
             answers it. Passed in rather than assumed: the two vocabularies are
             a contract between the corpus and the prompt.
+        polarity: Criterion -> the answer meaning the defect IS present, from
+            the prompt's `evidence:` block. `None` treats every question as
+            defect-phrased, which is what every variant shipped so far is.
+            A good-phrased question ("is it perfectly sharp?") is answered NO
+            when the defect is present, and comparing its boolean directly
+            would invert that criterion's every result while still producing
+            plausible-looking numbers.
 
     Returns:
         The run's scores.
+
+    Raises:
+        ValueError: `polarity` is given but omits a scored criterion.
     """
+    if polarity is not None:
+        undeclared = [name for name in criteria if name not in polarity]
+        if undeclared:
+            raise ValueError(
+                f"Question polarity is missing for scored criteria.\n"
+                f"  What:        {undeclared} are scored but have no declared polarity, so "
+                f"whether YES or NO means the defect is present is unknown for them.\n"
+                f"  Where:       the polarity mapping passed to score_quality_screen, normally "
+                f"the prompt variant's 'evidence:' block.\n"
+                f"  Expected:    one entry per scored criterion; declared: {sorted(polarity)}.\n"
+                f"  How to fix:  add {undeclared} to the variant's 'evidence:' block. Defaulting "
+                f"them would silently invert exactly the criterion that was forgotten."
+            )
+    defect_means = polarity if polarity is not None else dict.fromkeys(criteria, True)
     # (record, answers, overall) with both narrowed at the point of admission.
     # A response is only comparable if it actually carries answers, so nothing
     # downstream has to re-check and no None can reach the arithmetic.
@@ -119,12 +144,14 @@ def score_quality_screen(
         else:
             comparable.append((record, prediction.answers, prediction.overall))
 
-    per_criterion = _score_criteria(comparable, criteria)
+    per_criterion = _score_criteria(comparable, criteria, defect_means)
 
     document_types = sorted({record["document_type"] for record, _answers, _overall in comparable})
     by_document_type = {
         doc_type: _score_criteria(
-            [row for row in comparable if row[0]["document_type"] == doc_type], criteria
+            [row for row in comparable if row[0]["document_type"] == doc_type],
+            criteria,
+            defect_means,
         )
         for doc_type in document_types
     }
@@ -159,15 +186,21 @@ def score_quality_screen(
 
 
 def _score_criteria(
-    comparable: list[tuple[dict, dict[str, bool], str]], criteria: list[str]
+    comparable: list[tuple[dict, dict[str, bool], str]],
+    criteria: list[str],
+    defect_means: dict[str, bool],
 ) -> dict[str, CriterionScore]:
-    """Count each criterion over one slice of the comparable rows."""
+    """Count each criterion over one slice of the comparable rows.
+
+    `defect_means[name]` is the answer that claims the defect is present, so a
+    good-phrased question scores its NO as a detection.
+    """
     scores: dict[str, CriterionScore] = {}
     for name in criteria:
         tp = fp = fn = 0
         for record, answers, _overall in comparable:
             actual = record["defects"][name]
-            guess = answers[name]
+            guess = answers[name] == defect_means[name]
             if guess and actual:
                 tp += 1
             elif guess and not actual:

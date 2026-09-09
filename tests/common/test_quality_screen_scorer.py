@@ -78,6 +78,97 @@ def test_counts_true_and_false_positives_per_criterion():
 # --------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------
+# Question polarity
+# --------------------------------------------------------------------------
+# A question can be defect-phrased ("is it blurry?") or good-phrased ("is it
+# perfectly sharp?"). The second is answered NO when the defect is present.
+# Comparing the model's boolean straight against the corpus label is correct
+# only for the first, and silently inverts every result for the second.
+
+
+def test_a_good_phrased_question_counts_no_as_the_defect_being_present():
+    """The model says NO to "is it perfectly sharp?" on a blurred image. That
+    is a correct detection, not a miss."""
+    truths = [truth("a.png", blur=True, shadow=False)]
+    predictions = {"a.png": predicted(blur=False, shadow=False)}
+
+    result = score_quality_screen(
+        predictions,
+        truths,
+        criteria=CRITERIA,
+        condition_to_level=CONDITION_TO_LEVEL,
+        polarity={"blur": False, "shadow": True},
+    )
+
+    assert result.per_criterion["blur"].true_positives == 1
+    assert result.per_criterion["blur"].false_negatives == 0
+
+
+def test_a_good_phrased_question_counts_yes_as_a_clean_claim():
+    """YES to "is it perfectly sharp?" on a blurred image is a miss."""
+    truths = [truth("a.png", blur=True, shadow=False)]
+    predictions = {"a.png": predicted(blur=True, shadow=False)}
+
+    result = score_quality_screen(
+        predictions,
+        truths,
+        criteria=CRITERIA,
+        condition_to_level=CONDITION_TO_LEVEL,
+        polarity={"blur": False, "shadow": True},
+    )
+
+    assert result.per_criterion["blur"].false_negatives == 1
+    assert result.per_criterion["blur"].true_positives == 0
+
+
+def test_mixed_polarity_scores_each_criterion_by_its_own_direction():
+    """The whole point: one prompt may ask some questions each way."""
+    truths = [truth("a.png", blur=True, shadow=True)]
+    # NO to "perfectly sharp" (blur present) and YES to "is there a shadow".
+    predictions = {"a.png": predicted(blur=False, shadow=True)}
+
+    result = score_quality_screen(
+        predictions,
+        truths,
+        criteria=CRITERIA,
+        condition_to_level=CONDITION_TO_LEVEL,
+        polarity={"blur": False, "shadow": True},
+    )
+
+    assert result.per_criterion["blur"].true_positives == 1
+    assert result.per_criterion["shadow"].true_positives == 1
+
+
+def test_polarity_defaults_to_defect_phrased_when_not_given():
+    """Every variant shipped so far is uniformly defect-phrased, and their
+    results must not shift under this change."""
+    truths = [truth("a.png", blur=True, shadow=False)]
+    predictions = {"a.png": predicted(blur=True, shadow=False)}
+
+    assert score(predictions, truths).per_criterion["blur"].true_positives == 1
+
+
+def test_a_criterion_missing_from_the_polarity_map_fails_fast(assert_diagnostic_error):
+    """Silently defaulting an unlisted criterion to defect-phrased would invert
+    exactly the criterion someone forgot to declare."""
+    truths = [truth("a.png", blur=True, shadow=False)]
+    predictions = {"a.png": predicted(blur=True, shadow=False)}
+
+    with pytest.raises(ValueError) as exc_info:
+        score_quality_screen(
+            predictions,
+            truths,
+            criteria=CRITERIA,
+            condition_to_level=CONDITION_TO_LEVEL,
+            polarity={"blur": True},
+        )
+
+    message = str(exc_info.value)
+    assert_diagnostic_error(message)
+    assert "shadow" in message
+
+
 def test_a_criterion_that_never_occurs_reports_undefined_not_perfect():
     """Nothing to find and nothing claimed is not a perfect score.
 

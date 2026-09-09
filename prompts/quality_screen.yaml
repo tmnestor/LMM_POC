@@ -488,6 +488,72 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v9 -- inverted polarity, exploiting the model's reluctance to say YES.
+  # =======================================================================
+  # Measured on 60 images with v6 at min_tiles 12:
+  #
+  #   precision 1.000 on EVERY criterion. Zero false positives.
+  #   recall 0.05 - 0.65.
+  #   OVERALL never over-called: NONE->NONE 20/20, and every error an
+  #   under-call (HEAVY->MODERATE 17, MODERATE->NONE 10).
+  #
+  # The model is not confused, it is conservative. It says YES only when a
+  # defect is unmistakable, and is right every single time it does. Fighting
+  # that with "even slightly" (v6) and with a description step (v7, v8) barely
+  # moved recall.
+  #
+  # So stop fighting it. Ask the question the other way round, and the same
+  # reluctance now works for us: a model unwilling to assert "YES it is
+  # blurred" is equally unwilling to assert "YES it is perfectly sharp" when
+  # anything is off. NO becomes the detection.
+  #
+  # This is what v1-v4 did with SHARPNESS, SKEWING and WARPING, which I
+  # removed in v5 for uniformity. The uniformity was worth less than the
+  # polarity.
+  #
+  # Not every criterion inverts well. A good-phrased question needs a natural
+  # absolute -- "perfectly sharp", "completely flat", "even and unbroken" --
+  # and CREASE and SHADOW have none that is not tortured ("is the paper
+  # entirely free of shadow?" invites the same conservatism in the same
+  # direction). Those two stay defect-phrased, so this variant is deliberately
+  # MIXED. The evidence block below is the record of which is which, and the
+  # scorer now reads it.
+  quality_screen_v9:
+    name: "quality_screen_v9"
+    # false = a good-phrased question, where NO means the defect is present.
+    evidence:
+      blur: false
+      shadow: true
+      crease: true
+      faded: false
+      tilt: false
+      speckle: false
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice and answer each question with YES or NO.
+
+      Answer YES only if the statement is completely true of the whole picture.
+      If any part of it falls short, answer NO.
+
+      1. BLUR: Is every word perfectly sharp and in focus, across the whole picture?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is the printing even and unbroken everywhere, with no faded or patchy parts?
+      5. TILT: Is the paper perfectly square to the edges of the picture, not turned at all?
+      6. SPECKLE: Is the picture perfectly clean and smooth, with no grain or speckling?
+      7. OVERALL: How bad is the picture overall? Answer NONE, MODERATE or HEAVY.
+         Answer NONE only if the picture is perfect in every way.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
   # =======================================================================
   # Answers one question: does the model PERCEIVE the degradation at all?

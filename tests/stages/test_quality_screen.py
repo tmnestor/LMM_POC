@@ -17,7 +17,12 @@ from stages.quality_screen import run_quality_screen, write_screen_records
 
 CRITERIA = ["blur", "shadow", "crease", "faded", "tilt", "speckle"]
 LEVELS = ["NONE", "MODERATE", "HEAVY"]
-VOCABULARY = ScreenVocabulary(criteria=CRITERIA, overall_levels=LEVELS, prompt="ask the questions")
+VOCABULARY = ScreenVocabulary(
+    criteria=CRITERIA,
+    polarity=dict.fromkeys(CRITERIA, True),
+    overall_levels=LEVELS,
+    prompt="ask the questions",
+)
 
 
 def response(*, overall="MODERATE", **answers):

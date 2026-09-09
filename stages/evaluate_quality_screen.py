@@ -197,6 +197,11 @@ def run(
         truths,
         criteria=vocabulary.criteria,
         condition_to_level=condition_to_level,
+        # From the variant's own `evidence:` block, so a prompt asking "is it
+        # perfectly sharp?" has its NO scored as a detection. Reading it from
+        # the prompt that produced the answers is the only way this stays right
+        # when variants differ.
+        polarity=vocabulary.polarity,
     )
     report = build_report(score, responses)
 

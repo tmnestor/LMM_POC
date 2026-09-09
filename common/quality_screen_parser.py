@@ -67,12 +67,18 @@ class ScreenVocabulary:
     Attributes:
         criteria: Criterion names in the prompt's question order. The reader
             checks slot numbers against this order.
+        polarity: Criterion name -> the answer that means the defect IS
+            present. True for a defect-phrased question ("is it blurry?"),
+            False for a good-phrased one ("is it perfectly sharp?"). A scorer
+            comparing the model's boolean straight against the corpus label is
+            correct only while every question is defect-phrased.
         overall_levels: Permitted OVERALL answers.
         prompt: The prompt text, so a caller can send it and a test can check
             it against the vocabulary.
     """
 
     criteria: list[str]
+    polarity: dict[str, bool]
     overall_levels: list[str]
     prompt: str
 
@@ -131,6 +137,7 @@ def load_screen_vocabulary(config_path: Path, *, variant: str) -> ScreenVocabula
 
     return ScreenVocabulary(
         criteria=list(block["evidence"]),
+        polarity={name: bool(value) for name, value in block["evidence"].items()},
         overall_levels=list(block["overall_levels"]),
         prompt=str(block["prompt"]),
     )

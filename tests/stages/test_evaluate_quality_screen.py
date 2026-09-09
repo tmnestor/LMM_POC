@@ -198,6 +198,58 @@ def test_the_stage_scores_a_run_and_writes_a_report(tmp_path):
     assert report["overall_confusion"]["HEAVY->HEAVY"] == 1
 
 
+def test_the_stage_scores_with_the_variants_own_polarity(tmp_path):
+    """End to end with a good-phrased criterion: the stage must read polarity
+    from the prompt that produced the answers, not assume defect-phrasing."""
+    import yaml as _yaml
+
+    prompt = tmp_path / "inverted.yaml"
+    prompt.write_text(
+        _yaml.safe_dump(
+            {
+                "prompts": {
+                    "inverted": {
+                        # blur asks "is it perfectly sharp?" -> NO means blurred
+                        "evidence": {c: (c != "blur") for c in CRITERIA},
+                        "overall_levels": ["NONE", "MODERATE", "HEAVY"],
+                        "prompt": "x",
+                    }
+                }
+            }
+        )
+    )
+
+    screen = tmp_path / "quality_screen.jsonl"
+    screen.write_text(
+        json.dumps(
+            {
+                "image_name": "a.png",
+                "answers": {c: (c != "blur") for c in CRITERIA},
+                "overall": "HEAVY",
+                "malformed": False,
+                "malformed_reason": None,
+                "think_drift": False,
+            }
+        )
+        + "\n"
+    )
+    gt = tmp_path / "gt.jsonl"
+    gt.write_text(json.dumps(truth("a.png", condition="heavy", **dict.fromkeys(CRITERIA, True))) + "\n")
+
+    report_path = stage_run(
+        screen,
+        gt,
+        tmp_path / "eval",
+        prompt_file=prompt,
+        variant="inverted",
+        condition_to_level=CONDITION_TO_LEVEL,
+    )
+
+    report = json.loads(report_path.read_text())
+    assert report["per_criterion"]["blur"]["true_positives"] == 1, "NO on a good-phrased question"
+    assert report["per_criterion"]["shadow"]["true_positives"] == 1, "YES on a defect-phrased one"
+
+
 def test_an_image_the_screen_never_reached_is_reported_as_missing(tmp_path):
     """A crashed or interrupted classify pod must show up as a gap, not as a
     smaller corpus."""
