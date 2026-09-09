@@ -693,6 +693,14 @@ class DocumentOrchestrator:
         unit in its own right, and the distinction between "the model said NO"
         and "the model said something unreadable" is the whole point of it.
 
+        Routes on `supports_batch` rather than assuming it. `detect_batch`
+        asserts the backend can batch, which is sound there because
+        DocumentPipeline only calls it when `supports_batch` is true -- the
+        precondition lives in the caller. This method has no such caller, and
+        on a backend with no `generate_batch` the sequential path is the only
+        one. Falling back also picks up `generate`'s OOM recovery, which a raw
+        `generate_batch` call does not have.
+
         Args:
             image_paths: Images to send.
             prompt: The prompt to ask about every image.
@@ -706,15 +714,19 @@ class DocumentOrchestrator:
             return []
 
         if verbose:
-            sys.stdout.write(f"Screening {len(image_paths)} images\n")
+            mode = "batched" if self.supports_batch else "sequential"
+            sys.stdout.write(f"Screening {len(image_paths)} images ({mode})\n")
             sys.stdout.flush()
 
         images = [self.load_document_image(path) for path in image_paths]
-        params = GenerationParams(max_tokens=max_tokens)
 
-        backend = self._backend
-        assert isinstance(backend, BatchInference)  # noqa: S101
-        return backend.generate_batch(images, [prompt] * len(image_paths), params)
+        if self.supports_batch:
+            params = GenerationParams(max_tokens=max_tokens)
+            backend = self._backend
+            assert isinstance(backend, BatchInference)  # noqa: S101
+            return backend.generate_batch(images, [prompt] * len(image_paths), params)
+
+        return [self.generate(image, prompt, max_tokens) for image in images]
 
     def extract_batch(
         self,
