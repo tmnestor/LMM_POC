@@ -250,6 +250,34 @@ def test_the_stage_scores_with_the_variants_own_polarity(tmp_path):
     assert report["per_criterion"]["shadow"]["true_positives"] == 1, "YES on a defect-phrased one"
 
 
+def test_a_variant_with_no_criteria_still_scores_its_severity_calls():
+    """The OVERALL-only control asks one question and declares no criteria.
+
+    It exists to test whether the six criteria earn their cost as reasoning
+    scaffolding, so it has to be scoreable -- an empty criteria list must
+    produce an empty per-criterion table and a real confusion matrix, not a
+    crash or a divide-by-zero.
+    """
+    truths = [
+        {"filename": "a.png", "document_type": "receipt", "condition": "heavy", "defects": {}},
+        {"filename": "b.png", "document_type": "receipt", "condition": "clean", "defects": {}},
+    ]
+    predictions = {
+        "a.png": QualityResponse(answers={}, overall="HEAVY", malformed=False),
+        "b.png": QualityResponse(answers={}, overall="NONE", malformed=False),
+    }
+
+    score = score_quality_screen(
+        predictions, truths, criteria=[], condition_to_level=CONDITION_TO_LEVEL, polarity={}
+    )
+    report = build_report(score, predictions)
+
+    assert report["counts"]["scored"] == 2
+    assert report["per_criterion"] == {}
+    assert report["overall_confusion"] == {"HEAVY->HEAVY": 1, "NONE->NONE": 1}
+    assert "OVERALL" in format_report(report)
+
+
 def test_an_image_the_screen_never_reached_is_reported_as_missing(tmp_path):
     """A crashed or interrupted classify pod must show up as a gap, not as a
     smaller corpus."""

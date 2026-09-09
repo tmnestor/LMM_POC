@@ -554,6 +554,102 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v10 -- v6's questions with v9's stricter OVERALL. Both halves measured.
+  # =======================================================================
+  # WHAT THE SIX QUESTIONS ARE FOR. They are not six independent measurements.
+  # v1-v4 asked them to walk the model through the evidence before it commits
+  # to a verdict -- chain-of-thought by enumeration. OVERALL is the product;
+  # the criteria are the reasoning that is meant to improve it.
+  #
+  # That reframes every number measured so far. Per-criterion recall of 0.3 is
+  # not a failure if the questions are doing their job, and per-criterion
+  # precision of 1.000 is not a success if OVERALL stays wrong.
+  #
+  # Measured on 60 images at min_tiles 12:
+  #
+  #   v6  per-criterion precision 1.000, recall 0.05-0.65
+  #       OVERALL 33/60 = 55%
+  #   v9  inverted polarity: per-criterion collapsed to zero true positives
+  #       OVERALL 41/60 = 68%
+  #
+  # v9's per-criterion inversion failed outright -- the model has a semantic
+  # prior that documents are fine and states it correctly in either phrasing,
+  # so inverting only changed which token carried the same wrong belief. But
+  # its OVERALL was markedly better, and the only wording change there was
+  # "Answer NONE only if the picture is perfect in every way".
+  #
+  # v10 takes the half of each that measured well: v6's defect-phrased
+  # questions, which hold precision at 1.000, and v9's stricter OVERALL. It
+  # invents nothing.
+  quality_screen_v10:
+    name: "quality_screen_v10"
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice and answer each question with YES or NO.
+
+      Answer YES if you notice the problem at all, even slightly, or in only part of the
+      picture. Answer NO only if the problem is completely absent.
+
+      1. BLUR: Is any of the writing blurry, soft or out of focus, even slightly?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy, uneven or broken up?
+      5. TILT: Is the paper crooked or rotated at all, instead of square to the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy anywhere?
+      7. OVERALL: Now judge the picture as a whole. Answer NONE, MODERATE or HEAVY.
+         Answer NONE only if the picture is perfect in every way.
+         Answer MODERATE if it has problems but every word can still be read.
+         Answer HEAVY if any part is hard to read.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
+  # CONTROL -- OVERALL only, no criteria. Answers "does the scaffolding help?"
+  # =======================================================================
+  # If the six questions exist to make the model reason before it judges, the
+  # experiment that tests them is asking OVERALL WITHOUT them. Nothing measured
+  # so far does that, so nothing measured so far shows the scaffolding earns
+  # its cost.
+  #
+  # Two outcomes, both worth having. If this scores near v10's OVERALL, the
+  # criteria are not adding anything and the screen is a one-question prompt at
+  # a fraction of the tokens. If it scores materially worse, the
+  # chain-of-thought is doing real work and the criteria stay -- with their own
+  # accuracy a secondary concern, as intended.
+  #
+  # The reader needs at least one criterion to check slots against, so this
+  # declares OVERALL alone and the evidence block is deliberately empty of
+  # defect criteria. Scoring it compares the confusion matrix only.
+  quality_screen_overall_only:
+    name: "quality_screen_overall_only"
+    evidence: {}
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice and judge its quality as a whole.
+
+      Answer NONE, MODERATE or HEAVY.
+        NONE     the picture is perfect in every way
+        MODERATE it has problems but every word can still be read
+        HEAVY    any part is hard to read
+
+      Fill in this template:
+      1. OVERALL:
+
+  # =======================================================================
   # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
   # =======================================================================
   # Answers one question: does the model PERCEIVE the degradation at all?
