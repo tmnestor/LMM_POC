@@ -105,6 +105,97 @@ def classify_worker(
         model_cm.__exit__(None, None, None)
 
 
+def quality_screen_worker(
+    gpu_id: int,
+    image_paths: list[str],
+    *,
+    config_path: str | None,
+    cli_overrides: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Worker: build vLLM engine + processor, screen each image's quality.
+
+    Delegates to the same `run_quality_screen` the single-GPU path uses, so
+    the record shape is shared by construction rather than duplicated here.
+    A DP run and a single-GPU run must produce interchangeable output --
+    evaluate cannot tell which produced the file it reads.
+
+    Args:
+        gpu_id: GPU rank (for logging).
+        image_paths: Absolute paths to images (strings).
+        config_path: Path to run_config.yml (or None).
+        cli_overrides: CLI args dict for AppConfig.load().
+
+    Returns:
+        List of quality-screen record dicts.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(levelname)s [GPU {gpu_id}] %(name)s: %(message)s",
+    )
+
+    from cli import load_pipeline_configs
+    from common.app_config import AppConfig
+    from common.pipeline_ops import create_processor, load_model
+    from common.quality_screen_parser import load_screen_vocabulary
+    from stages.quality_screen import orchestrator_inference, run_quality_screen
+
+    # Force single-GPU in this worker
+    overrides = dict(cli_overrides)
+    overrides["num_gpus"] = 1
+
+    cfg_path = Path(config_path) if config_path else None
+    app_cfg = AppConfig.load(overrides, config_path=cfg_path)
+    config = app_cfg.pipeline
+
+    screen_cfg = app_cfg.quality_screen_config
+    vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=screen_cfg["variant"])
+    max_tokens = app_cfg.get_token_budget("quality_screen")
+
+    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
+
+    logger.info("Loading model: %s (GPU %d)", config.model_type, gpu_id)
+    model_cm = load_model(config, app_config=app_cfg)
+    model, tokenizer = model_cm.__enter__()
+
+    try:
+        processor = create_processor(
+            model,
+            tokenizer,
+            config,
+            prompt_config,
+            universal_fields,
+            field_definitions,
+            app_config=app_cfg,
+        )
+
+        started = time.time()
+        records = run_quality_screen(
+            image_paths,
+            infer=orchestrator_inference(processor, max_tokens, verbose=config.verbose),
+            vocabulary=vocabulary,
+        )
+        elapsed = time.time() - started
+
+        malformed = sum(1 for record in records if record["malformed"])
+        logger.info(
+            "[GPU %d] screened %d images in %.1fs (%d malformed)",
+            gpu_id,
+            len(records),
+            elapsed,
+            malformed,
+        )
+
+        # Tag every record with the rank that produced it. Workers run
+        # concurrently, so the parent needs this to report the SLOWEST
+        # worker's inference time -- summing across workers would give total
+        # compute and understate throughput by roughly the GPU count.
+        for record in records:
+            record["gpu_id"] = gpu_id
+        return records
+    finally:
+        model_cm.__exit__(None, None, None)
+
+
 def extract_worker(
     gpu_id: int,
     image_paths: list[str],

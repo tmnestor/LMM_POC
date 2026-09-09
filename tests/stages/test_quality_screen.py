@@ -121,6 +121,36 @@ def test_no_images_produces_no_records_and_no_inference():
     assert run_quality_screen([], infer=refuse, vocabulary=VOCABULARY) == []
 
 
+def test_the_dp_worker_name_resolves_to_a_real_callable():
+    """`run_dp` imports the worker by dotted string, so a typo here would only
+    surface on the GPU box after a model had already loaded."""
+    import importlib
+
+    from stages.quality_screen import DP_WORKER
+
+    module_name, _, function_name = DP_WORKER.rpartition(".")
+    module = importlib.import_module(module_name)
+    worker = getattr(module, function_name, None)
+
+    assert callable(worker), f"{DP_WORKER} does not resolve to a callable"
+
+
+def test_the_dp_worker_takes_the_arguments_run_dp_passes_it():
+    """run_dp calls worker(gpu_id, image_paths, **worker_kwargs). A signature
+    mismatch is another failure that waits for the GPU to find it."""
+    import importlib
+    import inspect
+
+    from stages.quality_screen import DP_WORKER
+
+    module_name, _, function_name = DP_WORKER.rpartition(".")
+    worker = getattr(importlib.import_module(module_name), function_name)
+    params = inspect.signature(worker).parameters
+
+    assert list(params)[:2] == ["gpu_id", "image_paths"]
+    assert {"config_path", "cli_overrides"} <= set(params)
+
+
 def test_records_round_trip_through_the_output_file(tmp_path):
     images = ["/data/a.png", "/data/b.png"]
     responses = {"a.png": response(blur=True), "b.png": "nonsense"}

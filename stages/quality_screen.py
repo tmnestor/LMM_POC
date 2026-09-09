@@ -34,6 +34,11 @@ from common.quality_screen_parser import (
 logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False)
 
+# The DP worker, named for `run_dp` to import by string. A constant rather than
+# an inline literal so a test can resolve it: a typo here is invisible until a
+# GPU run has already loaded the model.
+DP_WORKER = "common.vllm_dp_workers.quality_screen_worker"
+
 # Takes image paths and one prompt, returns one raw response per image, in the
 # same order. The real implementation batches through the model backend; tests
 # pass a function over canned text.
@@ -188,6 +193,35 @@ def run(
         raise FileNotFoundError(msg)
     logger.info("Screening %d images with %s", len(images), screen_cfg["variant"])
 
+    # -- vLLM data-parallel fast path -----------------------------------------
+    # Same shape as the classify stage: shard the images across GPUs, each
+    # worker building its own TP=1 engine. This is where the throughput comes
+    # from -- no backend in this repo implements `generate_batch`, so
+    # `supports_batch` is false everywhere and every worker runs sequentially
+    # within its shard. Parallelism is across GPUs, not within a call.
+    from models.registry import is_vllm_model
+
+    if is_vllm_model(config.model_type):
+        from common.vllm_dp import resolve_gpu_count, run_dp
+
+        resolved_gpus = resolve_gpu_count(config)
+        if resolved_gpus > 1:
+            logger.info("vLLM data-parallel: sharding %d images across %d GPUs", len(images), resolved_gpus)
+            dp_records = run_dp(
+                num_gpus=resolved_gpus,
+                images=images,
+                worker_fn=DP_WORKER,
+                worker_kwargs={
+                    "config_path": str(config_path) if config_path else None,
+                    "cli_overrides": cli_args,
+                },
+                app_config=app_cfg,
+            )
+            written = write_screen_records(dp_records, output_path)
+            _log_screen_summary(dp_records, written)
+            return written
+
+    # -- Single-GPU / HF path -------------------------------------------------
     logger.info("Loading model: %s", config.model_type)
     prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
     model_cm = load_model(config, app_config=app_cfg)
@@ -212,7 +246,16 @@ def run(
         model_cm.__exit__(None, None, None)
 
     written = write_screen_records(records, output_path)
+    _log_screen_summary(records, written)
+    return written
 
+
+def _log_screen_summary(records: list[dict], written: Path) -> None:
+    """Report what the run produced, on either path.
+
+    Shared by the DP and single-GPU paths so a run's summary does not depend
+    on how it was sharded.
+    """
     malformed = sum(1 for record in records if record["malformed"])
     drifted = sum(1 for record in records if record["think_drift"])
     logger.info(
@@ -233,7 +276,6 @@ def run(
             len(records),
             100.0 * malformed / len(records),
         )
-    return written
 
 
 @app.command()
