@@ -428,6 +428,66 @@ prompts:
       7. OVERALL:
 
   # =======================================================================
+  # v8 -- enumerate the six aspects in the description, then answer.
+  # =======================================================================
+  # v7 asked for a description and got a summary: "the printing is sharp" for a
+  # moderate receipt whose print is measurably patchy. The standalone describe
+  # variant, on the same image at the same tiling, said "slightly blurry
+  # towards the bottom, faded or patchy areas especially in the lower section,
+  # slightly grainy and speckled".
+  #
+  # The only difference was that describe ENUMERATED the six aspects and v7 did
+  # not. Given a generic instruction the model summarises and skips detail;
+  # given an enumerated one it checks each thing in turn. Its YES/NO answers
+  # then follow whichever description it wrote -- so the description is where
+  # the accuracy is won or lost.
+  #
+  # v8 puts the enumeration back, then asks for the template.
+  quality_screen_v8:
+    name: "quality_screen_v8"
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      First describe what you see, covering each of these in turn:
+      - whether the writing looks sharp or blurry anywhere
+      - whether any part of the paper is darker because of a shadow
+      - whether the paper looks folded, creased, crumpled or torn
+      - whether any printing looks faded, patchy or broken up
+      - whether the paper is square to the picture or crooked
+      - whether the picture looks grainy or speckled
+
+      Then answer each question with YES or NO, matching what you described.
+      Answer YES if you noticed the problem at all, even slightly, or in only
+      part of the picture.
+
+      1. BLUR: Is any of the writing blurry, soft or out of focus, even slightly?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy, uneven or broken up?
+      5. TILT: Is the paper crooked or rotated at all, instead of square to the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy anywhere?
+      7. OVERALL: How bad is the picture overall? Answer NONE, MODERATE or HEAVY.
+         Answer NONE only if you found no problems at all above.
+
+      Use this format:
+      DESCRIPTION: <your description>
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+
+  # =======================================================================
   # DIAGNOSTIC -- not a screen. Free text, deliberately unparseable.
   # =======================================================================
   # Answers one question: does the model PERCEIVE the degradation at all?
