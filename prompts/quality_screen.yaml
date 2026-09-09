@@ -1,0 +1,383 @@
+# =========================================================================
+# QUALITY SCREEN PROMPTS
+# =========================================================================
+# Each prompt variant carries its own `evidence:` block: the answer that
+# indicates a LOW QUALITY image, for exactly the criteria that variant asks
+# about. Evidence lives with the prompt so a variant can never be scored
+# against another variant's field set.
+#
+# POLARITY IS NOT UNIFORM. Most criteria are phrased as "is there a defect?"
+# (low quality = true), but some are phrased as "is it good?" (low quality =
+# false). Each block below encodes the phrasing of that variant's own
+# questions. Note in particular that `skewing` is false in v1/v2 and true in
+# v4 - the same key name, the opposite expected value, because v4 rewords the
+# question from "is it aligned?" to "must you mentally rotate it?".
+#
+# Rationale per criterion (why it signals low quality):
+#   sharpness   - low quality images will have blurry text
+#   handwriting - presence of handwriting may lower OCR fidelity or visual
+#                 understanding depending on its legibility
+#   collage     - LMM performance lowered if image is of multiple pages on top
+#                 of each other or side-by-side
+#   shadows     - shadows may obscure text and decrease legibility
+#   artefacts   - artefacts created via bad scanning and copying may distort
+#                 text and decrease legibility
+#   fading      - text on printed documents may fade over time, particularly
+#                 if printed on thermal paper, decreasing its legibility
+#   creasing    - creases on paper documents may distort text and decrease
+#                 legibility
+#   staining    - stains on paper documents may distort text and decrease
+#                 legibility
+#   rotation    - pages that are oriented off the vertical may affect
+#                 alignment and visual understanding of text, particularly in
+#                 borderless tables
+#   skewing     - lines of text printed or written off the horizontal or
+#                 vertical may affect OCR fidelity and visual understanding
+#   warping     - page may appear curled or distorted due to how the scan or
+#                 photo was taken
+#   orientation - text that does not share a single reading order breaks the
+#                 left-to-right reading order (v3 only; replaces rotation,
+#                 skewing and warping)
+# =========================================================================
+
+prompts:
+  quality_screen:
+    name: "quality_screen_v1"
+    # 11 criteria. sharpness/skewing/warping are phrased "is it good?", so
+    # false is the low-quality answer for those three.
+    evidence:
+      sharpness: false
+      handwriting: true
+      collage: true
+      shadows: true
+      artefacts: true
+      fading: true
+      creasing: true
+      staining: true
+      rotation: true
+      skewing: false
+      warping: false
+    prompt: |
+      Look at this document image and answer each question exactly with YES or NO.
+      No explanations or extra text. If uncertain, answer exactly: NONE.
+
+      1. SHARPNESS: Is the text in focus and clearly defined?
+      2. HANDWRITING: Is there handwritten text on the image?
+      3. COLLAGE: Is there more than one page on the image? Disregard page numbers,
+         headers, footers and other pagination markers as evidence. Instead consider
+         evidence where physical pages were placed together in a scanner or photo.
+      4. SHADOWS: Are there shadows cast anywhere on the image?
+      5. ARTEFACTS: Does the image have compression artefacts, graininess, or digital
+         noise that interferes with text legibility?
+      6. FADING: Is there any printed text faded to the point where characters are
+         difficult to distinguish?
+      7. CREASING: Does the image have folds or creases that obscure or distort text?
+      8. STAINING: Does the image have stains, tears, water damage, or ink smearing
+         that cover text areas?
+      9. ROTATION: Is the image orientation significantly rotated from vertical?
+      10. SKEWING: Is all text on the image aligned perfectly horizontally without
+          noticeable tilt?
+      11. WARPING: Is the image flat and free from curling or warping that distorts text?
+
+      Now analyse the provided document image and respond by filling in this template:
+      1. SHARPNESS:
+      2. HANDWRITING:
+      3. COLLAGE:
+      4. SHADOWS:
+      5. ARTEFACTS:
+      6. FADING:
+      7. CREASING:
+      8. STAINING:
+      9. ROTATION:
+      10. SKEWING:
+      11. WARPING:
+
+  # ---------------------------------------------------------------------
+  # DISABLED: collage_check / collage_detection
+  # ---------------------------------------------------------------------
+  # Commented out rather than deleted. This is a dedicated multi-document
+  # detector (11 sub-questions, `collage_detection` name), not an image
+  # quality screen: it duplicates the single COLLAGE criterion that every
+  # quality_screen variant already asks, and running both would cost a
+  # second inference pass per image and produce two collage verdicts to
+  # reconcile. Re-enable by stripping the leading "# " from the block below.
+  # ---------------------------------------------------------------------
+#   collage_check:
+#     name: "collage_detection"
+#     # Every question asks "is there a sign of more than one document?", so
+#     # true is the low-quality (collage present) answer throughout. OVERALL is
+#     # the model's own summary judgement over the preceding ten.
+#     evidence:
+#       side: true
+#       overlap: true
+#       columns: true
+#       edges: true
+#       background: true
+#       dimensions: true
+#       areas: true
+#       font: true
+#       structure: true
+#       info: true
+#       overall: true
+#     prompt: |
+#       Look at this document image. This image may contain MULTIPLE separate document pages,
+#       possibly from the same business. It is IMPORTANT that you disregard page numbers
+#       and other pagination markers as evidence of multiple documents.
+#       Answer each question exactly with YES or NO. If uncertain, answer exactly: NONE.
+#
+#       1. SIDE: Is the image of multiple physical paper documents (e.g. receipts, parking tickets)
+#          placed next to each other?
+#       2. OVERLAP: Does the image contain one or more papers on top of (or stapled to) a
+#          larger sheet of paper?
+#       3. COLUMNS: Is there more than one column of text? Do not count columns of a table.
+#       4. EDGES: Are there visible edges, shadows, or gaps suggesting more than one piece of paper?
+#          Do not count the boundary where a single document meets the table, surface, or hand behind it.
+#       5. BACKGROUND: Are there areas with noticeably different paper colour, whiteness, or texture
+#          (e.g., thermal receipt paper vs bright white copy paper, or different levels of yellowing/ageing)?
+#       6. DIMENSIONS: Are there visible boundaries suggesting documents of different widths or
+#          heights within the image (e.g., a narrow receipt beside a wider invoice)?
+#       7. AREAS: Are there distinct zones with noticeably different sharpness, blur, or scan quality?
+#       8. FONT: Are there large square or rectangular zones where the printed text is in a different
+#          font, colour and/or orientation when compared to the surrounding text?
+#       9. STRUCTURE: Are there repetitive structural elements in the image? For example, repeated
+#          headers, footers, business logos or wordmarks? Do not count content from tables
+#          when considering your answer.
+#       10. INFO: Does the image contain repetitive information laid out in the same format? For example,
+#           repeated names, dates, locations, overall totals? Disregard text in tables, line item
+#           descriptions and amounts when considering your answer.
+#       11. OVERALL: After considering all the above questions, does this image depict more than
+#           one distinct physical document?
+#
+#       Now analyse the provided document image and respond by filling in this template:
+#       1. SIDE:
+#       2. OVERLAP:
+#       3. COLUMNS:
+#       4. EDGES:
+#       5. BACKGROUND:
+#       6. DIMENSIONS:
+#       7. AREAS:
+#       8. FONT:
+#       9. STRUCTURE:
+#       10. INFO:
+#       11. OVERALL:
+
+  quality_screen_v2:
+    name: "quality_screen_v2"
+    # Same 11 criteria and same polarity as v1; the wording of several
+    # questions is tightened but none of them flips direction.
+    evidence:
+      sharpness: false
+      handwriting: true
+      collage: true
+      shadows: true
+      artefacts: true
+      fading: true
+      creasing: true
+      staining: true
+      rotation: true
+      skewing: false
+      warping: false
+    prompt: |
+      Look at this document image and answer each question exactly with YES or NO.
+      No explanations or extra text. If uncertain, answer exactly: NONE.
+
+      1. SHARPNESS: Is the text in focus and clearly defined?
+      2. HANDWRITING: Is there handwritten text on the image?
+      3. COLLAGE: Is there more than one page on the image? Disregard page numbers,
+         headers, footers and other pagination markers as evidence. Instead consider
+         evidence of physical pages being placed together in a scanner or photo such as
+         page edges and localised areas of text with a different font or orientation.
+      4. SHADOWS: Are there shadows that are being cast on the image?
+      5. ARTEFACTS: Are there compression artefacts, graininess, or digital
+         noise in the image?
+      6. FADING: Is there any text that is faded or badly printed to the point where
+         characters are difficult to distinguish?
+      7. CREASING: Are there any folds or creases that obscure or distort text?
+      8. STAINING: Are there any stains, tears, water damage, or ink smearing?
+      9. ROTATION: Are the edges or margins significantly rotated from the
+         vertical?
+      10. SKEWING: Are ALL lines of text aligned perfectly horizontally without
+          noticeable tilt? Consider whether the beginning of a line of text is in the
+          same horizontal or vertical level as the end of a line of text.
+      11. WARPING: Is the document in the image flat and free from curling or
+          warping that distorts text?
+
+      Now analyse the provided document image and respond by filling in this template:
+      1. SHARPNESS:
+      2. HANDWRITING:
+      3. COLLAGE:
+      4. SHADOWS:
+      5. ARTEFACTS:
+      6. FADING:
+      7. CREASING:
+      8. STAINING:
+      9. ROTATION:
+      10. SKEWING:
+      11. WARPING:
+
+  quality_screen_v3:
+    name: "quality_screen_v3"
+    # 9 criteria. ROTATION, SKEWING and WARPING are collapsed into a single
+    # ORIENTATION question, phrased "is it good?", so false is low quality.
+    evidence:
+      sharpness: false
+      handwriting: true
+      collage: true
+      shadows: true
+      artefacts: true
+      fading: true
+      creasing: true
+      staining: true
+      orientation: false
+    prompt: |
+      Look at this document image and answer each question exactly with YES or NO.
+      No explanations or extra text. If uncertain, answer exactly: NONE.
+
+      1. SHARPNESS: Is the text in focus and clearly defined?
+      2. HANDWRITING: Is there handwritten text on the image?
+      3. COLLAGE: Is there more than one page on the image? Disregard page numbers,
+         headers, footers and other pagination markers as evidence. Instead consider
+         evidence such as physical pages being placed together in a scanner or photo.
+      4. SHADOWS: Are there shadows cast anywhere on the image?
+      5. ARTEFACTS: Does the image have compression artefacts, graininess, or digital
+         noise that interferes with text legibility?
+      6. FADING: Is there any printed text faded to the point where characters are
+         difficult to distinguish?
+      7. CREASING: Are there any folds or creases that obscure or distort text?
+      8. STAINING: Are there any stains, tears, water damage, or ink smearing?
+      9. ORIENTATION: Is all text in the image in the same orientation? Base your
+         answer on a reading order of left to right and direction of text lines.
+
+      Now analyse the provided document image and respond by filling in this template:
+      1. SHARPNESS:
+      2. HANDWRITING:
+      3. COLLAGE:
+      4. SHADOWS:
+      5. ARTEFACTS:
+      6. FADING:
+      7. CREASING:
+      8. STAINING:
+      9. ORIENTATION:
+
+  quality_screen_v4:
+    name: "quality_screen_v4"
+    # 9 criteria. SKEWING is INVERTED relative to v1/v2: the question becomes
+    # "do you have to mentally rotate the image to read it?", so true is the
+    # low-quality answer here. Do not copy v1/v2's skewing value onto v4.
+    evidence:
+      sharpness: false
+      handwriting: true
+      collage: true
+      shadows: true
+      artefacts: true
+      fading: true
+      creasing: true
+      staining: true
+      skewing: true
+    prompt: |
+      Look at this document image and answer each question exactly with YES or NO.
+      No explanations or extra text. If uncertain, answer exactly: NONE.
+
+      1. SHARPNESS: Is the text in focus and clearly defined?
+      2. HANDWRITING: Is there handwritten text on the image?
+      3. COLLAGE: Is there more than one document on the image? Disregard page numbers,
+         headers, footers and other pagination markers as evidence. Instead consider as
+         evidence physical paper documents (e.g. receipts, parking tickets) being placed next
+         to each other, visible edges, shadows, or gaps suggesting separate pieces of paper,
+         and large areas of the image where the printed text is in a different font or
+         orientation.
+      4. SHADOWS: Are there shadows cast anywhere on the image?
+      5. ARTEFACTS: Does the image have compression artefacts, graininess, or digital
+         noise that interferes with text legibility?
+      6. FADING: Is there any printed text faded to the point where characters are
+         difficult to distinguish?
+      7. CREASING: Are there any folds or creases that obscure or distort text?
+      8. STAINING: Are there any stains, tears, water damage, or ink smearing?
+      9. SKEWING: Read all lines of text in this document. Then tell me if you, at any
+         point, have to mentally rotate the image to read it?
+
+      Now analyse the provided document image and respond by filling in this template:
+      1. SHARPNESS:
+      2. HANDWRITING:
+      3. COLLAGE:
+      4. SHADOWS:
+      5. ARTEFACTS:
+      6. FADING:
+      7. CREASING:
+      8. STAINING:
+      9. SKEWING:
+
+  # =======================================================================
+  # v5 -- the receipt/invoice screen. This is the variant the classify stage
+  # runs; v1-v4 above are kept for reference.
+  # =======================================================================
+  # Three things differ from v1-v4, all of them driven by the fact that only
+  # InternVL3.5-8B answers this:
+  #
+  # 1. UNIFORM POLARITY. Every question is phrased "is there a defect?", so
+  #    YES always means something is wrong. v1-v4 mixed defect-phrased with
+  #    good-phrased questions (SHARPNESS/SKEWING/WARPING asked "is it good?"),
+  #    which is what let v4's skewing invert against v1/v2 under the same key
+  #    name. An 8B model answers one consistent direction far more reliably.
+  #
+  # 2. PLAIN WORDS. "compression artefacts", "graininess", "legibility" and
+  #    "foreshortening" are gone. A small model answers "does it look grainy or
+  #    speckled" more reliably than it parses "digital noise that interferes
+  #    with text legibility".
+  #
+  # 3. NO "don't explain" RULE. v1-v4 open with "No explanations or extra
+  #    text", which is exactly the kind of don't-reason instruction that
+  #    triggers <think> drift on InternVL3.5. It also collided with the answer
+  #    set: NONE was the uncertainty token in v1-v4 and is now a severity
+  #    value. Deliver this as a bare user message with no system prompt.
+  #
+  # The six criteria are exactly the defects the generator can produce, and
+  # carry the same names as the generator's own defect labels
+  # (generation_config.yml -> document_degradation.defect_labels.rules), so the
+  # scorer needs no translation table between prompt slot and ground truth.
+  #
+  # Not asked, and why:
+  #   handwriting, collage, staining  the ladder cannot create them, so the
+  #     questions would measure nothing but a false-positive rate against a
+  #     column that is never YES.
+  #   curve  nothing in the pipeline bends or curls paper. The warp's
+  #     `foreshorten` tilts a FLAT plane; Augraphy's page-curl augmentations
+  #     are deliberately excluded because camera.py owns geometry. Asking
+  #     would invite a YES no label could ever justify.
+  quality_screen_v5:
+    name: "quality_screen_v5"
+    # Uniform polarity: true for all six, because YES always means the defect
+    # is present. Per-image ground truth comes from the generator's
+    # quality_ground_truth.jsonl, which records which defects each image
+    # actually carries; this block only fixes the direction.
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    # OVERALL is graded, not boolean, so it is declared separately rather than
+    # forced into the evidence mapping. The levels are the generator's own
+    # conditions: a clean render, and the two declared degradation tiers.
+    overall_levels: [NONE, MODERATE, HEAVY]
+    prompt: |
+      Look at this picture of a receipt or invoice and answer each question with YES or NO.
+
+      1. BLUR: Is the writing blurry or out of focus?
+      2. SHADOW: Is there a dark shadow lying across the paper?
+      3. CREASE: Is the paper folded or creased?
+      4. FADED: Is any of the printing faded or patchy, so the letters are hard to read?
+      5. TILT: Is the paper crooked or tilted, instead of straight up and down?
+      6. SPECKLE: Does the picture look grainy or speckled?
+      7. OVERALL: How bad is the picture overall? Answer NONE, MODERATE or HEAVY.
+         Answer NONE if the picture is clear and easy to read.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
