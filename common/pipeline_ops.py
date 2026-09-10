@@ -32,25 +32,20 @@ def create_processor(
     model,
     tokenizer,
     config: PipelineConfig,
-    prompt_config: dict[str, Any],
-    universal_fields: list[str],
-    field_definitions: dict[str, list[str]],
     *,
     app_config: Any | None = None,
 ) -> Any:
-    """Create document extraction processor from loaded components.
+    """Build the orchestrator for a loaded model.
 
     Delegates to the registered processor_creator for config.model_type.
+
+    It used to also take a prompt-routing config, a universal field list and
+    per-type field definitions. The screen supplied all three and used none of
+    them -- they existed only because the orchestrator's extraction half
+    demanded them, and demanding them kept the extraction prompt file, the
+    field schema and the prompt catalogue alive behind a constructor argument.
     """
     from models.registry import get_model
 
     registration = get_model(config.model_type)
-    return registration.processor_creator(
-        model,
-        tokenizer,
-        config,
-        prompt_config,
-        universal_fields,
-        field_definitions,
-        app_config=app_config,
-    )
+    return registration.processor_creator(model, tokenizer, config, app_config=app_config)

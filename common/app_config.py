@@ -6,11 +6,9 @@ in cli.py and eliminates mutable module globals.
 
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from common.field_schema import FieldSchema, get_field_schema
 
 if TYPE_CHECKING:
     from common.pipeline_config import PipelineConfig
@@ -81,46 +79,52 @@ def _validate_model_override_keys(
 
 
 def _build_generation_registry(raw_config: dict) -> dict[str, dict]:
-    """Build generation config registry with YAML overrides applied.
+    """Build the per-model generation config from ``inference.generation``.
 
-    Supports two YAML formats:
-    - **New structured format** (``generation.defaults`` + ``generation.models``):
-      builds per-model configs by merging ``defaults | per_model_overrides``.
-    - **Legacy flat format** (``generation.max_new_tokens_base``, etc.):
-      deep-copies the base registry from model_config and applies flat overrides
-      to the InternVL3 entry only (backwards compat).
+    One format: a ``defaults`` block, merged with any per-model overrides under
+    ``models``. There used to be a second, flat, legacy format handled by
+    falling back to a hardcoded registry in ``common.model_config`` -- which is
+    the silent-fallback shape: a YAML that had drifted out of the supported
+    layout produced a working run on Python constants rather than an error, and
+    nothing said which one it had used.
 
-    Returns the result without mutating the originals.
+    Args:
+        raw_config: The parsed YAML.
+
+    Returns:
+        `{model_name: config}` plus a `__defaults__` entry, so a caller with an
+        unregistered model gets the shared tuning rather than nothing.
+
+    Raises:
+        ConfigError: The ``defaults`` block is missing.
     """
     gen = raw_config.get("inference", {}).get("generation", {})
 
-    # ── New structured format ──────────────────────────────────────────
-    if "defaults" in gen:
-        defaults = dict(gen["defaults"])
-        models_section = gen.get("models", {})
-        registry: dict[str, dict] = {}
-        for model_name, overrides in models_section.items():
-            registry[model_name] = {**defaults, **overrides}
-        # Ensure a "__defaults__" sentinel so callers can get generic config
-        registry["__defaults__"] = dict(defaults)
-        return registry
+    if "defaults" not in gen:
+        raise ConfigError(
+            [
+                "Missing required key 'inference.generation.defaults'.\n"
+                "  What:        the generation config has no `defaults` block, so there "
+                "is no baseline for per-model tuning to merge with.\n"
+                "  Where:       config/run_config.yml → inference.generation.defaults\n"
+                "  Expected:    a mapping of generation hyper-parameters, e.g.\n"
+                "                 inference:\n"
+                "                   generation:\n"
+                "                     defaults:\n"
+                "                       max_new_tokens_base: 512\n"
+                "                       temperature: 0.0\n"
+                "                       do_sample: false\n"
+                "  How to fix:  add the defaults block. Per-model overrides go under "
+                "`inference.generation.models.<type>` and inherit from it."
+            ]
+        )
 
-    # ── Legacy flat format (backwards compat) ──────────────────────────
-    from common.model_config import _GENERATION_CONFIG_REGISTRY
-
-    registry = copy.deepcopy(_GENERATION_CONFIG_REGISTRY)
-
-    if gen and "internvl3" in registry:
-        ivl_config = registry["internvl3"]
-        for key in (
-            "max_new_tokens_base",
-            "max_new_tokens_per_field",
-            "do_sample",
-            "use_cache",
-        ):
-            if key in gen:
-                ivl_config[key] = gen[key]
-
+    defaults = dict(gen["defaults"])
+    registry: dict[str, dict] = {
+        model_name: {**defaults, **overrides} for model_name, overrides in gen.get("models", {}).items()
+    }
+    # A sentinel so callers can ask for generic config without naming a model.
+    registry["__defaults__"] = dict(defaults)
     return registry
 
 
@@ -134,10 +138,8 @@ class AppConfig:
 
     __slots__ = (
         "pipeline",
-        "fields",
         "_generation_registry",
         "_token_limits",
-        "_min_tokens_by_type",
         "_token_budgets",
         "_vllm_config",
         "_infrastructure",
@@ -163,10 +165,8 @@ class AppConfig:
     def __init__(
         self,
         pipeline: "PipelineConfig",
-        fields: FieldSchema,
         generation_registry: dict[str, dict],
         token_limits: dict[str, int | None] | None = None,
-        min_tokens_by_type: dict[str, int] | None = None,
         token_budgets: dict[str, int] | None = None,
         vllm_config: dict[str, dict] | None = None,
         infrastructure: dict[str, int | float] | None = None,
@@ -175,10 +175,8 @@ class AppConfig:
         quality_screen: dict[str, Any] | None = None,
     ) -> None:
         self.pipeline = pipeline
-        self.fields = fields
         self._generation_registry = generation_registry
         self._token_limits = token_limits or {}
-        self._min_tokens_by_type = min_tokens_by_type or {}
         self._token_budgets = token_budgets or {}
         self._vllm_config = vllm_config or {}
         self._infrastructure = {**self._DEFAULT_INFRASTRUCTURE, **(infrastructure or {})}
@@ -257,9 +255,6 @@ class AppConfig:
         for size_key, value in yaml_limits.items():
             token_limits[str(size_key)] = value
 
-        # 9-10. Load field schema (single YAML read) and extract min_tokens
-        fields = get_field_schema()
-
         # 11. Token budgets — YAML is the single source of truth
         yaml_budgets = raw_config.get("pipeline", {}).get("token_budgets", {})
 
@@ -300,10 +295,8 @@ class AppConfig:
 
         return cls(
             pipeline=pipeline,
-            fields=fields,
             generation_registry=generation_registry,
             token_limits=token_limits,
-            min_tokens_by_type=fields.min_tokens_by_type,
             token_budgets=yaml_budgets,
             vllm_config=vllm_config,
             infrastructure=infra_section,
@@ -427,26 +420,6 @@ class AppConfig:
         if defaults is not None:
             return dict(defaults)
         return dict(self._FALLBACK_GENERATION_CONFIG)
-
-    def get_max_new_tokens(
-        self,
-        field_count: int | None = None,
-        document_type: str | None = None,
-    ) -> int:
-        """Same signature as model_config.get_max_new_tokens()."""
-        effective_count = field_count or self.fields.field_count or 15
-
-        config = self._generation_registry.get("internvl3", {})
-        base = int(config.get("max_new_tokens_base", 2000))
-        per_field = int(config.get("max_new_tokens_per_field", 50))
-        base_tokens = max(base, effective_count * per_field)
-
-        if document_type:
-            min_tokens = self._min_tokens_by_type.get(document_type)
-            if min_tokens:
-                return max(base_tokens, min_tokens)
-
-        return base_tokens
 
     # -- Image budgets (Phase 3) -----------------------------------------------
 

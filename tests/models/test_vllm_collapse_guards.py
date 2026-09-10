@@ -71,7 +71,7 @@ LIVE_MODULES = [
     "models.backends.vllm_backend",
     "models.orchestrator",
     "common.image_tiling",  # kept shared tiling primitive (Amendment 1)
-    "common.pipeline_prompts",  # what cli.py's surviving half became
+    "common.quality_screen_parser",
     "common.vllm_dp",
     "common.vllm_dp_workers",
     "stages.quality_screen",
@@ -110,7 +110,6 @@ def test_internvl_vllm_resolves():
 
     reg = registry_mod.get_model("internvl3-vllm")
     assert reg.is_vllm is True
-    assert reg.prompt_file == "internvl3_prompts.yaml"
     assert registry_mod.is_vllm_model("internvl3-vllm") is True
 
 
@@ -121,14 +120,29 @@ def test_three_internvl_sizes_registered(model_type):
 
     reg = registry_mod.get_model(model_type)
     assert reg.is_vllm is True
-    assert reg.prompt_file == "internvl3_prompts.yaml"
 
 
-def test_internvl_prompt_file_present_and_parses():
-    """The kept prompt YAML exists and is valid YAML."""
-    prompt_file = PROMPTS / "internvl3_prompts.yaml"
+def test_the_screen_prompt_file_present_and_parses():
+    """The one prompt file this branch has exists and is valid YAML.
+
+    It replaced internvl3_prompts.yaml, which held the extraction prompts. That
+    file survived the module deletions purely because DocumentOrchestrator
+    demanded a prompt-routing config to be constructed at all -- a file nothing
+    read, held up by a constructor argument.
+    """
+    prompt_file = PROMPTS / "quality_screen.yaml"
     assert prompt_file.is_file(), f"missing {prompt_file}"
-    assert yaml.safe_load(prompt_file.read_text()), "internvl3_prompts.yaml parsed empty"
+    assert yaml.safe_load(prompt_file.read_text()), "quality_screen.yaml parsed empty"
+
+
+@pytest.mark.parametrize(
+    "fname",
+    ["internvl3_prompts.yaml", "document_type_detection.yaml", "bank_prompts.yaml"],
+)
+def test_extraction_prompt_files_are_gone(fname):
+    """Nothing reads them, and a prompt file that nothing reads is a file the
+    next person has to work out the status of."""
+    assert not (PROMPTS / fname).exists(), f"{fname} is back"
 
 
 def test_vllm_seam_builds_single_image_message():
@@ -232,28 +246,30 @@ def test_hf_backend_modules_deleted(module):
         importlib.import_module(module)
 
 
-@pytest.mark.parametrize("func_name", ["load_prompt_config", "load_pipeline_configs"])
-def test_prompt_loader_defaults_flipped_to_vllm(func_name):
-    """The prompt-config loaders default to internvl3-vllm, not the old HF internvl3.
-
-    These lived in cli.py until the standalone strip deleted it; the screen is
-    the only remaining caller, and it passes the model type explicitly. The
-    default still matters because it is what any new caller inherits.
+def test_the_orchestrator_needs_no_extraction_scaffolding():
+    """DocumentOrchestrator used to require a prompt-routing config, a universal
+    field list and per-type field definitions. The screen supplied all three and
+    read none of them -- and the requirement is what kept the extraction prompt
+    file, the field schema, the prompt catalogue and the response handler in the
+    tree. Re-adding any of these arguments would bring them all back.
     """
-    from common import pipeline_prompts
+    from models.orchestrator import DocumentOrchestrator
 
-    sig = inspect.signature(getattr(pipeline_prompts, func_name))
-    assert sig.parameters["model_type"].default == "internvl3-vllm"
+    params = set(inspect.signature(DocumentOrchestrator.__init__).parameters)
+
+    assert not params & {"prompt_config", "field_list", "field_definitions"}
+    assert "backend" in params
 
 
-def test_cli_is_gone():
-    """cli.py was deleted by the standalone strip.
-
-    Its only surviving half is common.pipeline_prompts. A cli module coming
-    back would drag the extraction command tree with it.
-    """
+@pytest.mark.parametrize(
+    "module",
+    ["cli", "common.pipeline_prompts", "common.field_schema", "common.prompt_catalog"],
+)
+def test_the_extraction_construction_path_is_gone(module):
+    """cli.py, and the modules that outlived it only because the orchestrator's
+    constructor demanded them."""
     with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("cli")
+        importlib.import_module(module)
 
 
 def test_pipeline_config_default_model_type_is_vllm():
@@ -269,10 +285,18 @@ def test_deleted_prompt_files_absent(fname):
     assert not (PROMPTS / fname).exists()
 
 
-def test_generation_schema_collapsed_to_internvl():
-    """The generation-config schema drops non-InternVL entries (Phase 4 — DONE)."""
-    from common.model_config import _GENERATION_CONFIG_SCHEMA as schema
+def test_generation_config_comes_from_yaml_with_no_python_fallback():
+    """common.model_config held a hardcoded generation registry that
+    _build_generation_registry fell back to when the YAML was not in the
+    structured format. That is the silent-fallback shape: a drifted config
+    produced a working run on Python constants and said nothing. The module is
+    gone and the structured format is now required."""
+    import importlib
 
-    assert "internvl3" in schema
-    assert "qwen3vl" not in schema
-    assert "llama" not in schema
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("common.model_config")
+
+    from common.app_config import ConfigError, _build_generation_registry
+
+    with pytest.raises(ConfigError):
+        _build_generation_registry({"inference": {"generation": {"models": {}}}})

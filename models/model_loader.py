@@ -7,7 +7,6 @@ into a ``DocumentOrchestrator``.
 Usage:
     register_vllm_model(VllmSpec(
         model_type="internvl3-vllm",
-        prompt_file="internvl3_prompts.yaml",
     ))
 """
 
@@ -34,7 +33,6 @@ class VllmSpec:
     """
 
     model_type: str
-    prompt_file: str = "internvl3_prompts.yaml"
     description: str = ""
     attention_backend: str | None = None  # None = vLLM auto-selects
     mm_processor_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -291,16 +289,7 @@ def build_vllm_loader(spec: VllmSpec):
 def build_vllm_processor_creator(spec: VllmSpec):
     """Build a processor_creator for a vLLM model."""
 
-    def _creator(
-        model,
-        tokenizer_or_processor,
-        config,
-        prompt_config,
-        universal_fields,
-        field_definitions,
-        *,
-        app_config=None,
-    ):
+    def _creator(model, tokenizer_or_processor, config, *, app_config=None):
         # debug=config.debug → Tier C; verbose=config.verbose → Tier B. See
         # `plans/quiet-pipeline-output.md` for the split.
         backend = VllmBackend(
@@ -316,9 +305,6 @@ def build_vllm_processor_creator(spec: VllmSpec):
 
         return DocumentOrchestrator(
             backend=backend,
-            field_list=universal_fields,
-            prompt_config=prompt_config,
-            field_definitions=field_definitions,
             debug=config.debug,
             verbose=config.verbose,
             device=str(config.device_map),
@@ -346,7 +332,6 @@ def register_vllm_model(spec: VllmSpec) -> None:
             model_type=spec.model_type,
             loader=build_vllm_loader(spec),
             processor_creator=build_vllm_processor_creator(spec),
-            prompt_file=spec.prompt_file,
             description=spec.description,
             requires_sharding=True,
             is_vllm=True,

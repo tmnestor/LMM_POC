@@ -10,19 +10,12 @@ from __future__ import annotations
 
 import gc
 import sys
-import time
-import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import yaml
 from PIL import Image
 
 from common import prompt_trace
-from common.field_schema import get_field_schema
-from common.pipeline_config import strip_structure_suffixes
-from common.prompt_catalog import PromptCatalog
-from common.response_handler import create_response_handler
 from models.backend import GenerationParams, ModelBackend
 
 if TYPE_CHECKING:
@@ -30,12 +23,20 @@ if TYPE_CHECKING:
 
 
 class DocumentOrchestrator:
-    """Unified document extraction orchestrator.
+    """Sends one prompt at one image and returns the text that comes back.
 
-    Owns all shared logic: detection, classification, prompt resolution,
-    extraction, parsing, cleaning, OOM recovery, and batch routing.
+    Composition rather than inheritance: it has-a ModelBackend and adds the
+    things that are the same whatever the prompt asks -- image loading, OOM
+    recovery, and per-image trace attribution.
 
-    The backend (ModelBackend) provides only raw generate().
+    It used to own detection, classification, prompt resolution, extraction,
+    parsing and cleaning as well, and required a prompt-routing config, a
+    universal field list and per-type field definitions to be constructed. The
+    screen used none of that: it sends one prompt and reads seven answers. The
+    scaffolding is gone rather than passed in empty, because while it was still
+    required it kept `prompts/internvl3_prompts.yaml`, the field schema, the
+    prompt catalogue and the response handler alive -- files nothing on this
+    branch reads, held up by a constructor argument.
 
     Attributes:
         model: Underlying model object (delegates to backend).
@@ -46,71 +47,27 @@ class DocumentOrchestrator:
         self,
         backend: ModelBackend,
         *,
-        field_list: list[str],
-        prompt_config: dict[str, Any],
-        field_definitions: dict[str, list[str]] | None = None,
         debug: bool = False,
         verbose: bool = False,
         device: str = "cuda",
         model_type_key: str = "internvl3",
-        app_config: AppConfig,
+        app_config: AppConfig | None = None,
         has_oom_recovery: bool = True,
     ) -> None:
         self._backend = backend
-        # debug → Tier C (dev-noise: PARSING DEBUG, prompt/response dumps, tracebacks).
-        # verbose → Tier B (init/config details: auto-batch, gen-config, processing X).
+        # debug → Tier C (dev-noise: prompt/response dumps, tracebacks).
+        # verbose → Tier B (init/config details).
         self.debug = debug
         self._verbose = verbose
         self.device = device
         self._model_type_key = model_type_key
         self._has_oom_recovery = has_oom_recovery
-
-        # Validate app_config
-        self.app_config: AppConfig = app_config
-
-        # Field configuration
-        self.field_list = field_list
-        self.field_count = len(field_list)
-
-        # Validate prompt_config
-        if not prompt_config:
-            raise ValueError(
-                "prompt_config is required -- must contain "
-                "'detection_file', 'detection_key', 'extraction_files'"
-            )
-        self.prompt_config: dict[str, Any] = prompt_config
-        missing = {"detection_file", "detection_key", "extraction_files"} - set(self.prompt_config)
-        if missing:
-            raise ValueError(f"prompt_config missing required keys: {missing}")
-
-        # Read fallback_type from centralized config (run_config.yml)
-        self._fallback_type = self.app_config.classification_fallback_type
-
-        # Resolve prompt YAML filename from extraction_files
-        extraction_files = self.prompt_config["extraction_files"]
-        if not extraction_files:
-            raise ValueError(
-                "prompt_config['extraction_files'] is empty -- "
-                "must map document types to extraction YAML paths"
-            )
-        self._prompt_yaml = Path(next(iter(extraction_files.values()))).name
-
-        # Response handler: parse -> clean -> validate pipeline
-        schema = get_field_schema()
-        self._response_handler = create_response_handler(schema=schema, debug=debug)
-
-        # Document-specific field lists
-        self.document_field_lists: dict[str, list[str]] = (
-            field_definitions if field_definitions is not None else schema.get_all_doc_type_fields()
-        )
-
-        # Generation config
-        self._configure_generation()
+        # Retained for callers that pass it; nothing on the screen path reads
+        # it, since the token budget arrives with each call.
+        self.app_config = app_config
 
         if self._verbose:
-            print(
-                f"DocumentOrchestrator initialized: {self.field_count} fields, model_type={model_type_key}"
-            )
+            print(f"DocumentOrchestrator initialized: model_type={model_type_key}")
 
     # -- Protocol-required attributes ------------------------------------------
 
@@ -124,56 +81,6 @@ class DocumentOrchestrator:
         """Tokenizer / processor (for DocumentProcessor protocol)."""
         return self._backend.processor
 
-    # -- Generation config -----------------------------------------------------
-
-    def _configure_generation(self) -> None:
-        """Load generation hyper-parameters from AppConfig."""
-        self.gen_config: dict[str, Any] = self.app_config.get_generation_config(self._model_type_key)
-
-        self.fallback_max_tokens = max(
-            int(
-                self.gen_config.get(
-                    "max_new_tokens_base",
-                    self.app_config.get_token_budget("fallback_base"),
-                )
-            ),
-            self.field_count
-            * int(
-                self.gen_config.get(
-                    "max_new_tokens_per_field",
-                    self.app_config.get_token_budget("fallback_per_field"),
-                )
-            ),
-        )
-
-        if self._verbose:
-            print(
-                f"Generation config: max_new_tokens={self.fallback_max_tokens}, "
-                f"do_sample={self.gen_config.get('do_sample', False)}"
-            )
-
-    def _calculate_max_tokens(self, field_count: int, document_type: str) -> int:
-        """Calculate token budget based on field count and document type."""
-        base = int(
-            self.gen_config.get(
-                "max_new_tokens_base",
-                self.app_config.get_token_budget("fallback_base"),
-            )
-        )
-        per_field = int(
-            self.gen_config.get(
-                "max_new_tokens_per_field",
-                self.app_config.get_token_budget("fallback_per_field"),
-            )
-        )
-        tokens = base + (field_count * per_field)
-
-        if document_type == "bank_statement":
-            tokens = max(tokens, self.app_config.get_token_budget("bank_statement_floor"))
-        return tokens
-
-    # -- Image loading ---------------------------------------------------------
-
     def load_document_image(self, image_path: str) -> Image.Image:
         """Load document image with error handling."""
         try:
@@ -182,92 +89,6 @@ class DocumentOrchestrator:
             if self.debug:
                 print(f"Error loading image {image_path}: {e}")
             raise
-
-    # -- Prompt loading --------------------------------------------------------
-
-    def get_extraction_prompt(self, document_type: str | None = None) -> str:
-        """Get extraction prompt for *document_type* via PromptCatalog."""
-        if document_type is None:
-            document_type = "universal"
-
-        if self.debug:
-            print(f"Loading {document_type} prompt")
-
-        catalog = PromptCatalog()
-        try:
-            return catalog.get_prompt(self._model_type_key, document_type)
-        except KeyError:
-            if self.debug:
-                print(f"Failed to load {document_type} prompt, falling back to universal")
-            return catalog.get_prompt(self._model_type_key, "universal")
-
-    def get_supported_document_types(self) -> list[str]:
-        """Get list of supported document types from prompt YAML."""
-        return PromptCatalog().list_keys(self._model_type_key)
-
-    # -- Document type parsing -------------------------------------------------
-
-    def _parse_document_type_response(self, response: str, detection_config: dict) -> str:
-        """Parse document type from model response using YAML-driven type mappings."""
-        response_lower = response.lower().strip()
-
-        if self.debug:
-            sys.stdout.write(f"PARSING DEBUG - Raw response: '{response}'\n")
-            sys.stdout.write(f"PARSING DEBUG - Cleaned response: '{response_lower}'\n")
-            sys.stdout.flush()
-
-        # Direct mapping check (YAML type_mappings)
-        type_mappings = detection_config.get("type_mappings", {})
-        for variant, canonical in type_mappings.items():
-            if variant.lower() in response_lower:
-                if self.debug:
-                    sys.stdout.write(f"PARSING DEBUG - Found mapping: '{variant}' -> '{canonical}'\n")
-                    sys.stdout.flush()
-                return canonical
-
-        # Fallback keyword detection
-        fallback_keywords = detection_config.get("fallback_keywords", {})
-        for canonical_type, keywords in fallback_keywords.items():
-            if any(kw in response_lower for kw in keywords):
-                if self.debug:
-                    sys.stdout.write(f"PARSING DEBUG - Keyword match: {canonical_type}\n")
-                    sys.stdout.flush()
-                return canonical_type
-
-        # Final fallback
-        fallback = self._fallback_type
-        if self.debug:
-            sys.stdout.write(f"PARSING DEBUG - No matches found, using fallback: '{fallback}'\n")
-            sys.stdout.flush()
-        return fallback
-
-    # -- Bank structure classification -----------------------------------------
-
-    def _classify_bank_structure(self, image_path: str, verbose: bool = False) -> str:
-        """Classify bank statement structure using vision model.
-
-        Returns:
-            Structure-specific prompt key (e.g. 'bank_statement_flat')
-        """
-        from common.vision_bank_statement_classifier import (
-            classify_bank_statement_structure_vision,
-        )
-
-        if verbose:
-            print("Running vision-based structure classification for bank statement")
-
-        structure_type = classify_bank_statement_structure_vision(
-            image_path,
-            model=self,
-            processor=None,
-            verbose=verbose,
-        )
-
-        if verbose:
-            print(f"Bank statement structure: {structure_type}")
-            print(f"Using prompt key: bank_statement_{structure_type}")
-
-        return f"bank_statement_{structure_type}"
 
     # -- Core generate (delegates to backend with OOM recovery) ----------------
 
@@ -290,34 +111,6 @@ class DocumentOrchestrator:
         if self._has_oom_recovery:
             return self._resilient_generate(image, prompt, params)
         return self._backend.generate(image, prompt, params)
-
-    @staticmethod
-    def tile_extra_from_classification(classification_info: dict) -> dict | None:
-        """Build GenerationParams.extra from an injected per-type tile budget.
-
-        BOTH bounds must travel. ``min_tiles`` is the actual lever: the
-        InternVL tiling algorithm picks its grid by closest aspect-ratio
-        match, so a receipt settles on 2-3 detail tiles and never
-        approaches ``max_tiles``. Forwarding only the ceiling leaves the
-        backend on its ``min_tiles=1`` default, which made
-        ``inference.tiling.budgets.<type>.min_tiles`` inert for every type
-        except bank_statement — the one path that passed both, via
-        UnifiedBankExtractor.
-
-        Args:
-            classification_info: Classification record, optionally carrying
-                ``_max_tiles`` and ``_min_tiles`` injected by the dispatch.
-
-        Returns:
-            The extra dict, or None when no budget was injected (pre-tiling
-            off), which sends the backend down its single-image path.
-        """
-        max_tiles = classification_info.get("_max_tiles")
-        if max_tiles is None:
-            return None
-        # Absent floor reproduces the previous behaviour rather than
-        # silently forcing a dense grid on a caller that never asked.
-        return {"max_tiles": max_tiles, "min_tiles": classification_info.get("_min_tiles", 1)}
 
     def cache_hit_summary(self) -> dict:
         """Proxy the backend's cumulative prefix-cache hit summary."""
@@ -349,257 +142,6 @@ class DocumentOrchestrator:
             extra=params.extra,
         )
         return self._backend.generate(image, prompt, retry_params)
-
-    # -- Detection pipeline ----------------------------------------------------
-
-    def detect_and_classify_document(self, image_path: str, verbose: bool = False) -> dict:
-        """Detect document type by running the detection prompt through generate()."""
-        try:
-            detection_path = Path(self.prompt_config["detection_file"])
-            detection_key = self.prompt_config["detection_key"]
-
-            if verbose:
-                sys.stdout.write(f"CONFIG DEBUG - detection_key='{detection_key}'\n")
-                sys.stdout.flush()
-
-            with detection_path.open("r") as f:
-                detection_config = yaml.safe_load(f)
-
-            detection_prompt = detection_config["prompts"][detection_key]["prompt"]
-            max_tokens = self.app_config.get_token_budget("classify")
-
-            if verbose:
-                sys.stdout.write(f"Using document detection prompt: {detection_key}\n")
-                sys.stdout.write(f"Prompt: {detection_prompt[:100]}...\n")
-                sys.stdout.flush()
-
-            image = self.load_document_image(image_path)
-            response = self.generate(image, detection_prompt, max_tokens)
-
-            if verbose:
-                sys.stdout.write(f"Model response: {response}\n")
-                sys.stdout.flush()
-
-            # Try enriched parsing (COLUMNS/PAID/ROWS) first, then legacy keywords
-            from common.turn_parsers import ClassificationParser
-
-            parser = ClassificationParser(fallback_type=self._fallback_type)
-            enriched = parser._parse_enriched(response)
-            if enriched is not None:
-                document_type = enriched["DOCUMENT_TYPE"]
-            else:
-                document_type = self._parse_document_type_response(response, detection_config)
-
-            if verbose:
-                sys.stdout.write(f"Detected document type: {document_type}\n")
-                sys.stdout.flush()
-
-            result = {
-                "document_type": document_type,
-                "confidence": 1.0,
-                "raw_response": response,
-                "prompt_used": detection_key,
-            }
-            if enriched and "column_mapping" in enriched:
-                result["column_mapping"] = enriched["column_mapping"]
-            return result
-
-        except Exception as e:
-            sys.stdout.write(f"DETECTION ERROR: {e}\n")
-            sys.stdout.flush()
-            if self.debug:
-                sys.stdout.write("DETECTION ERROR TRACEBACK:\n")
-                sys.stdout.flush()
-                traceback.print_exc()
-
-            return {
-                "document_type": self._fallback_type,
-                "confidence": 0.1,
-                "raw_response": "",
-                "prompt_used": "fallback_heuristic",
-                "error": str(e),
-            }
-
-    # -- Extraction pipeline ---------------------------------------------------
-
-    def process_document_aware(
-        self, image_path: str, classification_info: dict, verbose: bool = False
-    ) -> dict:
-        """Process document using document-specific extraction."""
-        try:
-            document_type = classification_info["document_type"].lower()
-
-            if verbose:
-                print(f"Processing {document_type.upper()} document")
-
-            # For bank statements, use vision-based structure classification
-            if document_type == "bank_statement":
-                try:
-                    document_type = self._classify_bank_structure(image_path, verbose)
-                except Exception as e:
-                    if verbose:
-                        print(f"Vision classification failed: {e}")
-                        print("Falling back to bank_statement_flat prompt")
-                    document_type = "bank_statement_flat"
-
-            # Resolve extraction prompt
-            doc_type_upper = strip_structure_suffixes(document_type).upper()
-            extraction_files = self.prompt_config["extraction_files"]
-            if doc_type_upper not in extraction_files:
-                raise ValueError(
-                    f"No extraction file configured for '{doc_type_upper}'. "
-                    f"Available: {list(extraction_files.keys())}. "
-                    f"Add it to prompt_config['extraction_files']."
-                )
-            extraction_file = extraction_files[doc_type_upper]
-
-            # Derive extraction key
-            extraction_keys = self.prompt_config.get("extraction_keys", {})
-            if doc_type_upper in extraction_keys:
-                extraction_key = extraction_keys[doc_type_upper]
-            else:
-                extraction_key = document_type
-
-            # For bank statements: append structure suffix if missing
-            if document_type.startswith("bank_statement") and doc_type_upper == "BANK_STATEMENT":
-                if "_flat" not in extraction_key and "_date_grouped" not in extraction_key:
-                    if "_flat" in document_type:
-                        extraction_key = f"{extraction_key}_flat"
-                    elif "_date_grouped" in document_type:
-                        extraction_key = f"{extraction_key}_date_grouped"
-
-            catalog = PromptCatalog()
-            extraction_prompt = catalog.get_prompt(self._model_type_key, extraction_key)
-
-            if verbose:
-                print(f"Using {document_type} prompt: {len(extraction_prompt)} characters")
-
-            # Resolve document-specific field list
-            doc_type_fields = dict(self.document_field_lists)
-            if "bank_statement" in doc_type_fields:
-                doc_type_fields["bank_statement_flat"] = doc_type_fields["bank_statement"]
-                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields["bank_statement"]
-
-            doc_field_list = doc_type_fields.get(
-                document_type, doc_type_fields.get("invoice", self.field_list)
-            )
-
-            # Calculate document-specific max tokens
-            base_doc_type = strip_structure_suffixes(document_type)
-            doc_specific_tokens = self._calculate_max_tokens(len(doc_field_list), base_doc_type)
-
-            # Per-type tile budget (Phase 3: injected by extraction dispatch)
-            extra = self.tile_extra_from_classification(classification_info)
-
-            # Process with document-specific settings
-            result = self.process_single_image(
-                image_path,
-                custom_prompt=extraction_prompt,
-                custom_max_tokens=doc_specific_tokens,
-                field_list=doc_field_list,
-                extra=extra,
-            )
-
-            if verbose:
-                extracted_data = result.get("extracted_data", {})
-                found_fields = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-                print(f"Extracted {found_fields}/{len(extracted_data)} fields")
-
-            return result
-
-        except Exception as e:
-            if verbose:
-                print(f"Error in document-aware processing: {e}")
-            return self.process_single_image(image_path)
-
-    # -- Single image processing -----------------------------------------------
-
-    def process_single_image(
-        self,
-        image_path: str,
-        custom_prompt: str | None = None,
-        custom_max_tokens: int | None = None,
-        field_list: list[str] | None = None,
-        extra: dict | None = None,
-    ) -> dict[str, Any]:
-        """Process one document image end-to-end.
-
-        Args:
-            extra: Optional dict passed through to GenerationParams.extra
-                (e.g. ``{"max_tiles": 6}`` for per-type tile budgets).
-        """
-        active_fields = field_list or self.field_list
-        active_count = len(active_fields)
-        start_time = time.time()
-        image_name = Path(image_path).name
-
-        try:
-            if self._has_oom_recovery:
-                from common.gpu_memory import release_memory
-
-                release_memory(threshold_gb=1.0, device=self.device)
-
-            image = self.load_document_image(image_path)
-
-            prompt = custom_prompt or self.get_extraction_prompt()
-            max_tokens = custom_max_tokens or self._calculate_max_tokens(active_count, "universal")
-
-            if self.debug:
-                sys.stdout.write(f"Processing {image_name} ({active_count} fields)\n")
-                sys.stdout.write(f"Prompt: {len(prompt)} chars, max_tokens: {max_tokens}\n")
-                sys.stdout.flush()
-
-            raw_response = self.generate(image, prompt, max_tokens, extra=extra)
-
-            processing_time = time.time() - start_time
-
-            if self.debug:
-                sys.stdout.write(f"Response ({len(raw_response)} chars):\n")
-                sys.stdout.write("=" * 80 + "\n")
-                sys.stdout.write(raw_response + "\n")
-                sys.stdout.write("=" * 80 + "\n")
-                sys.stdout.flush()
-
-            extracted_data = self._response_handler.handle(raw_response, active_fields)
-
-            found = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-
-            if self.debug:
-                print(f"Extracted {found}/{active_count} fields")
-
-            del image
-            if self._has_oom_recovery:
-                import torch
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-
-            return {
-                "image_name": image_name,
-                "extracted_data": extracted_data,
-                "raw_response": raw_response,
-                "processing_time": processing_time,
-                "response_completeness": found / max(active_count, 1),
-                "content_coverage": found / max(active_count, 1),
-                "extracted_fields_count": found,
-                "field_count": active_count,
-            }
-
-        except Exception as e:
-            processing_time = time.time() - start_time
-            if self.debug:
-                print(f"Error processing {image_name}: {e}")
-                traceback.print_exc()
-            return {
-                "image_name": image_name,
-                "extracted_data": {f: "NOT_FOUND" for f in active_fields},
-                "raw_response": f"Error: {e}",
-                "processing_time": processing_time,
-                "response_completeness": 0.0,
-                "content_coverage": 0.0,
-                "extracted_fields_count": 0,
-                "field_count": active_count,
-            }
 
     def screen_batch(
         self,
@@ -664,20 +206,3 @@ class DocumentOrchestrator:
             ):
                 responses.append(self.generate(image, prompt, max_tokens, extra=tile_extra))
         return responses
-
-    def _resolve_extraction_prompt(self, document_type: str) -> str:
-        """Resolve extraction prompt for a document type."""
-        doc_type_upper = strip_structure_suffixes(document_type).upper()
-        extraction_files = self.prompt_config["extraction_files"]
-        if doc_type_upper not in extraction_files:
-            raise ValueError(
-                f"No extraction file configured for '{doc_type_upper}'. "
-                f"Available: {list(extraction_files.keys())}. "
-                f"Add it to prompt_config['extraction_files']."
-            )
-        extraction_file = extraction_files[doc_type_upper]
-        extraction_keys = self.prompt_config.get("extraction_keys", {})
-        extraction_key = extraction_keys.get(doc_type_upper, document_type)
-
-        catalog = PromptCatalog()
-        return catalog.get_prompt(self._model_type_key, extraction_key)

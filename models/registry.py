@@ -22,14 +22,12 @@ class ModelRegistration:
         loader: Callable(PipelineConfig) -> ContextManager[(model, tokenizer)].
         processor_creator: Callable(model, tokenizer, config, prompt_config,
                            universal_fields, field_definitions) -> DocumentProcessor.
-        prompt_file: Extraction prompt YAML filename, e.g. "internvl3_prompts.yaml".
         description: Human-readable description for help text.
     """
 
     model_type: str
     loader: ModelLoader
     processor_creator: ProcessorCreator
-    prompt_file: str
     description: str = ""
     requires_sharding: bool = False  # True = model must shard across GPUs (keep device_map="auto")
     is_vllm: bool = False  # True = vLLM backend (eligible for data-parallel)
@@ -93,7 +91,6 @@ from models.model_loader import VllmSpec, register_vllm_model  # noqa: E402
 register_vllm_model(
     VllmSpec(
         model_type="internvl3-vllm",
-        prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-8B via vLLM (PagedAttention, no flash-attn required)",
     )
 )
@@ -101,7 +98,6 @@ register_vllm_model(
 register_vllm_model(
     VllmSpec(
         model_type="internvl3-14b-vllm",
-        prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-14B via vLLM (~30 GB BF16)",
     )
 )
@@ -109,7 +105,6 @@ register_vllm_model(
 register_vllm_model(
     VllmSpec(
         model_type="internvl3-38b-vllm",
-        prompt_file="internvl3_prompts.yaml",
         description="InternVL3.5-38B via vLLM (~77 GB BF16)",
     )
 )

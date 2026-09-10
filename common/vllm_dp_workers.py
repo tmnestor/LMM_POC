@@ -54,7 +54,6 @@ def quality_screen_worker(
         format=f"%(levelname)s [GPU {gpu_id}] %(name)s: %(message)s",
     )
 
-    from common.pipeline_prompts import load_pipeline_configs
     from common.app_config import AppConfig
     from common.pipeline_ops import create_processor, load_model
     from common.quality_screen_parser import load_screen_vocabulary
@@ -73,22 +72,12 @@ def quality_screen_worker(
     vocabulary = load_screen_vocabulary(Path(screen_cfg["prompt_file"]), variant=resolved_variant)
     max_tokens = app_cfg.get_token_budget("quality_screen")
 
-    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
-
     logger.info("Loading model: %s (GPU %d)", config.model_type, gpu_id)
     model_cm = load_model(config, app_config=app_cfg)
     model, tokenizer = model_cm.__enter__()
 
     try:
-        processor = create_processor(
-            model,
-            tokenizer,
-            config,
-            prompt_config,
-            universal_fields,
-            field_definitions,
-            app_config=app_cfg,
-        )
+        processor = create_processor(model, tokenizer, config, app_config=app_cfg)
 
         started = time.time()
         records = run_quality_screen(

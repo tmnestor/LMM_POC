@@ -396,7 +396,6 @@ def run(
     Returns:
         Path to the written records.
     """
-    from common.pipeline_prompts import load_pipeline_configs
     from common.app_config import AppConfig
     from common.pipeline_ops import create_processor, load_model
 
@@ -494,20 +493,11 @@ def run(
 
     # -- Single-GPU / HF path -------------------------------------------------
     logger.info("Loading model: %s", config.model_type)
-    prompt_config, universal_fields, field_definitions = load_pipeline_configs(config.model_type)
     model_cm = load_model(config, app_config=app_cfg)
     model, tokenizer = model_cm.__enter__()
 
     try:
-        orchestrator = create_processor(
-            model,
-            tokenizer,
-            config,
-            prompt_config,
-            universal_fields,
-            field_definitions,
-            app_config=app_cfg,
-        )
+        orchestrator = create_processor(model, tokenizer, config, app_config=app_cfg)
         records = run_quality_screen(
             [str(path) for path in to_screen],
             infer=orchestrator_inference(

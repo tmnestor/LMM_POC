@@ -236,12 +236,15 @@ scripts/check_thinking.py        30s check for InternVL emitting <think>
 scripts/vllm_diagnostic.py       environment compatibility check
 ```
 
-`common/` still holds modules the screen reaches only through the
-orchestrator's construction path (`field_schema`, `prompt_catalog`,
-`response_handler`, the `extraction_*` helpers). They are alive because
-`create_processor` requires a prompt config and field list to build a
-`DocumentOrchestrator` — a coupling that is incidental rather than intended,
-and the obvious next thing to cut.
+That is the whole of it — 11 modules under `common/`, 5 under `models/`, 2
+stages. Everything reachable from the two entry points is listed above.
+
+`DocumentOrchestrator` used to require a prompt-routing config, a universal
+field list and per-type field definitions to be constructed. The screen
+supplied all three and read none of them, and that requirement was the only
+thing keeping `prompts/internvl3_prompts.yaml`, the field schema, the prompt
+catalogue and the response handler in the tree — files nothing read, held up by
+a constructor argument. Cutting the argument let all of them go.
 
 ## Development
 
