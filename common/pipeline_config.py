@@ -332,6 +332,83 @@ def _require_section_keys(
         )
 
 
+def _validate_path_consistency(raw_config: dict[str, Any], config_path: Path) -> None:
+    """Check that the four run paths still describe one run.
+
+    Every path in run_config.yml is written out in full, which is what makes
+    the file readable on its own. The cost is that four lines repeat a prefix,
+    and nothing stops one of them being updated while another is not. Two of
+    those mismatches are silent:
+
+      * ``ground_truth`` left pointing at an older corpus. Filenames repeat
+        across generated sets, so the crossed pair matches on every row and the
+        report reads as an ordinary result rather than failing.
+      * ``log_dir`` outside ``output.dir``. Under KFP the output directory is
+        the only writable path in the pod, so this crashes -- after the model
+        has loaded.
+
+    So the relationship is CHECKED here rather than constructed. Nothing is
+    derived, defaulted or rewritten: the YAML still states every path in full,
+    and this only refuses a set of paths that cannot all be true at once.
+
+    Args:
+        raw_config: The parsed YAML.
+        config_path: Path of the file, for diagnostics.
+
+    Raises:
+        ValueError: A path is inconsistent with the root it should sit under,
+            with a four-element diagnostic.
+    """
+    info_extract = raw_config.get("pipeline", {}).get("information_extraction", {})
+    data_dir = (info_extract.get("input") or {}).get("dir")
+    ground_truth = (info_extract.get("input") or {}).get("ground_truth")
+    output_dir = (info_extract.get("output") or {}).get("dir")
+    log_dir = raw_config.get("bootstrap", {}).get("logging", {}).get("log_dir")
+
+    # Each entry: (child value, child key, parent value, parent key, why it matters)
+    checks = [
+        (
+            ground_truth,
+            "pipeline.information_extraction.input.ground_truth",
+            data_dir,
+            "pipeline.information_extraction.input.dir",
+            "The corpus generator writes the labels beside the images they label, so a "
+            "ground truth outside the image directory belongs to a different corpus. "
+            "Filenames repeat across generated sets, so that run would score every image "
+            "against another set's answers and report a plausible number.",
+        ),
+        (
+            log_dir,
+            "bootstrap.logging.log_dir",
+            output_dir,
+            "pipeline.information_extraction.output.dir",
+            "Under KFP the output directory is the only writable path in the pod, so a "
+            "log directory outside it fails at the first write -- after the model has "
+            "loaded. Set the LMM_LOG_DIR env var instead to log elsewhere off KFP.",
+        ),
+    ]
+
+    for child, child_key, parent, parent_key, why in checks:
+        # A missing value is somebody else's error to report; this function has
+        # exactly one job and must not grow a second.
+        if not child or not parent:
+            continue
+        if Path(child) == Path(parent) or Path(parent) in Path(child).parents:
+            continue
+        raise ValueError(
+            f"'{child_key}' is not inside '{parent_key}'.\n"
+            f"  What:        {child_key} = {child}\n"
+            f"               {parent_key} = {parent}\n"
+            f"               {why}\n"
+            f"  Where:       {config_path} → {child_key}\n"
+            f"  Expected:    a path under {parent}, e.g.\n"
+            f"                 {Path(parent) / Path(child).name}\n"
+            f"  How to fix:  update '{child_key}' to sit under '{parent_key}'. If the "
+            f"move was intended, change '{parent_key}' too -- these paths describe one "
+            f"run and are meant to move together."
+        )
+
+
 def load_yaml_config(
     config_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -467,6 +544,8 @@ def load_yaml_config(
     flat_config["pre_tiling_enabled"] = pre_tiling_enabled
     flat_config["pre_tiling_image_size"] = pre_tiling_image_size
     flat_config["pre_tiling_use_thumbnail"] = pre_tiling_use_thumbnail
+
+    _validate_path_consistency(raw_config, config_path)
 
     # Remove None values from flat config
     flat_config = {k: v for k, v in flat_config.items() if v is not None}

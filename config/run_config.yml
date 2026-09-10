@@ -43,9 +43,16 @@ bootstrap:
     data_parallel_size: null   # null = auto (num_gpus for vLLM, ignored for HF)
   # Logging
   logging:
-    # Directory for entrypoint log files. Under KFP this must sit inside the
-    # pod's writable output dir -- nothing else in the container is writable.
-    # log_dir: /efs/shared/PoC_data/logs   # EFS-backed
+    # Directory for entrypoint log files.
+    #
+    # ONE OF FOUR PATHS THAT MOVE TOGETHER (see the block above `input:` under
+    # pipeline.information_extraction). This is the one furthest from the other
+    # three, so it is the one that gets left behind. It MUST sit under
+    # information_extraction.output.dir -- under KFP that is the only writable
+    # path in the pod -- and startup refuses the config if it does not.
+    #
+    # To log somewhere else off KFP, set the LMM_LOG_DIR env var, which
+    # overrides this entirely.
     log_dir: ../evaluation_data/quality_20260909/output/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
@@ -156,7 +163,23 @@ pipeline:
   # that used to shadow these paths with pipeline.trust.* / pipeline.linking.*
   # are gone, so these paths are the only ones a run can use.
   information_extraction:
-    # Data paths
+    # -----------------------------------------------------------------------
+    # FOUR PATHS THAT MOVE TOGETHER when you switch corpora:
+    #
+    #   input.dir           the images                    (below)
+    #   input.ground_truth  the labels, beside them       (below)
+    #   output.dir          where this run writes         (below)
+    #   bootstrap.logging.log_dir   under output.dir      (top of this file)
+    #
+    # They are written out in full rather than derived from a shared root, so
+    # that reading any one line tells you where it points. The cost is that
+    # updating three of the four is possible, and two of those mistakes are
+    # silent -- a stale ground_truth scores one corpus against another set's
+    # answers and reports an ordinary-looking number. So startup CHECKS that
+    # ground_truth sits under input.dir and log_dir under output.dir, and
+    # refuses the config otherwise. Nothing is derived; the check only rejects
+    # a set of paths that cannot all be true at once.
+    # -----------------------------------------------------------------------
     input:
       # The quality-screen corpus: 110 cases x (clean, moderate, heavy) across
       # invoices and receipts = 330 images. Built by Synthetic_Doc_Generation on
