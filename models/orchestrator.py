@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from PIL import Image
 
+from common import prompt_trace
 from common.field_schema import get_field_schema
 from common.pipeline_config import strip_structure_suffixes
 from common.prompt_catalog import PromptCatalog
@@ -737,7 +738,19 @@ class DocumentOrchestrator:
             assert isinstance(backend, BatchInference)  # noqa: S101
             return backend.generate_batch(images, [prompt] * len(image_paths), params)
 
-        return [self.generate(image, prompt, max_tokens, extra=tile_extra) for image in images]
+        # Each call is wrapped in its own trace context so the raw-prompt trace
+        # can be read back per image. Without this every line carries
+        # image_name: null, which is close to useless past the first image --
+        # the 2026-08-11 finding, which regressed here when the DP workers that
+        # were the only trace_context callers were deleted. The context is
+        # scoped to one call, so it cannot leak into a later unrelated one.
+        responses = []
+        for path, image in zip(image_paths, images, strict=True):
+            with prompt_trace.trace_context(
+                image_name=Path(path).name, label="quality_screen", pipeline="quality_screen"
+            ):
+                responses.append(self.generate(image, prompt, max_tokens, extra=tile_extra))
+        return responses
 
     def extract_batch(
         self,
