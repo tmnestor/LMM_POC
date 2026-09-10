@@ -81,13 +81,15 @@ measurement.
 
 ---
 
-## Reproducing the test corpus on PROD
+## Running this on PROD
 
-The 330 test images are generated, not collected, so any environment can
-rebuild them from source. Nothing here is environment-specific: substitute your
-own working directory and output path.
+Two repositories, both on their own branch. The test images are generated
+rather than collected, so any environment can rebuild them from source.
+Nothing below is environment-specific: substitute your own paths.
 
-**1. Clone the corpus generator at the matching branch.**
+### Part A — build the test corpus
+
+**A1. Clone the corpus generator at the matching branch.**
 
 ```bash
 git clone --branch feature/quality-screen-corpus \
@@ -98,14 +100,14 @@ cd Synthetic_Doc_Generation
 The branch matters. The corpus on `main` is a different set — three document
 types, three severity tiers, receipts only degraded, and no quality labels.
 
-**2. Build the environment.**
+**A2. Build the environment.**
 
 ```bash
 conda env create -f environment.yml
 conda activate synthetic
 ```
 
-**3. Verify the image libraries before generating.**
+**A3. Verify the image libraries before generating.**
 
 ```bash
 python -c 'import augraphy, cv2, numpy; print(augraphy.__version__, cv2.__version__, numpy.__version__)'
@@ -119,7 +121,7 @@ headless one and changes rendering. If the wrong build is installed:
 pip uninstall -y opencv-python && pip install --no-deps augraphy==8.2.6
 ```
 
-**4. Generate.**
+**A4. Generate.**
 
 ```bash
 python -m generators.pipeline eval-set --out <writable-output-parent>
@@ -141,20 +143,89 @@ Each carries `ground_truth.jsonl` (what the document says) and
 `quality_ground_truth.jsonl` (which defects each image actually has, plus the
 values drawn to produce them).
 
-**5. Run the screen against it.**
-
-```bash
-KFP_TASK=classify image_dir=<...>/quality_<date> output=<run-output-dir> bash entrypoint.sh
-KFP_TASK=evaluate ground_truth=<...>/quality_<date>/quality_ground_truth.jsonl \
-    output=<run-output-dir> bash entrypoint.sh
-```
-
-Prompt variant and tile budget come from `config/run_config.yml`; both defaults
-are the measured configuration reported above. `screen_variant`,
-`screen_min_tiles` and `screen_max_tiles` override them for comparison runs
-without editing config.
-
 Generation is deterministic given the ground-truth seeds, so a rebuild produces
 the same images. Labels may differ by one or two on criteria whose drawn value
 sits within floating-point distance of a threshold, which varies by CPU
 architecture; the labels always describe the images actually produced.
+
+### Part B — run the screen
+
+**B1. Clone this repository at the matching branch.**
+
+```bash
+git clone --branch feature/quality-screen \
+    https://github.com/tmnestor/LMM_POC.git
+cd LMM_POC
+```
+
+**B2. Point the config at the local model.** In `config/run_config.yml`, the
+model location appears in **three** places and all three must agree:
+
+```yaml
+bootstrap:
+  model:
+    path: <local model checkpoint>          # 1
+    model_paths:
+      internvl3:      <local model checkpoint>   # 2
+      internvl3-vllm: <local model checkpoint>   # 3
+```
+
+Startup validates the path exists and fails with a diagnostic naming it, so a
+missed one is caught immediately rather than part-way into a run.
+
+Everything else that governs the screen is already set to the measured
+configuration and needs no change: prompt variant `quality_screen_v12`, tile
+budget `min_tiles: 12 / max_tiles: 12`, token budget 400.
+
+**B3. Run it.** Two stages, no clean stage between them — the screen's answers
+are fixed tokens with nothing to normalise.
+
+```bash
+# GPU. Writes quality_screen.jsonl: one record per image with its answers,
+# the raw model response, and the prompt variant that produced it.
+KFP_TASK=classify \
+    image_dir=<corpus>/quality_<date> \
+    output=<run-output-dir> \
+    bash entrypoint.sh
+
+# CPU. Scores it and prints the report.
+KFP_TASK=evaluate \
+    ground_truth=<corpus>/quality_<date>/quality_ground_truth.jsonl \
+    output=<run-output-dir> \
+    bash entrypoint.sh
+```
+
+Always through `entrypoint.sh` — it sets up the environment the stages expect,
+and invoking the modules directly does not.
+
+Roughly 20 minutes for 330 images, halving with a second GPU: the classify
+stage shards across available GPUs automatically.
+
+**B4. Read the result.** `evaluate` prints the per-criterion table, a
+per-document-type split, the severity confusion matrix, and — first, before
+the scores — the counts:
+
+```
+images 330   scored 330   malformed 0   missing 0   reasoning drift 0
+```
+
+Check that line first. Any image not scored means the rates below it describe a
+subset rather than the corpus, and the report says so explicitly when it
+happens. The full report is also written to
+`<run-output-dir>/quality_screen_report.json`.
+
+### Comparing prompt variants
+
+Three environment variables override the config without editing it, so a
+comparison run cannot silently become the default:
+
+```bash
+KFP_TASK=classify image_dir=... output=./out_v6 \
+    screen_variant=quality_screen_v6 \
+    screen_min_tiles=12 screen_max_tiles=12 \
+    bash entrypoint.sh
+```
+
+Each run records which variant produced it, and `evaluate` scores against that
+rather than against config — so a run screened with one prompt can never be
+scored with another's criteria or answer polarity.
