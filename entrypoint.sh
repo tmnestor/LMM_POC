@@ -353,14 +353,14 @@ _print_task_help() {
 }
 
 _clear_prev_output() {
-  # CLEAR_PREV_OUTPUT=true: delete the listed output artifacts so the stage
-  # rescreens from scratch. Unset/false (default): the classify stage resumes,
-  # screening only images with no record yet.
+  # CLEAR_PREV_OUTPUT=true (the DEFAULT): delete the listed output artifacts so
+  # the stage rescreens from scratch. Explicitly false: the classify stage
+  # resumes, screening only images with no record yet.
   #
-  # Why resume-by-default: this runs as a pipeline and new images arrive over
-  # time, so a re-run should cost the new arrivals and nothing else.
-  # Rescreening the whole directory every time is waste that grows with the
-  # corpus.
+  # Resume is worth turning on for the recurring production run -- this is a
+  # pipeline, new images arrive over time, and rescreening the whole directory
+  # is waste that grows with the corpus. It is opt-in rather than default so
+  # that a run never silently inherits an earlier run's output.
   #
   # Resume is safe because a kept record must carry the SAME prompt variant and
   # the SAME tile budget as the run doing the resuming -- both change the
@@ -522,22 +522,35 @@ _default_from_yaml output                   "${YAML_OUTPUT_DIR:-}"
 
 # ---- CLEAR_PREV_OUTPUT toggle (validated at startup, before any work) ---- #
 # Controls whether the classify stage starts from a clean slate or resumes:
-#   true           → delete previous OUTPUT artifacts (never logs), rescreen all
-#   false / unset  → resume: screen only images with no record yet (the default)
+#   true / unset   → delete previous OUTPUT artifacts (never logs), rescreen all
+#   false          → resume: screen only images with no record yet
 #
-# Resume is the default because this is a pipeline — new images arrive over
-# time and a re-run should process only those. See _clear_prev_output above for
-# what makes it safe.
+# A CLEAN SLATE IS THE DEFAULT. Resume is the cheaper path and the reason it
+# exists is real — this is a pipeline, images arrive over time, and rescreening
+# the whole directory is waste that grows with the corpus — but it is opt-in.
+# Defaulting to it would mean a run silently inherits whatever an earlier run
+# left in the output directory, which is the wrong surprise to hand someone who
+# has just changed something and wants to see its effect.
+#
+# So the deployment that wants the saving asks for it: set
+# CLEAR_PREV_OUTPUT=false in the KFP manifest for the recurring production run,
+# and leave it alone everywhere else. See _clear_prev_output above for what
+# makes resume safe when it is turned on.
 #
 # Normalize case before validating: an unquoted YAML boolean in the KFP
 # manifest (CLEAR_PREV_OUTPUT: true) is often injected into the container env
 # as the Python string "True"/"False" — and KFP stringifies unset params as
 # the literal "None".  Lowercase so true/True/TRUE (and none/None) all work.
 # Use tr, not bash ${x,,}, for macOS bash 3.2 compatibility.
-CLEAR_PREV_OUTPUT="${CLEAR_PREV_OUTPUT:-false}"
+CLEAR_PREV_OUTPUT="${CLEAR_PREV_OUTPUT:-true}"
 CLEAR_PREV_OUTPUT="$(printf '%s' "$CLEAR_PREV_OUTPUT" | tr '[:upper:]' '[:lower:]')"
 if [[ -z "$CLEAR_PREV_OUTPUT" || "$CLEAR_PREV_OUTPUT" == "none" ]]; then
-  CLEAR_PREV_OUTPUT="false"
+  # "none" is KFP's spelling of an unset input_param, so it must land on the
+  # SAME value as the `:-` default above. Leaving it on the opposite value
+  # would mean the toggle behaves one way from a shell and the other way from
+  # KFP, which is the kind of difference that is only ever discovered in
+  # production.
+  CLEAR_PREV_OUTPUT="true"
 fi
 case "$CLEAR_PREV_OUTPUT" in
   true)  log "CLEAR_PREV_OUTPUT=true — previous output artifacts are DELETED (logs preserved); every image is rescreened." ;;
@@ -545,7 +558,7 @@ case "$CLEAR_PREV_OUTPUT" in
   *)
     log "FATAL: CLEAR_PREV_OUTPUT must be 'true' or 'false' (got '${CLEAR_PREV_OUTPUT}')."
     log "  Where: CLEAR_PREV_OUTPUT environment variable (KFP input_param or shell export)."
-    log "  Fix:   set CLEAR_PREV_OUTPUT=true to rescreen everything, or leave it unset/false to resume."
+    log "  Fix:   leave it unset (or true) to rescreen everything, or set it to false to resume."
     exit 1
     ;;
 esac
@@ -590,7 +603,7 @@ log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
 log "  num_gpus:       ${num_gpus:-<not set>}"
 log "  ground_truth:   ${ground_truth:-<not set>}"
-log "  clear_prev_out: ${CLEAR_PREV_OUTPUT} (true=rescreen everything, false=resume)"
+log "  clear_prev_out: ${CLEAR_PREV_OUTPUT} (true=rescreen everything [default], false=resume)"
 # metadata, system_message, and prompt are KFP input_params reserved for
 # future use. They are logged here for visibility but not yet translated
 # into CLI_ARGS — cli.py does not currently consume them.
