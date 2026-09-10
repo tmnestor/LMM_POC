@@ -16,7 +16,9 @@ class TestEnvLayerRemoved:
         assert not hasattr(pipeline_config, "ENV_PREFIX")
 
     def test_not_exported_from_common(self) -> None:
-        assert "load_env_config" not in common.__all__
+        # `common` has no __init__.py any more -- it is an implicit namespace
+        # package, so there is no __all__ to check. What still matters is that
+        # the name is not reachable through the package by any route.
         assert not hasattr(common, "load_env_config")
 
     def test_ivl_env_vars_have_no_effect(self, monkeypatch) -> None:
