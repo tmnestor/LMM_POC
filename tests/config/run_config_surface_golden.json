@@ -58,7 +58,7 @@
       "max_tiles": 12,
       "min_tiles": 12
     },
-    "variant": "quality_screen_v12"
+    "variant": "quality_screen_v13"
   },
   "resolve_defaults": {
     "YAML_DATA_DIR": "<CORPUS>",

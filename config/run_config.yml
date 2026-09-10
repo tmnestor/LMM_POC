@@ -235,26 +235,46 @@ pipeline:
     # Which prompt, by name. A variant, not a constant: reading this file must
     # answer "which prompt did this run use?" without consulting Python.
     #
-    # v12 is the measured default (60 images, 2026-09-09). Collapsed to the
-    # decision the screen exists to make -- does this image need attention? --
-    # it scores recall 0.975, precision 0.907, F1 0.940: one degraded image in
-    # forty passed, four clean images flagged unnecessarily. Three-level
-    # severity is fuzzier at 41/60, with the confusion at the FAIR/POOR
-    # boundary rather than at GOOD.
+    # v13 is the measured default (330 images, 2026-09-10, 2xL4). Collapsed to
+    # the decision the screen exists to make -- does this image need attention?
+    # -- it scores recall 0.950, precision 0.995, F1 0.972, and three-level
+    # severity 282/330 = 85.5%. It is v12 plus one question, COMPOSITION, which
+    # asks how many documents are in the picture; taxpayers photograph several
+    # receipts at once and extraction handles those badly.
     #
-    # It is the first variant with zero unreadable responses. v9 lost 9 of 60
-    # and v11 lost 15, both to the model confusing the YES/NO answer space with
-    # the severity one; v12 rates GOOD/FAIR/POOR, which shares no token with
-    # either answer.
+    # Chosen over v12 (recall 0.977, precision 0.935, severity 72.4% on the same
+    # hardware and corpus). The trade is one heavily degraded image passed,
+    # against fourteen fewer taxpayers asked to re-photograph a receipt that was
+    # fine -- 15 of 110 clean images wrongly flagged under v12, 1 under v13.
     #
-    # Its criteria are deliberately MIXED polarity. Defect-phrased questions
-    # give precision 1.000 and find a third of the defects; good-phrased give
-    # recall 1.000 and over-flag. A screen should buy recall -- a false positive
-    # costs a second look, a false negative ships a bad image into extraction.
-    # See the variant's own `evidence:` block for which is which; the scorer
-    # reads it from there.
+    # Zero unreadable responses, as v12. v9 lost 9 of 60 and v11 lost 15, both
+    # to the model confusing the YES/NO answer space with the severity one.
+    # v12 added GOOD/FAIR/POOR and v13 added SINGLE/MULTIPLE; all three
+    # vocabularies are disjoint, which is what keeps the malformed rate at nil.
+    #
+    # ITS CRITERIA ARE MIXED POLARITY, AND THAT IS LOAD-BEARING. It looks like a
+    # defect: the good-phrased questions ask whether the image is PERFECTLY
+    # sharp / square / smooth, and no real photograph is, so BLUR is answered
+    # "not perfect" on 330 of 330 images and carries no information about any
+    # of them.
+    #
+    # Two variants were built to fix that and both were much worse:
+    #
+    #   v14  all defect-phrased, plain wording   severity 51.2%, recall 0.623
+    #   v15  all defect-phrased, low threshold   severity 48.8%, recall 0.550
+    #
+    # Both reached precision 1.000 on all six criteria and both rated 20+
+    # heavily degraded receipts GOOD. The criteria do not inform OVERALL, they
+    # PRIME it: answering "not perfect" everywhere leaves the model critical and
+    # it then judges severity well; answering "no problem seen" everywhere
+    # leaves it lenient and it judges badly. Making the criteria individually
+    # accurate makes the screen worse.
+    #
+    # So do not "fix" the polarity or the absolutes without re-measuring
+    # severity and the binary decision. The per-criterion table is not the
+    # deliverable and optimising it has already cost two GPU runs.
     prompt_file: prompts/quality_screen.yaml
-    variant: quality_screen_v12
+    variant: quality_screen_v13
 
     # Written by classify, read by evaluate. Keeping the raw responses out of
     # the scorer's way means a threshold or parser change re-scores without

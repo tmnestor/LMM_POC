@@ -18,24 +18,34 @@ the current pipeline.
 
 | | result |
 |---|---|
-| Poor-quality images correctly flagged | **215 of 220 (98%)** |
-| Poor-quality images missed | 5 of 220 (2%) |
-| Good images flagged unnecessarily | 15 of 110 (14%) |
+| Poor-quality images correctly flagged | **209 of 220 (95%)** |
+| Poor-quality images missed | 11 of 220 (5%) |
+| Good images flagged unnecessarily | **1 of 110 (1%)** |
 
-The errors fall on the safer side: it rarely lets a bad image through, and its
-main cost is asking for a second look at an image that was fine.
+Of the eleven missed, ten were mildly degraded and one was heavily degraded.
 
-**Reproduced independently on production hardware.** The figures above are from
-a development run. Repeating it on the production GPUs, against a separately
-generated test set, gave 212 of 220 poor images flagged and 12 of 110 good
-images flagged unnecessarily — the same result within noise, on different
-hardware and different images. The two checks that do not work (below) failed
-again in the same way, confirming those are real limitations rather than
-quirks of one test set. 330 images took about 11 minutes.
+**Reproduced independently on production hardware.** An earlier version of the
+prompt was run on the production GPUs against a separately generated test set
+and gave the same result within noise, on different hardware and different
+images. The two checks that do not work (below) failed again in the same way,
+confirming those are real limitations rather than quirks of one test set. 330
+images take about 11 minutes on four production GPUs.
 
-**Grading *how* bad an image is works less well** — 72% correct across three
-levels (good / fair / poor). It reliably separates *damaged from undamaged*; it
-is less reliable at telling mild damage from severe.
+**Grading *how* bad an image is works reasonably well** — 86% correct across
+three levels (good / fair / poor). It separates damaged from undamaged
+reliably, and is now also fairly good at telling mild damage from severe.
+
+**It also reports whether the photograph contains more than one receipt.**
+Taxpayers commonly place several receipts on a table and photograph them
+together, and downstream extraction handles those badly. This is reported
+separately from the quality verdict, because a photograph of four receipts is
+often perfectly sharp and well lit — nothing is wrong with the *picture* — and
+the remedy is different: split it, rather than re-photograph it.
+
+That check is **not yet measured**. The test images contain no such
+photographs, so there is nothing for it to find; what we can say is that it
+raised no false alarms on any of the 330 single-receipt images. Measuring it
+needs test data that contains them, which is the next piece of work.
 
 ## What it cannot do yet
 
@@ -182,7 +192,7 @@ Startup validates the path exists and fails with a diagnostic naming it, so a
 missed one is caught immediately rather than part-way into a run.
 
 Everything else that governs the screen is already set to the measured
-configuration and needs no change: prompt variant `quality_screen_v12`, tile
+configuration and needs no change: prompt variant `quality_screen_v13`, tile
 budget `min_tiles: 12 / max_tiles: 12`, token budget 400.
 
 **B3. Check what it resolved to**, before spending any GPU time. Prints the
