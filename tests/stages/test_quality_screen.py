@@ -165,3 +165,111 @@ def test_records_round_trip_through_the_output_file(tmp_path):
     loaded = [json.loads(line) for line in path.read_text().splitlines()]
 
     assert loaded == records
+
+
+# ---------------------------------------------------------------------------
+# Which images a run screens
+# ---------------------------------------------------------------------------
+# Both filters are declared in pipeline.information_extraction.input and were
+# ignored by this stage until now -- config that read as configured and did
+# nothing. These pin the behaviour so it cannot quietly lapse again.
+
+
+@pytest.fixture
+def corpus(tmp_path):
+    """Three cases x (clean, moderate, heavy) x (invoice, receipt) = 18 images."""
+    for case in range(1, 4):
+        for doc_type in ("invoice", "receipt"):
+            for rung in ("", "_moderate", "_heavy"):
+                (tmp_path / f"CASE{case:03d}_{doc_type}{rung}.png").touch()
+    return tmp_path
+
+
+def test_every_image_is_screened_by_default(corpus):
+    from stages.quality_screen import select_images
+
+    assert len(select_images(corpus)) == 18
+
+
+def test_selection_is_sorted_by_filename(corpus):
+    """Order is the contract that makes max_images reproducible."""
+    from stages.quality_screen import select_images
+
+    names = [path.name for path in select_images(corpus)]
+
+    assert names == sorted(names, key=str.lower)
+
+
+def test_max_images_takes_a_prefix_not_a_sample(corpus):
+    from stages.quality_screen import select_images
+
+    first = [path.name for path in select_images(corpus, max_images=5)]
+    second = [path.name for path in select_images(corpus, max_images=5)]
+    everything = [path.name for path in select_images(corpus)]
+
+    assert first == second, "two runs at the same cap must screen the same images"
+    assert first == everything[:5]
+
+
+def test_max_images_above_the_corpus_size_is_not_an_error(corpus):
+    from stages.quality_screen import select_images
+
+    assert len(select_images(corpus, max_images=1000)) == 18
+
+
+def test_max_images_none_means_all_not_none(corpus):
+    """`if max_images:` would make 0 and None the same. They are not: 0 asks
+    for an empty run, None asks for the whole corpus."""
+    from stages.quality_screen import select_images
+
+    assert len(select_images(corpus, max_images=None)) == 18
+
+
+def test_document_types_filters_on_the_filename(corpus):
+    from stages.quality_screen import select_images
+
+    names = [path.name for path in select_images(corpus, document_types=["receipt"])]
+
+    assert len(names) == 9
+    assert all("receipt" in name for name in names)
+
+
+def test_the_two_filters_compose(corpus):
+    from stages.quality_screen import select_images
+
+    names = [path.name for path in select_images(corpus, document_types=["invoice"], max_images=4)]
+
+    assert len(names) == 4
+    assert all("invoice" in name for name in names)
+
+
+def test_an_empty_directory_fails_with_a_four_element_diagnostic(assert_diagnostic_error, tmp_path):
+    """Screening nothing must not look like a completed run: the report would
+    score zero images against a full ground truth and call them all missing."""
+    from stages.quality_screen import select_images
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        select_images(tmp_path)
+
+    assert_diagnostic_error(str(exc_info.value))
+
+
+def test_a_filter_that_matches_nothing_names_the_filter(assert_diagnostic_error, corpus):
+    from stages.quality_screen import select_images
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        select_images(corpus, document_types=["bank_statement"])
+
+    message = str(exc_info.value)
+    assert_diagnostic_error(message)
+    assert "document_types" in message, "the message must say WHICH filter emptied the set"
+
+
+def test_the_cli_exposes_max_images():
+    """The smoke-test lever has to be reachable without editing YAML --
+    entrypoint.sh passes it as --max-images."""
+    import inspect
+
+    from stages.quality_screen import run
+
+    assert "max_images" in inspect.signature(run).parameters

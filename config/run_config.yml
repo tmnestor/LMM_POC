@@ -43,9 +43,10 @@ bootstrap:
     data_parallel_size: null   # null = auto (num_gpus for vLLM, ignored for HF)
   # Logging
   logging:
-    # log_dir: /efs/shared/PoC_data/logs   # Directory for entrypoint log files (EFS-backed)
-    # log_dir: ../evaluation_data/output/logs   # Directory for entrypoint log files (sandbox-backed)
-    log_dir: ../evaluation_data/output_internvl_degraded/logs
+    # Directory for entrypoint log files. Under KFP this must sit inside the
+    # pod's writable output dir -- nothing else in the container is writable.
+    # log_dir: /efs/shared/PoC_data/logs   # EFS-backed
+    log_dir: ../evaluation_data/quality_20260909/output/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric

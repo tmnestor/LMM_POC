@@ -112,6 +112,77 @@ def run_quality_screen(
     return records
 
 
+def select_images(
+    data_dir: Path,
+    *,
+    document_types: list[str] | None = None,
+    max_images: int | None = None,
+) -> list[Path]:
+    """Choose which images this run screens.
+
+    Both filters come from ``pipeline.information_extraction.input``, and both
+    were declared there while this stage ignored them -- config that reads as
+    configured and does nothing.
+
+    Lives outside ``run`` so it is testable without a model: everything else
+    between config and inference needs a GPU, and picking the wrong set of
+    images is a failure that otherwise only shows up in the report.
+
+    Args:
+        data_dir: Directory to search.
+        document_types: Keep only images whose FILENAME contains one of these,
+            case-insensitively. Filename is the only signal available -- the
+            screen runs before any classification and never reads the document.
+            None keeps everything.
+        max_images: Keep only the first N. None keeps everything.
+
+    Returns:
+        The images to screen, sorted by filename.
+
+    Raises:
+        FileNotFoundError: No image survived, with the filter named. Silently
+            screening nothing would produce an empty run and a report scoring
+            zero images against a full ground truth.
+    """
+    # Imported here rather than at module scope to match the rest of this file:
+    # the stage's bookkeeping must stay importable without the config stack.
+    from common.pipeline_config import discover_images
+
+    images = list(discover_images(data_dir, document_types=document_types))
+    if not images:
+        detail = f" matching document_types={document_types}" if document_types else ""
+        raise FileNotFoundError(
+            f"No images found in {data_dir}{detail}.\n"
+            f"  What:        the screen has nothing to run on.\n"
+            f"  Where:       pipeline.information_extraction.input.dir"
+            f"{' and .document_types' if document_types else ''}.\n"
+            f"  Expected:    a directory holding the corpus images.\n"
+            f"  How to fix:  point input.dir at the generated corpus"
+            f"{', or widen document_types' if document_types else ''}."
+        )
+
+    if max_images is not None and max_images < len(images):
+        # Deliberately truncates rather than samples. `discover_images` sorts
+        # by filename, so the same cap always screens the same images -- two
+        # runs of a smoke test are comparable, and a variant sweep at a cap
+        # measures the prompt rather than a different draw of images.
+        #
+        # The evaluate stage still scores against the WHOLE ground truth and
+        # reports the rest as `missing`. That is intended: a partial run must
+        # not be able to look like a complete one.
+        logger.info(
+            "max_images=%d: screening the first %d of %d images by name. The report "
+            "will count the remaining %d as missing.",
+            max_images,
+            max_images,
+            len(images),
+            len(images) - max_images,
+        )
+        images = images[:max_images]
+
+    return images
+
+
 def orchestrator_inference(
     orchestrator,
     max_tokens: int,
@@ -169,6 +240,7 @@ def run(
     variant: str | None = None,
     min_tiles: int | None = None,
     max_tiles: int | None = None,
+    max_images: int | None = None,
 ) -> Path:
     """Screen every image in a directory, write quality_screen.jsonl.
 
@@ -179,6 +251,10 @@ def run(
         batch_size: Images per batch (None = auto-detect, 1 = sequential).
         verbose: Tier B output. None = read from YAML.
         config_path: Optional path to run_config.yml.
+        max_images: Screen only the first N images by filename. None = the
+            value in YAML. A smoke-test lever: it makes a short run possible
+            without editing config, and truncating rather than sampling keeps
+            two short runs comparable.
         variant: Prompt variant to run. None = the one declared in YAML.
             An override rather than a default: comparing prompts is the whole
             reason several variants exist, and editing config between runs
@@ -192,7 +268,6 @@ def run(
     """
     from common.pipeline_prompts import load_pipeline_configs
     from common.app_config import AppConfig
-    from common.pipeline_config import discover_images
     from common.pipeline_ops import create_processor, load_model
 
     # Same config cascade as the other stages: CLI > YAML > defaults, with None
@@ -207,6 +282,8 @@ def run(
         cli_args["verbose"] = verbose
     if batch_size is not None:
         cli_args["batch_size"] = batch_size
+    if max_images is not None:
+        cli_args["max_images"] = max_images
 
     app_cfg = AppConfig.load(cli_args, config_path=config_path)
     config = app_cfg.pipeline
@@ -225,10 +302,11 @@ def run(
         tile_extra["max_tiles"] = max_tiles
     logger.info("Tile budget: %s", tile_extra)
 
-    images = list(discover_images(config.data_dir))
-    if not images:
-        msg = f"No images found in {config.data_dir}"
-        raise FileNotFoundError(msg)
+    images = select_images(
+        config.data_dir,
+        document_types=config.document_types,
+        max_images=config.max_images,
+    )
     logger.info("Screening %d images with %s", len(images), resolved_variant)
 
     # -- vLLM data-parallel fast path -----------------------------------------
@@ -336,6 +414,11 @@ def main(
     ),
     min_tiles: int | None = typer.Option(None, "--min-tiles", help="Override the tile floor."),
     max_tiles: int | None = typer.Option(None, "--max-tiles", help="Override the tile ceiling."),
+    max_images: int | None = typer.Option(
+        None,
+        "--max-images",
+        help="Screen only the first N images by filename (smoke tests).",
+    ),
 ) -> None:
     """Stage 1: screen image quality for every image in a directory."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -349,6 +432,7 @@ def main(
         variant=variant,
         min_tiles=min_tiles,
         max_tiles=max_tiles,
+        max_images=max_images,
     )
 
 

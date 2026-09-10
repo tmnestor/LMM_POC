@@ -19,11 +19,23 @@
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
 #     python3 -m stages.quality_screen --model internvl3-vllm ...
 #
-# TWO TASKS, and `_print_task_help` renders them at runtime (run with KFP_TASK
-# unset). The dispatcher's `case` near the bottom is the source of truth.
+# THREE TASKS, and `_print_task_help` renders them at runtime (run with
+# KFP_TASK unset). The dispatcher's `case` near the bottom is the source of
+# truth.
 #
 #   classify   screen image quality (GPU; shards across every GPU it is given)
 #   evaluate   score the screen against ground truth (CPU ONLY -- no model)
+#   screen     both of the above, in one shell. SANDBOX ONLY.
+#
+# The first two are the KFP pods. They are separate because they want opposite
+# hardware -- the manifest gives classify every GPU and evaluate none.
+#
+# `screen` exists because the sandbox is one box rather than a DAG: there is no
+# pod boundary to hand artifacts across, so two commands buy nothing and cost a
+# chance to mistype the second one's paths. It must NEVER be set by the KFP
+# manifest, where it would run the CPU-only scoring inside the GPU pod. It
+# calls the same two functions the KFP branches call, so the sandbox exercises
+# what production runs rather than a second spelling of it.
 #
 # There is no clean stage between them. `clean` existed to normalise free-text
 # field values before comparison; the screen's answers are fixed tokens, so
@@ -33,7 +45,11 @@
 # The name is kept because the production DAG dispatches it, and renaming would
 # require this repo and the KFP manifest to land in lockstep.
 #
-# Local examples:
+# Sandbox -- one command:
+#   KFP_TASK=screen image_dir=<corpus> ground_truth=<corpus>/quality_ground_truth.jsonl \
+#     output=<run-dir> bash entrypoint.sh
+#
+# KFP -- two pods:
 #   KFP_TASK=classify image_dir=<corpus> output=<run-dir> bash entrypoint.sh
 #   KFP_TASK=evaluate ground_truth=<corpus>/quality_ground_truth.jsonl output=<run-dir> bash entrypoint.sh
 #
@@ -41,6 +57,7 @@
 #   screen_variant     prompt variant, overriding run_config
 #   screen_min_tiles   tile floor (the lever for small images)
 #   screen_max_tiles   tile ceiling
+#   screen_max_images  screen only the first N images by filename (smoke tests)
 #
 # =============================================================================
 
@@ -291,17 +308,48 @@ _print_task_help() {
   # Single source of truth for the KFP_TASK list, shared by the unset ("")
   # and unknown (*) dispatch branches.  Keep the header comment at the top of
   # this file in sync with this list.
-  log "  Available tasks:"
+  #
+  # The example commands print RESOLVED paths, not <placeholders>. This runs
+  # after config resolution, so image_dir/ground_truth/output already hold
+  # whatever run_config.yml supplied -- and the whole point of reaching this
+  # function is that the operator got the invocation wrong, which is the worst
+  # moment to hand them a command they still have to fill in by hand. A
+  # placeholder is shown only for a value the YAML genuinely does not carry,
+  # and then it is marked so, rather than being printed as though it were real.
+  local ex_image_dir ex_ground_truth ex_output
+  ex_image_dir="${image_dir:-}"
+  ex_ground_truth="${ground_truth:-}"
+  ex_output="${output:-}"
+  _is_set "$ex_image_dir"    || ex_image_dir="<SET-ME: image dir>"
+  _is_set "$ex_ground_truth" || ex_ground_truth="<SET-ME: labels .jsonl>"
+  _is_set "$ex_output"       || ex_output="<SET-ME: run dir>"
+
+  log "  KFP tasks (one pod each):"
   log "    classify   — Stage 1: screen image quality (GPU; shards across all available)"
   log "    evaluate   — Stage 2: score the screen against ground truth (CPU only)"
+  log ""
+  log "  Sandbox / local task (one box, both stages, NOT in the KFP manifest):"
+  log "    screen     — classify then evaluate, in a single shell"
   log ""
   log "  There is no clean stage between them. The screen's answers are fixed"
   log "  tokens, so there is nothing to normalise."
   log ""
-  log "  Example:"
-  log "    KFP_TASK=classify image_dir=<corpus> output=<run-dir> bash entrypoint.sh"
-  log "    KFP_TASK=evaluate ground_truth=<corpus>/quality_ground_truth.jsonl \\"
-  log "      output=<run-dir> bash entrypoint.sh"
+  log "  Values below come from ${CONFIG_FILE:-run_config.yml} unless overridden by env."
+  log ""
+  log "  Sandbox — one command:"
+  log "    KFP_TASK=screen \\"
+  log "      image_dir=${ex_image_dir} \\"
+  log "      ground_truth=${ex_ground_truth} \\"
+  log "      output=${ex_output} bash entrypoint.sh"
+  log ""
+  log "    Add screen_max_images=30 for a smoke test (first 30 images by name;"
+  log "    the report then counts the rest as missing, so it cannot be mistaken"
+  log "    for a full run)."
+  log ""
+  log "  KFP — two pods:"
+  log "    KFP_TASK=classify image_dir=${ex_image_dir} output=${ex_output} bash entrypoint.sh"
+  log "    KFP_TASK=evaluate ground_truth=${ex_ground_truth} \\"
+  log "      output=${ex_output} bash entrypoint.sh"
 }
 
 _clear_prev_output() {
@@ -365,11 +413,16 @@ _run_quality_screen() {
   # between runs -- which is how you lose track of which settings produced
   # which output.
   #
-  #   screen_variant    prompt variant, overriding run_config
-  #   screen_min_tiles  tile floor. The lever for small images: the
-  #                     aspect-ratio match settles a small receipt on about one
-  #                     tile, at which resolution heavy damage reads as none.
-  #   screen_max_tiles  tile ceiling
+  #   screen_variant     prompt variant, overriding run_config
+  #   screen_min_tiles   tile floor. The lever for small images: the
+  #                      aspect-ratio match settles a small receipt on about one
+  #                      tile, at which resolution heavy damage reads as none.
+  #   screen_max_tiles   tile ceiling
+  #   screen_max_images  screen only the first N images by filename. For smoke
+  #                      tests: a wiring change can be proved on 30 images
+  #                      rather than 330. evaluate still scores against the
+  #                      whole ground truth and reports the rest as missing,
+  #                      so a short run cannot be mistaken for a full one.
   local screen_args=()
   if [ -n "${screen_variant:-}" ]; then
     screen_args+=(--variant "$screen_variant")
@@ -380,11 +433,56 @@ _run_quality_screen() {
   if [ -n "${screen_max_tiles:-}" ]; then
     screen_args+=(--max-tiles "$screen_max_tiles")
   fi
+  if [ -n "${screen_max_images:-}" ]; then
+    screen_args+=(--max-images "$screen_max_images")
+  fi
   python3 -m stages.quality_screen \
     --data-dir "${image_dir:?image_dir env var required}" \
     --output   "$QUALITY_SCREEN" \
     "${screen_args[@]}" \
     "${OPT_MODEL[@]}" || exit $?
+}
+
+# ---- The two stages, as functions ---- #
+# Lifted out of the dispatch `case` so the sandbox's chained `screen` task can
+# call BOTH without restating either. Restating them is how the chained path
+# drifts from the production one: a flag added to the classify pod and not to
+# the local chain means the sandbox stops testing what production runs, and
+# nothing says so -- the run completes and reports a number either way.
+
+_stage_classify() {
+  # Stage 1: image-quality screen (GPU). Writes quality_screen.jsonl -- one
+  # record per image carrying six defect answers, a graded verdict, the raw
+  # model response for audit, and the prompt variant that produced it.
+  #
+  # The task keeps the name `classify` because the production DAG dispatches
+  # it; it screens image quality rather than classifying document types.
+  _banner "Stage 1: classify — screening image quality (GPU)"
+  mkdir -p "$OUT_ROOT"
+  _clear_prev_output "$QUALITY_SCREEN" "$INFERENCE_ELAPSED_FILE"
+  local classify_start
+  classify_start=$(date +%s)
+  _run_quality_screen
+  # Elapsed GPU seconds, read by evaluate so it can report inference time
+  # separately from wall clock (which includes engine startup).
+  echo $(($(date +%s) - classify_start)) > "$INFERENCE_ELAPSED_FILE"
+  log "Screening complete ($(cat "$INFERENCE_ELAPSED_FILE")s)."
+}
+
+_stage_evaluate() {
+  # Stage 2: score the screen against the corpus labels. CPU ONLY -- the KFP
+  # manifest gives this pod no GPU, so nothing here may load a model. The
+  # stage reads its config directly rather than through AppConfig, which
+  # would validate a model path this pod cannot see.
+  _banner "Stage 2: evaluate — scoring the image-quality screen (CPU)"
+  mkdir -p "$EVAL_DIR"
+  _clear_prev_output "${EVAL_DIR}/quality_screen_report.json"
+  _read_inference_elapsed "$INFERENCE_ELAPSED_FILE"
+  python3 -m stages.evaluate_quality_screen \
+    --input        "$QUALITY_SCREEN" \
+    --ground-truth "${ground_truth:?ground_truth env var required}" \
+    --output-dir   "$EVAL_DIR" || exit $?
+  log "Evaluation complete."
 }
 
 # #############################################################################
@@ -529,63 +627,57 @@ log ""
 
 case "${KFP_TASK:-}" in
   # ========================================================================
-  # LOCAL DEV ONLY — NOT used by the KFP pipeline.
-  # ========================================================================
-  # In production, KFP runs each stage in its own pod by setting
-  # KFP_TASK=classify / extract / clean / evaluate (see branches below).
-  # The `run_info_extract` branch chains all stages in a single shell
-  # for sandbox/laptop iteration — it does NOT appear in the KFP DAG and
-  # should never be set by the KFP manifest. Keep it for local smoke tests.
-  # ========================================================================
-  # ========================================================================
-  # LOCAL DEV — Robust probe-based pipeline (3 stages, 1 GPU process).
-  # ========================================================================
-  # Skips the separate classify stage entirely. The extract stage
-  # with --graph-robust runs two probes per image (document + bank headers)
-  # and picks the best type by field count. One GPU process, no wasted
-  # classification call.
-  #
-  # Model calls per type: receipt/invoice=2, travel/logbook=3, bank=4.
-  # ========================================================================
-  # ========================================================================
-  # KFP PRODUCTION BRANCHES — one per pod in the 4-stage DAG.
+  # KFP PRODUCTION BRANCHES — one per pod.
   # ========================================================================
   # These are the branches the KFP manifest dispatches to. Each pod sets
   # KFP_TASK=<stage> via its container env and entrypoint.sh routes here.
+  # The split exists because the two stages want opposite hardware: the
+  # screen takes every available GPU, evaluate is given none.
   # ========================================================================
-  # -- Staged pipeline (GPU stages) ------------------------------------------
   classify)
-    # Stage 1: image-quality screen (GPU). Writes quality_screen.jsonl -- one
-    # record per image carrying six defect answers, a graded verdict, the raw
-    # model response for audit, and the prompt variant that produced it.
-    #
-    # The task keeps the name `classify` because the production DAG dispatches
-    # it; it screens image quality rather than classifying document types.
-    _banner "Stage 1: classify — screening image quality (GPU)"
-    mkdir -p "$OUT_ROOT"
-    _clear_prev_output "$QUALITY_SCREEN" "$INFERENCE_ELAPSED_FILE"
-    CLASSIFY_START=$(date +%s)
-    _run_quality_screen
-    # Elapsed GPU seconds, read by evaluate so it can report inference time
-    # separately from wall clock (which includes engine startup).
-    echo $(($(date +%s) - CLASSIFY_START)) > "$INFERENCE_ELAPSED_FILE"
-    log "Screening complete ($(cat "$INFERENCE_ELAPSED_FILE")s)."
+    _stage_classify
     ;;
 
   evaluate)
-    # Stage 2: score the screen against the corpus labels. CPU ONLY -- the KFP
-    # manifest gives this pod no GPU, so nothing here may load a model. The
-    # stage reads its config directly rather than through AppConfig, which
-    # would validate a model path this pod cannot see.
-    _banner "Stage 2: evaluate — scoring the image-quality screen (CPU)"
-    mkdir -p "$EVAL_DIR"
-    _clear_prev_output "${EVAL_DIR}/quality_screen_report.json"
-    _read_inference_elapsed "$INFERENCE_ELAPSED_FILE"
-    python3 -m stages.evaluate_quality_screen \
-      --input        "$QUALITY_SCREEN" \
-      --ground-truth "${ground_truth:?ground_truth env var required}" \
-      --output-dir   "$EVAL_DIR" || exit $?
-    log "Evaluation complete."
+    _stage_evaluate
+    ;;
+
+  # ========================================================================
+  # LOCAL DEV / SANDBOX ONLY — NOT used by the KFP pipeline.
+  # ========================================================================
+  # The sandbox is one box, not a DAG: there are no pods to hand artifacts
+  # between, so splitting the run across two commands buys nothing and costs
+  # a chance to mistype the second one's paths. This branch runs both stages
+  # in a single shell against a single $output dir.
+  #
+  # It must NEVER appear in the KFP manifest. Under KFP it would put the
+  # CPU-only evaluate work inside the GPU pod, holding four cards idle while
+  # it scores a JSONL file.
+  #
+  # It calls the same two functions the production branches above call, so
+  # what the sandbox exercises is what production runs -- not a second
+  # spelling of it that can drift.
+  # ========================================================================
+  screen)
+    # Check evaluate's input BEFORE the GPU run, not after it. Both stages
+    # take their required paths from env, and evaluate's `${ground_truth:?}`
+    # would otherwise fire once the screening had already finished -- losing
+    # a full model load and every image of inference to a missing variable.
+    : "${image_dir:?image_dir env var required}"
+    : "${ground_truth:?ground_truth env var required (evaluate scores against it)}"
+    if [[ ! -f "$ground_truth" ]]; then
+      log "FATAL: ground_truth file not found: $ground_truth"
+      log "  What:       the labels evaluate scores the screen against are missing."
+      log "  Where:      the ground_truth env var passed to this script."
+      log "  Expected:   a JSONL file, e.g."
+      log "              ground_truth=<corpus>/quality_ground_truth.jsonl"
+      log "  How to fix: point ground_truth at the file the corpus generator wrote"
+      log "              beside the images, or regenerate the corpus."
+      exit 1
+    fi
+    _stage_classify
+    _stage_evaluate
+    _banner "Screen complete — $EVAL_DIR"
     ;;
 
   "")
