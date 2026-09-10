@@ -646,6 +646,46 @@ EVAL_DIR="${OUT_ROOT}/evaluation"
 # throughput without including CPU phases (clean, evaluate).
 INFERENCE_ELAPSED_FILE="${OUT_ROOT}/.inference_elapsed"
 
+# ---- Log dir must sit under the output dir (checked on the RESOLVED paths) ----
+#
+# There is a matching check in Python, but it compares the YAML against itself
+# and cannot see this: `output` is overridable from the environment -- which is
+# exactly how the KFP manifest sets it -- while log_dir comes from run_config.
+# Override one without the other and the YAML stays perfectly self-consistent
+# while the two point at different volumes.
+#
+# That is not cosmetic under KFP, where the output directory is the ONLY
+# writable path in the pod: logs aimed anywhere else fail on first write. So
+# the comparison happens HERE, after env overrides, on the paths the run will
+# actually use.
+#
+# Skipped when LMM_LOG_DIR is set. That variable exists to put logs somewhere
+# else deliberately, and a guard that refuses the escape hatch is just a bug
+# with good intentions.
+#
+# Python does the comparison because these paths are relative, may not exist
+# yet, and must be compared as PATHS: a string prefix would accept
+# `<out>_old/logs` as living inside `<out>`.
+if [[ -z "${LMM_LOG_DIR:-}" ]] && ! python3 -c "
+import os, sys
+log, out = (os.path.abspath(p) for p in sys.argv[1:3])
+sys.exit(0 if log == out or log.startswith(out + os.sep) else 1)
+" "$LOG_DIR" "$OUT_ROOT"; then
+  log "FATAL: the log directory is not inside the output directory."
+  log "  What:       log_dir  = $LOG_DIR"
+  log "              output   = $OUT_ROOT"
+  log "              Under KFP the output directory is the only writable path in"
+  log "              the pod, so logs sent elsewhere fail at the first write --"
+  log "              after the model has loaded."
+  log "  Where:      the 'output' env var (or KFP input_param), and"
+  log "              bootstrap.logging.log_dir in ${CONFIG_FILE}."
+  log "  Expected:   a log dir under the output dir, e.g."
+  log "                output=$OUT_ROOT  ->  log_dir: ${OUT_ROOT%/}/logs"
+  log "  How to fix: move bootstrap.logging.log_dir under '$OUT_ROOT', or set"
+  log "              LMM_LOG_DIR to choose a log location deliberately."
+  exit 1
+fi
+
 # #############################################################################
 #  TASK DISPATCH
 # #############################################################################
