@@ -23,10 +23,6 @@ import yaml
 _ANSWER_LINE = re.compile(r"^\s*(\d+)\.\s*([A-Za-z]+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 _YES_NO = {"YES": True, "NO": False}
 
-# Formatting the model adds around an otherwise exact answer. Stripped so a
-# run's malformed rate reflects its judgement rather than its markdown.
-_DECORATION = re.compile(r"^[*_`\s]+|[*_`\s.!]+$")
-
 _THINK = re.compile(r"<think>|</think>", re.IGNORECASE)
 
 
@@ -160,11 +156,6 @@ def _unreadable(reason: str, *, think_drift: bool) -> QualityResponse:
     )
 
 
-def _normalise(value: str) -> str:
-    """Strip decoration from an answer, leaving the token to match exactly."""
-    return _DECORATION.sub("", value).upper()
-
-
 def parse_quality_response(text: str, *, criteria: list[str], overall_levels: list[str]) -> QualityResponse:
     """Read one response.
 
@@ -184,7 +175,10 @@ def parse_quality_response(text: str, *, criteria: list[str], overall_levels: li
 
     found: dict[str, tuple[int, str]] = {}
     for number, label, value in _ANSWER_LINE.findall(text):
-        found[label.upper()] = (int(number), _normalise(value))
+        # Case-folded, not rewritten. Comparing YES to yes is matching the same
+        # word; anything else the model adds -- punctuation, markdown, a
+        # qualifier -- is reported rather than tidied away.
+        found[label.upper()] = (int(number), value.upper())
 
     if not found:
         return _unreadable("no numbered answer lines found in the response", think_drift=think_drift)
