@@ -18,6 +18,7 @@ from common.quality_screen_scorer import score_quality_screen
 from stages.evaluate_quality_screen import (
     build_report,
     format_report,
+    load_screen_config,
     load_screen_records,
     variant_of_run,
 )
@@ -253,6 +254,27 @@ def test_the_stage_scores_with_the_variants_own_polarity(tmp_path):
     report = json.loads(report_path.read_text())
     assert report["per_criterion"]["blur"]["true_positives"] == 1, "NO on a good-phrased question"
     assert report["per_criterion"]["shadow"]["true_positives"] == 1, "YES on a defect-phrased one"
+
+
+def test_evaluate_resolves_its_config_without_a_model_present(tmp_path):
+    """The evaluate pod is CPU-only and may have no model volume mounted.
+
+    Going through AppConfig.load would validate the model path and crash on a
+    check for something evaluate never touches. It needs three values from the
+    screen block and nothing else.
+    """
+    import yaml as _yaml
+
+    raw = _yaml.safe_load(Path("config/run_config.yml").read_text())
+    raw["bootstrap"]["model"]["path"] = "/definitely/not/a/real/model/path"
+    config = tmp_path / "run_config.yml"
+    config.write_text(_yaml.safe_dump(raw))
+
+    screen_cfg = load_screen_config(config)
+
+    assert screen_cfg["variant"]
+    assert screen_cfg["prompt_file"]
+    assert screen_cfg["condition_to_level"]
 
 
 def test_the_run_records_which_variant_produced_it(tmp_path):

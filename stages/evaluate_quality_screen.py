@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 
 import typer
+import yaml
 
 from common.quality_screen_parser import QualityResponse, load_screen_vocabulary
 from common.quality_screen_scorer import QualityScore, score_quality_screen
@@ -47,6 +48,34 @@ def load_screen_records(path: Path) -> dict[str, QualityResponse]:
         )
         for record in records
     }
+
+
+_DEFAULT_CONFIG = Path("config/run_config.yml")
+
+
+def load_screen_config(config_path: Path | None = None) -> dict:
+    """Read the screen's config section without validating the whole pipeline.
+
+    Deliberately does NOT go through `AppConfig.load`. That validates the model
+    path exists, and this stage runs on a CPU-only pod which may have no model
+    volume mounted -- it would crash on a check for a model it never touches.
+    Scoring needs three values (the prompt file, the variant, and the condition
+    mapping) and no model at all.
+
+    Args:
+        config_path: Path to run_config.yml, or None for the default.
+
+    Returns:
+        The validated `pipeline.quality_screen` block.
+
+    Raises:
+        ConfigError: The block is missing or malformed.
+    """
+    from common.app_config import AppConfig
+
+    path = config_path or _DEFAULT_CONFIG
+    raw = yaml.safe_load(path.read_text())
+    return AppConfig._validate_quality_screen(raw, str(path))  # noqa: SLF001
 
 
 def variant_of_run(path: Path) -> str | None:
@@ -271,10 +300,7 @@ def main(
     """Stage 2: score the image-quality screen against the corpus labels."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    from common.app_config import AppConfig
-
-    app_cfg = AppConfig.load({"data_dir": ".", "output_dir": str(output_dir)}, config_path=config)
-    screen_cfg = app_cfg.quality_screen_config
+    screen_cfg = load_screen_config(config)
 
     run(
         screen,
