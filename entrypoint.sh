@@ -8,7 +8,7 @@
 # requested KFP_TASK which calls stages/*.py modules directly.
 #
 # Flow:
-#   KFP Pipeline → Container starts → entrypoint.sh → stages.{quality_screen,evaluate_quality_screen}
+#   KFP Pipeline → Container starts → entrypoint.sh → stages.{classify,extract,clean,evaluate}
 #
 # How KFP passes configuration:
 #   The pipeline YAML defines `input_params` (model, image_dir, output, etc.)
@@ -17,30 +17,22 @@
 #   translates them into stages.* command-line flags.
 #
 #   Example: if a user sets model=llama and num_gpus=4 in the KFP UI:
-#     python3 -m stages.quality_screen --model internvl3-vllm ...
+#     python3 -m stages.extract --model llama --num-gpus 4 ...
 #
-# TWO TASKS, and `_print_task_help` renders them at runtime (run with KFP_TASK
-# unset). The dispatcher's `case` near the bottom is the source of truth.
-#
-#   classify   screen image quality (GPU; shards across every GPU it is given)
-#   evaluate   score the screen against ground truth (CPU ONLY -- no model)
-#
-# There is no clean stage between them. `clean` existed to normalise free-text
-# field values before comparison; the screen's answers are fixed tokens, so
-# there is nothing to normalise.
-#
-# `classify` no longer classifies document types -- it screens image quality.
-# The name is kept because the production DAG dispatches it, and renaming would
-# require this repo and the KFP manifest to land in lockstep.
+# Available KFP_TASK values: the dispatcher's `case` near the bottom is the
+# source of truth, and `_print_task_help` renders the human-readable list at
+# runtime (run with KFP_TASK unset to print it). To avoid a third copy drifting
+# out of sync, the full list is NOT duplicated here — read `_print_task_help`.
+# Note: `filter` is deprecated — kept as a no-op for KFP manifest compatibility.
 #
 # Local examples:
-#   KFP_TASK=classify image_dir=<corpus> output=<run-dir> bash entrypoint.sh
-#   KFP_TASK=evaluate ground_truth=<corpus>/quality_ground_truth.jsonl output=<run-dir> bash entrypoint.sh
-#
-# Optional overrides for comparison runs, all env vars:
-#   screen_variant     prompt variant, overriding run_config
-#   screen_min_tiles   tile floor (the lever for small images)
-#   screen_max_tiles   tile ceiling
+#   KFP_TASK=run_info_extract image_dir=../evaluation_data/synthetic bash entrypoint.sh
+#   KFP_TASK=run_graph_robust image_dir=../evaluation_data/synthetic ground_truth=../evaluation_data/synthetic/ground_truth.jsonl bash entrypoint.sh
+#   KFP_TASK=run_trust_link trust_data_dir=../evaluation_data/trust trust_ground_truth=../evaluation_data/trust/ground_truth.yaml bash entrypoint.sh
+#   KFP_TASK=run_transaction_link bash entrypoint.sh                                  # paths from run_config.yml linking:
+#   KFP_TASK=run_transaction_link linking_data_dir=../evaluation_data/linking bash entrypoint.sh
+#   # Or as 5 separate KFP pods (mirrors the trust_* split — paths from run_config.yml linking:):
+#   for t in link_classify link_extract link_clean link link_evaluate; do KFP_TASK=$t bash entrypoint.sh; done
 #
 # =============================================================================
 
@@ -89,10 +81,8 @@ CONFIG_FILE="./config/run_config.yml"
 
 # ---- Resolve ALL YAML defaults up front, with the conda env's own python ----
 # A SINGLE PyYAML resolver (scripts/resolve_yaml_defaults.py) supplies every
-# YAML_* variable used below — the log dir and the data/model paths. It still
-# emits keys for the removed flows, harmlessly, until scripts/
-# resolve_yaml_defaults.py is trimmed alongside run_config.yml.
-# It must run BEFORE the `exec`/`tee` redirect (which needs the log dir),
+# YAML_* variable used below — log dirs, data/model paths, trust + linking
+# paths. It must run BEFORE the `exec`/`tee` redirect (which needs the log dir),
 # but PyYAML lives only inside the conda env, never in system/base python (the
 # base env genuinely has no `yaml` on DEV/PROD). So we run the resolver with the
 # conda env's OWN interpreter, addressed by path — no `conda activate` needed
@@ -116,9 +106,20 @@ fi
 # all read below as ${YAML_*:-} so `set -o nounset` is satisfied.
 eval "$("$CONDA_PY" scripts/resolve_yaml_defaults.py "$CONFIG_FILE")"
 
-# Log dir: env var > YAML > fail. One source now that the per-flow log
-# directories are gone with their flows.
-LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
+# Select this task's log dir (env var > YAML > fail). Trust tasks use
+# pipeline.trust.log_dir; transaction-linking uses pipeline.linking.log_dir;
+# everything else uses bootstrap.logging.log_dir.
+case "${KFP_TASK:-}" in
+  trust_classify|trust_extract|trust_clean|trust_evaluate|run_trust_link)
+    LOG_DIR="${LMM_TRUST_LOG_DIR:-${YAML_TRUST_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
+    ;;
+  run_transaction_link|link_classify|link_extract|link_clean|link|link_evaluate)
+    LOG_DIR="${LMM_LINKING_LOG_DIR:-${YAML_LINKING_LOG_DIR:-${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}}}"
+    ;;
+  *)
+    LOG_DIR="${LMM_LOG_DIR:-${YAML_LOG_DIR:-}}"
+    ;;
+esac
 if [[ -z "$LOG_DIR" ]]; then
   echo "FATAL: No log directory configured. Set LMM_LOG_DIR env var or bootstrap.logging.log_dir in $CONFIG_FILE"
   exit 1
@@ -292,16 +293,23 @@ _print_task_help() {
   # and unknown (*) dispatch branches.  Keep the header comment at the top of
   # this file in sync with this list.
   log "  Available tasks:"
-  log "    classify   — Stage 1: screen image quality (GPU; shards across all available)"
-  log "    evaluate   — Stage 2: score the screen against ground truth (CPU only)"
-  log ""
-  log "  There is no clean stage between them. The screen's answers are fixed"
-  log "  tokens, so there is nothing to normalise."
-  log ""
-  log "  Example:"
-  log "    KFP_TASK=classify image_dir=<corpus> output=<run-dir> bash entrypoint.sh"
-  log "    KFP_TASK=evaluate ground_truth=<corpus>/quality_ground_truth.jsonl \\"
-  log "      output=<run-dir> bash entrypoint.sh"
+  log "    run_info_extract      — 4-stage classic pipeline (classify/extract/clean/evaluate)  [local dev]"
+  log "    run_graph_robust      — 3-stage probe-based pipeline (extract --graph-robust/clean/evaluate)  [local dev]"
+  log "    run_trust_link        — 4-stage trust distribution compliance pipeline  [local dev]"
+  log "    run_transaction_link  — 5-stage receipt->bank transaction linking (matcher-first, VLM fallback)  [local dev]"
+  log "    classify              — Stage 1: document type detection (GPU)"
+  log "    extract               — Stage 2: field extraction (GPU)"
+  log "    clean                 — Stage 3: parse/clean responses (CPU)"
+  log "    evaluate              — Stage 4: evaluation (CPU)"
+  log "    trust_classify        — Trust document type classification (GPU)"
+  log "    trust_extract         — Trust distribution field extraction (GPU)"
+  log "    trust_clean           — Trust compliance validation (CPU)"
+  log "    trust_evaluate        — Trust compliance evaluation (CPU)"
+  log "    link_classify         — Linking Stage 1: document classification (GPU)"
+  log "    link_extract          — Linking Stage 2: field extraction (GPU)"
+  log "    link_clean            — Linking Stage 3: parse/clean (CPU)"
+  log "    link                  — Linking Stage 4: receipt->bank matching, matcher+VLM (GPU)"
+  log "    link_evaluate         — Linking Stage 5: link recall/precision scoring (CPU)"
 }
 
 _clear_prev_output() {
@@ -315,7 +323,7 @@ _clear_prev_output() {
   # CLEAR_PREV_OUTPUT=true.
   #
   # Only explicit artifact FILES are passed in — never a directory, never a log
-  # path — so logs are ALWAYS preserved.
+  # path — so logs are ALWAYS preserved (trust logs live under $TRUST_OUT/logs).
   # Each stage must pass only its OWN outputs, never its inputs.
   [[ "${CLEAR_PREV_OUTPUT}" == "true" ]] || return 0
   local f
@@ -324,6 +332,42 @@ _clear_prev_output() {
     rm -f "$f"
     log "  CLEAR_PREV_OUTPUT: removed $f"
   done
+}
+
+_resolve_trust_vars() {
+  # Resolve TRUST_OUT and TRUST_LOG_DIR from env vars / YAML fallbacks.
+  # Called by every trust_* case branch.
+  TRUST_OUT="${trust_output:-${output:-./outputs}}"
+  TRUST_LOG_DIR="${trust_log_dir:-${TRUST_OUT}/logs}"
+  mkdir -p "$TRUST_OUT" "$TRUST_LOG_DIR"
+}
+
+_resolve_linking_vars() {
+  # Resolve the transaction-linking paths from env vars / YAML fallbacks, then
+  # point the SHARED classify/extract/clean path globals at the linking output
+  # root so the existing _run_classify/_run_extract runners write there.
+  # linking_output is a FILE (transaction_links.jsonl); its parent dir is the
+  # output root for the intermediate JSONL artefacts.
+  LINK_OUT="$(dirname "${linking_output:-./outputs/transaction_links.jsonl}")"
+  LINK_LOG_DIR="${linking_log_dir:-${LINK_OUT}/logs}"
+  mkdir -p "$LINK_OUT" "$LINK_LOG_DIR"
+  # Drive the GPU stages off the linking dataset + output root.
+  image_dir="${linking_data_dir:-${image_dir:-}}"
+  CLASSIFICATIONS="${LINK_OUT}/classifications.jsonl"
+  RAW_EXTRACTIONS="${LINK_OUT}/raw_extractions.jsonl"
+  CLEAN_EXTRACTIONS="${LINK_OUT}/cleaned_extractions.jsonl"
+}
+
+_ensure_trust_quads() {
+  # Auto-generate quads CSV from ground truth YAML if no quads file exists.
+  # Requires TRUST_OUT to be set (call _resolve_trust_vars first).
+  if [[ ! -f "${trust_quads:-}" ]] && _is_set "${trust_ground_truth:-}"; then
+    trust_quads="${TRUST_OUT}/trust_quads.csv"
+    log "  Generating quads CSV from ground truth → ${trust_quads}"
+    python3 scripts/generate_trust_manifest.py \
+      --ground-truth "$trust_ground_truth" \
+      --output "$trust_quads" || exit $?
+  fi
 }
 
 _read_inference_elapsed() {
@@ -343,6 +387,35 @@ _read_inference_elapsed() {
   fi
 }
 
+_run_cpu_stages() {
+  # Run the clean + evaluate CPU tail shared by run_info_extract and
+  # run_graph_robust.  Expects INFERENCE_ELAPSED, RAW_EXTRACTIONS,
+  # CLEAN_EXTRACTIONS, EVAL_DIR to be set by the caller.
+  local clean_label="${1:?usage: _run_cpu_stages <clean_label> <eval_label>}"
+  local eval_label="${2:?usage: _run_cpu_stages <clean_label> <eval_label>}"
+
+  log ""
+  log "${clean_label}: clean (CPU, no GPU)..."
+  python3 -m stages.clean \
+    --input      "$RAW_EXTRACTIONS" \
+    --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+  log "${clean_label}: clean complete."
+
+  if _is_set "${ground_truth:-}"; then
+    log ""
+    log "${eval_label}: evaluate (CPU, no GPU)..."
+    python3 -m stages.evaluate \
+      --input              "$CLEAN_EXTRACTIONS" \
+      --ground-truth       "$ground_truth" \
+      --output-dir         "$EVAL_DIR" \
+      --inference-seconds  "$INFERENCE_ELAPSED" || exit $?
+    log "${eval_label}: evaluate complete."
+  else
+    log ""
+    log "${eval_label}: evaluate skipped — ground_truth not provided."
+  fi
+}
+
 # ---- Per-stage runners (shared by KFP pods and local orchestrators) ---- #
 # Each runner is the single source of truth for one stage's `python3 -m stages.*`
 # invocation, called by BOTH its standalone KFP pod branch and the local
@@ -351,8 +424,24 @@ _read_inference_elapsed() {
 #
 # Convention: runners hold ONLY the invocation (+ its required-var diagnostics).
 # Orchestration policy — logging labels, CLEAR_PREV_OUTPUT clearing, elapsed-file
-# writes — stays in the caller. Runners read globals set by the caller
-# (OPT_MODEL and the OUT_ROOT-derived paths).
+# writes, and INFERENCE_ARGS construction — stays in the caller, because it
+# differs between the per-pod path (per-stage .inference_elapsed file) and the
+# orchestrator path (single wall-clock).  Runners read globals set by the caller
+# (OPT_MODEL, OUT_ROOT-derived paths, TRUST_OUT, trust_* vars).
+
+_run_classify() {
+  # GPU. Document type detection. Used by run_info_extract Phase 1 and the
+  # link_classify / trust paths.
+  #
+  # NOTE: the `classify` POD no longer calls this on this branch — it runs the
+  # image-quality screen instead (see _run_quality_screen and the classify)
+  # case). This runner is left untouched so document-type detection keeps
+  # working for every other caller.
+  python3 -m stages.classify \
+    --data-dir   "${image_dir:?image_dir env var required}" \
+    --output-dir "$CLASSIFICATIONS" \
+    "${OPT_MODEL[@]}" || exit $?
+}
 
 _run_quality_screen() {
   # GPU. Image-quality screen: six YES/NO defect questions and one graded
@@ -387,6 +476,108 @@ _run_quality_screen() {
     "${OPT_MODEL[@]}" || exit $?
 }
 
+_run_extract() {
+  # GPU. Field extraction. $1 = mode:
+  #   auto         — classified if $CLASSIFICATIONS exists, else graph-robust
+  #                  (the `extract` pod auto-detects per the KFP DAG shape)
+  #   classified   — type-specific extraction from $CLASSIFICATIONS
+  #                  (run_info_extract, where classify always ran first)
+  #   graph_robust — force probe-based extraction, ignoring any (stale)
+  #                  classifications file (run_graph_robust)
+  local mode="${1:?usage: _run_extract <auto|classified|graph_robust>}"
+  local use_classified=false
+  case "$mode" in
+    classified) use_classified=true ;;
+    graph_robust) use_classified=false ;;
+    auto)
+      if [[ -f "$CLASSIFICATIONS" ]]; then
+        use_classified=true
+        log "Found $CLASSIFICATIONS — using classified extraction."
+      else
+        log "No classifications found — using graph-robust probes."
+      fi
+      ;;
+    *) log "FATAL: _run_extract: unknown mode '$mode'"; exit 1 ;;
+  esac
+  if $use_classified; then
+    python3 -m stages.extract \
+      --classifications "$CLASSIFICATIONS" \
+      --data-dir        "${image_dir:?image_dir env var required}" \
+      --output-dir      "$RAW_EXTRACTIONS" \
+      "${OPT_MODEL[@]}" || exit $?
+  else
+    python3 -m stages.extract \
+      --data-dir   "${image_dir:?image_dir env var required}" \
+      --output-dir "$RAW_EXTRACTIONS" \
+      --graph-robust \
+      "${OPT_MODEL[@]}" || exit $?
+  fi
+}
+
+_run_trust_classify() {
+  # GPU. Builds OPT_CLASSIFY_PATHS from the optional trust path vars, then runs
+  # stages.trust_classify. Used by the `trust_classify` pod and run_trust_link.
+  OPT_CLASSIFY_PATHS=()
+  if _is_set "${trust_classifications:-}"; then
+    OPT_CLASSIFY_PATHS+=(--classifications "$trust_classifications")
+  fi
+  if _is_set "${trust_quads:-}"; then
+    OPT_CLASSIFY_PATHS+=(--quads "$trust_quads")
+  fi
+  if _is_set "${trust_quads_incomplete:-}"; then
+    OPT_CLASSIFY_PATHS+=(--quads-incomplete "$trust_quads_incomplete")
+  fi
+  python3 -m stages.trust_classify \
+    --data-dir   "${trust_data_dir:?trust_data_dir is required — set via pipeline.trust.data_dir in run_config.yml or trust_data_dir env var}" \
+    --output-dir "${TRUST_OUT}" \
+    "${OPT_CLASSIFY_PATHS[@]}" \
+    "${OPT_MODEL[@]}" || exit $?
+}
+
+_run_trust_extract() {
+  # GPU. Runs the trust-link extraction. Used by the `trust_extract` pod and
+  # run_trust_link. Expects trust_quads to exist (trust_classify or
+  # _ensure_trust_quads produced it).
+  python3 -m stages.link trust-link \
+    --quads    "${trust_quads:?trust_quads is required — set via pipeline.trust.quads in run_config.yml or trust_quads env var}" \
+    --data-dir "${trust_data_dir:?trust_data_dir is required — set via pipeline.trust.data_dir in run_config.yml or trust_data_dir env var}" \
+    --output   "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
+    "${OPT_MODEL[@]}" || exit $?
+}
+
+_run_trust_clean() {
+  # CPU. Runs trust compliance validation. Used by the `trust_clean` pod and
+  # run_trust_link.
+  python3 -m stages.trust_clean \
+    --input  "${trust_raw_extractions:?trust_raw_extractions is required — set via pipeline.trust.raw_extractions in run_config.yml or trust_raw_extractions env var}" \
+    --output "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
+    --config "$CONFIG_FILE" || exit $?
+}
+
+_run_trust_evaluate() {
+  # CPU. Builds optional flags and runs stages.evaluate_trust. Used by the
+  # `trust_evaluate` pod and run_trust_link. The caller MUST set:
+  #   TRUST_EVAL_DIR  — output dir (already created)
+  #   INFERENCE_ARGS  — (--inference-seconds N) or () — from _read_inference_elapsed
+  #                     (pod path) or the orchestrator's wall-clock.
+  OPT_CLASSIFICATIONS=()
+  if _is_set "${trust_classifications:-}"; then
+    OPT_CLASSIFICATIONS=(--classifications "$trust_classifications")
+  fi
+  OPT_CLASSIFICATION_GT=()
+  if _is_set "${trust_classification_gt:-}"; then
+    OPT_CLASSIFICATION_GT=(--classification-gt "$trust_classification_gt")
+  fi
+  python3 -m stages.evaluate_trust \
+    --input        "${trust_compliance_results:?trust_compliance_results is required — set via pipeline.trust.compliance_results in run_config.yml or trust_compliance_results env var}" \
+    --ground-truth "${trust_ground_truth:?trust_ground_truth is required — set via pipeline.trust.ground_truth in run_config.yml or trust_ground_truth env var}" \
+    --output-dir   "$TRUST_EVAL_DIR" \
+    --config       "$CONFIG_FILE" \
+    "${OPT_CLASSIFICATIONS[@]}" \
+    "${OPT_CLASSIFICATION_GT[@]}" \
+    "${INFERENCE_ARGS[@]}" || exit $?
+}
+
 # #############################################################################
 #  CONFIG RESOLUTION (env vars, YAML fallbacks, CLI args)
 # #############################################################################
@@ -410,6 +601,22 @@ _default_from_yaml model                    "${YAML_MODEL_TYPE:-}"
 _default_from_yaml image_dir                "${YAML_DATA_DIR:-}"
 _default_from_yaml ground_truth             "${YAML_GROUND_TRUTH:-}"
 _default_from_yaml output                   "${YAML_OUTPUT_DIR:-}"
+_default_from_yaml trust_data_dir           "${YAML_TRUST_DATA_DIR:-}"
+_default_from_yaml trust_quads              "${YAML_TRUST_QUADS:-}"
+_default_from_yaml trust_quads_incomplete   "${YAML_TRUST_QUADS_INCOMPLETE:-}"
+_default_from_yaml trust_ground_truth       "${YAML_TRUST_GROUND_TRUTH:-}"
+_default_from_yaml trust_classification_gt  "${YAML_TRUST_CLASSIFICATION_GT:-}"
+_default_from_yaml trust_classifications    "${YAML_TRUST_CLASSIFICATIONS:-}"
+_default_from_yaml trust_raw_extractions    "${YAML_TRUST_RAW_EXTRACTIONS:-}"
+_default_from_yaml trust_compliance_results "${YAML_TRUST_COMPLIANCE_RESULTS:-}"
+_default_from_yaml trust_output             "${YAML_TRUST_OUTPUT_DIR:-}"
+_default_from_yaml trust_evaluation_dir     "${YAML_TRUST_EVALUATION_DIR:-}"
+_default_from_yaml trust_log_dir            "${YAML_TRUST_LOG_DIR:-}"
+_default_from_yaml linking_data_dir         "${YAML_LINKING_DATA_DIR:-}"
+_default_from_yaml linking_output           "${YAML_LINKING_OUTPUT:-}"
+_default_from_yaml linking_ground_truth     "${YAML_LINKING_GROUND_TRUTH:-}"
+_default_from_yaml linking_evaluation_dir   "${YAML_LINKING_EVALUATION_DIR:-}"
+_default_from_yaml linking_log_dir          "${YAML_LINKING_LOG_DIR:-}"
 
 # ---- CLEAR_PREV_OUTPUT toggle (validated at startup, before any work) ---- #
 # Controls whether stages start from a clean slate or resume:
@@ -506,9 +713,13 @@ fi
 # re-runs of a single stage can read the upstream artefacts written by
 # a previous run (this is also what the KFP pod volume mount sees).
 OUT_ROOT="${output:-./outputs}"
-# Written by classify, read by evaluate. Holds one record per image: its
-# answers, the raw model response, and the prompt variant that produced them.
+CLASSIFICATIONS="${OUT_ROOT}/classifications.jsonl"
+# Image-quality screen output, written by the classify pod on this branch and
+# read by evaluate. Named separately from classifications.jsonl so a screen run
+# and a document-type run can share an output root without overwriting.
 QUALITY_SCREEN="${OUT_ROOT}/quality_screen.jsonl"
+RAW_EXTRACTIONS="${OUT_ROOT}/raw_extractions.jsonl"
+CLEAN_EXTRACTIONS="${OUT_ROOT}/cleaned_extractions.jsonl"
 EVAL_DIR="${OUT_ROOT}/evaluation"
 # GPU inference elapsed time (seconds) — written by GPU stages, read by
 # evaluate. Each GPU stage appends its elapsed seconds to this file (one
@@ -537,6 +748,42 @@ case "${KFP_TASK:-}" in
   # for sandbox/laptop iteration — it does NOT appear in the KFP DAG and
   # should never be set by the KFP manifest. Keep it for local smoke tests.
   # ========================================================================
+  run_info_extract)
+    # Local simulation of the KFP pipeline.
+    # Each phase is a FRESH python3 process: model loads, runs, exits,
+    # CUDA context is torn down and GPU memory fully released before the
+    # next phase starts. This mirrors pod-per-stage KFP deployment and
+    # isolates GPU state between phases (no fragmentation leak across
+    # classify → extract → clean → evaluate).
+    log "Mode: run_info_extract — simulating 4-stage KFP pipeline locally."
+    log "Output root: $OUT_ROOT"
+    mkdir -p "$OUT_ROOT"
+
+    # Clear previous outputs only when CLEAR_PREV_OUTPUT=true; otherwise the
+    # extract stage resumes and skips already-processed images from a prior run.
+    _clear_prev_output "$CLASSIFICATIONS" "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS" \
+      "${EVAL_DIR}/evaluation_results.jsonl" "$INFERENCE_ELAPSED_FILE"
+
+    # Track GPU inference wall-clock (classify + extract only, not clean/evaluate).
+    INFERENCE_START=$(date +%s)
+
+    _banner "Phase 1/4: classify (fresh process, model reload)"
+    _run_classify
+    log "Phase 1/4: classify complete."
+
+    _banner "Phase 2/4: extract (fresh process, model reload)"
+    _run_extract classified
+    log "Phase 2/4: extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
+    _run_cpu_stages "Phase 3/4" "Phase 4/4"
+
+    log ""
+    log "Pipeline completed successfully."
+    ;;
+
   # ========================================================================
   # LOCAL DEV — Robust probe-based pipeline (3 stages, 1 GPU process).
   # ========================================================================
@@ -547,6 +794,32 @@ case "${KFP_TASK:-}" in
   #
   # Model calls per type: receipt/invoice=2, travel/logbook=3, bank=4.
   # ========================================================================
+  run_graph_robust)
+    log "Mode: graph_robust — probe-based classification (3-stage pipeline)."
+    log "Output root: $OUT_ROOT"
+    mkdir -p "$OUT_ROOT"
+
+    # Clear previous outputs only when CLEAR_PREV_OUTPUT=true; otherwise the
+    # extract stage resumes and skips already-processed images from a prior run.
+    _clear_prev_output "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS" \
+      "${EVAL_DIR}/evaluation_results.jsonl" "$INFERENCE_ELAPSED_FILE"
+
+    # Track GPU inference wall-clock (extract only, not clean/evaluate).
+    INFERENCE_START=$(date +%s)
+
+    _banner "Phase 1/3: extract --graph-robust (probe + extract, single GPU process)"
+    _run_extract graph_robust
+    log "Phase 1/3: extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
+    _run_cpu_stages "Phase 2/3" "Phase 3/3"
+
+    log ""
+    log "Pipeline completed successfully."
+    ;;
+
   # ========================================================================
   # KFP PRODUCTION BRANCHES — one per pod in the 4-stage DAG.
   # ========================================================================
@@ -555,28 +828,87 @@ case "${KFP_TASK:-}" in
   # ========================================================================
   # -- Staged pipeline (GPU stages) ------------------------------------------
   classify)
-    # Stage 1: image-quality screen (GPU). Writes quality_screen.jsonl -- one
-    # record per image carrying six defect answers, a graded verdict, the raw
-    # model response for audit, and the prompt variant that produced it.
+    # Stage 1: Image-quality screen (GPU).
+    # Writes quality_screen.jsonl — one record per image, carrying six defect
+    # answers, a graded OVERALL, and the raw response for audit.
     #
-    # The task keeps the name `classify` because the production DAG dispatches
-    # it; it screens image quality rather than classifying document types.
+    # This branch repurposes the classify POD for the quality screen. The
+    # previous document-type detection is commented out below rather than
+    # deleted; _run_classify itself is untouched and still serves
+    # run_info_extract Phase 1 and the link/trust paths.
+    #
+    # _banner "Stage 1: classify — detecting document types (GPU)"
+    # _clear_prev_output "$CLASSIFICATIONS" "$INFERENCE_ELAPSED_FILE"
+    # _run_classify
     _banner "Stage 1: classify — screening image quality (GPU)"
     mkdir -p "$OUT_ROOT"
     _clear_prev_output "$QUALITY_SCREEN" "$INFERENCE_ELAPSED_FILE"
     CLASSIFY_START=$(date +%s)
     _run_quality_screen
-    # Elapsed GPU seconds, read by evaluate so it can report inference time
-    # separately from wall clock (which includes engine startup).
+    # Write classify elapsed to the shared file. The extract pod will
+    # append its own elapsed time; evaluate sums all lines.
     echo $(($(date +%s) - CLASSIFY_START)) > "$INFERENCE_ELAPSED_FILE"
-    log "Screening complete ($(cat "$INFERENCE_ELAPSED_FILE")s)."
+    log "Classification complete ($(cat "$INFERENCE_ELAPSED_FILE")s)."
+    ;;
+  extract)
+    # Stage 2: Field extraction (GPU).
+    # Writes raw_extractions.jsonl.
+    #
+    # Two modes, auto-detected:
+    #   - Classified: if classifications.jsonl exists (from a prior classify
+    #     pod), reads it and runs type-specific extraction per image.
+    #   - Graph-robust: if no classifications.jsonl, runs probe-based
+    #     classification + extraction in one pass (--graph-robust).
+    #     This is the default for the 3-stage KFP DAG (extract/clean/evaluate).
+    _banner "Stage 2: extract — extracting fields (GPU)"
+    mkdir -p "$OUT_ROOT"
+    _clear_prev_output "$RAW_EXTRACTIONS"
+    EXTRACT_START=$(date +%s)
+    _run_extract auto
+    # Append extract elapsed to the shared file (classify may have written
+    # the first line). The evaluate pod sums all lines.
+    echo $(($(date +%s) - EXTRACT_START)) >> "$INFERENCE_ELAPSED_FILE"
+    log "Extraction complete."
     ;;
 
+  # -- Deprecated stages (kept as no-ops for KFP manifest compatibility) ------
+  filter)
+    # The filter stage was removed — cleaning now handles everything.
+    # Keep as a no-op so existing KFP DAGs that include a filter pod
+    # don't fail. Remove this case once the KFP manifest is updated.
+    log "Stage filter: skipped (deprecated — no longer needed)."
+    ;;
+
+  # -- Staged pipeline (CPU stages) ------------------------------------------
+  clean)
+    # Stage 3: Parse and clean raw responses (CPU only, no GPU needed).
+    # Reads raw_extractions.jsonl, writes cleaned_extractions.jsonl.
+    _banner "Stage 3: clean — parsing and cleaning raw responses (CPU)"
+    mkdir -p "$OUT_ROOT"
+    _clear_prev_output "$CLEAN_EXTRACTIONS"
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "Cleaning complete."
+    ;;
   evaluate)
-    # Stage 2: score the screen against the corpus labels. CPU ONLY -- the KFP
-    # manifest gives this pod no GPU, so nothing here may load a model. The
-    # stage reads its config directly rather than through AppConfig, which
-    # would validate a model path this pod cannot see.
+    # Stage 4: Evaluation against ground truth (CPU only, no GPU needed).
+    # Reads cleaned_extractions.jsonl + ground truth CSV/JSONL, writes evaluation_results.jsonl.
+    # This branch scores the image-quality screen rather than extraction, so
+    # it reads $QUALITY_SCREEN (written by the classify pod) instead of
+    # $CLEAN_EXTRACTIONS. There is no clean stage in between: the screen's
+    # answers are already canonical tokens with nothing to normalise.
+    #
+    # The extraction scoring is commented out rather than deleted; stages/
+    # evaluate.py itself is untouched and still serves run_info_extract.
+    #
+    # _banner "Stage 4: evaluate — scoring against ground truth (CPU)"
+    # _clear_prev_output "${EVAL_DIR}/evaluation_results.jsonl"
+    # python3 -m stages.evaluate \
+    #   --input        "$CLEAN_EXTRACTIONS" \
+    #   --ground-truth "${ground_truth:?ground_truth env var required}" \
+    #   --output-dir   "$EVAL_DIR" \
+    #   "${INFERENCE_ARGS[@]}" || exit $?
     _banner "Stage 2: evaluate — scoring the image-quality screen (CPU)"
     mkdir -p "$EVAL_DIR"
     _clear_prev_output "${EVAL_DIR}/quality_screen_report.json"
@@ -588,10 +920,268 @@ case "${KFP_TASK:-}" in
     log "Evaluation complete."
     ;;
 
+  # ========================================================================
+  # TRUST DISTRIBUTION LINKING — NRO Private Wealth compliance pipeline.
+  # ========================================================================
+  trust_classify)
+    # Trust document type classification (GPU).
+    # Scans a flat directory for CASEXXX_* documents, classifies each
+    # via VLM inference, and assembles a quads CSV for trust_extract.
+    _banner "Stage 1: trust_classify — classifying trust documents (GPU)"
+    _resolve_trust_vars
+    log "  trust_data_dir: ${trust_data_dir:-<not set>}  trust_output: ${TRUST_OUT}"
+    _clear_prev_output "${trust_classifications:-}" "${trust_quads:-}" \
+      "${trust_quads_incomplete:-}" "${TRUST_OUT}/.inference_elapsed"
+    CLASSIFY_START=$(date +%s)
+    _run_trust_classify
+    # Truncate (>) not append (>>): trust_classify is the first GPU stage,
+    # mirroring the `classify` branch's elapsed-file write. On a reused KFP
+    # volume this resets stale timing from a prior run so trust_evaluate's
+    # throughput sum (_read_inference_elapsed) only includes this run.
+    echo $(($(date +%s) - CLASSIFY_START)) > "${TRUST_OUT}/.inference_elapsed"
+    log "Trust classification complete."
+    ;;
+  trust_extract)
+    # Trust distribution field extraction (GPU-only).
+    # Reads a quads CSV (4 documents per case), extracts linking fields
+    # via VLM calls. Compliance validation is deferred to trust_clean.
+    _banner "Stage 2: trust_extract — extracting trust distribution fields (GPU)"
+    _resolve_trust_vars
+    log "  trust_output: ${TRUST_OUT}  trust_log_dir: ${TRUST_LOG_DIR}"
+    _ensure_trust_quads
+    _clear_prev_output "${trust_raw_extractions:-}"
+    TRUST_START=$(date +%s)
+    _run_trust_extract
+    echo $(($(date +%s) - TRUST_START)) >> "${TRUST_OUT}/.inference_elapsed"
+    log "Trust extraction complete."
+    ;;
+  trust_clean)
+    # Trust distribution compliance cleaning (CPU-only).
+    # Re-parses per-node raw_responses and runs compliance validation.
+    _banner "Stage 3: trust_clean — running trust compliance validation (CPU)"
+    _resolve_trust_vars
+    _clear_prev_output "${trust_compliance_results:-}"
+    _run_trust_clean
+    log "Trust compliance cleaning complete."
+    ;;
+  trust_evaluate)
+    # Trust distribution evaluation (CPU).
+    # Reads trust_compliance_results.jsonl + ground truth YAML, computes compliance metrics.
+    _banner "Stage 4: trust_evaluate — scoring trust compliance detection (CPU)"
+    _resolve_trust_vars
+    log "  trust_output: ${TRUST_OUT}"
+    TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via pipeline.trust.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
+    mkdir -p "$TRUST_EVAL_DIR"
+    _clear_prev_output "${TRUST_EVAL_DIR}/trust_evaluation_results.jsonl"
+    _read_inference_elapsed "${TRUST_OUT}/.inference_elapsed"
+    _run_trust_evaluate
+    log "Trust evaluation complete."
+    ;;
+  run_trust_link)
+    # Local dev: chain trust_classify + trust_extract + trust_clean + trust_evaluate in one shell.
+    log "Mode: run_trust_link — trust distribution compliance pipeline (4-stage)."
+    _resolve_trust_vars
+    log "  trust_data_dir:      ${trust_data_dir:-<not set>}"
+    log "  trust_quads:         ${trust_quads:-<not set>}"
+    log "  trust_ground_truth:  ${trust_ground_truth:-<not set>}"
+    log "  trust_output:        ${TRUST_OUT}"
+    log "  trust_log_dir:       ${TRUST_LOG_DIR}"
+    # Clear previous outputs only when CLEAR_PREV_OUTPUT=true; otherwise the
+    # GPU stages resume and skip already-processed cases from a prior run.
+    _clear_prev_output "${trust_classifications:-}" "${trust_quads:-}" \
+      "${trust_quads_incomplete:-}" "${trust_raw_extractions:-}" \
+      "${trust_compliance_results:-}" "${TRUST_OUT}/.inference_elapsed"
+
+    TRUST_START=$(date +%s)
+
+    _banner "Phase 1/4: trust_classify (GPU)"
+    _run_trust_classify
+    log "Phase 1/4: trust_classify complete."
+
+    _banner "Phase 2/4: trust_extract (GPU)"
+    _run_trust_extract
+    log "Phase 2/4: trust_extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - TRUST_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
+    _banner "Phase 3/4: trust_clean (CPU)"
+    _run_trust_clean
+    log "Phase 3/4: trust_clean complete."
+
+    if _is_set "${trust_ground_truth:-}"; then
+      _banner "Phase 4/4: trust_evaluate (CPU)"
+      TRUST_EVAL_DIR="${trust_evaluation_dir:?trust_evaluation_dir is required — set via pipeline.trust.evaluation_dir in run_config.yml or trust_evaluation_dir env var}"
+      mkdir -p "$TRUST_EVAL_DIR"
+      # Orchestrator path: pass the single wall-clock as INFERENCE_ARGS so
+      # _run_trust_evaluate uses the same --inference-seconds flag the per-pod
+      # path builds from _read_inference_elapsed.
+      INFERENCE_ARGS=(--inference-seconds "$INFERENCE_ELAPSED")
+      _run_trust_evaluate
+      log "Phase 4/4: trust_evaluate complete."
+    else
+      log ""
+      log "Phase 4/4: trust_evaluate skipped — trust_ground_truth not provided."
+    fi
+
+    log ""
+    log "Trust pipeline completed successfully."
+    ;;
+
+  # ========================================================================
+  # TRANSACTION LINKING — receipt/invoice -> bank-statement debit matching.
+  # ========================================================================
+  # Local dev: chain classify + extract + clean + transaction_link (+ optional
+  # evaluate_linking) in one shell. Matcher-first: the algorithmic matcher links
+  # against the rows extract already pulled; receipts it can't confidently match
+  # fall through to a targeted single-image VLM lookup. Does NOT touch the trust
+  # pipeline.
+  run_transaction_link)
+    log "Mode: run_transaction_link — receipt->bank transaction linking (matcher-first, VLM fallback)."
+    _resolve_linking_vars
+    log "  linking_data_dir:     ${linking_data_dir:-<not set>}"
+    log "  linking_output:       ${linking_output:-<not set>}"
+    log "  linking_ground_truth: ${linking_ground_truth:-<not set>}"
+    log "  link_out:             ${LINK_OUT}"
+    log "  link_log_dir:         ${LINK_LOG_DIR}"
+    # Clear previous outputs only when CLEAR_PREV_OUTPUT=true; otherwise the
+    # GPU stages resume and skip already-processed images from a prior run.
+    _clear_prev_output "$CLASSIFICATIONS" "$RAW_EXTRACTIONS" "$CLEAN_EXTRACTIONS" \
+      "${linking_output:-}" "${LINK_OUT}/.inference_elapsed"
+
+    INFERENCE_START=$(date +%s)
+
+    _banner "Phase 1/5: classify (GPU)"
+    _run_classify
+    log "Phase 1/5: classify complete."
+
+    _banner "Phase 2/5: extract (GPU)"
+    _run_extract classified
+    log "Phase 2/5: extract complete."
+
+    INFERENCE_ELAPSED=$(($(date +%s) - INFERENCE_START))
+    log "GPU inference elapsed: ${INFERENCE_ELAPSED}s"
+
+    _banner "Phase 3/5: clean (CPU)"
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "Phase 3/5: clean complete."
+
+    _banner "Phase 4/5: transaction_link (matcher-first + VLM fallback)"
+    LINK_START=$(date +%s)
+    python3 -m stages.transaction_link \
+      --extractions "$CLEAN_EXTRACTIONS" \
+      --output      "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --data-dir    "${image_dir:?image_dir is required — set via pipeline.linking.data_dir in run_config.yml or linking_data_dir env var}" \
+      --config      "$CONFIG_FILE" \
+      "${OPT_MODEL[@]}" || exit $?
+    # Add the link phase's GPU (VLM fallback) wall-clock to the inference total so
+    # the orchestrator's throughput matches the split-pod sum (classify+extract+link),
+    # which the `link` pod records by appending to .inference_elapsed.
+    INFERENCE_ELAPSED=$((INFERENCE_ELAPSED + $(date +%s) - LINK_START))
+    log "Phase 4/5: transaction_link complete (GPU inference elapsed now ${INFERENCE_ELAPSED}s)."
+
+    if _is_set "${linking_ground_truth:-}"; then
+      _banner "Phase 5/5: evaluate_linking (CPU)"
+      LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via pipeline.linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
+      mkdir -p "$LINK_EVAL_DIR"
+      # Orchestrator path: pass the single classify+extract+link wall-clock as
+      # INFERENCE_ARGS so evaluate_linking reports the same --inference-seconds the
+      # per-pod path builds from _read_inference_elapsed (mirrors run_trust_link).
+      INFERENCE_ARGS=(--inference-seconds "$INFERENCE_ELAPSED")
+      python3 -m stages.evaluate_linking \
+        --input        "${linking_output}" \
+        --ground-truth "$linking_ground_truth" \
+        --output-dir   "$LINK_EVAL_DIR" \
+        "${INFERENCE_ARGS[@]}" || exit $?
+      log "Phase 5/5: evaluate_linking complete."
+    else
+      log ""
+      log "Phase 5/5: evaluate_linking skipped — linking_ground_truth not provided."
+    fi
+
+    log ""
+    log "Transaction linking pipeline completed successfully."
+    ;;
+
+  # -- Transaction-linking, per-pod (mirror the trust_* split pods) -----------
+  # Each pod is self-contained on the linking dataset: _resolve_linking_vars
+  # repoints the shared classify/extract/clean globals onto LINK_OUT (the parent
+  # of pipeline.linking.output), isolated from pipeline.information_extraction.*.
+  # GPU pods write their elapsed
+  # seconds to ${LINK_OUT}/.inference_elapsed (link_classify truncates as the
+  # first GPU stage; link_extract and link append) so link_evaluate can sum them
+  # for throughput — exactly as the trust_* pods do via ${TRUST_OUT}/.inference_elapsed.
+  link_classify)
+    _banner "Linking Stage 1/5: link_classify — document types on linking set (GPU)"
+    _resolve_linking_vars
+    # Truncate (>) the elapsed file — first GPU stage, resets stale timing on a
+    # reused KFP volume (mirrors the trust_classify / classify branches).
+    _clear_prev_output "$CLASSIFICATIONS" "${LINK_OUT}/.inference_elapsed"
+    LINK_START=$(date +%s)
+    _run_classify
+    echo $(($(date +%s) - LINK_START)) > "${LINK_OUT}/.inference_elapsed"
+    log "link_classify complete ($(cat "${LINK_OUT}/.inference_elapsed")s)."
+    ;;
+  link_extract)
+    _banner "Linking Stage 2/5: link_extract — field extraction on linking set (GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "$RAW_EXTRACTIONS"
+    LINK_START=$(date +%s)
+    _run_extract classified
+    echo $(($(date +%s) - LINK_START)) >> "${LINK_OUT}/.inference_elapsed"
+    log "link_extract complete."
+    ;;
+  link_clean)
+    _banner "Linking Stage 3/5: link_clean — parse/clean responses (CPU, no GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "$CLEAN_EXTRACTIONS"
+    python3 -m stages.clean \
+      --input      "$RAW_EXTRACTIONS" \
+      --output-dir "$CLEAN_EXTRACTIONS" || exit $?
+    log "link_clean complete."
+    ;;
+  link)
+    _banner "Linking Stage 4/5: link — receipt->bank matching (matcher-first + VLM fallback, GPU)"
+    _resolve_linking_vars
+    _clear_prev_output "${linking_output:-}"
+    LINK_START=$(date +%s)
+    python3 -m stages.transaction_link \
+      --extractions "$CLEAN_EXTRACTIONS" \
+      --output      "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --data-dir    "${image_dir:?image_dir is required — set via pipeline.linking.data_dir in run_config.yml or linking_data_dir env var}" \
+      --config      "$CONFIG_FILE" \
+      "${OPT_MODEL[@]}" || exit $?
+    # The matcher-first link step does GPU VLM only on the fallback receipts, but
+    # its wall-clock is still GPU-stage time — append so throughput counts it.
+    echo $(($(date +%s) - LINK_START)) >> "${LINK_OUT}/.inference_elapsed"
+    log "link complete."
+    ;;
+  link_evaluate)
+    _banner "Linking Stage 5/5: link_evaluate — scoring link recall/precision + throughput (CPU)"
+    _resolve_linking_vars
+    LINK_EVAL_DIR="${linking_evaluation_dir:?linking_evaluation_dir is required — set via pipeline.linking.evaluation_dir in run_config.yml or linking_evaluation_dir env var}"
+    mkdir -p "$LINK_EVAL_DIR"
+    _clear_prev_output "${LINK_EVAL_DIR}/linking_evaluation_results.jsonl"
+    # Sum GPU elapsed (link_classify + link_extract + link) -> INFERENCE_ARGS,
+    # exactly as trust_evaluate / evaluate do. Unlike the orchestrator's Phase 5
+    # (which SKIPS eval when linking_ground_truth is unset), a standalone
+    # link_evaluate pod is only ever scheduled when eval is wanted — so it FAILS
+    # FAST on a missing ground truth (matches trust_evaluate + the Fail-Fast rule).
+    _read_inference_elapsed "${LINK_OUT}/.inference_elapsed"
+    python3 -m stages.evaluate_linking \
+      --input        "${linking_output:?linking_output is required — set via pipeline.linking.output in run_config.yml or linking_output env var}" \
+      --ground-truth "${linking_ground_truth:?linking_ground_truth is required — set via pipeline.linking.ground_truth in run_config.yml or linking_ground_truth env var}" \
+      --output-dir   "$LINK_EVAL_DIR" \
+      "${INFERENCE_ARGS[@]}" || exit $?
+    log "link_evaluate complete."
+    ;;
+
   "")
     log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
     log "  For local dev, set KFP_TASK explicitly:"
-    log "  KFP_TASK=classify image_dir=<dir> output=<dir> bash entrypoint.sh"
+    log "  KFP_TASK=run_info_extract bash entrypoint.sh --model internvl3"
     log ""
     _print_task_help
     exit 1

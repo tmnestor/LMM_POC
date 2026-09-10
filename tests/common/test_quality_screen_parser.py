@@ -174,24 +174,15 @@ def test_a_clean_response_is_not_flagged_as_drifting():
     assert parse(WELL_FORMED).think_drift is False
 
 
-def test_a_trailing_full_stop_is_rejected():
-    """Nothing rewrites the answer before matching it. The prompt asks for one
-    word; anything else is reported rather than tidied into shape."""
+def test_a_trailing_full_stop_is_tolerated():
     result = parse(WELL_FORMED.replace("1. BLUR: YES", "1. BLUR: YES."))
 
-    assert result.malformed is True
+    assert result.malformed is False
+    assert result.answers["blur"] is True
 
 
-def test_markdown_emphasis_is_rejected():
+def test_markdown_emphasis_is_tolerated():
     result = parse(WELL_FORMED.replace("1. BLUR: YES", "1. BLUR: **YES**"))
-
-    assert result.malformed is True
-
-
-def test_case_is_still_matched_insensitively():
-    """Case-folding is how the token is compared, not a rewrite of it -- YES
-    and yes are the same word. Retained deliberately."""
-    result = parse(WELL_FORMED.replace("1. BLUR: YES", "1. BLUR: yes"))
 
     assert result.malformed is False
     assert result.answers["blur"] is True
