@@ -25,6 +25,14 @@ the current pipeline.
 The errors fall on the safer side: it rarely lets a bad image through, and its
 main cost is asking for a second look at an image that was fine.
 
+**Reproduced independently on production hardware.** The figures above are from
+a development run. Repeating it on the production GPUs, against a separately
+generated test set, gave 212 of 220 poor images flagged and 12 of 110 good
+images flagged unnecessarily — the same result within noise, on different
+hardware and different images. The two checks that do not work (below) failed
+again in the same way, confirming those are real limitations rather than
+quirks of one test set. 330 images took about 11 minutes.
+
 **Grading *how* bad an image is works less well** — 72% correct across three
 levels (good / fair / poor). It reliably separates *damaged from undamaged*; it
 is less reliable at telling mild damage from severe.
