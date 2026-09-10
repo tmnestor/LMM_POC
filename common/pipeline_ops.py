@@ -1,7 +1,7 @@
-"""Pipeline operations: model loading, processor creation, batch execution.
+"""Model loading and orchestrator construction, shared by both entry points.
 
-Extracted from cli.py so the stages can share the load/create/run seams
-without importing the CLI.
+The screen's single-GPU path and its per-GPU data-parallel worker build the
+model the same way, so the seam lives here rather than in either of them.
 """
 
 from typing import Any

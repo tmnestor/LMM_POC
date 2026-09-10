@@ -1,9 +1,8 @@
-"""DocumentOrchestrator — unified document extraction pipeline.
+"""DocumentOrchestrator — one prompt, one image, the text that comes back.
 
-Replaces BaseDocumentProcessor + SimpleDocumentProcessor with a single
-class that uses composition (has-a ModelBackend) instead of inheritance.
-
-Satisfies the DocumentProcessor protocol from models/protocol.py.
+Composition rather than inheritance: it has-a ModelBackend and adds what is
+the same whatever the prompt asks -- image loading, OOM recovery, and per-image
+trace attribution.
 """
 
 from __future__ import annotations

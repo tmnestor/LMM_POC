@@ -116,7 +116,7 @@ def main() -> int:
         print("VERDICT: No <think> in either case — thinking is already OFF. Nothing to do.")
     elif default_thinks and not system_thinks:
         print("VERDICT: The no-think SYSTEM MESSAGE suppresses thinking (Change 1 is enough).")
-        print("         Re-run classify+extract; no chat_template override needed.")
+        print("         Re-run the screen; no chat_template override needed.")
     else:
         print("VERDICT: The TEMPLATE forces thinking (system message did not stop it).")
         print("         Use the knob: set model.chat_template to a non-thinking *.jinja")

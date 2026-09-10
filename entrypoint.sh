@@ -183,7 +183,7 @@ trap 'rc=$?; echo ""; log "Exited with code $rc after ${SECONDS}s"; log "Log fil
 
 # ---- Banner ---- #
 log "================================================================="
-log "    Running LMM for Information Extraction"
+log "    Image-Quality Screen — InternVL3.5-8B"
 log "================================================================="
 log ""
 

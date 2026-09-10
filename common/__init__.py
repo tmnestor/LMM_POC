@@ -1,4 +1,4 @@
-"""Common utilities for vision model evaluation."""
+"""Shared building blocks for the image-quality screen."""
 
 from .pipeline_config import (
     PipelineConfig,

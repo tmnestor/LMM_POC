@@ -1,7 +1,8 @@
-"""Pipeline configuration system for InternVL3.5-8B document extraction.
+"""Pipeline configuration: the dataclass, the YAML reader, and its validators.
 
-Provides configuration loading, merging, and validation without
-framework dependencies (no typer, rich, or torch at module level).
+Deliberately free of framework dependencies -- no typer, rich or torch at
+module level -- so that the entrypoint's YAML resolver and the CPU-only
+evaluate pod can both import it without dragging in a model stack.
 """
 
 from dataclasses import dataclass, field

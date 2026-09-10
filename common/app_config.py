@@ -1,7 +1,9 @@
 """Unified application configuration.
 
-Single entry point (AppConfig.load) replaces the 7-step config dance
-in cli.py and eliminates mutable module globals.
+`AppConfig.load` is the single entry point: it reads run_config.yml, merges
+CLI overrides over it, and validates every section before any work begins.
+There are no mutable module globals and no Python-side defaults -- a missing
+key fails at startup rather than resolving to a constant.
 """
 
 from __future__ import annotations

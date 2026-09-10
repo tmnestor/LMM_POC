@@ -1,14 +1,15 @@
-"""KFP pipeline stages with file-based artifact handoff.
+"""KFP pipeline stages, handing off through a file.
 
-Each stage is an independent executable step:
-    classify      -> classifications.jsonl
-    extract       -> raw_extractions.jsonl
-    clean         -> cleaned_extractions.jsonl
-    evaluate      -> evaluation_results.jsonl + reports
+Two stages, each an independently executable step:
 
-Trust distribution pipeline:
-    trust_classify -> trust_classifications.jsonl + trust_quads.csv (GPU)
-    trust_extract  -> raw_extractions.jsonl       (GPU)
-    trust_clean    -> trust_compliance_results.jsonl (CPU)
-    trust_evaluate -> trust_evaluation_results.jsonl (CPU)
+    quality_screen           -> quality_screen.jsonl          (GPU)
+    evaluate_quality_screen  -> quality_screen_report.json    (CPU)
+
+They are separate because they want opposite hardware: the manifest gives the
+screen every available GPU and the scorer none. The handoff is a file rather
+than a call for the same reason -- the two never share a process.
+
+There is no `clean` stage between them. `clean` normalised free-text field
+values before comparison; the screen's answers are fixed tokens, so there is
+nothing to normalise.
 """
