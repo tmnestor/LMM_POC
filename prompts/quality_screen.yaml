@@ -1029,6 +1029,100 @@ prompts:
       6. SPECKLE:
       7. OVERALL:
       8. COMPOSITION:
+
+  # =======================================================================
+  # v15 -- v14's uniform polarity at a LOW reporting threshold.
+  # =======================================================================
+  # v13 and v14 are the two ends of one dial, and neither question was
+  # measuring the picture:
+  #
+  #   v13  "Is every word PERFECTLY sharp?"        BLUR flagged 330 of 330
+  #   v14  "Is any of the writing blurred?"        BLUR flagged   9 of 330
+  #
+  # Same corpus, same model, same tiles. What moved was the threshold implied
+  # by the phrasing -- maximum sensitivity in v13, minimum in v14. v13 scored
+  # recall 1.000 / precision 0.597 on BLUR; v14 scored 0.046 / 1.000.
+  #
+  # v15 keeps everything v14 got right and changes only the threshold. The six
+  # questions stay defect-phrased and BYTE-IDENTICAL to v14, so YES still
+  # always means "something is wrong" -- that is what makes the answer sheet
+  # coherent for OVERALL to summarise, and what makes the scorer's polarity map
+  # a formality rather than a thing that inverts a report when it is wrong.
+  # Only the instruction above them moves:
+  #
+  #   v14  Answer YES if you can see the problem. Answer NO if you cannot.
+  #   v15  Answer YES if you can see it at all, even slightly or in only one
+  #        part of the picture. Answer NO only if the picture is completely
+  #        free of it.
+  #
+  # WHY THE THRESHOLD IS SET LOW RATHER THAN IN THE MIDDLE. v14's per-criterion
+  # numbers improved while its severity COLLAPSED, 85.5% to 51.2%: reporting
+  # almost no defects left OVERALL with nothing to summarise, and it rated 28
+  # heavily degraded receipts GOOD. The criteria are scaffolding -- their job is
+  # to make the model look before it judges, not to be individually accurate.
+  # Erring towards reporting keeps them doing that job.
+  #
+  # It also matches what a screen is for. A false positive costs a second
+  # look; a false negative ships an unreadable receipt into extraction.
+  #
+  # WHAT TO EXPECT. Per-criterion recall well above v14's 0.05-0.12 and
+  # precision well below its 1.000, both landing between the two runs. The
+  # number that decides whether v15 replaces v13 is not in that table: it is
+  # the binary screen decision, where v13 holds recall 0.950 at precision
+  # 0.995, and the severity accuracy, where v13 holds 85.5%.
+  #
+  # If v15 lands between v13 and v14 on severity, the dial is real and
+  # calibratable. If it lands at v14 again, the phrasing mattered more than the
+  # threshold and this line of tuning is done.
+  quality_screen_v15:
+    name: "quality_screen_v15"
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [GOOD, FAIR, POOR]
+    composition_levels: [SINGLE, MULTIPLE]
+    condition_to_level:
+      clean: GOOD
+      moderate: FAIR
+      heavy: POOR
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      Questions 1 to 6 each ask whether something is wrong with the picture.
+      Answer each one with the single word YES or NO.
+      Answer YES if you can see it at all, even slightly or in only one part
+      of the picture. Answer NO only if the picture is completely free of it.
+
+      1. BLUR: Is any of the writing blurred or out of focus?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy or broken up?
+      5. TILT: Is the paper noticeably turned or crooked in the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy?
+      7. OVERALL: Rate the whole picture as GOOD, FAIR or POOR.
+         GOOD means you found nothing wrong with it at all.
+         FAIR means you found something wrong but the receipt is still easy to use.
+         POOR means several things are wrong with it.
+      8. COMPOSITION: Answer SINGLE or MULTIPLE.
+         SINGLE means the picture shows one receipt or invoice.
+         MULTIPLE means the picture shows two or more of them, laid out
+         side by side, in a pile, or overlapping.
+         One receipt printed across more than one sheet of paper still counts
+         as SINGLE.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+      8. COMPOSITION:
   quality_screen_v5:
     name: "quality_screen_v5"
     # Uniform polarity: true for all six, because YES always means the defect
