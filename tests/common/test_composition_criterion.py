@@ -138,7 +138,7 @@ class TestScoring:
         from common.quality_screen_parser import QualityResponse
 
         responses = {"a.png": QualityResponse({}, "GOOD", False, composition="SINGLE")}
-        truths = [{"image_name": "a.png", "condition": "clean"}]
+        truths = [{"filename": "a.png", "condition": "clean"}]
 
         assert score_composition(responses, truths) is None
 
@@ -151,8 +151,8 @@ class TestScoring:
             "b.png": QualityResponse({}, "GOOD", False, composition="SINGLE"),
         }
         truths = [
-            {"image_name": "a.png", "composition": "SINGLE"},
-            {"image_name": "b.png", "composition": "MULTIPLE"},
+            {"filename": "a.png", "composition": "SINGLE"},
+            {"filename": "b.png", "composition": "MULTIPLE"},
         ]
 
         score = score_composition(responses, truths)
@@ -169,7 +169,7 @@ class TestScoring:
         from common.quality_screen_parser import QualityResponse
 
         responses = {"a.png": QualityResponse(None, None, True, composition=None)}
-        truths = [{"image_name": "a.png", "composition": "MULTIPLE"}]
+        truths = [{"filename": "a.png", "composition": "MULTIPLE"}]
 
         score = score_composition(responses, truths)
 
@@ -232,3 +232,25 @@ class TestReport:
 
         assert "OVERALL severity" in text
         assert text.index("OVERALL severity") < text.index("COMPOSITION")
+
+
+def test_the_scorer_reads_the_key_the_corpus_actually_writes():
+    """Both scorers must use the key Synthetic_Doc_Generation writes.
+
+    The generator writes `filename`. score_composition was written against
+    `image_name`, which no record carries -- so every lookup missed, every
+    response resolved to None, and the function scored zero while raising
+    nothing. A silent miss, in the code whose whole job is to report an honest
+    number. The unit tests passed because they built their own truths using
+    the same wrong key.
+    """
+    import json
+
+    corpus = Path("../evaluation_data/quality_20260909/quality_ground_truth.jsonl")
+    if not corpus.exists():
+        pytest.skip(f"corpus not generated at {corpus}")
+
+    record = json.loads(corpus.read_text().splitlines()[0])
+
+    assert "filename" in record, "the generator renamed its key; both scorers must follow"
+    assert "image_name" not in record

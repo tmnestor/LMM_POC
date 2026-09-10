@@ -311,7 +311,7 @@ def score_composition(responses: dict[str, QualityResponse], truths: list[dict])
     correct = 0
     scored = 0
     for truth in labelled:
-        response = responses.get(truth["image_name"])
+        response = responses.get(truth["filename"])
         if response is None or response.malformed or response.composition is None:
             continue
         scored += 1
