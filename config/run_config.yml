@@ -219,8 +219,6 @@ pipeline:
       # comparing variants is what this branch is for, and a shared dir means
       # the second run's report silently describes the first run's records.
       dir: ../evaluation_data/quality_20260909/output
-      skip_visualizations: false  # Skip visualization generation
-      skip_reports: false         # Skip report generation
 
   # ------------------------------------------------------------------------
   # Image-quality screen (KFP_TASK=classify)

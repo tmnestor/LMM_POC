@@ -24,6 +24,7 @@ def quality_screen_worker(
     cli_overrides: dict[str, Any],
     variant: str | None = None,
     tile_extra: dict[str, Any] | None = None,
+    screened_at: str | None = None,
 ) -> list[dict[str, Any]]:
     """Worker: build vLLM engine + processor, screen each image's quality.
 
@@ -102,6 +103,10 @@ def quality_screen_worker(
             # to the next run's resume check, which would then rescreen the
             # whole corpus -- silently, and every time.
             tiling=tile_extra,
+            # Threaded from the parent, not generated here: each worker starting
+            # its own clock would stamp one run with several timestamps and make
+            # a single sharded run look like several resumed ones.
+            screened_at=screened_at,
         )
         elapsed = time.time() - started
 

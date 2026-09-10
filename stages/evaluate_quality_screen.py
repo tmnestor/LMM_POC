@@ -99,6 +99,31 @@ def variant_of_run(path: Path) -> str | None:
     return None
 
 
+def screening_runs(path: Path) -> list[str]:
+    """The distinct screening runs whose records are in this file.
+
+    A resumed file is built by several runs, and the report otherwise cannot
+    say so: `330 scored / missing 0` is what a SUCCESSFUL resume produces --
+    30 carried plus 300 new -- and also what a full rescreen produces. Reading
+    the total alone, the two are indistinguishable, which is exactly how a
+    resume that worked gets reported as one that did not.
+
+    Args:
+        path: The quality_screen.jsonl written by the classify stage.
+
+    Returns:
+        Sorted timestamps, one per run that contributed records. Empty for a
+        file written before runs were stamped.
+    """
+    stamps = set()
+    for line in path.read_text().splitlines():
+        if line.strip():
+            stamp = json.loads(line).get("screened_at")
+            if stamp:
+                stamps.add(stamp)
+    return sorted(stamps)
+
+
 def _criterion_dict(criterion) -> dict:
     """One criterion's counts and rates, `None` where a rate is undefined."""
     return {
@@ -171,6 +196,18 @@ def format_report(report: dict) -> str:
         f"malformed {counts['malformed']}   missing {counts['missing']}   "
         f"reasoning drift {counts['think_drift']}",
     ]
+    runs = report.get("screening_runs") or []
+    if len(runs) > 1:
+        # Said before the numbers, because "scored 330" reads as one run and a
+        # resumed file is several. Without this the only way to tell a working
+        # resume from a full rescreen is to go and read the classify log.
+        lines.append(
+            f"NOTE: these records were screened across {len(runs)} runs "
+            f"({runs[0]} .. {runs[-1]}) -- the classify stage resumed rather than "
+            f"rescreening. Same prompt and tile budget throughout; a change in "
+            f"either would have forced a full rescreen."
+        )
+
     if counts["malformed"] or counts["missing"]:
         unscored = counts["malformed"] + counts["missing"]
         share = 100.0 * unscored / counts["total"] if counts["total"] else 0.0
@@ -278,6 +315,7 @@ def run(
     )
     report = build_report(score, responses)
     report["variant"] = resolved_variant
+    report["screening_runs"] = screening_runs(screen_path)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "quality_screen_report.json"

@@ -331,6 +331,9 @@ _print_task_help() {
   log "  Sandbox / local task (one box, both stages, NOT in the KFP manifest):"
   log "    screen     — classify then evaluate, in a single shell"
   log ""
+  log "  Preflight (no GPU, no work, exits 0):"
+  log "    check      — print the resolved configuration and stop"
+  log ""
   log "  There is no clean stage between them. The screen's answers are fixed"
   log "  tokens, so there is nothing to normalise."
   log ""
@@ -684,6 +687,26 @@ case "${KFP_TASK:-}" in
   # what the sandbox exercises is what production runs -- not a second
   # spelling of it that can drift.
   # ========================================================================
+  check)
+    # Preflight. Prints the resolved configuration and exits 0, touching no
+    # GPU and writing nothing but its own log.
+    #
+    # It exists because "what will this run against?" had no answer that was
+    # not spelled FATAL: the natural way to ask -- running entrypoint.sh with
+    # no task -- is indistinguishable from a misconfigured pod, so it exits 1.
+    # Everything worth seeing has already been logged above by the time
+    # dispatch is reached, so this branch adds nothing but a successful exit.
+    _banner "check — resolved configuration only, nothing was run"
+    log "Config file:  ${CONFIG_FILE}"
+    log "Image dir:    ${image_dir:-<not set>}"
+    log "Ground truth: ${ground_truth:-<not set>}"
+    log "Output dir:   ${output:-<not set>}"
+    log "Log dir:      ${LOG_DIR}"
+    log ""
+    log "Paths are read from ${CONFIG_FILE} unless overridden by env. Set KFP_TASK"
+    log "to one of classify / evaluate / screen to actually run something."
+    ;;
+
   screen)
     # Check evaluate's input BEFORE the GPU run, not after it. Both stages
     # take their required paths from env, and evaluate's `${ground_truth:?}`
@@ -707,9 +730,20 @@ case "${KFP_TASK:-}" in
     ;;
 
   "")
-    log "FATAL: KFP_TASK is not set. This script must be run by the KFP pipeline."
-    log "  For local dev, set KFP_TASK explicitly:"
-    log "  KFP_TASK=classify image_dir=<dir> output=<dir> bash entrypoint.sh"
+    log "FATAL: KFP_TASK is not set — this run does not know which stage to perform."
+    log ""
+    log "  KFP_TASK is NOT a run_config.yml setting, and cannot be. It names which"
+    log "  of the stages below THIS pod runs, and both pods read the same"
+    log "  run_config.yml — so a value in the YAML would make the classify pod and"
+    log "  the evaluate pod do the same work. It comes from the pod's environment,"
+    log "  set per-pod by the KFP manifest."
+    log ""
+    log "  Everything else above resolved correctly; only the stage is missing."
+    log "  There is no default: guessing would mean a misconfigured pod finishing"
+    log "  successfully having done something other than what was asked."
+    log ""
+    log "  To see the resolved configuration without running anything:"
+    log "    KFP_TASK=check bash entrypoint.sh"
     log ""
     _print_task_help
     exit 1

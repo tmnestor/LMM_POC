@@ -44,10 +44,7 @@ def test_loads_input_output_from_information_extraction(tmp_path):
         "      ground_truth: ../data/gt.csv\n"
         "      max_images: 5\n"
         "      document_types: [INVOICE, RECEIPT]\n"
-        "    output:\n"
-        "      dir: ../out\n"
-        "      skip_visualizations: true\n"
-        "      skip_reports: false\n",
+        "    output:\n      dir: ../out\n",
     )
     flat, _raw = load_yaml_config(cfg)
     assert flat["data_dir"] == "../data"
@@ -55,8 +52,6 @@ def test_loads_input_output_from_information_extraction(tmp_path):
     assert flat["max_images"] == 5
     assert flat["document_types"] == ["INVOICE", "RECEIPT"]
     assert flat["output_dir"] == "../out"
-    assert flat["skip_visualizations"] is True
-    assert flat["skip_reports"] is False
 
 
 def test_legacy_io_block_fails_fast(tmp_path, assert_diagnostic_error):

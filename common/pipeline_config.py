@@ -144,8 +144,6 @@ class PipelineConfig:
     data_parallel_size: int | None = None  # None = auto (num_gpus for vLLM, ignored for HF)
 
     # Output options
-    skip_visualizations: bool = False
-    skip_reports: bool = False
     # verbose: Tier B output (init details, batch auto-detect, generation config,
     # per-image field counts). Default False — per-image progress is emitted as
     # logger.info at the stage level regardless of this flag.
@@ -493,13 +491,11 @@ def load_yaml_config(
     if output_cfg:
         _require_section_keys(
             output_cfg,
-            ["dir", "skip_visualizations", "skip_reports"],
+            ["dir"],
             "pipeline.information_extraction.output",
             config_path,
         )
         flat_config["output_dir"] = output_cfg.get("dir")
-        flat_config["skip_visualizations"] = output_cfg.get("skip_visualizations")
-        flat_config["skip_reports"] = output_cfg.get("skip_reports")
 
     processing_cfg = raw_config.get("pipeline", {}).get("processing", {})
     if processing_cfg:

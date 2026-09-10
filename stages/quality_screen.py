@@ -20,6 +20,7 @@ is testable on CPU. What that bookkeeping owes the run:
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ def run_quality_screen(
     vocabulary: ScreenVocabulary,
     variant: str | None = None,
     tiling: dict | None = None,
+    screened_at: str | None = None,
 ) -> list[dict]:
     """Screen every image and return one record each.
 
@@ -69,6 +71,10 @@ def run_quality_screen(
             described as damaged and being described as being in good
             condition, so records made at two budgets are not one run -- and
             resume needs to be able to tell.
+        screened_at: When this run started, stamped so a resumed file can say
+            how many runs it took to build. Not part of the resume settings
+            check -- differing timestamps are the normal case for a resumed
+            file, and are exactly what makes it worth reporting.
 
     Returns:
         One record per image, in input order.
@@ -108,6 +114,7 @@ def run_quality_screen(
                 "image_name": Path(path).name,
                 "variant": variant,
                 "tiling": dict(tiling) if tiling else None,
+                "screened_at": screened_at,
                 "answers": result.answers,
                 "overall": result.overall,
                 "malformed": result.malformed,
@@ -264,6 +271,11 @@ def partition_for_resume(
         everything is the correct answer whenever the settings have moved.
     """
     if not existing:
+        # Said out loud. This is the branch taken when the output file is
+        # absent or empty, and it is the one where "why did it rescreen
+        # everything?" is hardest to answer -- silence here leaves no way to
+        # tell it apart from a settings mismatch, or from resume being broken.
+        logger.info("No existing records at the output path; screening all %d image(s).", len(images))
         return images, []
 
     stale = [
@@ -433,6 +445,7 @@ def run(
         variant=resolved_variant,
         tiling=tile_extra,
     )
+    screened_at = datetime.now().isoformat(timespec="seconds")
 
     if not to_screen:
         # Still rewrite: the corpus may have SHRUNK, and `kept` has already had
@@ -440,7 +453,7 @@ def run(
         # would leave those rows in the file for evaluate to score.
         logger.info("Nothing new to screen; %d existing record(s) are up to date.", len(kept))
         written = write_screen_records(_ordered(kept), output_path)
-        _log_screen_summary(kept, written)
+        _log_screen_summary(kept, written, carried=len(kept))
         return written
 
     logger.info("Screening %d images with %s", len(to_screen), resolved_variant)
@@ -470,12 +483,13 @@ def run(
                     "cli_overrides": cli_args,
                     "variant": resolved_variant,
                     "tile_extra": tile_extra,
+                    "screened_at": screened_at,
                 },
                 app_config=app_cfg,
             )
             merged = _ordered(kept + dp_records)
             written = write_screen_records(merged, output_path)
-            _log_screen_summary(merged, written)
+            _log_screen_summary(merged, written, carried=len(kept))
             return written
 
     # -- Single-GPU / HF path -------------------------------------------------
@@ -502,13 +516,14 @@ def run(
             vocabulary=vocabulary,
             variant=resolved_variant,
             tiling=tile_extra,
+            screened_at=screened_at,
         )
     finally:
         model_cm.__exit__(None, None, None)
 
     merged = _ordered(kept + records)
     written = write_screen_records(merged, output_path)
-    _log_screen_summary(merged, written)
+    _log_screen_summary(merged, written, carried=len(kept))
     return written
 
 
@@ -523,21 +538,42 @@ def _ordered(records: list[dict]) -> list[dict]:
     return sorted(records, key=lambda record: record["image_name"].lower())
 
 
-def _log_screen_summary(records: list[dict], written: Path) -> None:
+def _log_screen_summary(records: list[dict], written: Path, *, carried: int = 0) -> None:
     """Report what the run produced, on either path.
 
     Shared by the DP and single-GPU paths so a run's summary does not depend
     on how it was sharded.
+
+    Args:
+        records: Everything now in the output file.
+        written: Where it was written.
+        carried: How many of those came from an earlier run rather than this
+            one. Reported because the total alone cannot distinguish a
+            successful resume from a full rescreen -- both end with the same
+            number of records, and reading only the total, a resume that
+            worked looks exactly like a resume that did not.
     """
     malformed = sum(1 for record in records if record["malformed"])
     drifted = sum(1 for record in records if record["think_drift"])
-    logger.info(
-        "Screened %d images: %d malformed, %d with reasoning drift -> %s",
-        len(records),
-        malformed,
-        drifted,
-        written,
-    )
+    if carried:
+        logger.info(
+            "%d records in %s: %d carried over from an earlier run, %d screened now "
+            "(%d malformed, %d with reasoning drift).",
+            len(records),
+            written,
+            carried,
+            len(records) - carried,
+            malformed,
+            drifted,
+        )
+    else:
+        logger.info(
+            "Screened %d images: %d malformed, %d with reasoning drift -> %s",
+            len(records),
+            malformed,
+            drifted,
+            written,
+        )
     if malformed:
         # Loud, because a high malformed rate invalidates the run's scores and
         # is invisible in the per-criterion numbers themselves.
