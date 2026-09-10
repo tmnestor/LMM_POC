@@ -67,30 +67,3 @@ class ModelBackend(Protocol):
             and ``hit_ratio``.
         """
         ...
-
-
-@runtime_checkable
-class BatchInference(Protocol):
-    """Optional interface for backends that support batched inference.
-
-    Implementing this enables the orchestrator to batch detection
-    and extraction calls for higher GPU utilization.
-    """
-
-    def generate_batch(
-        self,
-        images: list[Image.Image],
-        prompts: list[str],
-        params: GenerationParams,
-    ) -> list[str]:
-        """Run batched inference on multiple images.
-
-        Args:
-            images: List of PIL Images.
-            prompts: List of text prompts (one per image).
-            params: Generation hyper-parameters (same for all).
-
-        Returns:
-            List of raw model response strings (one per image).
-        """
-        ...

@@ -97,6 +97,11 @@ def quality_screen_worker(
             ),
             vocabulary=vocabulary,
             variant=resolved_variant,
+            # Stamped here as well as on the single-GPU path. A DP run whose
+            # records carried no tile budget would look like a settings change
+            # to the next run's resume check, which would then rescreen the
+            # whole corpus -- silently, and every time.
+            tiling=tile_extra,
         )
         elapsed = time.time() - started
 

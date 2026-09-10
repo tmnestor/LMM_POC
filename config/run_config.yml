@@ -309,12 +309,11 @@ pipeline:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
 
   # Processing options
+  # Output verbosity. Two levels, both off by default -- per-image progress is
+  # logged by the stage regardless of either.
   processing:
-    batch_size: null             # Images per batch (null = auto-detect from VRAM, 1 = sequential)
-    bank_v2: true              # Use V2 bank statement extraction
-    balance_correction: false  # Disable balance validation (reduces accuracy)
-    verbose: false             # Tier B: init/config details (auto-batch, gen-config, processing X, field counts)
-    debug: false               # Tier C: dev noise (PARSING DEBUG, CONFIG DEBUG, TENSOR_DTYPE, prompt/response dumps)
+    verbose: false             # Tier B: init/config details (gen-config, field counts)
+    debug: false               # Tier C: dev noise (prompt/response dumps, tracebacks)
 
   # Named token budgets — single source of truth for all max_tokens values.
   # Workflow YAML nodes reference these by name via `token_budget: <name>`.
@@ -340,24 +339,8 @@ pipeline:
     fallback_base: 512
     fallback_per_field: 64
 
-  # Batch processing tuning
-  batch:
-    default_sizes: {internvl3: 4}
-    max_sizes: {internvl3: 8}
-    conservative_sizes: {internvl3: 1}
-    min_size: 1
-    strategy: balanced            # conservative | balanced | aggressive
-    auto_detect: true
-
 # Resources — GPU memory thresholds and infrastructure timeouts.
 resources:
-  # GPU memory thresholds (GB) — drive auto-batch-size selection.
-  gpu_memory:
-    low: 8                      # GB — conservative batching
-    medium: 16                  # GB — balanced batching
-    high: 24                    # GB — aggressive batching
-    very_high: 64               # GB — maximum batching
-
   # Infrastructure settings — timeouts, memory thresholds
   infrastructure:
     # No dp_timeout: data-parallel workers run until they finish or die (run_dp

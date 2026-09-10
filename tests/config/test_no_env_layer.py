@@ -22,7 +22,7 @@ class TestEnvLayerRemoved:
     def test_ivl_env_vars_have_no_effect(self, monkeypatch) -> None:
         monkeypatch.setenv("IVL_MAX_TILES", "99")
         monkeypatch.setenv("IVL_MODEL_TYPE", "internvl3-38b-vllm")
-        monkeypatch.setenv("IVL_BANK_V2", "false")
+        monkeypatch.setenv("IVL_VERBOSE", "true")
         config = merge_configs(
             cli_args={},
             yaml_config={
@@ -30,12 +30,12 @@ class TestEnvLayerRemoved:
                 "output_dir": "/tmp/out",
                 "max_tiles": 18,
                 "model_type": "internvl3-vllm",
-                "bank_v2": True,
+                "verbose": False,
             },
         )
         assert config.max_tiles == 18
         assert config.model_type == "internvl3-vllm"
-        assert config.bank_v2 is True
+        assert config.verbose is False
 
     def test_cli_still_beats_yaml(self) -> None:
         config = merge_configs(

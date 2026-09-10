@@ -51,6 +51,7 @@ def run_quality_screen(
     infer: InferenceFn,
     vocabulary: ScreenVocabulary,
     variant: str | None = None,
+    tiling: dict | None = None,
 ) -> list[dict]:
     """Screen every image and return one record each.
 
@@ -63,6 +64,11 @@ def run_quality_screen(
             config, and a run screened with one prompt can be scored against
             another's criteria and polarity -- which fails loudly on a
             criteria mismatch and silently on a polarity one.
+        tiling: The tile budget these answers were produced at, stamped for the
+            same reason. It is the difference between a heavy receipt being
+            described as damaged and being described as being in good
+            condition, so records made at two budgets are not one run -- and
+            resume needs to be able to tell.
 
     Returns:
         One record per image, in input order.
@@ -101,6 +107,7 @@ def run_quality_screen(
                 "image_path": path,
                 "image_name": Path(path).name,
                 "variant": variant,
+                "tiling": dict(tiling) if tiling else None,
                 "answers": result.answers,
                 "overall": result.overall,
                 "malformed": result.malformed,
@@ -183,6 +190,119 @@ def select_images(
     return images
 
 
+def load_existing_records(output_path: Path) -> list[dict]:
+    """Read the records a previous run left, if any.
+
+    A file that exists but cannot be parsed is NOT treated as "no records".
+    Returning an empty list there would silently rescreen everything, which is
+    the waste this function exists to avoid, and would do it quietly.
+
+    Args:
+        output_path: The JSONL the previous run wrote.
+
+    Returns:
+        The records, or an empty list when the file does not exist.
+
+    Raises:
+        ValueError: The file exists but holds a line that is not valid JSON.
+    """
+    if not output_path.exists():
+        return []
+
+    records = []
+    for number, line in enumerate(output_path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError as err:
+            raise ValueError(
+                f"Cannot resume: {output_path} is not readable as JSONL.\n"
+                f"  What:        line {number} is not valid JSON ({err.msg}).\n"
+                f"  Where:       {output_path}\n"
+                f"  Expected:    one JSON object per line, as the previous run wrote.\n"
+                f"  How to fix:  delete the file to rescreen from scratch (set "
+                f"CLEAR_PREV_OUTPUT=true), or repair the damaged line if the rest "
+                f"of the run is worth keeping."
+            ) from None
+    return records
+
+
+def partition_for_resume(
+    images: list[Path],
+    existing: list[dict],
+    *,
+    variant: str,
+    tiling: dict,
+) -> tuple[list[Path], list[dict]]:
+    """Split the corpus into what still needs screening and what does not.
+
+    Resume exists because this runs as a pipeline: images arrive over time and
+    a re-run should cost only the new arrivals. Rescreening the whole directory
+    every time is waste that grows with the corpus.
+
+    What makes it safe is that a kept record must have been produced by the
+    SAME prompt variant at the SAME tile budget. Both change the answers:
+    variants differ in polarity and in what they ask, and the tile floor is the
+    difference between a heavy receipt reading as damaged and reading as fine.
+    A file holding some v11 answers and some v12 answers is not a run, and
+    nothing downstream could tell -- evaluate would score the mixture and
+    report an ordinary-looking number.
+
+    So a settings change is not a partial resume. It discards the lot and
+    rescreens, loudly, because a half-and-half file is worse than the cost of
+    doing the work again.
+
+    Args:
+        images: Every image the corpus currently holds.
+        existing: Records from `load_existing_records`.
+        variant: The prompt variant this run will use.
+        tiling: The tile budget this run will use.
+
+    Returns:
+        `(images to screen, records to keep)`. Keeping nothing and screening
+        everything is the correct answer whenever the settings have moved.
+    """
+    if not existing:
+        return images, []
+
+    stale = [
+        record for record in existing if record.get("variant") != variant or record.get("tiling") != tiling
+    ]
+    if stale:
+        previous = {(record.get("variant"), json.dumps(record.get("tiling"))) for record in existing}
+        logger.warning(
+            "Not resuming: %d of %d existing records were produced with different settings "
+            "(found %s; this run is variant=%s tiling=%s). Rescreening the whole directory -- "
+            "a file mixing two prompts or two tile budgets is not one run, and the report "
+            "cannot tell.",
+            len(stale),
+            len(existing),
+            sorted(previous),
+            variant,
+            tiling,
+        )
+        return images, []
+
+    done = {record["image_name"] for record in existing}
+    to_screen = [image for image in images if image.name not in done]
+
+    # Records for images no longer in the corpus are dropped rather than
+    # carried. Scoring a report against images that are gone would inflate the
+    # denominator with rows nobody can go back and look at.
+    keep = [record for record in existing if record["image_name"] in {i.name for i in images}]
+    dropped = len(existing) - len(keep)
+    if dropped:
+        logger.info("Dropped %d record(s) for images no longer in the corpus.", dropped)
+
+    logger.info(
+        "Resuming: %d already screened, %d new to screen.",
+        len(keep),
+        len(to_screen),
+    )
+    return to_screen, keep
+
+
 def orchestrator_inference(
     orchestrator,
     max_tokens: int,
@@ -234,7 +354,6 @@ def run(
     output_path: Path,
     *,
     model_type: str | None = None,
-    batch_size: int | None = None,
     verbose: bool | None = None,
     config_path: Path | None = None,
     variant: str | None = None,
@@ -248,7 +367,6 @@ def run(
         image_dir: Directory containing images.
         output_path: Path to write the screen records to.
         model_type: Model type (e.g. "internvl3-vllm").
-        batch_size: Images per batch (None = auto-detect, 1 = sequential).
         verbose: Tier B output. None = read from YAML.
         config_path: Optional path to run_config.yml.
         max_images: Screen only the first N images by filename. None = the
@@ -280,8 +398,6 @@ def run(
         cli_args["model_type"] = model_type
     if verbose is not None:
         cli_args["verbose"] = verbose
-    if batch_size is not None:
-        cli_args["batch_size"] = batch_size
     if max_images is not None:
         cli_args["max_images"] = max_images
 
@@ -307,14 +423,34 @@ def run(
         document_types=config.document_types,
         max_images=config.max_images,
     )
-    logger.info("Screening %d images with %s", len(images), resolved_variant)
+
+    # Resume: this runs as a pipeline, and images arrive over time. A re-run
+    # should cost the new arrivals and nothing else -- rescreening the whole
+    # directory is waste that grows with the corpus, on every run.
+    to_screen, kept = partition_for_resume(
+        images,
+        load_existing_records(output_path),
+        variant=resolved_variant,
+        tiling=tile_extra,
+    )
+
+    if not to_screen:
+        # Still rewrite: the corpus may have SHRUNK, and `kept` has already had
+        # records for absent images dropped. Returning early without writing
+        # would leave those rows in the file for evaluate to score.
+        logger.info("Nothing new to screen; %d existing record(s) are up to date.", len(kept))
+        written = write_screen_records(_ordered(kept), output_path)
+        _log_screen_summary(kept, written)
+        return written
+
+    logger.info("Screening %d images with %s", len(to_screen), resolved_variant)
 
     # -- vLLM data-parallel fast path -----------------------------------------
-    # Same shape as the classify stage: shard the images across GPUs, each
-    # worker building its own TP=1 engine. This is where the throughput comes
-    # from -- no backend in this repo implements `generate_batch`, so
-    # `supports_batch` is false everywhere and every worker runs sequentially
-    # within its shard. Parallelism is across GPUs, not within a call.
+    # Shard the images across GPUs, each worker building its own TP=1 engine.
+    # This is the ONLY source of parallelism: within a worker the images go
+    # through one at a time. There is no batched inference path -- no backend
+    # implements it and the half-built one was removed -- so throughput is
+    # linear in GPU count and nothing else.
     from models.registry import is_vllm_model
 
     if is_vllm_model(config.model_type):
@@ -322,10 +458,12 @@ def run(
 
         resolved_gpus = resolve_gpu_count(config)
         if resolved_gpus > 1:
-            logger.info("vLLM data-parallel: sharding %d images across %d GPUs", len(images), resolved_gpus)
+            logger.info(
+                "vLLM data-parallel: sharding %d images across %d GPUs", len(to_screen), resolved_gpus
+            )
             dp_records = run_dp(
                 num_gpus=resolved_gpus,
-                images=images,
+                images=to_screen,
                 worker_fn=DP_WORKER,
                 worker_kwargs={
                     "config_path": str(config_path) if config_path else None,
@@ -335,8 +473,9 @@ def run(
                 },
                 app_config=app_cfg,
             )
-            written = write_screen_records(dp_records, output_path)
-            _log_screen_summary(dp_records, written)
+            merged = _ordered(kept + dp_records)
+            written = write_screen_records(merged, output_path)
+            _log_screen_summary(merged, written)
             return written
 
     # -- Single-GPU / HF path -------------------------------------------------
@@ -356,19 +495,32 @@ def run(
             app_config=app_cfg,
         )
         records = run_quality_screen(
-            [str(path) for path in images],
+            [str(path) for path in to_screen],
             infer=orchestrator_inference(
                 orchestrator, max_tokens, verbose=config.verbose, tile_extra=tile_extra
             ),
             vocabulary=vocabulary,
             variant=resolved_variant,
+            tiling=tile_extra,
         )
     finally:
         model_cm.__exit__(None, None, None)
 
-    written = write_screen_records(records, output_path)
-    _log_screen_summary(records, written)
+    merged = _ordered(kept + records)
+    written = write_screen_records(merged, output_path)
+    _log_screen_summary(merged, written)
     return written
+
+
+def _ordered(records: list[dict]) -> list[dict]:
+    """Sort records by image name.
+
+    Resume appends new records to old ones, so without this the file's order
+    would record the sequence runs happened in rather than the corpus. Two
+    files holding the same answers would differ line by line, which makes them
+    tedious to diff and makes the order itself meaningless.
+    """
+    return sorted(records, key=lambda record: record["image_name"].lower())
 
 
 def _log_screen_summary(records: list[dict], written: Path) -> None:
@@ -404,7 +556,6 @@ def main(
     image_dir: Path = typer.Option(..., "--data-dir", "-d", help="Directory containing images"),
     output: Path = typer.Option(..., "--output", "-o", help="Path to write quality_screen.jsonl"),
     model: str | None = typer.Option(None, "--model", help="Model type"),
-    batch_size: int | None = typer.Option(None, "--batch-size", help="Images per batch"),
     config: Path | None = typer.Option(None, "--config", help="YAML configuration file"),
     verbose: bool | None = typer.Option(None, "--verbose/--no-verbose", help="Tier B output"),
     variant: str | None = typer.Option(
@@ -426,7 +577,6 @@ def main(
         image_dir,
         output,
         model_type=model,
-        batch_size=batch_size,
         verbose=verbose,
         config_path=config,
         variant=variant,

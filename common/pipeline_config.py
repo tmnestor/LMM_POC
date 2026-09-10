@@ -116,9 +116,6 @@ class PipelineConfig:
     # Processing options
     max_images: int | None = None
     document_types: list[str] | None = None
-    batch_size: int | None = None  # None = auto-detect from VRAM
-    bank_v2: bool = True
-    balance_correction: bool = True
 
     # Model options
     model_type: str = "internvl3-vllm"
@@ -508,13 +505,10 @@ def load_yaml_config(
     if processing_cfg:
         _require_section_keys(
             processing_cfg,
-            ["batch_size", "bank_v2", "balance_correction", "verbose", "debug"],
+            ["verbose", "debug"],
             "pipeline.processing",
             config_path,
         )
-        flat_config["batch_size"] = processing_cfg.get("batch_size")
-        flat_config["bank_v2"] = processing_cfg.get("bank_v2")
-        flat_config["balance_correction"] = processing_cfg.get("balance_correction")
         flat_config["verbose"] = processing_cfg.get("verbose")
         flat_config["debug"] = processing_cfg.get("debug")
 
@@ -698,10 +692,6 @@ def validate_config(config: PipelineConfig) -> list[str]:
     # Validate num_gpus
     if config.num_gpus < 0:
         errors.append(f"Invalid num_gpus: {config.num_gpus}. Must be >= 0 (0 = auto).")
-
-    # Validate batch_size
-    if config.batch_size is not None and config.batch_size < 1:
-        errors.append(f"Invalid batch_size: {config.batch_size}. Must be >= 1.")
 
     # Validate dtype
     valid_dtypes = {"bfloat16", "float16", "float32"}

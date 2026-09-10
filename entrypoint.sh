@@ -106,9 +106,9 @@ CONFIG_FILE="./config/run_config.yml"
 
 # ---- Resolve ALL YAML defaults up front, with the conda env's own python ----
 # A SINGLE PyYAML resolver (scripts/resolve_yaml_defaults.py) supplies every
-# YAML_* variable used below — the log dir and the data/model paths. It still
-# emits keys for the removed flows, harmlessly, until scripts/
-# resolve_yaml_defaults.py is trimmed alongside run_config.yml.
+# YAML_* variable used below — the log dir and the data/model paths. It emits
+# exactly the six names read here and no others; a test asserts that
+# correspondence in both directions.
 # It must run BEFORE the `exec`/`tee` redirect (which needs the log dir),
 # but PyYAML lives only inside the conda env, never in system/base python (the
 # base env genuinely has no `yaml` on DEV/PROD). So we run the resolver with the
@@ -354,13 +354,19 @@ _print_task_help() {
 
 _clear_prev_output() {
   # CLEAR_PREV_OUTPUT=true: delete the listed output artifacts so the stage
-  # recomputes from scratch.  Unset/false (default): no-op — the stage resumes
-  # and skips already-processed images.
+  # rescreens from scratch. Unset/false (default): the classify stage resumes,
+  # screening only images with no record yet.
   #
-  # Why resume-by-default: production drips new images into the image directory
-  # over time, so a re-run should process only the NEW arrivals, not reprocess
-  # the whole directory.  A full clean-slate run is opt-in via
-  # CLEAR_PREV_OUTPUT=true.
+  # Why resume-by-default: this runs as a pipeline and new images arrive over
+  # time, so a re-run should cost the new arrivals and nothing else.
+  # Rescreening the whole directory every time is waste that grows with the
+  # corpus.
+  #
+  # Resume is safe because a kept record must carry the SAME prompt variant and
+  # the SAME tile budget as the run doing the resuming -- both change the
+  # answers, so a file mixing two of either is not one run. When the settings
+  # have moved, the stage discards everything and rescreens by itself, loudly.
+  # That check is in stages/quality_screen.py:partition_for_resume, not here.
   #
   # Only explicit artifact FILES are passed in — never a directory, never a log
   # path — so logs are ALWAYS preserved.
@@ -398,7 +404,7 @@ _read_inference_elapsed() {
 # is how the .inference_elapsed >/>> inconsistency originally crept in).
 #
 # Convention: runners hold ONLY the invocation (+ its required-var diagnostics).
-# Orchestration policy — logging labels, CLEAR_PREV_OUTPUT clearing, elapsed-file
+# Orchestration policy — logging labels, elapsed-file
 # writes — stays in the caller. Runners read globals set by the caller
 # (OPT_MODEL and the OUT_ROOT-derived paths).
 
@@ -459,6 +465,9 @@ _stage_classify() {
   # it; it screens image quality rather than classifying document types.
   _banner "Stage 1: classify — screening image quality (GPU)"
   mkdir -p "$OUT_ROOT"
+  # Deleting quality_screen.jsonl is what forces a full rescreen: with the file
+  # gone the stage has nothing to resume from. The elapsed file goes with it so
+  # evaluate does not report the previous run's GPU seconds.
   _clear_prev_output "$QUALITY_SCREEN" "$INFERENCE_ELAPSED_FILE"
   local classify_start
   classify_start=$(date +%s)
@@ -476,6 +485,8 @@ _stage_evaluate() {
   # would validate a model path this pod cannot see.
   _banner "Stage 2: evaluate — scoring the image-quality screen (CPU)"
   mkdir -p "$EVAL_DIR"
+  # The report is rewritten wholesale every run regardless -- it is derived
+  # from quality_screen.jsonl, so there is nothing in it worth resuming.
   _clear_prev_output "${EVAL_DIR}/quality_screen_report.json"
   _read_inference_elapsed "$INFERENCE_ELAPSED_FILE"
   python3 -m stages.evaluate_quality_screen \
@@ -510,11 +521,13 @@ _default_from_yaml ground_truth             "${YAML_GROUND_TRUTH:-}"
 _default_from_yaml output                   "${YAML_OUTPUT_DIR:-}"
 
 # ---- CLEAR_PREV_OUTPUT toggle (validated at startup, before any work) ---- #
-# Controls whether stages start from a clean slate or resume:
-#   true           → delete previous OUTPUT artifacts (never logs), full recompute
-#   false / unset  → resume: skip already-processed images (production default)
-# Resume is the default because prod drips new images into the image directory
-# over time — a re-run should process only the new arrivals.
+# Controls whether the classify stage starts from a clean slate or resumes:
+#   true           → delete previous OUTPUT artifacts (never logs), rescreen all
+#   false / unset  → resume: screen only images with no record yet (the default)
+#
+# Resume is the default because this is a pipeline — new images arrive over
+# time and a re-run should process only those. See _clear_prev_output above for
+# what makes it safe.
 #
 # Normalize case before validating: an unquoted YAML boolean in the KFP
 # manifest (CLEAR_PREV_OUTPUT: true) is often injected into the container env
@@ -527,12 +540,12 @@ if [[ -z "$CLEAR_PREV_OUTPUT" || "$CLEAR_PREV_OUTPUT" == "none" ]]; then
   CLEAR_PREV_OUTPUT="false"
 fi
 case "$CLEAR_PREV_OUTPUT" in
-  true)  log "CLEAR_PREV_OUTPUT=true — stages will DELETE previous output artifacts (logs preserved) and recompute." ;;
-  false) log "CLEAR_PREV_OUTPUT=false — stages will RESUME (already-processed images are skipped)." ;;
+  true)  log "CLEAR_PREV_OUTPUT=true — previous output artifacts are DELETED (logs preserved); every image is rescreened." ;;
+  false) log "CLEAR_PREV_OUTPUT=false — resuming: only images with no record yet are screened." ;;
   *)
     log "FATAL: CLEAR_PREV_OUTPUT must be 'true' or 'false' (got '${CLEAR_PREV_OUTPUT}')."
     log "  Where: CLEAR_PREV_OUTPUT environment variable (KFP input_param or shell export)."
-    log "  Fix:   set CLEAR_PREV_OUTPUT=true for a clean-slate re-run, or leave it unset/false to resume."
+    log "  Fix:   set CLEAR_PREV_OUTPUT=true to rescreen everything, or leave it unset/false to resume."
     exit 1
     ;;
 esac
@@ -577,7 +590,7 @@ log "  image_dir:      ${image_dir:-<not set>}"
 log "  output:         ${output:-<not set>}"
 log "  num_gpus:       ${num_gpus:-<not set>}"
 log "  ground_truth:   ${ground_truth:-<not set>}"
-log "  clear_prev_out: ${CLEAR_PREV_OUTPUT} (true=delete prev outputs/recompute, false=resume)"
+log "  clear_prev_out: ${CLEAR_PREV_OUTPUT} (true=rescreen everything, false=resume)"
 # metadata, system_message, and prompt are KFP input_params reserved for
 # future use. They are logged here for visibility but not yet translated
 # into CLI_ARGS — cli.py does not currently consume them.

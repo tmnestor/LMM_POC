@@ -7,7 +7,6 @@ in cli.py and eliminates mutable module globals.
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -23,82 +22,6 @@ class ConfigError(Exception):
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
         super().__init__("; ".join(errors))
-
-
-@dataclass(frozen=True)
-class BatchSettings:
-    """Typed replacement for the 13 mutable batch/GPU globals in model_config.py."""
-
-    default_sizes: dict[str, int]
-    max_sizes: dict[str, int]
-    conservative_sizes: dict[str, int]
-    min_size: int = 1
-    strategy: str = "balanced"
-    auto_detect: bool = True
-    memory_safety_margin: float = 0.8
-    clear_cache_after_batch: bool = True
-    timeout_seconds: int = 300
-    fallback_enabled: bool = True
-    fallback_steps: tuple[int, ...] = (8, 4, 2, 1)
-    gpu_memory_thresholds: dict[str, int] = field(
-        default_factory=lambda: {"low": 8, "medium": 16, "high": 24, "very_high": 64}
-    )
-
-    # Schema documentation only. Runtime values come from run_config.yml.
-    _DEFAULT_SIZES: ClassVar[dict[str, int]] = {
-        "internvl3": 4,
-    }
-    _MAX_SIZES: ClassVar[dict[str, int]] = {
-        "internvl3": 8,
-    }
-    _CONSERVATIVE_SIZES: ClassVar[dict[str, int]] = {
-        "internvl3": 1,
-    }
-
-    @classmethod
-    def from_raw(cls, raw_config: dict) -> BatchSettings:
-        """Build from raw YAML config (replaces apply_yaml_overrides batch/gpu sections)."""
-        default_sizes = dict(cls._DEFAULT_SIZES)
-        max_sizes = dict(cls._MAX_SIZES)
-        conservative_sizes = dict(cls._CONSERVATIVE_SIZES)
-        kwargs: dict[str, Any] = {}
-
-        batch = raw_config.get("pipeline", {}).get("batch", {})
-        if batch:
-            if "default_sizes" in batch:
-                default_sizes.update(batch["default_sizes"])
-            if "max_sizes" in batch:
-                max_sizes.update(batch["max_sizes"])
-            if "conservative_sizes" in batch:
-                conservative_sizes.update(batch["conservative_sizes"])
-            for key in (
-                "min_size",
-                "strategy",
-                "auto_detect",
-                "memory_safety_margin",
-                "clear_cache_after_batch",
-                "timeout_seconds",
-                "fallback_enabled",
-            ):
-                if key in batch:
-                    kwargs[key] = batch[key]
-            if "fallback_steps" in batch:
-                kwargs["fallback_steps"] = tuple(batch["fallback_steps"])
-
-        # GPU memory thresholds
-        thresholds = {"low": 8, "medium": 16, "high": 24, "very_high": 64}
-        resources = raw_config.get("resources", {})
-        mem_thresholds = resources.get("gpu_memory", {})
-        if mem_thresholds:
-            thresholds.update(mem_thresholds)
-        kwargs["gpu_memory_thresholds"] = thresholds
-
-        return cls(
-            default_sizes=default_sizes,
-            max_sizes=max_sizes,
-            conservative_sizes=conservative_sizes,
-            **kwargs,
-        )
 
 
 def _validate_model_override_keys(
@@ -211,7 +134,6 @@ class AppConfig:
 
     __slots__ = (
         "pipeline",
-        "batch",
         "fields",
         "_generation_registry",
         "_token_limits",
@@ -241,7 +163,6 @@ class AppConfig:
     def __init__(
         self,
         pipeline: "PipelineConfig",
-        batch: BatchSettings,
         fields: FieldSchema,
         generation_registry: dict[str, dict],
         token_limits: dict[str, int | None] | None = None,
@@ -254,7 +175,6 @@ class AppConfig:
         quality_screen: dict[str, Any] | None = None,
     ) -> None:
         self.pipeline = pipeline
-        self.batch = batch
         self.fields = fields
         self._generation_registry = generation_registry
         self._token_limits = token_limits or {}
@@ -327,9 +247,6 @@ class AppConfig:
         if val_errors:
             raise ConfigError(val_errors)
 
-        # 6. Build BatchSettings (immutable copy of batch/gpu config)
-        batch = BatchSettings.from_raw(raw_config)
-
         # 7. Build generation registry (immutable copy with YAML overrides)
         generation_registry = _build_generation_registry(raw_config)
 
@@ -383,7 +300,6 @@ class AppConfig:
 
         return cls(
             pipeline=pipeline,
-            batch=batch,
             fields=fields,
             generation_registry=generation_registry,
             token_limits=token_limits,
@@ -511,35 +427,6 @@ class AppConfig:
         if defaults is not None:
             return dict(defaults)
         return dict(self._FALLBACK_GENERATION_CONFIG)
-
-    def get_batch_size_for_model(self, model_name: str, strategy: str | None = None) -> int:
-        """Get recommended batch size for a model based on strategy."""
-        strategy = strategy or self.batch.strategy
-        model_name = self._normalize_model_type(model_name)
-
-        if strategy == "conservative":
-            return self.batch.conservative_sizes.get(model_name, self.batch.min_size)
-        elif strategy == "aggressive":
-            return self.batch.max_sizes.get(model_name, self.batch.min_size)
-        else:
-            return self.batch.default_sizes.get(model_name, self.batch.min_size)
-
-    def get_auto_batch_size(self, model_name: str, available_memory_gb: float | None = None) -> int:
-        """Same signature as model_config.get_auto_batch_size()."""
-        if not self.batch.auto_detect or available_memory_gb is None:
-            return self.get_batch_size_for_model(model_name, self.batch.strategy)
-
-        thresholds = self.batch.gpu_memory_thresholds
-        if available_memory_gb >= thresholds["very_high"]:
-            strategy = "aggressive"
-        elif available_memory_gb >= thresholds["high"]:
-            strategy = "aggressive"
-        elif available_memory_gb >= thresholds["medium"]:
-            strategy = "balanced"
-        else:
-            strategy = "conservative"
-
-        return self.get_batch_size_for_model(model_name, strategy)
 
     def get_max_new_tokens(
         self,

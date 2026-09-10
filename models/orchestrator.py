@@ -23,7 +23,7 @@ from common.field_schema import get_field_schema
 from common.pipeline_config import strip_structure_suffixes
 from common.prompt_catalog import PromptCatalog
 from common.response_handler import create_response_handler
-from models.backend import BatchInference, GenerationParams, ModelBackend
+from models.backend import GenerationParams, ModelBackend
 
 if TYPE_CHECKING:
     from common.app_config import AppConfig
@@ -35,12 +35,11 @@ class DocumentOrchestrator:
     Owns all shared logic: detection, classification, prompt resolution,
     extraction, parsing, cleaning, OOM recovery, and batch routing.
 
-    The backend (ModelBackend) provides only raw generate() / generate_batch().
+    The backend (ModelBackend) provides only raw generate().
 
     Attributes:
         model: Underlying model object (delegates to backend).
         tokenizer: Tokenizer / processor (delegates to backend).
-        batch_size: Current batch size for inference.
     """
 
     def __init__(
@@ -53,7 +52,6 @@ class DocumentOrchestrator:
         debug: bool = False,
         verbose: bool = False,
         device: str = "cuda",
-        batch_size: int | None = None,
         model_type_key: str = "internvl3",
         app_config: AppConfig,
         has_oom_recovery: bool = True,
@@ -106,17 +104,12 @@ class DocumentOrchestrator:
             field_definitions if field_definitions is not None else schema.get_all_doc_type_fields()
         )
 
-        # Batch processing
-        self._configure_batch_processing(model_type_key, batch_size)
-
         # Generation config
         self._configure_generation()
 
         if self._verbose:
             print(
-                f"DocumentOrchestrator initialized: "
-                f"{self.field_count} fields, batch_size={self.batch_size}, "
-                f"model_type={model_type_key}"
+                f"DocumentOrchestrator initialized: {self.field_count} fields, model_type={model_type_key}"
             )
 
     # -- Protocol-required attributes ------------------------------------------
@@ -130,27 +123,6 @@ class DocumentOrchestrator:
     def tokenizer(self) -> Any:
         """Tokenizer / processor (for DocumentProcessor protocol)."""
         return self._backend.processor
-
-    @property
-    def supports_batch(self) -> bool:
-        """Whether the backend supports batched inference."""
-        return isinstance(self._backend, BatchInference)
-
-    # -- Batch processing config -----------------------------------------------
-
-    def _configure_batch_processing(self, model_type_key: str, batch_size: int | None) -> None:
-        """Configure batch processing parameters."""
-        if batch_size is not None:
-            self.batch_size = max(1, batch_size)
-            if self._verbose:
-                print(f"Using manual batch size: {self.batch_size}")
-        else:
-            from common.gpu_memory import get_available_memory
-
-            available_memory = get_available_memory(self.device)
-            self.batch_size = self.app_config.get_auto_batch_size(model_type_key, available_memory)
-            if self._verbose:
-                print(f"Auto-detected batch size: {self.batch_size} (GPU Memory: {available_memory:.1f}GB)")
 
     # -- Generation config -----------------------------------------------------
 
@@ -629,60 +601,6 @@ class DocumentOrchestrator:
                 "field_count": active_count,
             }
 
-    # -- Batch methods (used by DocumentPipeline when supports_batch is True) --
-
-    def detect_batch(self, image_paths: list[str], verbose: bool = False) -> list[dict]:
-        """Batch document detection via backend.generate_batch().
-
-        Called by DocumentPipeline only when supports_batch is True.
-        No isinstance check here -- the pipeline handles routing.
-        """
-        if not image_paths:
-            return []
-
-        # Load detection config
-        detection_path = Path(self.prompt_config["detection_file"])
-        detection_key = self.prompt_config["detection_key"]
-
-        with detection_path.open("r") as f:
-            detection_config = yaml.safe_load(f)
-
-        detection_prompt = detection_config["prompts"][detection_key]["prompt"]
-        max_tokens = self.app_config.get_token_budget("classify")
-
-        if verbose:
-            sys.stdout.write(f"Batch detecting {len(image_paths)} images\n")
-            sys.stdout.flush()
-
-        images = [self.load_document_image(p) for p in image_paths]
-        prompts = [detection_prompt] * len(image_paths)
-        params = GenerationParams(max_tokens=max_tokens)
-
-        # Safe: pipeline only calls this when supports_batch is True
-        backend = self._backend
-        assert isinstance(backend, BatchInference)  # noqa: S101
-        responses = backend.generate_batch(images, prompts, params)
-
-        results = []
-        for i, response in enumerate(responses):
-            document_type = self._parse_document_type_response(response, detection_config)
-            if verbose:
-                sys.stdout.write(
-                    f"  [{i + 1}/{len(image_paths)}] {Path(image_paths[i]).name}: {document_type}\n"
-                )
-                sys.stdout.flush()
-
-            results.append(
-                {
-                    "document_type": document_type,
-                    "confidence": 1.0,
-                    "raw_response": response,
-                    "prompt_used": "batch_detection",
-                }
-            )
-
-        return results
-
     def screen_batch(
         self,
         image_paths: list[str],
@@ -691,27 +609,29 @@ class DocumentOrchestrator:
         verbose: bool = False,
         tile_extra: dict | None = None,
     ) -> list[str]:
-        """Run one prompt over a batch of images and return the raw responses.
+        """Run one prompt over each image and return the raw responses.
 
-        Deliberately returns text and nothing else. Unlike `detect_batch`, no
-        parsing happens here: the image-quality screen's reader lives in
-        `common.quality_screen_parser` because reading its answers is a testable
-        unit in its own right, and the distinction between "the model said NO"
-        and "the model said something unreadable" is the whole point of it.
+        Deliberately returns text and nothing else -- no parsing. The
+        image-quality screen's reader lives in `common.quality_screen_parser`
+        because reading its answers is a testable unit in its own right, and
+        the distinction between "the model said NO" and "the model said
+        something unreadable" is the whole point of it.
 
-        Routes on `supports_batch` rather than assuming it. `detect_batch`
-        asserts the backend can batch, which is sound there because
-        DocumentPipeline only calls it when `supports_batch` is true -- the
-        precondition lives in the caller. This method has no such caller, and
-        on a backend with no `generate_batch` the sequential path is the only
-        one. Falling back also picks up `generate`'s OOM recovery, which a raw
-        `generate_batch` call does not have.
+        "batch" here means one call per batch of images, not one engine call:
+        the images are sent one at a time. Throughput comes from sharding
+        across GPUs in `common.vllm_dp`, not from batching within a process.
+        This method briefly had a batched branch guarded by a `supports_batch`
+        check; no backend has ever implemented `generate_batch`, so that branch
+        never ran, and the assertion inside it -- a precondition copied from a
+        caller that does not exist here -- crashed the first GPU run. Going one
+        at a time also keeps `generate`'s OOM recovery, which a raw
+        `generate_batch` call would bypass.
 
         Args:
             image_paths: Images to send.
             prompt: The prompt to ask about every image.
             max_tokens: Generation budget.
-            verbose: Whether to log per-image progress.
+            verbose: Whether to log progress.
             tile_extra: Optional `{"min_tiles": n, "max_tiles": m}` forwarded to
                 GenerationParams.extra. Without it the backend skips app-side
                 pre-tiling and lets vLLM tile internally, where the grid is
@@ -726,17 +646,10 @@ class DocumentOrchestrator:
             return []
 
         if verbose:
-            mode = "batched" if self.supports_batch else "sequential"
-            sys.stdout.write(f"Screening {len(image_paths)} images ({mode}, tiles={tile_extra})\n")
+            sys.stdout.write(f"Screening {len(image_paths)} images (tiles={tile_extra})\n")
             sys.stdout.flush()
 
         images = [self.load_document_image(path) for path in image_paths]
-
-        if self.supports_batch:
-            params = GenerationParams(max_tokens=max_tokens, extra=tile_extra or {})
-            backend = self._backend
-            assert isinstance(backend, BatchInference)  # noqa: S101
-            return backend.generate_batch(images, [prompt] * len(image_paths), params)
 
         # Each call is wrapped in its own trace context so the raw-prompt trace
         # can be read back per image. Without this every line carries
@@ -751,96 +664,6 @@ class DocumentOrchestrator:
             ):
                 responses.append(self.generate(image, prompt, max_tokens, extra=tile_extra))
         return responses
-
-    def extract_batch(
-        self,
-        image_paths: list[str],
-        classification_infos: list[dict],
-        verbose: bool = False,
-    ) -> list[dict]:
-        """Batch document extraction via backend.generate_batch().
-
-        Called by DocumentPipeline only when supports_batch is True.
-        No isinstance check here -- the pipeline handles routing.
-        """
-        if not image_paths:
-            return []
-
-        # Build per-image prompts and field lists
-        images = []
-        prompts = []
-        field_lists_per_image = []
-        max_tokens_needed = 0
-
-        for image_path, classification_info in zip(image_paths, classification_infos, strict=False):
-            images.append(self.load_document_image(image_path))
-            document_type = classification_info["document_type"].lower()
-
-            # Get document-specific field list
-            doc_type_fields = dict(self.document_field_lists)
-            if "bank_statement" in doc_type_fields:
-                doc_type_fields["bank_statement_flat"] = doc_type_fields["bank_statement"]
-                doc_type_fields["bank_statement_date_grouped"] = doc_type_fields["bank_statement"]
-
-            doc_field_list = doc_type_fields.get(
-                document_type, doc_type_fields.get("invoice", self.field_list)
-            )
-            field_lists_per_image.append(doc_field_list)
-
-            # Resolve extraction prompt
-            extraction_prompt = self._resolve_extraction_prompt(document_type)
-            prompts.append(extraction_prompt)
-
-            # Track max tokens needed
-            base_doc_type = strip_structure_suffixes(document_type)
-            tokens = self._calculate_max_tokens(len(doc_field_list), base_doc_type)
-            max_tokens_needed = max(max_tokens_needed, tokens)
-
-        params = GenerationParams(max_tokens=max_tokens_needed)
-
-        # Safe: pipeline only calls this when supports_batch is True
-        backend = self._backend
-        assert isinstance(backend, BatchInference)  # noqa: S101
-        responses = backend.generate_batch(images, prompts, params)
-
-        # Parse responses and clean extracted data
-        results = []
-        for i, response in enumerate(responses):
-            doc_field_list = field_lists_per_image[i]
-            document_type = classification_infos[i]["document_type"]
-
-            extracted_data = self._response_handler.handle(response, doc_field_list)
-
-            extracted_fields_count = sum(1 for v in extracted_data.values() if v != "NOT_FOUND")
-            document_field_count = len(doc_field_list)
-
-            if verbose:
-                sys.stdout.write(
-                    f"  [{i + 1}/{len(image_paths)}] "
-                    f"{Path(image_paths[i]).name}: "
-                    f"{extracted_fields_count}/{document_field_count} fields\n"
-                )
-                sys.stdout.flush()
-
-            results.append(
-                {
-                    "image_name": Path(image_paths[i]).name,
-                    "extracted_data": extracted_data,
-                    "raw_response": response,
-                    "processing_time": 0,
-                    "response_completeness": (
-                        extracted_fields_count / document_field_count if document_field_count else 0
-                    ),
-                    "content_coverage": (
-                        extracted_fields_count / document_field_count if document_field_count else 0
-                    ),
-                    "extracted_fields_count": extracted_fields_count,
-                    "field_count": document_field_count,
-                    "document_type": document_type,
-                }
-            )
-
-        return results
 
     def _resolve_extraction_prompt(self, document_type: str) -> str:
         """Resolve extraction prompt for a document type."""
@@ -858,13 +681,3 @@ class DocumentOrchestrator:
 
         catalog = PromptCatalog()
         return catalog.get_prompt(self._model_type_key, extraction_key)
-
-    # -- Model info ------------------------------------------------------------
-
-    def get_model_info(self) -> dict:
-        """Return model metadata for reporting."""
-        return {
-            "model_type": self._model_type_key,
-            "model_path": getattr(self._backend, "model_path", "unknown"),
-            "batch_size": self.batch_size,
-        }

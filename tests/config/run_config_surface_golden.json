@@ -1,5 +1,4 @@
 {
-  "batch.default_internvl3": 4,
   "classification_fallback_type": "UNIVERSAL",
   "generation_config": {
     "do_sample": false,
@@ -26,9 +25,9 @@
     "min_tiles": 1
   },
   "max_image_budget_tiles": 18,
-  "pc.balance_correction": false,
-  "pc.bank_v2": true,
-  "pc.batch_size": null,
+  "pc.balance_correction": "<<MISSING>>",
+  "pc.bank_v2": "<<MISSING>>",
+  "pc.batch_size": "<<MISSING>>",
   "pc.data_parallel_size": null,
   "pc.debug": false,
   "pc.device_map": "auto",

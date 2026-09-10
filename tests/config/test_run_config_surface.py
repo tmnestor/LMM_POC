@@ -142,7 +142,6 @@ def _surface(tmp_path: Path) -> dict:
         "bank_statement_floor",
     ):
         surface[f"token_budget.{name}"] = cfg.get_token_budget(name)
-    surface["batch.default_internvl3"] = cfg.get_batch_size_for_model(model)
 
     # The screen's own config: the one section on this branch that a run
     # actually depends on end to end.
@@ -175,9 +174,13 @@ def test_the_stripped_sections_have_no_accessors_left(tmp_path):
         "secondary_sort",
         "extraction_skip_labels",
         "bank_header_cache_config",
+        "batch",
+        "get_batch_size_for_model",
+        "get_auto_batch_size",
     ):
         assert not hasattr(cfg, name), f"{name} outlived its config section"
 
     raw = yaml.safe_load(CONFIG.read_text())
-    for section in ("trust", "linking", "extraction", "bank_header_cache"):
+    for section in ("trust", "linking", "extraction", "bank_header_cache", "batch"):
         assert section not in raw["pipeline"], f"pipeline.{section} is back"
+    assert "gpu_memory" not in raw["resources"], "resources.gpu_memory is back"
