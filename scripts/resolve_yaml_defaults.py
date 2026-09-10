@@ -8,22 +8,12 @@ Prints bash-eval-able assignments:
     YAML_GROUND_TRUTH=...
     YAML_OUTPUT_DIR=...
     YAML_LOG_DIR=...
-    YAML_TRUST_DATA_DIR=...
-    YAML_TRUST_QUADS=...
-    YAML_TRUST_QUADS_INCOMPLETE=...
-    YAML_TRUST_GROUND_TRUTH=...
-    YAML_TRUST_CLASSIFICATION_GT=...
-    YAML_TRUST_CLASSIFICATIONS=...
-    YAML_TRUST_RAW_EXTRACTIONS=...
-    YAML_TRUST_COMPLIANCE_RESULTS=...
-    YAML_TRUST_OUTPUT_DIR=...
-    YAML_TRUST_EVALUATION_DIR=...
-    YAML_TRUST_LOG_DIR=...
-    YAML_LINKING_DATA_DIR=...
-    YAML_LINKING_OUTPUT=...
-    YAML_LINKING_GROUND_TRUTH=...
-    YAML_LINKING_EVALUATION_DIR=...
-    YAML_LINKING_LOG_DIR=...
+
+Every name here is read by entrypoint.sh, and every name entrypoint.sh reads
+is emitted here. That correspondence is the point of the file: a var emitted
+but never read is dead weight, and one read but never emitted resolves to the
+empty string under `${VAR:-}` rather than failing, so the run starts against
+whatever the CLI default happens to be.
 
 Usage:
     eval "$(python3 scripts/resolve_yaml_defaults.py config/run_config.yml)"
@@ -36,6 +26,18 @@ import sys
 from pathlib import Path
 
 import yaml
+
+# Emitted unconditionally, in this order. Named once so the no-config branch
+# and the resolved branch cannot drift apart -- the earlier version listed them
+# twice by hand, which is exactly how a var ends up emitted on one path only.
+_KEYS = (
+    "YAML_MODEL_TYPE",
+    "YAML_MODEL_PATH",
+    "YAML_DATA_DIR",
+    "YAML_GROUND_TRUTH",
+    "YAML_OUTPUT_DIR",
+    "YAML_LOG_DIR",
+)
 
 
 def _emit(key: str, value: str | None) -> None:
@@ -50,28 +52,8 @@ def main() -> int:
     path = Path(sys.argv[1])
     if not path.is_file():
         # No config file → all fallbacks empty. Not an error for local dev.
-        _emit("YAML_MODEL_TYPE", "")
-        _emit("YAML_MODEL_PATH", "")
-        _emit("YAML_DATA_DIR", "")
-        _emit("YAML_GROUND_TRUTH", "")
-        _emit("YAML_OUTPUT_DIR", "")
-        _emit("YAML_LOG_DIR", "")
-        _emit("YAML_TRUST_DATA_DIR", "")
-        _emit("YAML_TRUST_QUADS", "")
-        _emit("YAML_TRUST_QUADS_INCOMPLETE", "")
-        _emit("YAML_TRUST_GROUND_TRUTH", "")
-        _emit("YAML_TRUST_CLASSIFICATION_GT", "")
-        _emit("YAML_TRUST_CLASSIFICATIONS", "")
-        _emit("YAML_TRUST_RAW_EXTRACTIONS", "")
-        _emit("YAML_TRUST_COMPLIANCE_RESULTS", "")
-        _emit("YAML_TRUST_OUTPUT_DIR", "")
-        _emit("YAML_TRUST_EVALUATION_DIR", "")
-        _emit("YAML_TRUST_LOG_DIR", "")
-        _emit("YAML_LINKING_DATA_DIR", "")
-        _emit("YAML_LINKING_OUTPUT", "")
-        _emit("YAML_LINKING_GROUND_TRUTH", "")
-        _emit("YAML_LINKING_EVALUATION_DIR", "")
-        _emit("YAML_LINKING_LOG_DIR", "")
+        for key in _KEYS:
+            _emit(key, "")
         return 0
 
     cfg = yaml.safe_load(path.read_text()) or {}
@@ -79,38 +61,25 @@ def main() -> int:
     model = bootstrap.get("model", {}) or {}
     log_cfg = bootstrap.get("logging", {}) or {}
     pipeline = cfg.get("pipeline", {}) or {}
-    # Classic information-extraction paths moved from top-level io.* to
-    # pipeline.information_extraction.* (2026-06-10). The emitted var names stay
-    # UNPREFIXED (YAML_DATA_DIR/GROUND_TRUTH/OUTPUT_DIR) so the entrypoint.sh
-    # contract is unchanged; the YAML_INFORMATION_EXTRACTION_* rename is deferred.
+    # The shared image-source and output paths live under
+    # pipeline.information_extraction.* (moved there from top-level io.* on
+    # 2026-06-10). The emitted names stay UNPREFIXED so the entrypoint.sh
+    # contract -- and the PROD run_config files edited against it -- are
+    # unchanged; the YAML_INFORMATION_EXTRACTION_* rename is deferred.
     info_extract = pipeline.get("information_extraction", {}) or {}
     data = info_extract.get("input", {}) or {}
     output = info_extract.get("output", {}) or {}
-    trust = pipeline.get("trust", {}) or {}
-    linking = pipeline.get("linking", {}) or {}
 
-    _emit("YAML_MODEL_TYPE", model.get("type"))
-    _emit("YAML_MODEL_PATH", model.get("path"))
-    _emit("YAML_DATA_DIR", data.get("dir"))
-    _emit("YAML_GROUND_TRUTH", data.get("ground_truth"))
-    _emit("YAML_OUTPUT_DIR", output.get("dir"))
-    _emit("YAML_LOG_DIR", log_cfg.get("log_dir"))
-    _emit("YAML_TRUST_DATA_DIR", trust.get("data_dir"))
-    _emit("YAML_TRUST_QUADS", trust.get("quads"))
-    _emit("YAML_TRUST_QUADS_INCOMPLETE", trust.get("quads_incomplete"))
-    _emit("YAML_TRUST_GROUND_TRUTH", trust.get("ground_truth"))
-    _emit("YAML_TRUST_CLASSIFICATION_GT", trust.get("classification_ground_truth"))
-    _emit("YAML_TRUST_CLASSIFICATIONS", trust.get("classifications"))
-    _emit("YAML_TRUST_RAW_EXTRACTIONS", trust.get("raw_extractions"))
-    _emit("YAML_TRUST_COMPLIANCE_RESULTS", trust.get("compliance_results"))
-    _emit("YAML_TRUST_OUTPUT_DIR", trust.get("output_dir"))
-    _emit("YAML_TRUST_EVALUATION_DIR", trust.get("evaluation_dir"))
-    _emit("YAML_TRUST_LOG_DIR", trust.get("log_dir"))
-    _emit("YAML_LINKING_DATA_DIR", linking.get("data_dir"))
-    _emit("YAML_LINKING_OUTPUT", linking.get("output"))
-    _emit("YAML_LINKING_GROUND_TRUTH", linking.get("ground_truth"))
-    _emit("YAML_LINKING_EVALUATION_DIR", linking.get("evaluation_dir"))
-    _emit("YAML_LINKING_LOG_DIR", linking.get("log_dir"))
+    resolved = {
+        "YAML_MODEL_TYPE": model.get("type"),
+        "YAML_MODEL_PATH": model.get("path"),
+        "YAML_DATA_DIR": data.get("dir"),
+        "YAML_GROUND_TRUTH": data.get("ground_truth"),
+        "YAML_OUTPUT_DIR": output.get("dir"),
+        "YAML_LOG_DIR": log_cfg.get("log_dir"),
+    }
+    for key in _KEYS:
+        _emit(key, resolved[key])
     return 0
 
 

@@ -36,19 +36,11 @@ PROMPTS = REPO_ROOT / "prompts"
 # The InternVL sizes the collapse kept.
 KEPT_VLLM_TYPES = {"internvl3-vllm", "internvl3-14b-vllm", "internvl3-38b-vllm"}
 
-# Models registered AFTER the collapse, deliberately and one at a time. The
-# collapse invariant is "vLLM-only, no HF backend" — NOT "InternVL forever" — so
-# a new vLLM model is allowed here, while the deleted HF types below stay banned.
-# Added 2026-07-27 as A/B alternatives (plans/2026-07-27-reintegrate-gemma4-vllm.md):
-# Gemma 4 31B-it QAT W4A16, and the 12B-it Unified (encoder-free, needs vLLM >= 0.23.0).
-# Added 2026-08-11 (plans/2026-08-11-gemma4-12b-w4a16-dp-2xl4.md): the 12B Unified
-# QAT W4A16 — same architecture as the BF16 12B, but 9.56 GiB fits one whole engine
-# per L4, so it is the FIRST Gemma with supports_data_parallel=True.
-POST_COLLAPSE_VLLM_TYPES = {
-    "gemma4-31b-w4a16-vllm",
-    "gemma4-12b-unified-vllm",
-    "gemma4-12b-unified-w4a16-vllm",
-}
+# The three Gemma 4 registrations added after the collapse are NOT on this
+# branch. The standalone screen is measured on InternVL3.5-8B only, and the
+# Gemma modules went with the phase 2 deletion of everything the screen cannot
+# reach. Re-adding one is a deliberate act, so this set stays closed.
+POST_COLLAPSE_VLLM_TYPES: set[str] = set()
 
 EXPECTED_VLLM_TYPES = KEPT_VLLM_TYPES | POST_COLLAPSE_VLLM_TYPES
 
@@ -66,7 +58,12 @@ PHASE3_DELETED_HF_TYPES = {"internvl3", "internvl3-14b", "internvl3-38b"}
 # Non-InternVL vLLM registrations the plan deletes.
 DELETED_VLLM_TYPES = {"llama4scout-w4a16", "qwen3vl-vllm", "qwen35-vllm", "gemma4"}
 
-# Live modules that must keep importing on CPU after the HF path is removed.
+# Live modules that must keep importing on CPU.
+#
+# This is the standalone screen's whole import surface, and the reason it is
+# checked on CPU is that everything below models.registry is otherwise only
+# exercised on the GPU box -- a dangling import from the phase 2 deletions
+# would surface after the model has loaded, not before.
 LIVE_MODULES = [
     "models.registry",
     "models.model_loader",
@@ -74,9 +71,11 @@ LIVE_MODULES = [
     "models.backends.vllm_backend",
     "models.orchestrator",
     "common.image_tiling",  # kept shared tiling primitive (Amendment 1)
-    "cli",
-    "stages.classify",
-    "stages.extract",
+    "common.pipeline_prompts",  # what cli.py's surviving half became
+    "common.vllm_dp",
+    "common.vllm_dp_workers",
+    "stages.quality_screen",
+    "stages.evaluate_quality_screen",
 ]
 
 # HF backend modules the plan deletes.
@@ -234,12 +233,27 @@ def test_hf_backend_modules_deleted(module):
 
 
 @pytest.mark.parametrize("func_name", ["load_prompt_config", "load_pipeline_configs"])
-def test_cli_defaults_flipped_to_vllm(func_name):
-    """CLI config loaders default to internvl3-vllm, not the old HF internvl3 (Phase 1 — DONE)."""
-    import cli
+def test_prompt_loader_defaults_flipped_to_vllm(func_name):
+    """The prompt-config loaders default to internvl3-vllm, not the old HF internvl3.
 
-    sig = inspect.signature(getattr(cli, func_name))
+    These lived in cli.py until the standalone strip deleted it; the screen is
+    the only remaining caller, and it passes the model type explicitly. The
+    default still matters because it is what any new caller inherits.
+    """
+    from common import pipeline_prompts
+
+    sig = inspect.signature(getattr(pipeline_prompts, func_name))
     assert sig.parameters["model_type"].default == "internvl3-vllm"
+
+
+def test_cli_is_gone():
+    """cli.py was deleted by the standalone strip.
+
+    Its only surviving half is common.pipeline_prompts. A cli module coming
+    back would drag the extraction command tree with it.
+    """
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("cli")
 
 
 def test_pipeline_config_default_model_type_is_vllm():

@@ -1,10 +1,21 @@
 """Tests for scripts/resolve_yaml_defaults.py.
 
-The entrypoint evals this script's stdout, so every documented YAML_* key must
-be emitted in BOTH the config-present and config-missing branches (so that
-`set -o nounset` reads with `${YAML_*:-}` always have a value to fall back on).
+The entrypoint evals this script's stdout, so the set of emitted keys IS the
+contract between the two files. Both directions of a mismatch are silent:
+
+  * emitted but never read -- dead weight, and the next person deleting a
+    config section has to work out by hand whether anything wanted it;
+  * read but never emitted -- `${YAML_FOO:-}` resolves to the empty string
+    rather than failing, and the run starts against whatever the CLI default
+    happens to be, on the wrong dataset, reporting plausible numbers.
+
+So rather than restate the key list here (a third copy, free to drift from the
+other two), these tests read it out of entrypoint.sh and require exact
+agreement. That is what caught the sixteen YAML_TRUST_*/YAML_LINKING_* keys
+left behind when those pipelines were removed.
 """
 
+import re
 import shlex
 import subprocess
 import sys
@@ -12,34 +23,17 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "resolve_yaml_defaults.py"
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = ROOT / "scripts" / "resolve_yaml_defaults.py"
+ENTRYPOINT = ROOT / "entrypoint.sh"
 
-# Every key the entrypoint relies on. YAML_LOG_DIR was added when the
-# pre-conda regex resolver (resolve_log_dirs.py) was folded into this one.
-EXPECTED_KEYS = {
-    "YAML_MODEL_TYPE",
-    "YAML_MODEL_PATH",
-    "YAML_DATA_DIR",
-    "YAML_GROUND_TRUTH",
-    "YAML_OUTPUT_DIR",
-    "YAML_LOG_DIR",
-    "YAML_TRUST_DATA_DIR",
-    "YAML_TRUST_QUADS",
-    "YAML_TRUST_QUADS_INCOMPLETE",
-    "YAML_TRUST_GROUND_TRUTH",
-    "YAML_TRUST_CLASSIFICATION_GT",
-    "YAML_TRUST_CLASSIFICATIONS",
-    "YAML_TRUST_RAW_EXTRACTIONS",
-    "YAML_TRUST_COMPLIANCE_RESULTS",
-    "YAML_TRUST_OUTPUT_DIR",
-    "YAML_TRUST_EVALUATION_DIR",
-    "YAML_TRUST_LOG_DIR",
-    "YAML_LINKING_DATA_DIR",
-    "YAML_LINKING_OUTPUT",
-    "YAML_LINKING_GROUND_TRUTH",
-    "YAML_LINKING_EVALUATION_DIR",
-    "YAML_LINKING_LOG_DIR",
-}
+
+def _keys_read_by_entrypoint() -> set[str]:
+    """Every YAML_* name entrypoint.sh actually dereferences."""
+    text = ENTRYPOINT.read_text()
+    # Only ${YAML_FOO...} expansions count. A bare mention in a comment is not
+    # a read, and the prose in this file's header names several.
+    return set(re.findall(r"\$\{(YAML_[A-Z0-9_]+)", text))
 
 
 def _run(arg: str) -> dict[str, str]:
@@ -58,7 +52,8 @@ def _run(arg: str) -> dict[str, str]:
     return out
 
 
-def test_emits_all_keys_when_config_present(tmp_path: Path) -> None:
+@pytest.fixture
+def populated_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "run_config.yml"
     cfg.write_text(
         "bootstrap:\n"
@@ -71,29 +66,48 @@ def test_emits_all_keys_when_config_present(tmp_path: Path) -> None:
         "  information_extraction:\n"
         "    input:\n"
         "      dir: ../data\n"
-        "      ground_truth: ../data/gt.csv\n"
+        "      ground_truth: ../data/labels.jsonl\n"
         "    output:\n"
         "      dir: ../out\n"
-        "  trust:\n"
-        "    data_dir: ../trust_docs\n"
-        "    log_dir: ../trust_docs/logs\n"
-        "  linking:\n"
-        "    data_dir: ../link_docs\n"
-        "    log_dir: ../link_docs/logs\n"
     )
-    result = _run(str(cfg))
-    assert EXPECTED_KEYS.issubset(result.keys())
+    return cfg
+
+
+def test_emitted_keys_match_what_the_entrypoint_reads(populated_config: Path) -> None:
+    """The contract, in both directions."""
+    emitted = set(_run(str(populated_config)))
+    read = _keys_read_by_entrypoint()
+
+    assert emitted - read == set(), "emitted but never read by entrypoint.sh"
+    assert read - emitted == set(), "read by entrypoint.sh but never emitted"
+
+
+def test_the_config_missing_branch_emits_the_same_keys(populated_config: Path, tmp_path: Path) -> None:
+    """A missing file must not emit FEWER keys.
+
+    The two branches are the classic drift point -- a key added to one and
+    forgotten in the other only breaks on a box with no config file, which is
+    the local-dev case and so the last one anybody runs.
+    """
+    present = set(_run(str(populated_config)))
+    absent = _run(str(tmp_path / "does_not_exist.yml"))
+
+    assert set(absent) == present
+    assert all(value == "" for value in absent.values())
+
+
+def test_values_come_from_the_declared_sections(populated_config: Path) -> None:
+    result = _run(str(populated_config))
+
     assert result["YAML_MODEL_TYPE"] == "internvl3-vllm"
+    assert result["YAML_MODEL_PATH"] == "/models/InternVL3_5-8B"
     assert result["YAML_LOG_DIR"] == "../out/logs"
-    # Classic IO vars now come from pipeline.information_extraction.*, but keep
-    # their UNPREFIXED emitted names (entrypoint.sh contract unchanged).
+    # The IO vars keep their UNPREFIXED emitted names while reading from
+    # pipeline.information_extraction.* -- PROD run_config files are edited
+    # against these names, so renaming them is a coordinated change.
     assert result["YAML_DATA_DIR"] == "../data"
-    assert result["YAML_GROUND_TRUTH"] == "../data/gt.csv"
+    assert result["YAML_GROUND_TRUTH"] == "../data/labels.jsonl"
     assert result["YAML_OUTPUT_DIR"] == "../out"
-    assert result["YAML_TRUST_DATA_DIR"] == "../trust_docs"
-    assert result["YAML_TRUST_LOG_DIR"] == "../trust_docs/logs"
-    assert result["YAML_LINKING_DATA_DIR"] == "../link_docs"
-    assert result["YAML_LINKING_LOG_DIR"] == "../link_docs/logs"
 
 
 def test_legacy_top_level_io_is_ignored_by_resolver(tmp_path: Path) -> None:
@@ -111,22 +125,24 @@ def test_legacy_top_level_io_is_ignored_by_resolver(tmp_path: Path) -> None:
     assert result["YAML_OUTPUT_DIR"] == ""
 
 
-def test_log_dir_empty_when_logging_section_absent(tmp_path: Path) -> None:
+def test_a_missing_section_yields_an_empty_value_not_a_missing_key(tmp_path: Path) -> None:
     cfg = tmp_path / "run_config.yml"
     cfg.write_text("bootstrap:\n  model:\n    type: internvl3-vllm\n")
     result = _run(str(cfg))
-    # Missing section -> empty string, never an unset/missing key.
+
     assert "YAML_LOG_DIR" in result
     assert result["YAML_LOG_DIR"] == ""
 
 
-def test_emits_all_keys_when_config_missing(tmp_path: Path) -> None:
-    missing = tmp_path / "does_not_exist.yml"
-    result = _run(str(missing))
-    # The file-missing branch must still emit every key (all empty) so the
-    # entrypoint's `${YAML_*:-}` reads never trip `set -o nounset`.
-    assert EXPECTED_KEYS.issubset(result.keys())
-    assert all(result[k] == "" for k in EXPECTED_KEYS)
+def test_the_shipped_config_resolves_every_key(tmp_path: Path) -> None:
+    """Not just well-formed -- actually populated.
+
+    An empty YAML_DATA_DIR is a valid emission and a broken run.
+    """
+    result = _run(str(ROOT / "config" / "run_config.yml"))
+
+    empty = sorted(key for key, value in result.items() if not value)
+    assert not empty, f"config/run_config.yml leaves these unresolved: {empty}"
 
 
 def test_usage_error_on_wrong_argc() -> None:

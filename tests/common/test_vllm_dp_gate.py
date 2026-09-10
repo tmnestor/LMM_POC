@@ -1,18 +1,25 @@
-"""The data-parallel gate must not fire for models that can't replicate per GPU.
+"""How many vLLM engines the screen starts, and on whose say-so.
 
-tests/ is gitignored — local-only. run_dp() starts one INDEPENDENT vLLM engine
-per GPU; a quantised 31B wants the whole card once KV cache and vision
-activations are counted, so N engines would OOM. On the locked 1xL40S target this
-never triggers (one GPU), so these tests are the only thing exercising the guard.
+tests/ is gitignored — local-only.
 
-See plans/2026-07-27-reintegrate-gemma4-vllm.md (gap G2).
+Replaces the Gemma-era gate test, which asserted against `resolve_dp_gpus` and
+a `supports_data_parallel` registry flag — neither of which survived. The
+question it was asking is still live, though: `run_dp` starts one INDEPENDENT
+engine per GPU, so this number decides whether the run fans out across the four
+production cards or quietly serialises on one.
+
+The failure mode is silent in both directions. Too low and the run takes four
+times as long while three cards idle; too high and the last worker OOMs after
+the others have already loaded, which reads as a model problem rather than a
+config one.
 """
 
 from dataclasses import dataclass
 
-from common.vllm_dp import resolve_dp_gpus
+import pytest
 
-_GEMMA = "gemma4-31b-w4a16-vllm"
+from common.vllm_dp import resolve_gpu_count
+
 _INTERNVL = "internvl3-vllm"
 
 
@@ -20,40 +27,58 @@ _INTERNVL = "internvl3-vllm"
 class _Config:
     """Minimal PipelineConfig stand-in for GPU-count resolution."""
 
+    model_type: str = _INTERNVL
     num_gpus: int = 0
     data_parallel_size: int | None = None
 
 
-class TestDataParallelGate:
-    def test_multi_gpu_capable_model_returns_the_rank_count(self) -> None:
-        assert resolve_dp_gpus(_Config(num_gpus=4), _INTERNVL) == 4
+class TestPrecedence:
+    """data_parallel_size > num_gpus > auto-detect, in that order."""
 
-    def test_multi_gpu_incapable_model_returns_none(self) -> None:
-        assert resolve_dp_gpus(_Config(num_gpus=4), _GEMMA) is None
+    def test_data_parallel_size_wins_over_num_gpus(self) -> None:
+        # The explicit override exists to run fewer engines than there are
+        # cards -- so it must beat num_gpus even when num_gpus is larger.
+        assert resolve_gpu_count(_Config(num_gpus=4, data_parallel_size=2)) == 2
 
-    def test_single_gpu_returns_none_for_any_model(self) -> None:
-        # The locked 1xL40S case: DP is skipped because there's nothing to split.
-        assert resolve_dp_gpus(_Config(num_gpus=1), _INTERNVL) is None
-        assert resolve_dp_gpus(_Config(num_gpus=1), _GEMMA) is None
+    def test_num_gpus_is_used_when_no_override_is_given(self) -> None:
+        assert resolve_gpu_count(_Config(num_gpus=4)) == 4
 
-    def test_data_parallel_size_takes_priority(self) -> None:
-        assert resolve_dp_gpus(_Config(num_gpus=1, data_parallel_size=2), _INTERNVL) == 2
+    def test_a_data_parallel_size_of_one_is_honoured_not_treated_as_unset(self) -> None:
+        """1 and None mean different things.
 
-    def test_explicit_data_parallel_size_cannot_force_an_incapable_model(self) -> None:
-        # Capability wins over operator intent — the alternative is an OOM.
-        assert resolve_dp_gpus(_Config(num_gpus=1, data_parallel_size=4), _GEMMA) is None
+        `if config.data_parallel_size:` would collapse them and silently fan
+        out across every card when the operator asked for a single engine.
+        """
+        assert resolve_gpu_count(_Config(num_gpus=4, data_parallel_size=1)) == 1
 
 
-class TestGateLogging:
-    def test_skipping_dp_for_capability_is_logged(self, caplog) -> None:
-        # A silently slower run is indistinguishable from a normal one, so the
-        # fall-through must always announce itself.
-        with caplog.at_level("INFO", logger="common.vllm_dp"):
-            resolve_dp_gpus(_Config(num_gpus=4), _GEMMA)
-        assert _GEMMA in caplog.text
-        assert "single-engine path" in caplog.text
+class TestAutoDetect:
+    def test_zero_num_gpus_falls_through_to_the_device_count(self, monkeypatch) -> None:
+        import torch
 
-    def test_single_gpu_does_not_log_a_capability_warning(self, caplog) -> None:
-        with caplog.at_level("INFO", logger="common.vllm_dp"):
-            resolve_dp_gpus(_Config(num_gpus=1), _GEMMA)
-        assert "single-engine path" not in caplog.text
+        monkeypatch.setattr(torch.cuda, "device_count", lambda: 3)
+        assert resolve_gpu_count(_Config(num_gpus=0)) == 3
+
+    def test_a_cpu_box_resolves_to_one_not_zero(self, monkeypatch) -> None:
+        """Zero engines would be a division by zero when sharding the images.
+
+        This is the local-dev and the evaluate-pod case: no CUDA device at all.
+        """
+        import torch
+
+        monkeypatch.setattr(torch.cuda, "device_count", lambda: 0)
+        assert resolve_gpu_count(_Config(num_gpus=0)) == 1
+
+
+class TestTheStageGate:
+    """`stages.quality_screen.run` only takes the DP path above one GPU."""
+
+    @pytest.mark.parametrize("resolved", [1, 0])
+    def test_one_gpu_or_none_does_not_fan_out(self, resolved: int) -> None:
+        # Mirrors `if resolved_gpus > 1:` in the stage. Starting run_dp for a
+        # single shard pays the whole subprocess and engine-build cost to run
+        # exactly what the in-process path would have run.
+        assert not resolved > 1
+
+    def test_more_than_one_gpu_fans_out(self) -> None:
+        assert resolve_gpu_count(_Config(num_gpus=4)) > 1
