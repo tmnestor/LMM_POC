@@ -852,6 +852,90 @@ prompts:
   #     `foreshorten` tilts a FLAT plane; Augraphy's page-curl augmentations
   #     are deliberately excluded because camera.py owns geometry. Asking
   #     would invite a YES no label could ever justify.
+
+  # =======================================================================
+  # v13 -- v12 plus COMPOSITION. The default once measured.
+  # =======================================================================
+  # Taxpayers photograph several receipts laid out on a table in one shot, and
+  # downstream extraction handles those badly. That is a different failure from
+  # everything questions 1-6 ask about: a four-receipt table photo can be
+  # sharp, evenly lit and undamaged -- OVERALL: GOOD -- and still be
+  # unprocessable. The remedy differs too. A blurred receipt needs
+  # re-photographing; a collage needs splitting, or one document per photo.
+  #
+  # So it is reported on its own axis rather than folded into OVERALL. Forcing
+  # a collage to POOR would make "POOR" mean either "unreadable, re-shoot" or
+  # "perfectly readable, split it", with no way for the caller to tell which.
+  #
+  # WHY IT IS QUESTION 8 AND NOT 7. Questions 1-7 are byte-identical to v12,
+  # including their numbering, so COMPOSITION is purely additive. That is what
+  # makes the comparison clean: run v13 over the same 330 images and the six
+  # criteria and the severity matrix should reproduce v12's numbers exactly. If
+  # they move, the new question disturbed the others and we will see it
+  # immediately rather than inferring it. OVERALL summarises 1-6, which still
+  # all precede it; COMPOSITION is independent of them, so it loses nothing by
+  # coming after.
+  #
+  # SINGLE/MULTIPLE shares no token with YES/NO or with GOOD/FAIR/POOR. That
+  # matters: v11 lost 15 of 60 responses to the model confusing two answer
+  # spaces, and v12 fixed it by making them disjoint. A third vocabulary keeps
+  # that property rather than breaking it.
+  #
+  # Pagination is deliberately excluded, following the original prompt: a
+  # single invoice printed across two sheets is one document. The question is
+  # about separate documents, not separate pieces of paper.
+  #
+  # NOT YET MEASURED. There are no collages in quality_20260909, so this
+  # criterion has no ground truth in the synthetic corpus and its accuracy is
+  # unknown. It is to be measured against real photographs.
+  quality_screen_v13:
+    name: "quality_screen_v13"
+    evidence:
+      blur: false
+      shadow: true
+      crease: true
+      faded: false
+      tilt: false
+      speckle: false
+    overall_levels: [GOOD, FAIR, POOR]
+    composition_levels: [SINGLE, MULTIPLE]
+    condition_to_level:
+      clean: GOOD
+      moderate: FAIR
+      heavy: POOR
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      Questions 1 to 6 must be answered with the single word YES or NO.
+      Answer YES only if the statement is completely true of the whole picture.
+      If any part of it falls short, answer NO.
+
+      1. BLUR: Is every word perfectly sharp and in focus, across the whole picture?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is the printing even and unbroken everywhere, with no faded or patchy parts?
+      5. TILT: Is the paper perfectly square to the edges of the picture, not turned at all?
+      6. SPECKLE: Is the picture perfectly smooth and free of grain, speckling or noise?
+      7. OVERALL: Rate the whole picture as GOOD, FAIR or POOR.
+         GOOD means you found nothing wrong with it at all.
+         FAIR means you found something wrong but the receipt is still easy to use.
+         POOR means several things are wrong with it.
+      8. COMPOSITION: Answer SINGLE or MULTIPLE.
+         SINGLE means the picture shows one receipt or invoice.
+         MULTIPLE means the picture shows two or more of them, laid out
+         side by side, in a pile, or overlapping.
+         One receipt printed across more than one sheet of paper still counts
+         as SINGLE.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+      8. COMPOSITION:
   quality_screen_v5:
     name: "quality_screen_v5"
     # Uniform polarity: true for all six, because YES always means the defect

@@ -45,6 +45,10 @@ def load_screen_records(path: Path) -> dict[str, QualityResponse]:
             malformed=record["malformed"],
             malformed_reason=record["malformed_reason"],
             think_drift=record["think_drift"],
+            # .get, not [], because files written before v13 have no such key.
+            # Absent reads as None -- "this run did not ask" -- which is what
+            # the report then says, rather than inventing a SINGLE.
+            composition=record.get("composition"),
         )
         for record in records
     }
@@ -238,7 +242,106 @@ def format_report(report: dict) -> str:
 
     lines += ["", "OVERALL severity (truth -> predicted)", "-" * 40]
     lines += [f"  {key:<24}{count:>6}" for key, count in report["overall_confusion"].items()]
+
+    lines += _composition_lines(report)
     return "\n".join(lines)
+
+
+def _composition_lines(report: dict) -> list[str]:
+    """The composition section, printed separately from the severity table.
+
+    Its own heading because it is its own axis. A reader skimming the severity
+    matrix must not take a MULTIPLE for a severity, or a GOOD as evidence the
+    image is processable.
+    """
+    tally = report.get("composition_tally") or {}
+    scored = report.get("composition")
+
+    if not tally and not scored:
+        return []  # a variant that does not ask; say nothing rather than "0".
+
+    lines = ["", "COMPOSITION — how many documents in the picture", "-" * 46]
+    for value, count in tally.items():
+        lines.append(f"  answered {value:<16}{count:>6}")
+
+    if scored is None:
+        lines += [
+            "  NOT SCORED: the ground truth carries no composition label, so this",
+            "  column is the model's answers with nothing to check them against.",
+            "  On a corpus known to hold no collages, any MULTIPLE is a false positive.",
+        ]
+        return lines
+
+    accuracy = scored["accuracy"]
+    lines.append(
+        f"  scored {scored['scored']} of {scored['labelled']} labelled   "
+        f"correct {scored['correct']}   "
+        f"accuracy {'n/a' if accuracy is None else f'{accuracy:.3f}'}"
+    )
+    lines += [f"  {key:<24}{count:>6}" for key, count in scored["confusion"].items()]
+    return lines
+
+
+def score_composition(responses: dict[str, QualityResponse], truths: list[dict]) -> dict | None:
+    """Score the SINGLE/MULTIPLE answer, when there is ground truth for it.
+
+    Kept apart from the criterion scorer on purpose. The six criteria and the
+    severity level all answer "how bad is this photograph"; composition answers
+    "how many documents are in it", which is a different question with a
+    different remedy -- re-photograph versus split. Scoring them together would
+    average two unrelated things into one number.
+
+    Args:
+        responses: Image name -> its response.
+        truths: Ground-truth records. A record carrying no `composition` key
+            contributes nothing, so a corpus that has never been labelled for
+            collages yields None rather than a score of zero.
+
+    Returns:
+        `{"labelled", "correct", "accuracy", "confusion"}`, or None when no
+        truth record carries a composition label. None means UNMEASURED, and
+        the report says so -- an unmeasured criterion reported as 0.0 reads as
+        a broken one, and reported as 1.0 reads as a working one.
+    """
+    labelled = [t for t in truths if t.get("composition")]
+    if not labelled:
+        return None
+
+    confusion: dict[str, int] = {}
+    correct = 0
+    scored = 0
+    for truth in labelled:
+        response = responses.get(truth["image_name"])
+        if response is None or response.malformed or response.composition is None:
+            continue
+        scored += 1
+        key = f"{truth['composition']}->{response.composition}"
+        confusion[key] = confusion.get(key, 0) + 1
+        if truth["composition"] == response.composition:
+            correct += 1
+
+    return {
+        "labelled": len(labelled),
+        "scored": scored,
+        "correct": correct,
+        "accuracy": (correct / scored) if scored else None,
+        "confusion": dict(sorted(confusion.items())),
+    }
+
+
+def composition_tally(responses: dict[str, QualityResponse]) -> dict[str, int]:
+    """Count the composition answers, for a run with no labels to score against.
+
+    Not a score. It is the only thing that can honestly be said about an
+    unlabelled run: how many images the model called MULTIPLE. Worth printing
+    anyway -- on a corpus known to hold no collages, any MULTIPLE at all is a
+    false positive, and that is a measurement even without a label file.
+    """
+    tally: dict[str, int] = {}
+    for response in responses.values():
+        if response.composition:
+            tally[response.composition] = tally.get(response.composition, 0) + 1
+    return dict(sorted(tally.items()))
 
 
 def load_truths(path: Path) -> list[dict]:
@@ -316,6 +419,8 @@ def run(
     report = build_report(score, responses)
     report["variant"] = resolved_variant
     report["screening_runs"] = screening_runs(screen_path)
+    report["composition"] = score_composition(responses, truths)
+    report["composition_tally"] = composition_tally(responses)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "quality_screen_report.json"

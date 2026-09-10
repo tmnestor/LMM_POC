@@ -106,7 +106,10 @@ def run_quality_screen(
     # the shorter list and scoring each image against another image's answers.
     for path, raw in zip(image_paths, responses, strict=True):
         result = parse_quality_response(
-            raw, criteria=vocabulary.criteria, overall_levels=vocabulary.overall_levels
+            raw,
+            criteria=vocabulary.criteria,
+            overall_levels=vocabulary.overall_levels,
+            composition_levels=vocabulary.composition_levels,
         )
         records.append(
             {
@@ -117,6 +120,7 @@ def run_quality_screen(
                 "screened_at": screened_at,
                 "answers": result.answers,
                 "overall": result.overall,
+                "composition": result.composition,
                 "malformed": result.malformed,
                 "malformed_reason": result.malformed_reason,
                 "think_drift": result.think_drift,

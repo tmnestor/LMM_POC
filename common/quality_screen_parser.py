@@ -1,7 +1,10 @@
 """Read a model's answers to the image-quality screen prompt.
 
-The prompt asks eight numbered questions -- six YES/NO defect criteria and one
-graded OVERALL -- and this turns the response text back into those answers.
+The prompt asks a numbered question per line -- YES/NO defect criteria, a
+graded OVERALL, and from v13 a COMPOSITION answer -- and this turns the
+response text back into those answers. What it expects comes from the variant's
+own vocabulary, never from a constant here, so adding a question is a prompt
+change rather than a parser change.
 
 The reader is deliberately strict. A closed answer space does not guarantee a
 closed response: the model can refuse, hedge, reason aloud, skip a question, or
@@ -36,6 +39,12 @@ class QualityResponse:
             dict, which a scorer would compare as six wrong answers rather than
             one unreadable response.
         overall: The graded OVERALL answer, or `None` when unreadable.
+        composition: How many documents the model saw -- SINGLE or MULTIPLE --
+            or `None` for a variant that does not ask. A SEPARATE axis from
+            `overall`, not a severity: a photo of four receipts on a table can
+            be sharp, evenly lit and undamaged, and is still unprocessable. The
+            remedy differs too -- a blurred receipt is re-photographed, a
+            collage is split.
         malformed: Whether the response could not be read.
         malformed_reason: What made it unreadable, for auditing without
             re-running inference.
@@ -50,6 +59,7 @@ class QualityResponse:
     malformed: bool
     malformed_reason: str | None = None
     think_drift: bool = False
+    composition: str | None = None
 
 
 class ScreenVocabularyError(RuntimeError):
@@ -73,6 +83,8 @@ class ScreenVocabulary:
             or None to fall back to run_config. A variant that renames its
             levels must bring its own mapping, or the scorer compares two
             different vocabularies and every severity call reads as wrong.
+        composition_levels: Permitted COMPOSITION answers, or None for a
+            variant that does not ask how many documents are in the picture.
         prompt: The prompt text, so a caller can send it and a test can check
             it against the vocabulary.
     """
@@ -82,6 +94,7 @@ class ScreenVocabulary:
     overall_levels: list[str]
     prompt: str
     condition_to_level: dict[str, str] | None = None
+    composition_levels: list[str] | None = None
 
 
 def load_screen_vocabulary(config_path: Path, *, variant: str) -> ScreenVocabulary:
@@ -142,6 +155,10 @@ def load_screen_vocabulary(config_path: Path, *, variant: str) -> ScreenVocabula
         overall_levels=list(block["overall_levels"]),
         prompt=str(block["prompt"]),
         condition_to_level=(dict(block["condition_to_level"]) if block.get("condition_to_level") else None),
+        # Absent for every variant up to v12, which asked only about the state
+        # of the paper. Absent means "does not ask", not "asks and accepts
+        # anything".
+        composition_levels=(list(block["composition_levels"]) if block.get("composition_levels") else None),
     )
 
 
@@ -156,7 +173,13 @@ def _unreadable(reason: str, *, think_drift: bool) -> QualityResponse:
     )
 
 
-def parse_quality_response(text: str, *, criteria: list[str], overall_levels: list[str]) -> QualityResponse:
+def parse_quality_response(
+    text: str,
+    *,
+    criteria: list[str],
+    overall_levels: list[str],
+    composition_levels: list[str] | None = None,
+) -> QualityResponse:
     """Read one response.
 
     Args:
@@ -165,12 +188,20 @@ def parse_quality_response(text: str, *, criteria: list[str], overall_levels: li
             from the prompt config rather than hardcoded, so the vocabulary has
             one source.
         overall_levels: Permitted OVERALL values.
+        composition_levels: Permitted COMPOSITION values, or None for a variant
+            that does not ask. When given, a COMPOSITION answer is REQUIRED --
+            a variant that asks the question and gets no answer has an
+            unreadable response, not a missing optional field. Treating it as
+            optional would let a run silently screen nothing for collages while
+            reporting a full set of records.
 
     Returns:
         The answers read from the response, or an unreadable result naming what
         failed. Never a partial answer set.
     """
     expected = [name.upper() for name in criteria] + ["OVERALL"]
+    if composition_levels:
+        expected.append("COMPOSITION")
     think_drift = bool(_THINK.search(text))
 
     found: dict[str, tuple[int, str]] = {}
@@ -223,4 +254,19 @@ def parse_quality_response(text: str, *, criteria: list[str], overall_levels: li
             think_drift=think_drift,
         )
 
-    return QualityResponse(answers=answers, overall=overall, malformed=False, think_drift=think_drift)
+    composition = None
+    if composition_levels:
+        _number, composition = found["COMPOSITION"]
+        if composition not in composition_levels:
+            return _unreadable(
+                f"composition answered {composition!r}, which is not one of {composition_levels}",
+                think_drift=think_drift,
+            )
+
+    return QualityResponse(
+        answers=answers,
+        overall=overall,
+        malformed=False,
+        think_drift=think_drift,
+        composition=composition,
+    )
