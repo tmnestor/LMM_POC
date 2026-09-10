@@ -556,8 +556,11 @@ if [[ -z "$CLEAR_PREV_OUTPUT" || "$CLEAR_PREV_OUTPUT" == "none" ]]; then
   CLEAR_PREV_OUTPUT="true"
 fi
 case "$CLEAR_PREV_OUTPUT" in
-  true)  log "CLEAR_PREV_OUTPUT=true — previous output artifacts are DELETED (logs preserved); every image is rescreened." ;;
-  false) log "CLEAR_PREV_OUTPUT=false — resuming: only images with no record yet are screened." ;;
+  # Future tense deliberately. This runs during config resolution, BEFORE the
+  # task is dispatched, so it fires for `check` too -- which deletes nothing and
+  # says so. Past tense here told a check run its output had just been wiped.
+  true)  log "CLEAR_PREV_OUTPUT=true — a screening run will DELETE previous output artifacts (logs preserved) and rescreen every image." ;;
+  false) log "CLEAR_PREV_OUTPUT=false — a screening run will RESUME, screening only images with no record yet." ;;
   *)
     log "FATAL: CLEAR_PREV_OUTPUT must be 'true' or 'false' (got '${CLEAR_PREV_OUTPUT}')."
     log "  Where: CLEAR_PREV_OUTPUT environment variable (KFP input_param or shell export)."
