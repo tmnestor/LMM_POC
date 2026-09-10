@@ -936,6 +936,99 @@ prompts:
       6. SPECKLE:
       7. OVERALL:
       8. COMPOSITION:
+
+  # =======================================================================
+  # v14 -- uniform polarity, no absolutes. Tests a measured prompt defect.
+  # =======================================================================
+  # v13 answered "defect present" for BLUR on 330 of 330 images. Not most --
+  # all of them. TILT on 281, SPECKLE on 293. Those three criteria carried no
+  # information about the image at all, and 105 of 330 records reported two or
+  # more "defects" on pictures the model then rated GOOD, most of them clean.
+  #
+  # The cause was in the wording, not the model. Four questions were
+  # good-phrased with absolute terms -- "every word PERFECTLY sharp",
+  # "PERFECTLY square, not turned at all", "PERFECTLY smooth and free of
+  # grain" -- under an instruction that read:
+  #
+  #     Answer YES only if the statement is completely true of the whole
+  #     picture. If any part of it falls short, answer NO.
+  #
+  # No real photograph of a receipt is perfectly sharp, perfectly square or
+  # perfectly grain-free, so that instruction guaranteed NO. The questions were
+  # measuring the word "perfectly", not the picture. FADED escaped because
+  # "faded or patchy" is genuinely binary; SHADOW and CREASE escaped because
+  # they were already defect-phrased. All three scored precision 1.000.
+  #
+  # So v14 makes every question defect-phrased and drops the absolutes. YES now
+  # always means "something is wrong", which also removes the mixed-polarity
+  # aggregation problem: the model's own answer sheet reads consistently, and
+  # OVERALL is summarising a coherent signal instead of four always-NOs.
+  #
+  # SHADOW and CREASE keep v13's wording BYTE-IDENTICAL. They are the two that
+  # already worked, and changing a working question while testing a fix to
+  # broken ones would make the result unreadable.
+  #
+  # The strictness instruction is inverted with the phrasing. Under
+  # defect-phrasing, "answer YES only if completely true" would make the model
+  # reluctant to report anything -- the same error with the sign flipped. It
+  # now asks plainly whether the defect can be seen.
+  #
+  # WHAT TO EXPECT. If the diagnosis is right, BLUR/TILT/SPECKLE precision
+  # rises sharply from 0.597/0.427/0.642 and their recall falls from
+  # 1.000/1.000/0.895. Severity should hold or improve, because OVERALL stops
+  # having to discount three always-on inputs. If nothing moves, the wording
+  # was not the cause and the always-YES came from somewhere else.
+  quality_screen_v14:
+    name: "quality_screen_v14"
+    # Uniform: YES means the defect is present, for all six. The scorer's
+    # polarity map becomes a formality rather than the thing that inverts a
+    # whole report when it is wrong.
+    evidence:
+      blur: true
+      shadow: true
+      crease: true
+      faded: true
+      tilt: true
+      speckle: true
+    overall_levels: [GOOD, FAIR, POOR]
+    composition_levels: [SINGLE, MULTIPLE]
+    condition_to_level:
+      clean: GOOD
+      moderate: FAIR
+      heavy: POOR
+    prompt: |
+      Look at this picture of a receipt or invoice.
+
+      Questions 1 to 6 each ask whether something is wrong with the picture.
+      Answer each one with the single word YES or NO.
+      Answer YES if you can see the problem. Answer NO if you cannot.
+
+      1. BLUR: Is any of the writing blurred or out of focus?
+      2. SHADOW: Is any part of the paper darker because of a shadow falling on it?
+      3. CREASE: Does the paper look folded, creased, crumpled or torn anywhere?
+      4. FADED: Is any of the printing faded, patchy or broken up?
+      5. TILT: Is the paper noticeably turned or crooked in the picture?
+      6. SPECKLE: Does the picture look grainy, speckled or noisy?
+      7. OVERALL: Rate the whole picture as GOOD, FAIR or POOR.
+         GOOD means you found nothing wrong with it at all.
+         FAIR means you found something wrong but the receipt is still easy to use.
+         POOR means several things are wrong with it.
+      8. COMPOSITION: Answer SINGLE or MULTIPLE.
+         SINGLE means the picture shows one receipt or invoice.
+         MULTIPLE means the picture shows two or more of them, laid out
+         side by side, in a pile, or overlapping.
+         One receipt printed across more than one sheet of paper still counts
+         as SINGLE.
+
+      Fill in this template:
+      1. BLUR:
+      2. SHADOW:
+      3. CREASE:
+      4. FADED:
+      5. TILT:
+      6. SPECKLE:
+      7. OVERALL:
+      8. COMPOSITION:
   quality_screen_v5:
     name: "quality_screen_v5"
     # Uniform polarity: true for all six, because YES always means the defect
