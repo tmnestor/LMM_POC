@@ -161,7 +161,7 @@ architecture; the labels always describe the images actually produced.
 **B1. Clone this repository at the matching branch.**
 
 ```bash
-git clone --branch feature/quality-screen \
+git clone --branch feature/quality-screen-standalone \
     https://github.com/tmnestor/LMM_POC.git
 cd LMM_POC
 ```
@@ -173,7 +173,7 @@ model location appears in **three** places and all three must agree:
 bootstrap:
   model:
     path: <local model checkpoint>          # 1
-    model_paths:
+    default_paths:
       internvl3:      <local model checkpoint>   # 2
       internvl3-vllm: <local model checkpoint>   # 3
 ```
@@ -185,12 +185,19 @@ Everything else that governs the screen is already set to the measured
 configuration and needs no change: prompt variant `quality_screen_v12`, tile
 budget `min_tiles: 12 / max_tiles: 12`, token budget 400.
 
-**B3. Run it.** Two stages, no clean stage between them — the screen's answers
+**B3. Check what it resolved to**, before spending any GPU time. Prints the
+paths it will use and exits without running anything:
+
+```bash
+KFP_TASK=check bash entrypoint.sh
+```
+
+**B4. Run it.** Two stages, no clean stage between them — the screen's answers
 are fixed tokens with nothing to normalise.
 
 ```bash
 # GPU. Writes quality_screen.jsonl: one record per image with its answers,
-# the raw model response, and the prompt variant that produced it.
+# the raw model response, and the settings that produced it.
 KFP_TASK=classify \
     image_dir=<corpus>/quality_<date> \
     output=<run-output-dir> \
@@ -206,8 +213,19 @@ KFP_TASK=evaluate \
 Always through `entrypoint.sh` — it sets up the environment the stages expect,
 and invoking the modules directly does not.
 
-Roughly 20 minutes for 330 images, halving with a second GPU: the classify
-stage shards across available GPUs automatically.
+On one box rather than a pipeline, `KFP_TASK=screen` runs both in a single
+shell. It must never be set in the KFP manifest, where it would run the
+CPU-only scoring inside the GPU pod.
+
+Roughly 20 minutes for 330 images, halving with each additional GPU: the
+classify stage shards across every GPU it is given.
+
+**Re-runs.** By default every run rescreens the whole directory. Where images
+arrive over time and only the new ones need screening, set
+`CLEAR_PREV_OUTPUT=false` — the stage then screens only images with no record
+yet. It resumes only when the prompt variant and tile budget are unchanged;
+if either has moved it discards the previous records and rescreens, saying so,
+because a file mixing two prompts is not one run and the report cannot tell.
 
 **B4. Read the result.** `evaluate` prints the per-criterion table, a
 per-document-type split, the severity confusion matrix, and — first, before
