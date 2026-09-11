@@ -29,6 +29,9 @@ from tests.stages.test_quality_screen import CRITERIA, VOCABULARY, fake_infer, r
 CONDITION_TO_LEVEL = {"clean": "NONE", "moderate": "MODERATE", "heavy": "HEAVY"}
 
 
+ROUTING = {"pass_levels": ["GOOD"], "multiple_documents": "reject"}
+
+
 def truth(name, *, condition, doc_type="receipt", **defects):
     return {
         "filename": name,
@@ -190,6 +193,7 @@ def test_the_stage_scores_a_run_and_writes_a_report(tmp_path):
         prompt_file=Path("prompts/quality_screen.yaml"),
         variant="quality_screen_v5",
         condition_to_level=CONDITION_TO_LEVEL,
+        routing=ROUTING,
     )
 
     report = json.loads(report_path.read_text())
@@ -249,6 +253,7 @@ def test_the_stage_scores_with_the_variants_own_polarity(tmp_path):
         prompt_file=prompt,
         variant="inverted",
         condition_to_level=CONDITION_TO_LEVEL,
+        routing=ROUTING,
     )
 
     report = json.loads(report_path.read_text())
@@ -345,6 +350,7 @@ def test_scoring_follows_the_recorded_variant_not_the_configured_one(tmp_path):
         prompt_file=prompt,
         variant="configured",  # deliberately the wrong one
         condition_to_level=CONDITION_TO_LEVEL,
+        routing=ROUTING,
     )
 
     report = json.loads(report_path.read_text())
@@ -403,6 +409,7 @@ def test_an_image_the_screen_never_reached_is_reported_as_missing(tmp_path):
         prompt_file=Path("prompts/quality_screen.yaml"),
         variant="quality_screen_v5",
         condition_to_level=CONDITION_TO_LEVEL,
+        routing=ROUTING,
     )
 
     counts = json.loads(report_path.read_text())["counts"]

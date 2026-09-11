@@ -574,8 +574,12 @@ class AppConfig:
             "        heavy: HEAVY\n"
             "      tiling:\n"
             "        min_tiles: 6\n"
-            "        max_tiles: 12"
+            "        max_tiles: 12\n"
+            "      routing:\n"
+            "        pass_levels: [GOOD]\n"
+            "        multiple_documents: reject"
         )
+        allowed_multiple = ("reject", "allow")
         if screen is None:
             raise ConfigError(
                 [
@@ -596,7 +600,7 @@ class AppConfig:
                     f"How to fix: change 'pipeline.quality_screen' to a YAML mapping."
                 ]
             )
-        for key in ("prompt_file", "variant", "output_name", "condition_to_level", "tiling"):
+        for key in ("prompt_file", "variant", "output_name", "condition_to_level", "tiling", "routing"):
             if key not in screen:
                 raise ConfigError(
                     [
@@ -642,6 +646,46 @@ class AppConfig:
                     f"Where: {config_file} → pipeline.quality_screen.condition_to_level. "
                     f"Expected: one entry per condition the corpus uses, e.g.:\n{example}\n"
                     f"How to fix: map every corpus condition to an OVERALL level."
+                ]
+            )
+        routing = screen["routing"]
+        if not isinstance(routing, dict) or not {"pass_levels", "multiple_documents"} <= set(routing):
+            raise ConfigError(
+                [
+                    f"Invalid 'pipeline.quality_screen.routing' in {config_file}. "
+                    f"What: it must declare both 'pass_levels' and 'multiple_documents'. This is "
+                    f"the decision the pipeline makes -- send the image on, or send it back -- "
+                    f"and it is a policy choice rather than something the scorer can derive from "
+                    f"the severity ladder. "
+                    f"Where: {config_file} → pipeline.quality_screen.routing. "
+                    f"Expected: a mapping with both keys, e.g.:\n{example}\n"
+                    f"How to fix: add 'pass_levels:' and 'multiple_documents:' under "
+                    f"'pipeline.quality_screen.routing'."
+                ]
+            )
+        if not isinstance(routing["pass_levels"], list) or not routing["pass_levels"]:
+            raise ConfigError(
+                [
+                    f"Invalid 'pipeline.quality_screen.routing.pass_levels' in {config_file}. "
+                    f"What: it is not a non-empty list, so no image could ever pass the screen "
+                    f"and every document would be returned to the taxpayer. "
+                    f"Where: {config_file} → pipeline.quality_screen.routing.pass_levels. "
+                    f"Expected: a list of the variant's own OVERALL levels, e.g.:\n{example}\n"
+                    f"How to fix: list the severity levels that should pass, e.g. '[GOOD]'."
+                ]
+            )
+        if routing["multiple_documents"] not in allowed_multiple:
+            raise ConfigError(
+                [
+                    f"Invalid 'pipeline.quality_screen.routing.multiple_documents' in "
+                    f"{config_file}: {routing['multiple_documents']!r}. "
+                    f"What: it must be one of {', '.join(allowed_multiple)}. It decides whether a "
+                    f"photograph of several documents is sent on regardless of how good the "
+                    f"photograph is. "
+                    f"Where: {config_file} → pipeline.quality_screen.routing.multiple_documents. "
+                    f"Expected: one of {allowed_multiple}, e.g.:\n{example}\n"
+                    f"How to fix: set it to 'reject' when downstream extraction cannot split a "
+                    f"collage, or 'allow' when it can."
                 ]
             )
         return dict(screen)

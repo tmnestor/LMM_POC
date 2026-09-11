@@ -323,6 +323,35 @@ pipeline:
       moderate: MODERATE
       heavy: HEAVY
 
+    # The decision the pipeline actually makes: does this image go on to
+    # information extraction, or go back to the taxpayer?
+    #
+    # Declared here rather than inferred in the scorer, because the screen's
+    # two axes do not combine the way a reader expects and the combination is
+    # a policy choice, not a derivation.
+    routing:
+      # Severity levels that pass. Anything else is sent back for re-capture.
+      # The variant's own `overall_levels` name these -- v13 answers
+      # GOOD/FAIR/POOR, so FAIR and POOR are both sent back.
+      pass_levels: [GOOD]
+
+      # What to do with a photograph holding several documents.
+      #
+      # `reject`, because downstream extraction does not handle a collage
+      # reliably whether or not the photograph is any good. A plate of four
+      # receipts can be sharp, evenly lit and undamaged -- nothing is wrong
+      # with the *picture* -- and still be unprocessable. So composition
+      # overrides severity here: MULTIPLE fails even at GOOD.
+      #
+      # This is why a clean collage graded POOR is not a false alarm. Scored
+      # against severity alone it counts as one, and the screen looks less
+      # precise than it is; scored against this gate it is a correct decision
+      # reached by a different route.
+      #
+      # `allow` exists for a pipeline whose extraction can split a plate
+      # itself. Ours cannot.
+      multiple_documents: reject
+
   classification:
     fallback_type: UNIVERSAL     # Default type when model response can't be parsed
 

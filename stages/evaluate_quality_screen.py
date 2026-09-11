@@ -225,6 +225,8 @@ def format_report(report: dict) -> str:
             f"The rates below describe the remainder, not the corpus."
         )
 
+    lines += _routing_lines(report)
+
     lines += [
         "",
         f"{'CRITERION':<12}{'PREC':>8}{'RECALL':>8}{'F1':>8}{'TP':>6}{'FP':>6}{'FN':>6}",
@@ -436,6 +438,132 @@ def severity_by_composition(
     return {name: dict(sorted(matrix.items())) for name, matrix in sorted(split.items())}
 
 
+def score_routing(
+    responses: dict[str, QualityResponse],
+    truths: list[dict],
+    condition_to_level: dict[str, str],
+    routing: dict,
+) -> dict | None:
+    """Score the decision the pipeline makes: send this image on, or send it back.
+
+    The per-criterion table and the severity matrix both describe *how the
+    photograph looks*. Neither is the decision. The decision combines two axes
+    that do not reduce to one another:
+
+    - severity, which asks whether the picture is good enough to read; and
+    - composition, which asks how many documents are in it.
+
+    A plate of four receipts can be sharp, evenly lit and undamaged and still be
+    unprocessable, because downstream extraction does not handle a collage --
+    clean or damaged. So when `routing.multiple_documents` is `reject`,
+    MULTIPLE fails regardless of severity, and a clean collage graded POOR is
+    not a false alarm: it is a correct decision reached by a different route.
+    Scored against severity alone the same run looks less precise than it is.
+
+    The positive class is "send it back", because that is the action: recall is
+    the share of unusable images caught, precision the share of returned images
+    that really were unusable.
+
+    Args:
+        responses: Image name -> its response.
+        truths: Ground-truth records.
+        condition_to_level: Corpus condition -> the variant's severity level.
+        routing: The validated `pipeline.quality_screen.routing` block.
+
+    Returns:
+        `{"scored", "recall", "precision", "f1", "confusion", ...}`, or None
+        when the corpus carries no composition label and `multiple_documents`
+        is `reject` -- the gate cannot be applied without the axis it turns on,
+        and a number computed from half the rule would look like a measurement.
+    """
+    reject_multiple = routing["multiple_documents"] == "reject"
+    pass_levels = set(routing["pass_levels"])
+
+    if reject_multiple and not any(t.get("composition") for t in truths):
+        return None
+
+    true_positives = false_positives = false_negatives = true_negatives = 0
+    for truth in truths:
+        response = responses.get(truth["filename"])
+        if response is None or response.malformed or response.overall is None:
+            continue
+        condition = truth.get("condition")
+        if condition is None:
+            continue
+        level = condition_to_level.get(condition)
+        if level is None:
+            continue
+
+        truth_send_back = level not in pass_levels or (
+            reject_multiple and truth.get("composition") == "MULTIPLE"
+        )
+        predicted_send_back = response.overall not in pass_levels or (
+            reject_multiple and response.composition == "MULTIPLE"
+        )
+
+        if truth_send_back and predicted_send_back:
+            true_positives += 1
+        elif truth_send_back:
+            false_negatives += 1
+        elif predicted_send_back:
+            false_positives += 1
+        else:
+            true_negatives += 1
+
+    predicted = true_positives + false_positives
+    actual = true_positives + false_negatives
+    precision = (true_positives / predicted) if predicted else None
+    recall = (true_positives / actual) if actual else None
+    f1 = (
+        (2 * precision * recall / (precision + recall))
+        if precision is not None and recall is not None and (precision + recall)
+        else None
+    )
+
+    return {
+        "scored": true_positives + false_positives + false_negatives + true_negatives,
+        "pass_levels": sorted(pass_levels),
+        "multiple_documents": routing["multiple_documents"],
+        "sent_back_correctly": true_positives,
+        "sent_back_wrongly": false_positives,
+        "passed_wrongly": false_negatives,
+        "passed_correctly": true_negatives,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def _routing_lines(report: dict) -> list[str]:
+    """The routing decision, printed first among the scores.
+
+    Ahead of the criterion table because it is the only line that answers what
+    the screen is for. The criteria prime the model's verdict rather than
+    being deliverables in their own right, and a reader who takes the first
+    table as the result reads a diagnostic as an outcome.
+    """
+    routing = report.get("routing")
+    if routing is None:
+        return []
+
+    remedy = (
+        "MULTIPLE always sent back"
+        if routing["multiple_documents"] == "reject"
+        else "MULTIPLE passed on severity alone"
+    )
+    return [
+        "",
+        "ROUTING — send back, or send on to extraction",
+        "-" * 46,
+        f"  gate: pass {', '.join(routing['pass_levels'])}; {remedy}",
+        f"  sent back correctly {routing['sent_back_correctly']:>6}   "
+        f"wrongly {routing['sent_back_wrongly']:>6}",
+        f"  passed correctly    {routing['passed_correctly']:>6}   wrongly {routing['passed_wrongly']:>6}",
+        f"  precision {_rate(routing['precision'])}   recall {_rate(routing['recall'])}   "
+        f"F1 {_rate(routing['f1'])}",
+    ]
+
+
 def composition_tally(responses: dict[str, QualityResponse]) -> dict[str, int]:
     """Count the composition answers, for a run with no labels to score against.
 
@@ -471,6 +599,7 @@ def run(
     prompt_file: Path,
     variant: str,
     condition_to_level: dict[str, str],
+    routing: dict,
 ) -> Path:
     """Score a screen run and write the report.
 
@@ -481,6 +610,7 @@ def run(
         prompt_file: The prompt config, for the criterion vocabulary.
         variant: Which prompt variant the run used.
         condition_to_level: Corpus condition -> prompt severity level.
+        routing: The gate deciding what is sent back, from config.
 
     Returns:
         Path to the written JSON report.
@@ -529,6 +659,7 @@ def run(
     report["composition"] = score_composition(responses, truths)
     report["composition_tally"] = composition_tally(responses)
     report["severity_by_composition"] = severity_by_composition(responses, truths, condition_to_level)
+    report["routing"] = score_routing(responses, truths, condition_to_level, routing)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "quality_screen_report.json"
@@ -560,6 +691,7 @@ def main(
         prompt_file=Path(screen_cfg["prompt_file"]),
         variant=screen_cfg["variant"],
         condition_to_level=screen_cfg["condition_to_level"],
+        routing=screen_cfg["routing"],
     )
 
 

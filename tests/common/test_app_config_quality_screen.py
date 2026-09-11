@@ -19,7 +19,7 @@ import yaml
 from common.app_config import AppConfig, ConfigError
 
 CONFIG_FILE = Path("config/run_config.yml")
-REQUIRED = ["prompt_file", "variant", "output_name", "condition_to_level"]
+REQUIRED = ["prompt_file", "variant", "output_name", "condition_to_level", "routing"]
 
 
 @pytest.fixture
@@ -90,6 +90,53 @@ def test_an_empty_condition_mapping_is_rejected(assert_diagnostic_error, raw_con
     reporting success."""
     broken = copy.deepcopy(raw_config)
     broken["pipeline"]["quality_screen"]["condition_to_level"] = {}
+
+    with pytest.raises(ConfigError) as exc_info:
+        AppConfig._validate_quality_screen(broken, str(CONFIG_FILE))
+
+    assert_diagnostic_error(str(exc_info.value))
+
+
+def test_the_shipped_config_sends_collages_back(raw_config):
+    """Downstream extraction does not read a photograph of several receipts
+    reliably, clean or damaged, so the gate must reject MULTIPLE rather than
+    letting a sharp, well-lit plate through on its severity alone."""
+    screen = AppConfig._validate_quality_screen(raw_config, str(CONFIG_FILE))
+
+    assert screen["routing"]["multiple_documents"] == "reject"
+    assert screen["routing"]["pass_levels"], "some level must pass, or every image is returned"
+
+
+@pytest.mark.parametrize("key", ["pass_levels", "multiple_documents"])
+def test_a_half_declared_gate_is_rejected(assert_diagnostic_error, raw_config, key):
+    """Half a rule still produces a plausible number, which is worse than no
+    number: it reads as a measurement of the routing decision and is not one."""
+    broken = copy.deepcopy(raw_config)
+    del broken["pipeline"]["quality_screen"]["routing"][key]
+
+    with pytest.raises(ConfigError) as exc_info:
+        AppConfig._validate_quality_screen(broken, str(CONFIG_FILE))
+
+    assert_diagnostic_error(str(exc_info.value))
+
+
+def test_an_unknown_collage_policy_is_rejected(assert_diagnostic_error, raw_config):
+    """Not a free-text field. A typo would otherwise read as 'not reject' and
+    silently pass every collage on to extraction."""
+    broken = copy.deepcopy(raw_config)
+    broken["pipeline"]["quality_screen"]["routing"]["multiple_documents"] = "skip"
+
+    with pytest.raises(ConfigError) as exc_info:
+        AppConfig._validate_quality_screen(broken, str(CONFIG_FILE))
+
+    assert_diagnostic_error(str(exc_info.value))
+
+
+def test_an_empty_pass_level_list_is_rejected(assert_diagnostic_error, raw_config):
+    """Empty is not a no-op here -- it fails every image and returns the whole
+    corpus to the taxpayers."""
+    broken = copy.deepcopy(raw_config)
+    broken["pipeline"]["quality_screen"]["routing"]["pass_levels"] = []
 
     with pytest.raises(ConfigError) as exc_info:
         AppConfig._validate_quality_screen(broken, str(CONFIG_FILE))

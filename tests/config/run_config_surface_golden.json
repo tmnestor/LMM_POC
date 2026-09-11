@@ -54,6 +54,12 @@
     },
     "output_name": "quality_screen.jsonl",
     "prompt_file": "prompts/quality_screen.yaml",
+    "routing": {
+      "multiple_documents": "reject",
+      "pass_levels": [
+        "GOOD"
+      ]
+    },
     "tiling": {
       "max_tiles": 12,
       "min_tiles": 12

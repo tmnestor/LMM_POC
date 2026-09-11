@@ -32,24 +32,36 @@ the current pipeline.
 
 Of the eleven missed, ten were mildly degraded and one was heavily degraded.
 
-**On the larger 450-image corpus the decision holds, but false alarms rise.**
-Re-run 2026-09-11, with collages and folded receipts added:
+**On the larger 450-image corpus, judged on severity alone, precision appears
+to fall** — 0.903 against 0.995, with 31 of 150 good images flagged where the
+330-image corpus flagged 1 of 110. Recall held (0.957 against 0.950).
 
-| | 330 images | 450 images |
-|---|---|---|
-| Poor-quality images correctly flagged | 0.950 | **0.957** |
-| Precision | 0.995 | **0.903** |
-| Good images flagged unnecessarily | 1 of 110 (1%) | **31 of 150 (21%)** |
+**That reading is wrong, and the reason matters more than the number.** It
+scores the screen against "is the photograph damaged", which is not the
+decision the pipeline makes. Downstream extraction does not read a photograph
+of several receipts reliably *whether or not the photograph is any good*, so a
+collage must be sent back regardless of its severity. A clean collage graded
+POOR is therefore a correct decision, not a false alarm — and the 330-image
+corpus contained no collages at all, which is why the question never arose.
 
-Recall held; precision did not. The 330 original images contributed 110 of
-those 150 good images and previously produced one false alarm, so arithmetic
-puts roughly thirty of the thirty-one in the forty *clean* collage and folded
-images — plausible, since a plate of receipts carries shadow between the
-receipts and a separate tilt per receipt, which a screen tuned on flat single
-pages reads as damage. **This is not yet confirmed**: it is an inference from
-the totals, and confirming it needs the severity matrix split by composition,
-which `evaluate` now prints. That split costs no GPU time — the stage is CPU
-only and re-reads the existing run.
+The corpus is built so that most of those 31 flags fall on the 40 *clean*
+collage and folded images, and every one of the 90 collages was detected on the
+composition axis. So the screen is catching them; only the yardstick was wrong.
+
+`evaluate` now scores the gate directly:
+
+```yaml
+pipeline:
+  quality_screen:
+    routing:
+      pass_levels: [GOOD]
+      multiple_documents: reject
+```
+
+An image passes only if its severity is in `pass_levels` **and** it holds a
+single document. The routing figures replace the severity-only ones above as
+the headline, and come from the next `evaluate` run — CPU only, seconds, no
+re-screening.
 
 **Reproduced independently on production hardware.** An earlier version of the
 prompt was run on the production GPUs against a separately generated test set
@@ -61,16 +73,20 @@ images take about 11 minutes on four production GPUs.
 **Grading *how* bad an image is works reasonably well** — 86% correct across
 three levels (good / fair / poor) on the 330-image corpus, 76% on the 450-image
 one. It separates damaged from undamaged reliably, and is now also fairly good
-at telling mild damage from severe. The drop tracks the false alarms above
-rather than the grading itself: the errors it adds are clean images graded too
-harshly, not damaged ones graded too kindly.
+at telling mild damage from severe. The lower figure is the same artefact as
+above: it counts a clean collage graded POOR as an error, when for routing
+purposes that verdict sends the image exactly where it should go.
 
 **It also reports whether the photograph contains more than one receipt.**
 Taxpayers commonly place several receipts on a table and photograph them
-together, and downstream extraction handles those badly. This is reported
-separately from the quality verdict, because a photograph of four receipts is
-often perfectly sharp and well lit — nothing is wrong with the *picture* — and
-the remedy is different: split it, rather than re-photograph it.
+together, and downstream extraction does not read those reliably — clean or
+damaged. So **every** collage is sent back, however good the photograph is.
+
+It is reported on its own axis rather than folded into the quality verdict,
+because a photograph of four receipts is often perfectly sharp and well lit —
+nothing is wrong with the *picture* — and the remedy differs: split it, rather
+than ask the taxpayer to photograph it again. Two different messages to send,
+so two separate answers, combined into one decision by the routing gate.
 
 **That check is now measured, and it works.** Scored 2026-09-11 on the
 450-image corpus, which adds 90 photographs of several receipts laid out on one
@@ -129,12 +145,11 @@ measurement.
 
 ## Recommended next steps
 
-1. **Attribute the rise in false alarms.** Re-run `evaluate` alone — CPU only,
-   seconds, no re-screening — and read the severity matrix split by
-   composition. If the false alarms are concentrated in clean collages, the
-   screen is sound and the quality verdict simply needs to be read differently
-   for a collage; if they are spread across single pages too, it is a real
-   regression. These call for opposite responses, so this comes first.
+1. **Score the routing gate.** Re-run `evaluate` alone — CPU only, seconds, no
+   re-screening — for the first figures on the decision the pipeline actually
+   makes, rather than on severity alone. The severity-only numbers above
+   understate the screen because they count a correctly-rejected clean collage
+   as a false alarm.
 2. **Confirm the two broken checks are test-data problems.** Cheap, and decides
    whether to fix them or drop them to four checks.
 3. **Test against real photographs.** Until then we know the screen works on
@@ -404,10 +419,22 @@ subset rather than the corpus, and the report says so explicitly when it
 happens. The full report is also written to
 `<run-output-dir>/quality_screen_report.json`.
 
+**Read the ROUTING block first.** It is the only section that scores the
+decision the pipeline makes — send this image on to extraction, or send it
+back — and it states the gate it used, so the number can be interpreted months
+later. The criterion table below it is a diagnostic, not an outcome: the six
+questions prime the model's overall verdict rather than being deliverables in
+their own right.
+
 For the composition block, read the `MULTIPLE->` row: that is collage
 detection. The `SINGLE->` row is the false-positive rate on ordinary documents,
 and the 30 `FOLDED*` images are the hard negative inside it — a folded receipt
-looks like two receipts and must still answer SINGLE.
+looks like two receipts and must still answer SINGLE. Any mistakes are named
+individually, so you can see which they were.
+
+A clean collage graded POOR in the severity matrix is **not** a false alarm.
+It is an unprocessable image sent back for the wrong stated reason, and the
+ROUTING block scores it as the correct decision it is.
 
 A criterion showing `n/a` precision with `0.000` recall was never predicted
 present on any image. That is a real result, not a missing measurement.
