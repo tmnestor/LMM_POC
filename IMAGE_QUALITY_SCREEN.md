@@ -11,6 +11,11 @@ populations rather than a before and after: the 450-image set is balanced
 150/150/150 across the three severity levels, the 330-image set 110/110/110.
 Part A builds the 450-image corpus.
 
+**In one line:** on the decision the pipeline makes — send this image on to
+extraction, or send it back — the screen scores precision 0.997 and recall
+0.961, sending back 317 of the 330 unusable images while wrongly returning 1 of
+120 usable ones.
+
 ---
 
 ## What it is
@@ -59,9 +64,24 @@ pipeline:
 ```
 
 An image passes only if its severity is in `pass_levels` **and** it holds a
-single document. The routing figures replace the severity-only ones above as
-the headline, and come from the next `evaluate` run — CPU only, seconds, no
-re-screening.
+single document. Scored that way, on the same 450 images:
+
+| | result |
+|---|---|
+| Unusable images correctly sent back | **317 of 330 (96%)** |
+| Usable images wrongly sent back | **1 of 120 (0.8%)** |
+| Unusable images passed through | 13 of 330 (4%) |
+| Precision / recall / F1 | **0.997 / 0.961 / 0.978** |
+
+The false-alarm rate is 1 in 120, against 1 in 110 on the 330-image corpus —
+unchanged. All 13 misses are *degraded single documents* graded GOOD; **no
+collage was missed**.
+
+The split confirms the mechanism. Severity is exact on 86.4% of single-document
+photographs — statistically unchanged from the 85.5% measured on the smaller
+corpus — and on only 34.4% of collages, because **all 30 clean collages were
+graded degraded**. Not one was passed as GOOD. Against severity those are 30
+errors; against the routing gate they are 30 correct rejections.
 
 **Reproduced independently on production hardware.** An earlier version of the
 prompt was run on the production GPUs against a separately generated test set
@@ -101,7 +121,10 @@ because a folded receipt looks like two receipts and must still answer
 | Accuracy | 0.996 |
 
 This is the strongest of the screen's checks, and the only one measured at
-ceiling.
+ceiling. Both mistakes were folded receipts at the heaviest degradation tier —
+the hard negative built because a folded receipt looks like two receipts. **No
+ordinary document was ever called a collage.** The only two errors fell on the
+case designed to be hard, which is where errors should fall.
 
 ## What it cannot do yet
 
@@ -145,11 +168,14 @@ measurement.
 
 ## Recommended next steps
 
-1. **Score the routing gate.** Re-run `evaluate` alone — CPU only, seconds, no
-   re-screening — for the first figures on the decision the pipeline actually
-   makes, rather than on severity alone. The severity-only numbers above
-   understate the screen because they count a correctly-rejected clean collage
-   as a false alarm.
+1. **Key the taxpayer's message on composition, not severity.** The screen
+   reaches the right decision on a collage by the wrong stated reason: it calls
+   the *photograph* poor when the photograph is fine. A message driven from the
+   severity verdict would tell someone their sharp, well-lit picture was
+   blurry, and ask them to take it again — when what they need to do is
+   photograph the receipts separately. The two remedies are different, so the
+   message must read the composition answer. Cheap, and it is the only finding
+   here that is visible to a user.
 2. **Confirm the two broken checks are test-data problems.** Cheap, and decides
    whether to fix them or drop them to four checks.
 3. **Test against real photographs.** Until then we know the screen works on
