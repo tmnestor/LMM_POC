@@ -133,8 +133,29 @@ persistent rather than accidental. It almost never detects creasing (11 of 150
 creased images, recall 0.07), and it barely detects shadow on receipts (recall
 0.02) though it detects shadow on invoices perfectly (recall 1.00). Both are
 *precise* when they do fire — 1.000 for each, so they never cry wolf; they
-simply stay silent. In both cases we believe the test images themselves are at
-fault rather than the model, and we can confirm that cheaply.
+simply stay silent.
+
+We previously believed the test images were at fault in both cases. Measured,
+that is true of one and false of the other:
+
+- **Creasing is a corpus fault.** The fold is drawn at about 2.8 grey levels of
+  contrast, and the camera model then adds per-pixel noise at sigma 5.1 and
+  JPEG quality 60 on top of it. The crease sits below the noise it is buried
+  under; it is recoverable only by averaging hundreds of rows. The model
+  answering "no crease" is correct perception of something locally
+  indistinguishable from noise. The fix belongs in the generator, not the
+  prompt.
+- **Receipt shadow is not.** Measured over the printed text rather than the
+  blank paper — a gradient across empty stock is not a defect, one across the
+  line items is — a shadow costs 64.9% of ink-to-paper contrast on receipts and
+  65.2% on invoices. The damage is equally severe on both, and the model reports
+  it on one and not the other. The data is right; why the model fails on
+  receipts is not yet known.
+
+Neither is a reason to stop asking the question. Shadow detection is at ceiling
+on invoices, so dropping it to fix receipts would discard a working check; and
+the crease question is not the broken part. There is also a cost to removing
+questions that the per-criterion table hides — see the next section.
 
 The other four checks are sound but not symmetric: blur and tilt never miss a
 defect (recall 1.000) at the cost of firing on roughly four in ten undamaged
@@ -166,6 +187,17 @@ degraded" — the questions give it a reference for what an undamaged document
 looks like. The stepwise design was the right call and is now backed by
 measurement.
 
+**The corollary is the important part: the criteria prime the verdict rather
+than informing it.** Two variants that made the criteria individually more
+accurate scored 51.2% and 48.8% against v13's 85.5% on the same hardware and
+corpus. Making the per-criterion answers better made the screen worse.
+
+So a question whose own answer is usually wrong may still be carrying the
+verdict, and the per-criterion table is a diagnostic rather than a deliverable.
+Dropping the two checks that do not work is therefore not a tidy-up: it is a
+prompt change that has never been measured, and the two previous attempts at
+improving this prompt both cost a GPU run and made things worse.
+
 ## Recommended next steps
 
 1. **Key the taxpayer's message on composition, not severity.** The screen
@@ -176,8 +208,10 @@ measurement.
    photograph the receipts separately. The two remedies are different, so the
    message must read the composition answer. Cheap, and it is the only finding
    here that is visible to a user.
-2. **Confirm the two broken checks are test-data problems.** Cheap, and decides
-   whether to fix them or drop them to four checks.
+2. **Strengthen the fold in the corpus generator.** Creasing is drawn below the
+   noise the camera model then adds, so the check has never had a fair test.
+   This is a YAML change in Synthetic_Doc_Generation followed by a rebuild and
+   a re-run, and it is the only one of these gaps with a known cause.
 3. **Test against real photographs.** Until then we know the screen works on
    images we generated, which is not the same as images users take.
 4. **Decide what the screen is for.** If it is "send this back for
