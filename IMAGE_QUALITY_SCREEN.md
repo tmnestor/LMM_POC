@@ -327,12 +327,18 @@ ls *.png | sort | xargs sha256sum | sha256sum      # shasum -a 256 on macOS
 sha256sum quality_ground_truth.jsonl
 ```
 
-Reference, from the build of 2026-09-11 (450 images):
+Reference, from the build of 2026-09-11 (450 images), after the fold-width fix:
 
 ```
-PNG manifest                24297c1e3a16a2b5719a0fe75a8395542c97cc25b2e1f2790ec00d3edb78208c
+PNG manifest                4b1312146ca7079ff452d42f51b6c85766d74e84863de71c77fdfd336d4643d7
 quality_ground_truth.jsonl  ee026133c63a0fe68c94a853d657384b75fbd94d6ef7b68b7c018cd7ba1224aa
 ```
+
+The ground-truth digest is unchanged from the build before that fix, and should
+be: widening the crease changed pixels, not labels. Every heavy image was
+already labelled creased. A change in the label digest after a degradation-only
+edit would mean the corpus had been reseeded, which is a different and much
+larger event.
 
 A mismatch is an environment problem before it is anything else. Check the
 OpenCV build (A3) first.
