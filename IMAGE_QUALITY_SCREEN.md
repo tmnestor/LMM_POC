@@ -1,7 +1,15 @@
 # Image-quality screen — summary
 
-Measured 2026-09-09. Branch `feature/quality-screen`, paired with
-`feature/quality-screen-corpus` in Synthetic_Doc_Generation.
+Measured 2026-09-09 on a 330-image corpus. Branch
+`feature/quality-screen-standalone`, paired with `feature/quality-screen-corpus`
+in Synthetic_Doc_Generation.
+
+Re-measured 2026-09-11 on 450 images — the same 330 plus 90 receipt collages
+and 30 folded receipts, added to measure the collage check. Where a figure
+differs between the two corpora both are given, because they are different
+populations rather than a before and after: the 450-image set is balanced
+150/150/150 across the three severity levels, the 330-image set 110/110/110.
+Part A builds the 450-image corpus.
 
 ---
 
@@ -24,6 +32,25 @@ the current pipeline.
 
 Of the eleven missed, ten were mildly degraded and one was heavily degraded.
 
+**On the larger 450-image corpus the decision holds, but false alarms rise.**
+Re-run 2026-09-11, with collages and folded receipts added:
+
+| | 330 images | 450 images |
+|---|---|---|
+| Poor-quality images correctly flagged | 0.950 | **0.957** |
+| Precision | 0.995 | **0.903** |
+| Good images flagged unnecessarily | 1 of 110 (1%) | **31 of 150 (21%)** |
+
+Recall held; precision did not. The 330 original images contributed 110 of
+those 150 good images and previously produced one false alarm, so arithmetic
+puts roughly thirty of the thirty-one in the forty *clean* collage and folded
+images — plausible, since a plate of receipts carries shadow between the
+receipts and a separate tilt per receipt, which a screen tuned on flat single
+pages reads as damage. **This is not yet confirmed**: it is an inference from
+the totals, and confirming it needs the severity matrix split by composition,
+which `evaluate` now prints. That split costs no GPU time — the stage is CPU
+only and re-reads the existing run.
+
 **Reproduced independently on production hardware.** An earlier version of the
 prompt was run on the production GPUs against a separately generated test set
 and gave the same result within noise, on different hardware and different
@@ -32,8 +59,11 @@ confirming those are real limitations rather than quirks of one test set. 330
 images take about 11 minutes on four production GPUs.
 
 **Grading *how* bad an image is works reasonably well** — 86% correct across
-three levels (good / fair / poor). It separates damaged from undamaged
-reliably, and is now also fairly good at telling mild damage from severe.
+three levels (good / fair / poor) on the 330-image corpus, 76% on the 450-image
+one. It separates damaged from undamaged reliably, and is now also fairly good
+at telling mild damage from severe. The drop tracks the false alarms above
+rather than the grading itself: the errors it adds are clean images graded too
+harshly, not damaged ones graded too kindly.
 
 **It also reports whether the photograph contains more than one receipt.**
 Taxpayers commonly place several receipts on a table and photograph them
@@ -42,18 +72,37 @@ separately from the quality verdict, because a photograph of four receipts is
 often perfectly sharp and well lit — nothing is wrong with the *picture* — and
 the remedy is different: split it, rather than re-photograph it.
 
-That check is **not yet measured**. The test images contain no such
-photographs, so there is nothing for it to find; what we can say is that it
-raised no false alarms on any of the 330 single-receipt images. Measuring it
-needs test data that contains them, which is the next piece of work.
+**That check is now measured, and it works.** Scored 2026-09-11 on the
+450-image corpus, which adds 90 photographs of several receipts laid out on one
+plate, and 30 photographs of a single long receipt folded — the hard negative,
+because a folded receipt looks like two receipts and must still answer
+"one document".
+
+| | result |
+|---|---|
+| Collages correctly identified | **90 of 90 (100%)** |
+| Single documents wrongly called collages | **2 of 360 (0.6%)** |
+| Accuracy | 0.996 |
+
+This is the strongest of the screen's checks, and the only one measured at
+ceiling.
 
 ## What it cannot do yet
 
-**Two of its six checks do not work.** It almost never detects creasing (3
-detections out of 110 creased images), and it never detects shadow on receipts
-though it detects shadow on invoices perfectly. In both cases we believe the
-test images themselves are at fault rather than the model, and we can confirm
-that cheaply. The other four checks are sound.
+**Two of its six checks do not work**, and the 450-image run confirms both as
+persistent rather than accidental. It almost never detects creasing (11 of 150
+creased images, recall 0.07), and it barely detects shadow on receipts (recall
+0.02) though it detects shadow on invoices perfectly (recall 1.00). Both are
+*precise* when they do fire — 1.000 for each, so they never cry wolf; they
+simply stay silent. In both cases we believe the test images themselves are at
+fault rather than the model, and we can confirm that cheaply.
+
+The other four checks are sound but not symmetric: blur and tilt never miss a
+defect (recall 1.000) at the cost of firing on roughly four in ten undamaged
+images. That is deliberate — the per-criterion answers prime the overall
+verdict rather than informing it, and making the criteria individually accurate
+has twice made the screen as a whole worse. The per-criterion table is not the
+deliverable.
 
 **It has only been tested on generated images.** The test set is synthetic —
 damage applied deliberately so we know the right answer for every image. The
@@ -80,19 +129,26 @@ measurement.
 
 ## Recommended next steps
 
-1. **Confirm the two broken checks are test-data problems.** Cheap, and decides
+1. **Attribute the rise in false alarms.** Re-run `evaluate` alone — CPU only,
+   seconds, no re-screening — and read the severity matrix split by
+   composition. If the false alarms are concentrated in clean collages, the
+   screen is sound and the quality verdict simply needs to be read differently
+   for a collage; if they are spread across single pages too, it is a real
+   regression. These call for opposite responses, so this comes first.
+2. **Confirm the two broken checks are test-data problems.** Cheap, and decides
    whether to fix them or drop them to four checks.
-2. **Test against real photographs.** Until then we know the screen works on
+3. **Test against real photographs.** Until then we know the screen works on
    images we generated, which is not the same as images users take.
-3. **Decide what the screen is for.** If it is "send this back for
+4. **Decide what the screen is for.** If it is "send this back for
    re-capture", the pass/fail decision is ready. If it needs to route by
    severity, the three-level grading needs more work.
 
 ## Caveats worth stating
 
 - All results are from one model (InternVL3.5-8B). Not tested on alternatives.
-- 330 images from 55 source documents, so fewer independent documents than
-  images.
+- 450 images from 55 source documents, so far fewer independent documents than
+  images. The collages are built from those same receipts, so a model that
+  learned one receipt's quirks sees them again on a plate.
 - The screen reports *image quality*, not whether extraction will succeed. We
   have not yet measured whether a flagged image actually extracts worse — that
   is a separate and worthwhile question.
@@ -142,29 +198,69 @@ pip uninstall -y opencv-python && pip install --no-deps augraphy==8.2.6
 **A4. Generate.**
 
 ```bash
-python -m generators.pipeline eval-set --out <writable-output-parent>
+python -m generators.pipeline eval-set --out <writable-output-parent> --force
 ```
+
+Not `generate` — that renders clean pages and per-field geometry for the
+extraction exports. `eval-set` renders the evaluation corpus straight from the
+committed ground truth, and is the only command needed here. `--force` replaces
+an existing dated directory; without it a second run refuses to overwrite.
 
 Choose an output path the process can actually write to — on an orchestrated
 run that generally means the job's own output directory rather than a home or
 cache path.
 
-Takes roughly 15 minutes and produces three dated directories totalling ~1.6 GB:
+Takes roughly 15 minutes and produces three dated directories totalling ~1.8 GB:
 
-| directory | contents | purpose |
-|---|---|---|
-| `synthetic_<date>/` | 110 clean images | clean-only comparison runs |
-| `degraded_<date>/` | 220 degraded images | degraded-only comparison runs |
-| `quality_<date>/` | all 330 | **the quality screen reads this one** |
+| directory | contents | size | purpose |
+|---|---|---|---|
+| `synthetic_<date>/` | 110 clean images | 294 MB | clean-only comparison runs |
+| `degraded_<date>/` | 220 degraded images | 497 MB | degraded-only comparison runs |
+| `quality_<date>/` | all 450 | 962 MB | **the quality screen reads this one** |
 
-Each carries `ground_truth.jsonl` (what the document says) and
-`quality_ground_truth.jsonl` (which defects each image actually has, plus the
-values drawn to produce them).
+`quality_<date>/` holds three families of filename:
 
-Generation is deterministic given the ground-truth seeds, so a rebuild produces
-the same images. Labels may differ by one or two on criteria whose drawn value
-sits within floating-point distance of a threshold, which varies by CPU
-architecture; the labels always describe the images actually produced.
+| prefix | count | composition | what it is |
+|---|---|---|---|
+| `CASE*` | 330 | SINGLE | one document per photograph, clean and degraded |
+| `COLLAGE*` | 90 | MULTIPLE | several receipts on one plate, photographed together |
+| `FOLDED*` | 30 | SINGLE | one long receipt folded — the collage check's hard negative |
+
+Each directory carries `ground_truth.jsonl` (what the document says),
+`ground_truth.csv` (the same, flat) and `quality_ground_truth.jsonl` (which
+defects each image actually has, the values drawn to produce them, and its
+composition).
+
+**A5. The directory name follows the generating machine's clock.** The stamp is
+today's date where the command runs, so a UTC host and an AEST laptop can
+disagree by a day. Check rather than assume, and do not rename the directory to
+match another machine — point the screen at the name you got.
+
+```bash
+ls -d <writable-output-parent>/quality_*
+```
+
+**A6. Confirm two machines built the same corpus.** Renders are byte-identical
+across machines only because `pillow`, `numpy`, `opencv-python-headless` and
+`augraphy` are pinned exactly — pillow's bundled FreeType drives font metrics,
+which drive every fit decision and therefore the pixels. Equal digests mean the
+pins held:
+
+```bash
+cd <writable-output-parent>/quality_<date>
+ls *.png | sort | xargs sha256sum | sha256sum      # shasum -a 256 on macOS
+sha256sum quality_ground_truth.jsonl
+```
+
+Reference, from the build of 2026-09-11 (450 images):
+
+```
+PNG manifest                24297c1e3a16a2b5719a0fe75a8395542c97cc25b2e1f2790ec00d3edb78208c
+quality_ground_truth.jsonl  ee026133c63a0fe68c94a853d657384b75fbd94d6ef7b68b7c018cd7ba1224aa
+```
+
+A mismatch is an environment problem before it is anything else. Check the
+OpenCV build (A3) first.
 
 ### Part B — run the screen
 
@@ -202,21 +298,75 @@ paths it will use and exits without running anything:
 KFP_TASK=check bash entrypoint.sh
 ```
 
-**B4. Run it.** Two stages, no clean stage between them — the screen's answers
+**B4. Set the paths once.** Everything below overrides `run_config.yml` from
+the environment, so a diagnostic run cannot silently become the default.
+
+```bash
+QDIR=<corpus>/quality_<date>
+```
+
+Four overrides matter, and the fourth is the one people forget:
+
+| variable | why |
+|---|---|
+| `image_dir` | the corpus to screen |
+| `ground_truth` | its labels, beside the images |
+| `output` | where results are written |
+| `LMM_LOG_DIR` | **easy to forget** — see below |
+
+`log_dir` comes from `run_config.yml` while `output` comes from the
+environment. Override one without the other and the YAML stays perfectly
+self-consistent while the two point at different corpora. `entrypoint.sh`
+compares the *resolved* paths and exits before the model loads, rather than
+failing on first write half an hour in. Setting `LMM_LOG_DIR` under `output` is
+the fix.
+
+Note also that `run_config.yml` is committed, so it names whatever corpus it
+last named. A run without these overrides will screen that older set quite
+happily and report nothing amiss — `KFP_TASK=check` (B3) is how you find out
+before spending GPU time.
+
+**B5. Smoke test first — 30 images.** Prove the wiring before committing to a
+full run:
+
+```bash
+KFP_TASK=screen \
+    image_dir="$QDIR" \
+    ground_truth="$QDIR/quality_ground_truth.jsonl" \
+    output="$QDIR/output" \
+    LMM_LOG_DIR="$QDIR/output/logs" \
+    screen_max_images=30 \
+    bash entrypoint.sh
+```
+
+A good smoke shows `malformed 0`, `reasoning drift 0`, and a severity diagonal
+in the same region as a full run. Two results are expected rather than wrong:
+
+- **`missing 420`.** Evaluate always scores against the whole ground truth and
+  reports the rest as missing, so a short run cannot be mistaken for a full one.
+- **Composition accuracy of 1.000, on SINGLE only.** `screen_max_images` takes
+  the first N images *by filename*, and `CASE*` sorts before `COLLAGE*` — the
+  first MULTIPLE image is at index 330. A 30-image smoke therefore contains no
+  collage at all. It shows the screen does not false-positive on ordinary
+  documents, and says nothing about detection.
+
+**B6. Run it.** Two stages, no clean stage between them — the screen's answers
 are fixed tokens with nothing to normalise.
 
 ```bash
 # GPU. Writes quality_screen.jsonl: one record per image with its answers,
 # the raw model response, and the settings that produced it.
 KFP_TASK=classify \
-    image_dir=<corpus>/quality_<date> \
-    output=<run-output-dir> \
+    image_dir="$QDIR" \
+    output="$QDIR/output" \
+    LMM_LOG_DIR="$QDIR/output/logs" \
     bash entrypoint.sh
 
 # CPU. Scores it and prints the report.
 KFP_TASK=evaluate \
-    ground_truth=<corpus>/quality_<date>/quality_ground_truth.jsonl \
-    output=<run-output-dir> \
+    ground_truth="$QDIR/quality_ground_truth.jsonl" \
+    output="$QDIR/output" \
+    LMM_LOG_DIR="$QDIR/output/logs" \
     bash entrypoint.sh
 ```
 
@@ -225,30 +375,42 @@ and invoking the modules directly does not.
 
 On one box rather than a pipeline, `KFP_TASK=screen` runs both in a single
 shell. It must never be set in the KFP manifest, where it would run the
-CPU-only scoring inside the GPU pod.
+CPU-only scoring inside the GPU pod, holding every card idle throughout.
 
-Roughly 20 minutes for 330 images, halving with each additional GPU: the
-classify stage shards across every GPU it is given.
+330 images took roughly 20 minutes on two GPUs, which extrapolates to about 28
+minutes for 450. It halves with each additional GPU: the classify stage shards
+across every GPU it is given, and 330 images took about 11 minutes on four
+production GPUs.
 
 **Re-runs.** By default every run rescreens the whole directory. Where images
 arrive over time and only the new ones need screening, set
 `CLEAR_PREV_OUTPUT=false` — the stage then screens only images with no record
-yet. It resumes only when the prompt variant and tile budget are unchanged;
-if either has moved it discards the previous records and rescreens, saying so,
-because a file mixing two prompts is not one run and the report cannot tell.
+yet. This is also how to follow a smoke test with a full run without paying
+twice for the first 30 images. It resumes only when the prompt variant and tile
+budget are unchanged; if either has moved it discards the previous records and
+rescreens, saying so, because a file mixing two prompts is not one run and the
+report cannot tell.
 
-**B4. Read the result.** `evaluate` prints the per-criterion table, a
-per-document-type split, the severity confusion matrix, and — first, before
-the scores — the counts:
+**B7. Read the result.** `evaluate` prints the per-criterion table, a
+per-document-type split, the severity confusion matrix, the composition tally,
+and — first, before the scores — the counts:
 
 ```
-images 330   scored 330   malformed 0   missing 0   reasoning drift 0
+images 450   scored 450   malformed 0   missing 0   reasoning drift 0
 ```
 
 Check that line first. Any image not scored means the rates below it describe a
 subset rather than the corpus, and the report says so explicitly when it
 happens. The full report is also written to
 `<run-output-dir>/quality_screen_report.json`.
+
+For the composition block, read the `MULTIPLE->` row: that is collage
+detection. The `SINGLE->` row is the false-positive rate on ordinary documents,
+and the 30 `FOLDED*` images are the hard negative inside it — a folded receipt
+looks like two receipts and must still answer SINGLE.
+
+A criterion showing `n/a` precision with `0.000` recall was never predicted
+present on any image. That is a real result, not a missing measurement.
 
 ### Comparing prompt variants
 

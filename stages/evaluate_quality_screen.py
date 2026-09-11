@@ -27,6 +27,11 @@ app = typer.Typer(add_completion=False)
 # failure rather than an absence of measurement.
 _UNDEFINED = "n/a"
 
+# How many composition mistakes to name in the printed report. A handful is a
+# finding worth reading image by image; a hundred is a wall of filenames that
+# buries the counts above it. The JSON report always carries all of them.
+_MAX_NAMED_MISSES = 12
+
 
 def load_screen_records(path: Path) -> dict[str, QualityResponse]:
     """Read the classify stage's output back into scoreable responses.
@@ -243,6 +248,7 @@ def format_report(report: dict) -> str:
     lines += ["", "OVERALL severity (truth -> predicted)", "-" * 40]
     lines += [f"  {key:<24}{count:>6}" for key, count in report["overall_confusion"].items()]
 
+    lines += _severity_by_composition_lines(report)
     lines += _composition_lines(report)
     return "\n".join(lines)
 
@@ -279,6 +285,41 @@ def _composition_lines(report: dict) -> list[str]:
         f"accuracy {'n/a' if accuracy is None else f'{accuracy:.3f}'}"
     )
     lines += [f"  {key:<24}{count:>6}" for key, count in scored["confusion"].items()]
+
+    # Named, because two wrong answers out of 450 are worth reading individually
+    # and a count cannot say whether they were the folded-receipt hard negatives
+    # or ordinary pages. Capped so a badly broken run prints a finding rather
+    # than several hundred lines of filenames.
+    misses = scored.get("misses") or []
+    if misses:
+        lines.append(f"  wrong on {len(misses)}:")
+        for miss in misses[:_MAX_NAMED_MISSES]:
+            lines.append(f"    {miss['filename']:<34}{miss['truth']} -> {miss['predicted']}")
+        if len(misses) > _MAX_NAMED_MISSES:
+            lines.append(
+                f"    ... and {len(misses) - _MAX_NAMED_MISSES} more (all of them in the JSON report)"
+            )
+    return lines
+
+
+def _severity_by_composition_lines(report: dict) -> list[str]:
+    """The severity matrix split by how many documents are in the shot.
+
+    Printed only when the corpus holds more than one composition. On a corpus of
+    single-document photographs the split is the whole matrix again, and a table
+    that only ever restates the one above it trains the reader to skip both.
+    """
+    split = report.get("severity_by_composition")
+    if not split or len(split) < 2:
+        return []
+
+    lines = ["", "OVERALL severity, split by composition", "-" * 46]
+    for name, matrix in split.items():
+        total = sum(matrix.values())
+        correct = sum(count for key, count in matrix.items() if key.split("->")[0] == key.split("->")[1])
+        share = f"{correct / total:.3f}" if total else "n/a"
+        lines.append(f"  {name} ({total} images, exact {share})")
+        lines += [f"    {key:<24}{count:>6}" for key, count in matrix.items()]
     return lines
 
 
@@ -308,6 +349,7 @@ def score_composition(responses: dict[str, QualityResponse], truths: list[dict])
         return None
 
     confusion: dict[str, int] = {}
+    misses: list[dict[str, str]] = []
     correct = 0
     scored = 0
     for truth in labelled:
@@ -319,6 +361,14 @@ def score_composition(responses: dict[str, QualityResponse], truths: list[dict])
         confusion[key] = confusion.get(key, 0) + 1
         if truth["composition"] == response.composition:
             correct += 1
+        else:
+            misses.append(
+                {
+                    "filename": truth["filename"],
+                    "truth": truth["composition"],
+                    "predicted": response.composition,
+                }
+            )
 
     return {
         "labelled": len(labelled),
@@ -326,7 +376,64 @@ def score_composition(responses: dict[str, QualityResponse], truths: list[dict])
         "correct": correct,
         "accuracy": (correct / scored) if scored else None,
         "confusion": dict(sorted(confusion.items())),
+        # Named, not just counted. The corpus carries a deliberate hard negative
+        # -- a single long receipt folded, which looks like two receipts -- and
+        # the confusion matrix cannot say whether a SINGLE->MULTIPLE error fell
+        # on one of those or on an ordinary document. Those are different
+        # failures: the first is the check working as designed and losing, the
+        # second is it misreading a plain page. The filenames distinguish them.
+        "misses": misses,
     }
+
+
+def severity_by_composition(
+    responses: dict[str, QualityResponse],
+    truths: list[dict],
+    condition_to_level: dict[str, str],
+) -> dict[str, dict[str, int]] | None:
+    """Split the severity confusion matrix by how many documents are in the shot.
+
+    The corpus holds two populations that the single matrix averages together:
+    photographs of one document, and photographs of several laid out on a plate.
+    They are not the same measurement. A plate carries inter-receipt shadow and
+    a separate tilt per receipt, so a *clean* collage can look damaged to a
+    screen tuned on flat single pages -- and a fall in precision would then be
+    read as the screen getting worse, when it is the corpus getting harder.
+
+    Splits on the `composition` label already in the ground truth rather than on
+    filename prefixes: the label is what the corpus asserts, and a prefix
+    convention is a guess that goes stale the first time files are renamed.
+
+    Args:
+        responses: Image name -> its response.
+        truths: Ground-truth records.
+        condition_to_level: Corpus condition -> the variant's severity level.
+
+    Returns:
+        `composition -> {"truth->predicted": count}`, or None when no truth
+        record carries a composition label -- the same UNMEASURED convention
+        `score_composition` uses.
+    """
+    labelled = [t for t in truths if t.get("composition")]
+    if not labelled:
+        return None
+
+    split: dict[str, dict[str, int]] = {}
+    for truth in labelled:
+        response = responses.get(truth["filename"])
+        if response is None or response.malformed or response.overall is None:
+            continue
+        condition = truth.get("condition")
+        if condition is None:
+            continue
+        level = condition_to_level.get(condition)
+        if level is None:
+            continue
+        matrix = split.setdefault(truth["composition"], {})
+        key = f"{level}->{response.overall}"
+        matrix[key] = matrix.get(key, 0) + 1
+
+    return {name: dict(sorted(matrix.items())) for name, matrix in sorted(split.items())}
 
 
 def composition_tally(responses: dict[str, QualityResponse]) -> dict[str, int]:
@@ -421,6 +528,7 @@ def run(
     report["screening_runs"] = screening_runs(screen_path)
     report["composition"] = score_composition(responses, truths)
     report["composition_tally"] = composition_tally(responses)
+    report["severity_by_composition"] = severity_by_composition(responses, truths, condition_to_level)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "quality_screen_report.json"
