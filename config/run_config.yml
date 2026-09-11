@@ -244,11 +244,16 @@ pipeline:
     #
     # Re-measured 2026-09-11 on 450 images (the same 330 plus 90 collages and
     # 30 folded receipts), scored against the routing gate below: precision
-    # 0.997, recall 0.961, F1 0.978. COMPOSITION found 90 of 90 collages, and
-    # its only two mistakes were folded receipts at the heaviest tier -- the
-    # deliberate hard negative. Severity alone reads much worse on that corpus
-    # (76%), because it counts a correctly-rejected CLEAN collage as a false
-    # alarm; see routing.multiple_documents.
+    # 0.997, recall 0.967, F1 0.982, with NO heavily degraded image passed.
+    # COMPOSITION found 90 of 90 collages, and all three of its mistakes were
+    # folded receipts at the heaviest tier -- the deliberate hard negative.
+    #
+    # Severity alone reads much worse on that corpus (70%), for two reasons,
+    # neither of which is the screen getting worse. It counts a
+    # correctly-rejected CLEAN collage as a false alarm (see
+    # routing.multiple_documents), and it counts a heavy image called FAIR
+    # rather than POOR as an error when the gate sends both back. Do not tune
+    # against the severity figure.
     #
     # Chosen over v12 (recall 0.977, precision 0.935, severity 72.4% on the same
     # hardware and corpus). The trade is one heavily degraded image passed,

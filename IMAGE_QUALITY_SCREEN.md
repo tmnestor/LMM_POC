@@ -13,8 +13,8 @@ Part A builds the 450-image corpus.
 
 **In one line:** on the decision the pipeline makes — send this image on to
 extraction, or send it back — the screen scores precision 0.997 and recall
-0.961, sending back 317 of the 330 unusable images while wrongly returning 1 of
-120 usable ones.
+0.967, sending back 319 of the 330 unusable images while wrongly returning 1 of
+120 usable ones, and passing no heavily degraded image at all.
 
 ---
 
@@ -64,24 +64,32 @@ pipeline:
 ```
 
 An image passes only if its severity is in `pass_levels` **and** it holds a
-single document. Scored that way, on the same 450 images:
+single document. Scored that way, on the 450-image corpus:
 
 | | result |
 |---|---|
-| Unusable images correctly sent back | **317 of 330 (96%)** |
+| Unusable images correctly sent back | **319 of 330 (97%)** |
 | Usable images wrongly sent back | **1 of 120 (0.8%)** |
-| Unusable images passed through | 13 of 330 (4%) |
-| Precision / recall / F1 | **0.997 / 0.961 / 0.978** |
+| Unusable images passed through | 11 of 330 (3%) |
+| Heavily degraded images passed through | **0** |
+| Precision / recall / F1 | **0.997 / 0.967 / 0.982** |
 
 The false-alarm rate is 1 in 120, against 1 in 110 on the 330-image corpus —
 unchanged. All 13 misses are *degraded single documents* graded GOOD; **no
 collage was missed**.
 
-The split confirms the mechanism. Severity is exact on 86.4% of single-document
-photographs — statistically unchanged from the 85.5% measured on the smaller
-corpus — and on only 34.4% of collages, because **all 30 clean collages were
+The split confirms the mechanism. Severity is exact on 80.0% of single-document
+photographs and on only 32.2% of collages, because **all 30 clean collages were
 graded degraded**. Not one was passed as GOOD. Against severity those are 30
 errors; against the routing gate they are 30 correct rejections.
+
+Three-level severity is 70.4% overall, against 76.0% before the crease was made
+visible and 85.5% on the original 330 images. Almost all of that loss is the
+model calling a heavily degraded image FAIR rather than POOR — `POOR->FAIR`
+rose from 18 to 45 while `POOR->GOOD` fell from 2 to **zero**. The routing gate
+sends both FAIR and POOR back, so the lost accuracy costs nothing operationally
+and the change it came with removed the worst failure mode entirely. It matters
+only if the screen is ever asked to route by severity rather than pass/fail.
 
 **Reproduced independently on production hardware.** An earlier version of the
 prompt was run on the production GPUs against a separately generated test set
@@ -117,14 +125,20 @@ because a folded receipt looks like two receipts and must still answer
 | | result |
 |---|---|
 | Collages correctly identified | **90 of 90 (100%)** |
-| Single documents wrongly called collages | **2 of 360 (0.6%)** |
-| Accuracy | 0.996 |
+| Single documents wrongly called collages | **3 of 360 (0.8%)** |
+| Accuracy | 0.993 |
 
 This is the strongest of the screen's checks, and the only one measured at
-ceiling. Both mistakes were folded receipts at the heaviest degradation tier —
-the hard negative built because a folded receipt looks like two receipts. **No
-ordinary document was ever called a collage.** The only two errors fell on the
-case designed to be hard, which is where errors should fall.
+ceiling. All three mistakes were folded receipts at the heaviest degradation
+tier — the hard negative built because a folded receipt looks like two
+receipts. **No ordinary document was ever called a collage.** Every error fell
+on the case designed to be hard, which is where errors should fall.
+
+There were two such errors before the crease was widened and three after, which
+is the one result arguing the new fold may be wider than a single crease
+warrants: a broader crease zone makes a folded receipt look more like two
+separate ones. A narrower setting would be more faithful, and costs a GPU run
+to check.
 
 ## What it cannot do yet
 
@@ -138,13 +152,14 @@ simply stay silent.
 We previously believed the test images were at fault in both cases. Measured,
 that is true of one and false of the other:
 
-- **Creasing is a corpus fault.** The fold is drawn at about 2.8 grey levels of
-  contrast, and the camera model then adds per-pixel noise at sigma 5.1 and
-  JPEG quality 60 on top of it. The crease sits below the noise it is buried
-  under; it is recoverable only by averaging hundreds of rows. The model
-  answering "no crease" is correct perception of something locally
-  indistinguishable from noise. The fix belongs in the generator, not the
-  prompt.
+- **Creasing was thought to be a corpus fault. It is not.** The fold was
+  genuinely being erased by the camera model — drawn as a narrow band of fine
+  speckle, then destroyed by the blur, noise and JPEG applied after it — so the
+  generator was fixed to draw a wider crease zone that survives. The crease is
+  now plainly visible on both document types. **Recall then fell from 0.07 to
+  0.01.** The model reports the crease *less* often now that it can be seen.
+  This is a confirmed model failure, not a data problem, and no further corpus
+  work will move it.
 - **Receipt shadow is not.** Measured over the printed text rather than the
   blank paper — a gradient across empty stock is not a defect, one across the
   line items is — a shadow costs 64.9% of ink-to-paper contrast on receipts and
@@ -152,10 +167,17 @@ that is true of one and false of the other:
   it on one and not the other. The data is right; why the model fails on
   receipts is not yet known.
 
-Neither is a reason to stop asking the question. Shadow detection is at ceiling
-on invoices, so dropping it to fix receipts would discard a working check; and
-the crease question is not the broken part. There is also a cost to removing
-questions that the per-criterion table hides — see the next section.
+So both standing "we believe the test images are at fault" assumptions are now
+resolved, and both were wrong. Neither defect is a data problem, and neither is
+a reason to stop asking the question: shadow detection is at ceiling on
+invoices, so dropping it to fix receipts would discard a working check, and
+there is a cost to removing any question that the per-criterion table hides —
+see the next section.
+
+The fold fix is worth keeping regardless of its effect on CREASE. Before it,
+150 images were *labelled* creased while carrying no perceptible crease, so the
+label was false and every number computed against it was meaningless. The
+corpus is now honest, and the figures measured on it are lower and truer.
 
 The other four checks are sound but not symmetric: blur and tilt never miss a
 defect (recall 1.000) at the cost of firing on roughly four in ten undamaged
@@ -208,18 +230,33 @@ improving this prompt both cost a GPU run and made things worse.
    photograph the receipts separately. The two remedies are different, so the
    message must read the composition answer. Cheap, and it is the only finding
    here that is visible to a user.
-2. **Strengthen the fold in the corpus generator.** Creasing is drawn below the
-   noise the camera model then adds, so the check has never had a fair test.
-   This is a YAML change in Synthetic_Doc_Generation followed by a rebuild and
-   a re-run, and it is the only one of these gaps with a known cause.
-3. **Test against real photographs.** Until then we know the screen works on
-   images we generated, which is not the same as images users take.
-4. **Decide what the screen is for.** If it is "send this back for
-   re-capture", the pass/fail decision is ready. If it needs to route by
-   severity, the three-level grading needs more work.
+2. **Test against real photographs.** Until then we know the screen works on
+   images we generated, which is not the same as images users take. This is now
+   the largest gap by some distance.
+3. **Decide what the screen is for.** If it is "send this back for
+   re-capture", the pass/fail decision is ready — precision 0.997, recall
+   0.967, and no heavily degraded image passed. If it needs to route by
+   severity, the three-level grading has got worse, not better, and would need
+   real work.
+4. **Consider narrowing the fold slightly** (`gradient_width` on the heavy
+   tiers, currently `[0.40, 0.55]`). One more folded receipt is now misread as
+   a collage than before it was widened, which is the expected consequence of a
+   broader crease zone and suggests the current setting is wider than a single
+   fold warrants. Low priority: it costs a GPU run and moves one image.
+
+**Not worth doing: further work on CREASE.** It was the obvious candidate and it
+is now closed. The fold was genuinely being erased by the camera, the generator
+was fixed, the crease is plainly visible on both document types — and recall
+fell from 0.07 to 0.01. The model reports the crease less often now that it can
+be seen. No amount of further corpus work will move that.
 
 ## Caveats worth stating
 
+- **One unexplained result.** Widening the crease also dropped SPECKLE recall
+  from 0.933 to 0.859. The speckle labels derive from noise sigma and JPEG
+  quality, neither of which changed, so the images are exactly as speckled as
+  before and the model reports it less. We have no account of this and have not
+  invented one.
 - All results are from one model (InternVL3.5-8B). Not tested on alternatives.
 - 450 images from 55 source documents, so far fewer independent documents than
   images. The collages are built from those same receipts, so a model that
