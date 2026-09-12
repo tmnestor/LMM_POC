@@ -1,0 +1,212 @@
+{
+  "variant": "quality_screen_v13",
+  "_transcription": {
+    "from": "the printed report of the PROD run of 2026-09-12 14:23:03",
+    "corpus": "not stated by that report. Its log named only the output directory, /home/jovyan/evaluation_data/quality_20260912/output.",
+    "written_by": "scratchpad/build_v13_notebook.py, from the notebook's own data cell",
+    "by_document_type": "Rates only. The printed per-document-type block carries no TP/FP/FN, where a report written by the stage would."
+  },
+  "counts": {
+    "total": 450,
+    "scored": 450,
+    "malformed": 0,
+    "missing": 0,
+    "think_drift": 0
+  },
+  "per_criterion": {
+    "blur": {
+      "precision": 0.571,
+      "recall": 1.0,
+      "f1": 0.727,
+      "true_positives": 257,
+      "false_positives": 193,
+      "false_negatives": 0
+    },
+    "shadow": {
+      "precision": 1.0,
+      "recall": 0.377,
+      "f1": 0.547,
+      "true_positives": 113,
+      "false_positives": 0,
+      "false_negatives": 187
+    },
+    "crease": {
+      "precision": 0.5,
+      "recall": 0.007,
+      "f1": 0.013,
+      "true_positives": 1,
+      "false_positives": 1,
+      "false_negatives": 149
+    },
+    "faded": {
+      "precision": 0.985,
+      "recall": 0.663,
+      "f1": 0.793,
+      "true_positives": 199,
+      "false_positives": 3,
+      "false_negatives": 101
+    },
+    "tilt": {
+      "precision": 0.572,
+      "recall": 1.0,
+      "f1": 0.728,
+      "true_positives": 231,
+      "false_positives": 173,
+      "false_negatives": 0
+    },
+    "speckle": {
+      "precision": 0.609,
+      "recall": 0.866,
+      "f1": 0.715,
+      "true_positives": 246,
+      "false_positives": 158,
+      "false_negatives": 38
+    }
+  },
+  "by_document_type": {
+    "invoice": {
+      "blur": {
+        "precision": 0.667,
+        "recall": 1.0,
+        "f1": 0.8
+      },
+      "shadow": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "crease": {
+        "precision": null,
+        "recall": 0.0,
+        "f1": null
+      },
+      "faded": {
+        "precision": 1.0,
+        "recall": 0.873,
+        "f1": 0.932
+      },
+      "tilt": {
+        "precision": 0.513,
+        "recall": 1.0,
+        "f1": 0.678
+      },
+      "speckle": {
+        "precision": 0.644,
+        "recall": 0.773,
+        "f1": 0.702
+      }
+    },
+    "receipt": {
+      "blur": {
+        "precision": 0.516,
+        "recall": 1.0,
+        "f1": 0.681
+      },
+      "shadow": {
+        "precision": 1.0,
+        "recall": 0.016,
+        "f1": 0.031
+      },
+      "crease": {
+        "precision": 0.5,
+        "recall": 0.011,
+        "f1": 0.021
+      },
+      "faded": {
+        "precision": 0.972,
+        "recall": 0.542,
+        "f1": 0.696
+      },
+      "tilt": {
+        "precision": 0.596,
+        "recall": 1.0,
+        "f1": 0.747
+      },
+      "speckle": {
+        "precision": 0.592,
+        "recall": 0.925,
+        "f1": 0.722
+      }
+    }
+  },
+  "overall_confusion": {
+    "FAIR->FAIR": 95,
+    "FAIR->GOOD": 7,
+    "FAIR->POOR": 48,
+    "GOOD->FAIR": 2,
+    "GOOD->GOOD": 117,
+    "GOOD->POOR": 31,
+    "POOR->FAIR": 40,
+    "POOR->POOR": 110
+  },
+  "severity_by_composition": {
+    "MULTIPLE": {
+      "FAIR->FAIR": 3,
+      "FAIR->POOR": 27,
+      "GOOD->FAIR": 1,
+      "GOOD->POOR": 29,
+      "POOR->POOR": 30
+    },
+    "SINGLE": {
+      "FAIR->FAIR": 92,
+      "FAIR->GOOD": 7,
+      "FAIR->POOR": 21,
+      "GOOD->FAIR": 1,
+      "GOOD->GOOD": 117,
+      "GOOD->POOR": 2,
+      "POOR->FAIR": 40,
+      "POOR->POOR": 80
+    }
+  },
+  "composition_tally": {
+    "MULTIPLE": 94,
+    "SINGLE": 356
+  },
+  "composition": {
+    "labelled": 450,
+    "scored": 450,
+    "correct": 446,
+    "accuracy": 0.991,
+    "confusion": {
+      "MULTIPLE->MULTIPLE": 90,
+      "SINGLE->MULTIPLE": 4,
+      "SINGLE->SINGLE": 356
+    },
+    "misses": [
+      {
+        "filename": "FOLDED003_receipt_heavy.png",
+        "truth": "SINGLE",
+        "predicted": "MULTIPLE"
+      },
+      {
+        "filename": "FOLDED008_receipt_moderate.png",
+        "truth": "SINGLE",
+        "predicted": "MULTIPLE"
+      },
+      {
+        "filename": "FOLDED021_receipt_heavy.png",
+        "truth": "SINGLE",
+        "predicted": "MULTIPLE"
+      },
+      {
+        "filename": "FOLDED027_receipt_heavy.png",
+        "truth": "SINGLE",
+        "predicted": "MULTIPLE"
+      }
+    ]
+  },
+  "routing": {
+    "scored": 450,
+    "pass_levels": [
+      "GOOD"
+    ],
+    "multiple_documents": "reject",
+    "sent_back_correctly": 323,
+    "sent_back_wrongly": 3,
+    "passed_correctly": 117,
+    "passed_wrongly": 7,
+    "precision": 0.991,
+    "recall": 0.979,
+    "f1": 0.985
+  }
+}
