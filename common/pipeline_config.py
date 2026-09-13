@@ -52,7 +52,8 @@ def load_structure_suffixes(
     raises. It previously caught every exception and returned the Python
     defaults, so a missing file, a permissions error or a YAML syntax error all
     produced a plausible-looking config that silently ignored the operator's
-    settings -- the pattern CLAUDE.md forbids ("If a YAML key is missing, fail
+    settings -- the pattern the project's engineering standards forbid ("If a
+    YAML key is missing, fail
     fast with a clear error -- do not silently fall back to a Python constant").
 
     Raises:

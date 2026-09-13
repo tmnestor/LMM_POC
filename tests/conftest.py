@@ -15,7 +15,8 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
-# Required by CLAUDE.md: fail-fast diagnostics must carry all four elements.
+# Required by the project's engineering standards: fail-fast diagnostics must
+# carry all four elements.
 _DIAGNOSTIC_ELEMENTS = ("What:", "Where:", "Expected:", "How to fix:")
 
 

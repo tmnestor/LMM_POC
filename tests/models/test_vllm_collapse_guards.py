@@ -179,7 +179,8 @@ def test_unknown_model_raises_four_element_diagnostic(assert_diagnostic_error):
 
     After the collapse only three model types exist, so a bad ``model.type`` in
     run_config.yml hits this chokepoint far more often — the error must tell the
-    operator What/Where/Expected/How-to-fix, per CLAUDE.md. (Done ahead of the
+    operator What/Where/Expected/How-to-fix, per the project's engineering
+    standards. (Done ahead of the
     collapse, so it is a live invariant, not a goal-state xfail.)
     """
     from models import registry as registry_mod
