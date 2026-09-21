@@ -166,6 +166,21 @@ inference:
       gemma4-12b-unified:
         max_new_tokens_base: 512
         max_new_tokens_per_field: 64
+      #   qwen38-27b-fp8-vllm           -> qwen38-27b-fp8  (NOT `qwen38-27b`:
+      #     `-vllm` strips, then `-fp8` fails the size-suffix test AND is not a
+      #     recognised quantisation suffix the way `-w4a16` is, so BOTH the size
+      #     and the quantisation survive. Traced empirically, not inferred from
+      #     the Gemma case, which normalises differently.)
+      # Same budget as gemma4-31b above, deliberately: an asymmetric completion
+      # budget would confound the comparison, since a model cut off mid-answer
+      # on a dense table loses rows the other model keeps.
+      # Sampling is NOT set here. This checkpoint's own generation_config.json
+      # asks for do_sample true / temperature 1.0, but the vLLM extraction path
+      # builds SamplingParams(temperature=0) at the call site, and `defaults`
+      # above is already greedy — so an override here would be decoration.
+      qwen38-27b-fp8:
+        max_new_tokens_base: 512
+        max_new_tokens_per_field: 64
     token_limits:
       2b: null                    # use calculation
       8b: 800
