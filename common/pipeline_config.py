@@ -559,8 +559,27 @@ def _resolve_default_paths(
 def discover_images(
     data_dir: Path,
     document_types: list[str] | None = None,
+    max_images: int | None = None,
 ) -> list[Path]:
-    """Discover images in data directory."""
+    """Discover images in a data directory, applying the configured selection.
+
+    Both filters live HERE rather than at the call sites. They used to be applied
+    only in ``cli.py``, so ``stages/classify.py`` and ``stages/extract.py`` — the
+    path ``KFP_TASK=run_info_extract`` actually drives — ignored them: asking for
+    12 images processed all 165 while the YAML read as applied. Keeping the
+    selection inside the discovery function means a caller cannot omit it.
+
+    Args:
+        data_dir: Directory to scan for images.
+        document_types: Keep only images whose filename contains one of these
+            (case-insensitive). ``None`` keeps every type.
+        max_images: Keep at most this many, applied AFTER sorting and type
+            filtering so the subset is deterministic and representative.
+            ``None`` means no limit.
+
+    Returns:
+        Images sorted by lowercase filename, filtered and truncated as requested.
+    """
     images: list[Path] = []
 
     for ext in IMAGE_EXTENSIONS:
@@ -579,6 +598,11 @@ def discover_images(
             if any(pattern in name_lower for pattern in type_patterns):
                 filtered.append(img)
         images = filtered
+
+    # Truncate LAST: a limit applied before the type filter would eat images the
+    # filter was going to discard, and silently return fewer than requested.
+    if max_images is not None:
+        images = images[:max_images]
 
     return images
 

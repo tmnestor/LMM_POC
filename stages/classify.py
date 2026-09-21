@@ -86,7 +86,16 @@ def run(
     effective_verbose = config.verbose
 
     # Discover images
-    images = list(discover_images(config.data_dir))
+    # Both filters are config-driven and MUST be passed: calling with the
+    # directory alone silently ignored max_images and document_types, so a
+    # 12-image request processed all 165 (fixed 2026-09-21).
+    images = list(
+        discover_images(
+            config.data_dir,
+            document_types=config.document_types,
+            max_images=config.max_images,
+        )
+    )
     if not images:
         msg = f"No images found in {config.data_dir}"
         raise FileNotFoundError(msg)

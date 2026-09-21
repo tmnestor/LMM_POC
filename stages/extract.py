@@ -711,8 +711,31 @@ def _run_unified(
     from common.pipeline_config import discover_images
     from common.pipeline_ops import create_processor, load_model
 
+    # Build config FIRST: discovery needs max_images and document_types from it.
+    # This used to run after discover_images, which is why calling it with the
+    # directory alone looked harmless — the config simply was not available yet.
+    cli_args: dict[str, Any] = {
+        "data_dir": str(image_dir),
+        "output_dir": str(output_path.parent),
+    }
+    if model_type is not None:
+        cli_args["model_type"] = model_type
+    if verbose is not None:
+        cli_args["verbose"] = verbose
+    if debug is not None:
+        cli_args["debug"] = debug
+
+    app_cfg = AppConfig.load(cli_args, config_path=config_path)
+    config = app_cfg.pipeline
+
     # Discover images
-    images = list(discover_images(image_dir))
+    images = list(
+        discover_images(
+            image_dir,
+            document_types=config.document_types,
+            max_images=config.max_images,
+        )
+    )
     if not images:
         msg = f"No images found in {image_dir}"
         raise FileNotFoundError(msg)
@@ -733,21 +756,6 @@ def _run_unified(
     if not images:
         logger.info("All images already processed -- nothing to do")
         return output_path
-
-    # Build config
-    cli_args: dict[str, Any] = {
-        "data_dir": str(image_dir),
-        "output_dir": str(output_path.parent),
-    }
-    if model_type is not None:
-        cli_args["model_type"] = model_type
-    if verbose is not None:
-        cli_args["verbose"] = verbose
-    if debug is not None:
-        cli_args["debug"] = debug
-
-    app_cfg = AppConfig.load(cli_args, config_path=config_path)
-    config = app_cfg.pipeline
 
     # -- vLLM data-parallel fast path ------------------------------------------
     from models.registry import is_vllm_model
