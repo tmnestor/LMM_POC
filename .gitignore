@@ -88,16 +88,11 @@ datasets/
 
 # Archive for legacy code and directories
 archive/*
-# Claude Code related files
-CLAUDE.md
-*claude*
-*CLAUDE*
 # Root-level scratch scripts (but allow files in tests/ and scripts/ subdirs)
 /test_*.py
 /check_*.py
 /build_*.py
 backup/
-.claude/
 
 simple_invoice_generator.py
 synthetic_invoice_generator.py
