@@ -32,7 +32,7 @@
 #   torchvision 0.28.0    |  exact == pins; must install together from the
 #   torchaudio  2.11.0    /  same CUDA build or vLLM will fail to load
 #   flashinfer-python  0.6.18   (pinned ==, transitive from vLLM)
-#   flashinfer-cubin   0.6.18   (pinned ==, pre-compiled CUDA kernels)
+#   flashinfer-cubin   DELIBERATELY ABSENT — see the block below
 #   compressed-tensors 0.17.0   (the Gemma W4A16 path; UNCHANGED from
 #                                vllm_env3, so that loader is not a new variable)
 #   transformers       >=5.10.4
@@ -90,12 +90,45 @@
 #   Deliberately NOT installed separately -- vLLM bundles its own flash-attn
 #   kernels and FlashInfer is the default/recommended attention backend.
 #
+# ⚠️  flashinfer-cubin IS NOT PINNED HERE, UNLIKE vllm_env3 -- and that is correct
+#   Attempting `flashinfer-cubin==0.6.18` FAILS the env build outright:
+#     ERROR: Could not find a version that satisfies the requirement
+#     flashinfer-cubin==0.6.18 (from versions: ... 0.6.13)
+#   The reason is in vLLM's own requirements/cuda.txt, verbatim:
+#     "# flashinfer-cubin is not on PyPI since 0.6.14; setup.py excludes it from"
+#     "--extra-index-url https://flashinfer.ai/whl/"
+#   So from 0.6.14 onward the package is published ONLY on flashinfer.ai's index.
+#   vllm_env3 could pin flashinfer-cubin==0.6.13 precisely because 0.6.13 was the
+#   last PyPI release; that is a difference in the PACKAGE, not in our approach.
+#
+#   Three options, and why this one:
+#     - Add --extra-index-url https://flashinfer.ai/whl/  -> FORBIDDEN. Data
+#       engineering policy bars extra indexes (same rule as vllm_env2/env3).
+#     - Pin flashinfer-cubin==0.6.13 against flashinfer-python==0.6.18 -> a
+#       version MISMATCH between pre-compiled kernels and the runtime that loads
+#       them. Rejected: wrong kernels are a silent-wrong-answer risk, which is
+#       the worst failure class this pipeline has.
+#     - Omit it -> CHOSEN. vLLM's setup.py already excludes it from the install
+#       requirements and flashinfer-python does not list it in requires_dist, so
+#       omitting it is the SUPPORTED configuration, not a workaround.
+#
+#   COST: FlashInfer JIT-compiles its kernels on first use instead of loading
+#   pre-compiled cubins, so the FIRST engine start in this env is slow. That is
+#   startup, not inference — and the benchmark reports engine startup separately
+#   from inference time, so it does not contaminate the throughput comparison.
+#   BUT: warm both models the same way before quoting throughput, or whichever
+#   model is measured first silently pays the whole JIT bill.
+#   The compile cache lives under the user's cache dir. That is writable on the
+#   sandbox; it is NOT writable in prod, where only output.dir is -- so if this
+#   env is ever promoted, the JIT cache location has to be dealt with first.
+#
 # Changes from vllm_env3.yaml (0.25.1):
 #   - vllm        0.25.1 -> 0.29.0
 #   - torch       2.11.0 -> 2.13.0 (torchvision 0.26.0 -> 0.28.0;
 #                                   torchaudio STAYS at 2.11.0 -- that is what
 #                                   the 0.29.0 tag pins, not an oversight)
-#   - flashinfer  0.6.13 -> 0.6.18 (both -python and -cubin)
+#   - flashinfer-python  0.6.13 -> 0.6.18
+#   - flashinfer-cubin   0.6.13 -> DROPPED (left PyPI at 0.6.14; see above)
 #   - transformers >=5.5.3 -> >=5.10.4
 #   - compressed-tensors UNCHANGED at 0.17.0
 #
@@ -143,12 +176,13 @@ dependencies:
       - torchvision==0.28.0
       - torchaudio==2.11.0
 
-      # vLLM and its most version-sensitive hard deps. Listed explicitly (even
+      # vLLM and its most version-sensitive hard dep. Listed explicitly (even
       # though transitive) so an accidental later `pip install --upgrade` of
       # flashinfer cannot silently break vLLM.
+      # flashinfer-cubin is NOT here — it left PyPI at 0.6.14 and vLLM excludes
+      # it from its own requirements. See the flashinfer block in the header.
       - vllm==0.29.0
       - flashinfer-python==0.6.18
-      - flashinfer-cubin==0.6.18
 
       # The Gemma W4A16 loader. Pinned explicitly and deliberately held at the
       # version vllm_env3 resolved, so the quantisation path is not a second
