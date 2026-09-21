@@ -92,23 +92,31 @@ CONFIG_FILE="./config/run_config.yml"
 # needs a PyYAML-capable python, which only exists INSIDE this env (chicken-and-
 # egg). So CONDA_ENV is bootstrapped from LMM_CONDA_ENV or the default below.
 # One model per branch: InternVL3.5-8B runs from `main` (vllm_env2, vllm 0.19.0),
-# Gemma 4 from `feature/gemma4` (vllm_env3, vllm 0.25.1). Each branch defaults to
-# the env its model needs, so neither needs an LMM_CONDA_ENV export.
-# NEVER run InternVL from this branch: it would LOAD in vllm_env3 rather than
+# Gemma 4 from `feature/gemma4` (vllm_env3, vllm 0.25.1), and the Gemma 31B vs
+# Qwen 3.8 comparison from `feature/qwen38-vs-gemma4-31b` (vllm_env4, vllm 0.29.0).
+# Each branch defaults to the env its model needs, so none needs an
+# LMM_CONDA_ENV export.
+# vllm_env4 exists because Qwen3.8's Qwen3_5ForConditionalGeneration needs
+# vLLM >= 0.28.0, which vllm_env3 predates — and because serving BOTH models of
+# the comparison from ONE engine is what keeps an engine confound out of the
+# result. See conda_envs/vllm_env4.yaml.
+# NEVER run InternVL from this branch: it would LOAD in vllm_env4 rather than
 # fail, but transformers 5.x leaves ensure_corrected_tokenizer()'s
 # fix_mistral_regex=True path unverified — a silently degraded tokenizer on the
 # whitespace/digit-dense bank amounts the 91.8% baseline rests on.
-# DO NOT merge this vllm_env3 default to `main`.
+# DO NOT merge this vllm_env4 default to `main` or to `feature/gemma4`.
 # CONDA_ENV="${LMM_CONDA_ENV:-/efs/shared/.conda/envs/vllm_env}"
 # CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env2}"   # InternVL3.5 (vllm 0.19.0)
-CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env3}"     # Gemma 4 (vllm 0.25.1)
+# CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env3}"   # Gemma 4 12B (vllm 0.25.1)
+CONDA_ENV="${LMM_CONDA_ENV:-/home/jovyan/.conda/envs/vllm_env4}"     # Gemma 31B + Qwen 3.8 (vllm 0.29.0)
 CONDA_PY="${CONDA_ENV}/bin/python"
 if [[ ! -x "$CONDA_PY" ]]; then
   echo "FATAL: bootstrap interpreter not found: $CONDA_PY"
   echo "  What:  the python used to parse $CONFIG_FILE (it needs PyYAML) is missing."
   echo "  Where: CONDA_ENV='$CONDA_ENV' — from LMM_CONDA_ENV env var, or the default in entrypoint.sh."
   echo "  Fix:   point LMM_CONDA_ENV at a real conda env dir so \$LMM_CONDA_ENV/bin/python exists, e.g."
-  echo "           export LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env3"
+  #         export LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env3   # Gemma 4 12B branch
+  echo "           export LMM_CONDA_ENV=/home/jovyan/.conda/envs/vllm_env4"
   exit 1
 fi
 # Emits YAML_* assignments (every key, unconditionally; missing keys -> ''),
