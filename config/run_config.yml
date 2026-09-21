@@ -61,6 +61,7 @@ bootstrap:
       gemma4-31b-w4a16-vllm: /home/jovyan/nfs_share/models/gemma-4-31B-it-qat-w4a16-ct
       gemma4-12b-unified-vllm: /home/jovyan/nfs_share/models/gemma-4-12B-it
       gemma4-12b-unified-w4a16-vllm: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
+      qwen38-27b-fp8-vllm: /home/jovyan/nfs_share/models/Qwen3.8-27B-FP8
       # internvl3: /efs/shared/PTM/InternVL3_5-8B
       # internvl3-vllm: /efs/shared/PTM/InternVL3_5-8B
   # GPU count (moved from the old top-level processing: section).
@@ -333,6 +334,42 @@ inference:
             # num_soft_tokens: 1120
             # num_soft_tokens: 280
             num_soft_tokens: 560
+      # Qwen 3.8 27B, block-scaled FP8 (block 128), on 2xL4 at tp=2.
+      # 25.87 GiB of weights EXCEEDS one 24 GiB L4, so this is a single engine
+      # sharded across both cards over PCIe (no NVLink) — NOT one engine per
+      # card. models/registry.py sets supports_data_parallel=False; without that
+      # the DP fast path starts two whole engines and OOMs at load.
+      # Needs vLLM >= 0.28.0 (arch Qwen3_5ForConditionalGeneration) — see
+      # conda_envs/vllm_env4.yaml, which serves this and the Gemma 31B from one
+      # engine so the comparison carries no engine confound.
+      qwen38-27b-fp8-vllm:
+        # 16384 holds a ~6,166-visual-token bank statement at native resolution
+        # plus prompt and output. Only 16 of the 64 layers carry KV (~32 KiB per
+        # token per card at tp=2); the other 48 carry fp32 recurrent state that
+        # is constant PER SEQUENCE rather than growing per token, and that is
+        # the term which actually bounds max_num_seqs on this architecture.
+        max_model_len: 16384
+        gpu_memory_utilization: 0.90 # ~20.25 GiB budget/card; 12.94 GiB is weights
+        limit_mm_per_prompt: 1       # one whole image; Qwen sizes it by pixel area
+        # PROVISIONAL — 8 matches the value the SROIE benchmark sustained on a
+        # comparable checkpoint, but the recurrent-state cost above is not the
+        # same shape as a pure KV model and has not been measured here. The
+        # engine-load smoke sets the real ceiling; a batch that does not fit is
+        # retried one image at a time, so an over-large value costs throughput,
+        # never results — watch for "retrying one at a time" and lower it.
+        max_num_seqs: 8
+        enable_prefix_caching: true
+        mm_processor_kwargs:
+          # Qwen sizes images by PIXEL AREA, not tiles and not a soft-token
+          # budget: visual tokens = pixels / 1024 (patch_size 16, merge_size 2).
+          # These are the checkpoint's own defaults, written out explicitly
+          # rather than omitted so that reading this file answers what the run
+          # is configured to do. At max_pixels 16777216 a 1800x3508 statement is
+          # NOT downscaled, so Qwen sees roughly 11x the image representation
+          # Gemma's 560 soft tokens give it — the most interesting variable in
+          # the comparison, and the sweep lever for the bank-statement tail.
+          min_pixels: 65536
+          max_pixels: 16777216
 
   # Raw VLM prompt/response trace (debug observability; default off).
   # When enabled, every extraction VLM call (detection, bank turns, graph nodes,
@@ -637,9 +674,13 @@ pipeline:
     # Keys are NORMALISED model types (see the generation.models note above).
     # Both Gemma variants are pinned to 1: a single-card engine has no room to
     # widen, and stating it explicitly beats falling through to batch.min_size.
-    default_sizes: {internvl3: 4, gemma4-31b: 1, gemma4-12b-unified: 1}
-    max_sizes: {internvl3: 8, gemma4-31b: 1, gemma4-12b-unified: 1}
-    conservative_sizes: {internvl3: 1, gemma4-31b: 1, gemma4-12b-unified: 1}
+    # qwen38-27b-fp8 is pinned to 1 alongside the Gemma 31B, and matching is the
+    # point: batching headroom is per document type, and the bank statements
+    # that dominate this corpus have none. Raising either model alone would
+    # confound the throughput half of the comparison.
+    default_sizes: {internvl3: 4, gemma4-31b: 1, gemma4-12b-unified: 1, qwen38-27b-fp8: 1}
+    max_sizes: {internvl3: 8, gemma4-31b: 1, gemma4-12b-unified: 1, qwen38-27b-fp8: 1}
+    conservative_sizes: {internvl3: 1, gemma4-31b: 1, gemma4-12b-unified: 1, qwen38-27b-fp8: 1}
     min_size: 1
     strategy: balanced            # conservative | balanced | aggressive
     auto_detect: true
