@@ -374,6 +374,13 @@ inference:
       # Needs vLLM >= 0.28.0 (arch Qwen3_5ForConditionalGeneration) — see
       # conda_envs/vllm_env4.yaml, which serves this and the Gemma 31B from one
       # engine so the comparison carries no engine confound.
+      # QUANTISATION REALITY, verified at load 2026-09-21: these cards are Ada
+      # sm_89 with NO native FP8 compute, so vLLM selects
+      # MarlinFP8ScaledMMLinearKernel and runs WEIGHT-ONLY FP8 (W8A16), warning
+      # that it "may degrade performance for compute-heavy workloads". The model
+      # runs correctly — but the throughput half of this comparison is therefore
+      # Marlin-W8A16 Qwen against native-W4A16 Gemma, and that asymmetry must be
+      # stated whenever the speed numbers are quoted.
       qwen38-27b-fp8-vllm:
         # 16384 holds a ~6,166-visual-token bank statement at native resolution
         # plus prompt and output. Only 16 of the 64 layers carry KV (~32 KiB per
@@ -381,15 +388,26 @@ inference:
         # is constant PER SEQUENCE rather than growing per token, and that is
         # the term which actually bounds max_num_seqs on this architecture.
         max_model_len: 16384
-        gpu_memory_utilization: 0.90 # ~20.25 GiB budget/card; 12.94 GiB is weights
+        # MEASURED on 2xL4 at tp=2, 2026-09-21 (not estimated):
+        #   consumed (weights + non-torch)  14.86 GiB/card
+        #   peak activation                  1.56 GiB
+        #   CUDA graph pool                  0.03 GiB
+        #   KV cache left                    3.41 GiB
+        # The 14.86 GiB is well above the 12.94 GiB the 25.87 GiB checkpoint
+        # halves to — Marlin repacks the FP8 weights at load (see below), and the
+        # difference is why KV ended up at 3.41 GiB rather than the ~7 GiB a
+        # file-size estimate predicted. vLLM offers --kv-cache-memory=5.12 GiB to
+        # use the slack; left alone so both models keep the same utilisation.
+        gpu_memory_utilization: 0.90
         limit_mm_per_prompt: 1       # one whole image; Qwen sizes it by pixel area
-        # PROVISIONAL — 8 matches the value the SROIE benchmark sustained on a
-        # comparable checkpoint, but the recurrent-state cost above is not the
-        # same shape as a pure KV model and has not been measured here. The
-        # engine-load smoke sets the real ceiling; a batch that does not fit is
-        # retried one image at a time, so an over-large value costs throughput,
-        # never results — watch for "retrying one at a time" and lower it.
-        max_num_seqs: 8
+        # 5 is the MEASURED ceiling, not a guess: vLLM reports "GPU KV cache size:
+        # 86,167 tokens, Maximum concurrency for 16,384 tokens per request: 5.26x".
+        # Anything above that is decoration — the 12B saw exactly this, where 8 and
+        # 10 scored identically against a 3.43x ceiling. Concurrency is bounded by
+        # KV tokens / max_model_len, so the lever is max_model_len or free VRAM,
+        # never this number on its own.
+        # max_num_seqs: 8            # provisional pre-measurement value
+        max_num_seqs: 5
         enable_prefix_caching: true
         mm_processor_kwargs:
           # Qwen sizes images by PIXEL AREA, not tiles and not a soft-token

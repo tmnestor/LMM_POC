@@ -212,6 +212,20 @@ set -o nounset
 # first and fails with "version GLIBCXX_3.4.30 not found".
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
+# Use vLLM's PyTorch-native top-k/top-p sampler instead of FlashInfer's.
+# REQUIRED on this box, and it costs nothing: every extraction path here decodes
+# GREEDILY (VllmBackend builds SamplingParams(temperature=0)), so the top-k/top-p
+# kernel is never used for real work — vLLM just warms it at startup regardless.
+#
+# Without this, engine start FAILS during sampler warmup. flashinfer 0.6.18 has no
+# pre-compiled kernels on PyPI (see conda_envs/vllm_env4.yaml), so it JIT-compiles,
+# and its JIT shells out to the SYSTEM toolkit at /usr/local/cuda-12.4, which is too
+# old for a flag flashinfer emits:
+#     nvcc fatal : Unknown option '--compress-mode=size'   (needs nvcc >= 12.8)
+# Measured 2026-09-21 loading Qwen3.8-27B-FP8 at tp=2; setting this to 0 was the
+# difference between a dead engine and ENGINE OK.
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
+
 # Suppress verbose INFO logging from vLLM engine, transformers, and tokenizers.
 # Override by setting these env vars before running entrypoint.sh.
 export VLLM_LOGGING_LEVEL="${VLLM_LOGGING_LEVEL:-WARNING}"
