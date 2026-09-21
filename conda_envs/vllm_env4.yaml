@@ -39,10 +39,15 @@
 #   Python      3.12      (hard requirement -- prod runs 3.12, and
 #                          models/registry.py uses PEP 695 `type` statements)
 #
-#   NOT YET VERIFIED ON THE SANDBOX. Every pin above is read from the release
-#   tag; vllm_env3's were confirmed against a real install before being trusted,
-#   and this file has not had that treatment yet. Run the arch check below on a
-#   CPU-only node before spending any GPU time.
+#   VERIFIED ON THE SANDBOX 2026-09-22. Every pin resolved exactly as written:
+#     vllm 0.29.0, torch 2.13.0+cu130, torchvision 0.28.0+cu130,
+#     torchaudio 2.11.0+cu130, flashinfer-python 0.6.18.
+#   The CUDA 13.0 runtime is confirmed, not assumed — torch reports cuda 13.0.
+#   Arch check passed: BOTH Qwen3_5ForConditionalGeneration and
+#   Gemma4ForConditionalGeneration are registered, so one engine really does
+#   serve both models and the comparison carries no engine confound.
+#   One correction was needed to get here: flashinfer-cubin==0.6.18 does not
+#   exist on PyPI and failed the build — see the flashinfer block below.
 #
 # VERSION CHOICE
 #   0.28.0 (2026-08-26) is the MINIMUM stable release that both carries
@@ -195,12 +200,20 @@ dependencies:
 
 # ---------------------------------------------------------------------------
 # NOTE ON THESE PINS
-#   Derived from requirements/cuda.txt at the vllm v0.29.0 tag and the published
-#   wheel metadata. UNLIKE vllm_env3.yaml, they have NOT yet been confirmed
-#   against a real install -- vllm_env3 earned that sentence only after the
-#   sandbox resolved every pin exactly as written. Replace this paragraph with
-#   the observed versions once the env has been created, and record the arch
-#   check result the same way.
+#   Derived from requirements/cuda.txt at the vllm v0.29.0 tag, then CONFIRMED
+#   against a real install on the sandbox (2026-09-22): every remaining pin
+#   resolved exactly as written, and the CUDA runtime is 13.0 as expected rather
+#   than the 12.x that would have needed a driver recheck.
+#
+#   The ONE pin that did not survive contact was flashinfer-cubin, which the
+#   release tag pins at 0.6.18 but which has not been published to PyPI since
+#   0.6.14. Reading a version out of a release tag is not the same as knowing it
+#   installs — the same lesson vllm_env3 recorded, in a new shape.
+#
+#   ARCH CHECK PASSED on the sandbox 2026-09-22:
+#     Qwen3_5ForConditionalGeneration  OK
+#     Gemma4ForConditionalGeneration   OK
+#   Both present in one engine, which is the entire reason this env exists.
 #
 #   Reproduction proof (destroy and recreate from this file) is outstanding for
 #   vllm_env3 too and should be done for both together:
