@@ -51,8 +51,9 @@ def load_structure_suffixes(
     raises. It previously caught every exception and returned the Python
     defaults, so a missing file, a permissions error or a YAML syntax error all
     produced a plausible-looking config that silently ignored the operator's
-    settings -- the pattern CLAUDE.md forbids ("If a YAML key is missing, fail
-    fast with a clear error -- do not silently fall back to a Python constant").
+    settings. That is the silent-fallback pattern this project's engineering
+    standards forbid: a missing or unreadable configuration must fail fast with
+    a diagnostic error, never fall back to a Python constant.
 
     Raises:
         ValueError: If *extraction_yaml_path* is given but cannot be read or
