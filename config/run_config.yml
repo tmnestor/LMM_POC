@@ -544,11 +544,16 @@ pipeline:
       # the wrong answer key and reports plausible numbers.
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812/ground_truth.jsonl
       ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812/ground_truth.jsonl
-      # SMOKE SETTING — set back to null for the headline run. 12 images is enough
-      # to prove the plumbing: no <think> leakage, completion_tokens below the
-      # ceiling, and the engine reporting tp=2 with the configured max_num_seqs.
-      # max_images: null     # null = process all 165
-      max_images: 12
+      # MUST stay null for this comparison — both models have to see the same 165
+      # images or the result is meaningless.
+      # Historical note worth keeping: until 2026-09-21 this key was DEAD on the
+      # stages path (only cli.py honoured it), so a run configured for 12 images
+      # quietly processed all 165. The Qwen headline run was started under that
+      # bug and therefore covered the full set. Now that discover_images applies
+      # it, leaving a smoke value here would make the SECOND model run 12 images
+      # against the first model's 165 and report a plausible comparison.
+      # max_images: 12       # smoke only, and never while a comparison is open
+      max_images: null       # null = process all images
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
     output:
