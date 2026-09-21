@@ -27,7 +27,13 @@ bootstrap:
   model:
     # type: internvl3-vllm
     # type: gemma4-12b-unified-vllm
-    type: gemma4-12b-unified-w4a16-vllm
+    # type: gemma4-12b-unified-w4a16-vllm
+    # The two models of the Gemma 31B vs Qwen 3.8 comparison. Switch between
+    # these two lines and nothing else — same prompts, same ground truth, same
+    # scorer, same engine (vllm_env4), same 2xL4 at tp=2. Swap the output dir to
+    # match, or the second model resumes from the first model's completed images.
+    # type: gemma4-31b-w4a16-vllm
+    type: qwen38-27b-fp8-vllm
     # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
     # path: /home/jovyan/nfs_share/models/gemma-4-12B-it
     path: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
@@ -509,7 +515,12 @@ pipeline:
       # Invoices are untouched — their layout has a real Unit Price column.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812
+      # Gemma 31B vs Qwen 3.8 comparison (2026-09-21): the CLEAN 165-image set,
+      # not the degraded sibling. Same date, one character apart in the path, and
+      # the wrong one answers a different question — the clean set is what the
+      # Gemma 12B baseline (0.977 median / 0.841 mean) was measured on.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812
       # Extraction GT generated from the per-type YAMLs in
       # Synthetic_Doc_Generation/ground_truth via scripts/generate_extraction_gt.py.
       # (Separate from linking.ground_truth, which the transaction-linking task uses.)
@@ -528,8 +539,16 @@ pipeline:
       # plausible numbers. Keep the date on both lines identical.
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/nab_probe/ground_truth.jsonl
       # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812/ground_truth.jsonl
-      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812/ground_truth.jsonl
-      max_images: null       # null = process all images
+      # MUST stay on the same dataset as input.dir above — filenames match across
+      # the clean and degraded sets, so a mismatch scores real extractions against
+      # the wrong answer key and reports plausible numbers.
+      # ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/degraded_20260812/ground_truth.jsonl
+      ground_truth: /home/jovyan/nfs_share/tod_2026/evaluation_data/synthetic_20260812/ground_truth.jsonl
+      # SMOKE SETTING — set back to null for the headline run. 12 images is enough
+      # to prove the plumbing: no <think> leakage, completion_tokens below the
+      # ceiling, and the engine reporting tp=2 with the configured max_num_seqs.
+      # max_images: null     # null = process all 165
+      max_images: 12
       document_types: null   # null = all types, or comma-separated: INVOICE,RECEIPT,BANK_STATEMENT,TRAVEL_EXPENSE,VEHICLE_LOGBOOK
     # Output settings
     output:
@@ -551,7 +570,16 @@ pipeline:
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded
+      # SMOKE output, deliberately separate from the headline dirs below. The
+      # stages resume from image_name values already present here, so a smoke
+      # sharing the headline directory would make the headline run SKIP those
+      # twelve images and still report a plausible number.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded
+      # Headline dirs for this comparison, one per model — switch to these when
+      # max_images goes back to null:
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
