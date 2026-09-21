@@ -221,3 +221,47 @@ register_vllm_model(
         default_image_first=True,
     )
 )
+
+# -- Qwen 3.8 ---------------------------------------------------------------------
+# Qwen/Qwen3.8-27B-FP8. NOT Qwen3-VL: the architecture is
+# Qwen3_5ForConditionalGeneration / model_type qwen3_5 — a hybrid stack of 64
+# layers running three Gated DeltaNet linear-attention layers to one full-attention
+# layer, so only 16 layers carry a KV cache and the other 48 carry fp32 recurrent
+# state that is constant per sequence rather than growing per token.
+#
+# Needs vLLM >= 0.28.0 (Qwen3.5-family support landed in 0.27.0; 0.28.0 is the
+# first stable release postdating the Qwen3.8 checkpoints). vllm_env3's 0.25.1
+# CANNOT load it — see conda_envs/vllm_env4.yaml, which serves this model and the
+# Gemma 31B from one engine so the comparison carries no engine confound.
+#
+# Thinking is ON by default in this checkpoint and it fails QUIETLY: the chat
+# template treats an undefined enable_thinking as true, defaults reasoning_effort
+# to 'xhigh', and injects a system message telling the model to reason at length
+# before opening a <think> block. This pipeline sends a bare user message
+# precisely to avoid that. Unsuppressed, extraction spends its completion budget
+# reasoning and still returns a parseable-looking response.
+#
+# The checkpoint's generation_config.json also asks for sampling (do_sample true,
+# temperature 1.0), but that never reaches the sampler: VllmBackend builds
+# SamplingParams(temperature=0) at the call site and vLLM honours per-request
+# params over the checkpoint file. No override is needed and none should be added.
+#
+# Sizes images by PIXEL AREA, not tiles: visual tokens = pixels / 1024. A
+# 1800x3508 bank statement is ~6,166 visual tokens and is NOT downscaled at the
+# default cap. The knob is mm_processor_kwargs {min_pixels, max_pixels} in
+# run_config.yml — no hf_overrides, unlike Gemma's soft-token budget.
+register_vllm_model(
+    VllmSpec(
+        model_type="qwen38-27b-fp8-vllm",
+        prompt_file="internvl3_prompts.yaml",
+        description="Qwen 3.8 27B block-scaled FP8 via vLLM (25.87 GiB, 2xL4 tp=2)",
+        chat_template_kwargs={"enable_thinking": False},
+        # Pixel-area sizing, not InternVL 448-px dynamic tiling.
+        supports_pre_tiling=False,
+        # 25.87 GiB of weights exceeds a single 24 GiB L4, so one engine per card
+        # is impossible and the DP fast path must not fire.
+        supports_data_parallel=False,
+        # Qwen's chat template places image content before text.
+        default_image_first=True,
+    )
+)
