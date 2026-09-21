@@ -379,6 +379,15 @@ def build_vllm_processor_creator(spec: VllmSpec):
     return _creator
 
 
+# Registered specs, keyed by model_type. ``register_model`` stores loaders and
+# processor creators built from a spec via closures, so without this map a spec's
+# declared capabilities — chat_template_kwargs, supports_pre_tiling,
+# default_image_first — are unreachable once registration has happened. That
+# matters because those capabilities fail QUIETLY: a model that reasons when it
+# should not still returns a parseable response.
+_VLLM_SPECS: dict[str, VllmSpec] = {}
+
+
 def register_vllm_model(spec: VllmSpec) -> None:
     """Register a vLLM model with the registry.
 
@@ -389,6 +398,8 @@ def register_vllm_model(spec: VllmSpec) -> None:
         spec: Declarative vLLM model specification.
     """
     from models.registry import ModelRegistration, register_model
+
+    _VLLM_SPECS[spec.model_type] = spec
 
     register_model(
         ModelRegistration(
