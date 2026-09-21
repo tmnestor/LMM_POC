@@ -223,9 +223,19 @@ inference:
         # weight footprint halves, so this matches the other blocks at 0.90.
         gpu_memory_utilization: 0.90
         limit_mm_per_prompt: 1       # one whole image; Gemma pan-and-scans internally
-        # PROVISIONAL, same basis as the Qwen block below: 1 disables vLLM's
-        # continuous batching entirely, which cost this pipeline 3.1-3.3x until
-        # 2026-08-14. The engine-load smoke sets the real ceiling.
+        # MEASURED on 2xL4 at tp=2, 2026-09-21:
+        #   kernel                          MarlinLinearKernel (CompressedTensorsWNA16)
+        #   consumed (weights + non-torch)  10.89 GiB/card
+        #   peak activation                  0.92 GiB
+        #   KV cache                         8.02 GiB  = 19,081 tokens
+        #   reported concurrency             2.33x at max_model_len 8192
+        # KV here costs ~440 KiB/token against Qwen's ~41 KiB — this is a dense
+        # full-attention model where EVERY layer carries a cache, while Qwen keeps
+        # one in only 16 of 64 layers. Hence Gemma holds 4.5x FEWER KV tokens
+        # despite having 4.7x more KV memory.
+        # 8 is kept rather than the reported 2.33x because that figure is a
+        # worst-case reservation (KV tokens / max_model_len), not a cap, and
+        # matching the Qwen block keeps scheduling out of the comparison.
         # max_num_seqs: 1            # pre-2026-08-14 behaviour, one at a time
         max_num_seqs: 8
         enable_prefix_caching: true
@@ -377,10 +387,12 @@ inference:
       # QUANTISATION REALITY, verified at load 2026-09-21: these cards are Ada
       # sm_89 with NO native FP8 compute, so vLLM selects
       # MarlinFP8ScaledMMLinearKernel and runs WEIGHT-ONLY FP8 (W8A16), warning
-      # that it "may degrade performance for compute-heavy workloads". The model
-      # runs correctly — but the throughput half of this comparison is therefore
-      # Marlin-W8A16 Qwen against native-W4A16 Gemma, and that asymmetry must be
-      # stated whenever the speed numbers are quoted.
+      # that it "may degrade performance for compute-heavy workloads".
+      # This is NOT the lopsided comparison it first looks like: the Gemma 31B
+      # goes through MarlinLinearKernel (CompressedTensorsWNA16) as well. Both
+      # models run weight-only Marlin kernels and differ in bit-width, W8A16 vs
+      # W4A16 — a like-for-like kernel family, which is worth stating explicitly
+      # because "FP8 fell back to Marlin" reads like a handicap and is not one.
       qwen38-27b-fp8-vllm:
         # 16384 holds a ~6,166-visual-token bank statement at native resolution
         # plus prompt and output. Only 16 of the 64 layers carry KV (~32 KiB per
@@ -400,14 +412,16 @@ inference:
         # use the slack; left alone so both models keep the same utilisation.
         gpu_memory_utilization: 0.90
         limit_mm_per_prompt: 1       # one whole image; Qwen sizes it by pixel area
-        # 5 is the MEASURED ceiling, not a guess: vLLM reports "GPU KV cache size:
-        # 86,167 tokens, Maximum concurrency for 16,384 tokens per request: 5.26x".
-        # Anything above that is decoration — the 12B saw exactly this, where 8 and
-        # 10 scored identically against a 3.43x ceiling. Concurrency is bounded by
-        # KV tokens / max_model_len, so the lever is max_model_len or free VRAM,
-        # never this number on its own.
-        # max_num_seqs: 8            # provisional pre-measurement value
-        max_num_seqs: 5
+        # vLLM reported "GPU KV cache size: 86,167 tokens, Maximum concurrency for
+        # 16,384 tokens per request: 5.26x" at load. That figure is a WORST-CASE
+        # RESERVATION (KV tokens / max_model_len), not a hard cap — real requests
+        # are far shorter than the maximum, so actual concurrency runs higher.
+        # 8 matches the Gemma 31B below so neither model gets a scheduling
+        # advantage. Note pipeline.batch pins both to batch size 1 anyway, so this
+        # bounds in-flight requests rather than driving them.
+        # max_num_seqs: 5            # briefly set to the reported ceiling; that
+        #                            # misread a reservation as a limit
+        max_num_seqs: 8
         enable_prefix_caching: true
         mm_processor_kwargs:
           # Qwen sizes images by PIXEL AREA, not tiles and not a soft-token
