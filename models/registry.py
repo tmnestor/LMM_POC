@@ -129,11 +129,17 @@ register_vllm_model(
 
 # -- Gemma 4 ---------------------------------------------------------------------
 # Google's own QAT W4A16 checkpoint (compressed-tensors), which vLLM loads
-# natively — 23.3 GB on disk (NOT the ~18 GB a naive 4-bit estimate suggests;
-# the vision embedder is excluded from quantisation). Fits a single L40S, but
-# at gpu_memory_utilization 0.85 that leaves ~16 GB for KV cache AND vision
-# activations — and activations are what OOM'd the BF16 31B at
-# max_soft_tokens=1120, so raising the budget still needs care.
+# natively — 23,265,352,448 B = 21.67 GiB on disk (NOT the ~18 GB a naive 4-bit
+# estimate suggests; the vision embedder is excluded from quantisation).
+#
+# HARDWARE CORRECTED 2026-09-22: this block previously described a single L40S at
+# tp=1. The evaluation hardware is 2xL4 (24 GiB each, ~22.5 usable), and 21.67 GiB
+# does NOT fit one of them — so this runs as ONE engine sharded tp=2 across the
+# pair, over PCIe with no NVLink. Throughput measured that way is pessimistic and
+# is not what the model would do on one adequate card.
+# Activations are what OOM'd the BF16 31B at max_soft_tokens=1120, so raising the
+# visual budget still needs care — and 1120 separately REGRESSED accuracy
+# decisively on two corpora, so it is never re-tried regardless of memory.
 # Engine tuning (soft-token budget, max_model_len, gpu_memory_utilization) lives
 # in run_config.yml under inference.vllm.models — only capabilities are here.
 # Registered as an ALTERNATIVE for A/B against InternVL3.5; not the default.
@@ -141,15 +147,15 @@ register_vllm_model(
     VllmSpec(
         model_type="gemma4-31b-w4a16-vllm",
         prompt_file="internvl3_prompts.yaml",
-        description="Gemma 4 31B-it QAT W4A16 via vLLM (~18 GB, 1xL40S tp=1)",
+        description="Gemma 4 31B-it QAT W4A16 via vLLM (21.67 GiB, 2xL4 tp=2)",
         # Gemma's chat template reasons by default; unlike InternVL3.5 it honours
         # enable_thinking, so suppress it here rather than via a template file.
         chat_template_kwargs={"enable_thinking": False},
         # Sizes images via its own soft-token budget + pan-and-scan, NOT InternVL
         # 448-px dynamic tiling.
         supports_pre_tiling=False,
-        # ~18 GB of weights plus KV and vision activations wants the whole card;
-        # one engine per GPU would OOM on anything smaller than the L40S.
+        # 21.67 GiB of weights exceeds a single 24 GiB L4 outright, so one engine
+        # per GPU is impossible and the DP fast path must not fire.
         supports_data_parallel=False,
         # Model card recommends image content before the text.
         default_image_first=True,
