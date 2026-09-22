@@ -32,11 +32,13 @@ bootstrap:
     # these two lines and nothing else — same prompts, same ground truth, same
     # scorer, same engine (vllm_env4), same 2xL4 at tp=2. Swap the output dir to
     # match, or the second model resumes from the first model's completed images.
-    # Run 1 of 2 DONE 2026-09-21: qwen38-27b-fp8-vllm over the clean 165, results
-    # in output_qwen38_20260921 (the dir name predates the decision to let that
-    # run go full-length; the summary JSON carries the authoritative model name).
-    # type: qwen38-27b-fp8-vllm
-    type: gemma4-31b-w4a16-vllm
+    # RUN ORDER, corrected 2026-09-22. The first "Qwen" run was VOID: a stale
+    # `path:` below outranked this key and loaded the 12B checkpoint under the
+    # Qwen name (see the path: comment). Gemma 31B ran second, correctly, with
+    # path: null. Qwen 3.8 is therefore the run still outstanding — this is the
+    # first time it will actually be measured.
+    # type: gemma4-31b-w4a16-vllm   # DONE 2026-09-22 -> output_gemma31b_20260921
+    type: qwen38-27b-fp8-vllm
     # null = resolve from default_paths below, keyed by `type` above.
     #
     # SET TO NULL 2026-09-22 after this line silently outranked `type`. An
@@ -108,8 +110,8 @@ bootstrap:
     # output_qwen38_20260921 while its entrypoint log landed in
     # output_gemma_degraded/logs, purely because this line was left stale.
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded/logs
-    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921/logs  # Qwen 3.8
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921/logs
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921/logs  # Gemma 31B, DONE
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -605,8 +607,12 @@ pipeline:
       # One dir per model, and they must NEVER be shared: the stages resume from
       # image_name values already present, so the second model would skip every
       # image the first completed and still report a plausible score.
-      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921  # Qwen 3.8, DONE
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921  # Gemma 31B, DONE
+      # The earlier directory of this name held the VOID 12B-under-Qwen's-name run.
+      # It must be renamed away or cleared (CLEAR_PREV_OUTPUT=true) before this
+      # run starts, or the stages resume over the wrong checkpoint's records and
+      # silently blend two models into one score.
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
