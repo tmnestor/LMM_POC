@@ -33,13 +33,26 @@ bootstrap:
     # scorer, same engine (vllm_env4), same 2xL4 at tp=2. Swap the output dir to
     # match, or the second model resumes from the first model's completed images.
     # Run 1 of 2 DONE 2026-09-21: qwen38-27b-fp8-vllm over the clean 165, results
-    # in output_smoke_20260921 (the dir name predates the decision to let that
+    # in output_qwen38_20260921 (the dir name predates the decision to let that
     # run go full-length; the summary JSON carries the authoritative model name).
     # type: qwen38-27b-fp8-vllm
     type: gemma4-31b-w4a16-vllm
+    # null = resolve from default_paths below, keyed by `type` above.
+    #
+    # SET TO NULL 2026-09-22 after this line silently outranked `type`. An
+    # explicit path WINS over default_paths (common/pipeline_config.py:518 only
+    # consults default_paths when model_path is empty), and the entrypoint never
+    # passes --model, so the CLI-override escape at line 512 never fires either.
+    # It was left pointing at the 12B checkpoint while `type` said 31B — which
+    # would have loaded 12B weights and reported them as the 31B. A wrong-model
+    # run that completes and scores is the worst failure this pipeline can have,
+    # because nothing in the output contradicts it.
+    # Leaving this null makes default_paths the single source, keyed by type, so
+    # the two cannot diverge again.
     # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
     # path: /home/jovyan/nfs_share/models/gemma-4-12B-it
-    path: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
+    # path: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
+    path: null
     # path: /efs/shared/PTM/InternVL3_5-8B   # alternate (EFS) deployment path
     max_tiles: 18          # Image tiles (L4 / A10G: 18)
     min_tiles: null        # null = disabled; set (e.g. 6) for adaptive quality-based tiling (min_tiles..max_tiles)
@@ -92,10 +105,10 @@ bootstrap:
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9/logs
     # Keep this in step with pipeline.information_extraction.output.dir. It is a
     # SEPARATE key, not derived from it — the Qwen run wrote its evaluation to
-    # output_smoke_20260921 while its entrypoint log landed in
+    # output_qwen38_20260921 while its entrypoint log landed in
     # output_gemma_degraded/logs, purely because this line was left stale.
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded/logs
-    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921/logs  # Qwen 3.8
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921/logs  # Qwen 3.8
     log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
@@ -592,7 +605,7 @@ pipeline:
       # One dir per model, and they must NEVER be shared: the stages resume from
       # image_name values already present, so the second model would skip every
       # image the first completed and still report a plausible score.
-      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921  # Qwen 3.8, DONE
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921  # Qwen 3.8, DONE
       dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
