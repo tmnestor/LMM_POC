@@ -337,7 +337,25 @@ def _list_item_matches(extracted_item: str, ground_truth_item: str, field_name: 
 
     Returns:
         True when the two items match under the field's own comparison rule.
+        A ``NOT_FOUND`` placeholder is decided first, as a sentinel: two
+        placeholders match, a placeholder against a value never does, and
+        neither is ever handed to a typed comparator.
     """
+    # A NOT_FOUND placeholder is a sentinel, not a value: it is not a price, a
+    # date or a piece of text, whatever the field's schema type says. Decide it
+    # here, ABOVE every type dispatch (the bank register's included), because
+    # handing it to a typed comparator is exactly how it went wrong: the monetary
+    # path regex-strips "NOT_FOUND" to "", float("") raises, and the except
+    # returns 0.0 -- so a prediction that correctly says "nothing here" scored
+    # as a miss. On the 2026-09-21 Gemma 31B run that turned eleven receipts with
+    # BYTE-IDENTICAL predictions into 0.286-0.400 on LINE_ITEM_PRICES, and would
+    # have been reported as a model weakness.
+    extracted_absent = extracted_item.strip().upper() == "NOT_FOUND"
+    truth_absent = ground_truth_item.strip().upper() == "NOT_FOUND"
+    if extracted_absent or truth_absent:
+        # Both absent is a match; absent-vs-present is a genuine error either way.
+        return extracted_absent and truth_absent
+
     fields = get_field_schema()
 
     # The bank register keeps its own comparator: those fields are index-aligned
