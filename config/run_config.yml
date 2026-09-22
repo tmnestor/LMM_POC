@@ -32,8 +32,11 @@ bootstrap:
     # these two lines and nothing else — same prompts, same ground truth, same
     # scorer, same engine (vllm_env4), same 2xL4 at tp=2. Swap the output dir to
     # match, or the second model resumes from the first model's completed images.
-    # type: gemma4-31b-w4a16-vllm
-    type: qwen38-27b-fp8-vllm
+    # Run 1 of 2 DONE 2026-09-21: qwen38-27b-fp8-vllm over the clean 165, results
+    # in output_smoke_20260921 (the dir name predates the decision to let that
+    # run go full-length; the summary JSON carries the authoritative model name).
+    # type: qwen38-27b-fp8-vllm
+    type: gemma4-31b-w4a16-vllm
     # path: /home/jovyan/nfs_share/models/InternVL3_5-8B
     # path: /home/jovyan/nfs_share/models/gemma-4-12B-it
     path: /home/jovyan/nfs_share/models/gemma-4-12B-it-qat-w4a16-ct
@@ -87,7 +90,13 @@ bootstrap:
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_nab_probe/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811/logs
     # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_20260811_rule9/logs
-    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded/logs
+    # Keep this in step with pipeline.information_extraction.output.dir. It is a
+    # SEPARATE key, not derived from it — the Qwen run wrote its evaluation to
+    # output_smoke_20260921 while its entrypoint log landed in
+    # output_gemma_degraded/logs, purely because this line was left stale.
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded/logs
+    # log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921/logs  # Qwen 3.8
+    log_dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921/logs
 
 # I/O paths moved into pipeline.information_extraction.* (2026-06-10) so all three
 # pipelines (information_extraction / trust / linking) are symmetric
@@ -580,11 +589,11 @@ pipeline:
       # sharing the headline directory would make the headline run SKIP those
       # twelve images and still report a plausible number.
       # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma_degraded
-      # Headline dirs for this comparison, one per model — switch to these when
-      # max_images goes back to null:
-      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_qwen38_20260921
-      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921
-      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921
+      # One dir per model, and they must NEVER be shared: the stages resume from
+      # image_name values already present, so the second model would skip every
+      # image the first completed and still report a plausible score.
+      # dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_smoke_20260921  # Qwen 3.8, DONE
+      dir: /home/jovyan/nfs_share/tod_2026/evaluation_data/output_gemma31b_20260921
       skip_visualizations: false  # Skip visualization generation
       skip_reports: false         # Skip report generation
 
